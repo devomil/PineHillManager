@@ -133,6 +133,29 @@ export const messages = pgTable("messages", {
   readAt: timestamp("read_at"),
 });
 
+// Push subscriptions for mobile notifications
+export const pushSubscriptions = pgTable("push_subscriptions", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  endpoint: text("endpoint").notNull(),
+  p256dhKey: text("p256dh_key").notNull(),
+  authKey: text("auth_key").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Notifications for time-sensitive approvals
+export const notifications = pgTable("notifications", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  title: varchar("title").notNull(),
+  body: text("body").notNull(),
+  type: varchar("type").notNull(), // 'time_off_request', 'shift_coverage', 'approval_needed'
+  relatedId: integer("related_id"), // ID of the related record (time off request, etc.)
+  isRead: boolean("is_read").default(false),
+  sentAt: timestamp("sent_at").defaultNow(),
+  readAt: timestamp("read_at"),
+});
+
 // Define relations
 export const usersRelations = relations(users, ({ many }) => ({
   timeOffRequests: many(timeOffRequests),
@@ -142,6 +165,8 @@ export const usersRelations = relations(users, ({ many }) => ({
   trainingProgress: many(trainingProgress),
   sentMessages: many(messages, { relationName: "sender" }),
   receivedMessages: many(messages, { relationName: "recipient" }),
+  pushSubscriptions: many(pushSubscriptions),
+  notifications: many(notifications),
 }));
 
 export const timeOffRequestsRelations = relations(timeOffRequests, ({ one }) => ({
@@ -225,6 +250,26 @@ export const insertMessageSchema = createInsertSchema(messages).omit({
   readAt: true,
 });
 
+export const insertPushSubscriptionSchema = createInsertSchema(pushSubscriptions).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertNotificationSchema = createInsertSchema(notifications).omit({
+  id: true,
+  sentAt: true,
+  readAt: true,
+});
+
+// Add relations for new tables
+export const pushSubscriptionsRelations = relations(pushSubscriptions, ({ one }) => ({
+  user: one(users, { fields: [pushSubscriptions.userId], references: [users.id] }),
+}));
+
+export const notificationsRelations = relations(notifications, ({ one }) => ({
+  user: one(users, { fields: [notifications.userId], references: [users.id] }),
+}));
+
 // Export types
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
@@ -242,3 +287,7 @@ export type InsertTrainingProgress = z.infer<typeof insertTrainingProgressSchema
 export type TrainingProgress = typeof trainingProgress.$inferSelect;
 export type InsertMessage = z.infer<typeof insertMessageSchema>;
 export type Message = typeof messages.$inferSelect;
+export type InsertPushSubscription = z.infer<typeof insertPushSubscriptionSchema>;
+export type PushSubscription = typeof pushSubscriptions.$inferSelect;
+export type InsertNotification = z.infer<typeof insertNotificationSchema>;
+export type Notification = typeof notifications.$inferSelect;

@@ -72,6 +72,17 @@ export interface IStorage {
   createMessage(message: InsertMessage): Promise<Message>;
   getUserMessages(userId: string): Promise<Message[]>;
   markMessageAsRead(id: number): Promise<Message>;
+
+  // Push subscriptions
+  savePushSubscription(subscription: InsertPushSubscription): Promise<PushSubscription>;
+  getPushSubscriptions(userId: string): Promise<PushSubscription[]>;
+  getAllManagerPushSubscriptions(): Promise<PushSubscription[]>;
+
+  // Notifications
+  createNotification(notification: InsertNotification): Promise<Notification>;
+  getUserNotifications(userId: string): Promise<Notification[]>;
+  markNotificationAsRead(id: number): Promise<Notification>;
+  getUnreadNotifications(userId: string): Promise<Notification[]>;
 }
 
 export class DatabaseStorage implements IStorage {
