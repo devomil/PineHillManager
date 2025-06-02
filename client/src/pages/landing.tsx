@@ -40,8 +40,8 @@ export default function Landing() {
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
           <Card className="border-0 shadow-lg">
             <CardHeader className="text-center">
-              <div className="w-12 h-12 bg-farm-green bg-opacity-10 rounded-lg flex items-center justify-center mx-auto mb-4">
-                <Clock className="w-6 h-6 text-farm-green" />
+              <div className="w-12 h-12 bg-emerald-50 rounded-lg flex items-center justify-center mx-auto mb-4">
+                <Clock className="w-6 h-6 text-emerald-500" />
               </div>
               <CardTitle>Time Management</CardTitle>
             </CardHeader>
@@ -54,8 +54,8 @@ export default function Landing() {
 
           <Card className="border-0 shadow-lg">
             <CardHeader className="text-center">
-              <div className="w-12 h-12 bg-farm-blue bg-opacity-10 rounded-lg flex items-center justify-center mx-auto mb-4">
-                <MessageSquare className="w-6 h-6 text-farm-blue" />
+              <div className="w-12 h-12 bg-blue-50 rounded-lg flex items-center justify-center mx-auto mb-4">
+                <MessageSquare className="w-6 h-6 text-blue-500" />
               </div>
               <CardTitle>Communication</CardTitle>
             </CardHeader>
@@ -68,8 +68,8 @@ export default function Landing() {
 
           <Card className="border-0 shadow-lg">
             <CardHeader className="text-center">
-              <div className="w-12 h-12 bg-farm-brown bg-opacity-10 rounded-lg flex items-center justify-center mx-auto mb-4">
-                <Users className="w-6 h-6 text-farm-brown" />
+              <div className="w-12 h-12 bg-slate-100 rounded-lg flex items-center justify-center mx-auto mb-4">
+                <Users className="w-6 h-6 text-slate-500" />
               </div>
               <CardTitle>Team Collaboration</CardTitle>
             </CardHeader>
