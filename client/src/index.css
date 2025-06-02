@@ -1,0 +1,98 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 240 10% 98%; /* #F8FAFC */
+  --foreground: 220 39% 11%; /* #1E293B */
+  --muted: 210 40% 96%; /* #F1F5F9 */
+  --muted-foreground: 215 25% 27%; /* #475569 */
+  --popover: 0 0% 100%; /* #FFFFFF */
+  --popover-foreground: 220 39% 11%; /* #1E293B */
+  --card: 0 0% 100%; /* #FFFFFF */
+  --card-foreground: 220 39% 11%; /* #1E293B */
+  --border: 220 13% 91%; /* #E2E8F0 */
+  --input: 220 13% 91%; /* #E2E8F0 */
+  --primary: 158 64% 52%; /* #10B981 */
+  --primary-foreground: 0 0% 100%; /* #FFFFFF */
+  --secondary: 210 40% 96%; /* #F1F5F9 */
+  --secondary-foreground: 220 39% 11%; /* #1E293B */
+  --accent: 210 40% 96%; /* #F1F5F9 */
+  --accent-foreground: 220 39% 11%; /* #1E293B */
+  --destructive: 0 84% 60%; /* #EF4444 */
+  --destructive-foreground: 0 0% 100%; /* #FFFFFF */
+  --ring: 158 64% 52%; /* #10B981 */
+  --radius: 0.5rem;
+  
+  /* Farm-specific colors */
+  --farm-green: 158 64% 52%; /* #10B981 */
+  --farm-brown: 30 84% 34%; /* #92400E */
+  --farm-blue: 199 89% 48%; /* #0EA5E9 */
+  --farm-gray: 215 25% 27%; /* #64748B */
+}
+
+.dark {
+  --background: 240 10% 4%; /* #0F172A */
+  --foreground: 210 40% 98%; /* #F8FAFC */
+  --muted: 215 28% 17%; /* #334155 */
+  --muted-foreground: 217 11% 65%; /* #94A3B8 */
+  --popover: 240 10% 4%; /* #0F172A */
+  --popover-foreground: 210 40% 98%; /* #F8FAFC */
+  --card: 240 10% 4%; /* #0F172A */
+  --card-foreground: 210 40% 98%; /* #F8FAFC */
+  --border: 215 28% 17%; /* #334155 */
+  --input: 215 28% 17%; /* #334155 */
+  --primary: 158 64% 52%; /* #10B981 */
+  --primary-foreground: 0 0% 100%; /* #FFFFFF */
+  --secondary: 215 28% 17%; /* #334155 */
+  --secondary-foreground: 210 40% 98%; /* #F8FAFC */
+  --accent: 215 28% 17%; /* #334155 */
+  --accent-foreground: 210 40% 98%; /* #F8FAFC */
+  --destructive: 0 63% 31%; /* #991B1B */
+  --destructive-foreground: 210 40% 98%; /* #F8FAFC */
+  --ring: 158 64% 52%; /* #10B981 */
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply font-sans antialiased bg-background text-foreground;
+  }
+}
+
+@layer utilities {
+  .farm-green {
+    color: hsl(var(--farm-green));
+  }
+  
+  .bg-farm-green {
+    background-color: hsl(var(--farm-green));
+  }
+  
+  .farm-brown {
+    color: hsl(var(--farm-brown));
+  }
+  
+  .bg-farm-brown {
+    background-color: hsl(var(--farm-brown));
+  }
+  
+  .farm-blue {
+    color: hsl(var(--farm-blue));
+  }
+  
+  .bg-farm-blue {
+    background-color: hsl(var(--farm-blue));
+  }
+  
+  .farm-gray {
+    color: hsl(var(--farm-gray));
+  }
+  
+  .bg-farm-gray {
+    background-color: hsl(var(--farm-gray));
+  }
+}
