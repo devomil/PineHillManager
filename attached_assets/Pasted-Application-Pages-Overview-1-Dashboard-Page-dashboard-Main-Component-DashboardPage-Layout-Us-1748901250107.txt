@@ -1,0 +1,146 @@
+Application Pages Overview
+1. Dashboard Page (/dashboard)
+Main Component: DashboardPage Layout: Uses DashboardLayout
+
+Key Features:
+
+Navigation Handlers: Uses useDashboardNavigation hook for routing to different sections
+Time Off Management: Displays user's time off requests via TimeOffRequestsCard
+Admin Functions: Shows pending approvals for admin users
+Quick Actions: Direct navigation to training, announcements, calendar, etc.
+Modules:
+
+Dashboard navigation handlers (DashboardNavigationHandlers.tsx)
+Time off requests card with refresh functionality
+Role-based content display (admin vs regular user)
+2. Time Management Page (/time)
+Main Component: TimeManagementPage Context: TimeManagementProvider
+
+Key Features:
+
+Multi-Tab Interface:
+My Requests
+Shift Coverage
+Pending Approvals (admin only)
+Team Calendar
+Work Schedules
+Core Modules:
+
+Time Off Requests: (UserTimeOffRequests, PendingTimeOffApprovals)
+
+Request submission and tracking
+Admin approval workflow
+Status management (pending, approved, rejected)
+Shift Coverage System: (ShiftCoverageRequestsTab)
+
+Request shift coverage from colleagues
+Respond to coverage requests
+Real-time messaging system
+Work Schedule Management: (WorkScheduleTab)
+
+Admin schedule editor with calendar interface
+Employee schedule viewer
+Bulk scheduling tools
+Shift management (add, edit, delete)
+Team Calendar: (TeamCalendar)
+
+Visual calendar with events overlay
+Time off request visualization
+Work shift display
+Team availability overview
+Advanced Functions:
+
+Real-time Updates: Uses Supabase real-time subscriptions
+Data Refresh Management: Prevents excessive API calls
+Error Handling: Comprehensive error states with retry mechanisms
+Print Functionality: Schedule printing capabilities
+3. Communication Page (/communication)
+Main Component: CommunicationPage
+
+Key Features:
+
+Announcements Tab: Company-wide announcements
+Messages Tab: Internal messaging system
+Navigation Debug: Built-in navigation loop detection
+Modules:
+
+Tab-based interface with URL parameter handling
+Message processing and display
+Navigation state management
+4. Employees Page (/employees) - Admin Only
+Main Component: EmployeePage Access: Admin role required
+
+Key Features:
+
+Employee directory management
+Role assignment capabilities
+Employee information viewing/editing
+5. Marketing Page (/marketing)
+Main Component: MarketingPage
+
+Key Features:
+
+Marketing materials management
+Campaign tracking
+Asset organization
+6. Training Portal (/training)
+Main Component: TrainingPage
+
+Key Features:
+
+Training module access
+Progress tracking
+Course completion status
+7. Admin Training (/admin-training) - Admin Only
+Main Component: AdminTrainingPage Access: Admin role required
+
+Key Features:
+
+Training content management
+Course administration
+User progress monitoring
+8. Reports Page (/reports)
+Main Component: ReportsPage
+
+Key Features:
+
+Data analytics and reporting
+Export functionality
+Performance metrics
+9. Diagnostics Page (/diagnostics)
+Main Component: GlobalDiagnosticsPage
+
+Key Features:
+
+System health monitoring
+Navigation debugging tools
+Performance diagnostics
+Error tracking and resolution
+Core Application Infrastructure
+Navigation System
+Centralized Registry: Prevents duplicate navigation entries
+Role-Based Filtering: Shows appropriate navigation based on user role
+Route Validation: Ensures all routes are valid and accessible
+Mobile Support: Responsive navigation with mobile sheet
+Authentication & Authorization
+Supabase Integration: Email/password authentication
+Role Management: Admin/user role system
+Protected Routes: Role-based access control
+Session Management: Persistent login state
+State Management
+Context Providers: Separate contexts for different domains
+React Query: Data fetching and caching
+Real-time Subscriptions: Live data updates
+Local State: Component-level state management
+Data Layer
+Supabase Database: PostgreSQL with RLS policies
+Type Safety: Full TypeScript integration
+Error Handling: Comprehensive error states
+Optimistic Updates: Immediate UI feedback
+UI/UX Features
+Responsive Design: Mobile-first approach with Tailwind CSS
+Component Library: Shadcn/ui components
+Toast Notifications: User feedback system
+Loading States: Skeleton loaders and spinners
+Error Boundaries: Graceful error handling
+Each page is built with modularity in mind, using focused components and custom hooks to maintain clean separation of concerns and reusability across the application.
