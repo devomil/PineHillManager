@@ -15,6 +15,7 @@ import Training from "@/pages/training";
 import AdminTraining from "@/pages/admin-training";
 import Reports from "@/pages/reports";
 import Diagnostics from "@/pages/diagnostics";
+import Notifications from "@/pages/notifications";
 import AppLayout from "@/components/layout/app-layout";
 import ProtectedRoute from "@/components/common/protected-route";
 
@@ -35,6 +36,7 @@ function Router() {
           <Route path="/training" component={Training} />
           <Route path="/reports" component={Reports} />
           <Route path="/diagnostics" component={Diagnostics} />
+          <Route path="/notifications" component={Notifications} />
           
           {/* Admin-only routes */}
           <Route path="/employees">
