@@ -1,31 +1,7 @@
 import { storage } from './storage';
 
-// Import web-push conditionally to avoid startup errors
-let webpush: any = null;
-let isWebPushEnabled = false;
-
-// Try to initialize web-push with VAPID keys if available
-const initializeWebPush = async () => {
-  try {
-    if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
-      webpush = await import('web-push');
-      webpush.setVapidDetails(
-        'mailto:support@pinehillfarm.com',
-        process.env.VAPID_PUBLIC_KEY,
-        process.env.VAPID_PRIVATE_KEY
-      );
-      isWebPushEnabled = true;
-      console.log('Push notifications enabled with VAPID keys');
-    } else {
-      console.log('Push notifications disabled - VAPID keys not configured');
-    }
-  } catch (error) {
-    console.error('Failed to initialize web-push:', error);
-  }
-};
-
-// Initialize web-push
-initializeWebPush();
+// Notification service that stores notifications in database
+// Provides foundation for mobile app notifications
 
 export interface NotificationPayload {
   title: string;
@@ -44,14 +20,6 @@ export interface NotificationPayload {
 class NotificationService {
   async sendToUser(userId: string, payload: NotificationPayload): Promise<void> {
     try {
-      // Get user's push subscriptions
-      const subscriptions = await storage.getPushSubscriptions(userId);
-      
-      if (subscriptions.length === 0) {
-        console.log(`No push subscriptions found for user ${userId}`);
-        return;
-      }
-
       // Store notification in database
       await storage.createNotification({
         userId,
@@ -61,27 +29,7 @@ class NotificationService {
         relatedId: payload.data?.relatedId || null,
       });
 
-      // Send push notifications to all user's devices
-      const promises = subscriptions.map(async (subscription) => {
-        try {
-          const pushSubscription = {
-            endpoint: subscription.endpoint,
-            keys: {
-              p256dh: subscription.p256dhKey,
-              auth: subscription.authKey,
-            },
-          };
-
-          await webpush.sendNotification(
-            pushSubscription,
-            JSON.stringify(payload)
-          );
-        } catch (error) {
-          console.error(`Failed to send notification to subscription ${subscription.id}:`, error);
-        }
-      });
-
-      await Promise.allSettled(promises);
+      console.log(`Notification stored for user ${userId}: ${payload.title}`);
     } catch (error) {
       console.error('Error sending notification to user:', error);
     }
@@ -89,20 +37,20 @@ class NotificationService {
 
   async sendToAllManagers(payload: NotificationPayload): Promise<void> {
     try {
-      // Get all manager push subscriptions
-      const subscriptions = await storage.getAllManagerPushSubscriptions();
+      // Get all users with admin role
+      const allUsers = await storage.getAllUsers();
+      const managers = allUsers.filter(user => user.role === 'admin');
       
-      if (subscriptions.length === 0) {
-        console.log('No manager push subscriptions found');
+      if (managers.length === 0) {
+        console.log('No managers found to notify');
         return;
       }
 
       // Store notifications in database for each manager
-      const managerIds = Array.from(new Set(subscriptions.map(s => s.userId)));
       await Promise.all(
-        managerIds.map(managerId =>
+        managers.map(manager =>
           storage.createNotification({
-            userId: managerId,
+            userId: manager.id,
             title: payload.title,
             body: payload.body,
             type: payload.tag || 'general',
@@ -111,27 +59,7 @@ class NotificationService {
         )
       );
 
-      // Send push notifications to all manager devices
-      const promises = subscriptions.map(async (subscription) => {
-        try {
-          const pushSubscription = {
-            endpoint: subscription.endpoint,
-            keys: {
-              p256dh: subscription.p256dhKey,
-              auth: subscription.authKey,
-            },
-          };
-
-          await webpush.sendNotification(
-            pushSubscription,
-            JSON.stringify(payload)
-          );
-        } catch (error) {
-          console.error(`Failed to send notification to manager subscription ${subscription.id}:`, error);
-        }
-      });
-
-      await Promise.allSettled(promises);
+      console.log(`Notifications stored for ${managers.length} managers`);
     } catch (error) {
       console.error('Error sending notification to managers:', error);
     }
