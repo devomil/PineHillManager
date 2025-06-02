@@ -1,18 +1,31 @@
-import webpush from 'web-push';
 import { storage } from './storage';
 
-// Configure web-push with VAPID keys
-// Note: In production, these should be environment variables
-const vapidKeys = {
-  publicKey: process.env.VAPID_PUBLIC_KEY || 'BDefault-VAPID-Key-For-Development',
-  privateKey: process.env.VAPID_PRIVATE_KEY || 'default-private-key'
+// Import web-push conditionally to avoid startup errors
+let webpush: any = null;
+let isWebPushEnabled = false;
+
+// Try to initialize web-push with VAPID keys if available
+const initializeWebPush = async () => {
+  try {
+    if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
+      webpush = await import('web-push');
+      webpush.setVapidDetails(
+        'mailto:support@pinehillfarm.com',
+        process.env.VAPID_PUBLIC_KEY,
+        process.env.VAPID_PRIVATE_KEY
+      );
+      isWebPushEnabled = true;
+      console.log('Push notifications enabled with VAPID keys');
+    } else {
+      console.log('Push notifications disabled - VAPID keys not configured');
+    }
+  } catch (error) {
+    console.error('Failed to initialize web-push:', error);
+  }
 };
 
-webpush.setVapidDetails(
-  'mailto:support@pinehillfarm.com',
-  vapidKeys.publicKey,
-  vapidKeys.privateKey
-);
+// Initialize web-push
+initializeWebPush();
 
 export interface NotificationPayload {
   title: string;
@@ -85,7 +98,7 @@ class NotificationService {
       }
 
       // Store notifications in database for each manager
-      const managerIds = [...new Set(subscriptions.map(s => s.userId))];
+      const managerIds = Array.from(new Set(subscriptions.map(s => s.userId)));
       await Promise.all(
         managerIds.map(managerId =>
           storage.createNotification({

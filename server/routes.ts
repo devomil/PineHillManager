@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
+import { notificationService } from "./notificationService";
 import {
   insertTimeOffRequestSchema,
   insertWorkScheduleSchema,
@@ -68,6 +69,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       
       const request = await storage.createTimeOffRequest(validatedData);
+      
+      // Get employee name for notification
+      const user = await storage.getUser(userId);
+      const employeeName = user?.firstName && user?.lastName 
+        ? `${user.firstName} ${user.lastName}` 
+        : user?.email || 'Employee';
+      
+      // Send push notification to all managers for time-sensitive approval
+      await notificationService.notifyTimeOffRequest(request.id, employeeName);
+      
       res.json(request);
     } catch (error) {
       console.error("Error creating time off request:", error);
@@ -111,12 +122,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const { status, comments } = req.body;
       
+      // Get the original request to find the employee
+      const originalRequest = await storage.getUserTimeOffRequests('');
+      const targetRequest = originalRequest.find(r => r.id === parseInt(id));
+      
       const request = await storage.updateTimeOffRequestStatus(
         parseInt(id),
         status,
         req.user.claims.sub,
         comments
       );
+      
+      // Send notification to employee about approval decision
+      if (targetRequest?.userId) {
+        await notificationService.notifyApprovalDecision(
+          targetRequest.userId,
+          status === 'approved' ? 'approved' : 'denied',
+          'time off'
+        );
+      }
       
       res.json(request);
     } catch (error) {
