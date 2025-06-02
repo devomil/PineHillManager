@@ -7,6 +7,8 @@ import {
   trainingModules,
   trainingProgress,
   messages,
+  pushSubscriptions,
+  notifications,
   type User,
   type UpsertUser,
   type InsertTimeOffRequest,
@@ -23,6 +25,10 @@ import {
   type TrainingProgress,
   type InsertMessage,
   type Message,
+  type InsertPushSubscription,
+  type PushSubscription,
+  type InsertNotification,
+  type Notification,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, asc, gte, lte } from "drizzle-orm";
@@ -365,6 +371,81 @@ export class DatabaseStorage implements IStorage {
       .where(eq(messages.id, id))
       .returning();
     return message;
+  }
+
+  // Push subscription operations
+  async savePushSubscription(subscription: InsertPushSubscription): Promise<PushSubscription> {
+    const [saved] = await db
+      .insert(pushSubscriptions)
+      .values(subscription)
+      .onConflictDoUpdate({
+        target: [pushSubscriptions.userId, pushSubscriptions.endpoint],
+        set: {
+          p256dhKey: subscription.p256dhKey,
+          authKey: subscription.authKey,
+        },
+      })
+      .returning();
+    return saved;
+  }
+
+  async getPushSubscriptions(userId: string): Promise<PushSubscription[]> {
+    return await db
+      .select()
+      .from(pushSubscriptions)
+      .where(eq(pushSubscriptions.userId, userId));
+  }
+
+  async getAllManagerPushSubscriptions(): Promise<PushSubscription[]> {
+    return await db
+      .select({
+        id: pushSubscriptions.id,
+        userId: pushSubscriptions.userId,
+        endpoint: pushSubscriptions.endpoint,
+        p256dhKey: pushSubscriptions.p256dhKey,
+        authKey: pushSubscriptions.authKey,
+        createdAt: pushSubscriptions.createdAt,
+      })
+      .from(pushSubscriptions)
+      .innerJoin(users, eq(pushSubscriptions.userId, users.id))
+      .where(eq(users.role, "admin"));
+  }
+
+  // Notification operations
+  async createNotification(notification: InsertNotification): Promise<Notification> {
+    const [created] = await db
+      .insert(notifications)
+      .values(notification)
+      .returning();
+    return created;
+  }
+
+  async getUserNotifications(userId: string): Promise<Notification[]> {
+    return await db
+      .select()
+      .from(notifications)
+      .where(eq(notifications.userId, userId))
+      .orderBy(desc(notifications.sentAt));
+  }
+
+  async markNotificationAsRead(id: number): Promise<Notification> {
+    const [notification] = await db
+      .update(notifications)
+      .set({ isRead: true, readAt: new Date() })
+      .where(eq(notifications.id, id))
+      .returning();
+    return notification;
+  }
+
+  async getUnreadNotifications(userId: string): Promise<Notification[]> {
+    return await db
+      .select()
+      .from(notifications)
+      .where(and(
+        eq(notifications.userId, userId),
+        eq(notifications.isRead, false)
+      ))
+      .orderBy(desc(notifications.sentAt));
   }
 }
 

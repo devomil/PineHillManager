@@ -314,6 +314,66 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Push notification subscription routes
+  app.post("/api/notifications/subscribe", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { endpoint, keys } = req.body;
+      
+      if (!endpoint || !keys?.p256dh || !keys?.auth) {
+        return res.status(400).json({ message: "Invalid subscription data" });
+      }
+
+      const subscription = await storage.savePushSubscription({
+        userId,
+        endpoint,
+        p256dhKey: keys.p256dh,
+        authKey: keys.auth,
+      });
+
+      res.json(subscription);
+    } catch (error) {
+      console.error("Error saving push subscription:", error);
+      res.status(500).json({ message: "Failed to save push subscription" });
+    }
+  });
+
+  // Get user notifications
+  app.get("/api/notifications", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const notifications = await storage.getUserNotifications(userId);
+      res.json(notifications);
+    } catch (error) {
+      console.error("Error fetching notifications:", error);
+      res.status(500).json({ message: "Failed to fetch notifications" });
+    }
+  });
+
+  // Mark notification as read
+  app.patch("/api/notifications/:id/read", isAuthenticated, async (req: any, res) => {
+    try {
+      const notificationId = parseInt(req.params.id);
+      const notification = await storage.markNotificationAsRead(notificationId);
+      res.json(notification);
+    } catch (error) {
+      console.error("Error marking notification as read:", error);
+      res.status(500).json({ message: "Failed to update notification" });
+    }
+  });
+
+  // Get unread notifications count
+  app.get("/api/notifications/unread", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const notifications = await storage.getUnreadNotifications(userId);
+      res.json({ count: notifications.length });
+    } catch (error) {
+      console.error("Error fetching unread notifications:", error);
+      res.status(500).json({ message: "Failed to fetch unread notifications" });
+    }
+  });
+
   // Employees (admin only)
   app.get('/api/employees', isAuthenticated, async (req: any, res) => {
     try {
