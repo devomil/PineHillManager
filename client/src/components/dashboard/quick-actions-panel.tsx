@@ -21,25 +21,25 @@ export default function QuickActionsPanel() {
       label: "View Schedule",
       icon: CalendarDays,
       href: "/time",
-      color: "text-farm-green",
+      color: "text-emerald-500",
     },
     {
       label: "Request Coverage",
       icon: Handshake,
       href: "/time",
-      color: "text-farm-blue",
+      color: "text-blue-500",
     },
     {
       label: "Continue Training",
       icon: BookOpen,
       href: "/training",
-      color: "text-farm-brown",
+      color: "text-slate-500",
     },
     {
       label: "Announcements",
       icon: Megaphone,
       href: "/communication",
-      color: "text-purple-600",
+      color: "text-purple-500",
     },
   ];
 

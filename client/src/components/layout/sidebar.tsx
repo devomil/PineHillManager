@@ -78,11 +78,13 @@ export default function Sidebar({ mobileMenuOpen, setMobileMenuOpen }: SidebarPr
                 className={`w-full justify-start ${
                   isActive(item.href)
                     ? "bg-farm-green text-white hover:bg-green-600"
-                    : "text-slate-700 hover:bg-slate-100"
+                    : "text-slate-500 hover:bg-slate-100 hover:text-slate-700"
                 }`}
                 onClick={() => setMobileMenuOpen(false)}
               >
-                <item.icon className="w-5 h-5 mr-3" />
+                <item.icon className={`w-5 h-5 mr-3 ${
+                  isActive(item.href) ? "text-white" : "text-slate-400"
+                }`} />
                 {item.name}
               </Button>
             </Link>
@@ -103,11 +105,13 @@ export default function Sidebar({ mobileMenuOpen, setMobileMenuOpen }: SidebarPr
                     className={`w-full justify-start ${
                       isActive(item.href)
                         ? "bg-farm-green text-white hover:bg-green-600"
-                        : "text-slate-700 hover:bg-slate-100"
+                        : "text-slate-500 hover:bg-slate-100 hover:text-slate-700"
                     }`}
                     onClick={() => setMobileMenuOpen(false)}
                   >
-                    <item.icon className="w-5 h-5 mr-3" />
+                    <item.icon className={`w-5 h-5 mr-3 ${
+                      isActive(item.href) ? "text-white" : "text-slate-400"
+                    }`} />
                     {item.name}
                   </Button>
                 </Link>
@@ -139,7 +143,7 @@ export default function Sidebar({ mobileMenuOpen, setMobileMenuOpen }: SidebarPr
             variant="ghost"
             size="sm"
             onClick={handleLogout}
-            className="text-slate-500 hover:text-slate-700"
+            className="text-slate-400 hover:text-slate-600"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
