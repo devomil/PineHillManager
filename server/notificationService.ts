@@ -1,5 +1,6 @@
 import { storage } from './storage';
 import webpush from 'web-push';
+import { smsService } from './smsService';
 
 // Configure web push with VAPID keys
 if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
@@ -151,6 +152,11 @@ class NotificationService {
     };
 
     await this.sendToAllManagers(payload);
+    
+    // Send SMS notification to manager's phone (847-401-5540)
+    if (smsService.isConfigured()) {
+      await smsService.sendTimeOffAlert("8474015540", employeeName);
+    }
   }
 
   async notifyShiftCoverageRequest(requestId: number, requesterName: string, shiftDate: string): Promise<void> {
