@@ -84,6 +84,7 @@ export default function EnhancedShiftScheduling() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/work-schedules"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/calendar/events"] });
       setIsScheduleDialogOpen(false);
       setSelectedDays([]);
       setSelectedEmployee("");
@@ -215,6 +216,7 @@ export default function EnhancedShiftScheduling() {
   };
 
   const getSchedulesForDay = (date: Date) => {
+    if (!Array.isArray(schedules)) return [];
     return schedules.filter((schedule: WorkSchedule) => {
       const scheduleDate = parseISO(schedule.startTime);
       return format(scheduleDate, "yyyy-MM-dd") === format(date, "yyyy-MM-dd");
@@ -222,13 +224,15 @@ export default function EnhancedShiftScheduling() {
   };
 
   const getEmployeeName = (userId: string) => {
-    const employee = (employees as UserType[]).find((emp: UserType) => emp.id === userId);
+    if (!Array.isArray(employees)) return "Unknown";
+    const employee = employees.find((emp: UserType) => emp.id === userId);
     return employee ? `${employee.firstName} ${employee.lastName}` : "Unknown";
   };
 
   const getLocationName = (locationId: number | null) => {
     if (!locationId) return "Unknown Location";
-    const location = (locations as Location[]).find((loc: Location) => loc.id === locationId);
+    if (!Array.isArray(locations)) return "Unknown Location";
+    const location = locations.find((loc: Location) => loc.id === locationId);
     return location ? location.name : "Unknown Location";
   };
 
@@ -369,7 +373,7 @@ export default function EnhancedShiftScheduling() {
                       <SelectValue placeholder="Choose employee..." />
                     </SelectTrigger>
                     <SelectContent>
-                      {employees.map((employee: UserType) => (
+                      {(employees as UserType[]).map((employee: UserType) => (
                         <SelectItem key={employee.id} value={employee.id}>
                           {employee.firstName} {employee.lastName} ({employee.employeeId})
                         </SelectItem>
@@ -385,7 +389,7 @@ export default function EnhancedShiftScheduling() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {locations.map((location: Location) => (
+                      {(locations as Location[]).map((location: Location) => (
                         <SelectItem key={location.id} value={location.id.toString()}>
                           {location.name}
                         </SelectItem>
@@ -395,20 +399,24 @@ export default function EnhancedShiftScheduling() {
                 </div>
 
                 <div>
-                  <Label>Select Days</Label>
-                  <div className="grid grid-cols-2 gap-2 mt-2">
-                    {dayNames.map((day, index) => (
-                      <div key={index} className="flex items-center space-x-2">
-                        <Checkbox
-                          id={`day-${index}`}
-                          checked={selectedDays.includes(index)}
-                          onCheckedChange={() => handleDayToggle(index)}
-                        />
-                        <Label htmlFor={`day-${index}`} className="text-sm">
-                          {day.substring(0, 3)}
-                        </Label>
-                      </div>
-                    ))}
+                  <Label>Select Days (Week of {format(weekStart, "MMM d, yyyy")})</Label>
+                  <div className="grid grid-cols-1 gap-2 mt-2">
+                    {dayNames.map((day, index) => {
+                      const dayDate = weekDays[index];
+                      return (
+                        <div key={index} className="flex items-center space-x-2 p-2 rounded border">
+                          <Checkbox
+                            id={`day-${index}`}
+                            checked={selectedDays.includes(index)}
+                            onCheckedChange={() => handleDayToggle(index)}
+                          />
+                          <Label htmlFor={`day-${index}`} className="text-sm flex-1">
+                            <div className="font-medium">{day}</div>
+                            <div className="text-xs text-gray-500">{format(dayDate, "MMM d, yyyy")}</div>
+                          </Label>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
 
