@@ -3,11 +3,174 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+    <title>Pine Hill Farm - Employee Portal</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+        min-height: 100vh;
+        color: #1e293b;
+      }
+      
+      .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 2rem;
+      }
+      
+      .header {
+        text-align: center;
+        margin-bottom: 3rem;
+      }
+      
+      .logo {
+        width: 80px;
+        height: 80px;
+        background: #607e66;
+        border-radius: 20px;
+        margin: 0 auto 1rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 2rem;
+      }
+      
+      h1 {
+        font-size: 3rem;
+        font-weight: 700;
+        margin-bottom: 1rem;
+        color: #1e293b;
+      }
+      
+      .subtitle {
+        font-size: 1.5rem;
+        color: #64748b;
+        margin-bottom: 2rem;
+      }
+      
+      .description {
+        font-size: 1.125rem;
+        color: #64748b;
+        max-width: 600px;
+        margin: 0 auto 2rem;
+        line-height: 1.6;
+      }
+      
+      .login-btn {
+        background: #607e66;
+        color: white;
+        padding: 1rem 2rem;
+        border: none;
+        border-radius: 8px;
+        font-size: 1.125rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.2s;
+        text-decoration: none;
+        display: inline-block;
+      }
+      
+      .login-btn:hover {
+        background: #4f6b56;
+      }
+      
+      .features {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 2rem;
+        margin-top: 4rem;
+      }
+      
+      .feature-card {
+        background: white;
+        padding: 2rem;
+        border-radius: 12px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+        text-align: center;
+      }
+      
+      .feature-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 8px;
+        margin: 0 auto 1rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+      }
+      
+      .feature-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+        margin-bottom: 1rem;
+        color: #1e293b;
+      }
+      
+      .feature-description {
+        color: #64748b;
+        line-height: 1.6;
+      }
+      
+      .footer {
+        text-align: center;
+        margin-top: 4rem;
+        color: #64748b;
+      }
+    </style>
   </head>
   <body>
+    <div class="container">
+      <div class="header">
+        <div class="logo">🌲</div>
+        <h1>Pine Hill Farm</h1>
+        <div class="subtitle">Employee Portal</div>
+        <div class="description">
+          Welcome to the Pine Hill Farm employee management system. 
+          Access your schedule, manage time off, and stay connected with your team.
+        </div>
+        <a href="/api/login" class="login-btn">Sign In to Continue</a>
+      </div>
+      
+      <div class="features">
+        <div class="feature-card">
+          <div class="feature-icon" style="background: #dcfce7; color: #16a34a;">⏰</div>
+          <div class="feature-title">Time Management</div>
+          <div class="feature-description">
+            Request time off, view your schedule, and manage shift coverage with ease.
+          </div>
+        </div>
+        
+        <div class="feature-card">
+          <div class="feature-icon" style="background: #dbeafe; color: #2563eb;">💬</div>
+          <div class="feature-title">Communication</div>
+          <div class="feature-description">
+            Stay updated with company announcements and team communications.
+          </div>
+        </div>
+        
+        <div class="feature-card">
+          <div class="feature-icon" style="background: #f1f5f9; color: #64748b;">👥</div>
+          <div class="feature-title">Team Collaboration</div>
+          <div class="feature-description">
+            Connect with your colleagues and access training materials.
+          </div>
+        </div>
+      </div>
+      
+      <div class="footer">
+        <p>Need help? Contact your supervisor or IT support.</p>
+      </div>
+    </div>
+    
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
-    <!-- This is a replit script which adds a banner on the top of the page when opened in development mode outside the replit environment -->
-    <script type="text/javascript" src="https://replit.com/public/js/replit-dev-banner.js"></script>
   </body>
 </html>
