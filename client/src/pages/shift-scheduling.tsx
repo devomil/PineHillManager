@@ -278,6 +278,198 @@ export default function ShiftScheduling() {
       selectedLocation === "all" || schedule.locationId.toString() === selectedLocation
   );
 
+  // Helper functions for date formatting and navigation
+  const getViewTitle = () => {
+    const options: Intl.DateTimeFormatOptions = { year: 'numeric', month: 'long' };
+    
+    switch (viewType) {
+      case "week":
+        return `Week of ${startDate.toLocaleDateString()}`;
+      case "month":
+        return startDate.toLocaleDateString('en-US', options);
+      case "3month":
+        const endMonth = new Date(endDate);
+        endMonth.setDate(endMonth.getDate() - 1);
+        return `${startDate.toLocaleDateString('en-US', options)} - ${endMonth.toLocaleDateString('en-US', options)}`;
+      case "6month":
+        const end6Month = new Date(endDate);
+        end6Month.setDate(end6Month.getDate() - 1);
+        return `${startDate.toLocaleDateString('en-US', options)} - ${end6Month.toLocaleDateString('en-US', options)}`;
+      default:
+        return "Schedule View";
+    }
+  };
+
+  const handlePrevious = () => {
+    if (viewType === "week") {
+      setSelectedWeek(selectedWeek - 1);
+    } else {
+      setCurrentMonth(currentMonth - 1);
+    }
+  };
+
+  const handleNext = () => {
+    if (viewType === "week") {
+      setSelectedWeek(selectedWeek + 1);
+    } else {
+      setCurrentMonth(currentMonth + 1);
+    }
+  };
+
+  const renderScheduleView = () => {
+    if (viewType === "week") {
+      return renderWeekView();
+    } else {
+      return renderMonthView();
+    }
+  };
+
+  const renderWeekView = () => (
+    <div className="grid grid-cols-7 gap-4">
+      {weekDates.map((date, index) => {
+        const dayName = format(date, "EEEE");
+        const daySchedules = getSchedulesForDate(date);
+
+        return (
+          <div key={date.toISOString()} className="border rounded-lg p-3 min-h-32">
+            <div className="font-medium text-sm mb-2">
+              {dayName} {format(date, "M/d")}
+            </div>
+            <div className="space-y-2">
+              {daySchedules.length === 0 ? (
+                <div className="text-xs text-muted-foreground bg-gray-100 p-1 rounded">
+                  No shifts scheduled
+                </div>
+              ) : (
+                daySchedules.map((schedule) => (
+                  <div
+                    key={schedule.id}
+                    className="text-xs bg-blue-100 text-blue-800 p-2 rounded border group relative"
+                  >
+                    <div className="font-medium">
+                      {schedule.employee?.firstName} {schedule.employee?.lastName}
+                    </div>
+                    <div className="flex items-center gap-1 mt-1">
+                      <Clock className="h-3 w-3" />
+                      {schedule.startTime} - {schedule.endTime}
+                    </div>
+                    {schedule.position && (
+                      <div className="text-xs opacity-75 mt-1">
+                        {schedule.position}
+                      </div>
+                    )}
+                    <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-6 w-6 p-0 hover:bg-blue-200"
+                        onClick={() => handleEdit(schedule)}
+                      >
+                        <Edit className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-6 w-6 p-0 hover:bg-red-200"
+                        onClick={() => handleDelete(schedule.id)}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  const renderMonthView = () => {
+    const eventsByDate = new Map();
+    
+    schedules.forEach(schedule => {
+      const date = new Date(schedule.date).toDateString();
+      if (!eventsByDate.has(date)) {
+        eventsByDate.set(date, []);
+      }
+      eventsByDate.get(date).push(schedule);
+    });
+
+    const months = [];
+    const current = new Date(startDate);
+    
+    while (current <= endDate) {
+      months.push(new Date(current));
+      current.setMonth(current.getMonth() + 1);
+    }
+
+    return (
+      <div className="space-y-6">
+        {months.map((month, monthIndex) => (
+          <div key={monthIndex} className="border rounded-lg p-4">
+            <h3 className="text-lg font-semibold mb-4">
+              {month.toLocaleDateString('en-US', { year: 'numeric', month: 'long' })}
+            </h3>
+            <div className="grid grid-cols-7 gap-1">
+              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                <div key={day} className="text-center text-sm font-medium p-2 text-muted-foreground">
+                  {day}
+                </div>
+              ))}
+              
+              {(() => {
+                const firstDay = new Date(month.getFullYear(), month.getMonth(), 1);
+                const lastDay = new Date(month.getFullYear(), month.getMonth() + 1, 0);
+                const startPadding = firstDay.getDay();
+                const days = [];
+                
+                // Add padding for days before month starts
+                for (let i = 0; i < startPadding; i++) {
+                  days.push(<div key={`pad-${i}`} className="p-2"></div>);
+                }
+                
+                // Add days of the month
+                for (let day = 1; day <= lastDay.getDate(); day++) {
+                  const currentDate = new Date(month.getFullYear(), month.getMonth(), day);
+                  const dateString = currentDate.toDateString();
+                  const daySchedules = eventsByDate.get(dateString) || [];
+                  const filteredDaySchedules = daySchedules.filter((schedule: WorkSchedule) =>
+                    selectedLocation === "all" || schedule.locationId.toString() === selectedLocation
+                  );
+                  
+                  days.push(
+                    <div key={day} className="border rounded p-2 min-h-20 text-sm">
+                      <div className="font-medium mb-1">{day}</div>
+                      <div className="space-y-1">
+                        {filteredDaySchedules.slice(0, 2).map((schedule: WorkSchedule, i: number) => (
+                          <div key={i} className="text-xs bg-blue-100 text-blue-800 p-1 rounded truncate">
+                            {schedule.employee?.firstName} {schedule.employee?.lastName}
+                            <div className="text-xs opacity-75">
+                              {schedule.startTime}-{schedule.endTime}
+                            </div>
+                          </div>
+                        ))}
+                        {filteredDaySchedules.length > 2 && (
+                          <div className="text-xs text-muted-foreground">
+                            +{filteredDaySchedules.length - 2} more
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                }
+                
+                return days;
+              })()}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   if (!canManageSchedules) {
     return (
       <div className="container mx-auto p-6">
@@ -310,6 +502,23 @@ export default function ShiftScheduling() {
         </div>
 
         <div className="flex items-center gap-4">
+          {/* View Type Selector */}
+          <Select value={viewType} onValueChange={(value: "week" | "month" | "3month" | "6month") => {
+            setViewType(value);
+            setSelectedWeek(0);
+            setCurrentMonth(0);
+          }}>
+            <SelectTrigger className="w-32">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="week">Week</SelectItem>
+              <SelectItem value="month">Month</SelectItem>
+              <SelectItem value="3month">3 Months</SelectItem>
+              <SelectItem value="6month">6 Months</SelectItem>
+            </SelectContent>
+          </Select>
+
           <div className="flex items-center gap-2">
             <MapPin className="h-4 w-4" />
             <Select value={selectedLocation} onValueChange={setSelectedLocation}>
@@ -497,14 +706,12 @@ export default function ShiftScheduling() {
         </div>
       </div>
 
-      {/* Week Navigation */}
+      {/* Schedule Display */}
       <Card>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle className="text-xl">
-                Week of {format(startDate, "MMMM d")} - {format(endDate, "d, yyyy")}
-              </CardTitle>
+              <CardTitle className="text-xl">{getViewTitle()}</CardTitle>
               <CardDescription>
                 {selectedLocation === "all"
                   ? "Showing all locations"
@@ -516,82 +723,22 @@ export default function ShiftScheduling() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setSelectedWeek(selectedWeek - 1)}
+                onClick={handlePrevious}
               >
-                Previous Week
+                Previous
               </Button>
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setSelectedWeek(selectedWeek + 1)}
+                onClick={handleNext}
               >
-                Next Week
+                Next
               </Button>
             </div>
           </div>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-7 gap-2">
-            {weekDates.map((date, index) => {
-              const daySchedules = getSchedulesForDate(date);
-              const dayName = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][index];
-              
-              return (
-                <div key={date.toISOString()} className="border rounded-lg p-3 min-h-32">
-                  <div className="font-medium text-sm mb-2">
-                    {dayName} {format(date, "M/d")}
-                  </div>
-                  <div className="space-y-2">
-                    {daySchedules.length === 0 ? (
-                      <div className="text-xs text-muted-foreground bg-gray-100 p-1 rounded">
-                        No shifts scheduled
-                      </div>
-                    ) : (
-                      daySchedules.map((schedule) => (
-                        <div
-                          key={schedule.id}
-                          className="text-xs bg-blue-100 text-blue-800 p-2 rounded border group relative"
-                        >
-                          <div className="font-medium">
-                            {schedule.employee?.firstName} {schedule.employee?.lastName}
-                          </div>
-                          <div className="flex items-center gap-1 mt-1">
-                            <Clock className="h-3 w-3" />
-                            {schedule.startTime} - {schedule.endTime}
-                          </div>
-                          {schedule.position && (
-                            <div className="text-xs opacity-75 mt-1">
-                              {schedule.position}
-                            </div>
-                          )}
-                          <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <div className="flex gap-1">
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="h-6 w-6 p-0"
-                                onClick={() => handleEdit(schedule)}
-                              >
-                                <Edit className="h-3 w-3" />
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="h-6 w-6 p-0"
-                                onClick={() => handleDelete(schedule.id)}
-                              >
-                                <Trash2 className="h-3 w-3" />
-                              </Button>
-                            </div>
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+          {renderScheduleView()}
         </CardContent>
       </Card>
 
