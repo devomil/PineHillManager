@@ -39,6 +39,7 @@ export interface IStorage {
   upsertUser(user: UpsertUser): Promise<User>;
   getAllUsers(): Promise<User[]>;
   updateUserRole(id: string, role: string): Promise<User>;
+  updateUserProfile(id: string, profileData: any): Promise<User>;
 
   // Time off requests
   createTimeOffRequest(request: InsertTimeOffRequest): Promise<TimeOffRequest>;
@@ -121,6 +122,18 @@ export class DatabaseStorage implements IStorage {
     const [user] = await db
       .update(users)
       .set({ role, updatedAt: new Date() })
+      .where(eq(users.id, id))
+      .returning();
+    return user;
+  }
+
+  async updateUserProfile(id: string, profileData: any): Promise<User> {
+    const [user] = await db
+      .update(users)
+      .set({ 
+        ...profileData,
+        updatedAt: new Date()
+      })
       .where(eq(users.id, id))
       .returning();
     return user;

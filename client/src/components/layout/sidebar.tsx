@@ -2,7 +2,7 @@ import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useAuth } from "@/hooks/useAuth";
-import { Sprout, Home, Clock, MessageSquare, Users, GraduationCap, Megaphone, BookOpen, BarChart3, Settings, X } from "lucide-react";
+import { Sprout, Home, Clock, MessageSquare, Users, GraduationCap, Megaphone, BookOpen, BarChart3, Settings, User, X } from "lucide-react";
 
 interface SidebarProps {
   mobileMenuOpen: boolean;
@@ -20,6 +20,7 @@ export default function Sidebar({ mobileMenuOpen, setMobileMenuOpen }: SidebarPr
     { name: "Marketing", href: "/marketing", icon: Megaphone, roles: ["employee", "admin"] },
     { name: "Training Portal", href: "/training", icon: BookOpen, roles: ["employee", "admin"] },
     { name: "Reports", href: "/reports", icon: BarChart3, roles: ["employee", "admin"] },
+    { name: "My Profile", href: "/profile", icon: User, roles: ["employee", "admin"] },
     { name: "Diagnostics", href: "/diagnostics", icon: Settings, roles: ["employee", "admin"] },
   ];
 

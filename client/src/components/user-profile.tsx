@@ -1,98 +1,129 @@
-import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState, useEffect } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useAuth } from "@/hooks/useAuth";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
-import { isUnauthorizedError } from "@/lib/authUtils";
-import { User, Mail, Phone, MapPin, Calendar, Briefcase, Save, Edit } from "lucide-react";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { User, Edit, Save, X, Phone, MapPin, Building, Calendar, User2, AlertTriangle } from "lucide-react";
+import { format } from "date-fns";
+import type { User as UserType } from "@shared/schema";
+
+const profileSchema = z.object({
+  firstName: z.string().min(1, "First name is required"),
+  lastName: z.string().min(1, "Last name is required"),
+  phone: z.string().optional(),
+  address: z.string().optional(),
+  city: z.string().optional(),
+  state: z.string().optional(),
+  zipCode: z.string().optional(),
+  department: z.string().optional(),
+  position: z.string().optional(),
+  emergencyContact: z.string().optional(),
+  emergencyPhone: z.string().optional(),
+  notes: z.string().optional(),
+});
+
+type ProfileFormData = z.infer<typeof profileSchema>;
 
 export default function UserProfile() {
-  const { user } = useAuth();
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
   const [isEditing, setIsEditing] = useState(false);
-  
-  const [formData, setFormData] = useState({
-    firstName: user?.firstName || "",
-    lastName: user?.lastName || "",
-    email: user?.email || "",
-    phone: "",
-    address: "",
-    city: "",
-    state: "",
-    zipCode: "",
-    department: "",
-    position: "",
-    hireDate: "",
-    emergencyContact: "",
-    emergencyPhone: "",
-    notes: ""
+  const { toast } = useToast();
+
+  const { data: user, isLoading } = useQuery<UserType>({
+    queryKey: ["/api/profile"],
   });
 
-  const { data: profileData, isLoading } = useQuery({
-    queryKey: ["/api/profile"],
-    enabled: !!user,
+  const form = useForm<ProfileFormData>({
+    resolver: zodResolver(profileSchema),
+    defaultValues: {
+      firstName: "",
+      lastName: "",
+      phone: "",
+      address: "",
+      city: "",
+      state: "",
+      zipCode: "",
+      department: "",
+      position: "",
+      emergencyContact: "",
+      emergencyPhone: "",
+      notes: "",
+    },
   });
+
+  // Update form values when user data loads
+  useEffect(() => {
+    if (user) {
+      form.reset({
+        firstName: user.firstName || "",
+        lastName: user.lastName || "",
+        phone: user.phone || "",
+        address: user.address || "",
+        city: user.city || "",
+        state: user.state || "",
+        zipCode: user.zipCode || "",
+        department: user.department || "",
+        position: user.position || "",
+        emergencyContact: user.emergencyContact || "",
+        emergencyPhone: user.emergencyPhone || "",
+        notes: user.notes || "",
+      });
+    }
+  }, [user, form]);
 
   const updateProfileMutation = useMutation({
-    mutationFn: async (data: typeof formData) => {
-      await apiRequest("PATCH", "/api/profile", data);
+    mutationFn: async (data: ProfileFormData) => {
+      return await apiRequest("PATCH", "/api/profile", data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
       setIsEditing(false);
       toast({
-        title: "Success",
-        description: "Profile updated successfully",
+        title: "Profile Updated",
+        description: "Your profile has been successfully updated.",
       });
     },
     onError: (error) => {
-      if (isUnauthorizedError(error)) {
-        toast({
-          title: "Unauthorized",
-          description: "You are logged out. Logging in again...",
-          variant: "destructive",
-        });
-        setTimeout(() => {
-          window.location.href = "/api/login";
-        }, 500);
-        return;
-      }
       toast({
-        title: "Error",
-        description: "Failed to update profile",
+        title: "Update Failed",
+        description: "Failed to update profile. Please try again.",
         variant: "destructive",
       });
     },
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    updateProfileMutation.mutate(formData);
+  const onSubmit = (data: ProfileFormData) => {
+    updateProfileMutation.mutate(data);
   };
 
-  const handleInputChange = (field: string, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+  const handleCancel = () => {
+    form.reset();
+    setIsEditing(false);
   };
 
   if (isLoading) {
     return (
-      <Card>
-        <CardContent className="p-6">
-          <div className="text-center py-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-farm-green mx-auto"></div>
-            <p className="text-slate-500 mt-2">Loading profile...</p>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="space-y-6">
+        <div className="animate-pulse">
+          <Card>
+            <CardHeader>
+              <div className="h-6 bg-slate-200 rounded w-1/4"></div>
+              <div className="h-4 bg-slate-200 rounded w-1/2"></div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="h-20 bg-slate-200 rounded"></div>
+              <div className="h-4 bg-slate-200 rounded w-3/4"></div>
+              <div className="h-4 bg-slate-200 rounded w-1/2"></div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     );
   }
 
@@ -100,270 +131,305 @@ export default function UserProfile() {
     <div className="space-y-6">
       {/* Profile Header */}
       <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center">
-              <User className="w-5 h-5 mr-2" />
-              Profile Information
-            </CardTitle>
-            <Button
-              variant={isEditing ? "outline" : "default"}
-              onClick={() => setIsEditing(!isEditing)}
-              disabled={updateProfileMutation.isPending}
-            >
-              <Edit className="w-4 h-4 mr-2" />
-              {isEditing ? "Cancel" : "Edit Profile"}
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center space-x-4 mb-6">
-            <Avatar className="h-20 w-20">
-              <AvatarImage src={user?.profileImageUrl || undefined} />
-              <AvatarFallback className="text-lg">
-                {user?.firstName?.[0] || user?.email[0].toUpperCase()}
-                {user?.lastName?.[0] || ''}
-              </AvatarFallback>
-            </Avatar>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+          <div className="flex items-center space-x-4">
+            <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center">
+              {user?.profileImageUrl ? (
+                <img
+                  src={user.profileImageUrl}
+                  alt="Profile"
+                  className="w-16 h-16 rounded-full object-cover"
+                />
+              ) : (
+                <User className="w-8 h-8 text-slate-500" />
+              )}
+            </div>
             <div>
-              <h2 className="text-2xl font-bold">
+              <h2 className="text-xl font-semibold text-slate-900">
                 {user?.firstName && user?.lastName 
                   ? `${user.firstName} ${user.lastName}`
-                  : user?.email}
+                  : user?.firstName || user?.email || "Unknown User"}
               </h2>
-              <p className="text-slate-500 capitalize">{user?.role || 'Employee'}</p>
-              <p className="text-sm text-slate-400">{user?.email}</p>
+              <p className="text-slate-500">{user?.email}</p>
+              <div className="flex items-center mt-1 text-sm text-slate-600">
+                <Building className="w-4 h-4 mr-1" />
+                <span>{user?.role === "admin" ? "Administrator" : user?.role || "Employee"}</span>
+                {user?.department && (
+                  <>
+                    <span className="mx-2">•</span>
+                    <span>{user.department}</span>
+                  </>
+                )}
+              </div>
             </div>
           </div>
+          <Button
+            onClick={() => setIsEditing(!isEditing)}
+            variant={isEditing ? "outline" : "default"}
+            size="sm"
+          >
+            {isEditing ? (
+              <>
+                <X className="w-4 h-4 mr-2" />
+                Cancel
+              </>
+            ) : (
+              <>
+                <Edit className="w-4 h-4 mr-2" />
+                Edit Profile
+              </>
+            )}
+          </Button>
+        </CardHeader>
+      </Card>
 
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Personal Information */}
+      {/* Profile Form */}
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        {/* Personal Information */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <User2 className="w-5 h-5 mr-2" />
+              Personal Information
+            </CardTitle>
+            <CardDescription>
+              Basic personal details and contact information
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="firstName">First Name</Label>
                 <Input
                   id="firstName"
-                  value={formData.firstName}
-                  onChange={(e) => handleInputChange("firstName", e.target.value)}
+                  {...form.register("firstName")}
                   disabled={!isEditing}
                   className={!isEditing ? "bg-slate-50" : ""}
                 />
+                {form.formState.errors.firstName && (
+                  <p className="text-sm text-red-500 mt-1">
+                    {form.formState.errors.firstName.message}
+                  </p>
+                )}
               </div>
               <div>
                 <Label htmlFor="lastName">Last Name</Label>
                 <Input
                   id="lastName"
-                  value={formData.lastName}
-                  onChange={(e) => handleInputChange("lastName", e.target.value)}
+                  {...form.register("lastName")}
                   disabled={!isEditing}
                   className={!isEditing ? "bg-slate-50" : ""}
                 />
+                {form.formState.errors.lastName && (
+                  <p className="text-sm text-red-500 mt-1">
+                    {form.formState.errors.lastName.message}
+                  </p>
+                )}
               </div>
             </div>
-
-            {/* Contact Information */}
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold flex items-center">
-                <Mail className="w-4 h-4 mr-2" />
-                Contact Information
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="email">Email Address</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => handleInputChange("email", e.target.value)}
-                    disabled={!isEditing}
-                    className={!isEditing ? "bg-slate-50" : ""}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="phone">Phone Number</Label>
-                  <Input
-                    id="phone"
-                    type="tel"
-                    value={formData.phone}
-                    onChange={(e) => handleInputChange("phone", e.target.value)}
-                    disabled={!isEditing}
-                    className={!isEditing ? "bg-slate-50" : ""}
-                    placeholder="(555) 123-4567"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Address Information */}
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold flex items-center">
-                <MapPin className="w-4 h-4 mr-2" />
-                Address
-              </h3>
-              <div>
-                <Label htmlFor="address">Street Address</Label>
-                <Input
-                  id="address"
-                  value={formData.address}
-                  onChange={(e) => handleInputChange("address", e.target.value)}
-                  disabled={!isEditing}
-                  className={!isEditing ? "bg-slate-50" : ""}
-                />
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <Label htmlFor="city">City</Label>
-                  <Input
-                    id="city"
-                    value={formData.city}
-                    onChange={(e) => handleInputChange("city", e.target.value)}
-                    disabled={!isEditing}
-                    className={!isEditing ? "bg-slate-50" : ""}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="state">State</Label>
-                  <Input
-                    id="state"
-                    value={formData.state}
-                    onChange={(e) => handleInputChange("state", e.target.value)}
-                    disabled={!isEditing}
-                    className={!isEditing ? "bg-slate-50" : ""}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="zipCode">ZIP Code</Label>
-                  <Input
-                    id="zipCode"
-                    value={formData.zipCode}
-                    onChange={(e) => handleInputChange("zipCode", e.target.value)}
-                    disabled={!isEditing}
-                    className={!isEditing ? "bg-slate-50" : ""}
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Work Information */}
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold flex items-center">
-                <Briefcase className="w-4 h-4 mr-2" />
-                Work Information
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="department">Department</Label>
-                  <Select
-                    value={formData.department}
-                    onValueChange={(value) => handleInputChange("department", value)}
-                    disabled={!isEditing}
-                  >
-                    <SelectTrigger className={!isEditing ? "bg-slate-50" : ""}>
-                      <SelectValue placeholder="Select department" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="operations">Operations</SelectItem>
-                      <SelectItem value="agriculture">Agriculture</SelectItem>
-                      <SelectItem value="marketing">Marketing</SelectItem>
-                      <SelectItem value="administration">Administration</SelectItem>
-                      <SelectItem value="maintenance">Maintenance</SelectItem>
-                      <SelectItem value="customer-service">Customer Service</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="position">Position</Label>
-                  <Input
-                    id="position"
-                    value={formData.position}
-                    onChange={(e) => handleInputChange("position", e.target.value)}
-                    disabled={!isEditing}
-                    className={!isEditing ? "bg-slate-50" : ""}
-                    placeholder="Job title"
-                  />
-                </div>
-              </div>
-              <div>
-                <Label htmlFor="hireDate">Hire Date</Label>
-                <Input
-                  id="hireDate"
-                  type="date"
-                  value={formData.hireDate}
-                  onChange={(e) => handleInputChange("hireDate", e.target.value)}
-                  disabled={!isEditing}
-                  className={!isEditing ? "bg-slate-50" : ""}
-                />
-              </div>
-            </div>
-
-            {/* Emergency Contact */}
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold flex items-center">
-                <Phone className="w-4 h-4 mr-2" />
-                Emergency Contact
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="emergencyContact">Emergency Contact Name</Label>
-                  <Input
-                    id="emergencyContact"
-                    value={formData.emergencyContact}
-                    onChange={(e) => handleInputChange("emergencyContact", e.target.value)}
-                    disabled={!isEditing}
-                    className={!isEditing ? "bg-slate-50" : ""}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="emergencyPhone">Emergency Contact Phone</Label>
-                  <Input
-                    id="emergencyPhone"
-                    type="tel"
-                    value={formData.emergencyPhone}
-                    onChange={(e) => handleInputChange("emergencyPhone", e.target.value)}
-                    disabled={!isEditing}
-                    className={!isEditing ? "bg-slate-50" : ""}
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Notes */}
             <div>
-              <Label htmlFor="notes">Additional Notes</Label>
-              <Textarea
-                id="notes"
-                value={formData.notes}
-                onChange={(e) => handleInputChange("notes", e.target.value)}
+              <Label htmlFor="phone">Phone Number</Label>
+              <Input
+                id="phone"
+                {...form.register("phone")}
                 disabled={!isEditing}
                 className={!isEditing ? "bg-slate-50" : ""}
-                rows={3}
-                placeholder="Any additional information..."
+                placeholder="(555) 123-4567"
               />
             </div>
+          </CardContent>
+        </Card>
 
-            {isEditing && (
-              <div className="flex justify-end space-x-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setIsEditing(false)}
-                  disabled={updateProfileMutation.isPending}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={updateProfileMutation.isPending}
-                  className="bg-farm-green hover:bg-green-600"
-                >
-                  <Save className="w-4 h-4 mr-2" />
-                  {updateProfileMutation.isPending ? "Saving..." : "Save Changes"}
-                </Button>
+        {/* Address Information */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <MapPin className="w-5 h-5 mr-2" />
+              Address Information
+            </CardTitle>
+            <CardDescription>
+              Current residence address details
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <Label htmlFor="address">Street Address</Label>
+              <Input
+                id="address"
+                {...form.register("address")}
+                disabled={!isEditing}
+                className={!isEditing ? "bg-slate-50" : ""}
+                placeholder="123 Main Street"
+              />
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <Label htmlFor="city">City</Label>
+                <Input
+                  id="city"
+                  {...form.register("city")}
+                  disabled={!isEditing}
+                  className={!isEditing ? "bg-slate-50" : ""}
+                  placeholder="City"
+                />
+              </div>
+              <div>
+                <Label htmlFor="state">State</Label>
+                <Input
+                  id="state"
+                  {...form.register("state")}
+                  disabled={!isEditing}
+                  className={!isEditing ? "bg-slate-50" : ""}
+                  placeholder="State"
+                />
+              </div>
+              <div>
+                <Label htmlFor="zipCode">ZIP Code</Label>
+                <Input
+                  id="zipCode"
+                  {...form.register("zipCode")}
+                  disabled={!isEditing}
+                  className={!isEditing ? "bg-slate-50" : ""}
+                  placeholder="12345"
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Work Information */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <Building className="w-5 h-5 mr-2" />
+              Work Information
+            </CardTitle>
+            <CardDescription>
+              Job-related information and details
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="department">Department</Label>
+                <Input
+                  id="department"
+                  {...form.register("department")}
+                  disabled={!isEditing}
+                  className={!isEditing ? "bg-slate-50" : ""}
+                  placeholder="e.g., Operations, Sales"
+                />
+              </div>
+              <div>
+                <Label htmlFor="position">Position</Label>
+                <Input
+                  id="position"
+                  {...form.register("position")}
+                  disabled={!isEditing}
+                  className={!isEditing ? "bg-slate-50" : ""}
+                  placeholder="e.g., Farm Manager, Sales Associate"
+                />
+              </div>
+            </div>
+            {user?.hireDate && (
+              <div>
+                <Label>Hire Date</Label>
+                <div className="flex items-center p-3 bg-slate-50 rounded-md">
+                  <Calendar className="w-4 h-4 mr-2 text-slate-500" />
+                  <span className="text-slate-700">
+                    {format(new Date(user.hireDate), "MMMM d, yyyy")}
+                  </span>
+                </div>
               </div>
             )}
-          </form>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+
+        {/* Emergency Contact */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <AlertTriangle className="w-5 h-5 mr-2" />
+              Emergency Contact
+            </CardTitle>
+            <CardDescription>
+              Emergency contact information for workplace safety
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="emergencyContact">Emergency Contact Name</Label>
+                <Input
+                  id="emergencyContact"
+                  {...form.register("emergencyContact")}
+                  disabled={!isEditing}
+                  className={!isEditing ? "bg-slate-50" : ""}
+                  placeholder="Full name"
+                />
+              </div>
+              <div>
+                <Label htmlFor="emergencyPhone">Emergency Contact Phone</Label>
+                <Input
+                  id="emergencyPhone"
+                  {...form.register("emergencyPhone")}
+                  disabled={!isEditing}
+                  className={!isEditing ? "bg-slate-50" : ""}
+                  placeholder="(555) 123-4567"
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Additional Notes */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Additional Notes</CardTitle>
+            <CardDescription>
+              Any additional information or notes
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Label htmlFor="notes">Notes</Label>
+            <Textarea
+              id="notes"
+              {...form.register("notes")}
+              disabled={!isEditing}
+              className={!isEditing ? "bg-slate-50" : ""}
+              placeholder="Additional information, special accommodations, etc."
+              rows={3}
+            />
+          </CardContent>
+        </Card>
+
+        {/* Save Button */}
+        {isEditing && (
+          <div className="flex justify-end space-x-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleCancel}
+              disabled={updateProfileMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              disabled={updateProfileMutation.isPending}
+            >
+              {updateProfileMutation.isPending ? (
+                "Saving..."
+              ) : (
+                <>
+                  <Save className="w-4 h-4 mr-2" />
+                  Save Changes
+                </>
+              )}
+            </Button>
+          </div>
+        )}
+      </form>
     </div>
   );
 }
