@@ -67,7 +67,7 @@ export default function EnhancedShiftScheduling() {
             locationId: entry.locationId,
             startTime: `${entry.date}T${entry.startTime}:00`,
             endTime: `${entry.date}T${entry.endTime}:00`,
-            role: entry.role || "employee"
+            role: "employee"
           }),
         }).then(res => res.json())
       );
@@ -108,7 +108,7 @@ export default function EnhancedShiftScheduling() {
             locationId: schedule.locationId,
             startTime: `${format(newDate, "yyyy-MM-dd")}T${format(parseISO(schedule.startTime), "HH:mm")}:00`,
             endTime: `${format(newDate, "yyyy-MM-dd")}T${format(parseISO(schedule.endTime), "HH:mm")}:00`,
-            role: schedule.role || "employee"
+            role: "employee"
           }),
         }).then(res => res.json());
       });
@@ -169,12 +169,13 @@ export default function EnhancedShiftScheduling() {
   };
 
   const getEmployeeName = (userId: string) => {
-    const employee = employees.find((emp: UserType) => emp.id === userId);
+    const employee = (employees as UserType[]).find((emp: UserType) => emp.id === userId);
     return employee ? `${employee.firstName} ${employee.lastName}` : "Unknown";
   };
 
-  const getLocationName = (locationId: number) => {
-    const location = locations.find((loc: Location) => loc.id === locationId);
+  const getLocationName = (locationId: number | null) => {
+    if (!locationId) return "Unknown Location";
+    const location = (locations as Location[]).find((loc: Location) => loc.id === locationId);
     return location ? location.name : "Unknown Location";
   };
 
