@@ -1,7 +1,14 @@
 import { storage } from './storage';
+import webpush from 'web-push';
 
-// Notification service that stores notifications in database
-// Provides foundation for mobile app notifications
+// Configure web push with VAPID keys
+if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
+  webpush.setVapidDetails(
+    'mailto:admin@pinehillfarm.com',
+    process.env.VAPID_PUBLIC_KEY,
+    process.env.VAPID_PRIVATE_KEY
+  );
+}
 
 export interface NotificationPayload {
   title: string;
@@ -29,9 +36,62 @@ class NotificationService {
         relatedId: payload.data?.relatedId || null,
       });
 
+      // Send push notification if VAPID keys are configured
+      if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
+        await this.sendPushNotification(userId, payload);
+      }
+
       console.log(`Notification stored for user ${userId}: ${payload.title}`);
     } catch (error) {
       console.error('Error sending notification to user:', error);
+    }
+  }
+
+  private async sendPushNotification(userId: string, payload: NotificationPayload): Promise<void> {
+    try {
+      const subscriptions = await storage.getPushSubscriptions(userId);
+      
+      if (subscriptions.length === 0) {
+        console.log(`No push subscriptions found for user ${userId}`);
+        return;
+      }
+
+      const notificationPayload = JSON.stringify({
+        title: payload.title,
+        body: payload.body,
+        icon: payload.icon || '/generated-icon.png',
+        badge: payload.badge || '/generated-icon.png',
+        tag: payload.tag,
+        data: payload.data,
+        actions: payload.actions || []
+      });
+
+      await Promise.all(
+        subscriptions.map(async (subscription) => {
+          try {
+            await webpush.sendNotification(
+              {
+                endpoint: subscription.endpoint,
+                keys: {
+                  auth: subscription.authKey,
+                  p256dh: subscription.p256dhKey,
+                },
+              },
+              notificationPayload
+            );
+            console.log(`Push notification sent to subscription ${subscription.id}`);
+          } catch (error) {
+            console.error(`Failed to send push notification to subscription ${subscription.id}:`, error);
+            // Remove invalid subscription
+            if ((error as any).statusCode === 410) {
+              console.log(`Removing expired subscription ${subscription.id}`);
+              // Note: Would need to add a method to remove expired subscriptions
+            }
+          }
+        })
+      );
+    } catch (error) {
+      console.error('Error sending push notifications:', error);
     }
   }
 
