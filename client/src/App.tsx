@@ -25,6 +25,12 @@ import ProtectedRoute from "@/components/common/protected-route";
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
 
+  // Auto-login for development
+  if (!isAuthenticated && !isLoading) {
+    window.location.href = '/api/login';
+    return <div>Redirecting to login...</div>;
+  }
+
   return (
     <Switch>
       <Route path="/calendar" component={TestCalendar} />
