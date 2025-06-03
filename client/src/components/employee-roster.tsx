@@ -62,7 +62,7 @@ export default function EmployeeRoster() {
     },
   });
 
-  const filteredEmployees = employees?.filter((employee: Employee) => {
+  const filteredEmployees = (employees || []).filter((employee: Employee) => {
     const matchesSearch = 
       employee.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
       employee.firstName?.toLowerCase().includes(searchTerm.toLowerCase()) ||

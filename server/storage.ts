@@ -346,15 +346,15 @@ export class DatabaseStorage implements IStorage {
         end: `${schedule.date}T${schedule.endTime}`,
         type: 'schedule',
         userId: schedule.userId,
-        locationId: schedule.locationId || undefined,
-        status: schedule.status || undefined,
+        locationId: schedule.locationId ?? undefined,
+        status: schedule.status ?? undefined,
         description: schedule.notes || undefined,
         data: schedule
       });
     }
 
     // Get time off requests
-    const timeOffRequests = await db
+    const timeOffRequestsResult = await db
       .select()
       .from(timeOffRequests)
       .where(
@@ -365,10 +365,10 @@ export class DatabaseStorage implements IStorage {
         )
       );
 
-    for (const request of timeOffRequests) {
+    for (const request of timeOffRequestsResult) {
       events.push({
         id: `timeoff-${request.id}`,
-        title: `${request.type} - Time Off`,
+        title: `${request.reason || 'Time Off'} - Time Off`,
         start: `${request.startDate}T00:00:00`,
         end: `${request.endDate}T23:59:59`,
         type: 'timeoff',
@@ -399,7 +399,7 @@ export class DatabaseStorage implements IStorage {
           end: `${relatedSchedule.date}T${relatedSchedule.endTime}`,
           type: 'coverage_request',
           userId: coverage.requesterId,
-          locationId: relatedSchedule.locationId,
+          locationId: relatedSchedule.locationId ?? undefined,
           status: coverage.status,
           description: coverage.reason || '',
           data: { coverage, schedule: relatedSchedule }
@@ -424,13 +424,15 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getShiftCoverageRequests(status?: string): Promise<ShiftCoverageRequest[]> {
-    let query = db.select().from(shiftCoverageRequests);
-
+    const baseQuery = db.select().from(shiftCoverageRequests);
+    
     if (status) {
-      query = query.where(eq(shiftCoverageRequests.status, status));
+      return await baseQuery
+        .where(eq(shiftCoverageRequests.status, status))
+        .orderBy(desc(shiftCoverageRequests.requestedAt));
     }
 
-    return await query.orderBy(desc(shiftCoverageRequests.requestedAt));
+    return await baseQuery.orderBy(desc(shiftCoverageRequests.requestedAt));
   }
 
   async coverShiftRequest(id: number, coveredBy: string): Promise<ShiftCoverageRequest> {
