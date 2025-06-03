@@ -16,6 +16,7 @@ import AdminTraining from "@/pages/admin-training";
 import Reports from "@/pages/reports";
 import Diagnostics from "@/pages/diagnostics";
 import Notifications from "@/pages/notifications";
+import Profile from "@/pages/profile";
 import AppLayout from "@/components/layout/app-layout";
 import ProtectedRoute from "@/components/common/protected-route";
 
@@ -37,6 +38,7 @@ function Router() {
           <Route path="/reports" component={Reports} />
           <Route path="/diagnostics" component={Diagnostics} />
           <Route path="/notifications" component={Notifications} />
+          <Route path="/profile" component={Profile} />
           
           {/* Admin-only routes */}
           <Route path="/employees">
