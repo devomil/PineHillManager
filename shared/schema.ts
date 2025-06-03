@@ -210,6 +210,46 @@ export const notifications = pgTable("notifications", {
   readAt: timestamp("read_at"),
 });
 
+// Document management and file sharing
+export const documents = pgTable("documents", {
+  id: serial("id").primaryKey(),
+  fileName: varchar("file_name").notNull(),
+  originalName: varchar("original_name").notNull(),
+  filePath: varchar("file_path").notNull(),
+  fileSize: integer("file_size").notNull(),
+  mimeType: varchar("mime_type").notNull(),
+  category: varchar("category").default("general"), // 'policy', 'form', 'training', 'general'
+  description: text("description"),
+  uploadedBy: varchar("uploaded_by").notNull().references(() => users.id),
+  isPublic: boolean("is_public").default(false),
+  isActive: boolean("is_active").default(true),
+  uploadedAt: timestamp("uploaded_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Document access permissions
+export const documentPermissions = pgTable("document_permissions", {
+  id: serial("id").primaryKey(),
+  documentId: integer("document_id").notNull().references(() => documents.id),
+  userId: varchar("user_id").references(() => users.id),
+  department: varchar("department"), // If null, applies to specific user
+  role: varchar("role"), // If null, applies to specific user
+  accessLevel: varchar("access_level").default("read"), // 'read', 'write', 'admin'
+  grantedBy: varchar("granted_by").notNull().references(() => users.id),
+  grantedAt: timestamp("granted_at").defaultNow(),
+});
+
+// Document download/view logs
+export const documentLogs = pgTable("document_logs", {
+  id: serial("id").primaryKey(),
+  documentId: integer("document_id").notNull().references(() => documents.id),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  action: varchar("action").notNull(), // 'view', 'download', 'share'
+  ipAddress: varchar("ip_address"),
+  userAgent: text("user_agent"),
+  timestamp: timestamp("timestamp").defaultNow(),
+});
+
 // Define relations
 export const usersRelations = relations(users, ({ many }) => ({
   timeOffRequests: many(timeOffRequests),
@@ -223,6 +263,9 @@ export const usersRelations = relations(users, ({ many }) => ({
   notifications: many(notifications),
   createdChannels: many(chatChannels),
   channelMemberships: many(channelMembers),
+  uploadedDocuments: many(documents),
+  documentPermissions: many(documentPermissions),
+  documentLogs: many(documentLogs),
 }));
 
 export const timeOffRequestsRelations = relations(timeOffRequests, ({ one }) => ({
@@ -269,6 +312,23 @@ export const chatChannelsRelations = relations(chatChannels, ({ one, many }) => 
 export const channelMembersRelations = relations(channelMembers, ({ one }) => ({
   channel: one(chatChannels, { fields: [channelMembers.channelId], references: [chatChannels.id] }),
   user: one(users, { fields: [channelMembers.userId], references: [users.id] }),
+}));
+
+export const documentsRelations = relations(documents, ({ one, many }) => ({
+  uploader: one(users, { fields: [documents.uploadedBy], references: [users.id] }),
+  permissions: many(documentPermissions),
+  logs: many(documentLogs),
+}));
+
+export const documentPermissionsRelations = relations(documentPermissions, ({ one }) => ({
+  document: one(documents, { fields: [documentPermissions.documentId], references: [documents.id] }),
+  user: one(users, { fields: [documentPermissions.userId], references: [users.id] }),
+  granter: one(users, { fields: [documentPermissions.grantedBy], references: [users.id] }),
+}));
+
+export const documentLogsRelations = relations(documentLogs, ({ one }) => ({
+  document: one(documents, { fields: [documentLogs.documentId], references: [documents.id] }),
+  user: one(users, { fields: [documentLogs.userId], references: [users.id] }),
 }));
 
 // Create insert schemas
@@ -339,6 +399,22 @@ export const insertChannelMemberSchema = createInsertSchema(channelMembers).omit
   joinedAt: true,
 });
 
+export const insertDocumentSchema = createInsertSchema(documents).omit({
+  id: true,
+  uploadedAt: true,
+  updatedAt: true,
+});
+
+export const insertDocumentPermissionSchema = createInsertSchema(documentPermissions).omit({
+  id: true,
+  grantedAt: true,
+});
+
+export const insertDocumentLogSchema = createInsertSchema(documentLogs).omit({
+  id: true,
+  timestamp: true,
+});
+
 // Add relations for new tables
 export const pushSubscriptionsRelations = relations(pushSubscriptions, ({ one }) => ({
   user: one(users, { fields: [pushSubscriptions.userId], references: [users.id] }),
@@ -375,6 +451,12 @@ export type InsertChatChannel = z.infer<typeof insertChatChannelSchema>;
 export type ChatChannel = typeof chatChannels.$inferSelect;
 export type InsertChannelMember = z.infer<typeof insertChannelMemberSchema>;
 export type ChannelMember = typeof channelMembers.$inferSelect;
+export type InsertDocument = z.infer<typeof insertDocumentSchema>;
+export type Document = typeof documents.$inferSelect;
+export type InsertDocumentPermission = z.infer<typeof insertDocumentPermissionSchema>;
+export type DocumentPermission = typeof documentPermissions.$inferSelect;
+export type InsertDocumentLog = z.infer<typeof insertDocumentLogSchema>;
+export type DocumentLog = typeof documentLogs.$inferSelect;
 
 // Calendar event type for unified calendar view
 export interface CalendarEvent {

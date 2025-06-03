@@ -12,6 +12,9 @@ import {
   locations,
   chatChannels,
   channelMembers,
+  documents,
+  documentPermissions,
+  documentLogs,
   type User,
   type UpsertUser,
   type InsertTimeOffRequest,
@@ -39,6 +42,12 @@ import {
   type ChatChannel,
   type InsertChannelMember,
   type ChannelMember,
+  type InsertDocument,
+  type Document,
+  type InsertDocumentPermission,
+  type DocumentPermission,
+  type InsertDocumentLog,
+  type DocumentLog,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, asc, gte, lte } from "drizzle-orm";
