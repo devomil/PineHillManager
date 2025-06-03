@@ -10,7 +10,7 @@ import Dashboard from "@/pages/dashboard";
 import TimeManagement from "@/pages/time-management";
 import Communication from "@/pages/communication";
 import Employees from "@/pages/employees";
-import Calendar from "@/pages/calendar";
+import Calendar from "@/pages/calendar-simple";
 import Marketing from "@/pages/marketing";
 import Training from "@/pages/training";
 import AdminTraining from "@/pages/admin-training";

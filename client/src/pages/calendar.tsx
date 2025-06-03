@@ -93,7 +93,6 @@ export default function Calendar() {
   // Fetch calendar events with smart sync
   const { data: events = [], isLoading: eventsLoading } = useQuery<CalendarEvent[]>({
     queryKey: ["/api/calendar/events", startDate, endDate],
-    queryFn: () => apiRequest(`/api/calendar/events?startDate=${startDate}&endDate=${endDate}`),
     enabled: isAuthenticated && !!startDate && !!endDate,
     retry: false,
   });
