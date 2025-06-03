@@ -276,7 +276,7 @@ export default function EnhancedShiftScheduling() {
                       <SelectValue placeholder="Choose employee..." />
                     </SelectTrigger>
                     <SelectContent>
-                      {(employees as UserType[]).map((employee: UserType) => (
+                      {Array.isArray(employees) && employees.map((employee: UserType) => (
                         <SelectItem key={employee.id} value={employee.id}>
                           {employee.firstName} {employee.lastName} ({employee.employeeId})
                         </SelectItem>
@@ -292,7 +292,7 @@ export default function EnhancedShiftScheduling() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {(locations as Location[]).map((location: Location) => (
+                      {Array.isArray(locations) && locations.map((location: Location) => (
                         <SelectItem key={location.id} value={location.id.toString()}>
                           {location.name}
                         </SelectItem>
@@ -373,7 +373,7 @@ export default function EnhancedShiftScheduling() {
                       <SelectValue placeholder="Choose employee..." />
                     </SelectTrigger>
                     <SelectContent>
-                      {(employees as UserType[]).map((employee: UserType) => (
+                      {Array.isArray(employees) && employees.map((employee: UserType) => (
                         <SelectItem key={employee.id} value={employee.id}>
                           {employee.firstName} {employee.lastName} ({employee.employeeId})
                         </SelectItem>
@@ -389,7 +389,7 @@ export default function EnhancedShiftScheduling() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {(locations as Location[]).map((location: Location) => (
+                      {Array.isArray(locations) && locations.map((location: Location) => (
                         <SelectItem key={location.id} value={location.id.toString()}>
                           {location.name}
                         </SelectItem>
