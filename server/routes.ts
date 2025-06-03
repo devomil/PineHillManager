@@ -437,6 +437,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Add new employee (Admin only)
+  app.post('/api/employees', isAuthenticated, async (req: any, res) => {
+    try {
+      const user = await storage.getUser(req.user.claims.sub);
+      if (user?.role !== 'admin') {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+      
+      // Check if employee ID already exists
+      if (req.body.employeeId) {
+        const existingEmployee = await storage.getEmployeeByEmployeeId(req.body.employeeId);
+        if (existingEmployee) {
+          return res.status(400).json({ message: "Employee ID already exists" });
+        }
+      }
+      
+      const newEmployee = await storage.createEmployee(req.body);
+      res.status(201).json(newEmployee);
+    } catch (error) {
+      console.error("Error creating employee:", error);
+      res.status(500).json({ message: "Failed to create employee" });
+    }
+  });
+
+  // Update employee (Admin only)
+  app.patch('/api/employees/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const user = await storage.getUser(req.user.claims.sub);
+      if (user?.role !== 'admin') {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+      
+      const { id } = req.params;
+      
+      // Check if employee ID already exists (if being updated)
+      if (req.body.employeeId) {
+        const existingEmployee = await storage.getEmployeeByEmployeeId(req.body.employeeId);
+        if (existingEmployee && existingEmployee.id !== id) {
+          return res.status(400).json({ message: "Employee ID already exists" });
+        }
+      }
+      
+      const updatedEmployee = await storage.updateEmployee(id, req.body);
+      res.json(updatedEmployee);
+    } catch (error) {
+      console.error("Error updating employee:", error);
+      res.status(500).json({ message: "Failed to update employee" });
+    }
+  });
+
   app.patch('/api/employees/:id/role', isAuthenticated, async (req: any, res) => {
     try {
       const user = await storage.getUser(req.user.claims.sub);

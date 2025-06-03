@@ -40,6 +40,12 @@ export interface IStorage {
   getAllUsers(): Promise<User[]>;
   updateUserRole(id: string, role: string): Promise<User>;
   updateUserProfile(id: string, profileData: any): Promise<User>;
+  
+  // Admin employee management
+  createEmployee(employeeData: any): Promise<User>;
+  updateEmployee(id: string, employeeData: any): Promise<User>;
+  deleteEmployee(id: string): Promise<void>;
+  getEmployeeByEmployeeId(employeeId: string): Promise<User | undefined>;
 
   // Time off requests
   createTimeOffRequest(request: InsertTimeOffRequest): Promise<TimeOffRequest>;
@@ -136,6 +142,44 @@ export class DatabaseStorage implements IStorage {
       })
       .where(eq(users.id, id))
       .returning();
+    return user;
+  }
+
+  // Admin employee management methods
+  async createEmployee(employeeData: any): Promise<User> {
+    const [user] = await db
+      .insert(users)
+      .values({
+        id: `emp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, // Generate unique ID
+        ...employeeData,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .returning();
+    return user;
+  }
+
+  async updateEmployee(id: string, employeeData: any): Promise<User> {
+    const [user] = await db
+      .update(users)
+      .set({ 
+        ...employeeData,
+        updatedAt: new Date()
+      })
+      .where(eq(users.id, id))
+      .returning();
+    return user;
+  }
+
+  async deleteEmployee(id: string): Promise<void> {
+    await db
+      .update(users)
+      .set({ isActive: false, updatedAt: new Date() })
+      .where(eq(users.id, id));
+  }
+
+  async getEmployeeByEmployeeId(employeeId: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.employeeId, employeeId));
     return user;
   }
 
