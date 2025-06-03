@@ -184,6 +184,11 @@ class NotificationService {
     };
 
     await this.sendToAllManagers(payload);
+    
+    // Send SMS notification to manager's phone (847-401-5540)
+    if (smsService.isConfigured()) {
+      await smsService.sendShiftCoverageAlert("8474015540", requesterName, shiftDate);
+    }
   }
 
   async notifyApprovalDecision(userId: string, type: 'approved' | 'denied', requestType: string): Promise<void> {
