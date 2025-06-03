@@ -54,6 +54,8 @@ const addEmployeeSchema = z.object({
   emergencyContact: z.string().optional(),
   emergencyPhone: z.string().optional(),
   notes: z.string().optional(),
+  isActive: z.boolean().default(true),
+  timeOffBalance: z.number().default(24),
 });
 
 const editEmployeeSchema = z.object({
@@ -87,6 +89,7 @@ export default function AdminEmployeeManagement() {
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<UserType | null>(null);
+  const [keepDialogOpen, setKeepDialogOpen] = useState(false);
   const { toast } = useToast();
 
   const { data: employees, isLoading } = useQuery<UserType[]>({
@@ -99,6 +102,10 @@ export default function AdminEmployeeManagement() {
       role: "employee",
       isActive: true,
       timeOffBalance: 24,
+      employeeId: "",
+      email: "",
+      firstName: "",
+      lastName: "",
     },
   });
 
@@ -118,11 +125,39 @@ export default function AdminEmployeeManagement() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/employees"] });
-      setAddDialogOpen(false);
-      addForm.reset();
+      
+      // Only close dialog if not in continuous add mode
+      if (!keepDialogOpen) {
+        setAddDialogOpen(false);
+      }
+      
+      // Reset form for next employee
+      addForm.reset({
+        role: "employee",
+        isActive: true,
+        timeOffBalance: 24,
+        employeeId: "",
+        email: "",
+        firstName: "",
+        lastName: "",
+        department: "",
+        position: "",
+        hireDate: "",
+        phone: "",
+        address: "",
+        city: "",
+        state: "",
+        zipCode: "",
+        emergencyContact: "",
+        emergencyPhone: "",
+        notes: "",
+      });
+      
       toast({
         title: "Employee Added",
-        description: "New employee has been successfully added to the system.",
+        description: keepDialogOpen 
+          ? "Employee added successfully. Ready for next employee." 
+          : "New employee has been successfully added to the system.",
       });
     },
     onError: (error) => {
@@ -501,16 +536,36 @@ export default function AdminEmployeeManagement() {
                 </TabsContent>
               </Tabs>
               
+              {/* Continuous Add Toggle */}
+              <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border">
+                <div className="flex items-center space-x-3">
+                  <Switch
+                    id="keep-open"
+                    checked={keepDialogOpen}
+                    onCheckedChange={setKeepDialogOpen}
+                  />
+                  <Label htmlFor="keep-open" className="text-sm font-medium">
+                    Keep form open for multiple additions
+                  </Label>
+                </div>
+                <div className="text-xs text-slate-500">
+                  {keepDialogOpen ? "Form will stay open after adding each employee" : "Form will close after adding employee"}
+                </div>
+              </div>
+
               <div className="flex justify-end space-x-2">
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => setAddDialogOpen(false)}
+                  onClick={() => {
+                    setAddDialogOpen(false);
+                    setKeepDialogOpen(false);
+                  }}
                 >
                   Cancel
                 </Button>
                 <Button type="submit" disabled={addEmployeeMutation.isPending}>
-                  {addEmployeeMutation.isPending ? "Adding..." : "Add Employee"}
+                  {addEmployeeMutation.isPending ? "Adding..." : keepDialogOpen ? "Add & Continue" : "Add Employee"}
                 </Button>
               </div>
             </form>
