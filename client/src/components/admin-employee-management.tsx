@@ -37,6 +37,12 @@ import {
 import { format } from "date-fns";
 import type { User as UserType } from "@shared/schema";
 
+// Helper function to generate next employee ID
+const generateNextEmployeeId = (baseId: string, currentCount: number): string => {
+  const number = parseInt(baseId) || 1000;
+  return (number + currentCount + 1).toString();
+};
+
 const addEmployeeSchema = z.object({
   employeeId: z.string().min(1, "Employee ID is required"),
   email: z.string().email("Valid email is required"),
@@ -90,6 +96,14 @@ export default function AdminEmployeeManagement() {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<UserType | null>(null);
   const [keepDialogOpen, setKeepDialogOpen] = useState(false);
+  const [autoIncrement, setAutoIncrement] = useState(false);
+  const [baseEmployeeId, setBaseEmployeeId] = useState("");
+  const [bulkTemplate, setBulkTemplate] = useState({
+    department: "",
+    position: "",
+    hireDate: "",
+    role: "employee" as const,
+  });
   const { toast } = useToast();
 
   const { data: employees, isLoading } = useQuery<UserType[]>({
@@ -132,17 +146,21 @@ export default function AdminEmployeeManagement() {
       }
       
       // Reset form for next employee
+      const nextEmployeeId = autoIncrement && baseEmployeeId 
+        ? generateNextEmployeeId(baseEmployeeId, employees?.length || 0)
+        : "";
+        
       addForm.reset({
-        role: "employee",
+        role: keepDialogOpen ? bulkTemplate.role : "employee",
         isActive: true,
         timeOffBalance: 24,
-        employeeId: "",
+        employeeId: nextEmployeeId,
         email: "",
         firstName: "",
         lastName: "",
-        department: "",
-        position: "",
-        hireDate: "",
+        department: keepDialogOpen ? bulkTemplate.department : "",
+        position: keepDialogOpen ? bulkTemplate.position : "",
+        hireDate: keepDialogOpen ? bulkTemplate.hireDate : "",
         phone: "",
         address: "",
         city: "",
@@ -536,21 +554,101 @@ export default function AdminEmployeeManagement() {
                 </TabsContent>
               </Tabs>
               
-              {/* Continuous Add Toggle */}
-              <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border">
-                <div className="flex items-center space-x-3">
-                  <Switch
-                    id="keep-open"
-                    checked={keepDialogOpen}
-                    onCheckedChange={setKeepDialogOpen}
-                  />
-                  <Label htmlFor="keep-open" className="text-sm font-medium">
-                    Keep form open for multiple additions
-                  </Label>
+              {/* Bulk Addition Controls */}
+              <div className="space-y-3 p-4 bg-slate-50 rounded-lg border">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <Switch
+                      id="keep-open"
+                      checked={keepDialogOpen}
+                      onCheckedChange={setKeepDialogOpen}
+                    />
+                    <Label htmlFor="keep-open" className="text-sm font-medium">
+                      Keep form open for multiple additions
+                    </Label>
+                  </div>
+                  <div className="text-xs text-slate-500">
+                    {keepDialogOpen ? "Form will stay open after adding each employee" : "Form will close after adding employee"}
+                  </div>
                 </div>
-                <div className="text-xs text-slate-500">
-                  {keepDialogOpen ? "Form will stay open after adding each employee" : "Form will close after adding employee"}
-                </div>
+                
+                {keepDialogOpen && (
+                  <div className="space-y-3 pt-3 border-t">
+                    <div className="flex items-center space-x-4">
+                      <div className="flex items-center space-x-3">
+                        <Switch
+                          id="auto-increment"
+                          checked={autoIncrement}
+                          onCheckedChange={setAutoIncrement}
+                        />
+                        <Label htmlFor="auto-increment" className="text-sm font-medium">
+                          Auto-increment Employee IDs
+                        </Label>
+                      </div>
+                      {autoIncrement && (
+                        <div className="flex items-center space-x-2">
+                          <Label htmlFor="base-id" className="text-xs text-slate-600">
+                            Starting ID:
+                          </Label>
+                          <Input
+                            id="base-id"
+                            type="number"
+                            value={baseEmployeeId}
+                            onChange={(e) => setBaseEmployeeId(e.target.value)}
+                            placeholder="1000"
+                            className="w-20 h-8 text-xs"
+                          />
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div className="grid grid-cols-4 gap-2 pt-2 border-t border-slate-200">
+                      <div className="col-span-4 text-xs font-medium text-slate-600 mb-1">
+                        Default values for all new employees:
+                      </div>
+                      <div>
+                        <Label className="text-xs text-slate-500">Department</Label>
+                        <Input
+                          value={bulkTemplate.department}
+                          onChange={(e) => setBulkTemplate(prev => ({ ...prev, department: e.target.value }))}
+                          placeholder="Operations"
+                          className="h-7 text-xs"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-slate-500">Position</Label>
+                        <Input
+                          value={bulkTemplate.position}
+                          onChange={(e) => setBulkTemplate(prev => ({ ...prev, position: e.target.value }))}
+                          placeholder="Farm Worker"
+                          className="h-7 text-xs"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-slate-500">Hire Date</Label>
+                        <Input
+                          type="date"
+                          value={bulkTemplate.hireDate}
+                          onChange={(e) => setBulkTemplate(prev => ({ ...prev, hireDate: e.target.value }))}
+                          className="h-7 text-xs"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-slate-500">Role</Label>
+                        <Select onValueChange={(value) => setBulkTemplate(prev => ({ ...prev, role: value as any }))}>
+                          <SelectTrigger className="h-7 text-xs">
+                            <SelectValue placeholder="Employee" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="employee">Employee</SelectItem>
+                            <SelectItem value="manager">Manager</SelectItem>
+                            <SelectItem value="admin">Administrator</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="flex justify-end space-x-2">
