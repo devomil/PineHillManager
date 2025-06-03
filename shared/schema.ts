@@ -163,6 +163,28 @@ export const messages = pgTable("messages", {
   isRead: boolean("is_read").default(false),
   sentAt: timestamp("sent_at").defaultNow(),
   readAt: timestamp("read_at"),
+  messageType: varchar("message_type").default("direct"), // 'direct', 'channel', 'announcement'
+  channelId: varchar("channel_id"), // for team/group messages
+});
+
+// Chat channels for team communication
+export const chatChannels = pgTable("chat_channels", {
+  id: serial("id").primaryKey(),
+  name: varchar("name").notNull(),
+  description: text("description"),
+  type: varchar("type").default("team"), // 'team', 'department', 'general'
+  isPrivate: boolean("is_private").default(false),
+  createdBy: varchar("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Channel memberships
+export const channelMembers = pgTable("channel_members", {
+  id: serial("id").primaryKey(),
+  channelId: integer("channel_id").notNull().references(() => chatChannels.id),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  role: varchar("role").default("member"), // 'admin', 'member'
+  joinedAt: timestamp("joined_at").defaultNow(),
 });
 
 // Push subscriptions for mobile notifications
@@ -199,6 +221,8 @@ export const usersRelations = relations(users, ({ many }) => ({
   receivedMessages: many(messages, { relationName: "recipient" }),
   pushSubscriptions: many(pushSubscriptions),
   notifications: many(notifications),
+  createdChannels: many(chatChannels),
+  channelMemberships: many(channelMembers),
 }));
 
 export const timeOffRequestsRelations = relations(timeOffRequests, ({ one }) => ({
@@ -233,6 +257,18 @@ export const trainingProgressRelations = relations(trainingProgress, ({ one }) =
 export const messagesRelations = relations(messages, ({ one }) => ({
   sender: one(users, { fields: [messages.senderId], references: [users.id], relationName: "sender" }),
   recipient: one(users, { fields: [messages.recipientId], references: [users.id], relationName: "recipient" }),
+  channel: one(chatChannels, { fields: [messages.channelId], references: [chatChannels.id] }),
+}));
+
+export const chatChannelsRelations = relations(chatChannels, ({ one, many }) => ({
+  creator: one(users, { fields: [chatChannels.createdBy], references: [users.id] }),
+  members: many(channelMembers),
+  messages: many(messages),
+}));
+
+export const channelMembersRelations = relations(channelMembers, ({ one }) => ({
+  channel: one(chatChannels, { fields: [channelMembers.channelId], references: [chatChannels.id] }),
+  user: one(users, { fields: [channelMembers.userId], references: [users.id] }),
 }));
 
 // Create insert schemas
@@ -293,6 +329,16 @@ export const insertNotificationSchema = createInsertSchema(notifications).omit({
   readAt: true,
 });
 
+export const insertChatChannelSchema = createInsertSchema(chatChannels).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertChannelMemberSchema = createInsertSchema(channelMembers).omit({
+  id: true,
+  joinedAt: true,
+});
+
 // Add relations for new tables
 export const pushSubscriptionsRelations = relations(pushSubscriptions, ({ one }) => ({
   user: one(users, { fields: [pushSubscriptions.userId], references: [users.id] }),
@@ -325,6 +371,10 @@ export type InsertNotification = z.infer<typeof insertNotificationSchema>;
 export type Notification = typeof notifications.$inferSelect;
 export type Location = typeof locations.$inferSelect;
 export type InsertLocation = typeof locations.$inferInsert;
+export type InsertChatChannel = z.infer<typeof insertChatChannelSchema>;
+export type ChatChannel = typeof chatChannels.$inferSelect;
+export type InsertChannelMember = z.infer<typeof insertChannelMemberSchema>;
+export type ChannelMember = typeof channelMembers.$inferSelect;
 
 // Calendar event type for unified calendar view
 export interface CalendarEvent {

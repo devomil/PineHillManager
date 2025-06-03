@@ -10,6 +10,8 @@ import {
   pushSubscriptions,
   notifications,
   locations,
+  chatChannels,
+  channelMembers,
   type User,
   type UpsertUser,
   type InsertTimeOffRequest,
@@ -33,6 +35,10 @@ import {
   type Location,
   type InsertLocation,
   type CalendarEvent,
+  type InsertChatChannel,
+  type ChatChannel,
+  type InsertChannelMember,
+  type ChannelMember,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, asc, gte, lte } from "drizzle-orm";
@@ -107,6 +113,19 @@ export interface IStorage {
   getUserNotifications(userId: string): Promise<Notification[]>;
   markNotificationAsRead(id: number): Promise<Notification>;
   getUnreadNotifications(userId: string): Promise<Notification[]>;
+
+  // Chat channels
+  createChatChannel(channel: InsertChatChannel): Promise<ChatChannel>;
+  getUserChannels(userId: string): Promise<ChatChannel[]>;
+  getAllChannels(): Promise<ChatChannel[]>;
+  addChannelMember(member: InsertChannelMember): Promise<ChannelMember>;
+  removeChannelMember(channelId: number, userId: string): Promise<void>;
+  getChannelMembers(channelId: number): Promise<ChannelMember[]>;
+
+  // Chat messages
+  sendChannelMessage(message: InsertMessage): Promise<Message>;
+  getChannelMessages(channelId: string, limit?: number): Promise<Message[]>;
+  getDirectMessages(userId1: string, userId2: string, limit?: number): Promise<Message[]>;
 }
 
 export class DatabaseStorage implements IStorage {
