@@ -44,11 +44,7 @@ function Router() {
           <Route path="/profile" component={Profile} />
           
           {/* Manager/Admin routes */}
-          <Route path="/shift-scheduling">
-            <ProtectedRoute requiredRole="manager">
-              <ShiftScheduling />
-            </ProtectedRoute>
-          </Route>
+          <Route path="/shift-scheduling" component={ShiftScheduling} />
           
           {/* Admin-only routes */}
           <Route path="/employees">

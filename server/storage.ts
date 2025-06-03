@@ -270,21 +270,20 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getUserWorkSchedules(userId: string, startDate?: string, endDate?: string): Promise<WorkSchedule[]> {
-    let query = db
-      .select()
-      .from(workSchedules)
-      .where(eq(workSchedules.userId, userId));
-
+    const conditions = [eq(workSchedules.userId, userId)];
+    
     if (startDate && endDate) {
-      query = query.where(
-        and(
-          gte(workSchedules.date, startDate),
-          lte(workSchedules.date, endDate)
-        )
+      conditions.push(
+        gte(workSchedules.date, startDate),
+        lte(workSchedules.date, endDate)
       );
     }
 
-    return await query.orderBy(asc(workSchedules.date));
+    return await db
+      .select()
+      .from(workSchedules)
+      .where(and(...conditions))
+      .orderBy(asc(workSchedules.date));
   }
 
   async getWorkSchedulesByDate(date: string): Promise<WorkSchedule[]> {
@@ -305,22 +304,20 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getWorkSchedulesByLocation(locationId: number, startDate?: string, endDate?: string): Promise<WorkSchedule[]> {
-    let query = db
-      .select()
-      .from(workSchedules)
-      .where(eq(workSchedules.locationId, locationId));
-
+    const conditions = [eq(workSchedules.locationId, locationId)];
+    
     if (startDate && endDate) {
-      query = query.where(
-        and(
-          eq(workSchedules.locationId, locationId),
-          gte(workSchedules.date, startDate),
-          lte(workSchedules.date, endDate)
-        )
+      conditions.push(
+        gte(workSchedules.date, startDate),
+        lte(workSchedules.date, endDate)
       );
     }
 
-    return await query.orderBy(asc(workSchedules.date), asc(workSchedules.startTime));
+    return await db
+      .select()
+      .from(workSchedules)
+      .where(and(...conditions))
+      .orderBy(asc(workSchedules.date), asc(workSchedules.startTime));
   }
 
   async getWorkSchedulesByDateRange(startDate: string, endDate: string): Promise<WorkSchedule[]> {
@@ -349,9 +346,9 @@ export class DatabaseStorage implements IStorage {
         end: `${schedule.date}T${schedule.endTime}`,
         type: 'schedule',
         userId: schedule.userId,
-        locationId: schedule.locationId,
-        status: schedule.status,
-        description: schedule.notes || '',
+        locationId: schedule.locationId || undefined,
+        status: schedule.status || undefined,
+        description: schedule.notes || undefined,
         data: schedule
       });
     }
