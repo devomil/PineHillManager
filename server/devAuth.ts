@@ -58,7 +58,14 @@ export async function setupDevAuth(app: Express) {
       expires_at: Math.floor(Date.now() / 1000) + 3600, // 1 hour
     };
 
-    res.redirect("/");
+    // Save session before redirect
+    req.session.save((err) => {
+      if (err) {
+        console.error('Session save error:', err);
+        return res.status(500).json({ message: "Session error" });
+      }
+      res.redirect("/");
+    });
   });
 
   app.get("/api/logout", (req, res) => {
