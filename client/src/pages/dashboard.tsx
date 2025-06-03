@@ -10,6 +10,7 @@ import { QuickChat } from "@/components/quick-chat";
 export default function Dashboard() {
   const { toast } = useToast();
   const { isAuthenticated, isLoading, user } = useAuth();
+  const [chatOpen, setChatOpen] = useState(false);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -65,6 +66,9 @@ export default function Dashboard() {
 
       {/* Upcoming Shifts */}
       <UpcomingShifts />
+
+      {/* Quick Chat - Floating Chat Interface */}
+      <QuickChat isOpen={chatOpen} onToggle={() => setChatOpen(!chatOpen)} />
     </div>
   );
 }

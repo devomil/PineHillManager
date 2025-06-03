@@ -87,17 +87,11 @@ export function QuickChat({ isOpen, onToggle }: QuickChatProps) {
   const sendMessageMutation = useMutation({
     mutationFn: async (messageData: { content: string; channelId?: string; recipientId?: string }) => {
       if (messageData.channelId) {
-        return apiRequest(`/api/chat/channels/${messageData.channelId}/messages`, {
-          method: "POST",
-          body: JSON.stringify({ content: messageData.content }),
-        });
+        return apiRequest(`/api/chat/channels/${messageData.channelId}/messages`, "POST", { content: messageData.content });
       } else {
-        return apiRequest("/api/chat/direct", {
-          method: "POST",
-          body: JSON.stringify({
-            content: messageData.content,
-            recipientId: messageData.recipientId,
-          }),
+        return apiRequest("/api/chat/direct", "POST", {
+          content: messageData.content,
+          recipientId: messageData.recipientId,
         });
       }
     },
@@ -112,10 +106,7 @@ export function QuickChat({ isOpen, onToggle }: QuickChatProps) {
   // Create channel mutation
   const createChannelMutation = useMutation({
     mutationFn: async (channelData: { name: string; description?: string; type: string; isPrivate: boolean }) => {
-      return apiRequest("/api/chat/channels", {
-        method: "POST",
-        body: JSON.stringify(channelData),
-      });
+      return apiRequest("/api/chat/channels", "POST", channelData);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/chat/channels"] });
@@ -251,7 +242,7 @@ export function QuickChat({ isOpen, onToggle }: QuickChatProps) {
                             {users.find(u => u.id === message.senderId)?.firstName || 'Unknown User'}
                           </span>
                           <span className="text-xs text-muted-foreground">
-                            {formatDistanceToNow(new Date(message.sentAt), { addSuffix: true })}
+                            {message.sentAt ? formatDistanceToNow(new Date(message.sentAt), { addSuffix: true }) : 'Now'}
                           </span>
                         </div>
                         <p className="text-sm">{message.content}</p>
