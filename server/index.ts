@@ -3,6 +3,10 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { performanceMiddleware, getPerformanceMetrics, resetPerformanceMetrics } from "./performance-middleware";
 
+// Set VAPID keys for push notifications
+process.env.VAPID_PUBLIC_KEY = "BKVeBF9FrhiHDbvKQe8nojV_igVq_QzaWreyTU0Nr2oQmyU_j9gGJkCAQMtMLRr6toZ1v0tqdxgpf5pDdpiyPSg";
+process.env.VAPID_PRIVATE_KEY = "pOqnB95DYmnfI5elizMXyIpq4LJA8EZEQHoyguwV1R4";
+
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
