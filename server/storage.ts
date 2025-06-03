@@ -147,11 +147,17 @@ export class DatabaseStorage implements IStorage {
 
   // Admin employee management methods
   async createEmployee(employeeData: any): Promise<User> {
+    // Clean up empty date fields to avoid database errors
+    const cleanedData = { ...employeeData };
+    if (cleanedData.hireDate === '') {
+      cleanedData.hireDate = null;
+    }
+    
     const [user] = await db
       .insert(users)
       .values({
         id: `emp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, // Generate unique ID
-        ...employeeData,
+        ...cleanedData,
         createdAt: new Date(),
         updatedAt: new Date(),
       })
@@ -160,10 +166,16 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateEmployee(id: string, employeeData: any): Promise<User> {
+    // Clean up empty date fields to avoid database errors
+    const cleanedData = { ...employeeData };
+    if (cleanedData.hireDate === '') {
+      cleanedData.hireDate = null;
+    }
+    
     const [user] = await db
       .update(users)
       .set({ 
-        ...employeeData,
+        ...cleanedData,
         updatedAt: new Date()
       })
       .where(eq(users.id, id))
