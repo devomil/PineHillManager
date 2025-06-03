@@ -14,6 +14,9 @@ import {
   insertMessageSchema,
   insertChatChannelSchema,
   insertChannelMemberSchema,
+  insertDocumentSchema,
+  insertDocumentPermissionSchema,
+  insertDocumentLogSchema,
 } from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -816,6 +819,262 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error removing push subscription:", error);
       res.status(500).json({ message: "Failed to remove push subscription" });
+    }
+  });
+
+  // Document management routes
+  app.get('/api/documents', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      const { category } = req.query;
+      
+      const documents = await storage.getUserAccessibleDocuments(
+        userId, 
+        user?.role || 'employee', 
+        user?.department || ''
+      );
+      
+      const filteredDocs = category 
+        ? documents.filter(doc => doc.category === category)
+        : documents;
+        
+      res.json(filteredDocs);
+    } catch (error) {
+      console.error("Error fetching documents:", error);
+      res.status(500).json({ message: "Failed to fetch documents" });
+    }
+  });
+
+  app.post('/api/documents', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const documentData = insertDocumentSchema.parse({
+        ...req.body,
+        uploadedBy: userId
+      });
+      
+      const document = await storage.createDocument(documentData);
+      
+      // Log the upload action
+      await storage.logDocumentAction({
+        documentId: document.id,
+        userId,
+        action: 'upload',
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent')
+      });
+      
+      res.json(document);
+    } catch (error) {
+      console.error("Error creating document:", error);
+      res.status(500).json({ message: "Failed to create document" });
+    }
+  });
+
+  app.get('/api/documents/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      const documentId = parseInt(req.params.id);
+      
+      const hasAccess = await storage.checkDocumentAccess(
+        documentId, 
+        userId, 
+        user?.role || 'employee', 
+        user?.department || ''
+      );
+      
+      if (!hasAccess) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      const document = await storage.getDocumentById(documentId);
+      if (!document) {
+        return res.status(404).json({ message: "Document not found" });
+      }
+      
+      // Log the view action
+      await storage.logDocumentAction({
+        documentId,
+        userId,
+        action: 'view',
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent')
+      });
+      
+      res.json(document);
+    } catch (error) {
+      console.error("Error fetching document:", error);
+      res.status(500).json({ message: "Failed to fetch document" });
+    }
+  });
+
+  app.patch('/api/documents/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      const documentId = parseInt(req.params.id);
+      
+      const document = await storage.getDocumentById(documentId);
+      if (!document) {
+        return res.status(404).json({ message: "Document not found" });
+      }
+      
+      // Only owner or admin can update
+      if (document.uploadedBy !== userId && user?.role !== 'admin') {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      const updatedDocument = await storage.updateDocument(documentId, req.body);
+      
+      // Log the update action
+      await storage.logDocumentAction({
+        documentId,
+        userId,
+        action: 'update',
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent')
+      });
+      
+      res.json(updatedDocument);
+    } catch (error) {
+      console.error("Error updating document:", error);
+      res.status(500).json({ message: "Failed to update document" });
+    }
+  });
+
+  app.delete('/api/documents/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      const documentId = parseInt(req.params.id);
+      
+      const document = await storage.getDocumentById(documentId);
+      if (!document) {
+        return res.status(404).json({ message: "Document not found" });
+      }
+      
+      // Only owner or admin can delete
+      if (document.uploadedBy !== userId && user?.role !== 'admin') {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      await storage.deleteDocument(documentId);
+      
+      // Log the delete action
+      await storage.logDocumentAction({
+        documentId,
+        userId,
+        action: 'delete',
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent')
+      });
+      
+      res.json({ message: "Document deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting document:", error);
+      res.status(500).json({ message: "Failed to delete document" });
+    }
+  });
+
+  // Document permissions routes
+  app.post('/api/documents/:id/permissions', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      const documentId = parseInt(req.params.id);
+      
+      const document = await storage.getDocumentById(documentId);
+      if (!document) {
+        return res.status(404).json({ message: "Document not found" });
+      }
+      
+      // Only owner or admin can grant permissions
+      if (document.uploadedBy !== userId && user?.role !== 'admin') {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      const permissionData = insertDocumentPermissionSchema.parse({
+        ...req.body,
+        documentId,
+        grantedBy: userId
+      });
+      
+      const permission = await storage.createDocumentPermission(permissionData);
+      res.json(permission);
+    } catch (error) {
+      console.error("Error creating document permission:", error);
+      res.status(500).json({ message: "Failed to create permission" });
+    }
+  });
+
+  app.get('/api/documents/:id/permissions', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      const documentId = parseInt(req.params.id);
+      
+      const document = await storage.getDocumentById(documentId);
+      if (!document) {
+        return res.status(404).json({ message: "Document not found" });
+      }
+      
+      // Only owner or admin can view permissions
+      if (document.uploadedBy !== userId && user?.role !== 'admin') {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      const permissions = await storage.getDocumentPermissions(documentId);
+      res.json(permissions);
+    } catch (error) {
+      console.error("Error fetching document permissions:", error);
+      res.status(500).json({ message: "Failed to fetch permissions" });
+    }
+  });
+
+  app.delete('/api/documents/permissions/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      const permissionId = parseInt(req.params.id);
+      
+      // Get permission to check document ownership
+      const permissions = await storage.getDocumentPermissions(0); // We'll need to modify this
+      // For now, allow admin or permission granter to revoke
+      if (user?.role !== 'admin') {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+      
+      await storage.revokeDocumentPermission(permissionId);
+      res.json({ message: "Permission revoked successfully" });
+    } catch (error) {
+      console.error("Error revoking document permission:", error);
+      res.status(500).json({ message: "Failed to revoke permission" });
+    }
+  });
+
+  app.get('/api/documents/:id/logs', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      const documentId = parseInt(req.params.id);
+      
+      const document = await storage.getDocumentById(documentId);
+      if (!document) {
+        return res.status(404).json({ message: "Document not found" });
+      }
+      
+      // Only owner or admin can view logs
+      if (document.uploadedBy !== userId && user?.role !== 'admin') {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      const logs = await storage.getDocumentLogs(documentId);
+      res.json(logs);
+    } catch (error) {
+      console.error("Error fetching document logs:", error);
+      res.status(500).json({ message: "Failed to fetch logs" });
     }
   });
 

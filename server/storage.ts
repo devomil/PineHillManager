@@ -135,6 +135,24 @@ export interface IStorage {
   sendChannelMessage(message: InsertMessage): Promise<Message>;
   getChannelMessages(channelId: string, limit?: number): Promise<Message[]>;
   getDirectMessages(userId1: string, userId2: string, limit?: number): Promise<Message[]>;
+
+  // Document management
+  createDocument(document: InsertDocument): Promise<Document>;
+  getDocuments(userId: string, category?: string): Promise<Document[]>;
+  getDocumentById(id: number): Promise<Document | undefined>;
+  updateDocument(id: number, document: Partial<InsertDocument>): Promise<Document>;
+  deleteDocument(id: number): Promise<void>;
+  getUserAccessibleDocuments(userId: string, userRole: string, userDepartment: string): Promise<Document[]>;
+
+  // Document permissions
+  createDocumentPermission(permission: InsertDocumentPermission): Promise<DocumentPermission>;
+  getDocumentPermissions(documentId: number): Promise<DocumentPermission[]>;
+  checkDocumentAccess(documentId: number, userId: string, userRole: string, userDepartment: string): Promise<boolean>;
+  revokeDocumentPermission(id: number): Promise<void>;
+
+  // Document logs
+  logDocumentAction(log: InsertDocumentLog): Promise<DocumentLog>;
+  getDocumentLogs(documentId: number): Promise<DocumentLog[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -764,6 +782,170 @@ export class DatabaseStorage implements IStorage {
       ))
       .orderBy(desc(messages.sentAt))
       .limit(limit);
+  }
+
+  // Document management
+  async createDocument(document: InsertDocument): Promise<Document> {
+    const [doc] = await db
+      .insert(documents)
+      .values(document)
+      .returning();
+    return doc;
+  }
+
+  async getDocuments(userId: string, category?: string): Promise<Document[]> {
+    let query = db
+      .select()
+      .from(documents)
+      .where(eq(documents.uploadedBy, userId));
+    
+    if (category) {
+      query = db
+        .select()
+        .from(documents)
+        .where(and(
+          eq(documents.uploadedBy, userId),
+          eq(documents.category, category)
+        ));
+    }
+    
+    return query;
+  }
+
+  async getDocumentById(id: number): Promise<Document | undefined> {
+    const [doc] = await db
+      .select()
+      .from(documents)
+      .where(eq(documents.id, id));
+    return doc;
+  }
+
+  async updateDocument(id: number, document: Partial<InsertDocument>): Promise<Document> {
+    const [doc] = await db
+      .update(documents)
+      .set({ ...document, updatedAt: new Date() })
+      .where(eq(documents.id, id))
+      .returning();
+    return doc;
+  }
+
+  async deleteDocument(id: number): Promise<void> {
+    await db.delete(documents).where(eq(documents.id, id));
+  }
+
+  async getUserAccessibleDocuments(userId: string, userRole: string, userDepartment: string): Promise<Document[]> {
+    // Get documents uploaded by user
+    const userDocs = await db
+      .select()
+      .from(documents)
+      .where(eq(documents.uploadedBy, userId));
+
+    // Get documents with explicit permissions
+    const permissionDocs = await db
+      .select({
+        id: documents.id,
+        fileName: documents.fileName,
+        originalName: documents.originalName,
+        filePath: documents.filePath,
+        fileSize: documents.fileSize,
+        mimeType: documents.mimeType,
+        category: documents.category,
+        description: documents.description,
+        uploadedBy: documents.uploadedBy,
+        isPublic: documents.isPublic,
+        isActive: documents.isActive,
+        uploadedAt: documents.uploadedAt,
+        updatedAt: documents.updatedAt,
+      })
+      .from(documents)
+      .innerJoin(documentPermissions, eq(documents.id, documentPermissions.documentId))
+      .where(eq(documentPermissions.userId, userId));
+
+    // Get public documents
+    const publicDocs = await db
+      .select()
+      .from(documents)
+      .where(eq(documents.isPublic, true));
+
+    // Combine and deduplicate
+    const allDocs = [...userDocs, ...permissionDocs, ...publicDocs];
+    const uniqueDocs = allDocs.filter((doc, index, self) => 
+      index === self.findIndex(d => d.id === doc.id)
+    );
+
+    return uniqueDocs;
+  }
+
+  // Document permissions
+  async createDocumentPermission(permission: InsertDocumentPermission): Promise<DocumentPermission> {
+    const [perm] = await db
+      .insert(documentPermissions)
+      .values(permission)
+      .returning();
+    return perm;
+  }
+
+  async getDocumentPermissions(documentId: number): Promise<DocumentPermission[]> {
+    return db
+      .select()
+      .from(documentPermissions)
+      .where(eq(documentPermissions.documentId, documentId));
+  }
+
+  async checkDocumentAccess(documentId: number, userId: string, userRole: string, userDepartment: string): Promise<boolean> {
+    // Check if user is document owner
+    const [doc] = await db
+      .select()
+      .from(documents)
+      .where(and(
+        eq(documents.id, documentId),
+        eq(documents.uploadedBy, userId)
+      ));
+
+    if (doc) return true;
+
+    // Check if document is public
+    const [publicDoc] = await db
+      .select()
+      .from(documents)
+      .where(and(
+        eq(documents.id, documentId),
+        eq(documents.isPublic, true)
+      ));
+
+    if (publicDoc) return true;
+
+    // Check explicit permissions
+    const [permission] = await db
+      .select()
+      .from(documentPermissions)
+      .where(and(
+        eq(documentPermissions.documentId, documentId),
+        eq(documentPermissions.userId, userId)
+      ));
+
+    return !!permission;
+  }
+
+  async revokeDocumentPermission(id: number): Promise<void> {
+    await db.delete(documentPermissions).where(eq(documentPermissions.id, id));
+  }
+
+  // Document logs
+  async logDocumentAction(log: InsertDocumentLog): Promise<DocumentLog> {
+    const [docLog] = await db
+      .insert(documentLogs)
+      .values(log)
+      .returning();
+    return docLog;
+  }
+
+  async getDocumentLogs(documentId: number): Promise<DocumentLog[]> {
+    return db
+      .select()
+      .from(documentLogs)
+      .where(eq(documentLogs.documentId, documentId))
+      .orderBy(desc(documentLogs.timestamp));
   }
 }
 
