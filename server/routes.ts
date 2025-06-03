@@ -432,6 +432,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Test page for mobile notifications
+  app.get('/test-notifications', (req, res) => {
+    res.sendFile('test-notifications.html', { root: './server' });
+  });
+
   // Notification routes
   app.get('/api/notifications', isAuthenticated, async (req: any, res) => {
     try {

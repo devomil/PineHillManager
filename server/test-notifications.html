@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pine Hill Farm - Mobile Notifications Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .notification { border: 1px solid #ddd; padding: 15px; margin: 10px 0; border-radius: 8px; }
+        .unread { background-color: #f0f7ff; border-left: 4px solid #0066cc; }
+        .button { background: #0066cc; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; }
+        .success { color: #008000; }
+        .error { color: #cc0000; }
+    </style>
+</head>
+<body>
+    <h1>Pine Hill Farm - Mobile Notification System</h1>
+    
+    <div id="status"></div>
+    
+    <h2>Current Notifications</h2>
+    <div id="notifications"></div>
+    
+    <h2>Test Mobile Notifications</h2>
+    <button class="button" onclick="requestPermission()">Enable Notifications</button>
+    <button class="button" onclick="testNotification()">Test Notification</button>
+    <button class="button" onclick="loadNotifications()">Refresh Notifications</button>
+    
+    <script>
+        async function loadNotifications() {
+            try {
+                const response = await fetch('/api/notifications');
+                const notifications = await response.json();
+                
+                const container = document.getElementById('notifications');
+                container.innerHTML = '';
+                
+                if (notifications.length === 0) {
+                    container.innerHTML = '<p>No notifications found</p>';
+                    return;
+                }
+                
+                notifications.forEach(notification => {
+                    const div = document.createElement('div');
+                    div.className = 'notification' + (notification.isRead ? '' : ' unread');
+                    div.innerHTML = `
+                        <h3>${notification.title}</h3>
+                        <p>${notification.body}</p>
+                        <small>Type: ${notification.type} | Sent: ${new Date(notification.sentAt).toLocaleString()}</small>
+                        ${!notification.isRead ? '<span style="color: #0066cc; font-weight: bold;"> • UNREAD</span>' : ''}
+                    `;
+                    container.appendChild(div);
+                });
+                
+                document.getElementById('status').innerHTML = `<p class="success">Loaded ${notifications.length} notifications</p>`;
+            } catch (error) {
+                document.getElementById('status').innerHTML = `<p class="error">Error loading notifications: ${error.message}</p>`;
+            }
+        }
+        
+        async function requestPermission() {
+            if ('Notification' in window) {
+                const permission = await Notification.requestPermission();
+                if (permission === 'granted') {
+                    document.getElementById('status').innerHTML = '<p class="success">Notification permission granted!</p>';
+                } else {
+                    document.getElementById('status').innerHTML = '<p class="error">Notification permission denied</p>';
+                }
+            } else {
+                document.getElementById('status').innerHTML = '<p class="error">Notifications not supported by this browser</p>';
+            }
+        }
+        
+        function testNotification() {
+            if ('Notification' in window && Notification.permission === 'granted') {
+                new Notification('Pine Hill Farm Test', {
+                    body: 'This is a test notification from the mobile app system',
+                    icon: '/favicon.ico',
+                    tag: 'test'
+                });
+                document.getElementById('status').innerHTML = '<p class="success">Test notification sent!</p>';
+            } else {
+                document.getElementById('status').innerHTML = '<p class="error">Please enable notifications first</p>';
+            }
+        }
+        
+        // Load notifications on page load
+        loadNotifications();
+    </script>
+</body>
+</html>
