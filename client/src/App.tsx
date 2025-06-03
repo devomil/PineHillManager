@@ -10,6 +10,7 @@ import Dashboard from "@/pages/dashboard";
 import TimeManagement from "@/pages/time-management";
 import Communication from "@/pages/communication";
 import Employees from "@/pages/employees";
+import Calendar from "@/pages/calendar";
 import Marketing from "@/pages/marketing";
 import Training from "@/pages/training";
 import AdminTraining from "@/pages/admin-training";
@@ -31,6 +32,7 @@ function Router() {
         <AppLayout>
           <Route path="/" component={Dashboard} />
           <Route path="/dashboard" component={Dashboard} />
+          <Route path="/calendar" component={Calendar} />
           <Route path="/time" component={TimeManagement} />
           <Route path="/communication" component={Communication} />
           <Route path="/marketing" component={Marketing} />

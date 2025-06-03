@@ -78,20 +78,20 @@ export default function Calendar() {
   const { start: startDate, end: endDate } = getDateRange();
 
   // Fetch locations
-  const { data: locations = [] } = useQuery({
+  const { data: locations = [] } = useQuery<Location[]>({
     queryKey: ["/api/locations"],
     enabled: isAuthenticated,
   });
 
-  // Fetch employees for admin/manager users
-  const { data: employees = [] } = useQuery({
+  // Fetch employees for admin/manager users  
+  const { data: employees = [] } = useQuery<any[]>({
     queryKey: ["/api/employees"],
     enabled: isAuthenticated && (user?.role === "admin" || user?.role === "manager"),
     retry: false,
   });
 
   // Fetch calendar events with smart sync
-  const { data: events = [], isLoading: eventsLoading } = useQuery({
+  const { data: events = [], isLoading: eventsLoading } = useQuery<CalendarEvent[]>({
     queryKey: ["/api/calendar/events", startDate, endDate],
     queryFn: () => apiRequest(`/api/calendar/events?startDate=${startDate}&endDate=${endDate}`),
     enabled: isAuthenticated && !!startDate && !!endDate,
@@ -101,10 +101,7 @@ export default function Calendar() {
   // Create schedule mutation
   const createScheduleMutation = useMutation({
     mutationFn: async (data: ScheduleFormData) => {
-      return await apiRequest("/api/work-schedules", {
-        method: "POST",
-        body: JSON.stringify(data),
-      });
+      return await apiRequest("/api/work-schedules", "POST", data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/calendar/events"] });
@@ -139,7 +136,7 @@ export default function Calendar() {
     resolver: zodResolver(scheduleSchema),
     defaultValues: {
       userId: user?.id || "",
-      locationId: locations[0]?.id || 1,
+      locationId: locations.length > 0 ? locations[0].id : 1,
       date: format(new Date(), "yyyy-MM-dd"),
       startTime: "09:00",
       endTime: "17:00",

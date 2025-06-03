@@ -2,7 +2,7 @@ import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useAuth } from "@/hooks/useAuth";
-import { Sprout, Home, Clock, MessageSquare, Users, GraduationCap, Megaphone, BookOpen, BarChart3, Settings, User, X } from "lucide-react";
+import { Sprout, Home, Calendar, Clock, MessageSquare, Users, GraduationCap, Megaphone, BookOpen, BarChart3, Settings, User, X } from "lucide-react";
 
 interface SidebarProps {
   mobileMenuOpen: boolean;
@@ -14,14 +14,15 @@ export default function Sidebar({ mobileMenuOpen, setMobileMenuOpen }: SidebarPr
   const { user } = useAuth();
 
   const navigationItems = [
-    { name: "Dashboard", href: "/dashboard", icon: Home, roles: ["employee", "admin"] },
-    { name: "Time Management", href: "/time", icon: Clock, roles: ["employee", "admin"] },
-    { name: "Communication", href: "/communication", icon: MessageSquare, roles: ["employee", "admin"] },
-    { name: "Marketing", href: "/marketing", icon: Megaphone, roles: ["employee", "admin"] },
-    { name: "Training Portal", href: "/training", icon: BookOpen, roles: ["employee", "admin"] },
-    { name: "Reports", href: "/reports", icon: BarChart3, roles: ["employee", "admin"] },
-    { name: "My Profile", href: "/profile", icon: User, roles: ["employee", "admin"] },
-    { name: "Diagnostics", href: "/diagnostics", icon: Settings, roles: ["employee", "admin"] },
+    { name: "Dashboard", href: "/dashboard", icon: Home, roles: ["employee", "admin", "manager"] },
+    { name: "Global Calendar", href: "/calendar", icon: Calendar, roles: ["employee", "admin", "manager"] },
+    { name: "Time Management", href: "/time", icon: Clock, roles: ["employee", "admin", "manager"] },
+    { name: "Communication", href: "/communication", icon: MessageSquare, roles: ["employee", "admin", "manager"] },
+    { name: "Marketing", href: "/marketing", icon: Megaphone, roles: ["employee", "admin", "manager"] },
+    { name: "Training Portal", href: "/training", icon: BookOpen, roles: ["employee", "admin", "manager"] },
+    { name: "Reports", href: "/reports", icon: BarChart3, roles: ["employee", "admin", "manager"] },
+    { name: "My Profile", href: "/profile", icon: User, roles: ["employee", "admin", "manager"] },
+    { name: "Diagnostics", href: "/diagnostics", icon: Settings, roles: ["employee", "admin", "manager"] },
   ];
 
   const adminItems = [
