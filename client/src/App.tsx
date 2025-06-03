@@ -26,19 +26,18 @@ function Router() {
 
   return (
     <Switch>
+      <Route path="/calendar">
+        <div className="min-h-screen bg-gray-50 p-6">
+          <h1 className="text-3xl font-bold mb-4">Global Calendar</h1>
+          <TestCalendar />
+        </div>
+      </Route>
       {isLoading || !isAuthenticated ? (
         <Route path="/" component={Landing} />
       ) : (
         <AppLayout>
           <Route path="/" component={Dashboard} />
           <Route path="/dashboard" component={Dashboard} />
-          <Route path="/calendar">
-            <div className="p-6">
-              <h1 className="text-2xl font-bold">Global Calendar Debug</h1>
-              <p>Route is working. Testing component loading...</p>
-              <TestCalendar />
-            </div>
-          </Route>
           <Route path="/time" component={TimeManagement} />
           <Route path="/communication" component={Communication} />
           <Route path="/marketing" component={Marketing} />
