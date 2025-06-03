@@ -196,15 +196,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get('/api/work-schedules', isAuthenticated, async (req: any, res) => {
     try {
-      const { start, end } = req.query;
+      const { startDate, endDate, start, end } = req.query;
       
-      if (!start || !end) {
+      const startParam = startDate || start;
+      const endParam = endDate || end;
+      
+      if (!startParam || !endParam) {
         return res.status(400).json({ message: "Start date and end date are required" });
       }
       
       const schedules = await storage.getWorkSchedulesByDateRange(
-        start as string,
-        end as string
+        startParam as string,
+        endParam as string
       );
       res.json(schedules);
     } catch (error) {

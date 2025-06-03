@@ -37,6 +37,14 @@ export default function EnhancedShiftScheduling() {
   const [endTime, setEndTime] = useState("17:00");
   const [isScheduleDialogOpen, setIsScheduleDialogOpen] = useState(false);
   const [isBulkScheduleMode, setIsBulkScheduleMode] = useState(false);
+  const [isSingleDayDialogOpen, setIsSingleDayDialogOpen] = useState(false);
+  const [singleDayData, setSingleDayData] = useState({
+    employeeId: "",
+    locationId: 1,
+    date: "",
+    startTime: "09:00",
+    endTime: "17:00"
+  });
 
   const weekStart = startOfWeek(currentWeek, { weekStartsOn: 0 });
   const weekEnd = endOfWeek(currentWeek, { weekStartsOn: 0 });
@@ -67,6 +75,7 @@ export default function EnhancedShiftScheduling() {
             locationId: entry.locationId,
             startTime: `${entry.date}T${entry.startTime}:00`,
             endTime: `${entry.date}T${entry.endTime}:00`,
+            date: entry.date,
             role: "employee"
           }),
         }).then(res => res.json())
@@ -81,6 +90,50 @@ export default function EnhancedShiftScheduling() {
       toast({
         title: "Success",
         description: "Shifts scheduled successfully",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const createSingleDayMutation = useMutation({
+    mutationFn: async (data: typeof singleDayData) => {
+      const response = await fetch("/api/work-schedules", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: data.employeeId,
+          locationId: data.locationId,
+          startTime: `${data.date}T${data.startTime}:00`,
+          endTime: `${data.date}T${data.endTime}:00`,
+          date: data.date,
+          role: "employee"
+        }),
+      });
+      if (!response.ok) {
+        throw new Error(`${response.status}: ${response.statusText}`);
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/work-schedules"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/calendar/events"] });
+      setIsSingleDayDialogOpen(false);
+      setSingleDayData({
+        employeeId: "",
+        locationId: 1,
+        date: "",
+        startTime: "09:00",
+        endTime: "17:00"
+      });
+      toast({
+        title: "Success",
+        description: "Shift scheduled successfully",
       });
     },
     onError: (error: Error) => {
@@ -197,6 +250,95 @@ export default function EnhancedShiftScheduling() {
           <p className="text-gray-600 dark:text-gray-400 mt-1">Schedule employees across multiple days and locations</p>
         </div>
         <div className="flex items-center space-x-3">
+          <Dialog open={isSingleDayDialogOpen} onOpenChange={setIsSingleDayDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="bg-green-600 hover:bg-green-700 text-white">
+                <Plus className="h-4 w-4 mr-2" />
+                Schedule Single Day
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>Schedule Single Day</DialogTitle>
+                <DialogDescription>
+                  Schedule an employee for a specific date
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <Label>Select Employee</Label>
+                  <Select value={singleDayData.employeeId} onValueChange={(value) => setSingleDayData({...singleDayData, employeeId: value})}>
+                    <SelectTrigger className="mt-1">
+                      <SelectValue placeholder="Choose employee..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(employees as UserType[]).map((employee: UserType) => (
+                        <SelectItem key={employee.id} value={employee.id}>
+                          {employee.firstName} {employee.lastName} ({employee.employeeId})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label>Select Location</Label>
+                  <Select value={singleDayData.locationId.toString()} onValueChange={(value) => setSingleDayData({...singleDayData, locationId: parseInt(value)})}>
+                    <SelectTrigger className="mt-1">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(locations as Location[]).map((location: Location) => (
+                        <SelectItem key={location.id} value={location.id.toString()}>
+                          {location.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label>Date</Label>
+                  <input
+                    type="date"
+                    value={singleDayData.date}
+                    onChange={(e) => setSingleDayData({...singleDayData, date: e.target.value})}
+                    className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>Start Time</Label>
+                    <input
+                      type="time"
+                      value={singleDayData.startTime}
+                      onChange={(e) => setSingleDayData({...singleDayData, startTime: e.target.value})}
+                      className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <Label>End Time</Label>
+                    <input
+                      type="time"
+                      value={singleDayData.endTime}
+                      onChange={(e) => setSingleDayData({...singleDayData, endTime: e.target.value})}
+                      className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+
+                <Button 
+                  onClick={() => createSingleDayMutation.mutate(singleDayData)}
+                  disabled={!singleDayData.employeeId || !singleDayData.date || createSingleDayMutation.isPending}
+                  className="w-full"
+                >
+                  {createSingleDayMutation.isPending ? "Scheduling..." : "Schedule Shift"}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+
           <Button
             variant="outline"
             onClick={() => copyWeekMutation.mutate()}
@@ -208,7 +350,7 @@ export default function EnhancedShiftScheduling() {
           <Dialog open={isScheduleDialogOpen} onOpenChange={setIsScheduleDialogOpen}>
             <DialogTrigger asChild>
               <Button className="bg-blue-600 hover:bg-blue-700 text-white">
-                <Plus className="h-4 w-4 mr-2" />
+                <Calendar className="h-4 w-4 mr-2" />
                 Bulk Schedule
               </Button>
             </DialogTrigger>
