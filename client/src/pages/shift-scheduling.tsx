@@ -86,7 +86,7 @@ export default function ShiftScheduling() {
 
   // Fetch employees
   const { data: employees = [] } = useQuery<Employee[]>({
-    queryKey: ["/api/users"],
+    queryKey: ["/api/employees"],
     enabled: canManageSchedules,
   });
 
