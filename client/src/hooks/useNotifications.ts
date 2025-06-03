@@ -133,7 +133,7 @@ export function useNotifications() {
 
   const markAsRead = useMutation({
     mutationFn: (notificationId: number) => 
-      apiRequest(`/api/notifications/${notificationId}/read`, { method: 'POST' }),
+      apiRequest(`/api/notifications/${notificationId}/read`, 'POST'),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/notifications'] });
     }

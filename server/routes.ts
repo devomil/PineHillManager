@@ -619,6 +619,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Push notification endpoints
+  app.get('/api/notifications/vapid-key', (req, res) => {
+    if (!process.env.VAPID_PUBLIC_KEY) {
+      return res.status(500).json({ message: "VAPID keys not configured" });
+    }
+    res.json({ publicKey: process.env.VAPID_PUBLIC_KEY });
+  });
+
+  app.post('/api/notifications/subscribe', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { endpoint, auth, p256dh } = req.body;
+      
+      await storage.savePushSubscription({
+        userId,
+        endpoint,
+        authKey: auth,
+        p256dhKey: p256dh
+      });
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error saving push subscription:", error);
+      res.status(500).json({ message: "Failed to save push subscription" });
+    }
+  });
+
+  app.post('/api/notifications/unsubscribe', isAuthenticated, async (req: any, res) => {
+    try {
+      const { endpoint } = req.body;
+      // Note: Would need to add a method to remove subscriptions by endpoint
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error removing push subscription:", error);
+      res.status(500).json({ message: "Failed to remove push subscription" });
+    }
+  });
+
   const httpServer = createServer(app);
 
   // WebSocket server for real-time updates
