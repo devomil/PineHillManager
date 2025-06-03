@@ -662,6 +662,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Add new employee (Admin only)
   app.post('/api/employees', isAuthenticated, async (req: any, res) => {
     try {
+      console.log("Employee creation request body:", JSON.stringify(req.body, null, 2));
+      
       const user = await storage.getUser(req.user.claims.sub);
       if (user?.role !== 'admin') {
         return res.status(403).json({ message: "Admin access required" });
@@ -676,10 +678,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const newEmployee = await storage.createEmployee(req.body);
+      console.log("Employee created successfully:", newEmployee.id);
       res.status(201).json(newEmployee);
     } catch (error) {
-      console.error("Error creating employee:", error);
-      res.status(500).json({ message: "Failed to create employee" });
+      console.error("Detailed error creating employee:", error);
+      console.error("Error stack:", error.stack);
+      res.status(500).json({ 
+        message: "Failed to create employee",
+        error: error.message
+      });
     }
   });
 
