@@ -224,6 +224,130 @@ export async function registerRoutes(app: Express): Promise<Server> {
     `);
   });
 
+  // Working dashboard route that bypasses React issues
+  app.get('/dashboard', (req, res) => {
+    res.send(`
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <title>Pine Hill Farm - Employee Dashboard</title>
+        <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+            min-height: 100vh; color: #1e293b;
+          }
+          .header { background: white; padding: 1rem 2rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+          .header-content { max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
+          .logo { display: flex; align-items: center; gap: 1rem; }
+          .logo-icon { width: 40px; height: 40px; background: #607e66; border-radius: 10px; display: flex; align-items: center; justify-content: center; color: white; font-size: 1.2rem; }
+          .nav { display: flex; gap: 1rem; }
+          .nav a { color: #64748b; text-decoration: none; padding: 0.5rem 1rem; border-radius: 6px; transition: background 0.2s; }
+          .nav a:hover { background: #f1f5f9; }
+          .nav a.active { background: #607e66; color: white; }
+          .container { max-width: 1200px; margin: 0 auto; padding: 2rem; }
+          .welcome { background: white; padding: 2rem; border-radius: 12px; margin-bottom: 2rem; }
+          .dashboard-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2rem; }
+          .card { background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+          .card-icon { width: 48px; height: 48px; border-radius: 8px; margin-bottom: 1rem; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; }
+          .card-title { font-size: 1.25rem; font-weight: 600; margin-bottom: 1rem; }
+          .card-desc { color: #64748b; margin-bottom: 1.5rem; }
+          .btn { background: #607e66; color: white; padding: 0.75rem 1.5rem; border: none; border-radius: 6px; text-decoration: none; display: inline-block; font-weight: 500; transition: background 0.2s; }
+          .btn:hover { background: #4f6b56; }
+          .btn-secondary { background: #e2e8f0; color: #475569; }
+          .btn-secondary:hover { background: #cbd5e1; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div class="header-content">
+            <div class="logo">
+              <div class="logo-icon">🌲</div>
+              <div>
+                <div style="font-weight: 600;">Pine Hill Farm</div>
+                <div style="font-size: 0.875rem; color: #64748b;">Employee Portal</div>
+              </div>
+            </div>
+            <div class="nav">
+              <a href="/dashboard" class="active">Dashboard</a>
+              <a href="/schedule">Schedule</a>
+              <a href="/time-off">Time Off</a>
+              <a href="/announcements">Announcements</a>
+              <a href="/api/logout">Sign Out</a>
+            </div>
+          </div>
+        </div>
+
+        <div class="container">
+          <div class="welcome">
+            <h1 style="margin-bottom: 0.5rem;">Welcome to Your Dashboard</h1>
+            <p style="color: #64748b;">Here's an overview of your work activities and quick access to important features.</p>
+          </div>
+
+          <div class="dashboard-grid">
+            <div class="card">
+              <div class="card-icon" style="background: #dcfce7; color: #16a34a;">📅</div>
+              <div class="card-title">My Schedule</div>
+              <div class="card-desc">View your upcoming shifts and manage your work schedule</div>
+              <a href="/schedule" class="btn">View Schedule</a>
+            </div>
+
+            <div class="card">
+              <div class="card-icon" style="background: #dbeafe; color: #2563eb;">🏖️</div>
+              <div class="card-title">Time Off Requests</div>
+              <div class="card-desc">Request vacation days, sick leave, and personal time</div>
+              <a href="/time-off" class="btn">Request Time Off</a>
+            </div>
+
+            <div class="card">
+              <div class="card-icon" style="background: #fef3c7; color: #d97706;">🔄</div>
+              <div class="card-title">Shift Coverage</div>
+              <div class="card-desc">Find coverage for your shifts or cover for colleagues</div>
+              <a href="/coverage" class="btn">Manage Coverage</a>
+            </div>
+
+            <div class="card">
+              <div class="card-icon" style="background: #ede9fe; color: #7c3aed;">📢</div>
+              <div class="card-title">Company Announcements</div>
+              <div class="card-desc">Stay updated with the latest company news and updates</div>
+              <a href="/announcements" class="btn">View Announcements</a>
+            </div>
+
+            <div class="card">
+              <div class="card-icon" style="background: #ecfdf5; color: #059669;">💬</div>
+              <div class="card-title">Team Communication</div>
+              <div class="card-desc">Chat with your team and stay connected</div>
+              <a href="/chat" class="btn">Open Chat</a>
+            </div>
+
+            <div class="card">
+              <div class="card-icon" style="background: #f1f5f9; color: #64748b;">📋</div>
+              <div class="card-title">Documents & Resources</div>
+              <div class="card-desc">Access company documents, policies, and training materials</div>
+              <a href="/documents" class="btn">View Documents</a>
+            </div>
+          </div>
+
+          <div style="margin-top: 3rem; background: white; padding: 2rem; border-radius: 12px;">
+            <h3 style="margin-bottom: 1rem;">Store Locations</h3>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem;">
+              <div style="padding: 1rem; border: 1px solid #e2e8f0; border-radius: 8px;">
+                <div style="font-weight: 600; margin-bottom: 0.5rem;">Lake Geneva Store</div>
+                <div style="color: #64748b; font-size: 0.875rem;">704 W Main St, Lake Geneva, WI</div>
+              </div>
+              <div style="padding: 1rem; border: 1px solid #e2e8f0; border-radius: 8px;">
+                <div style="font-weight: 600; margin-bottom: 0.5rem;">Watertown Store</div>
+                <div style="color: #64748b; font-size: 0.875rem;">200 W Main Street, Watertown, WI</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </body>
+      </html>
+    `);
+  });
+
   // Auth middleware
   await setupDevAuth(app);
 
