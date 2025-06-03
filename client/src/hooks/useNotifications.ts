@@ -92,11 +92,23 @@ export function useNotifications() {
       const authKey = subscription.getKey('auth');
       const p256dhKey = subscription.getKey('p256dh');
       
-      await apiRequest('/api/notifications/subscribe', 'POST', {
+      if (!authKey || !p256dhKey) {
+        throw new Error('Failed to get subscription keys');
+      }
+      
+      const subscriptionData = {
         endpoint: subscription.endpoint,
-        auth: authKey ? btoa(String.fromCharCode.apply(null, Array.from(new Uint8Array(authKey)))) : '',
-        p256dh: p256dhKey ? btoa(String.fromCharCode.apply(null, Array.from(new Uint8Array(p256dhKey)))) : ''
+        auth: btoa(String.fromCharCode.apply(null, Array.from(new Uint8Array(authKey)))),
+        p256dh: btoa(String.fromCharCode.apply(null, Array.from(new Uint8Array(p256dhKey))))
+      };
+
+      console.log('Sending subscription data:', { 
+        endpoint: subscriptionData.endpoint, 
+        hasAuth: !!subscriptionData.auth, 
+        hasP256dh: !!subscriptionData.p256dh 
       });
+      
+      await apiRequest('/api/notifications/subscribe', 'POST', subscriptionData);
 
       setIsSubscribed(true);
       return subscription;

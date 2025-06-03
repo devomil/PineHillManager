@@ -632,6 +632,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user.claims.sub;
       const { endpoint, auth, p256dh } = req.body;
       
+      // Validate required fields
+      if (!endpoint || !auth || !p256dh) {
+        return res.status(400).json({ message: "Invalid subscription data: missing required fields" });
+      }
+      
+      console.log("Saving push subscription for user:", userId);
+      
       await storage.savePushSubscription({
         userId,
         endpoint,
@@ -639,10 +646,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         p256dhKey: p256dh
       });
       
+      console.log("Push subscription saved successfully");
       res.json({ success: true });
     } catch (error) {
       console.error("Error saving push subscription:", error);
-      res.status(500).json({ message: "Failed to save push subscription" });
+      res.status(400).json({ message: "Invalid subscription data" });
     }
   });
 
