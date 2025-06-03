@@ -26,12 +26,7 @@ function Router() {
 
   return (
     <Switch>
-      <Route path="/calendar">
-        <div className="min-h-screen bg-gray-50 p-6">
-          <h1 className="text-3xl font-bold mb-4">Global Calendar</h1>
-          <TestCalendar />
-        </div>
-      </Route>
+      <Route path="/calendar" component={TestCalendar} />
       {isLoading || !isAuthenticated ? (
         <Route path="/" component={Landing} />
       ) : (
