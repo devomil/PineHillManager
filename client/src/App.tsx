@@ -32,7 +32,13 @@ function Router() {
         <AppLayout>
           <Route path="/" component={Dashboard} />
           <Route path="/dashboard" component={Dashboard} />
-          <Route path="/calendar" component={CalendarPage} />
+          <Route path="/calendar">
+            <div className="p-6">
+              <h1 className="text-2xl font-bold">Global Calendar Debug</h1>
+              <p>Route is working. Testing component loading...</p>
+              <TestCalendar />
+            </div>
+          </Route>
           <Route path="/time" component={TimeManagement} />
           <Route path="/communication" component={Communication} />
           <Route path="/marketing" component={Marketing} />
