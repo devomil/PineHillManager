@@ -1,0 +1,604 @@
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/hooks/useAuth";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Calendar, Plus, MapPin, Clock, Users, Edit, Trash2 } from "lucide-react";
+import { format, addDays, startOfWeek } from "date-fns";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
+
+const shiftSchema = z.object({
+  employeeId: z.string().min(1, "Employee is required"),
+  locationId: z.string().min(1, "Location is required"),
+  date: z.string().min(1, "Date is required"),
+  startTime: z.string().min(1, "Start time is required"),
+  endTime: z.string().min(1, "End time is required"),
+  position: z.string().optional(),
+  notes: z.string().optional(),
+});
+
+type ShiftFormData = z.infer<typeof shiftSchema>;
+
+interface Employee {
+  id: string;
+  firstName: string;
+  lastName: string;
+  role: string;
+}
+
+interface Location {
+  id: number;
+  name: string;
+  address: string;
+  city: string;
+  state: string;
+}
+
+interface WorkSchedule {
+  id: number;
+  userId: string;
+  locationId: number;
+  date: string;
+  startTime: string;
+  endTime: string;
+  position?: string;
+  notes?: string;
+  employee?: Employee;
+  location?: Location;
+}
+
+export default function ShiftScheduling() {
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [selectedWeek, setSelectedWeek] = useState(0);
+  const [selectedLocation, setSelectedLocation] = useState<string>("all");
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingSchedule, setEditingSchedule] = useState<WorkSchedule | null>(null);
+
+  // Check if user can manage schedules
+  const canManageSchedules = user?.role === "admin" || user?.role === "manager";
+
+  const form = useForm<ShiftFormData>({
+    resolver: zodResolver(shiftSchema),
+    defaultValues: {
+      employeeId: "",
+      locationId: "",
+      date: "",
+      startTime: "",
+      endTime: "",
+      position: "",
+      notes: "",
+    },
+  });
+
+  // Fetch employees
+  const { data: employees = [] } = useQuery<Employee[]>({
+    queryKey: ["/api/users"],
+    enabled: canManageSchedules,
+  });
+
+  // Fetch locations
+  const { data: locations = [] } = useQuery<Location[]>({
+    queryKey: ["/api/locations"],
+  });
+
+  // Calculate week dates
+  const getWeekDates = () => {
+    const today = new Date();
+    const startDate = startOfWeek(today, { weekStartsOn: 0 });
+    startDate.setDate(startDate.getDate() + (selectedWeek * 7));
+    
+    return Array.from({ length: 7 }, (_, i) => {
+      const date = new Date(startDate);
+      date.setDate(date.getDate() + i);
+      return date;
+    });
+  };
+
+  const weekDates = getWeekDates();
+  const startDate = weekDates[0];
+  const endDate = weekDates[6];
+
+  // Fetch work schedules for the week
+  const { data: schedules = [] } = useQuery<WorkSchedule[]>({
+    queryKey: ["/api/work-schedules", startDate.toISOString(), endDate.toISOString()],
+    queryFn: async () => {
+      const response = await fetch(
+        `/api/work-schedules?start=${startDate.toISOString()}&end=${endDate.toISOString()}`
+      );
+      if (!response.ok) return [];
+      return response.json();
+    },
+  });
+
+  // Create shift mutation
+  const createShiftMutation = useMutation({
+    mutationFn: async (data: ShiftFormData) => {
+      return apiRequest("/api/work-schedules", "POST", {
+        userId: data.employeeId,
+        locationId: parseInt(data.locationId),
+        date: data.date,
+        startTime: data.startTime,
+        endTime: data.endTime,
+        position: data.position,
+        notes: data.notes,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/work-schedules"] });
+      setDialogOpen(false);
+      form.reset();
+      toast({
+        title: "Success",
+        description: "Shift scheduled successfully",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Update shift mutation
+  const updateShiftMutation = useMutation({
+    mutationFn: async (data: ShiftFormData & { id: number }) => {
+      return apiRequest(`/api/work-schedules/${data.id}`, "PATCH", {
+        userId: data.employeeId,
+        locationId: parseInt(data.locationId),
+        date: data.date,
+        startTime: data.startTime,
+        endTime: data.endTime,
+        position: data.position,
+        notes: data.notes,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/work-schedules"] });
+      setDialogOpen(false);
+      setEditingSchedule(null);
+      form.reset();
+      toast({
+        title: "Success",
+        description: "Shift updated successfully",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Delete shift mutation
+  const deleteShiftMutation = useMutation({
+    mutationFn: async (id: number) => {
+      return apiRequest(`/api/work-schedules/${id}`, "DELETE");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/work-schedules"] });
+      toast({
+        title: "Success",
+        description: "Shift deleted successfully",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const onSubmit = (data: ShiftFormData) => {
+    if (editingSchedule) {
+      updateShiftMutation.mutate({ ...data, id: editingSchedule.id });
+    } else {
+      createShiftMutation.mutate(data);
+    }
+  };
+
+  const handleEdit = (schedule: WorkSchedule) => {
+    setEditingSchedule(schedule);
+    form.reset({
+      employeeId: schedule.userId,
+      locationId: schedule.locationId.toString(),
+      date: schedule.date,
+      startTime: schedule.startTime,
+      endTime: schedule.endTime,
+      position: schedule.position || "",
+      notes: schedule.notes || "",
+    });
+    setDialogOpen(true);
+  };
+
+  const handleDelete = (id: number) => {
+    if (confirm("Are you sure you want to delete this shift?")) {
+      deleteShiftMutation.mutate(id);
+    }
+  };
+
+  const getSchedulesForDate = (date: Date) => {
+    const dateStr = format(date, "yyyy-MM-dd");
+    return schedules.filter(
+      (schedule) =>
+        schedule.date === dateStr &&
+        (selectedLocation === "all" || schedule.locationId.toString() === selectedLocation)
+    );
+  };
+
+  const filteredSchedules = schedules.filter(
+    (schedule) =>
+      selectedLocation === "all" || schedule.locationId.toString() === selectedLocation
+  );
+
+  if (!canManageSchedules) {
+    return (
+      <div className="container mx-auto p-6">
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-center">
+              <h2 className="text-xl font-semibold mb-2">Access Restricted</h2>
+              <p className="text-muted-foreground">
+                Only managers and admins can access shift scheduling.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="container mx-auto p-6 space-y-6">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold flex items-center gap-2">
+            <Calendar className="h-8 w-8" />
+            Shift Scheduling
+          </h1>
+          <p className="text-muted-foreground mt-1">
+            Manage employee schedules across all locations
+          </p>
+        </div>
+
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <MapPin className="h-4 w-4" />
+            <Select value={selectedLocation} onValueChange={setSelectedLocation}>
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="Select location" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Locations</SelectItem>
+                {locations.map((location) => (
+                  <SelectItem key={location.id} value={location.id.toString()}>
+                    {location.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+            <DialogTrigger asChild>
+              <Button onClick={() => {
+                setEditingSchedule(null);
+                form.reset();
+              }}>
+                <Plus className="h-4 w-4 mr-2" />
+                Schedule Shift
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>
+                  {editingSchedule ? "Edit Shift" : "Schedule New Shift"}
+                </DialogTitle>
+                <DialogDescription>
+                  {editingSchedule ? "Update shift details" : "Create a new shift for an employee"}
+                </DialogDescription>
+              </DialogHeader>
+
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                  <FormField
+                    control={form.control}
+                    name="employeeId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Employee</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select employee" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {employees.map((employee) => (
+                              <SelectItem key={employee.id} value={employee.id}>
+                                {employee.firstName} {employee.lastName}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="locationId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Location</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select location" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {locations.map((location) => (
+                              <SelectItem key={location.id} value={location.id.toString()}>
+                                {location.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="date"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Date</FormLabel>
+                        <FormControl>
+                          <Input type="date" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="startTime"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Start Time</FormLabel>
+                          <FormControl>
+                            <Input type="time" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="endTime"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>End Time</FormLabel>
+                          <FormControl>
+                            <Input type="time" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <FormField
+                    control={form.control}
+                    name="position"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Position (Optional)</FormLabel>
+                        <FormControl>
+                          <Input placeholder="e.g., Cashier, Sales Associate" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="notes"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Notes (Optional)</FormLabel>
+                        <FormControl>
+                          <Textarea placeholder="Additional notes..." {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setDialogOpen(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button 
+                      type="submit" 
+                      disabled={createShiftMutation.isPending || updateShiftMutation.isPending}
+                    >
+                      {createShiftMutation.isPending || updateShiftMutation.isPending
+                        ? "Saving..."
+                        : editingSchedule
+                        ? "Update Shift"
+                        : "Schedule Shift"}
+                    </Button>
+                  </div>
+                </form>
+              </Form>
+            </DialogContent>
+          </Dialog>
+        </div>
+      </div>
+
+      {/* Week Navigation */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-xl">
+                Week of {format(startDate, "MMMM d")} - {format(endDate, "d, yyyy")}
+              </CardTitle>
+              <CardDescription>
+                {selectedLocation === "all"
+                  ? "Showing all locations"
+                  : locations.find((l) => l.id.toString() === selectedLocation)?.name ||
+                    "Selected location"}
+              </CardDescription>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSelectedWeek(selectedWeek - 1)}
+              >
+                Previous Week
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSelectedWeek(selectedWeek + 1)}
+              >
+                Next Week
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-7 gap-2">
+            {weekDates.map((date, index) => {
+              const daySchedules = getSchedulesForDate(date);
+              const dayName = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][index];
+              
+              return (
+                <div key={date.toISOString()} className="border rounded-lg p-3 min-h-32">
+                  <div className="font-medium text-sm mb-2">
+                    {dayName} {format(date, "M/d")}
+                  </div>
+                  <div className="space-y-2">
+                    {daySchedules.length === 0 ? (
+                      <div className="text-xs text-muted-foreground bg-gray-100 p-1 rounded">
+                        No shifts scheduled
+                      </div>
+                    ) : (
+                      daySchedules.map((schedule) => (
+                        <div
+                          key={schedule.id}
+                          className="text-xs bg-blue-100 text-blue-800 p-2 rounded border group relative"
+                        >
+                          <div className="font-medium">
+                            {schedule.employee?.firstName} {schedule.employee?.lastName}
+                          </div>
+                          <div className="flex items-center gap-1 mt-1">
+                            <Clock className="h-3 w-3" />
+                            {schedule.startTime} - {schedule.endTime}
+                          </div>
+                          {schedule.position && (
+                            <div className="text-xs opacity-75 mt-1">
+                              {schedule.position}
+                            </div>
+                          )}
+                          <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <div className="flex gap-1">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-6 w-6 p-0"
+                                onClick={() => handleEdit(schedule)}
+                              >
+                                <Edit className="h-3 w-3" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-6 w-6 p-0"
+                                onClick={() => handleDelete(schedule.id)}
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Summary Cards */}
+      <div className="grid md:grid-cols-2 gap-4">
+        {locations.map((location) => {
+          const locationSchedules = filteredSchedules.filter(
+            (s) => s.locationId === location.id
+          );
+          
+          return (
+            <Card key={location.id}>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <MapPin className="h-5 w-5" />
+                  {location.name}
+                </CardTitle>
+                <CardDescription>
+                  {location.address}, {location.city}, {location.state}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant="secondary">
+                    <Users className="h-3 w-3 mr-1" />
+                    {locationSchedules.length} shifts this week
+                  </Badge>
+                  <Badge variant="outline">
+                    <Clock className="h-3 w-3 mr-1" />
+                    {new Set(locationSchedules.map(s => s.userId)).size} employees scheduled
+                  </Badge>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+    </div>
+  );
+}

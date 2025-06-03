@@ -23,6 +23,21 @@ export default function TestCalendar() {
     queryKey: ["/api/locations"],
   });
 
+  // Fetch calendar events for the current week
+  const { data: events = [] } = useQuery({
+    queryKey: ["/api/calendar/events", currentWeek],
+    queryFn: async () => {
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() + (currentWeek * 7));
+      const endDate = new Date(startDate);
+      endDate.setDate(endDate.getDate() + 6);
+      
+      const response = await fetch(`/api/calendar/events?start=${startDate.toISOString()}&end=${endDate.toISOString()}`);
+      if (!response.ok) return [];
+      return response.json();
+    },
+  });
+
   const weekDays = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
   
   return (

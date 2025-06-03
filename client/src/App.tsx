@@ -11,6 +11,7 @@ import TimeManagement from "@/pages/time-management";
 import Communication from "@/pages/communication";
 import Employees from "@/pages/employees";
 import TestCalendar from "@/pages/test-calendar";
+import ShiftScheduling from "@/pages/shift-scheduling";
 import Marketing from "@/pages/marketing";
 import Training from "@/pages/training";
 import AdminTraining from "@/pages/admin-training";
@@ -41,6 +42,13 @@ function Router() {
           <Route path="/diagnostics" component={Diagnostics} />
           <Route path="/notifications" component={Notifications} />
           <Route path="/profile" component={Profile} />
+          
+          {/* Manager/Admin routes */}
+          <Route path="/shift-scheduling">
+            <ProtectedRoute requiredRole="manager">
+              <ShiftScheduling />
+            </ProtectedRoute>
+          </Route>
           
           {/* Admin-only routes */}
           <Route path="/employees">

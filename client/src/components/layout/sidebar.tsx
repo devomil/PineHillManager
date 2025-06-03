@@ -2,7 +2,7 @@ import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useAuth } from "@/hooks/useAuth";
-import { Sprout, Home, Calendar, Clock, MessageSquare, Users, GraduationCap, Megaphone, BookOpen, BarChart3, Settings, User, X } from "lucide-react";
+import { Sprout, Home, Calendar, Clock, MessageSquare, Users, GraduationCap, Megaphone, BookOpen, BarChart3, Settings, User, X, CalendarDays } from "lucide-react";
 
 interface SidebarProps {
   mobileMenuOpen: boolean;
@@ -23,6 +23,10 @@ export default function Sidebar({ mobileMenuOpen, setMobileMenuOpen }: SidebarPr
     { name: "Reports", href: "/reports", icon: BarChart3, roles: ["employee", "admin", "manager"] },
     { name: "My Profile", href: "/profile", icon: User, roles: ["employee", "admin", "manager"] },
     { name: "Diagnostics", href: "/diagnostics", icon: Settings, roles: ["employee", "admin", "manager"] },
+  ];
+
+  const managerItems = [
+    { name: "Shift Scheduling", href: "/shift-scheduling", icon: CalendarDays, roles: ["admin", "manager"] },
   ];
 
   const adminItems = [
@@ -93,6 +97,35 @@ export default function Sidebar({ mobileMenuOpen, setMobileMenuOpen }: SidebarPr
             </Link>
           );
         })}
+
+        {/* Manager Section */}
+        {(user?.role === "admin" || user?.role === "manager") && (
+          <>
+            <div className="border-t border-slate-200 pt-4 mt-4">
+              <p className="px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+                Management
+              </p>
+              {managerItems.map((item) => (
+                <Link key={item.name} href={item.href}>
+                  <Button
+                    variant={isActive(item.href) ? "default" : "ghost"}
+                    className={`w-full justify-start ${
+                      isActive(item.href)
+                        ? "bg-farm-green text-white hover:bg-green-600"
+                        : "text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                    }`}
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    <item.icon className={`w-5 h-5 mr-3 ${
+                      isActive(item.href) ? "text-white" : "text-slate-400"
+                    }`} />
+                    {item.name}
+                  </Button>
+                </Link>
+              ))}
+            </div>
+          </>
+        )}
 
         {/* Admin Section */}
         {user?.role === "admin" && (
