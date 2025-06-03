@@ -88,27 +88,27 @@ export function useNotifications() {
         applicationServerKey: urlBase64ToUint8Array(publicKey)
       });
 
-      // Send subscription to server
-      const authKey = subscription.getKey('auth');
-      const p256dhKey = subscription.getKey('p256dh');
-      
-      if (!authKey || !p256dhKey) {
-        throw new Error('Failed to get subscription keys');
-      }
+      // Send subscription to server using the standard format
+      console.log('Raw subscription object:', subscription);
       
       const subscriptionData = {
         endpoint: subscription.endpoint,
-        auth: btoa(String.fromCharCode.apply(null, Array.from(new Uint8Array(authKey)))),
-        p256dh: btoa(String.fromCharCode.apply(null, Array.from(new Uint8Array(p256dhKey))))
+        keys: {
+          auth: subscription.getKey ? btoa(String.fromCharCode(...new Uint8Array(subscription.getKey('auth')))) : '',
+          p256dh: subscription.getKey ? btoa(String.fromCharCode(...new Uint8Array(subscription.getKey('p256dh')))) : ''
+        }
       };
 
-      console.log('Sending subscription data:', { 
-        endpoint: subscriptionData.endpoint, 
-        hasAuth: !!subscriptionData.auth, 
-        hasP256dh: !!subscriptionData.p256dh 
-      });
+      console.log('Sending subscription data:', subscriptionData);
       
-      await apiRequest('/api/notifications/subscribe', 'POST', subscriptionData);
+      // Extract keys for server format
+      const serverData = {
+        endpoint: subscriptionData.endpoint,
+        auth: subscriptionData.keys.auth,
+        p256dh: subscriptionData.keys.p256dh
+      };
+      
+      await apiRequest('/api/notifications/subscribe', 'POST', serverData);
 
       setIsSubscribed(true);
       return subscription;
