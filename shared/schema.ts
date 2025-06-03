@@ -9,6 +9,7 @@ import {
   boolean,
   integer,
   date,
+  decimal,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
@@ -28,14 +29,16 @@ export const sessions = pgTable(
 // User storage table - mandatory for Replit Auth
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().notNull(),
+  employeeId: varchar("employee_id").unique(), // Custom employee ID for HR management
   email: varchar("email").unique(),
   firstName: varchar("first_name"),
   lastName: varchar("last_name"),
   profileImageUrl: varchar("profile_image_url"),
-  role: varchar("role").notNull().default("employee"), // employee, admin
+  role: varchar("role").notNull().default("employee"), // employee, manager, admin
   department: varchar("department"),
   position: varchar("position"),
   hireDate: date("hire_date"),
+
   timeOffBalance: integer("time_off_balance").default(24),
   isActive: boolean("is_active").default(true),
   phone: varchar("phone"),
@@ -46,6 +49,8 @@ export const users = pgTable("users", {
   emergencyContact: varchar("emergency_contact"),
   emergencyPhone: varchar("emergency_phone"),
   notes: text("notes"),
+  permissions: text("permissions").array(), // Array of permission strings
+  lastLogin: timestamp("last_login"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
