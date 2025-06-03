@@ -26,17 +26,19 @@ import ProtectedRoute from "@/components/common/protected-route";
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
 
-  // Auto-login for development
-  if (!isAuthenticated && !isLoading) {
-    window.location.href = '/api/login';
-    return <div>Redirecting to login...</div>;
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
+    );
   }
 
   return (
     <Switch>
       <Route path="/calendar" component={TestCalendar} />
       <Route path="/notifications" component={Notifications} />
-      {isLoading || !isAuthenticated ? (
+      {!isAuthenticated ? (
         <Route path="/" component={Landing} />
       ) : (
         <AppLayout>
