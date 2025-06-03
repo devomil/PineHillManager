@@ -176,8 +176,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/work-schedules', isAuthenticated, async (req: any, res) => {
     try {
       const user = await storage.getUser(req.user.claims.sub);
-      if (user?.role !== 'admin') {
-        return res.status(403).json({ message: "Admin access required" });
+      if (user?.role !== 'admin' && user?.role !== 'manager') {
+        return res.status(403).json({ message: "Manager or admin access required" });
       }
       
       const validatedData = insertWorkScheduleSchema.parse(req.body);
@@ -191,18 +191,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get('/api/work-schedules', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
-      const { startDate, endDate } = req.query;
+      const { start, end } = req.query;
       
-      const schedules = await storage.getUserWorkSchedules(
-        userId,
-        startDate as string,
-        endDate as string
+      if (!start || !end) {
+        return res.status(400).json({ message: "Start date and end date are required" });
+      }
+      
+      const schedules = await storage.getWorkSchedulesByDateRange(
+        start as string,
+        end as string
       );
       res.json(schedules);
     } catch (error) {
       console.error("Error fetching work schedules:", error);
       res.status(500).json({ message: "Failed to fetch work schedules" });
+    }
+  });
+
+  app.patch('/api/work-schedules/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const user = await storage.getUser(req.user.claims.sub);
+      if (user?.role !== 'admin' && user?.role !== 'manager') {
+        return res.status(403).json({ message: "Manager or admin access required" });
+      }
+      
+      const { id } = req.params;
+      const validatedData = insertWorkScheduleSchema.partial().parse(req.body);
+      const schedule = await storage.updateWorkSchedule(parseInt(id), validatedData);
+      res.json(schedule);
+    } catch (error) {
+      console.error("Error updating work schedule:", error);
+      res.status(500).json({ message: "Failed to update work schedule" });
+    }
+  });
+
+  app.delete('/api/work-schedules/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const user = await storage.getUser(req.user.claims.sub);
+      if (user?.role !== 'admin' && user?.role !== 'manager') {
+        return res.status(403).json({ message: "Manager or admin access required" });
+      }
+      
+      const { id } = req.params;
+      await storage.deleteWorkSchedule(parseInt(id));
+      res.json({ message: "Work schedule deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting work schedule:", error);
+      res.status(500).json({ message: "Failed to delete work schedule" });
     }
   });
 
