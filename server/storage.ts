@@ -664,6 +664,98 @@ export class DatabaseStorage implements IStorage {
       ))
       .orderBy(desc(notifications.sentAt));
   }
+
+  // Chat channels
+  async createChatChannel(channel: InsertChatChannel): Promise<ChatChannel> {
+    const [newChannel] = await db
+      .insert(chatChannels)
+      .values(channel)
+      .returning();
+    return newChannel;
+  }
+
+  async getUserChannels(userId: string): Promise<ChatChannel[]> {
+    return await db
+      .select({
+        id: chatChannels.id,
+        name: chatChannels.name,
+        description: chatChannels.description,
+        type: chatChannels.type,
+        isPrivate: chatChannels.isPrivate,
+        createdBy: chatChannels.createdBy,
+        createdAt: chatChannels.createdAt,
+      })
+      .from(chatChannels)
+      .innerJoin(channelMembers, eq(channelMembers.channelId, chatChannels.id))
+      .where(eq(channelMembers.userId, userId))
+      .orderBy(asc(chatChannels.name));
+  }
+
+  async getAllChannels(): Promise<ChatChannel[]> {
+    return await db
+      .select()
+      .from(chatChannels)
+      .where(eq(chatChannels.isPrivate, false))
+      .orderBy(asc(chatChannels.name));
+  }
+
+  async addChannelMember(member: InsertChannelMember): Promise<ChannelMember> {
+    const [newMember] = await db
+      .insert(channelMembers)
+      .values(member)
+      .returning();
+    return newMember;
+  }
+
+  async removeChannelMember(channelId: number, userId: string): Promise<void> {
+    await db
+      .delete(channelMembers)
+      .where(and(
+        eq(channelMembers.channelId, channelId),
+        eq(channelMembers.userId, userId)
+      ));
+  }
+
+  async getChannelMembers(channelId: number): Promise<ChannelMember[]> {
+    return await db
+      .select()
+      .from(channelMembers)
+      .where(eq(channelMembers.channelId, channelId))
+      .orderBy(asc(channelMembers.joinedAt));
+  }
+
+  // Chat messages
+  async sendChannelMessage(message: InsertMessage): Promise<Message> {
+    const [newMessage] = await db
+      .insert(messages)
+      .values(message)
+      .returning();
+    return newMessage;
+  }
+
+  async getChannelMessages(channelId: string, limit: number = 50): Promise<Message[]> {
+    return await db
+      .select()
+      .from(messages)
+      .where(eq(messages.channelId, channelId))
+      .orderBy(desc(messages.sentAt))
+      .limit(limit);
+  }
+
+  async getDirectMessages(userId1: string, userId2: string, limit: number = 50): Promise<Message[]> {
+    return await db
+      .select()
+      .from(messages)
+      .where(and(
+        eq(messages.messageType, "direct"),
+        and(
+          eq(messages.senderId, userId1),
+          eq(messages.recipientId, userId2)
+        )
+      ))
+      .orderBy(desc(messages.sentAt))
+      .limit(limit);
+  }
 }
 
 export const storage = new DatabaseStorage();

@@ -12,6 +12,8 @@ import {
   insertTrainingModuleSchema,
   insertTrainingProgressSchema,
   insertMessageSchema,
+  insertChatChannelSchema,
+  insertChannelMemberSchema,
 } from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -493,6 +495,151 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching calendar events:", error);
       res.status(500).json({ message: "Failed to fetch calendar events" });
+    }
+  });
+
+  // Chat channels API routes
+  app.get('/api/chat/channels', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const channels = await storage.getUserChannels(userId);
+      res.json(channels);
+    } catch (error) {
+      console.error("Error fetching chat channels:", error);
+      res.status(500).json({ message: "Failed to fetch chat channels" });
+    }
+  });
+
+  app.post('/api/chat/channels', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const channelData = insertChatChannelSchema.parse({
+        ...req.body,
+        createdBy: userId,
+      });
+      const channel = await storage.createChatChannel(channelData);
+      
+      // Add creator as first member
+      await storage.addChannelMember({
+        channelId: channel.id,
+        userId: userId,
+        role: 'admin',
+      });
+      
+      res.json(channel);
+    } catch (error) {
+      console.error("Error creating chat channel:", error);
+      res.status(500).json({ message: "Failed to create chat channel" });
+    }
+  });
+
+  app.get('/api/chat/channels/:channelId/messages', isAuthenticated, async (req, res) => {
+    try {
+      const channelId = req.params.channelId;
+      const limit = parseInt(req.query.limit as string) || 50;
+      const messages = await storage.getChannelMessages(channelId, limit);
+      res.json(messages);
+    } catch (error) {
+      console.error("Error fetching channel messages:", error);
+      res.status(500).json({ message: "Failed to fetch channel messages" });
+    }
+  });
+
+  app.post('/api/chat/channels/:channelId/messages', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const channelId = req.params.channelId;
+      const messageData = insertMessageSchema.parse({
+        ...req.body,
+        senderId: userId,
+        channelId: channelId,
+        messageType: 'channel',
+      });
+      const message = await storage.sendChannelMessage(messageData);
+      
+      // Broadcast to WebSocket clients
+      wss.clients.forEach((client) => {
+        if (client.readyState === WebSocket.OPEN) {
+          client.send(JSON.stringify({
+            type: 'channel_message',
+            channelId: channelId,
+            message: message
+          }));
+        }
+      });
+      
+      res.json(message);
+    } catch (error) {
+      console.error("Error sending channel message:", error);
+      res.status(500).json({ message: "Failed to send channel message" });
+    }
+  });
+
+  app.post('/api/chat/channels/:channelId/members', isAuthenticated, async (req: any, res) => {
+    try {
+      const channelId = parseInt(req.params.channelId);
+      const memberData = insertChannelMemberSchema.parse({
+        ...req.body,
+        channelId: channelId,
+      });
+      const member = await storage.addChannelMember(memberData);
+      res.json(member);
+    } catch (error) {
+      console.error("Error adding channel member:", error);
+      res.status(500).json({ message: "Failed to add channel member" });
+    }
+  });
+
+  app.get('/api/chat/channels/:channelId/members', isAuthenticated, async (req, res) => {
+    try {
+      const channelId = parseInt(req.params.channelId);
+      const members = await storage.getChannelMembers(channelId);
+      res.json(members);
+    } catch (error) {
+      console.error("Error fetching channel members:", error);
+      res.status(500).json({ message: "Failed to fetch channel members" });
+    }
+  });
+
+  // Direct messages API routes
+  app.get('/api/chat/direct/:userId', isAuthenticated, async (req: any, res) => {
+    try {
+      const currentUserId = req.user.claims.sub;
+      const otherUserId = req.params.userId;
+      const limit = parseInt(req.query.limit as string) || 50;
+      const messages = await storage.getDirectMessages(currentUserId, otherUserId, limit);
+      res.json(messages);
+    } catch (error) {
+      console.error("Error fetching direct messages:", error);
+      res.status(500).json({ message: "Failed to fetch direct messages" });
+    }
+  });
+
+  app.post('/api/chat/direct', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const messageData = insertMessageSchema.parse({
+        ...req.body,
+        senderId: userId,
+        messageType: 'direct',
+      });
+      const message = await storage.createMessage(messageData);
+      
+      // Broadcast to WebSocket clients
+      wss.clients.forEach((client) => {
+        if (client.readyState === WebSocket.OPEN) {
+          client.send(JSON.stringify({
+            type: 'direct_message',
+            recipientId: messageData.recipientId,
+            message: message
+          }));
+        }
+      });
+      
+      res.json(message);
+    } catch (error) {
+      console.error("Error sending direct message:", error);
+      res.status(500).json({ message: "Failed to send direct message" });
     }
   });
 
