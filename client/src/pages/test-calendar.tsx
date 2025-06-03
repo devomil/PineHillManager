@@ -4,7 +4,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CalendarIcon, MapPin, ArrowLeft, ArrowRight } from "lucide-react";
+import { CalendarIcon, MapPin, ArrowLeft, ArrowRight, Home, Menu } from "lucide-react";
+import { Link } from "wouter";
 
 interface Location {
   id: number;
@@ -42,13 +43,32 @@ export default function TestCalendar() {
   
   return (
     <div className="container mx-auto p-6 space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
+      {/* Navigation Header */}
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-4">
+          <Link href="/">
+            <Button variant="outline" size="sm" className="flex items-center gap-2">
+              <Home className="h-4 w-4" />
+              Back to Dashboard
+            </Button>
+          </Link>
+          <div className="h-6 w-px bg-gray-300"></div>
           <h1 className="text-3xl font-bold flex items-center gap-2">
             <CalendarIcon className="h-8 w-8" />
             Global Calendar
           </h1>
-          <p className="text-muted-foreground mt-1">
+        </div>
+        <Link href="/">
+          <Button variant="ghost" size="sm" className="flex items-center gap-2">
+            <Menu className="h-4 w-4" />
+            Main Menu
+          </Button>
+        </Link>
+      </div>
+
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+          <p className="text-muted-foreground">
             View schedules, time-off requests, and shift coverage across all locations
           </p>
         </div>
