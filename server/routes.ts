@@ -348,6 +348,348 @@ export async function registerRoutes(app: Express): Promise<Server> {
     `);
   });
 
+  // Schedule page
+  app.get('/schedule', (req, res) => {
+    res.send(`
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <title>Pine Hill Farm - My Schedule</title>
+        <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+            min-height: 100vh; color: #1e293b;
+          }
+          .header { background: white; padding: 1rem 2rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+          .header-content { max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
+          .logo { display: flex; align-items: center; gap: 1rem; }
+          .logo-icon { width: 40px; height: 40px; background: #607e66; border-radius: 10px; display: flex; align-items: center; justify-content: center; color: white; font-size: 1.2rem; }
+          .nav { display: flex; gap: 1rem; }
+          .nav a { color: #64748b; text-decoration: none; padding: 0.5rem 1rem; border-radius: 6px; transition: background 0.2s; }
+          .nav a:hover { background: #f1f5f9; }
+          .nav a.active { background: #607e66; color: white; }
+          .container { max-width: 1200px; margin: 0 auto; padding: 2rem; }
+          .page-header { background: white; padding: 2rem; border-radius: 12px; margin-bottom: 2rem; }
+          .card { background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 2rem; }
+          .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; background: #e2e8f0; border-radius: 8px; overflow: hidden; }
+          .calendar-cell { background: white; padding: 1rem; min-height: 120px; position: relative; }
+          .calendar-header { background: #f8fafc; padding: 0.75rem; font-weight: 600; text-align: center; }
+          .date-number { font-weight: 600; margin-bottom: 0.5rem; }
+          .shift { background: #607e66; color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; margin-bottom: 0.25rem; }
+          .shift.lake-geneva { background: #2563eb; }
+          .shift.watertown { background: #059669; }
+          .btn { background: #607e66; color: white; padding: 0.75rem 1.5rem; border: none; border-radius: 6px; text-decoration: none; display: inline-block; font-weight: 500; transition: background 0.2s; margin-right: 1rem; }
+          .btn:hover { background: #4f6b56; }
+          .btn-secondary { background: #e2e8f0; color: #475569; }
+          .btn-secondary:hover { background: #cbd5e1; }
+          .today { background: #fef3c7; }
+          .legend { display: flex; gap: 1rem; margin-bottom: 1rem; }
+          .legend-item { display: flex; align-items: center; gap: 0.5rem; }
+          .legend-color { width: 16px; height: 16px; border-radius: 4px; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div class="header-content">
+            <div class="logo">
+              <div class="logo-icon">🌲</div>
+              <div>
+                <div style="font-weight: 600;">Pine Hill Farm</div>
+                <div style="font-size: 0.875rem; color: #64748b;">Employee Portal</div>
+              </div>
+            </div>
+            <div class="nav">
+              <a href="/dashboard">Dashboard</a>
+              <a href="/schedule" class="active">Schedule</a>
+              <a href="/time-off">Time Off</a>
+              <a href="/announcements">Announcements</a>
+              <a href="/api/logout">Sign Out</a>
+            </div>
+          </div>
+        </div>
+
+        <div class="container">
+          <div class="page-header">
+            <h1 style="margin-bottom: 0.5rem;">My Work Schedule</h1>
+            <p style="color: #64748b;">View your upcoming shifts and manage your work schedule for both store locations.</p>
+          </div>
+
+          <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+              <h2>December 2024</h2>
+              <div>
+                <a href="#" class="btn-secondary btn">← Previous</a>
+                <a href="#" class="btn-secondary btn">Next →</a>
+              </div>
+            </div>
+
+            <div class="legend">
+              <div class="legend-item">
+                <div class="legend-color" style="background: #2563eb;"></div>
+                <span>Lake Geneva Store</span>
+              </div>
+              <div class="legend-item">
+                <div class="legend-color" style="background: #059669;"></div>
+                <span>Watertown Store</span>
+              </div>
+              <div class="legend-item">
+                <div class="legend-color" style="background: #fef3c7;"></div>
+                <span>Today</span>
+              </div>
+            </div>
+
+            <div class="calendar-grid">
+              <div class="calendar-header">Sunday</div>
+              <div class="calendar-header">Monday</div>
+              <div class="calendar-header">Tuesday</div>
+              <div class="calendar-header">Wednesday</div>
+              <div class="calendar-header">Thursday</div>
+              <div class="calendar-header">Friday</div>
+              <div class="calendar-header">Saturday</div>
+              
+              <div class="calendar-cell">
+                <div class="date-number">1</div>
+              </div>
+              <div class="calendar-cell">
+                <div class="date-number">2</div>
+                <div class="shift lake-geneva">9:00 AM - 5:00 PM</div>
+              </div>
+              <div class="calendar-cell today">
+                <div class="date-number">3</div>
+                <div class="shift watertown">8:00 AM - 4:00 PM</div>
+              </div>
+              <div class="calendar-cell">
+                <div class="date-number">4</div>
+              </div>
+              <div class="calendar-cell">
+                <div class="date-number">5</div>
+                <div class="shift lake-geneva">10:00 AM - 6:00 PM</div>
+              </div>
+              <div class="calendar-cell">
+                <div class="date-number">6</div>
+                <div class="shift watertown">9:00 AM - 5:00 PM</div>
+              </div>
+              <div class="calendar-cell">
+                <div class="date-number">7</div>
+              </div>
+              
+              <div class="calendar-cell">
+                <div class="date-number">8</div>
+              </div>
+              <div class="calendar-cell">
+                <div class="date-number">9</div>
+                <div class="shift lake-geneva">9:00 AM - 5:00 PM</div>
+              </div>
+              <div class="calendar-cell">
+                <div class="date-number">10</div>
+                <div class="shift watertown">8:00 AM - 4:00 PM</div>
+              </div>
+              <div class="calendar-cell">
+                <div class="date-number">11</div>
+              </div>
+              <div class="calendar-cell">
+                <div class="date-number">12</div>
+                <div class="shift lake-geneva">10:00 AM - 6:00 PM</div>
+              </div>
+              <div class="calendar-cell">
+                <div class="date-number">13</div>
+                <div class="shift watertown">9:00 AM - 5:00 PM</div>
+              </div>
+              <div class="calendar-cell">
+                <div class="date-number">14</div>
+              </div>
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2rem;">
+            <div class="card">
+              <h3 style="margin-bottom: 1rem;">Quick Actions</h3>
+              <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                <a href="/coverage" class="btn">Request Shift Coverage</a>
+                <a href="/time-off" class="btn-secondary btn">Request Time Off</a>
+              </div>
+            </div>
+
+            <div class="card">
+              <h3 style="margin-bottom: 1rem;">This Week's Summary</h3>
+              <div style="color: #64748b;">
+                <div style="margin-bottom: 0.5rem;">Total Hours: 32</div>
+                <div style="margin-bottom: 0.5rem;">Lake Geneva: 16 hours</div>
+                <div>Watertown: 16 hours</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </body>
+      </html>
+    `);
+  });
+
+  // Time Off page
+  app.get('/time-off', (req, res) => {
+    res.send(`
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <title>Pine Hill Farm - Time Off Requests</title>
+        <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+            min-height: 100vh; color: #1e293b;
+          }
+          .header { background: white; padding: 1rem 2rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+          .header-content { max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
+          .logo { display: flex; align-items: center; gap: 1rem; }
+          .logo-icon { width: 40px; height: 40px; background: #607e66; border-radius: 10px; display: flex; align-items: center; justify-content: center; color: white; font-size: 1.2rem; }
+          .nav { display: flex; gap: 1rem; }
+          .nav a { color: #64748b; text-decoration: none; padding: 0.5rem 1rem; border-radius: 6px; transition: background 0.2s; }
+          .nav a:hover { background: #f1f5f9; }
+          .nav a.active { background: #607e66; color: white; }
+          .container { max-width: 1200px; margin: 0 auto; padding: 2rem; }
+          .page-header { background: white; padding: 2rem; border-radius: 12px; margin-bottom: 2rem; }
+          .card { background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 2rem; }
+          .form-group { margin-bottom: 1.5rem; }
+          .form-label { display: block; margin-bottom: 0.5rem; font-weight: 500; }
+          .form-input { width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 6px; font-size: 1rem; }
+          .form-select { width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 6px; font-size: 1rem; }
+          .form-textarea { width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 6px; font-size: 1rem; min-height: 100px; resize: vertical; }
+          .btn { background: #607e66; color: white; padding: 0.75rem 1.5rem; border: none; border-radius: 6px; text-decoration: none; display: inline-block; font-weight: 500; transition: background 0.2s; cursor: pointer; }
+          .btn:hover { background: #4f6b56; }
+          .btn-secondary { background: #e2e8f0; color: #475569; }
+          .btn-secondary:hover { background: #cbd5e1; }
+          .status-badge { padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.875rem; font-weight: 500; }
+          .status-pending { background: #fef3c7; color: #92400e; }
+          .status-approved { background: #d1fae5; color: #065f46; }
+          .status-denied { background: #fee2e2; color: #991b1b; }
+          .request-item { padding: 1.5rem; border: 1px solid #e5e7eb; border-radius: 8px; margin-bottom: 1rem; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div class="header-content">
+            <div class="logo">
+              <div class="logo-icon">🌲</div>
+              <div>
+                <div style="font-weight: 600;">Pine Hill Farm</div>
+                <div style="font-size: 0.875rem; color: #64748b;">Employee Portal</div>
+              </div>
+            </div>
+            <div class="nav">
+              <a href="/dashboard">Dashboard</a>
+              <a href="/schedule">Schedule</a>
+              <a href="/time-off" class="active">Time Off</a>
+              <a href="/announcements">Announcements</a>
+              <a href="/api/logout">Sign Out</a>
+            </div>
+          </div>
+        </div>
+
+        <div class="container">
+          <div class="page-header">
+            <h1 style="margin-bottom: 0.5rem;">Time Off Requests</h1>
+            <p style="color: #64748b;">Request vacation days, sick leave, and personal time. All requests require manager approval.</p>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;">
+            <div class="card">
+              <h2 style="margin-bottom: 1.5rem;">Submit New Request</h2>
+              <form>
+                <div class="form-group">
+                  <label class="form-label">Request Type</label>
+                  <select class="form-select">
+                    <option>Vacation</option>
+                    <option>Sick Leave</option>
+                    <option>Personal Day</option>
+                    <option>Emergency Leave</option>
+                  </select>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                  <div class="form-group">
+                    <label class="form-label">Start Date</label>
+                    <input type="date" class="form-input" value="2024-12-10">
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">End Date</label>
+                    <input type="date" class="form-input" value="2024-12-12">
+                  </div>
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label">Reason (Optional)</label>
+                  <textarea class="form-textarea" placeholder="Provide additional details about your time off request..."></textarea>
+                </div>
+
+                <div style="display: flex; gap: 1rem;">
+                  <button type="submit" class="btn">Submit Request</button>
+                  <button type="button" class="btn-secondary btn">Clear Form</button>
+                </div>
+              </form>
+            </div>
+
+            <div class="card">
+              <h2 style="margin-bottom: 1.5rem;">Available Balance</h2>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 2rem;">
+                <div style="text-align: center; padding: 1rem; background: #f8fafc; border-radius: 8px;">
+                  <div style="font-size: 2rem; font-weight: 700; color: #607e66;">15</div>
+                  <div style="color: #64748b;">Vacation Days</div>
+                </div>
+                <div style="text-align: center; padding: 1rem; background: #f8fafc; border-radius: 8px;">
+                  <div style="font-size: 2rem; font-weight: 700; color: #607e66;">8</div>
+                  <div style="color: #64748b;">Sick Days</div>
+                </div>
+              </div>
+              
+              <h3 style="margin-bottom: 1rem;">Upcoming Time Off</h3>
+              <div style="color: #64748b;">
+                <div style="padding: 0.75rem; background: #f8fafc; border-radius: 6px;">
+                  <strong>Dec 23-26, 2024</strong><br>
+                  Christmas Vacation (4 days)
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h2 style="margin-bottom: 1.5rem;">Request History</h2>
+            
+            <div class="request-item">
+              <div style="display: flex; justify-content: between; align-items: center; margin-bottom: 0.5rem;">
+                <div style="font-weight: 600;">December 23-26, 2024</div>
+                <span class="status-badge status-approved">Approved</span>
+              </div>
+              <div style="color: #64748b; margin-bottom: 0.5rem;">Vacation - Christmas Holiday</div>
+              <div style="font-size: 0.875rem; color: #6b7280;">Submitted: Nov 15, 2024 • Approved by: Sarah Johnson</div>
+            </div>
+
+            <div class="request-item">
+              <div style="display: flex; justify-content: between; align-items: center; margin-bottom: 0.5rem;">
+                <div style="font-weight: 600;">November 8, 2024</div>
+                <span class="status-badge status-approved">Approved</span>
+              </div>
+              <div style="color: #64748b; margin-bottom: 0.5rem;">Sick Leave - Doctor's appointment</div>
+              <div style="font-size: 0.875rem; color: #6b7280;">Submitted: Nov 7, 2024 • Approved by: Sarah Johnson</div>
+            </div>
+
+            <div class="request-item">
+              <div style="display: flex; justify-content: between; align-items: center; margin-bottom: 0.5rem;">
+                <div style="font-weight: 600;">October 15-16, 2024</div>
+                <span class="status-badge status-pending">Pending</span>
+              </div>
+              <div style="color: #64748b; margin-bottom: 0.5rem;">Personal Days - Family event</div>
+              <div style="font-size: 0.875rem; color: #6b7280;">Submitted: Oct 10, 2024 • Awaiting approval</div>
+            </div>
+          </div>
+        </div>
+      </body>
+      </html>
+    `);
+  });
+
   // Auth middleware
   await setupDevAuth(app);
 
