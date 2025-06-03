@@ -28,6 +28,7 @@ function Router() {
   return (
     <Switch>
       <Route path="/calendar" component={TestCalendar} />
+      <Route path="/notifications" component={Notifications} />
       {isLoading || !isAuthenticated ? (
         <Route path="/" component={Landing} />
       ) : (
@@ -40,7 +41,7 @@ function Router() {
           <Route path="/training" component={Training} />
           <Route path="/reports" component={Reports} />
           <Route path="/diagnostics" component={Diagnostics} />
-          <Route path="/notifications" component={Notifications} />
+
           <Route path="/profile" component={Profile} />
           
           {/* Manager/Admin routes */}
