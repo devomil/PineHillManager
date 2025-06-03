@@ -65,6 +65,8 @@ export default function ShiftScheduling() {
   const [selectedLocation, setSelectedLocation] = useState<string>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingSchedule, setEditingSchedule] = useState<WorkSchedule | null>(null);
+  const [viewType, setViewType] = useState<"week" | "month" | "3month" | "6month">("week");
+  const [currentMonth, setCurrentMonth] = useState(0);
 
   // Check if user can manage schedules
   const canManageSchedules = user?.role === "admin" || user?.role === "manager";
@@ -93,12 +95,42 @@ export default function ShiftScheduling() {
     queryKey: ["/api/locations"],
   });
 
-  // Calculate week dates
-  const getWeekDates = () => {
+  // Calculate date ranges based on view type
+  const getDateRange = () => {
     const today = new Date();
-    const startDate = startOfWeek(today, { weekStartsOn: 0 });
-    startDate.setDate(startDate.getDate() + (selectedWeek * 7));
-    
+    let startDate: Date;
+    let endDate: Date;
+
+    switch (viewType) {
+      case "week":
+        startDate = startOfWeek(today, { weekStartsOn: 0 });
+        startDate.setDate(startDate.getDate() + (selectedWeek * 7));
+        endDate = new Date(startDate);
+        endDate.setDate(startDate.getDate() + 6);
+        break;
+      case "month":
+        startDate = new Date(today.getFullYear(), today.getMonth() + currentMonth, 1);
+        endDate = new Date(today.getFullYear(), today.getMonth() + currentMonth + 1, 0);
+        break;
+      case "3month":
+        startDate = new Date(today.getFullYear(), today.getMonth() + (currentMonth * 3), 1);
+        endDate = new Date(today.getFullYear(), today.getMonth() + (currentMonth * 3) + 3, 0);
+        break;
+      case "6month":
+        startDate = new Date(today.getFullYear(), today.getMonth() + (currentMonth * 6), 1);
+        endDate = new Date(today.getFullYear(), today.getMonth() + (currentMonth * 6) + 6, 0);
+        break;
+      default:
+        startDate = new Date(today);
+        endDate = new Date(today);
+    }
+
+    return { startDate, endDate };
+  };
+
+  const { startDate, endDate } = getDateRange();
+  
+  const getWeekDates = () => {
     return Array.from({ length: 7 }, (_, i) => {
       const date = new Date(startDate);
       date.setDate(date.getDate() + i);
@@ -106,9 +138,7 @@ export default function ShiftScheduling() {
     });
   };
 
-  const weekDates = getWeekDates();
-  const startDate = weekDates[0];
-  const endDate = weekDates[6];
+  const weekDates = viewType === "week" ? getWeekDates() : [];
 
   // Fetch work schedules for the week
   const { data: schedules = [] } = useQuery<WorkSchedule[]>({
