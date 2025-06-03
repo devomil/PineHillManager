@@ -42,7 +42,8 @@ export default function Sidebar({ mobileMenuOpen, setMobileMenuOpen }: SidebarPr
   };
 
   const canAccess = (roles: string[]) => {
-    return roles.includes(user?.role || "employee");
+    if (!user) return false;
+    return roles.includes(user.role || "employee");
   };
 
   const SidebarContent = () => (
