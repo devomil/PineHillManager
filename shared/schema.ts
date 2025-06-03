@@ -323,3 +323,19 @@ export type InsertPushSubscription = z.infer<typeof insertPushSubscriptionSchema
 export type PushSubscription = typeof pushSubscriptions.$inferSelect;
 export type InsertNotification = z.infer<typeof insertNotificationSchema>;
 export type Notification = typeof notifications.$inferSelect;
+export type Location = typeof locations.$inferSelect;
+export type InsertLocation = typeof locations.$inferInsert;
+
+// Calendar event type for unified calendar view
+export interface CalendarEvent {
+  id: string;
+  title: string;
+  start: string;
+  end: string;
+  type: 'schedule' | 'timeoff' | 'coverage_request' | 'announcement';
+  userId?: string;
+  locationId?: number;
+  status?: string;
+  description?: string;
+  data?: any;
+}

@@ -9,6 +9,7 @@ import {
   messages,
   pushSubscriptions,
   notifications,
+  locations,
   type User,
   type UpsertUser,
   type InsertTimeOffRequest,
@@ -29,6 +30,9 @@ import {
   type PushSubscription,
   type InsertNotification,
   type Notification,
+  type Location,
+  type InsertLocation,
+  type CalendarEvent,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, asc, gte, lte } from "drizzle-orm";
@@ -202,6 +206,16 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
 
+  // Locations
+  async getAllLocations(): Promise<Location[]> {
+    return await db.select().from(locations).orderBy(asc(locations.name));
+  }
+
+  async getLocationById(id: number): Promise<Location | undefined> {
+    const [location] = await db.select().from(locations).where(eq(locations.id, id));
+    return location;
+  }
+
   // Time off requests
   async createTimeOffRequest(request: InsertTimeOffRequest): Promise<TimeOffRequest> {
     const [timeOffRequest] = await db
@@ -288,6 +302,115 @@ export class DatabaseStorage implements IStorage {
       .where(eq(workSchedules.id, id))
       .returning();
     return updatedSchedule;
+  }
+
+  async getWorkSchedulesByLocation(locationId: number, startDate?: string, endDate?: string): Promise<WorkSchedule[]> {
+    let query = db
+      .select()
+      .from(workSchedules)
+      .where(eq(workSchedules.locationId, locationId));
+
+    if (startDate && endDate) {
+      query = query.where(
+        and(
+          eq(workSchedules.locationId, locationId),
+          gte(workSchedules.date, startDate),
+          lte(workSchedules.date, endDate)
+        )
+      );
+    }
+
+    return await query.orderBy(asc(workSchedules.date), asc(workSchedules.startTime));
+  }
+
+  async getWorkSchedulesByDateRange(startDate: string, endDate: string): Promise<WorkSchedule[]> {
+    return await db
+      .select()
+      .from(workSchedules)
+      .where(
+        and(
+          gte(workSchedules.date, startDate),
+          lte(workSchedules.date, endDate)
+        )
+      )
+      .orderBy(asc(workSchedules.date), asc(workSchedules.startTime));
+  }
+
+  async getCalendarEvents(startDate: string, endDate: string): Promise<CalendarEvent[]> {
+    const events: CalendarEvent[] = [];
+
+    // Get work schedules
+    const schedules = await this.getWorkSchedulesByDateRange(startDate, endDate);
+    for (const schedule of schedules) {
+      events.push({
+        id: `schedule-${schedule.id}`,
+        title: `Work Shift`,
+        start: `${schedule.date}T${schedule.startTime}`,
+        end: `${schedule.date}T${schedule.endTime}`,
+        type: 'schedule',
+        userId: schedule.userId,
+        locationId: schedule.locationId,
+        status: schedule.status,
+        description: schedule.notes || '',
+        data: schedule
+      });
+    }
+
+    // Get time off requests
+    const timeOffRequests = await db
+      .select()
+      .from(timeOffRequests)
+      .where(
+        and(
+          gte(timeOffRequests.startDate, startDate),
+          lte(timeOffRequests.endDate, endDate),
+          eq(timeOffRequests.status, 'approved')
+        )
+      );
+
+    for (const request of timeOffRequests) {
+      events.push({
+        id: `timeoff-${request.id}`,
+        title: `${request.type} - Time Off`,
+        start: `${request.startDate}T00:00:00`,
+        end: `${request.endDate}T23:59:59`,
+        type: 'timeoff',
+        userId: request.userId,
+        description: request.reason || '',
+        data: request
+      });
+    }
+
+    // Get shift coverage requests
+    const coverageRequests = await db
+      .select()
+      .from(shiftCoverageRequests)
+      .where(eq(shiftCoverageRequests.status, 'open'));
+
+    for (const coverage of coverageRequests) {
+      // Get the related schedule
+      const [relatedSchedule] = await db
+        .select()
+        .from(workSchedules)
+        .where(eq(workSchedules.id, coverage.scheduleId));
+
+      if (relatedSchedule) {
+        events.push({
+          id: `coverage-${coverage.id}`,
+          title: `Coverage Needed`,
+          start: `${relatedSchedule.date}T${relatedSchedule.startTime}`,
+          end: `${relatedSchedule.date}T${relatedSchedule.endTime}`,
+          type: 'coverage_request',
+          userId: coverage.requesterId,
+          locationId: relatedSchedule.locationId,
+          status: coverage.status,
+          description: coverage.reason || '',
+          data: { coverage, schedule: relatedSchedule }
+        });
+      }
+    }
+
+    return events;
   }
 
   async deleteWorkSchedule(id: number): Promise<void> {

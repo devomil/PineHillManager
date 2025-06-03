@@ -421,6 +421,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Locations routes
+  app.get('/api/locations', isAuthenticated, async (req, res) => {
+    try {
+      const locations = await storage.getAllLocations();
+      res.json(locations);
+    } catch (error) {
+      console.error("Error fetching locations:", error);
+      res.status(500).json({ message: "Failed to fetch locations" });
+    }
+  });
+
+  app.get('/api/locations/:id', isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const location = await storage.getLocationById(id);
+      if (!location) {
+        return res.status(404).json({ message: "Location not found" });
+      }
+      res.json(location);
+    } catch (error) {
+      console.error("Error fetching location:", error);
+      res.status(500).json({ message: "Failed to fetch location" });
+    }
+  });
+
+  // Global calendar events endpoint - smart calendar with automatic sync
+  app.get('/api/calendar/events', isAuthenticated, async (req, res) => {
+    try {
+      const { startDate, endDate } = req.query;
+      if (!startDate || !endDate) {
+        return res.status(400).json({ message: "Start date and end date are required" });
+      }
+      const events = await storage.getCalendarEvents(startDate as string, endDate as string);
+      res.json(events);
+    } catch (error) {
+      console.error("Error fetching calendar events:", error);
+      res.status(500).json({ message: "Failed to fetch calendar events" });
+    }
+  });
+
   // Employees (admin only)
   app.get('/api/employees', isAuthenticated, async (req: any, res) => {
     try {
