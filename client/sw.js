@@ -27,55 +27,99 @@ self.addEventListener('fetch', (event) => {
 });
 
 self.addEventListener('push', (event) => {
-  const options = {
+  console.log('Push notification received:', event);
+  
+  let notificationData = {
+    title: 'Pine Hill Farm',
     body: 'You have a new notification',
-    icon: '/favicon.ico',
-    badge: '/favicon.ico',
-    vibrate: [100, 50, 100],
-    data: {
-      dateOfArrival: Date.now(),
-      primaryKey: 1
-    },
-    actions: [
+    icon: '/generated-icon.png',
+    badge: '/generated-icon.png',
+    tag: 'general',
+    data: {},
+    actions: []
+  };
+
+  if (event.data) {
+    try {
+      notificationData = event.data.json();
+    } catch (e) {
+      console.error('Error parsing push data:', e);
+    }
+  }
+
+  // Enhanced options for time-sensitive approvals
+  const options = {
+    body: notificationData.body,
+    icon: notificationData.icon || '/generated-icon.png',
+    badge: notificationData.badge || '/generated-icon.png',
+    tag: notificationData.tag,
+    data: notificationData.data,
+    vibrate: notificationData.tag === 'approval' ? [200, 100, 200, 100, 200] : [100, 50, 100],
+    requireInteraction: notificationData.tag === 'approval' || notificationData.tag === 'urgent',
+    silent: false,
+    timestamp: Date.now(),
+    actions: notificationData.actions || [
       {
-        action: 'explore',
+        action: 'view',
         title: 'View Details',
-        icon: '/favicon.ico'
+        icon: '/generated-icon.png'
       },
       {
-        action: 'close',
+        action: 'dismiss',
         title: 'Dismiss',
-        icon: '/favicon.ico'
+        icon: '/generated-icon.png'
       }
     ]
   };
 
-  if (event.data) {
-    const data = event.data.json();
-    options.body = data.body || options.body;
-    options.title = data.title;
-    options.icon = data.icon || options.icon;
-    options.data = data.data || options.data;
+  // Add approval-specific actions for time-off requests
+  if (notificationData.tag === 'approval') {
+    options.actions = [
+      {
+        action: 'approve',
+        title: 'Approve',
+        icon: '/generated-icon.png'
+      },
+      {
+        action: 'view',
+        title: 'Review',
+        icon: '/generated-icon.png'
+      }
+    ];
   }
 
   event.waitUntil(
-    self.registration.showNotification(options.title || 'Pine Hill Farm', options)
+    self.registration.showNotification(notificationData.title, options)
   );
 });
 
 self.addEventListener('notificationclick', (event) => {
+  console.log('Notification clicked:', event);
   event.notification.close();
 
-  if (event.action === 'explore') {
-    event.waitUntil(
-      clients.openWindow('/')
-    );
-  } else if (event.action === 'close') {
-    // Just close the notification
-  } else {
-    // Default action - open the app
-    event.waitUntil(
-      clients.openWindow('/')
-    );
+  // Handle different action types
+  switch (event.action) {
+    case 'approve':
+      // Navigate to time management with approval action
+      event.waitUntil(
+        clients.openWindow('/time?action=approve&id=' + (event.notification.data?.relatedId || ''))
+      );
+      break;
+    case 'view':
+      // Navigate to relevant page based on notification type
+      const viewUrl = event.notification.data?.url || '/time';
+      event.waitUntil(
+        clients.openWindow(viewUrl)
+      );
+      break;
+    case 'dismiss':
+      // Just close the notification
+      break;
+    default:
+      // Default click behavior - open relevant page or dashboard
+      const defaultUrl = event.notification.data?.url || '/';
+      event.waitUntil(
+        clients.openWindow(defaultUrl)
+      );
   }
 });

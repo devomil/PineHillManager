@@ -148,7 +148,7 @@ export default function NotificationSettings() {
       </Card>
 
       {/* Recent Notifications */}
-      {notifications.length > 0 && (
+      {Array.isArray(notifications) && notifications.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle>Recent Notifications</CardTitle>

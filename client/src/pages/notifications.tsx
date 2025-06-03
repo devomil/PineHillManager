@@ -2,6 +2,7 @@ import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Home, Menu } from "lucide-react";
 import NotificationSettings from "@/components/notification-settings";
+import NotificationDemo from "@/components/notification-demo";
 
 export default function NotificationsPage() {
   return (
@@ -26,8 +27,9 @@ export default function NotificationsPage() {
         </Link>
       </div>
 
-      <div className="max-w-4xl">
+      <div className="max-w-4xl space-y-8">
         <NotificationSettings />
+        <NotificationDemo />
       </div>
     </div>
   );
