@@ -19,6 +19,7 @@ import Reports from "@/pages/reports";
 import Diagnostics from "@/pages/diagnostics";
 import Notifications from "@/pages/notifications";
 import Profile from "@/pages/profile";
+import DocumentManagement from "@/pages/document-management";
 import AppLayout from "@/components/layout/app-layout";
 import ProtectedRoute from "@/components/common/protected-route";
 
@@ -47,6 +48,7 @@ function Router() {
           <Route path="/training" component={Training} />
           <Route path="/reports" component={Reports} />
           <Route path="/diagnostics" component={Diagnostics} />
+          <Route path="/documents" component={DocumentManagement} />
 
           <Route path="/profile" component={Profile} />
           
