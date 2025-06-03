@@ -53,10 +53,17 @@ export interface IStorage {
   getPendingTimeOffRequests(): Promise<TimeOffRequest[]>;
   updateTimeOffRequestStatus(id: number, status: string, reviewedBy: string, comments?: string): Promise<TimeOffRequest>;
 
+  // Locations
+  getAllLocations(): Promise<Location[]>;
+  getLocationById(id: number): Promise<Location | undefined>;
+  
   // Work schedules
   createWorkSchedule(schedule: InsertWorkSchedule): Promise<WorkSchedule>;
   getUserWorkSchedules(userId: string, startDate?: string, endDate?: string): Promise<WorkSchedule[]>;
   getWorkSchedulesByDate(date: string): Promise<WorkSchedule[]>;
+  getWorkSchedulesByLocation(locationId: number, startDate?: string, endDate?: string): Promise<WorkSchedule[]>;
+  getWorkSchedulesByDateRange(startDate: string, endDate: string): Promise<WorkSchedule[]>;
+  getCalendarEvents(startDate: string, endDate: string): Promise<CalendarEvent[]>;
   updateWorkSchedule(id: number, schedule: Partial<InsertWorkSchedule>): Promise<WorkSchedule>;
   deleteWorkSchedule(id: number): Promise<void>;
 

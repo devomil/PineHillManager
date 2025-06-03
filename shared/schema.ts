@@ -69,17 +69,36 @@ export const timeOffRequests = pgTable("time_off_requests", {
   comments: text("comments"),
 });
 
+// Locations
+export const locations = pgTable("locations", {
+  id: serial("id").primaryKey(),
+  name: varchar("name").notNull(),
+  address: varchar("address").notNull(),
+  city: varchar("city").notNull(),
+  state: varchar("state").notNull(),
+  zipCode: varchar("zip_code").notNull(),
+  phone: varchar("phone"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Work schedules
 export const workSchedules = pgTable("work_schedules", {
   id: serial("id").primaryKey(),
   userId: varchar("user_id").notNull().references(() => users.id),
+  locationId: integer("location_id").references(() => locations.id),
   date: date("date").notNull(),
   startTime: varchar("start_time").notNull(),
   endTime: varchar("end_time").notNull(),
-  location: varchar("location"),
-  shift: varchar("shift"), // morning, afternoon, evening
+  shiftType: varchar("shift_type").default("regular"), // regular, coverage, overtime
+  status: varchar("status").default("scheduled"), // scheduled, completed, cancelled, no_show
+  breaks: text("breaks"), // JSON string for break times
   notes: text("notes"),
+  createdBy: varchar("created_by").references(() => users.id),
+  approvedBy: varchar("approved_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 // Shift coverage requests
