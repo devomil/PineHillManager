@@ -8,7 +8,7 @@ import { Calendar as CalendarIcon, MapPin, ArrowLeft, ArrowRight } from "lucide-
 import { format, addDays, subDays, startOfWeek, endOfWeek } from "date-fns";
 import type { Location } from "@shared/schema";
 
-export default function Calendar() {
+export default function CalendarPage() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedLocation, setSelectedLocation] = useState<string>("all");
 
