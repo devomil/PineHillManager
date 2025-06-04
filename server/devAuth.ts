@@ -32,7 +32,7 @@ export async function setupDevAuth(app: Express) {
 
   // Development login route
   app.get("/api/login", async (req, res) => {
-    // Create or get a test user
+    // Create or get a test user with admin role
     let user = await storage.getUser("40154188");
     if (!user) {
       user = await storage.upsertUser({
@@ -42,30 +42,37 @@ export async function setupDevAuth(app: Express) {
         lastName: "Sorensen",
         profileImageUrl: null,
       });
+      // Update role to admin after creation
+      await storage.updateUserRole("40154188", "admin");
+      user = await storage.getUser("40154188");
     }
 
-    // Set session
-    (req.session as any).user = {
-      claims: {
-        sub: user.id,
-        email: user.email,
-        first_name: user.firstName,
-        last_name: user.lastName,
-        profile_image_url: user.profileImageUrl,
-      },
-      access_token: "dev-token",
-      refresh_token: "dev-refresh",
-      expires_at: Math.floor(Date.now() / 1000) + 3600, // 1 hour
-    };
+    // Set session with null check
+    if (user) {
+      (req.session as any).user = {
+        claims: {
+          sub: user.id,
+          email: user.email,
+          first_name: user.firstName,
+          last_name: user.lastName,
+          profile_image_url: user.profileImageUrl,
+        },
+        access_token: "dev-token",
+        refresh_token: "dev-refresh",
+        expires_at: Math.floor(Date.now() / 1000) + 3600, // 1 hour
+      };
 
-    // Save session before redirect
-    req.session.save((err) => {
-      if (err) {
-        console.error('Session save error:', err);
-        return res.status(500).json({ message: "Session error" });
-      }
-      res.redirect("/");
-    });
+      // Save session before redirect
+      req.session.save((err) => {
+        if (err) {
+          console.error('Session save error:', err);
+          return res.status(500).json({ message: "Session error" });
+        }
+        res.redirect("/");
+      });
+    } else {
+      res.status(500).json({ message: "Failed to create user" });
+    }
   });
 
   app.get("/api/logout", (req, res) => {

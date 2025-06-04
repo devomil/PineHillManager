@@ -3,6 +3,64 @@ import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
 import { setupDevAuth, isAuthenticated } from "./devAuth";
+
+// Initialize database with sample users
+async function initializeDatabase() {
+  try {
+    // Create admin user (Ryan Sorensen)
+    let adminUser = await storage.getUser("40154188");
+    if (!adminUser) {
+      await storage.upsertUser({
+        id: "40154188",
+        email: "ryan@pinehillfarm.co",
+        firstName: "Ryan",
+        lastName: "Sorensen",
+        profileImageUrl: null,
+      });
+      await storage.updateUserRole("40154188", "admin");
+    }
+
+    // Create manager user
+    let managerUser = await storage.getUser("manager001");
+    if (!managerUser) {
+      await storage.createEmployee({
+        id: "manager001",
+        employeeId: "PHF-MGR-001",
+        firstName: "Sarah",
+        lastName: "Johnson",
+        email: "sarah@pinehillfarm.co",
+        role: "manager",
+        department: "operations",
+        position: "Store Manager",
+        hireDate: "2023-01-15",
+        isActive: true,
+        timeOffBalance: 40
+      });
+    }
+
+    // Create sample employee
+    let employee = await storage.getUser("employee001");
+    if (!employee) {
+      await storage.createEmployee({
+        id: "employee001",
+        employeeId: "PHF-EMP-001",
+        firstName: "Mike",
+        lastName: "Davis",
+        email: "mike@pinehillfarm.co",
+        role: "employee",
+        department: "sales",
+        position: "Sales Associate",
+        hireDate: "2023-06-01",
+        isActive: true,
+        timeOffBalance: 24
+      });
+    }
+
+    console.log("Database initialized with sample users");
+  } catch (error) {
+    console.error("Error initializing database:", error);
+  }
+}
 import { notificationService } from "./notificationService";
 import {
   insertTimeOffRequestSchema,
@@ -20,6 +78,9 @@ import {
 } from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Initialize database with sample users
+  await initializeDatabase();
+
   // Static landing page that bypasses all Vite processing
   app.get('/static', (req, res) => {
     res.send(`
