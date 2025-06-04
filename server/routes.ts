@@ -1,4 +1,5 @@
 import type { Express } from "express";
+import express from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
@@ -1543,18 +1544,74 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Root redirect to dashboard for logged in users
-  app.get('/', (req, res) => {
-    // Check if user is logged in by checking session
-    if (req.session && req.session.passport && req.session.passport.user) {
+  // Root redirect - serve static HTML directly
+  app.get('/', async (req, res) => {
+    const user = (req.session as any)?.user;
+    
+    if (user) {
+      // User is logged in, redirect to dashboard
       res.redirect('/dashboard');
     } else {
-      res.redirect('/static');
+      // User not logged in, show landing page with login
+      res.send(`
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+          <title>Pine Hill Farm Employee Portal</title>
+          <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { 
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+              background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+              min-height: 100vh; color: #1e293b; display: flex; align-items: center; justify-content: center;
+            }
+            .container { max-width: 400px; width: 100%; padding: 2rem; }
+            .card { background: white; padding: 3rem; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); text-align: center; }
+            .logo { width: 80px; height: 80px; background: #607e66; border-radius: 20px; margin: 0 auto 2rem; display: flex; align-items: center; justify-content: center; font-size: 2rem; color: white; }
+            h1 { margin-bottom: 1rem; color: #1e293b; }
+            .subtitle { color: #64748b; margin-bottom: 2rem; }
+            .btn { background: #607e66; color: white; padding: 1rem 2rem; border: none; border-radius: 8px; text-decoration: none; display: inline-block; font-weight: 600; font-size: 1.1rem; transition: background 0.2s; }
+            .btn:hover { background: #4f6b56; }
+            .footer { margin-top: 2rem; color: #94a3b8; font-size: 0.875rem; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="card">
+              <div class="logo">🌲</div>
+              <h1>Pine Hill Farm</h1>
+              <p class="subtitle">Employee Management Portal</p>
+              <a href="/api/login" class="btn">Sign In to Continue</a>
+              <div class="footer">Lake Geneva & Watertown Locations</div>
+            </div>
+          </div>
+        </body>
+        </html>
+      `);
     }
   });
 
   // Auth middleware
   await setupDevAuth(app);
+
+  // Serve static assets and bypass Vite entirely
+  app.use('/assets', express.static('client/dist/assets', { fallthrough: false }));
+  app.use('/favicon.ico', express.static('client/dist/favicon.ico'));
+  
+  // Catch all other routes and serve our custom HTML
+  app.get('*', (req, res, next) => {
+    // Skip API routes
+    if (req.path.startsWith('/api/')) {
+      return next();
+    }
+    
+    // For any other route, redirect to root to handle properly
+    if (req.path !== '/') {
+      return res.redirect('/');
+    }
+    
+    next();
+  });
 
   // Auth routes
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
