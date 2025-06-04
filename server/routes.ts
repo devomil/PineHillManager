@@ -82,22 +82,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Initialize database with sample users
   await initializeDatabase();
 
-  // CRITICAL: Block Vite from handling admin routes - must be FIRST
-  app.use('/admin', (req, res, next) => {
-    res.setHeader('X-Handled-By', 'Express-Admin');
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-    next();
-  });
-
-  app.use('/dashboard', (req, res, next) => {
-    res.setHeader('X-Handled-By', 'Express-Dashboard');
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-    next();
-  });
-
-  app.use('/schedule', (req, res, next) => {
-    res.setHeader('X-Handled-By', 'Express-Schedule');
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  // CRITICAL: Complete Vite bypass for server-side routes
+  app.use((req, res, next) => {
+    const serverRoutes = ['/admin', '/dashboard', '/schedule', '/time-off', '/announcements', '/api'];
+    const isServerRoute = serverRoutes.some(route => req.path.startsWith(route));
+    
+    if (isServerRoute) {
+      res.setHeader('X-Handled-By', 'Express-Server');
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('X-Vite-Bypass', 'true');
+    }
     next();
   });
 
