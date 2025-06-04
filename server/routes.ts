@@ -3170,7 +3170,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Catch-all handler for unmatched routes (MUST be last)
+  // Catch-all handler (MUST be last)
   app.get('*', (req, res) => {
     // If it's an API route, return 404
     if (req.path.startsWith('/api/')) {
