@@ -4794,7 +4794,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.deleteDocument(documentId);
       
       // Log the delete action
-      await storage.logDocumentAction({
+      await storage.logDocumentActivity({
         documentId,
         userId,
         action: 'delete',
@@ -4806,6 +4806,87 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error deleting document:", error);
       res.status(500).json({ message: "Failed to delete document" });
+    }
+  });
+
+  // File upload endpoint
+  app.post('/api/documents/upload', isAuthenticated, upload.single('file'), async (req: any, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
+
+      const userId = req.user.claims.sub;
+      const { category = 'general', description = '', isPublic = false } = req.body;
+
+      const documentData = {
+        fileName: req.file.filename,
+        originalName: req.file.originalname,
+        filePath: req.file.path,
+        fileSize: req.file.size,
+        mimeType: req.file.mimetype,
+        category,
+        description,
+        uploadedBy: userId,
+        isPublic: isPublic === 'true'
+      };
+
+      const document = await storage.createDocument(documentData);
+
+      // Log the upload action
+      await storage.logDocumentActivity({
+        documentId: document.id,
+        userId,
+        action: 'upload',
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent')
+      });
+
+      res.json(document);
+    } catch (error) {
+      console.error("Error uploading file:", error);
+      res.status(500).json({ message: "Failed to upload file" });
+    }
+  });
+
+  // File download endpoint
+  app.get('/api/documents/:id/download', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      const documentId = parseInt(req.params.id);
+
+      const document = await storage.getDocumentById(documentId);
+      if (!document) {
+        return res.status(404).json({ message: "Document not found" });
+      }
+
+      // Check access permissions
+      const hasAccess = await storage.checkDocumentAccess(
+        documentId,
+        userId,
+        user?.role || 'employee',
+        user?.department || ''
+      );
+
+      if (!hasAccess) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+
+      // Log the download action
+      await storage.logDocumentActivity({
+        documentId,
+        userId,
+        action: 'download',
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent')
+      });
+
+      // Send file
+      res.download(document.filePath, document.originalName);
+    } catch (error) {
+      console.error("Error downloading file:", error);
+      res.status(500).json({ message: "Failed to download file" });
     }
   });
 
@@ -4832,7 +4913,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         grantedBy: userId
       });
       
-      const permission = await storage.createDocumentPermission(permissionData);
+      const permission = await storage.grantDocumentPermission(permissionData);
       res.json(permission);
     } catch (error) {
       console.error("Error creating document permission:", error);
