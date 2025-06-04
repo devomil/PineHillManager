@@ -395,7 +395,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               <div class="card-icon" style="background: #fef3c7; color: #d97706;">🔄</div>
               <div class="card-title">Shift Coverage</div>
               <div class="card-desc">Find coverage for your shifts or cover for colleagues</div>
-              <a href="/coverage" class="btn">Manage Coverage</a>
+              <a href="/shift-coverage" class="btn">Manage Coverage</a>
             </div>
 
             <div class="card">
@@ -409,7 +409,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               <div class="card-icon" style="background: #ecfdf5; color: #059669;">💬</div>
               <div class="card-title">Team Communication</div>
               <div class="card-desc">Chat with your team and stay connected</div>
-              <a href="/chat" class="btn">Open Chat</a>
+              <a href="/team-chat" class="btn">Open Chat</a>
             </div>
 
             <div class="card">
