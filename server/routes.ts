@@ -82,7 +82,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Initialize database with sample users
   await initializeDatabase();
 
-  // Auth middleware FIRST
+  // CRITICAL: Block Vite from handling admin routes - must be FIRST
+  app.use('/admin', (req, res, next) => {
+    res.setHeader('X-Handled-By', 'Express-Admin');
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    next();
+  });
+
+  app.use('/dashboard', (req, res, next) => {
+    res.setHeader('X-Handled-By', 'Express-Dashboard');
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    next();
+  });
+
+  app.use('/schedule', (req, res, next) => {
+    res.setHeader('X-Handled-By', 'Express-Schedule');
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    next();
+  });
+
+  // Auth middleware SECOND
   await setupDevAuth(app);
 
   // Test route to debug blank page issue
