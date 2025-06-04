@@ -1780,6 +1780,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const allUsers = await storage.getAllUsers();
       const pendingTimeOffRequests = await storage.getPendingTimeOffRequests();
       const todaySchedules = await storage.getWorkSchedulesByDate(new Date().toISOString().split('T')[0]);
+      const locations = await storage.getAllLocations();
+      
+      // Group schedules by location
+      const lakeGenevaSchedules = todaySchedules.filter(s => s.locationId === 1);
+      const watertownSchedules = todaySchedules.filter(s => s.locationId === 2);
 
       res.send(`
         <!DOCTYPE html>
@@ -1873,14 +1878,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
               </div>
             </div>
 
-            <div class="tabs">
-              <a href="#pending-requests" class="tab active">Pending Approvals</a>
-              <a href="#employee-overview" class="tab">Employee Overview</a>
-              <a href="#schedule-overview" class="tab">Today's Schedule</a>
+            <!-- Today's Schedule Overview - Moved to Top -->
+            <div class="card">
+              <h2 style="margin-bottom: 1.5rem;">📅 Today's Schedule Overview</h2>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;">
+                <!-- Lake Geneva Store -->
+                <div style="border: 1px solid #e2e8f0; border-radius: 8px; padding: 1.5rem; border-left: 4px solid #3b82f6;">
+                  <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; font-weight: 600;">
+                    <span style="color: #3b82f6;">🏪</span>
+                    Lake Geneva Store
+                    <span style="background: #dbeafe; color: #1e40af; padding: 0.25rem 0.5rem; border-radius: 12px; font-size: 0.75rem;">${lakeGenevaSchedules.length} scheduled</span>
+                  </div>
+                  ${lakeGenevaSchedules.length === 0 ? 
+                    '<p style="color: #64748b; font-style: italic;">No schedules for today</p>' :
+                    lakeGenevaSchedules.map(schedule => `
+                      <div style="padding: 0.75rem; margin-bottom: 0.5rem; background: #f8fafc; border-radius: 6px; border-left: 3px solid #3b82f6;">
+                        <div style="font-weight: 500;">${schedule.userId}</div>
+                        <div style="font-size: 0.875rem; color: #64748b;">${schedule.startTime} - ${schedule.endTime}</div>
+                        <div style="font-size: 0.75rem; color: #6b7280;">${schedule.position || 'Staff'}</div>
+                      </div>
+                    `).join('')
+                  }
+                </div>
+
+                <!-- Watertown Store -->
+                <div style="border: 1px solid #e2e8f0; border-radius: 8px; padding: 1.5rem; border-left: 4px solid #10b981;">
+                  <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; font-weight: 600;">
+                    <span style="color: #10b981;">🏪</span>
+                    Watertown Store
+                    <span style="background: #d1fae5; color: #065f46; padding: 0.25rem 0.5rem; border-radius: 12px; font-size: 0.75rem;">${watertownSchedules.length} scheduled</span>
+                  </div>
+                  ${watertownSchedules.length === 0 ? 
+                    '<p style="color: #64748b; font-style: italic;">No schedules for today</p>' :
+                    watertownSchedules.map(schedule => `
+                      <div style="padding: 0.75rem; margin-bottom: 0.5rem; background: #f8fafc; border-radius: 6px; border-left: 3px solid #10b981;">
+                        <div style="font-weight: 500;">${schedule.userId}</div>
+                        <div style="font-size: 0.875rem; color: #64748b;">${schedule.startTime} - ${schedule.endTime}</div>
+                        <div style="font-size: 0.75rem; color: #6b7280;">${schedule.position || 'Staff'}</div>
+                      </div>
+                    `).join('')
+                  }
+                </div>
+              </div>
+              <div style="margin-top: 1rem; text-align: center;">
+                <a href="/admin/schedule" class="btn">Manage Full Schedule</a>
+              </div>
             </div>
 
             <div class="card">
-              <h2 style="margin-bottom: 1.5rem;">Pending Time Off Requests</h2>
+              <h2 style="margin-bottom: 1.5rem;">⏰ Pending Time Off Requests</h2>
               ${pendingTimeOffRequests.length === 0 ? 
                 '<p style="color: #64748b; text-align: center; padding: 2rem;">No pending requests</p>' :
                 `<table class="table">
@@ -1912,12 +1958,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
             </div>
 
             <div class="card">
-              <h2 style="margin-bottom: 1.5rem;">Employee Overview</h2>
-              <div style="margin-bottom: 1rem;">
-                <a href="/admin/employees/new" class="btn">Add New Employee</a>
-                <a href="/admin/employees" class="btn-secondary btn">Manage All Employees</a>
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; cursor: pointer;" onclick="toggleEmployeeOverview()">
+                <h2 style="margin: 0;">👥 Employee Overview</h2>
+                <span id="employeeToggleArrow" style="transition: transform 0.3s ease; font-size: 1.2rem;">▶</span>
               </div>
-              <table class="table">
+              <div id="employeeOverviewContent" style="overflow: hidden; max-height: 0; transition: max-height 0.3s ease;">
+                <div style="margin-bottom: 1rem;">
+                  <a href="/admin/employees/new" class="btn">Add New Employee</a>
+                  <a href="/admin/employees" class="btn-secondary btn">Manage All Employees</a>
+                </div>
+                <table class="table">
                 <thead>
                   <tr>
                     <th>Employee ID</th>
