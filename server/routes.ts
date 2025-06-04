@@ -433,6 +433,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               <div style="background: #fef3c7; border: 2px solid #f59e0b; border-radius: 8px; padding: 1rem; margin-top: 1rem;">
                 <strong style="color: #92400e;">Development Testing:</strong>
                 <div style="margin-top: 0.5rem;">
+                  <a href="/dev/switch-user/manager001" style="background: #f59e0b; color: white; padding: 0.5rem 1rem; border-radius: 4px; text-decoration: none; margin-right: 0.5rem; font-size: 0.875rem;">Test as Sarah Johnson</a>
                   <a href="/dev/switch-user/employee003" style="background: #3b82f6; color: white; padding: 0.5rem 1rem; border-radius: 4px; text-decoration: none; margin-right: 0.5rem; font-size: 0.875rem;">Test as Alex Thompson</a>
                   <a href="/dev/switch-user/employee001" style="background: #10b981; color: white; padding: 0.5rem 1rem; border-radius: 4px; text-decoration: none; margin-right: 0.5rem; font-size: 0.875rem;">Test as Mike Davis</a>
                   <a href="/dev/switch-user/employee002" style="background: #8b5cf6; color: white; padding: 0.5rem 1rem; border-radius: 4px; text-decoration: none; font-size: 0.875rem;">Test as Jessica Miller</a>
