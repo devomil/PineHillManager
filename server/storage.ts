@@ -52,7 +52,7 @@ import {
   type DocumentLog,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, desc, asc, gte, lte } from "drizzle-orm";
+import { eq, and, desc, asc, gte, lte, or } from "drizzle-orm";
 
 export interface IStorage {
   // User operations - mandatory for Replit Auth
@@ -1113,7 +1113,10 @@ export class DatabaseStorage implements IStorage {
         and(
           eq(timeClockEntries.userId, userId),
           gte(timeClockEntries.clockInTime, new Date(today + 'T00:00:00')),
-          eq(timeClockEntries.status, 'clocked_in') || eq(timeClockEntries.status, 'on_break')
+          or(
+            eq(timeClockEntries.status, 'clocked_in'),
+            eq(timeClockEntries.status, 'on_break')
+          )
         )
       )
       .orderBy(desc(timeClockEntries.clockInTime))
@@ -1237,7 +1240,11 @@ export class DatabaseStorage implements IStorage {
       .where(
         and(
           gte(userPresence.lastSeen, fiveMinutesAgo),
-          eq(userPresence.status, 'online') || eq(userPresence.status, 'clocked_in') || eq(userPresence.status, 'on_break')
+          or(
+            eq(userPresence.status, 'online'),
+            eq(userPresence.status, 'clocked_in'),
+            eq(userPresence.status, 'on_break')
+          )
         )
       )
       .orderBy(asc(users.firstName));
