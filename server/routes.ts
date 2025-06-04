@@ -1336,6 +1336,379 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Time off request approval routes
+  app.get('/admin/approve-request/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      if (!user || (user.role !== 'admin' && user.role !== 'manager')) {
+        return res.status(403).send("Access denied");
+      }
+
+      const requestId = parseInt(req.params.id);
+      await storage.updateTimeOffRequestStatus(requestId, 'approved', userId, 'Approved by admin');
+      
+      res.redirect('/admin?approved=true');
+    } catch (error) {
+      console.error("Error approving request:", error);
+      res.redirect('/admin?error=approval_failed');
+    }
+  });
+
+  app.get('/admin/deny-request/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      if (!user || (user.role !== 'admin' && user.role !== 'manager')) {
+        return res.status(403).send("Access denied");
+      }
+
+      const requestId = parseInt(req.params.id);
+      await storage.updateTimeOffRequestStatus(requestId, 'denied', userId, 'Denied by admin');
+      
+      res.redirect('/admin?denied=true');
+    } catch (error) {
+      console.error("Error denying request:", error);
+      res.redirect('/admin?error=denial_failed');
+    }
+  });
+
+  // Employee edit route
+  app.get('/admin/employees/:id/edit', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      if (!user || (user.role !== 'admin' && user.role !== 'manager')) {
+        return res.status(403).send("Access denied");
+      }
+
+      const employeeId = req.params.id;
+      const employee = await storage.getUser(employeeId);
+      
+      if (!employee) {
+        return res.status(404).send("Employee not found");
+      }
+
+      res.send(`
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+          <title>Pine Hill Farm - Edit Employee</title>
+          <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { 
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+              background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+              min-height: 100vh; color: #1e293b;
+            }
+            .header { background: white; padding: 1rem 2rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+            .header-content { max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
+            .logo { display: flex; align-items: center; gap: 1rem; }
+            .logo-icon { width: 40px; height: 40px; background: #607e66; border-radius: 10px; display: flex; align-items: center; justify-content: center; color: white; font-size: 1.2rem; }
+            .nav { display: flex; gap: 1rem; }
+            .nav a { color: #64748b; text-decoration: none; padding: 0.5rem 1rem; border-radius: 6px; transition: background 0.2s; }
+            .nav a:hover { background: #f1f5f9; }
+            .nav a.active { background: #607e66; color: white; }
+            .container { max-width: 800px; margin: 0 auto; padding: 2rem; }
+            .card { background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 2rem; }
+            .form-group { margin-bottom: 1.5rem; }
+            .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+            .form-label { display: block; margin-bottom: 0.5rem; font-weight: 500; color: #374151; }
+            .form-input, .form-select { width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 6px; }
+            .btn { background: #607e66; color: white; padding: 0.75rem 1.5rem; border: none; border-radius: 6px; cursor: pointer; font-weight: 500; transition: background 0.2s; margin-right: 1rem; }
+            .btn:hover { background: #4f6b56; }
+            .btn-secondary { background: #e2e8f0; color: #475569; text-decoration: none; }
+            .btn-secondary:hover { background: #cbd5e1; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div class="header-content">
+              <div class="logo">
+                <div class="logo-icon">🌲</div>
+                <div>
+                  <div style="font-weight: 600;">Pine Hill Farm</div>
+                  <div style="font-size: 0.875rem; color: #64748b;">Edit Employee</div>
+                </div>
+              </div>
+              <div class="nav">
+                <a href="/admin">Admin Dashboard</a>
+                <a href="/admin/employees" class="active">Employee Management</a>
+                <a href="/admin/schedule">Schedule Management</a>
+                <a href="/dashboard">Employee View</a>
+                <a href="/api/logout">Sign Out</a>
+              </div>
+            </div>
+          </div>
+
+          <div class="container">
+            <div class="card">
+              <h1 style="margin-bottom: 0.5rem;">Edit Employee: ${employee.firstName} ${employee.lastName}</h1>
+              <p style="color: #64748b; margin-bottom: 2rem;">Update employee information and role assignments.</p>
+              
+              <form action="/api/employees/${employee.id}" method="POST">
+                <div class="form-row">
+                  <div class="form-group">
+                    <label class="form-label">First Name</label>
+                    <input type="text" name="firstName" class="form-input" value="${employee.firstName || ''}" required>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Last Name</label>
+                    <input type="text" name="lastName" class="form-input" value="${employee.lastName || ''}" required>
+                  </div>
+                </div>
+
+                <div class="form-row">
+                  <div class="form-group">
+                    <label class="form-label">Email</label>
+                    <input type="email" name="email" class="form-input" value="${employee.email || ''}" required>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Employee ID</label>
+                    <input type="text" name="employeeId" class="form-input" value="${employee.employeeId || ''}" required>
+                  </div>
+                </div>
+
+                <div class="form-row">
+                  <div class="form-group">
+                    <label class="form-label">Role</label>
+                    <select name="role" class="form-select" required>
+                      <option value="employee" ${employee.role === 'employee' ? 'selected' : ''}>Employee</option>
+                      <option value="manager" ${employee.role === 'manager' ? 'selected' : ''}>Manager</option>
+                      <option value="admin" ${employee.role === 'admin' ? 'selected' : ''}>Admin</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Department</label>
+                    <select name="department" class="form-select">
+                      <option value="">Select Department</option>
+                      <option value="sales" ${employee.department === 'sales' ? 'selected' : ''}>Sales</option>
+                      <option value="management" ${employee.department === 'management' ? 'selected' : ''}>Management</option>
+                      <option value="operations" ${employee.department === 'operations' ? 'selected' : ''}>Operations</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div class="form-row">
+                  <div class="form-group">
+                    <label class="form-label">Position</label>
+                    <input type="text" name="position" class="form-input" value="${employee.position || ''}" placeholder="e.g., Sales Associate">
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Hire Date</label>
+                    <input type="date" name="hireDate" class="form-input" value="${employee.hireDate ? employee.hireDate.toISOString().split('T')[0] : ''}">
+                  </div>
+                </div>
+
+                <div class="form-row">
+                  <div class="form-group">
+                    <label class="form-label">Status</label>
+                    <select name="isActive" class="form-select">
+                      <option value="true" ${employee.isActive ? 'selected' : ''}>Active</option>
+                      <option value="false" ${!employee.isActive ? 'selected' : ''}>Inactive</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Time Off Balance (Days)</label>
+                    <input type="number" name="timeOffBalance" class="form-input" value="${employee.timeOffBalance || 24}" min="0">
+                  </div>
+                </div>
+
+                <div style="margin-top: 2rem;">
+                  <button type="submit" class="btn">Update Employee</button>
+                  <a href="/admin/employees" class="btn-secondary btn">Cancel</a>
+                </div>
+              </form>
+            </div>
+          </div>
+        </body>
+        </html>
+      `);
+    } catch (error) {
+      console.error("Error loading employee edit:", error);
+      res.status(500).send("Error loading employee edit form");
+    }
+  });
+
+  // Schedule management route
+  app.get('/admin/schedule', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      if (!user || (user.role !== 'admin' && user.role !== 'manager')) {
+        return res.status(403).send("Access denied");
+      }
+
+      const today = new Date().toISOString().split('T')[0];
+      const endDate = new Date();
+      endDate.setDate(endDate.getDate() + 14);
+      const twoWeeksOut = endDate.toISOString().split('T')[0];
+      
+      const schedules = await storage.getWorkSchedulesByDateRange(today, twoWeeksOut);
+      const allUsers = await storage.getAllUsers();
+
+      res.send(`
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+          <title>Pine Hill Farm - Schedule Management</title>
+          <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { 
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+              background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+              min-height: 100vh; color: #1e293b;
+            }
+            .header { background: white; padding: 1rem 2rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+            .header-content { max-width: 1400px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
+            .logo { display: flex; align-items: center; gap: 1rem; }
+            .logo-icon { width: 40px; height: 40px; background: #607e66; border-radius: 10px; display: flex; align-items: center; justify-content: center; color: white; font-size: 1.2rem; }
+            .nav { display: flex; gap: 1rem; }
+            .nav a { color: #64748b; text-decoration: none; padding: 0.5rem 1rem; border-radius: 6px; transition: background 0.2s; }
+            .nav a:hover { background: #f1f5f9; }
+            .nav a.active { background: #607e66; color: white; }
+            .container { max-width: 1400px; margin: 0 auto; padding: 2rem; }
+            .page-header { background: white; padding: 2rem; border-radius: 12px; margin-bottom: 2rem; }
+            .card { background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 2rem; }
+            .btn { background: #607e66; color: white; padding: 0.75rem 1.5rem; border: none; border-radius: 6px; text-decoration: none; display: inline-block; font-weight: 500; transition: background 0.2s; margin-right: 1rem; }
+            .btn:hover { background: #4f6b56; }
+            .schedule-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; background: #e2e8f0; border: 1px solid #e2e8f0; }
+            .schedule-day { background: white; padding: 1rem; min-height: 120px; }
+            .schedule-header { font-weight: 600; margin-bottom: 0.5rem; padding: 0.75rem; background: #f8fafc; }
+            .shift { background: #607e66; color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; margin-bottom: 0.25rem; }
+            .form-group { margin-bottom: 1rem; }
+            .form-label { display: block; margin-bottom: 0.5rem; font-weight: 500; }
+            .form-input, .form-select { width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 6px; }
+            .form-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div class="header-content">
+              <div class="logo">
+                <div class="logo-icon">🌲</div>
+                <div>
+                  <div style="font-weight: 600;">Pine Hill Farm</div>
+                  <div style="font-size: 0.875rem; color: #64748b;">Schedule Management</div>
+                </div>
+              </div>
+              <div class="nav">
+                <a href="/admin">Admin Dashboard</a>
+                <a href="/admin/employees">Employee Management</a>
+                <a href="/admin/schedule" class="active">Schedule Management</a>
+                <a href="/dashboard">Employee View</a>
+                <a href="/api/logout">Sign Out</a>
+              </div>
+            </div>
+          </div>
+
+          <div class="container">
+            <div class="page-header">
+              <h1 style="margin-bottom: 0.5rem;">Schedule Management</h1>
+              <p style="color: #64748b;">Create and manage employee work schedules for both store locations.</p>
+            </div>
+
+            <div class="card">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+                <h2>Create New Schedule</h2>
+              </div>
+              
+              <form action="/api/work-schedules" method="POST">
+                <div class="form-row">
+                  <div class="form-group">
+                    <label class="form-label">Employee</label>
+                    <select name="userId" class="form-select" required>
+                      <option value="">Select Employee</option>
+                      ${allUsers.map(user => `
+                        <option value="${user.id}">${user.firstName} ${user.lastName}</option>
+                      `).join('')}
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Date</label>
+                    <input type="date" name="date" class="form-input" required>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Location</label>
+                    <select name="locationId" class="form-select" required>
+                      <option value="">Select Location</option>
+                      <option value="1">Lake Geneva Store</option>
+                      <option value="2">Watertown Store</option>
+                    </select>
+                  </div>
+                </div>
+                
+                <div class="form-row">
+                  <div class="form-group">
+                    <label class="form-label">Start Time</label>
+                    <input type="time" name="startTime" class="form-input" required>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">End Time</label>
+                    <input type="time" name="endTime" class="form-input" required>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Position</label>
+                    <input type="text" name="position" class="form-input" placeholder="e.g., Sales Associate">
+                  </div>
+                </div>
+
+                <button type="submit" class="btn">Create Schedule</button>
+              </form>
+            </div>
+
+            <div class="card">
+              <h2 style="margin-bottom: 1.5rem;">Upcoming Schedules (Next 2 Weeks)</h2>
+              ${schedules.length === 0 ? 
+                '<p style="color: #64748b; text-align: center; padding: 2rem;">No schedules found for the next 2 weeks.</p>' :
+                `<div style="overflow-x: auto;">
+                  <table style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                      <tr style="background: #f8fafc;">
+                        <th style="padding: 1rem; text-align: left; border-bottom: 1px solid #e2e8f0;">Employee</th>
+                        <th style="padding: 1rem; text-align: left; border-bottom: 1px solid #e2e8f0;">Date</th>
+                        <th style="padding: 1rem; text-align: left; border-bottom: 1px solid #e2e8f0;">Time</th>
+                        <th style="padding: 1rem; text-align: left; border-bottom: 1px solid #e2e8f0;">Location</th>
+                        <th style="padding: 1rem; text-align: left; border-bottom: 1px solid #e2e8f0;">Position</th>
+                        <th style="padding: 1rem; text-align: left; border-bottom: 1px solid #e2e8f0;">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      ${schedules.map(schedule => {
+                        const employee = allUsers.find(u => u.id === schedule.userId);
+                        return `
+                          <tr>
+                            <td style="padding: 1rem; border-bottom: 1px solid #e2e8f0;">${employee ? `${employee.firstName} ${employee.lastName}` : 'Unknown'}</td>
+                            <td style="padding: 1rem; border-bottom: 1px solid #e2e8f0;">${schedule.date}</td>
+                            <td style="padding: 1rem; border-bottom: 1px solid #e2e8f0;">${schedule.startTime} - ${schedule.endTime}</td>
+                            <td style="padding: 1rem; border-bottom: 1px solid #e2e8f0;">${schedule.locationId === 1 ? 'Lake Geneva' : 'Watertown'}</td>
+                            <td style="padding: 1rem; border-bottom: 1px solid #e2e8f0;">${schedule.position || 'N/A'}</td>
+                            <td style="padding: 1rem; border-bottom: 1px solid #e2e8f0;">
+                              <a href="/admin/schedule/${schedule.id}/edit" style="color: #607e66; text-decoration: none; margin-right: 1rem;">Edit</a>
+                              <a href="/admin/schedule/${schedule.id}/delete" style="color: #ef4444; text-decoration: none;">Delete</a>
+                            </td>
+                          </tr>
+                        `;
+                      }).join('')}
+                    </tbody>
+                  </table>
+                </div>`
+              }
+            </div>
+          </div>
+        </body>
+        </html>
+      `);
+    } catch (error) {
+      console.error("Error loading schedule management:", error);
+      res.status(500).send("Error loading schedule management");
+    }
+  });
+
   // New Employee Form
   app.get('/admin/employees/new', isAuthenticated, async (req: any, res) => {
     try {
