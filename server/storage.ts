@@ -154,12 +154,6 @@ export interface IStorage {
   // Document logs
   logDocumentActivity(log: InsertDocumentLog): Promise<DocumentLog>;
   getDocumentLogs(documentId: number): Promise<DocumentLog[]>;
-  checkDocumentAccess(documentId: number, userId: string, userRole: string, userDepartment: string): Promise<boolean>;
-  revokeDocumentPermission(id: number): Promise<void>;
-
-  // Document logs
-  logDocumentAction(log: InsertDocumentLog): Promise<DocumentLog>;
-  getDocumentLogs(documentId: number): Promise<DocumentLog[]>;
 
   // Time clock system
   clockIn(userId: string, locationId: number, ipAddress?: string, deviceInfo?: string): Promise<any>;
@@ -949,12 +943,27 @@ export class DatabaseStorage implements IStorage {
     return !!permission;
   }
 
+  async grantDocumentPermission(permission: InsertDocumentPermission): Promise<DocumentPermission> {
+    const [perm] = await db
+      .insert(documentPermissions)
+      .values(permission)
+      .returning();
+    return perm;
+  }
+
+  async getUserDocumentPermissions(userId: string): Promise<DocumentPermission[]> {
+    return db
+      .select()
+      .from(documentPermissions)
+      .where(eq(documentPermissions.userId, userId));
+  }
+
   async revokeDocumentPermission(id: number): Promise<void> {
     await db.delete(documentPermissions).where(eq(documentPermissions.id, id));
   }
 
   // Document logs
-  async logDocumentAction(log: InsertDocumentLog): Promise<DocumentLog> {
+  async logDocumentActivity(log: InsertDocumentLog): Promise<DocumentLog> {
     const [docLog] = await db
       .insert(documentLogs)
       .values(log)
