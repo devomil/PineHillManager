@@ -519,7 +519,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const endDateStr = endDate.toISOString().split('T')[0];
 
       // Get real schedules for this user for the current month
+      console.log(`Getting schedules for user ${userId} (${user.firstName} ${user.lastName}) from ${startDateStr} to ${endDateStr}`);
       const userSchedules = await storage.getUserWorkSchedules(userId, startDateStr, endDateStr);
+      console.log(`Found ${userSchedules.length} schedules for user ${userId}`);
       const locations = await storage.getAllLocations();
       
       // Calculate previous and next month
