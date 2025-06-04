@@ -1768,6 +1768,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
             let bulkMode = false;
             let selectedDates = [];
 
+            // Keep session alive during bulk scheduling
+            function keepSessionAlive() {
+              fetch('/api/auth/user', {
+                method: 'GET',
+                credentials: 'include'
+              }).catch(() => {
+                // Session expired - will be handled in form submission
+              });
+            }
+
+            // Refresh session every 5 minutes
+            setInterval(keepSessionAlive, 300000);
+
             function toggleBulkMode() {
               bulkMode = !bulkMode;
               const singleForm = document.getElementById('singleScheduleForm');
@@ -1876,12 +1889,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
               // Add selected dates to form data
               formData.set('dates', selectedDates.join(','));
 
-              // Submit using fetch
+              // Submit using fetch with authentication handling
               fetch('/api/work-schedules', {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',
                 },
+                credentials: 'include', // Include cookies for authentication
                 body: JSON.stringify({
                   userId: formData.get('userId'),
                   locationId: formData.get('locationId'),
@@ -1891,19 +1905,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   dates: selectedDates
                 })
               })
-              .then(response => response.json())
+              .then(response => {
+                if (response.status === 401) {
+                  // Token expired - redirect to login
+                  alert('Your session has expired. Redirecting to login...');
+                  window.location.href = '/api/login';
+                  return;
+                }
+                return response.json();
+              })
               .then(data => {
-                if (data.message) {
+                if (data && data.message) {
                   alert(data.message);
                   window.location.reload();
-                } else {
+                } else if (data) {
                   alert('Schedules created successfully!');
                   window.location.reload();
                 }
               })
               .catch(error => {
                 console.error('Error:', error);
-                alert('Failed to create schedules. Please try again.');
+                if (error.message && error.message.includes('401')) {
+                  alert('Your session has expired. Redirecting to login...');
+                  window.location.href = '/api/login';
+                } else {
+                  alert('Failed to create schedules. Please try again.');
+                }
               });
             }
           </script>
