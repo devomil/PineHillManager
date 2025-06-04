@@ -533,6 +533,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.redirect('/dashboard');
   });
 
+  // Helper function to convert military time to CST display
+  function convertToCSTDisplay(timeStr: string): string {
+    const [hours, minutes] = timeStr.split(':');
+    const hour24 = parseInt(hours);
+    const hour12 = hour24 === 0 ? 12 : hour24 > 12 ? hour24 - 12 : hour24;
+    const ampm = hour24 >= 12 ? 'PM' : 'AM';
+    return `${hour12}:${minutes} ${ampm}`;
+  }
+
+  // Helper function to generate calendar HTML
+  function generateCalendarHTML(year: number, month: number, schedules: any[], locations: any[], currentDate: Date): string {
+    const firstDay = new Date(year, month, 1);
+    const startCalendar = new Date(firstDay);
+    startCalendar.setDate(startCalendar.getDate() - firstDay.getDay());
+    
+    let cells = '';
+    let current = new Date(startCalendar);
+    
+    for (let i = 0; i < 42; i++) {
+      const dateStr = current.toISOString().split('T')[0];
+      const isCurrentMonth = current.getMonth() === month;
+      const isToday = current.toDateString() === currentDate.toDateString();
+      const daySchedules = schedules.filter(s => s.date === dateStr);
+      
+      cells += `<div class="calendar-cell${isToday ? ' today' : ''}">`;
+      cells += `<div class="date-number" style="${!isCurrentMonth ? 'color: #cbd5e1;' : ''}">${current.getDate()}</div>`;
+      
+      daySchedules.forEach(schedule => {
+        const location = locations.find(loc => loc.id === schedule.locationId);
+        const startTime = convertToCSTDisplay(schedule.startTime);
+        const endTime = convertToCSTDisplay(schedule.endTime);
+        const locationClass = location?.name === 'Lake Geneva Store' ? 'lake-geneva' : 'watertown';
+        
+        cells += `<div class="shift ${locationClass}">`;
+        cells += `${startTime}-${endTime}`;
+        cells += `</div>`;
+      });
+      
+      cells += `</div>`;
+      current.setDate(current.getDate() + 1);
+    }
+    
+    return cells;
+  }
+
   // Schedule page with month navigation
   app.get('/schedule', isAuthenticated, async (req: any, res) => {
     try {
@@ -601,12 +646,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .shift { background: #607e66; color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; margin-bottom: 0.25rem; }
           .shift.lake-geneva { background: #2563eb; }
           .shift.watertown { background: #059669; }
-          .btn { background: #607e66; color: white; padding: 0.75rem 1.5rem; border: none; border-radius: 6px; text-decoration: none; display: inline-block; font-weight: 500; transition: background 0.2s; margin-right: 1rem; }
+          .btn { background: #607e66; color: white; padding: 0.75rem 1.5rem; border: none; border-radius: 6px; text-decoration: none; display: inline-block; font-weight: 500; transition: background 0.2s; margin-right: 1rem; cursor: pointer; }
           .btn:hover { background: #4f6b56; }
           .btn-secondary { background: #e2e8f0; color: #475569; }
           .btn-secondary:hover { background: #cbd5e1; }
           .today { background: #fef3c7; }
-          .legend { display: flex; gap: 1rem; margin-bottom: 1rem; }
+          .legend { display: flex; gap: 1rem; }
           .legend-item { display: flex; align-items: center; gap: 0.5rem; }
           .legend-color { width: 16px; height: 16px; border-radius: 4px; }
         </style>
@@ -646,86 +691,141 @@ export async function registerRoutes(app: Express): Promise<Server> {
               </div>
             </div>
 
-            <div class="legend">
-              <div class="legend-item">
-                <div class="legend-color" style="background: #2563eb;"></div>
-                <span>Lake Geneva Store</span>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+              <div class="legend">
+                <div class="legend-item">
+                  <div class="legend-color" style="background: #2563eb;"></div>
+                  <span>Lake Geneva Store</span>
+                </div>
+                <div class="legend-item">
+                  <div class="legend-color" style="background: #059669;"></div>
+                  <span>Watertown Store</span>
+                </div>
               </div>
-              <div class="legend-item">
-                <div class="legend-color" style="background: #059669;"></div>
-                <span>Watertown Store</span>
-              </div>
-              <div class="legend-item">
-                <div class="legend-color" style="background: #fef3c7;"></div>
-                <span>Today</span>
+              <div>
+                <button onclick="printSchedule('month')" class="btn">Print Month</button>
+                <button onclick="printSchedule('week')" class="btn-secondary">Print Week</button>
               </div>
             </div>
 
-            <!-- Real Schedule Data -->
-            ${userSchedules.length === 0 ? `
-              <div style="text-align: center; padding: 3rem; color: #64748b;">
-                <h3>No schedules found</h3>
-                <p>You don't have any scheduled shifts yet. Contact your manager for schedule assignment.</p>
-              </div>
-            ` : `
-              <div style="margin-bottom: 2rem;">
-                <h3>Your Upcoming Shifts</h3>
-              </div>
-              <div class="schedule-list">
-                ${userSchedules.map(schedule => {
-                  const scheduleDate = new Date(schedule.date);
-                  const location = locations.find(l => l.id === schedule.locationId);
-                  const today = new Date();
-                  const isToday = scheduleDate.toDateString() === today.toDateString();
-                  
-                  return `
-                    <div class="schedule-item ${isToday ? 'today' : ''}" style="
-                      background: white; 
-                      border: 2px solid ${isToday ? '#fbbf24' : '#e2e8f0'}; 
-                      border-radius: 8px; 
-                      padding: 1.5rem; 
-                      margin-bottom: 1rem;
-                      ${isToday ? 'box-shadow: 0 4px 12px rgba(251, 191, 36, 0.2);' : ''}
-                    ">
-                      <div style="display: flex; justify-content: space-between; align-items: start;">
-                        <div>
-                          <h4 style="font-size: 1.1rem; font-weight: 600; margin-bottom: 0.5rem;">
-                            ${scheduleDate.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-                            ${isToday ? '<span style="background: #fbbf24; color: #92400e; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; margin-left: 0.5rem;">TODAY</span>' : ''}
-                          </h4>
-                          <p style="color: #64748b; margin-bottom: 0.5rem;">
-                            <strong>Time:</strong> ${schedule.startTime} - ${schedule.endTime}
-                          </p>
-                          <p style="color: #64748b;">
-                            <strong>Location:</strong> ${location ? location.name : 'Unknown Location'}
-                          </p>
-                        </div>
-                        <div style="
-                          padding: 0.5rem 1rem; 
-                          background: ${schedule.locationId === 1 ? '#dbeafe' : '#d1fae5'}; 
-                          color: ${schedule.locationId === 1 ? '#1e40af' : '#065f46'}; 
-                          border-radius: 6px; 
-                          font-size: 0.875rem; 
-                          font-weight: 500;
-                        ">
-                          ${schedule.locationId === 1 ? 'Lake Geneva' : 'Watertown'}
-                        </div>
-                      </div>
+            <div class="calendar-grid">
+              <div class="calendar-header">Sunday</div>
+              <div class="calendar-header">Monday</div>
+              <div class="calendar-header">Tuesday</div>
+              <div class="calendar-header">Wednesday</div>
+              <div class="calendar-header">Thursday</div>
+              <div class="calendar-header">Friday</div>
+              <div class="calendar-header">Saturday</div>
+              ${generateCalendarHTML(year, month, userSchedules, locations, currentDate)}
+            </div>
+          </div>
+
+          <div class="card">
+            <h3 style="margin-bottom: 1rem;">Your Upcoming Shifts</h3>
+            ${userSchedules.length > 0 ? userSchedules.map(schedule => {
+              const location = locations.find(loc => loc.id === schedule.locationId);
+              const scheduleDate = new Date(schedule.date + 'T00:00:00');
+              const dayName = scheduleDate.toLocaleDateString('en-US', { weekday: 'long' });
+              const dateStr = scheduleDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+              
+              // Convert military time to CST format
+              const startTime = convertToCSTDisplay(schedule.startTime);
+              const endTime = convertToCSTDisplay(schedule.endTime);
+              
+              return `
+                <div style="border: 1px solid #e2e8f0; border-radius: 8px; padding: 1.5rem; margin-bottom: 1rem;">
+                  <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                      <strong>${dayName}, ${dateStr}</strong><br>
+                      <span style="color: #64748b;">Time: ${startTime} - ${endTime}</span><br>
+                      <span style="color: #64748b;">Location: ${location ? location.name : 'Unknown Location'}</span>
                     </div>
-                  `;
-                }).join('')}
-              </div>
-            `}
+                    <div style="background: ${location?.name === 'Lake Geneva Store' ? '#2563eb' : '#059669'}; color: white; padding: 0.5rem 1rem; border-radius: 6px; font-size: 0.875rem;">
+                      ${location ? location.name.replace(' Store', '') : 'Unknown'}
+                    </div>
+                  </div>
+                </div>
+              `;
+            }).join('') : '<p style="color: #64748b; text-align: center; padding: 2rem;">No shifts scheduled for this month.</p>'}
           </div>
         </div>
+
+        <script>
+          function convertToCSTDisplay(timeStr) {
+            const [hours, minutes] = timeStr.split(':');
+            const hour24 = parseInt(hours);
+            const hour12 = hour24 === 0 ? 12 : hour24 > 12 ? hour24 - 12 : hour24;
+            const ampm = hour24 >= 12 ? 'PM' : 'AM';
+            return hour12 + ':' + minutes + ' ' + ampm;
+          }
+
+          function printSchedule(type) {
+            const printWindow = window.open('', '_blank');
+            const currentMonth = '${monthNames[month]} ${year}';
+            
+            if (type === 'month') {
+              const calendarHTML = document.querySelector('.calendar-grid').innerHTML;
+              printWindow.document.write(\`
+                <html>
+                <head>
+                  <title>Work Schedule - \${currentMonth}</title>
+                  <style>
+                    @media print {
+                      body { font-family: Arial, sans-serif; font-size: 12px; margin: 20px; }
+                      .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; border: 1px solid #ccc; }
+                      .calendar-cell { border: 1px solid #ccc; padding: 8px; min-height: 100px; }
+                      .calendar-header { font-weight: bold; text-align: center; padding: 8px; background: #f0f0f0; border: 1px solid #ccc; }
+                      .shift { background: #e0e0e0; padding: 2px 4px; margin: 2px 0; font-size: 10px; border-radius: 2px; }
+                      .date-number { font-weight: bold; margin-bottom: 4px; }
+                      .today { background: #fff3cd; }
+                    }
+                  </style>
+                </head>
+                <body>
+                  <h1>Pine Hill Farm - Work Schedule</h1>
+                  <h2>\${currentMonth}</h2>
+                  <div class="calendar-grid">
+                    \${calendarHTML}
+                  </div>
+                </body>
+                </html>
+              \`);
+            } else {
+              const shiftsHTML = document.querySelector('.card:last-child').innerHTML;
+              printWindow.document.write(\`
+                <html>
+                <head>
+                  <title>Weekly Schedule - \${currentMonth}</title>
+                  <style>
+                    @media print {
+                      body { font-family: Arial, sans-serif; margin: 20px; }
+                      .shift-item { border: 1px solid #ccc; padding: 12px; margin: 8px 0; }
+                    }
+                  </style>
+                </head>
+                <body>
+                  <h1>Pine Hill Farm - Weekly Schedule</h1>
+                  <h2>\${currentMonth}</h2>
+                  \${shiftsHTML}
+                </body>
+                </html>
+              \`);
+            }
+            
+            printWindow.document.close();
+            printWindow.print();
+          }
+        </script>
       </body>
       </html>
-    `);
+      `);
     } catch (error) {
       console.error("Error loading schedule:", error);
       res.status(500).send("Error loading schedule");
     }
   });
+
+
 
   // Enhanced Team Chat route with channel selection
   app.get('/chat', isAuthenticated, async (req: any, res) => {
