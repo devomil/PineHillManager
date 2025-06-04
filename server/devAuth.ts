@@ -33,22 +33,22 @@ export async function setupDevAuth(app: Express) {
   app.set("trust proxy", 1);
   app.use(getSession());
 
-  // Development login route
+  // Development login route - create manager user for Sarah Johnson
   app.get("/api/login", async (req, res) => {
     try {
-      // Create or get a test user with admin role
-      let user = await storage.getUser("40154188");
+      // Create or get Sarah Johnson (manager) for testing
+      let user = await storage.getUser("manager001");
       if (!user) {
         user = await storage.upsertUser({
-          id: "40154188",
-          email: "ryan@pinehillfarm.co",
-          firstName: "Ryan",
-          lastName: "Sorensen",
+          id: "manager001",
+          email: "sarah@pinehillfarm.co",
+          firstName: "Sarah",
+          lastName: "Johnson",
           profileImageUrl: null,
         });
-        // Update role to admin after creation
-        await storage.updateUserRole("40154188", "admin");
-        user = await storage.getUser("40154188");
+        // Update role to manager after creation
+        await storage.updateUserRole("manager001", "manager");
+        user = await storage.getUser("manager001");
       }
 
       // Set session with null check
@@ -63,8 +63,10 @@ export async function setupDevAuth(app: Express) {
           },
           access_token: "dev-token",
           refresh_token: "dev-refresh",
-          expires_at: Math.floor(Date.now() / 1000) + 28800, // 8 hours for admin sessions
+          expires_at: Math.floor(Date.now() / 1000) + 28800, // 8 hours
         };
+
+        console.log("Setting session for user:", user.firstName, user.lastName, "Role:", user.role);
 
         // Save session before redirect
         req.session.save((err) => {
@@ -72,6 +74,7 @@ export async function setupDevAuth(app: Express) {
             console.error('Session save error:', err);
             return res.status(500).json({ message: "Session error" });
           }
+          console.log("Session saved, redirecting to dashboard");
           res.redirect("/");
         });
       } else {
