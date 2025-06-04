@@ -339,7 +339,7 @@ export default function Documents() {
               {filteredDocuments.map((document: Document) => {
                 const FileIcon = getFileIcon(document.mimeType);
                 const categoryInfo = documentCategories.find(cat => cat.value === document.category);
-                const uploader = employees.find((emp: User) => emp.id === document.uploadedBy);
+                const uploader = (employees as User[]).find((emp: User) => emp.id === document.uploadedBy);
                 
                 return (
                   <div key={document.id} className="border rounded-lg p-4 hover:bg-muted/50 transition-colors">
@@ -347,7 +347,7 @@ export default function Documents() {
                       <div className="flex items-start space-x-3 flex-1">
                         <FileIcon className="h-8 w-8 text-blue-600 mt-1" />
                         <div className="flex-1 min-w-0">
-                          <h3 className="font-medium text-sm mb-1 truncate">{document.title}</h3>
+                          <h3 className="font-medium text-sm mb-1 truncate">{document.originalName}</h3>
                           {document.description && (
                             <p className="text-xs text-muted-foreground mb-2 line-clamp-2">
                               {document.description}
