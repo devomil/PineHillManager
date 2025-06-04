@@ -225,8 +225,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Working dashboard route that bypasses React issues
-  app.get('/dashboard', (req, res) => {
-    res.send(`
+  app.get('/dashboard', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      if (!user) {
+        return res.status(404).send("User not found");
+      }
+
+      const isAdminOrManager = user.role === 'admin' || user.role === 'manager';
+
+      res.send(`
       <!DOCTYPE html>
       <html lang="en">
       <head>
@@ -274,6 +284,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               <a href="/schedule">Schedule</a>
               <a href="/time-off">Time Off</a>
               <a href="/announcements">Announcements</a>
+              ${isAdminOrManager ? '<a href="/admin">Admin Portal</a>' : ''}
               <a href="/api/logout">Sign Out</a>
             </div>
           </div>
@@ -867,6 +878,604 @@ export async function registerRoutes(app: Express): Promise<Server> {
       </body>
       </html>
     `);
+  });
+
+  // Admin/Manager Dashboard
+  app.get('/admin', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      if (!user || (user.role !== 'admin' && user.role !== 'manager')) {
+        return res.status(403).send(`
+          <!DOCTYPE html>
+          <html><head><title>Access Denied</title></head>
+          <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
+            <h1>Access Denied</h1>
+            <p>You don't have permission to access this page.</p>
+            <a href="/dashboard">Return to Dashboard</a>
+          </body></html>
+        `);
+      }
+
+      const allUsers = await storage.getAllUsers();
+      const pendingTimeOffRequests = await storage.getPendingTimeOffRequests();
+      const todaySchedules = await storage.getWorkSchedulesByDate(new Date().toISOString().split('T')[0]);
+
+      res.send(`
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+          <title>Pine Hill Farm - Admin Dashboard</title>
+          <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { 
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+              background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+              min-height: 100vh; color: #1e293b;
+            }
+            .header { background: white; padding: 1rem 2rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+            .header-content { max-width: 1400px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
+            .logo { display: flex; align-items: center; gap: 1rem; }
+            .logo-icon { width: 40px; height: 40px; background: #607e66; border-radius: 10px; display: flex; align-items: center; justify-content: center; color: white; font-size: 1.2rem; }
+            .nav { display: flex; gap: 1rem; }
+            .nav a { color: #64748b; text-decoration: none; padding: 0.5rem 1rem; border-radius: 6px; transition: background 0.2s; }
+            .nav a:hover { background: #f1f5f9; }
+            .nav a.active { background: #607e66; color: white; }
+            .container { max-width: 1400px; margin: 0 auto; padding: 2rem; }
+            .page-header { background: white; padding: 2rem; border-radius: 12px; margin-bottom: 2rem; }
+            .card { background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 2rem; }
+            .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
+            .stat-card { background: white; padding: 1.5rem; border-radius: 8px; text-align: center; border-left: 4px solid #607e66; }
+            .stat-number { font-size: 2rem; font-weight: 700; color: #607e66; }
+            .stat-label { color: #64748b; font-size: 0.875rem; }
+            .btn { background: #607e66; color: white; padding: 0.75rem 1.5rem; border: none; border-radius: 6px; text-decoration: none; display: inline-block; font-weight: 500; transition: background 0.2s; margin-right: 1rem; }
+            .btn:hover { background: #4f6b56; }
+            .btn-secondary { background: #e2e8f0; color: #475569; }
+            .btn-secondary:hover { background: #cbd5e1; }
+            .table { width: 100%; border-collapse: collapse; }
+            .table th, .table td { padding: 1rem; text-align: left; border-bottom: 1px solid #e2e8f0; }
+            .table th { background: #f8fafc; font-weight: 600; }
+            .role-badge { padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.75rem; font-weight: 500; }
+            .role-admin { background: #fee2e2; color: #991b1b; }
+            .role-manager { background: #fef3c7; color: #92400e; }
+            .role-employee { background: #d1fae5; color: #065f46; }
+            .status-pending { background: #fef3c7; color: #92400e; }
+            .status-approved { background: #d1fae5; color: #065f46; }
+            .status-denied { background: #fee2e2; color: #991b1b; }
+            .tabs { display: flex; gap: 1rem; margin-bottom: 2rem; }
+            .tab { padding: 0.75rem 1.5rem; border: 1px solid #d1d5db; border-radius: 6px; background: white; color: #64748b; text-decoration: none; transition: all 0.2s; }
+            .tab.active { background: #607e66; color: white; border-color: #607e66; }
+            .tab:hover { background: #f9fafb; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div class="header-content">
+              <div class="logo">
+                <div class="logo-icon">🌲</div>
+                <div>
+                  <div style="font-weight: 600;">Pine Hill Farm</div>
+                  <div style="font-size: 0.875rem; color: #64748b;">Admin Portal</div>
+                </div>
+              </div>
+              <div class="nav">
+                <a href="/admin" class="active">Admin Dashboard</a>
+                <a href="/admin/employees">Employee Management</a>
+                <a href="/admin/schedule">Schedule Management</a>
+                <a href="/dashboard">Employee View</a>
+                <a href="/api/logout">Sign Out</a>
+              </div>
+            </div>
+          </div>
+
+          <div class="container">
+            <div class="page-header">
+              <h1 style="margin-bottom: 0.5rem;">Admin Dashboard</h1>
+              <p style="color: #64748b;">Welcome, ${user.firstName} ${user.lastName} (${user.role}). Manage employees, schedules, and company operations.</p>
+            </div>
+
+            <div class="stats-grid">
+              <div class="stat-card">
+                <div class="stat-number">${allUsers.length}</div>
+                <div class="stat-label">Total Employees</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-number">${pendingTimeOffRequests.length}</div>
+                <div class="stat-label">Pending Requests</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-number">${todaySchedules.length}</div>
+                <div class="stat-label">Scheduled Today</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-number">2</div>
+                <div class="stat-label">Store Locations</div>
+              </div>
+            </div>
+
+            <div class="tabs">
+              <a href="#pending-requests" class="tab active">Pending Approvals</a>
+              <a href="#employee-overview" class="tab">Employee Overview</a>
+              <a href="#schedule-overview" class="tab">Today's Schedule</a>
+            </div>
+
+            <div class="card">
+              <h2 style="margin-bottom: 1.5rem;">Pending Time Off Requests</h2>
+              ${pendingTimeOffRequests.length === 0 ? 
+                '<p style="color: #64748b; text-align: center; padding: 2rem;">No pending requests</p>' :
+                `<table class="table">
+                  <thead>
+                    <tr>
+                      <th>Employee</th>
+                      <th>Request Type</th>
+                      <th>Dates</th>
+                      <th>Submitted</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${pendingTimeOffRequests.map(request => `
+                      <tr>
+                        <td>${request.userId}</td>
+                        <td>${request.reason || 'Personal'}</td>
+                        <td>${request.startDate} to ${request.endDate}</td>
+                        <td>${request.requestedAt ? new Date(request.requestedAt).toLocaleDateString() : 'N/A'}</td>
+                        <td>
+                          <a href="/admin/approve-request/${request.id}" class="btn" style="margin-right: 0.5rem; padding: 0.5rem 1rem; font-size: 0.875rem;">Approve</a>
+                          <a href="/admin/deny-request/${request.id}" class="btn-secondary btn" style="padding: 0.5rem 1rem; font-size: 0.875rem;">Deny</a>
+                        </td>
+                      </tr>
+                    `).join('')}
+                  </tbody>
+                </table>`
+              }
+            </div>
+
+            <div class="card">
+              <h2 style="margin-bottom: 1.5rem;">Employee Overview</h2>
+              <div style="margin-bottom: 1rem;">
+                <a href="/admin/employees/new" class="btn">Add New Employee</a>
+                <a href="/admin/employees" class="btn-secondary btn">Manage All Employees</a>
+              </div>
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>Employee ID</th>
+                    <th>Name</th>
+                    <th>Role</th>
+                    <th>Department</th>
+                    <th>Hire Date</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${allUsers.map(employee => `
+                    <tr>
+                      <td>${employee.employeeId || 'N/A'}</td>
+                      <td>${employee.firstName} ${employee.lastName}</td>
+                      <td><span class="role-badge role-${employee.role}">${employee.role}</span></td>
+                      <td>${employee.department || 'N/A'}</td>
+                      <td>${employee.hireDate ? new Date(employee.hireDate).toLocaleDateString() : 'N/A'}</td>
+                      <td><span class="status-${employee.isActive ? 'approved' : 'denied'}">${employee.isActive ? 'Active' : 'Inactive'}</span></td>
+                      <td>
+                        <a href="/admin/employees/${employee.id}" style="color: #607e66; text-decoration: none; font-size: 0.875rem;">Edit</a>
+                      </td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+
+            <div class="card">
+              <h2 style="margin-bottom: 1.5rem;">Today's Schedule Overview</h2>
+              ${todaySchedules.length === 0 ? 
+                '<p style="color: #64748b; text-align: center; padding: 2rem;">No schedules for today</p>' :
+                `<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem;">
+                  ${todaySchedules.map(schedule => `
+                    <div style="padding: 1rem; border: 1px solid #e2e8f0; border-radius: 8px;">
+                      <div style="font-weight: 600; margin-bottom: 0.5rem;">Employee: ${schedule.userId}</div>
+                      <div style="color: #64748b; font-size: 0.875rem;">
+                        ${schedule.startTime} - ${schedule.endTime}<br>
+                        Location: ${schedule.locationId === 1 ? 'Lake Geneva' : 'Watertown'}
+                      </div>
+                    </div>
+                  `).join('')}
+                </div>`
+              }
+            </div>
+          </div>
+        </body>
+        </html>
+      `);
+    } catch (error) {
+      console.error("Error loading admin dashboard:", error);
+      res.status(500).send("Error loading admin dashboard");
+    }
+  });
+
+  // Employee Management Page
+  app.get('/admin/employees', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      if (!user || (user.role !== 'admin' && user.role !== 'manager')) {
+        return res.status(403).send("Access denied");
+      }
+
+      const allUsers = await storage.getAllUsers();
+
+      res.send(`
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+          <title>Pine Hill Farm - Employee Management</title>
+          <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { 
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+              background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+              min-height: 100vh; color: #1e293b;
+            }
+            .header { background: white; padding: 1rem 2rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+            .header-content { max-width: 1400px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
+            .logo { display: flex; align-items: center; gap: 1rem; }
+            .logo-icon { width: 40px; height: 40px; background: #607e66; border-radius: 10px; display: flex; align-items: center; justify-content: center; color: white; font-size: 1.2rem; }
+            .nav { display: flex; gap: 1rem; }
+            .nav a { color: #64748b; text-decoration: none; padding: 0.5rem 1rem; border-radius: 6px; transition: background 0.2s; }
+            .nav a:hover { background: #f1f5f9; }
+            .nav a.active { background: #607e66; color: white; }
+            .container { max-width: 1400px; margin: 0 auto; padding: 2rem; }
+            .page-header { background: white; padding: 2rem; border-radius: 12px; margin-bottom: 2rem; }
+            .card { background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 2rem; }
+            .btn { background: #607e66; color: white; padding: 0.75rem 1.5rem; border: none; border-radius: 6px; text-decoration: none; display: inline-block; font-weight: 500; transition: background 0.2s; margin-right: 1rem; }
+            .btn:hover { background: #4f6b56; }
+            .btn-secondary { background: #e2e8f0; color: #475569; }
+            .btn-secondary:hover { background: #cbd5e1; }
+            .btn-danger { background: #ef4444; color: white; }
+            .btn-danger:hover { background: #dc2626; }
+            .table { width: 100%; border-collapse: collapse; }
+            .table th, .table td { padding: 1rem; text-align: left; border-bottom: 1px solid #e2e8f0; }
+            .table th { background: #f8fafc; font-weight: 600; }
+            .role-badge { padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.75rem; font-weight: 500; }
+            .role-admin { background: #fee2e2; color: #991b1b; }
+            .role-manager { background: #fef3c7; color: #92400e; }
+            .role-employee { background: #d1fae5; color: #065f46; }
+            .status-active { background: #d1fae5; color: #065f46; }
+            .status-inactive { background: #fee2e2; color: #991b1b; }
+            .search-box { width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 6px; margin-bottom: 1rem; }
+            .filters { display: flex; gap: 1rem; margin-bottom: 1rem; align-items: center; }
+            .filter-select { padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 6px; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div class="header-content">
+              <div class="logo">
+                <div class="logo-icon">🌲</div>
+                <div>
+                  <div style="font-weight: 600;">Pine Hill Farm</div>
+                  <div style="font-size: 0.875rem; color: #64748b;">Employee Management</div>
+                </div>
+              </div>
+              <div class="nav">
+                <a href="/admin">Admin Dashboard</a>
+                <a href="/admin/employees" class="active">Employee Management</a>
+                <a href="/admin/schedule">Schedule Management</a>
+                <a href="/dashboard">Employee View</a>
+                <a href="/api/logout">Sign Out</a>
+              </div>
+            </div>
+          </div>
+
+          <div class="container">
+            <div class="page-header">
+              <h1 style="margin-bottom: 0.5rem;">Employee Management</h1>
+              <p style="color: #64748b;">Manage employee profiles, roles, and permissions across both store locations.</p>
+            </div>
+
+            <div class="card">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+                <h2>All Employees (${allUsers.length})</h2>
+                <a href="/admin/employees/new" class="btn">Add New Employee</a>
+              </div>
+
+              <div class="filters">
+                <input type="text" placeholder="Search employees..." class="search-box" style="flex: 1; margin-bottom: 0;">
+                <select class="filter-select">
+                  <option value="">All Roles</option>
+                  <option value="admin">Admin</option>
+                  <option value="manager">Manager</option>
+                  <option value="employee">Employee</option>
+                </select>
+                <select class="filter-select">
+                  <option value="">All Departments</option>
+                  <option value="sales">Sales</option>
+                  <option value="management">Management</option>
+                  <option value="operations">Operations</option>
+                </select>
+                <select class="filter-select">
+                  <option value="">All Status</option>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+              </div>
+
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>Employee ID</th>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Role</th>
+                    <th>Department</th>
+                    <th>Hire Date</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${allUsers.map(employee => `
+                    <tr>
+                      <td>${employee.employeeId || 'N/A'}</td>
+                      <td>
+                        <div style="font-weight: 500;">${employee.firstName} ${employee.lastName}</div>
+                        <div style="font-size: 0.875rem; color: #64748b;">${employee.position || 'No position'}</div>
+                      </td>
+                      <td>${employee.email || 'N/A'}</td>
+                      <td><span class="role-badge role-${employee.role}">${employee.role}</span></td>
+                      <td>${employee.department || 'N/A'}</td>
+                      <td>${employee.hireDate ? new Date(employee.hireDate).toLocaleDateString() : 'N/A'}</td>
+                      <td><span class="status-${employee.isActive ? 'active' : 'inactive'}">${employee.isActive ? 'Active' : 'Inactive'}</span></td>
+                      <td>
+                        <a href="/admin/employees/${employee.id}/edit" style="color: #607e66; text-decoration: none; margin-right: 1rem;">Edit</a>
+                        <a href="/admin/employees/${employee.id}/schedule" style="color: #059669; text-decoration: none; margin-right: 1rem;">Schedule</a>
+                        ${employee.isActive ? 
+                          `<a href="/admin/employees/${employee.id}/deactivate" style="color: #ef4444; text-decoration: none;">Deactivate</a>` :
+                          `<a href="/admin/employees/${employee.id}/activate" style="color: #10b981; text-decoration: none;">Activate</a>`
+                        }
+                      </td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </body>
+        </html>
+      `);
+    } catch (error) {
+      console.error("Error loading employee management:", error);
+      res.status(500).send("Error loading employee management");
+    }
+  });
+
+  // New Employee Form
+  app.get('/admin/employees/new', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      if (!user || (user.role !== 'admin' && user.role !== 'manager')) {
+        return res.status(403).send("Access denied");
+      }
+
+      res.send(`
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+          <title>Pine Hill Farm - Add New Employee</title>
+          <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { 
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+              background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+              min-height: 100vh; color: #1e293b;
+            }
+            .header { background: white; padding: 1rem 2rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+            .header-content { max-width: 1400px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
+            .logo { display: flex; align-items: center; gap: 1rem; }
+            .logo-icon { width: 40px; height: 40px; background: #607e66; border-radius: 10px; display: flex; align-items: center; justify-content: center; color: white; font-size: 1.2rem; }
+            .nav { display: flex; gap: 1rem; }
+            .nav a { color: #64748b; text-decoration: none; padding: 0.5rem 1rem; border-radius: 6px; transition: background 0.2s; }
+            .nav a:hover { background: #f1f5f9; }
+            .nav a.active { background: #607e66; color: white; }
+            .container { max-width: 800px; margin: 0 auto; padding: 2rem; }
+            .page-header { background: white; padding: 2rem; border-radius: 12px; margin-bottom: 2rem; }
+            .card { background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 2rem; }
+            .form-group { margin-bottom: 1.5rem; }
+            .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+            .form-label { display: block; margin-bottom: 0.5rem; font-weight: 500; color: #374151; }
+            .form-input, .form-select { width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 6px; font-size: 1rem; }
+            .form-input:focus, .form-select:focus { outline: none; border-color: #607e66; }
+            .btn { background: #607e66; color: white; padding: 0.75rem 1.5rem; border: none; border-radius: 6px; text-decoration: none; display: inline-block; font-weight: 500; transition: background 0.2s; margin-right: 1rem; cursor: pointer; }
+            .btn:hover { background: #4f6b56; }
+            .btn-secondary { background: #e2e8f0; color: #475569; }
+            .btn-secondary:hover { background: #cbd5e1; }
+            .required { color: #ef4444; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div class="header-content">
+              <div class="logo">
+                <div class="logo-icon">🌲</div>
+                <div>
+                  <div style="font-weight: 600;">Pine Hill Farm</div>
+                  <div style="font-size: 0.875rem; color: #64748b;">Add New Employee</div>
+                </div>
+              </div>
+              <div class="nav">
+                <a href="/admin">Admin Dashboard</a>
+                <a href="/admin/employees" class="active">Employee Management</a>
+                <a href="/admin/schedule">Schedule Management</a>
+                <a href="/dashboard">Employee View</a>
+                <a href="/api/logout">Sign Out</a>
+              </div>
+            </div>
+          </div>
+
+          <div class="container">
+            <div class="page-header">
+              <h1 style="margin-bottom: 0.5rem;">Add New Employee</h1>
+              <p style="color: #64748b;">Create a new employee profile with role assignments and contact information.</p>
+            </div>
+
+            <div class="card">
+              <form action="/admin/employees/create" method="POST">
+                <div class="form-row">
+                  <div class="form-group">
+                    <label class="form-label">Employee ID <span class="required">*</span></label>
+                    <input type="text" name="employeeId" class="form-input" placeholder="PHF001" required>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Role <span class="required">*</span></label>
+                    <select name="role" class="form-select" required>
+                      <option value="">Select Role</option>
+                      <option value="employee">Employee</option>
+                      <option value="manager">Manager</option>
+                      <option value="admin">Admin</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div class="form-row">
+                  <div class="form-group">
+                    <label class="form-label">First Name <span class="required">*</span></label>
+                    <input type="text" name="firstName" class="form-input" required>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Last Name <span class="required">*</span></label>
+                    <input type="text" name="lastName" class="form-input" required>
+                  </div>
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label">Email Address</label>
+                  <input type="email" name="email" class="form-input" placeholder="employee@pinehillfarm.co">
+                </div>
+
+                <div class="form-row">
+                  <div class="form-group">
+                    <label class="form-label">Department</label>
+                    <select name="department" class="form-select">
+                      <option value="">Select Department</option>
+                      <option value="sales">Sales</option>
+                      <option value="management">Management</option>
+                      <option value="operations">Operations</option>
+                      <option value="administration">Administration</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Position</label>
+                    <input type="text" name="position" class="form-input" placeholder="Sales Associate">
+                  </div>
+                </div>
+
+                <div class="form-row">
+                  <div class="form-group">
+                    <label class="form-label">Hire Date</label>
+                    <input type="date" name="hireDate" class="form-input">
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Phone Number</label>
+                    <input type="tel" name="phone" class="form-input" placeholder="(847) 401-5540">
+                  </div>
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label">Address</label>
+                  <input type="text" name="address" class="form-input" placeholder="123 Main Street">
+                </div>
+
+                <div class="form-row">
+                  <div class="form-group">
+                    <label class="form-label">City</label>
+                    <input type="text" name="city" class="form-input" placeholder="Lake Geneva">
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">State</label>
+                    <input type="text" name="state" class="form-input" placeholder="WI" maxlength="2">
+                  </div>
+                </div>
+
+                <div class="form-row">
+                  <div class="form-group">
+                    <label class="form-label">ZIP Code</label>
+                    <input type="text" name="zipCode" class="form-input" placeholder="53147">
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Starting Time Off Balance (hours)</label>
+                    <input type="number" name="timeOffBalance" class="form-input" value="24" min="0" max="200">
+                  </div>
+                </div>
+
+                <div class="form-row">
+                  <div class="form-group">
+                    <label class="form-label">Emergency Contact Name</label>
+                    <input type="text" name="emergencyContact" class="form-input" placeholder="John Doe">
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Emergency Contact Phone</label>
+                    <input type="tel" name="emergencyPhone" class="form-input" placeholder="(847) 123-4567">
+                  </div>
+                </div>
+
+                <div style="margin-top: 2rem; padding-top: 2rem; border-top: 1px solid #e2e8f0;">
+                  <button type="submit" class="btn">Create Employee</button>
+                  <a href="/admin/employees" class="btn-secondary btn">Cancel</a>
+                </div>
+              </form>
+            </div>
+          </div>
+        </body>
+        </html>
+      `);
+    } catch (error) {
+      console.error("Error loading new employee form:", error);
+      res.status(500).send("Error loading form");
+    }
+  });
+
+  // Create Employee API
+  app.post('/admin/employees/create', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      if (!user || (user.role !== 'admin' && user.role !== 'manager')) {
+        return res.status(403).send("Access denied");
+      }
+
+      const employeeData = {
+        id: `emp_${Date.now()}`, // Generate unique ID
+        employeeId: req.body.employeeId,
+        firstName: req.body.firstName,
+        lastName: req.body.lastName,
+        email: req.body.email,
+        role: req.body.role,
+        department: req.body.department,
+        position: req.body.position,
+        hireDate: req.body.hireDate,
+        phone: req.body.phone,
+        address: req.body.address,
+        city: req.body.city,
+        state: req.body.state,
+        zipCode: req.body.zipCode,
+        timeOffBalance: parseInt(req.body.timeOffBalance) || 24,
+        emergencyContact: req.body.emergencyContact,
+        emergencyPhone: req.body.emergencyPhone,
+        isActive: true
+      };
+
+      await storage.createEmployee(employeeData);
+      res.redirect('/admin/employees?success=created');
+    } catch (error) {
+      console.error("Error creating employee:", error);
+      res.redirect('/admin/employees/new?error=creation_failed');
+    }
   });
 
   // Root redirect to dashboard for logged in users
