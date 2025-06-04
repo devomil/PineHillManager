@@ -1552,7 +1552,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   </div>
                   <div class="form-group">
                     <label class="form-label">Hire Date</label>
-                    <input type="date" name="hireDate" class="form-input" value="${employee.hireDate ? employee.hireDate.toISOString().split('T')[0] : ''}">
+                    <input type="date" name="hireDate" class="form-input" value="${employee.hireDate ? (typeof employee.hireDate === 'string' ? employee.hireDate : employee.hireDate.toISOString().split('T')[0]) : ''}">
                   </div>
                 </div>
 
