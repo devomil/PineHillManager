@@ -1562,6 +1562,507 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Team Chat page
+  app.get('/team-chat', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      if (!user) {
+        return res.status(404).send("User not found");
+      }
+
+      const isAdminOrManager = user.role === 'admin' || user.role === 'manager';
+
+      res.send(`
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+          <title>Pine Hill Farm - Team Chat</title>
+          <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { 
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+              background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+              min-height: 100vh; color: #1e293b;
+            }
+            .header { background: white; padding: 1rem 2rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+            .header-content { max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
+            .logo { display: flex; align-items: center; gap: 1rem; }
+            .logo-icon { width: 40px; height: 40px; background: #607e66; border-radius: 10px; display: flex; align-items: center; justify-content: center; color: white; font-size: 1.2rem; }
+            .nav { display: flex; gap: 1rem; }
+            .nav a { color: #64748b; text-decoration: none; padding: 0.5rem 1rem; border-radius: 6px; transition: background 0.2s; }
+            .nav a:hover { background: #f1f5f9; }
+            .nav a.active { background: #607e66; color: white; }
+            .container { max-width: 1200px; margin: 0 auto; padding: 2rem; display: grid; grid-template-columns: 300px 1fr; gap: 2rem; height: calc(100vh - 140px); }
+            .sidebar { background: white; border-radius: 12px; padding: 1.5rem; }
+            .chat-area { background: white; border-radius: 12px; display: flex; flex-direction: column; }
+            .chat-header { padding: 1.5rem; border-bottom: 1px solid #e2e8f0; }
+            .messages { flex: 1; padding: 1rem; overflow-y: auto; max-height: 400px; }
+            .message { margin-bottom: 1rem; padding: 1rem; border-radius: 8px; background: #f8fafc; }
+            .message-sender { font-weight: 600; margin-bottom: 0.5rem; color: #607e66; }
+            .message-time { font-size: 0.75rem; color: #64748b; }
+            .chat-input { padding: 1.5rem; border-top: 1px solid #e2e8f0; }
+            .input-form { display: flex; gap: 1rem; }
+            .message-input { flex: 1; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 6px; }
+            .btn { background: #607e66; color: white; padding: 0.75rem 1.5rem; border: none; border-radius: 6px; font-weight: 500; cursor: pointer; }
+            .btn:hover { background: #4f6b56; }
+            .channel { padding: 0.75rem; margin-bottom: 0.5rem; border-radius: 6px; cursor: pointer; transition: background 0.2s; }
+            .channel:hover { background: #f1f5f9; }
+            .channel.active { background: #607e66; color: white; }
+            .online-users { margin-top: 2rem; }
+            .user-item { padding: 0.5rem; margin-bottom: 0.25rem; border-radius: 4px; font-size: 0.875rem; }
+            .user-online { color: #10b981; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div class="header-content">
+              <div class="logo">
+                <div class="logo-icon">🌲</div>
+                <div>
+                  <div style="font-weight: 600;">Pine Hill Farm</div>
+                  <div style="font-size: 0.875rem; color: #64748b;">Team Chat</div>
+                </div>
+              </div>
+              <div class="nav">
+                <a href="/dashboard">Dashboard</a>
+                <a href="/schedule">Schedule</a>
+                <a href="/time-off">Time Off</a>
+                <a href="/announcements">Announcements</a>
+                <a href="/team-chat" class="active">Team Chat</a>
+                ${isAdminOrManager ? '<a href="/admin">Admin Portal</a>' : ''}
+                <a href="/api/logout">Sign Out</a>
+              </div>
+            </div>
+          </div>
+
+          <div class="container">
+            <div class="sidebar">
+              <h3 style="margin-bottom: 1rem;">Channels</h3>
+              <div class="channel active"># General</div>
+              <div class="channel"># Lake Geneva Store</div>
+              <div class="channel"># Watertown Store</div>
+              <div class="channel"># Managers</div>
+              
+              <div class="online-users">
+                <h4 style="margin-bottom: 0.5rem; color: #64748b;">Online Now</h4>
+                <div class="user-item"><span class="user-online">●</span> ${user.firstName} ${user.lastName}</div>
+                <div class="user-item"><span class="user-online">●</span> Sarah Johnson</div>
+                <div class="user-item"><span class="user-online">●</span> Mike Davis</div>
+              </div>
+            </div>
+
+            <div class="chat-area">
+              <div class="chat-header">
+                <h2># General</h2>
+                <p style="color: #64748b; margin-top: 0.5rem;">Team-wide communication and updates</p>
+              </div>
+
+              <div class="messages">
+                <div class="message">
+                  <div class="message-sender">Sarah Johnson</div>
+                  <div>Good morning team! Don't forget about the inventory count this weekend.</div>
+                  <div class="message-time">Today at 9:15 AM</div>
+                </div>
+                
+                <div class="message">
+                  <div class="message-sender">Mike Davis</div>
+                  <div>The new shipment arrived at Watertown. Everything looks good!</div>
+                  <div class="message-time">Today at 10:30 AM</div>
+                </div>
+                
+                <div class="message">
+                  <div class="message-sender">${user.firstName} ${user.lastName}</div>
+                  <div>Thanks for the update Mike. I'll be there this afternoon to help with stocking.</div>
+                  <div class="message-time">Today at 11:45 AM</div>
+                </div>
+              </div>
+
+              <div class="chat-input">
+                <form class="input-form" onsubmit="sendMessage(event)">
+                  <input type="text" class="message-input" placeholder="Type your message..." required>
+                  <button type="submit" class="btn">Send</button>
+                </form>
+              </div>
+            </div>
+          </div>
+
+          <script>
+            function sendMessage(event) {
+              event.preventDefault();
+              const input = event.target.querySelector('.message-input');
+              const messagesContainer = document.querySelector('.messages');
+              
+              if (input.value.trim()) {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = 'message';
+                messageDiv.innerHTML = \`
+                  <div class="message-sender">${user.firstName} ${user.lastName}</div>
+                  <div>\${input.value}</div>
+                  <div class="message-time">Just now</div>
+                \`;
+                messagesContainer.appendChild(messageDiv);
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                input.value = '';
+              }
+            }
+          </script>
+        </body>
+        </html>
+      `);
+    } catch (error) {
+      console.error("Error loading team chat:", error);
+      res.status(500).send("Error loading team chat");
+    }
+  });
+
+  // Documents & Resources page
+  app.get('/documents', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      if (!user) {
+        return res.status(404).send("User not found");
+      }
+
+      const isAdminOrManager = user.role === 'admin' || user.role === 'manager';
+
+      res.send(`
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+          <title>Pine Hill Farm - Documents & Resources</title>
+          <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { 
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+              background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+              min-height: 100vh; color: #1e293b;
+            }
+            .header { background: white; padding: 1rem 2rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+            .header-content { max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
+            .logo { display: flex; align-items: center; gap: 1rem; }
+            .logo-icon { width: 40px; height: 40px; background: #607e66; border-radius: 10px; display: flex; align-items: center; justify-content: center; color: white; font-size: 1.2rem; }
+            .nav { display: flex; gap: 1rem; }
+            .nav a { color: #64748b; text-decoration: none; padding: 0.5rem 1rem; border-radius: 6px; transition: background 0.2s; }
+            .nav a:hover { background: #f1f5f9; }
+            .nav a.active { background: #607e66; color: white; }
+            .container { max-width: 1200px; margin: 0 auto; padding: 2rem; }
+            .page-header { background: white; padding: 2rem; border-radius: 12px; margin-bottom: 2rem; }
+            .categories { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2rem; margin-bottom: 2rem; }
+            .category-card { background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+            .category-icon { width: 48px; height: 48px; border-radius: 8px; margin-bottom: 1rem; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; }
+            .category-title { font-size: 1.25rem; font-weight: 600; margin-bottom: 1rem; }
+            .document-list { list-style: none; }
+            .document-item { padding: 0.75rem; margin-bottom: 0.5rem; border-radius: 6px; background: #f8fafc; border-left: 3px solid #607e66; }
+            .document-title { font-weight: 500; }
+            .document-desc { font-size: 0.875rem; color: #64748b; margin-top: 0.25rem; }
+            .btn { background: #607e66; color: white; padding: 0.75rem 1.5rem; border: none; border-radius: 6px; text-decoration: none; display: inline-block; font-weight: 500; transition: background 0.2s; }
+            .btn:hover { background: #4f6b56; }
+            .btn-secondary { background: #e2e8f0; color: #475569; }
+            .btn-secondary:hover { background: #cbd5e1; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div class="header-content">
+              <div class="logo">
+                <div class="logo-icon">🌲</div>
+                <div>
+                  <div style="font-weight: 600;">Pine Hill Farm</div>
+                  <div style="font-size: 0.875rem; color: #64748b;">Documents & Resources</div>
+                </div>
+              </div>
+              <div class="nav">
+                <a href="/dashboard">Dashboard</a>
+                <a href="/schedule">Schedule</a>
+                <a href="/time-off">Time Off</a>
+                <a href="/announcements">Announcements</a>
+                <a href="/team-chat">Team Chat</a>
+                <a href="/documents" class="active">Documents</a>
+                ${isAdminOrManager ? '<a href="/admin">Admin Portal</a>' : ''}
+                <a href="/api/logout">Sign Out</a>
+              </div>
+            </div>
+          </div>
+
+          <div class="container">
+            <div class="page-header">
+              <h1 style="margin-bottom: 0.5rem;">Documents & Resources</h1>
+              <p style="color: #64748b;">Access important company documents, training materials, and resources.</p>
+            </div>
+
+            <div class="categories">
+              <div class="category-card">
+                <div class="category-icon" style="background: #dbeafe; color: #2563eb;">📋</div>
+                <div class="category-title">Company Policies</div>
+                <ul class="document-list">
+                  <li class="document-item">
+                    <div class="document-title">Employee Handbook</div>
+                    <div class="document-desc">Complete guide to company policies and procedures</div>
+                  </li>
+                  <li class="document-item">
+                    <div class="document-title">Code of Conduct</div>
+                    <div class="document-desc">Expected behavior and ethical guidelines</div>
+                  </li>
+                  <li class="document-item">
+                    <div class="document-title">Time Off Policy</div>
+                    <div class="document-desc">Vacation, sick leave, and PTO guidelines</div>
+                  </li>
+                </ul>
+              </div>
+
+              <div class="category-card">
+                <div class="category-icon" style="background: #dcfce7; color: #16a34a;">🎓</div>
+                <div class="category-title">Training Materials</div>
+                <ul class="document-list">
+                  <li class="document-item">
+                    <div class="document-title">Customer Service Excellence</div>
+                    <div class="document-desc">Best practices for customer interactions</div>
+                  </li>
+                  <li class="document-item">
+                    <div class="document-title">Product Knowledge Guide</div>
+                    <div class="document-desc">Detailed information about our products</div>
+                  </li>
+                  <li class="document-item">
+                    <div class="document-title">Safety Procedures</div>
+                    <div class="document-desc">Workplace safety and emergency protocols</div>
+                  </li>
+                  <li class="document-item">
+                    <div class="document-title">POS System Training</div>
+                    <div class="document-desc">Complete guide to the point-of-sale system</div>
+                  </li>
+                </ul>
+              </div>
+
+              <div class="category-card">
+                <div class="category-icon" style="background: #fef3c7; color: #d97706;">📝</div>
+                <div class="category-title">Forms & Templates</div>
+                <ul class="document-list">
+                  <li class="document-item">
+                    <div class="document-title">Time Off Request Form</div>
+                    <div class="document-desc">Submit vacation and leave requests</div>
+                  </li>
+                  <li class="document-item">
+                    <div class="document-title">Incident Report Form</div>
+                    <div class="document-desc">Report workplace incidents or accidents</div>
+                  </li>
+                  <li class="document-item">
+                    <div class="document-title">Expense Reimbursement</div>
+                    <div class="document-desc">Submit business expense claims</div>
+                  </li>
+                </ul>
+              </div>
+
+              <div class="category-card">
+                <div class="category-icon" style="background: #f3e8ff; color: #7c3aed;">📞</div>
+                <div class="category-title">Quick Reference</div>
+                <ul class="document-list">
+                  <li class="document-item">
+                    <div class="document-title">Emergency Contacts</div>
+                    <div class="document-desc">Important phone numbers and contacts</div>
+                  </li>
+                  <li class="document-item">
+                    <div class="document-title">Store Information</div>
+                    <div class="document-desc">Addresses, hours, and key details</div>
+                  </li>
+                  <li class="document-item">
+                    <div class="document-title">IT Support</div>
+                    <div class="document-desc">Technical support and troubleshooting</div>
+                  </li>
+                </ul>
+              </div>
+            </div>
+
+            ${isAdminOrManager ? `
+            <div style="background: white; padding: 2rem; border-radius: 12px; margin-top: 2rem;">
+              <h3 style="margin-bottom: 1rem;">Document Management</h3>
+              <p style="color: #64748b; margin-bottom: 1.5rem;">Upload and manage company documents and resources.</p>
+              <a href="/admin/documents" class="btn">Manage Documents</a>
+            </div>
+            ` : ''}
+          </div>
+        </body>
+        </html>
+      `);
+    } catch (error) {
+      console.error("Error loading documents:", error);
+      res.status(500).send("Error loading documents");
+    }
+  });
+
+  // Shift Coverage page
+  app.get('/shift-coverage', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      if (!user) {
+        return res.status(404).send("User not found");
+      }
+
+      const isAdminOrManager = user.role === 'admin' || user.role === 'manager';
+      const coverageRequests = await storage.getShiftCoverageRequests();
+
+      res.send(`
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+          <title>Pine Hill Farm - Shift Coverage</title>
+          <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { 
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+              background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+              min-height: 100vh; color: #1e293b;
+            }
+            .header { background: white; padding: 1rem 2rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+            .header-content { max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
+            .logo { display: flex; align-items: center; gap: 1rem; }
+            .logo-icon { width: 40px; height: 40px; background: #607e66; border-radius: 10px; display: flex; align-items: center; justify-content: center; color: white; font-size: 1.2rem; }
+            .nav { display: flex; gap: 1rem; }
+            .nav a { color: #64748b; text-decoration: none; padding: 0.5rem 1rem; border-radius: 6px; transition: background 0.2s; }
+            .nav a:hover { background: #f1f5f9; }
+            .nav a.active { background: #607e66; color: white; }
+            .container { max-width: 1200px; margin: 0 auto; padding: 2rem; }
+            .page-header { background: white; padding: 2rem; border-radius: 12px; margin-bottom: 2rem; }
+            .card { background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 2rem; }
+            .tabs { display: flex; gap: 1rem; margin-bottom: 2rem; }
+            .tab { padding: 0.75rem 1.5rem; border: 1px solid #d1d5db; border-radius: 6px; background: white; color: #64748b; text-decoration: none; transition: all 0.2s; }
+            .tab.active { background: #607e66; color: white; border-color: #607e66; }
+            .tab:hover { background: #f9fafb; }
+            .btn { background: #607e66; color: white; padding: 0.75rem 1.5rem; border: none; border-radius: 6px; text-decoration: none; display: inline-block; font-weight: 500; transition: background 0.2s; margin-right: 1rem; }
+            .btn:hover { background: #4f6b56; }
+            .btn-secondary { background: #e2e8f0; color: #475569; }
+            .btn-secondary:hover { background: #cbd5e1; }
+            .form-group { margin-bottom: 1.5rem; }
+            .form-label { display: block; margin-bottom: 0.5rem; font-weight: 500; color: #374151; }
+            .form-input, .form-select { width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 6px; }
+            .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+            .request-card { background: #f8fafc; padding: 1.5rem; border-radius: 8px; margin-bottom: 1rem; border-left: 4px solid #607e66; }
+            .request-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem; }
+            .request-title { font-weight: 600; }
+            .request-meta { color: #64748b; font-size: 0.875rem; margin-top: 0.5rem; }
+            .status-pending { background: #fef3c7; color: #92400e; padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.75rem; }
+            .status-covered { background: #d1fae5; color: #065f46; padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.75rem; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div class="header-content">
+              <div class="logo">
+                <div class="logo-icon">🌲</div>
+                <div>
+                  <div style="font-weight: 600;">Pine Hill Farm</div>
+                  <div style="font-size: 0.875rem; color: #64748b;">Shift Coverage</div>
+                </div>
+              </div>
+              <div class="nav">
+                <a href="/dashboard">Dashboard</a>
+                <a href="/schedule">Schedule</a>
+                <a href="/time-off">Time Off</a>
+                <a href="/announcements">Announcements</a>
+                <a href="/team-chat">Team Chat</a>
+                <a href="/shift-coverage" class="active">Shift Coverage</a>
+                ${isAdminOrManager ? '<a href="/admin">Admin Portal</a>' : ''}
+                <a href="/api/logout">Sign Out</a>
+              </div>
+            </div>
+          </div>
+
+          <div class="container">
+            <div class="page-header">
+              <h1 style="margin-bottom: 0.5rem;">Shift Coverage Management</h1>
+              <p style="color: #64748b;">Request coverage for your shifts or volunteer to cover for colleagues.</p>
+            </div>
+
+            <div class="tabs">
+              <a href="#request" class="tab active">Request Coverage</a>
+              <a href="#available" class="tab">Available to Cover</a>
+              <a href="#my-requests" class="tab">My Requests</a>
+            </div>
+
+            <div class="card">
+              <h2 style="margin-bottom: 1.5rem;">Request Shift Coverage</h2>
+              <form action="/api/shift-coverage/create" method="POST">
+                <div class="form-row">
+                  <div class="form-group">
+                    <label class="form-label">Shift Date</label>
+                    <input type="date" name="shiftDate" class="form-input" required>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Location</label>
+                    <select name="location" class="form-select" required>
+                      <option value="">Select Location</option>
+                      <option value="1">Lake Geneva Store</option>
+                      <option value="2">Watertown Store</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div class="form-row">
+                  <div class="form-group">
+                    <label class="form-label">Start Time</label>
+                    <input type="time" name="startTime" class="form-input" required>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">End Time</label>
+                    <input type="time" name="endTime" class="form-input" required>
+                  </div>
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label">Reason for Coverage Request</label>
+                  <input type="text" name="reason" class="form-input" placeholder="e.g., Doctor appointment, family emergency">
+                </div>
+
+                <div style="margin-top: 2rem;">
+                  <button type="submit" class="btn">Submit Coverage Request</button>
+                </div>
+              </form>
+            </div>
+
+            <div class="card">
+              <h2 style="margin-bottom: 1.5rem;">Current Coverage Requests</h2>
+              ${coverageRequests.length === 0 ? 
+                '<p style="color: #64748b; text-align: center; padding: 2rem;">No coverage requests at this time.</p>' :
+                coverageRequests.map(request => `
+                  <div class="request-card">
+                    <div class="request-header">
+                      <div>
+                        <div class="request-title">Coverage Needed - ${request.shiftDate}</div>
+                        <div class="request-meta">
+                          ${request.startTime} - ${request.endTime} • 
+                          ${request.locationId === 1 ? 'Lake Geneva Store' : 'Watertown Store'}<br>
+                          Requested by: ${request.requesterId} • ${request.reason || 'No reason provided'}
+                        </div>
+                      </div>
+                      <div>
+                        <span class="status-${request.status === 'covered' ? 'covered' : 'pending'}">
+                          ${request.status === 'covered' ? 'Covered' : 'Available'}
+                        </span>
+                      </div>
+                    </div>
+                    ${request.status !== 'covered' && request.requesterId !== userId ? 
+                      `<a href="/api/shift-coverage/${request.id}/cover" class="btn" style="font-size: 0.875rem; padding: 0.5rem 1rem;">Volunteer to Cover</a>` : 
+                      ''
+                    }
+                  </div>
+                `).join('')
+              }
+            </div>
+          </div>
+        </body>
+        </html>
+      `);
+    } catch (error) {
+      console.error("Error loading shift coverage:", error);
+      res.status(500).send("Error loading shift coverage");
+    }
+  });
+
   // Root route - serve static HTML directly (bypassing all React/Vite issues)
   app.get('/', (req, res) => {
     const user = (req.session as any)?.user;
