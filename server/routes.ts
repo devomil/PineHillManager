@@ -360,7 +360,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Working dashboard route that bypasses React issues
   app.get('/dashboard', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      // Use development user ID if set, otherwise use authenticated user
+      const userId = req.session?.devUserId || req.user.claims.sub;
       const user = await storage.getUser(userId);
       
       if (!user) {
@@ -425,8 +426,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         <div class="container">
           <div class="welcome">
-            <h1 style="margin-bottom: 0.5rem;">Welcome to Your Dashboard</h1>
+            <h1 style="margin-bottom: 0.5rem;">Welcome to Your Dashboard, ${user.firstName} ${user.lastName}</h1>
             <p style="color: #64748b;">Here's an overview of your work activities and quick access to important features.</p>
+            ${isAdminOrManager ? `
+              <div style="background: #fef3c7; border: 2px solid #f59e0b; border-radius: 8px; padding: 1rem; margin-top: 1rem;">
+                <strong style="color: #92400e;">Development Testing:</strong>
+                <div style="margin-top: 0.5rem;">
+                  <a href="/dev/switch-user/employee003" style="background: #3b82f6; color: white; padding: 0.5rem 1rem; border-radius: 4px; text-decoration: none; margin-right: 0.5rem; font-size: 0.875rem;">Test as Alex Thompson</a>
+                  <a href="/dev/switch-user/employee001" style="background: #10b981; color: white; padding: 0.5rem 1rem; border-radius: 4px; text-decoration: none; margin-right: 0.5rem; font-size: 0.875rem;">Test as Mike Davis</a>
+                  <a href="/dev/switch-user/employee002" style="background: #8b5cf6; color: white; padding: 0.5rem 1rem; border-radius: 4px; text-decoration: none; font-size: 0.875rem;">Test as Jessica Miller</a>
+                </div>
+              </div>
+            ` : ''}
           </div>
 
           <div class="dashboard-grid">
@@ -496,10 +507,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Development user switcher for testing
+  app.get('/dev/switch-user/:testUserId', isAuthenticated, async (req: any, res) => {
+    const testUserId = req.params.testUserId;
+    const user = await storage.getUser(testUserId);
+    
+    if (!user) {
+      return res.status(404).send("Test user not found");
+    }
+    
+    // Set a development session to simulate this user
+    req.session.devUserId = testUserId;
+    res.redirect('/dashboard');
+  });
+
   // Schedule page with month navigation
   app.get('/schedule', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      // Use development user ID if set, otherwise use authenticated user
+      const userId = req.session?.devUserId || req.user.claims.sub;
       const user = await storage.getUser(userId);
       
       if (!user) {
