@@ -52,9 +52,7 @@ app.use((req, res, next) => {
     throw err;
   });
 
-  // ALWAYS serve the app on port 5000
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
+  // Start server immediately without any Vite interference
   const port = 5000;
   server.listen({
     port,
@@ -62,5 +60,6 @@ app.use((req, res, next) => {
     reusePort: true,
   }, () => {
     log(`serving on port ${port}`);
+    log(`All routes served by Express - no Vite interference`);
   });
 })();
