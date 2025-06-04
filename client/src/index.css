@@ -2,107 +2,58 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  /* Pine Hill Farm Color Palette from Branding Bible */
-  --pine-slate: 228 20% 40%; /* #5e637a */
-  --pine-forest: 150 20% 40%; /* #607e66 */
-  --pine-steel: 208 25% 45%; /* #5b7c99 */
-  --pine-blue: 220 20% 60%; /* #8c93ad */
-  --pine-gray: 0 0% 65%; /* #a9a9a9 */
-  --pine-sage: 200 25% 55%; /* #6c97ab */
-  --pine-cream: 60 100% 99%; /* #ffffff */
-  --pine-ivory: 48 20% 95%; /* #f8f8f3 */
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 222.2 47.4% 11.2%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 222.2 84% 4.9%;
+    --radius: 0.5rem;
+  }
 
-  --background: var(--pine-cream);
-  --foreground: var(--pine-slate);
-  --muted: var(--pine-ivory);
-  --muted-foreground: 228 15% 55%;
-  --popover: var(--pine-cream);
-  --popover-foreground: var(--pine-slate);
-  --card: var(--pine-cream);
-  --card-foreground: var(--pine-slate);
-  --border: 228 15% 85%;
-  --input: 228 15% 90%;
-  --primary: var(--pine-forest);
-  --primary-foreground: var(--pine-cream);
-  --secondary: var(--pine-ivory);
-  --secondary-foreground: var(--pine-slate);
-  --accent: var(--pine-sage);
-  --accent-foreground: var(--pine-cream);
-  --destructive: 0 84% 60%;
-  --destructive-foreground: var(--pine-cream);
-  --ring: var(--pine-forest);
-  --radius: 0.5rem;
-  
-  /* Farm-specific colors from branding bible */
-  --farm-green: var(--pine-forest); /* #607e66 */
-  --farm-brown: var(--pine-slate); /* #5e637a */
-  --farm-blue: var(--pine-steel); /* #5b7c99 */
-  --farm-gray: var(--pine-gray); /* #a9a9a9 */
-}
-
-.dark {
-  --background: 228 25% 8%;
-  --foreground: var(--pine-ivory);
-  --muted: 228 20% 15%;
-  --muted-foreground: 228 10% 65%;
-  --popover: 228 20% 12%;
-  --popover-foreground: var(--pine-ivory);
-  --card: 228 20% 12%;
-  --card-foreground: var(--pine-ivory);
-  --border: 228 20% 20%;
-  --input: 228 20% 18%;
-  --primary: var(--pine-sage);
-  --primary-foreground: 228 25% 8%;
-  --secondary: 228 20% 15%;
-  --secondary-foreground: var(--pine-ivory);
-  --accent: var(--pine-steel);
-  --accent-foreground: var(--pine-cream);
-  --destructive: 0 62% 50%;
-  --destructive-foreground: var(--pine-cream);
-  --ring: var(--pine-sage);
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
+  }
 }
 
 @layer base {
   * {
     @apply border-border;
   }
-
   body {
-    @apply font-sans antialiased bg-background text-foreground;
-  }
-}
-
-@layer utilities {
-  .farm-green {
-    color: hsl(var(--farm-green));
-  }
-  
-  .bg-farm-green {
-    background-color: hsl(var(--farm-green));
-  }
-  
-  .farm-brown {
-    color: hsl(var(--farm-brown));
-  }
-  
-  .bg-farm-brown {
-    background-color: hsl(var(--farm-brown));
-  }
-  
-  .farm-blue {
-    color: hsl(var(--farm-blue));
-  }
-  
-  .bg-farm-blue {
-    background-color: hsl(var(--farm-blue));
-  }
-  
-  .farm-gray {
-    color: hsl(var(--farm-gray));
-  }
-  
-  .bg-farm-gray {
-    background-color: hsl(var(--farm-gray));
+    @apply bg-background text-foreground;
   }
 }
