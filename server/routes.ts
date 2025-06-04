@@ -2529,6 +2529,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           </div>
 
           <div class="container">
+            <!-- Success Message -->
+            ${req.query.success ? `
+              <div style="background: #d1fae5; border: 1px solid #10b981; color: #065f46; padding: 1rem; border-radius: 8px; margin-bottom: 2rem;">
+                <strong>Success!</strong> ${decodeURIComponent(req.query.success)}
+              </div>
+            ` : ''}
+            
             <div class="page-header">
               <h1 style="margin-bottom: 0.5rem;">Schedule Management</h1>
               <p style="color: #64748b;">Create and manage employee work schedules for both store locations.</p>
@@ -3951,10 +3958,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         schedules.push(schedule);
       }
       
-      res.json({ 
-        message: `Created ${schedules.length} schedule(s) successfully`,
-        schedules: schedules 
-      });
+      // Redirect back to schedule management page with success message
+      res.redirect('/admin/schedule?success=' + encodeURIComponent(`Created ${schedules.length} schedule(s) successfully`));
     } catch (error) {
       console.error("Error creating work schedule:", error);
       res.status(500).json({ message: "Failed to create work schedule" });
