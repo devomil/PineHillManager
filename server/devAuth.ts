@@ -18,12 +18,13 @@ export function getSession() {
     store: sessionStore,
     resave: false,
     saveUninitialized: false,
-    name: 'pinehill.session', // Custom session name to avoid conflicts
+    name: 'connect.sid', // Standard session name
     cookie: {
-      httpOnly: true,
+      httpOnly: false, // Allow client-side access for debugging
       secure: false, // Allow HTTP in development
       maxAge: sessionTtl,
       sameSite: 'lax', // Allow cross-site requests in development
+      path: '/', // Ensure cookie is available site-wide
     },
   });
 }
