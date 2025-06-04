@@ -1012,6 +1012,7 @@ export class DatabaseStorage implements IStorage {
         status: 'clocked_in',
         ipAddress,
         deviceInfo,
+        totalBreakMinutes: 0,
       })
       .returning();
 

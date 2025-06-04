@@ -989,7 +989,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 </span>
               </div>
               ${currentTimeEntry && currentTimeEntry.status === 'clocked_in' ? `
-                <p style="margin-top: 1rem;">Working since ${new Date(currentTimeEntry.clockInTime).toLocaleTimeString()}</p>
+                <p style="margin-top: 1rem;">Working since ${new Date(currentTimeEntry.clockInTime).toLocaleTimeString('en-US', { timeZone: 'America/Chicago', hour12: true })}</p>
               ` : ''}
             </div>
 
@@ -1024,8 +1024,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   <div style="border: 1px solid #e2e8f0; border-radius: 6px; padding: 1rem; margin-bottom: 1rem;">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
                       <div>
-                        <strong>Clock In:</strong> ${new Date(entry.clockInTime).toLocaleTimeString()}<br>
-                        ${entry.clockOutTime ? `<strong>Clock Out:</strong> ${new Date(entry.clockOutTime).toLocaleTimeString()}<br>` : ''}
+                        <strong>Clock In:</strong> ${new Date(entry.clockInTime).toLocaleTimeString('en-US', { timeZone: 'America/Chicago', hour12: true })}<br>
+                        ${entry.clockOutTime ? `<strong>Clock Out:</strong> ${new Date(entry.clockOutTime).toLocaleTimeString('en-US', { timeZone: 'America/Chicago', hour12: true })}<br>` : ''}
                         <strong>Status:</strong> ${entry.status}
                       </div>
                       <div style="text-align: right;">
@@ -1057,7 +1057,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           <script>
             function updateCurrentTime() {
               const now = new Date();
-              document.getElementById('currentTime').textContent = now.toLocaleTimeString();
+              const options = { 
+                timeZone: 'America/Chicago', 
+                hour12: true, 
+                hour: '2-digit', 
+                minute: '2-digit', 
+                second: '2-digit' 
+              };
+              document.getElementById('currentTime').textContent = now.toLocaleTimeString('en-US', options);
             }
             
             updateCurrentTime();
@@ -1156,6 +1163,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const channels = await storage.getAllChannels();
       const employees = await storage.getAllUsers();
+      const allUserPresence = await storage.getAllUserPresence();
       
       res.send(`
         <!DOCTYPE html>
