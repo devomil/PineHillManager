@@ -1765,7 +1765,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                             <td style="padding: 1rem; border-bottom: 1px solid #e2e8f0;">${schedule.position || 'N/A'}</td>
                             <td style="padding: 1rem; border-bottom: 1px solid #e2e8f0;">
                               <a href="/admin/schedule/${schedule.id}/edit" style="color: #607e66; text-decoration: none; margin-right: 1rem;">Edit</a>
-                              <a href="/admin/schedule/${schedule.id}/delete" style="color: #ef4444; text-decoration: none;">Delete</a>
+                              <button onclick="deleteSchedule(${schedule.id})" style="background: none; border: none; color: #ef4444; cursor: pointer; text-decoration: underline;">Delete</button>
                             </td>
                           </tr>
                         `;
@@ -1944,6 +1944,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 } else {
                   alert('Failed to create schedules. Please try again.');
                 }
+              });
+            }
+
+            function deleteSchedule(scheduleId) {
+              if (!confirm('Are you sure you want to delete this schedule?')) {
+                return;
+              }
+
+              fetch(\`/api/work-schedules/\${scheduleId}\`, {
+                method: 'DELETE',
+                credentials: 'include'
+              })
+              .then(response => {
+                if (response.status === 401) {
+                  alert('Your session has expired. Redirecting to login...');
+                  window.location.href = '/api/login';
+                  return;
+                }
+                return response.json();
+              })
+              .then(data => {
+                if (data && data.message) {
+                  alert(data.message);
+                  window.location.reload();
+                } else {
+                  alert('Schedule deleted successfully!');
+                  window.location.reload();
+                }
+              })
+              .catch(error => {
+                console.error('Error:', error);
+                alert('Failed to delete schedule. Please try again.');
               });
             }
           </script>
