@@ -3429,8 +3429,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Documents & Resources page
-  app.get('/documents', isAuthenticated, async (req: any, res) => {
+  // Documents route commented out - handled by React router
+  /*app.get('/documents', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
@@ -3603,7 +3603,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error loading documents:", error);
       res.status(500).send("Error loading documents");
     }
-  });
+  });*/
 
   // Shift Coverage page
   app.get('/shift-coverage', isAuthenticated, async (req: any, res) => {
