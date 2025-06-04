@@ -416,6 +416,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             <div class="nav">
               <a href="/dashboard" class="active">Dashboard</a>
               <a href="/schedule">Schedule</a>
+              <a href="/time-clock">Time Clock</a>
               <a href="/time-off">Time Off</a>
               <a href="/announcements">Announcements</a>
               ${isAdminOrManager ? '<a href="/admin">Admin Portal</a>' : ''}
@@ -446,6 +447,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
               <div class="card-title">My Schedule</div>
               <div class="card-desc">View your upcoming shifts and manage your work schedule</div>
               <a href="/schedule" class="btn">View Schedule</a>
+            </div>
+
+            <div class="card">
+              <div class="card-icon" style="background: #f0fdf4; color: #16a34a;">🕐</div>
+              <div class="card-title">Time Clock</div>
+              <div class="card-desc">Clock in/out, manage breaks, and track your work hours</div>
+              <a href="/time-clock" class="btn">Open Time Clock</a>
             </div>
 
             <div class="card">
