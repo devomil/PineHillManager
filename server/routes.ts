@@ -82,6 +82,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Initialize database with sample users
   await initializeDatabase();
 
+  // Auth middleware FIRST
+  await setupDevAuth(app);
+
   // Test route to debug blank page issue
   app.get('/test', (req, res) => {
     res.send(`
@@ -1606,11 +1609,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Auth middleware
-  await setupDevAuth(app);
-
-  // Remove Vite middleware completely - serve everything through Express routes
-  // All functionality is now provided through static HTML routes above
+  // Remove duplicate auth middleware - already set up above
 
   // Auth routes
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
