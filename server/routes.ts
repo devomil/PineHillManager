@@ -1906,13 +1906,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   </div>
                   ${lakeGenevaSchedules.length === 0 ? 
                     '<p style="color: #64748b; font-style: italic;">No schedules for today</p>' :
-                    lakeGenevaSchedules.map(schedule => `
-                      <div style="padding: 0.75rem; margin-bottom: 0.5rem; background: #f8fafc; border-radius: 6px; border-left: 3px solid #3b82f6;">
-                        <div style="font-weight: 500;">${schedule.userId}</div>
-                        <div style="font-size: 0.875rem; color: #64748b;">${formatTimeRange(schedule.startTime, schedule.endTime)}</div>
-                        <div style="font-size: 0.75rem; color: #6b7280;">${schedule.position || 'Staff'}</div>
-                      </div>
-                    `).join('')
+                    lakeGenevaSchedules.map(schedule => {
+                      const employee = allUsers.find(u => u.id === schedule.userId);
+                      const employeeName = employee ? `${employee.firstName} ${employee.lastName}` : 'Unknown Employee';
+                      return `
+                        <div style="padding: 0.75rem; margin-bottom: 0.5rem; background: #f8fafc; border-radius: 6px; border-left: 3px solid #3b82f6;">
+                          <div style="font-weight: 500;">${employeeName}</div>
+                          <div style="font-size: 0.875rem; color: #64748b;">${formatTimeRange(schedule.startTime, schedule.endTime)}</div>
+                          <div style="font-size: 0.75rem; color: #6b7280;">${schedule.position || 'Staff'}</div>
+                        </div>
+                      `;
+                    }).join('')
                   }
                 </div>
 
@@ -1925,13 +1929,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   </div>
                   ${watertownSchedules.length === 0 ? 
                     '<p style="color: #64748b; font-style: italic;">No schedules for today</p>' :
-                    watertownSchedules.map(schedule => `
-                      <div style="padding: 0.75rem; margin-bottom: 0.5rem; background: #f8fafc; border-radius: 6px; border-left: 3px solid #10b981;">
-                        <div style="font-weight: 500;">${schedule.userId}</div>
-                        <div style="font-size: 0.875rem; color: #64748b;">${formatTimeRange(schedule.startTime, schedule.endTime)}</div>
-                        <div style="font-size: 0.75rem; color: #6b7280;">${schedule.position || 'Staff'}</div>
-                      </div>
-                    `).join('')
+                    watertownSchedules.map(schedule => {
+                      const employee = allUsers.find(u => u.id === schedule.userId);
+                      const employeeName = employee ? `${employee.firstName} ${employee.lastName}` : 'Unknown Employee';
+                      return `
+                        <div style="padding: 0.75rem; margin-bottom: 0.5rem; background: #f8fafc; border-radius: 6px; border-left: 3px solid #10b981;">
+                          <div style="font-weight: 500;">${employeeName}</div>
+                          <div style="font-size: 0.875rem; color: #64748b;">${formatTimeRange(schedule.startTime, schedule.endTime)}</div>
+                          <div style="font-size: 0.75rem; color: #6b7280;">${schedule.position || 'Staff'}</div>
+                        </div>
+                      `;
+                    }).join('')
                   }
                 </div>
               </div>
