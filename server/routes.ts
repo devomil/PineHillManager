@@ -4990,15 +4990,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Catch-all handler (MUST be last)
-  app.get('*', (req, res) => {
-    // If it's an API route, return 404
-    if (req.path.startsWith('/api/')) {
-      return res.status(404).json({ message: 'API endpoint not found' });
-    }
-    
-    // For any other route, redirect to root
-    res.redirect('/');
+  // API 404 handler for unknown API routes
+  app.use('/api/*', (req, res) => {
+    res.status(404).json({ message: 'API endpoint not found' });
   });
 
   const httpServer = createServer(app);
