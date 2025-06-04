@@ -1,5 +1,6 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
+import { setupVite } from "./vite";
 import { performanceMiddleware, getPerformanceMetrics, resetPerformanceMetrics } from "./performance-middleware";
 
 function log(message: string, source = "express") {
@@ -53,6 +54,14 @@ app.use((req, res, next) => {
 (async () => {
   const server = await registerRoutes(app);
 
+  // Setup Vite integration for React app
+  if (process.env.NODE_ENV === "development") {
+    await setupVite(app, server);
+  } else {
+    // In production, serve static files
+    app.use(express.static("dist"));
+  }
+
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
@@ -61,14 +70,12 @@ app.use((req, res, next) => {
     throw err;
   });
 
-  // Start pure Express server without any Vite interference
   const port = 5000;
   server.listen({
     port,
     host: "0.0.0.0",
     reusePort: true,
   }, () => {
-    log(`Pure Express server serving on port ${port}`);
-    log(`COMPLETE VITE BYPASS - Express handles ALL routes`);
+    log(`Server with Vite integration serving on port ${port}`);
   });
 })();
