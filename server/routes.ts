@@ -2701,6 +2701,68 @@ export async function registerRoutes(app: Express): Promise<Server> {
             let bulkMode = false;
             let selectedDates = [];
 
+            // Schedule filtering functionality
+            function filterSchedules() {
+              const employeeFilter = document.getElementById('employeeFilter').value.toLowerCase();
+              const locationFilter = document.getElementById('locationFilter').value;
+              const dateFilter = document.getElementById('dateFilter').value;
+              const table = document.getElementById('schedulesTable');
+              
+              if (!table) return;
+              
+              const rows = table.getElementsByTagName('tbody')[0].getElementsByTagName('tr');
+              let visibleCount = 0;
+              
+              for (let i = 0; i < rows.length; i++) {
+                const row = rows[i];
+                const cells = row.getElementsByTagName('td');
+                
+                if (cells.length >= 4) {
+                  const employeeName = cells[0].textContent.toLowerCase();
+                  const scheduleDate = cells[1].textContent;
+                  const location = cells[3].textContent;
+                  
+                  let showRow = true;
+                  
+                  // Filter by employee name
+                  if (employeeFilter && !employeeName.includes(employeeFilter)) {
+                    showRow = false;
+                  }
+                  
+                  // Filter by location
+                  if (locationFilter && location !== locationFilter) {
+                    showRow = false;
+                  }
+                  
+                  // Filter by date
+                  if (dateFilter && scheduleDate !== dateFilter) {
+                    showRow = false;
+                  }
+                  
+                  if (showRow) {
+                    row.style.display = '';
+                    visibleCount++;
+                  } else {
+                    row.style.display = 'none';
+                  }
+                }
+              }
+              
+              // Show/hide no results message
+              let noResultsMsg = document.getElementById('noResultsMessage');
+              if (visibleCount === 0 && (employeeFilter || locationFilter || dateFilter)) {
+                if (!noResultsMsg) {
+                  noResultsMsg = document.createElement('tr');
+                  noResultsMsg.id = 'noResultsMessage';
+                  noResultsMsg.innerHTML = '<td colspan="6" style="padding: 2rem; text-align: center; color: #64748b; font-style: italic;">No schedules match your filters. Try adjusting your search criteria.</td>';
+                  table.getElementsByTagName('tbody')[0].appendChild(noResultsMsg);
+                }
+                noResultsMsg.style.display = '';
+              } else if (noResultsMsg) {
+                noResultsMsg.style.display = 'none';
+              }
+            }
+
             // Keep session alive during bulk scheduling
             function keepSessionAlive() {
               fetch('/api/auth/user', {
