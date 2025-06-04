@@ -496,7 +496,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Schedule page
+  // Schedule page with month navigation
   app.get('/schedule', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
@@ -506,9 +506,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).send("User not found");
       }
 
-      // Get real schedules for this user
-      const userSchedules = await storage.getUserWorkSchedules(userId);
+      // Get current date and month navigation
+      const currentDate = new Date();
+      const month = req.query.month ? parseInt(req.query.month as string) : currentDate.getMonth();
+      const year = req.query.year ? parseInt(req.query.year as string) : currentDate.getFullYear();
+      
+      // Calculate start and end dates for the month
+      const startDate = new Date(year, month, 1);
+      const endDate = new Date(year, month + 1, 0);
+      
+      const startDateStr = startDate.toISOString().split('T')[0];
+      const endDateStr = endDate.toISOString().split('T')[0];
+
+      // Get real schedules for this user for the current month
+      const userSchedules = await storage.getUserWorkSchedules(userId, startDateStr, endDateStr);
       const locations = await storage.getAllLocations();
+      
+      // Calculate previous and next month
+      const prevMonth = month === 0 ? 11 : month - 1;
+      const prevYear = month === 0 ? year - 1 : year;
+      const nextMonth = month === 11 ? 0 : month + 1;
+      const nextYear = month === 11 ? year + 1 : year;
+      
+      const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+                         'July', 'August', 'September', 'October', 'November', 'December'];
       
       res.send(`
       <!DOCTYPE html>
@@ -578,10 +599,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           <div class="card">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
-              <h2>December 2024</h2>
+              <h2>${monthNames[month]} ${year}</h2>
               <div>
-                <a href="#" class="btn-secondary btn">← Previous</a>
-                <a href="#" class="btn-secondary btn">Next →</a>
+                <a href="/schedule?month=${prevMonth}&year=${prevYear}" class="btn-secondary btn">← Previous</a>
+                <a href="/schedule?month=${nextMonth}&year=${nextYear}" class="btn-secondary btn">Next →</a>
               </div>
             </div>
 
