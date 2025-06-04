@@ -1,6 +1,6 @@
 import express, { type Request, Response, NextFunction } from "express";
+import path from "path";
 import { registerRoutes } from "./routes";
-import { setupVite } from "./vite";
 import { performanceMiddleware, getPerformanceMetrics, resetPerformanceMetrics } from "./performance-middleware";
 
 function log(message: string, source = "express") {
@@ -54,13 +54,18 @@ app.use((req, res, next) => {
 (async () => {
   const server = await registerRoutes(app);
 
-  // Setup Vite integration for React app
-  if (process.env.NODE_ENV === "development") {
-    await setupVite(app, server);
-  } else {
-    // In production, serve static files
-    app.use(express.static("dist"));
-  }
+  // Serve static files and handle SPA routing
+  app.use(express.static("dist"));
+  
+  // SPA fallback for React routes
+  app.get('*', (req, res, next) => {
+    // Skip API routes
+    if (req.path.startsWith('/api/')) {
+      return next();
+    }
+    // Serve index.html for all other routes
+    res.sendFile(path.join(process.cwd(), 'dist', 'index.html'));
+  });
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
