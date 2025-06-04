@@ -18,10 +18,12 @@ export function getSession() {
     store: sessionStore,
     resave: false,
     saveUninitialized: false,
+    name: 'pinehill.session', // Custom session name to avoid conflicts
     cookie: {
       httpOnly: true,
       secure: false, // Allow HTTP in development
       maxAge: sessionTtl,
+      sameSite: 'lax', // Allow cross-site requests in development
     },
   });
 }
@@ -81,8 +83,23 @@ export async function setupDevAuth(app: Express) {
   });
 
   app.get("/api/logout", (req, res) => {
-    req.session.destroy(() => {
+    req.session.destroy((err) => {
+      if (err) {
+        console.error("Session destruction error:", err);
+      }
+      res.clearCookie('pinehill.session');
       res.redirect("/");
+    });
+  });
+
+  // Clear all sessions route for development
+  app.get("/api/clear-sessions", (req, res) => {
+    req.session.destroy((err) => {
+      if (err) {
+        console.error("Session destruction error:", err);
+      }
+      res.clearCookie('pinehill.session');
+      res.json({ message: "All sessions cleared" });
     });
   });
 }
