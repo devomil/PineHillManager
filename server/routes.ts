@@ -237,10 +237,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const isAdminOrManager = user.role === 'admin' || user.role === 'manager';
 
       res.send(`
-      <!DOCTYPE html>
-      <html lang="en">
-      <head>
-        <title>Pine Hill Farm - Employee Dashboard</title>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>Pine Hill Farm - Employee Dashboard</title>
         <style>
           * { margin: 0; padding: 0; box-sizing: border-box; }
           body { 
@@ -356,7 +356,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         </div>
       </body>
       </html>
-    `);
+      `);
+    } catch (error) {
+      console.error("Error loading dashboard:", error);
+      res.status(500).send("Error loading dashboard");
+    }
   });
 
   // Schedule page
