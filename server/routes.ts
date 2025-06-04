@@ -1559,8 +1559,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Root redirect - serve static HTML directly
-  app.get('/', async (req, res) => {
+  // Root route - serve static HTML directly (bypassing all React/Vite issues)
+  app.get('/', (req, res) => {
     const user = (req.session as any)?.user;
     
     if (user) {
