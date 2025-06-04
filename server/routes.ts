@@ -3170,6 +3170,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Catch-all handler for unmatched routes (MUST be last)
+  app.get('*', (req, res) => {
+    // If it's an API route, return 404
+    if (req.path.startsWith('/api/')) {
+      return res.status(404).json({ message: 'API endpoint not found' });
+    }
+    
+    // For any other route, redirect to root
+    res.redirect('/');
+  });
+
   const httpServer = createServer(app);
 
   // WebSocket server for real-time updates

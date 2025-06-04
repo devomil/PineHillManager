@@ -52,20 +52,6 @@ app.use((req, res, next) => {
     throw err;
   });
 
-  // Completely disable Vite - serve everything through Express
-  // All routes are now handled by static HTML in routes.ts
-  
-  // Add explicit route handling for missing routes
-  app.get('*', (req, res) => {
-    // If it's an API route, let it continue to 404
-    if (req.path.startsWith('/api/')) {
-      return res.status(404).json({ message: 'API endpoint not found' });
-    }
-    
-    // For any other route, redirect to root
-    res.redirect('/');
-  });
-
   // ALWAYS serve the app on port 5000
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
