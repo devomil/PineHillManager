@@ -827,7 +827,316 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 
 
-  // Enhanced Team Chat route with channel selection
+  // Time Clock API routes
+  app.post('/api/time-clock/clock-in', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session?.devUserId || req.user.claims.sub;
+      const { locationId } = req.body;
+      const ipAddress = req.ip || req.connection.remoteAddress;
+      const deviceInfo = req.headers['user-agent'];
+
+      const timeEntry = await storage.clockIn(userId, locationId, ipAddress, deviceInfo);
+      res.json({ success: true, timeEntry });
+    } catch (error: any) {
+      res.status(400).json({ success: false, error: error.message });
+    }
+  });
+
+  app.post('/api/time-clock/clock-out', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session?.devUserId || req.user.claims.sub;
+      const { notes } = req.body;
+
+      const timeEntry = await storage.clockOut(userId, notes);
+      res.json({ success: true, timeEntry });
+    } catch (error: any) {
+      res.status(400).json({ success: false, error: error.message });
+    }
+  });
+
+  app.post('/api/time-clock/start-break', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session?.devUserId || req.user.claims.sub;
+      const timeEntry = await storage.startBreak(userId);
+      res.json({ success: true, timeEntry });
+    } catch (error: any) {
+      res.status(400).json({ success: false, error: error.message });
+    }
+  });
+
+  app.post('/api/time-clock/end-break', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session?.devUserId || req.user.claims.sub;
+      const timeEntry = await storage.endBreak(userId);
+      res.json({ success: true, timeEntry });
+    } catch (error: any) {
+      res.status(400).json({ success: false, error: error.message });
+    }
+  });
+
+  app.get('/api/time-clock/current', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session?.devUserId || req.user.claims.sub;
+      const timeEntry = await storage.getCurrentTimeEntry(userId);
+      res.json({ timeEntry });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get('/api/user-presence/all', isAuthenticated, async (req: any, res) => {
+    try {
+      const presence = await storage.getAllUserPresence();
+      res.json({ presence });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Time Clock Dashboard
+  app.get('/time-clock', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session?.devUserId || req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      if (!user) {
+        return res.status(404).send("User not found");
+      }
+
+      const locations = await storage.getAllLocations();
+      const currentTimeEntry = await storage.getCurrentTimeEntry(userId);
+      const today = new Date().toISOString().split('T')[0];
+      const todayEntries = await storage.getTimeEntriesByDate(userId, today);
+      const allUserPresence = await storage.getAllUserPresence();
+
+      res.send(`
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+          <title>Pine Hill Farm - Time Clock</title>
+          <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { 
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+              background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+              min-height: 100vh; color: #1e293b;
+            }
+            .header { background: white; padding: 1rem 2rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+            .header-content { max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
+            .logo { display: flex; align-items: center; gap: 1rem; }
+            .logo-icon { width: 40px; height: 40px; background: #607e66; border-radius: 10px; display: flex; align-items: center; justify-content: center; color: white; font-size: 1.2rem; }
+            .nav { display: flex; gap: 1rem; }
+            .nav a { color: #64748b; text-decoration: none; padding: 0.5rem 1rem; border-radius: 6px; transition: background 0.2s; }
+            .nav a:hover { background: #f1f5f9; }
+            .nav a.active { background: #607e66; color: white; }
+            .container { max-width: 1200px; margin: 0 auto; padding: 2rem; }
+            .card { background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 2rem; }
+            .clock-card { text-align: center; padding: 3rem; background: linear-gradient(135deg, #607e66, #4f6b56); color: white; border-radius: 12px; margin-bottom: 2rem; }
+            .current-time { font-size: 3rem; font-weight: bold; margin-bottom: 1rem; }
+            .status-badge { display: inline-block; padding: 0.5rem 1rem; border-radius: 20px; font-weight: 500; margin: 0.5rem; }
+            .status-clocked-in { background: #dcfce7; color: #166534; }
+            .status-on-break { background: #fef3c7; color: #92400e; }
+            .status-clocked-out { background: #fecaca; color: #991b1b; }
+            .btn { background: #607e66; color: white; padding: 1rem 2rem; border: none; border-radius: 8px; font-size: 1.1rem; cursor: pointer; margin: 0.5rem; transition: background 0.2s; }
+            .btn:hover { background: #4f6b56; }
+            .btn-danger { background: #dc2626; }
+            .btn-danger:hover { background: #b91c1c; }
+            .btn-warning { background: #d97706; }
+            .btn-warning:hover { background: #b45309; }
+            .time-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2rem; }
+            .presence-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; }
+            .presence-item { padding: 1rem; border-radius: 8px; background: #f8fafc; border-left: 4px solid #e2e8f0; }
+            .presence-online { border-left-color: #10b981; }
+            .presence-working { border-left-color: #3b82f6; }
+            .presence-break { border-left-color: #f59e0b; }
+            .presence-offline { border-left-color: #6b7280; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div class="header-content">
+              <div class="logo">
+                <div class="logo-icon">🕐</div>
+                <div>
+                  <div style="font-weight: 600;">Pine Hill Farm</div>
+                  <div style="font-size: 0.875rem; color: #64748b;">Time Clock</div>
+                </div>
+              </div>
+              <div class="nav">
+                <a href="/dashboard">Dashboard</a>
+                <a href="/schedule">Schedule</a>
+                <a href="/time-clock" class="active">Time Clock</a>
+                <a href="/chat">Team Chat</a>
+                <a href="/api/logout">Sign Out</a>
+              </div>
+            </div>
+          </div>
+
+          <div class="container">
+            <div class="clock-card">
+              <div class="current-time" id="currentTime"></div>
+              <div>
+                <span class="status-badge ${currentTimeEntry ? (currentTimeEntry.status === 'clocked_in' ? 'status-clocked-in' : currentTimeEntry.status === 'on_break' ? 'status-on-break' : 'status-clocked-out') : 'status-clocked-out'}">
+                  ${currentTimeEntry ? (currentTimeEntry.status === 'clocked_in' ? '🟢 Clocked In' : currentTimeEntry.status === 'on_break' ? '🟡 On Break' : '🔴 Clocked Out') : '🔴 Clocked Out'}
+                </span>
+              </div>
+              ${currentTimeEntry && currentTimeEntry.status === 'clocked_in' ? `
+                <p style="margin-top: 1rem;">Working since ${new Date(currentTimeEntry.clockInTime).toLocaleTimeString()}</p>
+              ` : ''}
+            </div>
+
+            <div class="time-grid">
+              <div class="card">
+                <h3 style="margin-bottom: 1.5rem;">Time Clock Actions</h3>
+                
+                ${!currentTimeEntry || currentTimeEntry.status === 'clocked_out' ? `
+                  <div style="margin-bottom: 1rem;">
+                    <label style="display: block; margin-bottom: 0.5rem;">Select Location:</label>
+                    <select id="locationSelect" style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 6px;">
+                      ${locations.map(loc => `<option value="${loc.id}">${loc.name}</option>`).join('')}
+                    </select>
+                  </div>
+                  <button onclick="clockIn()" class="btn">🕐 Clock In</button>
+                ` : ''}
+                
+                ${currentTimeEntry && currentTimeEntry.status === 'clocked_in' ? `
+                  <button onclick="startBreak()" class="btn btn-warning">☕ Start Break</button>
+                  <button onclick="clockOut()" class="btn btn-danger">🕐 Clock Out</button>
+                ` : ''}
+                
+                ${currentTimeEntry && currentTimeEntry.status === 'on_break' ? `
+                  <button onclick="endBreak()" class="btn btn-warning">🔄 End Break</button>
+                  <button onclick="clockOut()" class="btn btn-danger">🕐 Clock Out</button>
+                ` : ''}
+              </div>
+
+              <div class="card">
+                <h3 style="margin-bottom: 1.5rem;">Today's Hours</h3>
+                ${todayEntries.length > 0 ? todayEntries.map(entry => `
+                  <div style="border: 1px solid #e2e8f0; border-radius: 6px; padding: 1rem; margin-bottom: 1rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                      <div>
+                        <strong>Clock In:</strong> ${new Date(entry.clockInTime).toLocaleTimeString()}<br>
+                        ${entry.clockOutTime ? `<strong>Clock Out:</strong> ${new Date(entry.clockOutTime).toLocaleTimeString()}<br>` : ''}
+                        <strong>Status:</strong> ${entry.status}
+                      </div>
+                      <div style="text-align: right;">
+                        ${entry.totalWorkedMinutes ? `<strong>${Math.floor(entry.totalWorkedMinutes / 60)}h ${entry.totalWorkedMinutes % 60}m</strong>` : 'In Progress'}
+                      </div>
+                    </div>
+                  </div>
+                `).join('') : '<p style="color: #64748b; text-align: center;">No time entries for today</p>'}
+              </div>
+            </div>
+
+            <div class="card">
+              <h3 style="margin-bottom: 1.5rem;">Team Status</h3>
+              <div class="presence-list">
+                ${allUserPresence.map(presence => `
+                  <div class="presence-item ${presence.isWorking ? (presence.status === 'on_break' ? 'presence-break' : 'presence-working') : 'presence-offline'}">
+                    <div style="font-weight: 600;">${presence.firstName} ${presence.lastName}</div>
+                    <div style="font-size: 0.875rem; color: #64748b;">${presence.role}</div>
+                    <div style="font-size: 0.875rem; margin-top: 0.5rem;">
+                      Status: ${presence.statusMessage || presence.status}
+                    </div>
+                    ${presence.isWorking ? `<div style="font-size: 0.75rem; color: #10b981;">Currently working</div>` : ''}
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          </div>
+
+          <script>
+            function updateCurrentTime() {
+              const now = new Date();
+              document.getElementById('currentTime').textContent = now.toLocaleTimeString();
+            }
+            
+            updateCurrentTime();
+            setInterval(updateCurrentTime, 1000);
+
+            async function clockIn() {
+              const locationId = document.getElementById('locationSelect').value;
+              try {
+                const response = await fetch('/api/time-clock/clock-in', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ locationId: parseInt(locationId) })
+                });
+                const result = await response.json();
+                if (result.success) {
+                  location.reload();
+                } else {
+                  alert('Error: ' + result.error);
+                }
+              } catch (error) {
+                alert('Error: ' + error.message);
+              }
+            }
+
+            async function clockOut() {
+              const notes = prompt('Add any notes for your shift (optional):');
+              try {
+                const response = await fetch('/api/time-clock/clock-out', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ notes })
+                });
+                const result = await response.json();
+                if (result.success) {
+                  location.reload();
+                } else {
+                  alert('Error: ' + result.error);
+                }
+              } catch (error) {
+                alert('Error: ' + error.message);
+              }
+            }
+
+            async function startBreak() {
+              try {
+                const response = await fetch('/api/time-clock/start-break', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' }
+                });
+                const result = await response.json();
+                if (result.success) {
+                  location.reload();
+                } else {
+                  alert('Error: ' + result.error);
+                }
+              } catch (error) {
+                alert('Error: ' + error.message);
+              }
+            }
+
+            async function endBreak() {
+              try {
+                const response = await fetch('/api/time-clock/end-break', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' }
+                });
+                const result = await response.json();
+                if (result.success) {
+                  location.reload();
+                } else {
+                  alert('Error: ' + result.error);
+                }
+              } catch (error) {
+                alert('Error: ' + error.message);
+              }
+            }
+          </script>
+        </body>
+        </html>
+      `);
+    } catch (error) {
+      console.error("Error loading time clock:", error);
+      res.status(500).send("Error loading time clock");
+    }
+  });
+
+  // Enhanced Team Chat route with presence integration
   app.get('/chat', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;

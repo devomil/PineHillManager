@@ -15,6 +15,8 @@ import {
   documents,
   documentPermissions,
   documentLogs,
+  timeClockEntries,
+  userPresence,
   type User,
   type UpsertUser,
   type InsertTimeOffRequest,
@@ -153,6 +155,21 @@ export interface IStorage {
   // Document logs
   logDocumentAction(log: InsertDocumentLog): Promise<DocumentLog>;
   getDocumentLogs(documentId: number): Promise<DocumentLog[]>;
+
+  // Time clock system
+  clockIn(userId: string, locationId: number, ipAddress?: string, deviceInfo?: string): Promise<any>;
+  clockOut(userId: string, notes?: string): Promise<any>;
+  startBreak(userId: string): Promise<any>;
+  endBreak(userId: string): Promise<any>;
+  getCurrentTimeEntry(userId: string): Promise<any | undefined>;
+  getTimeEntriesByDate(userId: string, date: string): Promise<any[]>;
+  getTimeEntriesByDateRange(userId: string, startDate: string, endDate: string): Promise<any[]>;
+  
+  // User presence system
+  updateUserPresence(userId: string, status: string, locationId?: number, statusMessage?: string): Promise<any>;
+  getUserPresence(userId: string): Promise<any | undefined>;
+  getAllUserPresence(): Promise<any[]>;
+  getOnlineUsers(): Promise<any[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -974,6 +991,256 @@ export class DatabaseStorage implements IStorage {
   async markAnnouncementAsRead(userId: string, announcementId: number): Promise<boolean> {
     // For now, return true - this would normally insert into announcement_reads table
     return true;
+  }
+
+  // Time clock system implementation
+  async clockIn(userId: string, locationId: number, ipAddress?: string, deviceInfo?: string): Promise<any> {
+    const now = new Date();
+    
+    // Check if user is already clocked in
+    const existingEntry = await this.getCurrentTimeEntry(userId);
+    if (existingEntry && existingEntry.status === 'clocked_in') {
+      throw new Error('User is already clocked in');
+    }
+
+    const [timeEntry] = await db
+      .insert(timeClockEntries)
+      .values({
+        userId,
+        locationId,
+        clockInTime: now,
+        status: 'clocked_in',
+        ipAddress,
+        deviceInfo,
+      })
+      .returning();
+
+    // Update user presence
+    await this.updateUserPresence(userId, 'clocked_in', locationId, 'Working');
+
+    return timeEntry;
+  }
+
+  async clockOut(userId: string, notes?: string): Promise<any> {
+    const now = new Date();
+    
+    const currentEntry = await this.getCurrentTimeEntry(userId);
+    if (!currentEntry || currentEntry.status === 'clocked_out') {
+      throw new Error('User is not clocked in');
+    }
+
+    // Calculate total worked minutes
+    const clockInTime = new Date(currentEntry.clockInTime);
+    const totalWorkedMinutes = Math.floor((now.getTime() - clockInTime.getTime()) / (1000 * 60)) - currentEntry.totalBreakMinutes;
+
+    const [timeEntry] = await db
+      .update(timeClockEntries)
+      .set({
+        clockOutTime: now,
+        status: 'clocked_out',
+        totalWorkedMinutes,
+        notes,
+        updatedAt: now,
+      })
+      .where(eq(timeClockEntries.id, currentEntry.id))
+      .returning();
+
+    // Update user presence
+    await this.updateUserPresence(userId, 'offline', undefined, 'Clocked out');
+
+    return timeEntry;
+  }
+
+  async startBreak(userId: string): Promise<any> {
+    const now = new Date();
+    
+    const currentEntry = await this.getCurrentTimeEntry(userId);
+    if (!currentEntry || currentEntry.status !== 'clocked_in') {
+      throw new Error('User must be clocked in to take a break');
+    }
+
+    const [timeEntry] = await db
+      .update(timeClockEntries)
+      .set({
+        breakStartTime: now,
+        status: 'on_break',
+        updatedAt: now,
+      })
+      .where(eq(timeClockEntries.id, currentEntry.id))
+      .returning();
+
+    // Update user presence
+    await this.updateUserPresence(userId, 'on_break', currentEntry.locationId, 'On break');
+
+    return timeEntry;
+  }
+
+  async endBreak(userId: string): Promise<any> {
+    const now = new Date();
+    
+    const currentEntry = await this.getCurrentTimeEntry(userId);
+    if (!currentEntry || currentEntry.status !== 'on_break') {
+      throw new Error('User is not on break');
+    }
+
+    const breakStartTime = new Date(currentEntry.breakStartTime!);
+    const breakMinutes = Math.floor((now.getTime() - breakStartTime.getTime()) / (1000 * 60));
+    const totalBreakMinutes = currentEntry.totalBreakMinutes + breakMinutes;
+
+    const [timeEntry] = await db
+      .update(timeClockEntries)
+      .set({
+        breakEndTime: now,
+        status: 'clocked_in',
+        totalBreakMinutes,
+        updatedAt: now,
+      })
+      .where(eq(timeClockEntries.id, currentEntry.id))
+      .returning();
+
+    // Update user presence
+    await this.updateUserPresence(userId, 'clocked_in', currentEntry.locationId, 'Working');
+
+    return timeEntry;
+  }
+
+  async getCurrentTimeEntry(userId: string): Promise<any | undefined> {
+    const today = new Date().toISOString().split('T')[0];
+    const [entry] = await db
+      .select()
+      .from(timeClockEntries)
+      .where(
+        and(
+          eq(timeClockEntries.userId, userId),
+          gte(timeClockEntries.clockInTime, new Date(today + 'T00:00:00')),
+          eq(timeClockEntries.status, 'clocked_in') || eq(timeClockEntries.status, 'on_break')
+        )
+      )
+      .orderBy(desc(timeClockEntries.clockInTime))
+      .limit(1);
+    
+    return entry;
+  }
+
+  async getTimeEntriesByDate(userId: string, date: string): Promise<any[]> {
+    const startDate = new Date(date + 'T00:00:00');
+    const endDate = new Date(date + 'T23:59:59');
+    
+    return await db
+      .select()
+      .from(timeClockEntries)
+      .where(
+        and(
+          eq(timeClockEntries.userId, userId),
+          gte(timeClockEntries.clockInTime, startDate),
+          lte(timeClockEntries.clockInTime, endDate)
+        )
+      )
+      .orderBy(desc(timeClockEntries.clockInTime));
+  }
+
+  async getTimeEntriesByDateRange(userId: string, startDate: string, endDate: string): Promise<any[]> {
+    const start = new Date(startDate + 'T00:00:00');
+    const end = new Date(endDate + 'T23:59:59');
+    
+    return await db
+      .select()
+      .from(timeClockEntries)
+      .where(
+        and(
+          eq(timeClockEntries.userId, userId),
+          gte(timeClockEntries.clockInTime, start),
+          lte(timeClockEntries.clockInTime, end)
+        )
+      )
+      .orderBy(desc(timeClockEntries.clockInTime));
+  }
+
+  // User presence system implementation
+  async updateUserPresence(userId: string, status: string, locationId?: number, statusMessage?: string): Promise<any> {
+    const now = new Date();
+    
+    const [presence] = await db
+      .insert(userPresence)
+      .values({
+        userId,
+        status,
+        lastSeen: now,
+        currentLocation: locationId?.toString(),
+        statusMessage,
+        isWorking: status === 'clocked_in' || status === 'on_break',
+        clockedInAt: status === 'clocked_in' ? now : undefined,
+        updatedAt: now,
+      })
+      .onConflictDoUpdate({
+        target: userPresence.userId,
+        set: {
+          status,
+          lastSeen: now,
+          currentLocation: locationId?.toString(),
+          statusMessage,
+          isWorking: status === 'clocked_in' || status === 'on_break',
+          clockedInAt: status === 'clocked_in' ? now : undefined,
+          updatedAt: now,
+        },
+      })
+      .returning();
+
+    return presence;
+  }
+
+  async getUserPresence(userId: string): Promise<any | undefined> {
+    const [presence] = await db
+      .select()
+      .from(userPresence)
+      .where(eq(userPresence.userId, userId));
+    
+    return presence;
+  }
+
+  async getAllUserPresence(): Promise<any[]> {
+    return await db
+      .select({
+        userId: userPresence.userId,
+        status: userPresence.status,
+        lastSeen: userPresence.lastSeen,
+        currentLocation: userPresence.currentLocation,
+        statusMessage: userPresence.statusMessage,
+        isWorking: userPresence.isWorking,
+        clockedInAt: userPresence.clockedInAt,
+        firstName: users.firstName,
+        lastName: users.lastName,
+        role: users.role,
+      })
+      .from(userPresence)
+      .leftJoin(users, eq(userPresence.userId, users.id))
+      .orderBy(asc(users.firstName));
+  }
+
+  async getOnlineUsers(): Promise<any[]> {
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+    
+    return await db
+      .select({
+        userId: userPresence.userId,
+        status: userPresence.status,
+        lastSeen: userPresence.lastSeen,
+        currentLocation: userPresence.currentLocation,
+        statusMessage: userPresence.statusMessage,
+        isWorking: userPresence.isWorking,
+        firstName: users.firstName,
+        lastName: users.lastName,
+        role: users.role,
+      })
+      .from(userPresence)
+      .leftJoin(users, eq(userPresence.userId, users.id))
+      .where(
+        and(
+          gte(userPresence.lastSeen, fiveMinutesAgo),
+          eq(userPresence.status, 'online') || eq(userPresence.status, 'clocked_in') || eq(userPresence.status, 'on_break')
+        )
+      )
+      .orderBy(asc(users.firstName));
   }
 }
 

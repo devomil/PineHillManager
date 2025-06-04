@@ -55,6 +55,38 @@ export const users = pgTable("users", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Time clock entries for punch in/out system
+export const timeClockEntries = pgTable("time_clock_entries", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  locationId: integer("location_id").references(() => locations.id),
+  clockInTime: timestamp("clock_in_time").notNull(),
+  clockOutTime: timestamp("clock_out_time"),
+  breakStartTime: timestamp("break_start_time"),
+  breakEndTime: timestamp("break_end_time"),
+  totalBreakMinutes: integer("total_break_minutes").default(0),
+  totalWorkedMinutes: integer("total_worked_minutes").default(0),
+  status: varchar("status").notNull().default("clocked_in"), // clocked_in, on_break, clocked_out
+  notes: text("notes"),
+  ipAddress: varchar("ip_address"),
+  deviceInfo: text("device_info"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// User presence/status for team chat
+export const userPresence = pgTable("user_presence", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  status: varchar("status").notNull().default("offline"), // online, away, busy, offline, clocked_in, on_break
+  lastSeen: timestamp("last_seen").defaultNow(),
+  currentLocation: varchar("current_location"),
+  statusMessage: text("status_message"),
+  isWorking: boolean("is_working").default(false),
+  clockedInAt: timestamp("clocked_in_at"),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Time off requests
 export const timeOffRequests = pgTable("time_off_requests", {
   id: serial("id").primaryKey(),
