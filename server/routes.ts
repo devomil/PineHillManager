@@ -135,6 +135,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     next();
   });
 
+  // Time formatting utility functions
+  function formatTime12Hour(time24: string): string {
+    if (!time24) return '';
+    
+    const [hours, minutes] = time24.split(':').map(Number);
+    const period = hours >= 12 ? 'PM' : 'AM';
+    const hours12 = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+    
+    return `${hours12}:${minutes.toString().padStart(2, '0')} ${period}`;
+  }
+
+  function formatTimeRange(startTime: string, endTime: string): string {
+    return `${formatTime12Hour(startTime)} - ${formatTime12Hour(endTime)}`;
+  }
+
   // Auth middleware SECOND
   await setupDevAuth(app);
 
@@ -1894,7 +1909,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                     lakeGenevaSchedules.map(schedule => `
                       <div style="padding: 0.75rem; margin-bottom: 0.5rem; background: #f8fafc; border-radius: 6px; border-left: 3px solid #3b82f6;">
                         <div style="font-weight: 500;">${schedule.userId}</div>
-                        <div style="font-size: 0.875rem; color: #64748b;">${schedule.startTime} - ${schedule.endTime}</div>
+                        <div style="font-size: 0.875rem; color: #64748b;">${formatTimeRange(schedule.startTime, schedule.endTime)}</div>
                         <div style="font-size: 0.75rem; color: #6b7280;">${schedule.position || 'Staff'}</div>
                       </div>
                     `).join('')
