@@ -666,6 +666,258 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Enhanced Team Chat route with channel selection
+  app.get('/chat', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      if (!user) {
+        return res.status(404).send("User not found");
+      }
+
+      const channels = await storage.getAllChannels();
+      const employees = await storage.getAllUsers();
+      
+      res.send(`
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+          <title>Pine Hill Farm - Team Chat</title>
+          <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f8fafc; min-height: 100vh; }
+            .chat-container { display: flex; height: 100vh; }
+            .sidebar { width: 300px; background: white; border-right: 1px solid #e2e8f0; display: flex; flex-direction: column; }
+            .main-chat { flex: 1; display: flex; flex-direction: column; }
+            .header { padding: 1rem; border-bottom: 1px solid #e2e8f0; background: #607e66; color: white; }
+            .channel-list { flex: 1; padding: 1rem; overflow-y: auto; }
+            .channel-item { padding: 0.75rem; margin-bottom: 0.5rem; border-radius: 8px; cursor: pointer; transition: background 0.2s; }
+            .channel-item:hover { background: #f1f5f9; }
+            .channel-item.active { background: #dbeafe; color: #1e40af; }
+            .chat-messages { flex: 1; padding: 1rem; overflow-y: auto; background: #f8fafc; }
+            .chat-input { padding: 1rem; border-top: 1px solid #e2e8f0; background: white; }
+            .input-group { display: flex; gap: 0.5rem; }
+            .message-input { flex: 1; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 6px; }
+            .send-btn { background: #607e66; color: white; padding: 0.75rem 1.5rem; border: none; border-radius: 6px; cursor: pointer; }
+            .message { margin-bottom: 1rem; padding: 0.75rem; background: white; border-radius: 8px; }
+            .message-header { display: flex; justify-content: space-between; margin-bottom: 0.5rem; font-size: 0.875rem; }
+            .message-author { font-weight: 600; color: #374151; }
+            .message-time { color: #9ca3af; }
+            .online-status { width: 8px; height: 8px; background: #10b981; border-radius: 50%; display: inline-block; margin-left: 0.5rem; }
+          </style>
+        </head>
+        <body>
+          <div class="chat-container">
+            <div class="sidebar">
+              <div class="header">
+                <h2>Team Chat</h2>
+                <p style="font-size: 0.875rem; opacity: 0.9;">Select a channel or employee</p>
+              </div>
+              
+              <div class="channel-list">
+                <h3 style="margin-bottom: 1rem; color: #374151;">Channels</h3>
+                ${channels.map(channel => `
+                  <div class="channel-item" onclick="selectChannel('${channel.id}', '${channel.name}')">
+                    <div style="font-weight: 500;"># ${channel.name}</div>
+                    <div style="font-size: 0.875rem; color: #6b7280;">${channel.description || 'No description'}</div>
+                  </div>
+                `).join('')}
+                
+                <h3 style="margin: 2rem 0 1rem 0; color: #374151;">Direct Messages</h3>
+                ${employees.filter(emp => emp.id !== userId).map(employee => `
+                  <div class="channel-item" onclick="selectDirectMessage('${employee.id}', '${employee.firstName} ${employee.lastName}')">
+                    <div style="display: flex; align-items: center;">
+                      <div style="font-weight: 500;">${employee.firstName} ${employee.lastName}</div>
+                      <span class="online-status"></span>
+                    </div>
+                    <div style="font-size: 0.875rem; color: #6b7280;">${employee.role || 'Employee'}</div>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+            
+            <div class="main-chat">
+              <div class="header">
+                <h3 id="chat-title">Select a channel or employee to start chatting</h3>
+              </div>
+              
+              <div class="chat-messages" id="messages">
+                <div style="text-align: center; color: #6b7280; padding: 2rem;">
+                  <p>Choose a channel or start a direct message to begin the conversation</p>
+                </div>
+              </div>
+              
+              <div class="chat-input">
+                <div class="input-group">
+                  <input type="text" class="message-input" placeholder="Type your message..." id="messageInput" disabled>
+                  <button class="send-btn" onclick="sendMessage()" disabled id="sendBtn">Send</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <script>
+            let currentChatType = null;
+            let currentChatId = null;
+            
+            function selectChannel(channelId, channelName) {
+              currentChatType = 'channel';
+              currentChatId = channelId;
+              document.getElementById('chat-title').textContent = '# ' + channelName;
+              document.getElementById('messageInput').disabled = false;
+              document.getElementById('sendBtn').disabled = false;
+              loadMessages();
+            }
+            
+            function selectDirectMessage(userId, userName) {
+              currentChatType = 'direct';
+              currentChatId = userId;
+              document.getElementById('chat-title').textContent = userName;
+              document.getElementById('messageInput').disabled = false;
+              document.getElementById('sendBtn').disabled = false;
+              loadMessages();
+            }
+            
+            function loadMessages() {
+              // Load messages for current chat
+              document.getElementById('messages').innerHTML = '<div style="padding: 1rem; color: #6b7280;">Loading messages...</div>';
+            }
+            
+            function sendMessage() {
+              const input = document.getElementById('messageInput');
+              const message = input.value.trim();
+              if (!message) return;
+              
+              // Send message via API
+              input.value = '';
+            }
+          </script>
+        </body>
+        </html>
+      `);
+    } catch (error) {
+      console.error("Error loading chat:", error);
+      res.status(500).send("Error loading chat");
+    }
+  });
+
+  // Enhanced Announcements route with read/unread status
+  app.get('/announcements', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      if (!user) {
+        return res.status(404).send("User not found");
+      }
+
+      const announcements = await storage.getPublishedAnnouncements();
+      const readAnnouncements = await storage.getUserReadAnnouncements(userId);
+      const readIds = new Set(readAnnouncements.map(r => r.announcementId));
+      
+      res.send(`
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+          <title>Pine Hill Farm - Announcements</title>
+          <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f8fafc; min-height: 100vh; }
+            .header { background: white; padding: 1rem 2rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+            .container { max-width: 800px; margin: 0 auto; padding: 2rem; }
+            .announcement { background: white; border-radius: 12px; padding: 1.5rem; margin-bottom: 1.5rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border-left: 4px solid #e2e8f0; }
+            .announcement.unread { border-left-color: #3b82f6; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15); }
+            .announcement-header { display: flex; justify-content: between; align-items: start; margin-bottom: 1rem; }
+            .announcement-title { font-size: 1.25rem; font-weight: 600; margin-bottom: 0.5rem; }
+            .announcement-meta { display: flex; gap: 1rem; align-items: center; color: #6b7280; font-size: 0.875rem; }
+            .status-badge { padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.75rem; font-weight: 500; }
+            .status-new { background: #dbeafe; color: #1e40af; }
+            .status-read { background: #f3f4f6; color: #6b7280; }
+            .announcement-content { color: #374151; line-height: 1.6; }
+            .mark-read-btn { background: #3b82f6; color: white; border: none; padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; font-size: 0.875rem; }
+            .nav { display: flex; gap: 1rem; }
+            .nav a { color: #64748b; text-decoration: none; padding: 0.5rem 1rem; border-radius: 6px; }
+            .nav a.active { background: #607e66; color: white; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div style="max-width: 800px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center;">
+              <h1>Company Announcements</h1>
+              <div class="nav">
+                <a href="/dashboard">Dashboard</a>
+                <a href="/schedule">Schedule</a>
+                <a href="/chat">Chat</a>
+                <a href="/announcements" class="active">Announcements</a>
+                <a href="/api/logout">Sign Out</a>
+              </div>
+            </div>
+          </div>
+          
+          <div class="container">
+            ${announcements.length === 0 ? `
+              <div style="text-align: center; padding: 3rem; color: #6b7280;">
+                <h3>No announcements</h3>
+                <p>There are no company announcements at this time.</p>
+              </div>
+            ` : announcements.map(announcement => {
+              const isRead = readIds.has(announcement.id);
+              return `
+                <div class="announcement ${!isRead ? 'unread' : ''}" id="announcement-${announcement.id}">
+                  <div class="announcement-header">
+                    <div style="flex: 1;">
+                      <h2 class="announcement-title">${announcement.title}</h2>
+                      <div class="announcement-meta">
+                        <span>Posted ${new Date(announcement.publishedAt || announcement.createdAt).toLocaleDateString()}</span>
+                        <span class="status-badge ${!isRead ? 'status-new' : 'status-read'}">
+                          ${!isRead ? 'NEW' : 'READ'}
+                        </span>
+                        ${announcement.priority === 'high' ? '<span style="color: #ef4444; font-weight: 600;">HIGH PRIORITY</span>' : ''}
+                      </div>
+                    </div>
+                    ${!isRead ? `
+                      <button class="mark-read-btn" onclick="markAsRead(${announcement.id})">
+                        Mark as Read
+                      </button>
+                    ` : ''}
+                  </div>
+                  <div class="announcement-content">
+                    ${announcement.content.replace(/\n/g, '<br>')}
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+          
+          <script>
+            function markAsRead(announcementId) {
+              fetch('/api/announcements/' + announcementId + '/read', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+              })
+              .then(response => response.json())
+              .then(data => {
+                if (data.success) {
+                  const announcement = document.getElementById('announcement-' + announcementId);
+                  announcement.classList.remove('unread');
+                  announcement.querySelector('.status-badge').textContent = 'READ';
+                  announcement.querySelector('.status-badge').className = 'status-badge status-read';
+                  const button = announcement.querySelector('.mark-read-btn');
+                  if (button) button.style.display = 'none';
+                }
+              });
+            }
+          </script>
+        </body>
+        </html>
+      `);
+    } catch (error) {
+      console.error("Error loading announcements:", error);
+      res.status(500).send("Error loading announcements");
+    }
+  });
+
   // Time Off page
   app.get('/time-off', (req, res) => {
     res.send(`

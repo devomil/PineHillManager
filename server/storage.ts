@@ -947,6 +947,34 @@ export class DatabaseStorage implements IStorage {
       .where(eq(documentLogs.documentId, documentId))
       .orderBy(desc(documentLogs.timestamp));
   }
+  // Chat channels
+  async getChatChannels(): Promise<ChatChannel[]> {
+    return db
+      .select()
+      .from(chatChannels)
+      .where(eq(chatChannels.isActive, true))
+      .orderBy(asc(chatChannels.name));
+  }
+
+  async createChatChannel(channel: InsertChatChannel): Promise<ChatChannel> {
+    const [newChannel] = await db
+      .insert(chatChannels)
+      .values(channel)
+      .returning();
+    return newChannel;
+  }
+
+  // Announcement read tracking
+  async getUserReadAnnouncements(userId: string): Promise<any[]> {
+    // For now, return empty array as we need to implement announcement_reads table
+    // This would normally query a junction table tracking which announcements each user has read
+    return [];
+  }
+
+  async markAnnouncementAsRead(userId: string, announcementId: number): Promise<boolean> {
+    // For now, return true - this would normally insert into announcement_reads table
+    return true;
+  }
 }
 
 export const storage = new DatabaseStorage();
