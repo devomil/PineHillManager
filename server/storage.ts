@@ -144,11 +144,16 @@ export interface IStorage {
   getDocumentById(id: number): Promise<Document | undefined>;
   updateDocument(id: number, document: Partial<InsertDocument>): Promise<Document>;
   deleteDocument(id: number): Promise<void>;
-  getUserAccessibleDocuments(userId: string, userRole: string, userDepartment: string): Promise<Document[]>;
-
+  
   // Document permissions
-  createDocumentPermission(permission: InsertDocumentPermission): Promise<DocumentPermission>;
+  grantDocumentPermission(permission: InsertDocumentPermission): Promise<DocumentPermission>;
+  getUserDocumentPermissions(userId: string): Promise<DocumentPermission[]>;
   getDocumentPermissions(documentId: number): Promise<DocumentPermission[]>;
+  revokeDocumentPermission(id: number): Promise<void>;
+  
+  // Document logs
+  logDocumentActivity(log: InsertDocumentLog): Promise<DocumentLog>;
+  getDocumentLogs(documentId: number): Promise<DocumentLog[]>;
   checkDocumentAccess(documentId: number, userId: string, userRole: string, userDepartment: string): Promise<boolean>;
   revokeDocumentPermission(id: number): Promise<void>;
 
