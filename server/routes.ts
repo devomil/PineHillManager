@@ -1210,14 +1210,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   </div>
                 `).join('')}
                 
-                <h3 style="margin: 2rem 0 1rem 0; color: #374151;">Direct Messages</h3>
-                ${employees.filter(emp => emp.id !== userId).map(employee => `
-                  <div class="channel-item" onclick="selectDirectMessage('${employee.id}', '${employee.firstName} ${employee.lastName}')">
-                    <div style="display: flex; align-items: center;">
-                      <div style="font-weight: 500;">${employee.firstName} ${employee.lastName}</div>
-                      <span class="online-status"></span>
+                <h3 style="margin: 2rem 0 1rem 0; color: #374151;">Team Status</h3>
+                ${allUserPresence.map(presence => `
+                  <div class="channel-item" onclick="selectDirectMessage('${presence.userId}', '${presence.firstName} ${presence.lastName}')">
+                    <div style="display: flex; align-items: center; justify-content: space-between;">
+                      <div>
+                        <div style="font-weight: 500;">${presence.firstName} ${presence.lastName}</div>
+                        <div style="font-size: 0.75rem; color: #6b7280;">${presence.role || 'Employee'}</div>
+                      </div>
+                      <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        ${presence.isWorking 
+                          ? `<span style="background: ${presence.status === 'on_break' ? '#f59e0b' : '#10b981'}; color: white; padding: 0.25rem 0.5rem; border-radius: 12px; font-size: 0.75rem;">
+                              ${presence.status === 'on_break' ? '☕ Break' : '🕐 Working'}
+                            </span>`
+                          : `<span style="background: #6b7280; color: white; padding: 0.25rem 0.5rem; border-radius: 12px; font-size: 0.75rem;">
+                              📴 Offline
+                            </span>`
+                        }
+                      </div>
                     </div>
-                    <div style="font-size: 0.875rem; color: #6b7280;">${employee.role || 'Employee'}</div>
+                    ${presence.statusMessage ? `<div style="font-size: 0.75rem; color: #9ca3af; margin-top: 0.25rem;">${presence.statusMessage}</div>` : ''}
                   </div>
                 `).join('')}
               </div>
