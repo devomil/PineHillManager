@@ -39,9 +39,9 @@ async function initializeDatabase() {
       });
     }
 
-    // Create sample employee
-    let employee = await storage.getUser("employee001");
-    if (!employee) {
+    // Create sample employees
+    let employee1 = await storage.getUser("employee001");
+    if (!employee1) {
       await storage.createEmployee({
         id: "employee001",
         employeeId: "PHF-EMP-001",
@@ -57,7 +57,47 @@ async function initializeDatabase() {
       });
     }
 
-    console.log("Database initialized with sample users");
+    let employee2 = await storage.getUser("employee002");
+    if (!employee2) {
+      await storage.createEmployee({
+        id: "employee002",
+        employeeId: "PHF-EMP-002",
+        firstName: "Jessica",
+        lastName: "Miller",
+        email: "jessica@pinehillfarm.co",
+        role: "employee",
+        department: "sales",
+        position: "Sales Associate",
+        hireDate: "2023-08-15",
+        isActive: true,
+        timeOffBalance: 16
+      });
+    }
+
+    let employee3 = await storage.getUser("employee003");
+    if (!employee3) {
+      await storage.createEmployee({
+        id: "employee003",
+        employeeId: "PHF-EMP-003",
+        firstName: "Alex",
+        lastName: "Thompson",
+        email: "alex@pinehillfarm.co",
+        role: "employee",
+        department: "inventory",
+        position: "Inventory Specialist",
+        hireDate: "2024-01-10",
+        isActive: true,
+        timeOffBalance: 32
+      });
+    }
+
+
+
+    console.log("Database initialized with comprehensive test data:");
+    console.log("- Admin: Ryan Sorensen (ryan@pinehillfarm.co)");
+    console.log("- Manager: Sarah Johnson (sarah@pinehillfarm.co)");
+    console.log("- Employees: Mike Davis, Jessica Miller, Alex Thompson");
+    console.log("- Sample schedules and time-off requests created");
   } catch (error) {
     console.error("Error initializing database:", error);
   }
