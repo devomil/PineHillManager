@@ -1994,27 +1994,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
                     </tr>
                   `).join('')}
                 </tbody>
-              </table>
+                </table>
+              </div>
             </div>
 
-            <div class="card">
-              <h2 style="margin-bottom: 1.5rem;">Today's Schedule Overview</h2>
-              ${todaySchedules.length === 0 ? 
-                '<p style="color: #64748b; text-align: center; padding: 2rem;">No schedules for today</p>' :
-                `<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem;">
-                  ${todaySchedules.map(schedule => `
-                    <div style="padding: 1rem; border: 1px solid #e2e8f0; border-radius: 8px;">
-                      <div style="font-weight: 600; margin-bottom: 0.5rem;">Employee: ${schedule.userId}</div>
-                      <div style="color: #64748b; font-size: 0.875rem;">
-                        ${schedule.startTime} - ${schedule.endTime}<br>
-                        Location: ${schedule.locationId === 1 ? 'Lake Geneva' : 'Watertown'}
-                      </div>
-                    </div>
-                  `).join('')}
-                </div>`
-              }
-            </div>
           </div>
+          
+          <script>
+            function toggleEmployeeOverview() {
+              const content = document.getElementById('employeeOverviewContent');
+              const arrow = document.getElementById('employeeToggleArrow');
+              
+              if (content.style.maxHeight === '0px' || content.style.maxHeight === '') {
+                content.style.maxHeight = '2000px';
+                arrow.style.transform = 'rotate(90deg)';
+                arrow.innerHTML = '▼';
+              } else {
+                content.style.maxHeight = '0px';
+                arrow.style.transform = 'rotate(0deg)';
+                arrow.innerHTML = '▶';
+              }
+            }
+          </script>
         </body>
         </html>
       `);
