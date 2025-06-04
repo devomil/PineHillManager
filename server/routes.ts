@@ -1928,7 +1928,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                     watertownSchedules.map(schedule => `
                       <div style="padding: 0.75rem; margin-bottom: 0.5rem; background: #f8fafc; border-radius: 6px; border-left: 3px solid #10b981;">
                         <div style="font-weight: 500;">${schedule.userId}</div>
-                        <div style="font-size: 0.875rem; color: #64748b;">${schedule.startTime} - ${schedule.endTime}</div>
+                        <div style="font-size: 0.875rem; color: #64748b;">${formatTimeRange(schedule.startTime, schedule.endTime)}</div>
                         <div style="font-size: 0.75rem; color: #6b7280;">${schedule.position || 'Staff'}</div>
                       </div>
                     `).join('')
@@ -2695,7 +2695,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                           <tr>
                             <td style="padding: 1rem; border-bottom: 1px solid #e2e8f0;">${employee ? `${employee.firstName} ${employee.lastName}` : 'Unknown'}</td>
                             <td style="padding: 1rem; border-bottom: 1px solid #e2e8f0;">${schedule.date}</td>
-                            <td style="padding: 1rem; border-bottom: 1px solid #e2e8f0;">${schedule.startTime} - ${schedule.endTime}</td>
+                            <td style="padding: 1rem; border-bottom: 1px solid #e2e8f0;">${formatTimeRange(schedule.startTime, schedule.endTime)}</td>
                             <td style="padding: 1rem; border-bottom: 1px solid #e2e8f0;">${schedule.locationId === 1 ? 'Lake Geneva' : 'Watertown'}</td>
                             <td style="padding: 1rem; border-bottom: 1px solid #e2e8f0;">${schedule.position || 'N/A'}</td>
                             <td style="padding: 1rem; border-bottom: 1px solid #e2e8f0;">
