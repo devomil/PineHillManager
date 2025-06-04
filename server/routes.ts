@@ -1614,51 +1614,114 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
             <div class="card">
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
-                <h2>Create New Schedule</h2>
+                <h2>Create Schedule</h2>
+                <div>
+                  <button onclick="toggleBulkMode()" class="btn-secondary btn" id="bulkToggle">Bulk Schedule Mode</button>
+                </div>
               </div>
               
-              <form action="/api/work-schedules" method="POST">
-                <div class="form-row">
-                  <div class="form-group">
-                    <label class="form-label">Employee</label>
-                    <select name="userId" class="form-select" required>
-                      <option value="">Select Employee</option>
-                      ${allUsers.map(user => `
-                        <option value="${user.id}">${user.firstName} ${user.lastName}</option>
-                      `).join('')}
-                    </select>
+              <!-- Single Schedule Form -->
+              <div id="singleScheduleForm">
+                <h3 style="margin-bottom: 1rem;">Single Day Schedule</h3>
+                <form action="/api/work-schedules" method="POST">
+                  <div class="form-row">
+                    <div class="form-group">
+                      <label class="form-label">Employee</label>
+                      <select name="userId" class="form-select" required>
+                        <option value="">Select Employee</option>
+                        ${allUsers.map(user => `
+                          <option value="${user.id}">${user.firstName} ${user.lastName}</option>
+                        `).join('')}
+                      </select>
+                    </div>
+                    <div class="form-group">
+                      <label class="form-label">Date</label>
+                      <input type="date" name="date" class="form-input" required>
+                    </div>
+                    <div class="form-group">
+                      <label class="form-label">Location</label>
+                      <select name="locationId" class="form-select" required>
+                        <option value="">Select Location</option>
+                        <option value="1">Lake Geneva Store</option>
+                        <option value="2">Watertown Store</option>
+                      </select>
+                    </div>
                   </div>
-                  <div class="form-group">
-                    <label class="form-label">Date</label>
-                    <input type="date" name="date" class="form-input" required>
+                  
+                  <div class="form-row">
+                    <div class="form-group">
+                      <label class="form-label">Start Time</label>
+                      <input type="time" name="startTime" class="form-input" required>
+                    </div>
+                    <div class="form-group">
+                      <label class="form-label">End Time</label>
+                      <input type="time" name="endTime" class="form-input" required>
+                    </div>
+                    <div class="form-group">
+                      <label class="form-label">Position</label>
+                      <input type="text" name="position" class="form-input" placeholder="e.g., Sales Associate">
+                    </div>
                   </div>
-                  <div class="form-group">
-                    <label class="form-label">Location</label>
-                    <select name="locationId" class="form-select" required>
-                      <option value="">Select Location</option>
-                      <option value="1">Lake Geneva Store</option>
-                      <option value="2">Watertown Store</option>
-                    </select>
-                  </div>
-                </div>
-                
-                <div class="form-row">
-                  <div class="form-group">
-                    <label class="form-label">Start Time</label>
-                    <input type="time" name="startTime" class="form-input" required>
-                  </div>
-                  <div class="form-group">
-                    <label class="form-label">End Time</label>
-                    <input type="time" name="endTime" class="form-input" required>
-                  </div>
-                  <div class="form-group">
-                    <label class="form-label">Position</label>
-                    <input type="text" name="position" class="form-input" placeholder="e.g., Sales Associate">
-                  </div>
-                </div>
 
-                <button type="submit" class="btn">Create Schedule</button>
-              </form>
+                  <button type="submit" class="btn">Create Schedule</button>
+                </form>
+              </div>
+
+              <!-- Bulk Schedule Form -->
+              <div id="bulkScheduleForm" style="display: none;">
+                <h3 style="margin-bottom: 1rem;">Bulk Schedule Creator</h3>
+                <form action="/api/work-schedules" method="POST" onsubmit="submitBulkSchedule(event)">
+                  <div class="form-row">
+                    <div class="form-group">
+                      <label class="form-label">Employee</label>
+                      <select name="userId" class="form-select" required>
+                        <option value="">Select Employee</option>
+                        ${allUsers.map(user => `
+                          <option value="${user.id}">${user.firstName} ${user.lastName}</option>
+                        `).join('')}
+                      </select>
+                    </div>
+                    <div class="form-group">
+                      <label class="form-label">Location</label>
+                      <select name="locationId" class="form-select" required>
+                        <option value="">Select Location</option>
+                        <option value="1">Lake Geneva Store</option>
+                        <option value="2">Watertown Store</option>
+                      </select>
+                    </div>
+                    <div class="form-group">
+                      <label class="form-label">Position</label>
+                      <input type="text" name="position" class="form-input" placeholder="e.g., Sales Associate">
+                    </div>
+                  </div>
+                  
+                  <div class="form-row">
+                    <div class="form-group">
+                      <label class="form-label">Start Time</label>
+                      <input type="time" name="startTime" class="form-input" required>
+                    </div>
+                    <div class="form-group">
+                      <label class="form-label">End Time</label>
+                      <input type="time" name="endTime" class="form-input" required>
+                    </div>
+                    <div class="form-group">
+                      <label class="form-label">Month/Year</label>
+                      <input type="month" id="monthSelector" class="form-input" required onchange="generateCalendar()">
+                    </div>
+                  </div>
+
+                  <div class="form-group">
+                    <label class="form-label">Select Dates</label>
+                    <div id="calendarGrid" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; background: #e2e8f0; padding: 1rem; border-radius: 8px; margin-top: 0.5rem;">
+                      <!-- Calendar will be generated here -->
+                    </div>
+                    <p style="font-size: 0.875rem; color: #64748b; margin-top: 0.5rem;">Click on dates to select/deselect them for scheduling</p>
+                  </div>
+
+                  <input type="hidden" name="selectedDates" id="selectedDates">
+                  <button type="submit" class="btn">Create Bulk Schedules</button>
+                </form>
+              </div>
             </div>
 
             <div class="card">
@@ -1700,6 +1763,150 @@ export async function registerRoutes(app: Express): Promise<Server> {
               }
             </div>
           </div>
+
+          <script>
+            let bulkMode = false;
+            let selectedDates = [];
+
+            function toggleBulkMode() {
+              bulkMode = !bulkMode;
+              const singleForm = document.getElementById('singleScheduleForm');
+              const bulkForm = document.getElementById('bulkScheduleForm');
+              const toggleBtn = document.getElementById('bulkToggle');
+
+              if (bulkMode) {
+                singleForm.style.display = 'none';
+                bulkForm.style.display = 'block';
+                toggleBtn.textContent = 'Single Schedule Mode';
+                
+                // Set default month to current month
+                const now = new Date();
+                const currentMonth = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+                document.getElementById('monthSelector').value = currentMonth;
+                generateCalendar();
+              } else {
+                singleForm.style.display = 'block';
+                bulkForm.style.display = 'none';
+                toggleBtn.textContent = 'Bulk Schedule Mode';
+              }
+            }
+
+            function generateCalendar() {
+              const monthSelector = document.getElementById('monthSelector');
+              const calendarGrid = document.getElementById('calendarGrid');
+              
+              if (!monthSelector.value) return;
+
+              const [year, month] = monthSelector.value.split('-').map(Number);
+              const firstDay = new Date(year, month - 1, 1);
+              const lastDay = new Date(year, month, 0);
+              const daysInMonth = lastDay.getDate();
+              const startingDayOfWeek = firstDay.getDay();
+
+              calendarGrid.innerHTML = '';
+              selectedDates = [];
+
+              // Add day headers
+              const dayHeaders = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+              dayHeaders.forEach(day => {
+                const header = document.createElement('div');
+                header.textContent = day;
+                header.style.cssText = 'background: #f8fafc; padding: 0.5rem; text-align: center; font-weight: 600; font-size: 0.875rem;';
+                calendarGrid.appendChild(header);
+              });
+
+              // Add empty cells for days before the first day of the month
+              for (let i = 0; i < startingDayOfWeek; i++) {
+                const emptyCell = document.createElement('div');
+                emptyCell.style.cssText = 'background: white; padding: 0.75rem;';
+                calendarGrid.appendChild(emptyCell);
+              }
+
+              // Add days of the month
+              for (let day = 1; day <= daysInMonth; day++) {
+                const dayCell = document.createElement('div');
+                dayCell.textContent = day;
+                dayCell.style.cssText = 'background: white; padding: 0.75rem; text-align: center; cursor: pointer; border-radius: 4px; transition: all 0.2s; user-select: none;';
+                dayCell.setAttribute('data-date', \`\${year}-\${String(month).padStart(2, '0')}-\${String(day).padStart(2, '0')}\`);
+                
+                dayCell.addEventListener('click', function() {
+                  const date = this.getAttribute('data-date');
+                  const isSelected = selectedDates.includes(date);
+                  
+                  if (isSelected) {
+                    selectedDates = selectedDates.filter(d => d !== date);
+                    this.style.background = 'white';
+                    this.style.color = '#1e293b';
+                  } else {
+                    selectedDates.push(date);
+                    this.style.background = '#607e66';
+                    this.style.color = 'white';
+                  }
+                  
+                  document.getElementById('selectedDates').value = selectedDates.join(',');
+                });
+
+                dayCell.addEventListener('mouseenter', function() {
+                  if (!selectedDates.includes(this.getAttribute('data-date'))) {
+                    this.style.background = '#f1f5f9';
+                  }
+                });
+
+                dayCell.addEventListener('mouseleave', function() {
+                  if (!selectedDates.includes(this.getAttribute('data-date'))) {
+                    this.style.background = 'white';
+                  }
+                });
+
+                calendarGrid.appendChild(dayCell);
+              }
+            }
+
+            function submitBulkSchedule(event) {
+              event.preventDefault();
+              
+              if (selectedDates.length === 0) {
+                alert('Please select at least one date for scheduling.');
+                return;
+              }
+
+              const form = event.target;
+              const formData = new FormData(form);
+              
+              // Add selected dates to form data
+              formData.set('dates', selectedDates.join(','));
+
+              // Submit using fetch
+              fetch('/api/work-schedules', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  userId: formData.get('userId'),
+                  locationId: formData.get('locationId'),
+                  position: formData.get('position'),
+                  startTime: formData.get('startTime'),
+                  endTime: formData.get('endTime'),
+                  dates: selectedDates
+                })
+              })
+              .then(response => response.json())
+              .then(data => {
+                if (data.message) {
+                  alert(data.message);
+                  window.location.reload();
+                } else {
+                  alert('Schedules created successfully!');
+                  window.location.reload();
+                }
+              })
+              .catch(error => {
+                console.error('Error:', error);
+                alert('Failed to create schedules. Please try again.');
+              });
+            }
+          </script>
         </body>
         </html>
       `);
@@ -2647,9 +2854,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: "Manager or admin access required" });
       }
       
-      const validatedData = insertWorkScheduleSchema.parse(req.body);
-      const schedule = await storage.createWorkSchedule(validatedData);
-      res.json(schedule);
+      // Parse form data correctly - convert string numbers to integers
+      const formData = {
+        ...req.body,
+        locationId: parseInt(req.body.locationId),
+        // Handle multiple dates for bulk scheduling
+        dates: req.body.dates ? (Array.isArray(req.body.dates) ? req.body.dates : [req.body.date]) : [req.body.date]
+      };
+      
+      // Create schedules for multiple dates if provided
+      const schedules = [];
+      const dates = formData.dates;
+      
+      for (const date of dates) {
+        const scheduleData = {
+          userId: formData.userId,
+          locationId: formData.locationId,
+          date: date,
+          startTime: formData.startTime,
+          endTime: formData.endTime,
+          position: formData.position || null,
+          notes: formData.notes || null
+        };
+        
+        const validatedData = insertWorkScheduleSchema.parse(scheduleData);
+        const schedule = await storage.createWorkSchedule(validatedData);
+        schedules.push(schedule);
+      }
+      
+      res.json({ 
+        message: `Created ${schedules.length} schedule(s) successfully`,
+        schedules: schedules 
+      });
     } catch (error) {
       console.error("Error creating work schedule:", error);
       res.status(500).json({ message: "Failed to create work schedule" });
