@@ -4688,7 +4688,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const document = await storage.createDocument(documentData);
       
       // Log the upload action
-      await storage.logDocumentAction({
+      await storage.logDocumentActivity({
         documentId: document.id,
         userId,
         action: 'upload',
@@ -4726,7 +4726,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Log the view action
-      await storage.logDocumentAction({
+      await storage.logDocumentActivity({
         documentId,
         userId,
         action: 'view',
@@ -4760,7 +4760,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const updatedDocument = await storage.updateDocument(documentId, req.body);
       
       // Log the update action
-      await storage.logDocumentAction({
+      await storage.logDocumentActivity({
         documentId,
         userId,
         action: 'update',
