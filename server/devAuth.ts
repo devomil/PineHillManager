@@ -60,7 +60,7 @@ export async function setupDevAuth(app: Express) {
           },
           access_token: "dev-token",
           refresh_token: "dev-refresh",
-          expires_at: Math.floor(Date.now() / 1000) + 3600, // 1 hour
+          expires_at: Math.floor(Date.now() / 1000) + 28800, // 8 hours for admin sessions
         };
 
         // Save session before redirect
@@ -94,7 +94,15 @@ export const isAuthenticated: RequestHandler = async (req, res, next) => {
     return res.status(401).json({ message: "Unauthorized" });
   }
 
-  if (user.expires_at && user.expires_at <= Math.floor(Date.now() / 1000)) {
+  // Auto-refresh token if it's expiring soon (within 1 hour)
+  const now = Math.floor(Date.now() / 1000);
+  if (user.expires_at && user.expires_at - now < 3600) {
+    // Extend session by 8 hours
+    user.expires_at = now + 28800;
+    (req.session as any).user = user;
+  }
+
+  if (user.expires_at && user.expires_at <= now) {
     return res.status(401).json({ message: "Token expired" });
   }
 
