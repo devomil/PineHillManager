@@ -2015,6 +2015,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 arrow.innerHTML = '▶';
               }
             }
+
+            function filterSchedules() {
+              const employeeFilter = document.getElementById('employeeFilter').value.toLowerCase();
+              const locationFilter = document.getElementById('locationFilter').value;
+              const dateFilter = document.getElementById('dateFilter').value;
+              const table = document.getElementById('schedulesTable');
+              
+              if (!table) return;
+              
+              const rows = table.getElementsByTagName('tbody')[0].getElementsByTagName('tr');
+              let visibleCount = 0;
+              
+              for (let i = 0; i < rows.length; i++) {
+                const row = rows[i];
+                const cells = row.getElementsByTagName('td');
+                
+                if (cells.length >= 4) {
+                  const employeeName = cells[0].textContent.toLowerCase();
+                  const scheduleDate = cells[1].textContent;
+                  const location = cells[3].textContent;
+                  
+                  let showRow = true;
+                  
+                  // Filter by employee name
+                  if (employeeFilter && !employeeName.includes(employeeFilter)) {
+                    showRow = false;
+                  }
+                  
+                  // Filter by location
+                  if (locationFilter && location !== locationFilter) {
+                    showRow = false;
+                  }
+                  
+                  // Filter by date
+                  if (dateFilter && scheduleDate !== dateFilter) {
+                    showRow = false;
+                  }
+                  
+                  if (showRow) {
+                    row.style.display = '';
+                    visibleCount++;
+                  } else {
+                    row.style.display = 'none';
+                  }
+                }
+              }
+              
+              // Show/hide no results message
+              let noResultsMsg = document.getElementById('noResultsMessage');
+              if (visibleCount === 0 && (employeeFilter || locationFilter || dateFilter)) {
+                if (!noResultsMsg) {
+                  noResultsMsg = document.createElement('tr');
+                  noResultsMsg.id = 'noResultsMessage';
+                  noResultsMsg.innerHTML = '<td colspan="6" style="padding: 2rem; text-align: center; color: #64748b; font-style: italic;">No schedules match your filters. Try adjusting your search criteria.</td>';
+                  table.getElementsByTagName('tbody')[0].appendChild(noResultsMsg);
+                }
+                noResultsMsg.style.display = '';
+              } else if (noResultsMsg) {
+                noResultsMsg.style.display = 'none';
+              }
+            }
           </script>
         </body>
         </html>
@@ -2572,10 +2633,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
             <div class="card">
               <h2 style="margin-bottom: 1.5rem;">Upcoming Schedules (Next 2 Weeks)</h2>
+              
+              <!-- Search Filters -->
+              <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem; padding: 1rem; background: #f8fafc; border-radius: 8px;">
+                <div>
+                  <label style="display: block; font-size: 0.875rem; font-weight: 500; margin-bottom: 0.5rem; color: #374151;">Filter by Employee</label>
+                  <input type="text" id="employeeFilter" placeholder="e.g., Alex Thompson" 
+                         style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.875rem;"
+                         onkeyup="filterSchedules()">
+                </div>
+                <div>
+                  <label style="display: block; font-size: 0.875rem; font-weight: 500; margin-bottom: 0.5rem; color: #374151;">Filter by Location</label>
+                  <select id="locationFilter" onchange="filterSchedules()" 
+                          style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.875rem;">
+                    <option value="">All Locations</option>
+                    <option value="Lake Geneva">Lake Geneva</option>
+                    <option value="Watertown">Watertown</option>
+                  </select>
+                </div>
+                <div>
+                  <label style="display: block; font-size: 0.875rem; font-weight: 500; margin-bottom: 0.5rem; color: #374151;">Filter by Date</label>
+                  <input type="date" id="dateFilter" 
+                         style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.875rem;"
+                         onchange="filterSchedules()">
+                </div>
+              </div>
+              
               ${schedules.length === 0 ? 
                 '<p style="color: #64748b; text-align: center; padding: 2rem;">No schedules found for the next 2 weeks.</p>' :
                 `<div style="overflow-x: auto;">
-                  <table style="width: 100%; border-collapse: collapse;">
+                  <table id="schedulesTable" style="width: 100%; border-collapse: collapse;">
                     <thead>
                       <tr style="background: #f8fafc;">
                         <th style="padding: 1rem; text-align: left; border-bottom: 1px solid #e2e8f0;">Employee</th>
