@@ -82,6 +82,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Initialize database with sample users
   await initializeDatabase();
 
+  // Test route to debug blank page issue
+  app.get('/test', (req, res) => {
+    res.send(`
+      <!DOCTYPE html>
+      <html>
+      <head><title>Test Page</title></head>
+      <body style="font-family: Arial; padding: 20px; background: #f0f0f0;">
+        <h1>Pine Hill Farm Test Page</h1>
+        <p>If you can see this, the server is working correctly.</p>
+        <a href="/api/login" style="background: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Test Login</a>
+      </body>
+      </html>
+    `);
+  });
+
   // Static landing page that bypasses all Vite processing
   app.get('/static', (req, res) => {
     res.send(`
@@ -1594,24 +1609,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Auth middleware
   await setupDevAuth(app);
 
-  // Serve static assets and bypass Vite entirely
-  app.use('/assets', express.static('client/dist/assets', { fallthrough: false }));
-  app.use('/favicon.ico', express.static('client/dist/favicon.ico'));
-  
-  // Catch all other routes and serve our custom HTML
-  app.get('*', (req, res, next) => {
-    // Skip API routes
-    if (req.path.startsWith('/api/')) {
-      return next();
-    }
-    
-    // For any other route, redirect to root to handle properly
-    if (req.path !== '/') {
-      return res.redirect('/');
-    }
-    
-    next();
-  });
+  // Remove Vite middleware completely - serve everything through Express routes
+  // All functionality is now provided through static HTML routes above
 
   // Auth routes
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
