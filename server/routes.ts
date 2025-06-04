@@ -507,8 +507,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Development user switcher for testing
-  app.get('/dev/switch-user/:testUserId', isAuthenticated, async (req: any, res) => {
+  // Development user switcher for testing (no auth required)
+  app.get('/dev/switch-user/:testUserId', async (req: any, res) => {
     const testUserId = req.params.testUserId;
     const user = await storage.getUser(testUserId);
     
@@ -516,7 +516,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(404).send("Test user not found");
     }
     
-    // Set a development session to simulate this user
+    // Create a mock session to simulate authentication
+    req.session.user = {
+      claims: {
+        sub: testUserId,
+        email: user.email,
+        first_name: user.firstName,
+        last_name: user.lastName,
+        profile_image_url: user.profileImageUrl
+      },
+      access_token: "dev_token",
+      expires_at: Math.floor(Date.now() / 1000) + 3600 // 1 hour from now
+    };
+    
     req.session.devUserId = testUserId;
     res.redirect('/dashboard');
   });
