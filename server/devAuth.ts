@@ -109,11 +109,17 @@ export async function setupDevAuth(app: Express) {
 }
 
 export const isAuthenticated: RequestHandler = async (req, res, next) => {
+  console.log("Authentication middleware called for:", req.method, req.path);
+  console.log("Session data:", req.session);
+  
   const user = (req.session as any)?.user;
 
   if (!user) {
+    console.log("No user in session - returning 401");
     return res.status(401).json({ message: "Unauthorized" });
   }
+  
+  console.log("User found in session:", user);
 
   // Auto-refresh token if it's expiring soon (within 1 hour)
   const now = Math.floor(Date.now() / 1000);

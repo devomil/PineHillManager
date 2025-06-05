@@ -5186,8 +5186,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/admin/logos/upload', isAuthenticated, upload.single('file'), async (req: any, res) => {
     try {
       console.log("Logo upload request received");
+      console.log("Request method:", req.method);
+      console.log("Request headers:", req.headers);
       console.log("Request body:", req.body);
       console.log("Request file:", req.file);
+      console.log("User:", req.user);
       
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
