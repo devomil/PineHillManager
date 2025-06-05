@@ -2,7 +2,7 @@ import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useAuth } from "@/hooks/useAuth";
-import { Sprout, Home, Calendar, Clock, MessageSquare, Users, GraduationCap, Megaphone, BookOpen, BarChart3, Settings, User, X, CalendarDays, Bell, FileText } from "lucide-react";
+import { Sprout, Home, Calendar, Clock, MessageSquare, Users, GraduationCap, Megaphone, BookOpen, BarChart3, Settings, User, X, CalendarDays, Bell, FileText, Image } from "lucide-react";
 
 interface SidebarProps {
   mobileMenuOpen: boolean;
@@ -34,6 +34,7 @@ export default function Sidebar({ mobileMenuOpen, setMobileMenuOpen }: SidebarPr
   const adminItems = [
     { name: "Employees", href: "/employees", icon: Users, roles: ["admin"] },
     { name: "Admin Training", href: "/admin-training", icon: GraduationCap, roles: ["admin"] },
+    { name: "Logo Management", href: "/admin/logos", icon: Image, roles: ["admin"] },
   ];
 
   const handleLogout = () => {
