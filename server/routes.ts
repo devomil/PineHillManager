@@ -1910,6 +1910,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 <a href="/admin" class="active">Admin Dashboard</a>
                 <a href="/admin/employees">Employee Management</a>
                 <a href="/admin/schedule">Schedule Management</a>
+                <a href="/admin/logos">Logo Management</a>
                 <a href="/dashboard">Employee View</a>
                 <a href="/api/logout">Sign Out</a>
               </div>
@@ -3232,6 +3233,230 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error loading new employee form:", error);
       res.status(500).send("Error loading form");
+    }
+  });
+
+  // Admin Logo Management Route
+  app.get('/admin/logos', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      if (!user || user.role !== 'admin') {
+        return res.status(403).send("Access denied - Admin only");
+      }
+
+      const logos = await storage.getAllLogos();
+
+      res.send(`
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+          <title>Pine Hill Farm - Logo Management</title>
+          <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { 
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+              background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+              min-height: 100vh; color: #1e293b;
+            }
+            .header { background: white; padding: 1rem 2rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+            .header-content { max-width: 1400px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
+            .logo { display: flex; align-items: center; gap: 1rem; }
+            .logo-icon { width: 40px; height: 40px; background: #607e66; border-radius: 10px; display: flex; align-items: center; justify-content: center; color: white; font-size: 1.2rem; }
+            .nav { display: flex; gap: 1rem; }
+            .nav a { color: #64748b; text-decoration: none; padding: 0.5rem 1rem; border-radius: 6px; transition: background 0.2s; }
+            .nav a:hover { background: #f1f5f9; }
+            .nav a.active { background: #607e66; color: white; }
+            .container { max-width: 1400px; margin: 0 auto; padding: 2rem; }
+            .page-header { background: white; padding: 2rem; border-radius: 12px; margin-bottom: 2rem; }
+            .card { background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 2rem; }
+            .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; }
+            .form-group { margin-bottom: 1.5rem; }
+            .form-label { display: block; margin-bottom: 0.5rem; font-weight: 500; color: #374151; }
+            .form-input, .form-select { width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 6px; font-size: 1rem; }
+            .form-input:focus, .form-select:focus { outline: none; border-color: #607e66; box-shadow: 0 0 0 3px rgba(96, 126, 102, 0.1); }
+            .btn { background: #607e66; color: white; padding: 0.75rem 1.5rem; border: none; border-radius: 6px; text-decoration: none; display: inline-block; font-weight: 500; transition: background 0.2s; margin-right: 1rem; cursor: pointer; }
+            .btn:hover { background: #4f6b56; }
+            .btn-secondary { background: #e2e8f0; color: #475569; }
+            .btn-secondary:hover { background: #cbd5e1; }
+            .btn-danger { background: #dc2626; color: white; }
+            .btn-danger:hover { background: #b91c1c; }
+            .logos-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2rem; margin-top: 2rem; }
+            .logo-card { border: 1px solid #e2e8f0; border-radius: 8px; padding: 1.5rem; }
+            .logo-preview { width: 100%; height: 120px; border: 2px dashed #d1d5db; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 1rem; background: #f9fafb; }
+            .logo-preview img { max-width: 100%; max-height: 100%; object-fit: contain; }
+            .logo-info { margin-bottom: 1rem; }
+            .logo-status { padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.75rem; font-weight: 500; }
+            .status-active { background: #d1fae5; color: #065f46; }
+            .status-inactive { background: #fee2e2; color: #991b1b; }
+            .file-input { margin-bottom: 1rem; }
+            .upload-area { border: 2px dashed #d1d5db; border-radius: 8px; padding: 2rem; text-align: center; background: #f9fafb; margin-bottom: 1rem; transition: border-color 0.2s; }
+            .upload-area:hover { border-color: #607e66; }
+            .upload-area.dragover { border-color: #607e66; background: #f0f9ff; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div class="header-content">
+              <div class="logo">
+                <div class="logo-icon">🌱</div>
+                <div>
+                  <div style="font-weight: 600;">Pine Hill Farm</div>
+                  <div style="font-size: 0.875rem; color: #64748b;">Admin Portal</div>
+                </div>
+              </div>
+              <div class="nav">
+                <a href="/admin">Admin Dashboard</a>
+                <a href="/admin/employees">Employee Management</a>
+                <a href="/admin/schedule">Schedule Management</a>
+                <a href="/admin/logos" class="active">Logo Management</a>
+                <a href="/dashboard">Employee View</a>
+                <a href="/api/logout">Sign Out</a>
+              </div>
+            </div>
+          </div>
+
+          <div class="container">
+            <div class="page-header">
+              <h1 style="margin-bottom: 0.5rem;">Logo Management</h1>
+              <p style="color: #64748b;">Upload and manage company logos used throughout the employee portal.</p>
+            </div>
+
+            <div class="card">
+              <h2 style="margin-bottom: 1.5rem;">Upload New Logo</h2>
+              <form action="/api/logos/upload" method="post" enctype="multipart/form-data">
+                <div class="form-grid">
+                  <div class="form-group">
+                    <label class="form-label">Logo Type</label>
+                    <select name="logoType" class="form-select" required>
+                      <option value="">Select logo type...</option>
+                      <option value="login">Login Page Logo</option>
+                      <option value="header">Header Logo</option>
+                      <option value="footer">Footer Logo</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Status</label>
+                    <select name="isActive" class="form-select">
+                      <option value="true">Active</option>
+                      <option value="false">Inactive</option>
+                    </select>
+                  </div>
+                </div>
+                
+                <div class="form-group">
+                  <label class="form-label">Logo File</label>
+                  <div class="upload-area" id="uploadArea">
+                    <p>Drag and drop your logo here, or click to select</p>
+                    <p style="color: #64748b; font-size: 0.875rem; margin-top: 0.5rem;">Supported formats: PNG, JPEG, GIF, SVG (Max 5MB)</p>
+                    <input type="file" name="logo" class="file-input" id="logoFile" accept=".png,.jpg,.jpeg,.gif,.svg" required style="display: none;">
+                  </div>
+                  <div id="filePreview" style="display: none;">
+                    <img id="previewImg" style="max-width: 200px; max-height: 100px; object-fit: contain; border: 1px solid #e2e8f0; border-radius: 4px;">
+                    <p id="fileName" style="margin-top: 0.5rem; color: #64748b;"></p>
+                  </div>
+                </div>
+
+                <button type="submit" class="btn">Upload Logo</button>
+                <button type="button" class="btn-secondary btn" onclick="resetForm()">Reset</button>
+              </form>
+            </div>
+
+            <div class="card">
+              <h2 style="margin-bottom: 1.5rem;">Current Logos</h2>
+              <div class="logos-grid">
+                ${logos.map(logo => `
+                  <div class="logo-card">
+                    <div class="logo-preview">
+                      <img src="/uploads/${logo.fileName}" alt="${logo.logoType} logo">
+                    </div>
+                    <div class="logo-info">
+                      <h3 style="margin-bottom: 0.5rem; text-transform: capitalize;">${logo.logoType} Logo</h3>
+                      <p style="color: #64748b; font-size: 0.875rem;">Uploaded: ${new Date(logo.uploadedAt).toLocaleDateString()}</p>
+                      <span class="logo-status ${logo.isActive ? 'status-active' : 'status-inactive'}">
+                        ${logo.isActive ? 'Active' : 'Inactive'}
+                      </span>
+                    </div>
+                    <div style="display: flex; gap: 0.5rem;">
+                      <form action="/api/logos/${logo.id}/toggle" method="post" style="display: inline;">
+                        <button type="submit" class="btn-secondary btn" style="font-size: 0.875rem;">
+                          ${logo.isActive ? 'Deactivate' : 'Activate'}
+                        </button>
+                      </form>
+                      <form action="/api/logos/${logo.id}/delete" method="post" style="display: inline;" onsubmit="return confirm('Are you sure you want to delete this logo?')">
+                        <button type="submit" class="btn-danger btn" style="font-size: 0.875rem;">Delete</button>
+                      </form>
+                    </div>
+                  </div>
+                `).join('')}
+                ${logos.length === 0 ? '<p style="color: #64748b; text-align: center; grid-column: 1 / -1;">No logos uploaded yet.</p>' : ''}
+              </div>
+            </div>
+          </div>
+
+          <script>
+            const uploadArea = document.getElementById('uploadArea');
+            const fileInput = document.getElementById('logoFile');
+            const filePreview = document.getElementById('filePreview');
+            const previewImg = document.getElementById('previewImg');
+            const fileName = document.getElementById('fileName');
+
+            uploadArea.addEventListener('click', () => fileInput.click());
+
+            uploadArea.addEventListener('dragover', (e) => {
+              e.preventDefault();
+              uploadArea.classList.add('dragover');
+            });
+
+            uploadArea.addEventListener('dragleave', () => {
+              uploadArea.classList.remove('dragover');
+            });
+
+            uploadArea.addEventListener('drop', (e) => {
+              e.preventDefault();
+              uploadArea.classList.remove('dragover');
+              const files = e.dataTransfer.files;
+              if (files.length > 0) {
+                fileInput.files = files;
+                handleFileSelect(files[0]);
+              }
+            });
+
+            fileInput.addEventListener('change', (e) => {
+              if (e.target.files.length > 0) {
+                handleFileSelect(e.target.files[0]);
+              }
+            });
+
+            function handleFileSelect(file) {
+              if (file.size > 5 * 1024 * 1024) {
+                alert('File size must be less than 5MB');
+                return;
+              }
+
+              const reader = new FileReader();
+              reader.onload = (e) => {
+                previewImg.src = e.target.result;
+                fileName.textContent = file.name;
+                filePreview.style.display = 'block';
+                uploadArea.style.display = 'none';
+              };
+              reader.readAsDataURL(file);
+            }
+
+            function resetForm() {
+              document.querySelector('form').reset();
+              filePreview.style.display = 'none';
+              uploadArea.style.display = 'block';
+            }
+          </script>
+        </body>
+        </html>
+      `);
+    } catch (error) {
+      console.error("Error loading logo management:", error);
+      res.status(500).send("Error loading logo management");
     }
   });
 
