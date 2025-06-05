@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Users, Clock, MessageSquare } from "lucide-react";
-import pineHillLogo from "@/assets/pine-hill-logo.svg";
+import DynamicLogo from "@/components/ui/dynamic-logo";
 
 export default function Landing() {
   const handleLogin = () => {
@@ -14,9 +14,12 @@ export default function Landing() {
         {/* Header */}
         <div className="text-center mb-16">
           <div className="flex items-center justify-center mb-6">
-            <div className="w-16 h-16 rounded-2xl flex items-center justify-center">
-              <img src={pineHillLogo} alt="Pine Hill Farm" className="w-16 h-16" />
-            </div>
+            <DynamicLogo 
+              logoType="login_logo" 
+              size="lg"
+              fallbackText="Pine Hill Farm"
+              className="rounded-2xl"
+            />
           </div>
           <h1 className="text-4xl font-bold text-slate-900 mb-4">
             Pine Hill Farm

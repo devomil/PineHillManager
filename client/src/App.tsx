@@ -4,6 +4,7 @@ import AppLayout from "@/components/layout/app-layout";
 import Home from "@/pages/Home";
 import Dashboard from "@/pages/dashboard";
 import Documents from "@/pages/documents";
+import LogosPage from "@/pages/admin/logos";
 import NotFound from "@/pages/not-found";
 
 function AuthenticatedApp() {
@@ -13,6 +14,7 @@ function AuthenticatedApp() {
         <Route path="/" component={Dashboard} />
         <Route path="/dashboard" component={Dashboard} />
         <Route path="/documents" component={Documents} />
+        <Route path="/admin/logos" component={LogosPage} />
         <Route component={NotFound} />
       </Switch>
     </AppLayout>

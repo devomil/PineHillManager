@@ -284,7 +284,7 @@ export default function LogosPage() {
                         {logo.originalName} • {formatFileSize(logo.fileSize)}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        Uploaded {new Date(logo.uploadedAt).toLocaleDateString()}
+                        Uploaded {logo.uploadedAt ? new Date(logo.uploadedAt).toLocaleDateString() : 'Unknown'}
                       </p>
                     </div>
                   </div>
