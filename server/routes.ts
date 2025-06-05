@@ -4607,6 +4607,286 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Admin Documents Management page with upload functionality
+  app.get('/admin/documents', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      if (!user || (user.role !== 'admin' && user.role !== 'manager')) {
+        return res.status(403).send("Access denied - Admin or Manager role required");
+      }
+
+      const documents = await storage.getDocuments();
+
+      res.send(`
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+          <title>Pine Hill Farm - Document Management</title>
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { 
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+              background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+              min-height: 100vh; color: #1e293b;
+            }
+            .header { background: white; padding: 1rem 2rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+            .header-content { max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
+            .logo { display: flex; align-items: center; gap: 1rem; }
+            .logo-icon { width: 40px; height: 40px; background: #607e66; border-radius: 10px; display: flex; align-items: center; justify-content: center; color: white; font-size: 1.2rem; }
+            .nav { display: flex; gap: 1rem; flex-wrap: wrap; }
+            .nav a { color: #64748b; text-decoration: none; padding: 0.5rem 1rem; border-radius: 6px; transition: background 0.2s; }
+            .nav a:hover { background: #f1f5f9; }
+            .nav a.active { background: #607e66; color: white; }
+            .container { max-width: 1200px; margin: 0 auto; padding: 2rem; }
+            .page-header { text-align: center; margin-bottom: 3rem; }
+            .upload-section { background: white; padding: 2rem; border-radius: 12px; margin-bottom: 3rem; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+            .upload-form { display: grid; gap: 1rem; max-width: 600px; margin: 0 auto; }
+            .form-group { display: flex; flex-direction: column; gap: 0.5rem; }
+            .form-group label { font-weight: 500; color: #374151; }
+            .form-control { padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 6px; font-size: 1rem; }
+            .form-control:focus { outline: none; border-color: #607e66; box-shadow: 0 0 0 3px rgba(96, 126, 102, 0.1); }
+            .btn { background: #607e66; color: white; padding: 0.75rem 1.5rem; border: none; border-radius: 8px; font-weight: 500; cursor: pointer; transition: background 0.2s; }
+            .btn:hover { background: #4a6b55; }
+            .btn-secondary { background: #6b7280; }
+            .btn-secondary:hover { background: #4b5563; }
+            .btn-danger { background: #dc2626; }
+            .btn-danger:hover { background: #b91c1c; }
+            .documents-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.5rem; }
+            .document-card { background: white; padding: 1.5rem; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+            .document-title { font-weight: 600; margin-bottom: 0.5rem; color: #1e293b; }
+            .document-meta { color: #64748b; font-size: 0.875rem; margin-bottom: 1rem; }
+            .document-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+            .category-badge { display: inline-block; padding: 0.25rem 0.75rem; background: #e0f2fe; color: #0369a1; border-radius: 1rem; font-size: 0.75rem; font-weight: 500; margin-bottom: 1rem; }
+            .success-message { background: #d1fae5; color: #065f46; padding: 1rem; border-radius: 6px; margin-bottom: 1rem; }
+            .error-message { background: #fee2e2; color: #991b1b; padding: 1rem; border-radius: 6px; margin-bottom: 1rem; }
+            .file-upload-area { border: 2px dashed #d1d5db; padding: 2rem; text-align: center; border-radius: 8px; transition: border-color 0.2s; }
+            .file-upload-area:hover { border-color: #607e66; }
+            .file-upload-area.dragover { border-color: #607e66; background: #f0f9ff; }
+            @media (max-width: 768px) {
+              .nav { flex-direction: column; gap: 0.5rem; }
+              .container { padding: 1rem; }
+              .upload-form { padding: 1rem; }
+              .document-actions { flex-direction: column; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div class="header-content">
+              <div class="logo">
+                <div class="logo-icon">🌲</div>
+                <div>
+                  <div style="font-weight: 600;">Pine Hill Farm</div>
+                  <div style="font-size: 0.875rem; color: #64748b;">Document Management</div>
+                </div>
+              </div>
+              <div class="nav">
+                <a href="/dashboard">Dashboard</a>
+                <a href="/schedule">Schedule</a>
+                <a href="/time-off">Time Off</a>
+                <a href="/announcements">Announcements</a>
+                <a href="/team-chat">Team Chat</a>
+                <a href="/documents">Documents</a>
+                <a href="/admin">Admin Portal</a>
+                <a href="/api/logout">Sign Out</a>
+              </div>
+            </div>
+          </div>
+
+          <div class="container">
+            <div class="page-header">
+              <h1 style="margin-bottom: 0.5rem;">Document Management</h1>
+              <p style="color: #64748b;">Upload and manage company documents, training materials, and resources for all employees.</p>
+            </div>
+
+            <div class="upload-section">
+              <h2 style="margin-bottom: 1.5rem; text-align: center;">Upload New Document</h2>
+              <form class="upload-form" action="/api/documents/upload" method="post" enctype="multipart/form-data">
+                <div class="form-group">
+                  <label for="title">Document Title</label>
+                  <input type="text" id="title" name="title" class="form-control" required 
+                         placeholder="Enter a descriptive title for the document">
+                </div>
+                <div class="form-group">
+                  <label for="description">Description (Optional)</label>
+                  <textarea id="description" name="description" class="form-control" rows="3" 
+                            placeholder="Provide additional details about this document"></textarea>
+                </div>
+                <div class="form-group">
+                  <label for="category">Category</label>
+                  <select id="category" name="category" class="form-control" required>
+                    <option value="">Select a category</option>
+                    <option value="policy">Company Policies</option>
+                    <option value="form">Forms & Templates</option>
+                    <option value="training">Training Materials</option>
+                    <option value="general">General Documents</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label for="file">Choose File</label>
+                  <div class="file-upload-area" onclick="document.getElementById('file').click()">
+                    <p style="margin-bottom: 0.5rem; font-weight: 500;">Click to select a file or drag and drop</p>
+                    <p style="font-size: 0.875rem; color: #64748b;">Supports: PDF, Word, Excel, PowerPoint, Images, Text files (Max: 50MB)</p>
+                  </div>
+                  <input type="file" id="file" name="file" class="form-control" required style="display: none;"
+                         accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.jpg,.jpeg,.png,.gif">
+                  <div id="file-info" style="margin-top: 0.5rem; font-size: 0.875rem; color: #374151;"></div>
+                </div>
+                <div class="form-group">
+                  <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                    <input type="checkbox" name="isPublic" value="true">
+                    <span>Make this document publicly accessible to all employees</span>
+                  </label>
+                  <p style="font-size: 0.875rem; color: #64748b; margin-top: 0.25rem;">
+                    Unchecked documents will only be visible to admins and managers
+                  </p>
+                </div>
+                <button type="submit" class="btn" style="margin-top: 1rem;">Upload Document</button>
+              </form>
+            </div>
+
+            <div class="documents-section">
+              <h2 style="margin-bottom: 2rem;">All Documents (${documents.length})</h2>
+              <div class="documents-grid">
+                ${documents.map(doc => `
+                  <div class="document-card">
+                    <div class="category-badge">${doc.category === 'policy' ? 'Company Policies' : 
+                                                   doc.category === 'form' ? 'Forms & Templates' : 
+                                                   doc.category === 'training' ? 'Training Materials' : 'General Documents'}</div>
+                    <div class="document-title">${doc.originalName}</div>
+                    <div class="document-meta">
+                      Uploaded: ${doc.uploadedAt ? new Date(doc.uploadedAt).toLocaleDateString() : 'Unknown'}<br>
+                      Size: ${(doc.fileSize / 1024).toFixed(1)} KB<br>
+                      ${doc.isPublic ? 'Public' : 'Private'} • Uploaded by: ${doc.uploadedBy}
+                    </div>
+                    ${doc.description ? `<p style="color: #6b7280; margin-bottom: 1rem; font-size: 0.875rem;">${doc.description}</p>` : ''}
+                    <div class="document-actions">
+                      <a href="/api/documents/${doc.id}/download" class="btn" style="text-decoration: none; font-size: 0.875rem;">Download</a>
+                      <button onclick="editDocument(${doc.id})" class="btn btn-secondary" style="font-size: 0.875rem;">Edit</button>
+                      <button onclick="deleteDocument(${doc.id})" class="btn btn-danger" style="font-size: 0.875rem;">Delete</button>
+                    </div>
+                  </div>
+                `).join('')}
+              </div>
+              ${documents.length === 0 ? '<p style="text-align: center; color: #6b7280; margin-top: 2rem;">No documents uploaded yet. Use the form above to upload your first document.</p>' : ''}
+            </div>
+          </div>
+
+          <script>
+            // File upload handling
+            const fileInput = document.getElementById('file');
+            const fileInfo = document.getElementById('file-info');
+            const uploadArea = document.querySelector('.file-upload-area');
+
+            fileInput.addEventListener('change', function(e) {
+              const file = e.target.files[0];
+              if (file) {
+                fileInfo.textContent = \`Selected: \${file.name} (\${(file.size / 1024 / 1024).toFixed(2)} MB)\`;
+              }
+            });
+
+            // Drag and drop functionality
+            uploadArea.addEventListener('dragover', function(e) {
+              e.preventDefault();
+              uploadArea.classList.add('dragover');
+            });
+
+            uploadArea.addEventListener('dragleave', function(e) {
+              e.preventDefault();
+              uploadArea.classList.remove('dragover');
+            });
+
+            uploadArea.addEventListener('drop', function(e) {
+              e.preventDefault();
+              uploadArea.classList.remove('dragover');
+              const files = e.dataTransfer.files;
+              if (files.length > 0) {
+                fileInput.files = files;
+                fileInput.dispatchEvent(new Event('change'));
+              }
+            });
+
+            function deleteDocument(id) {
+              if (confirm('Are you sure you want to delete this document? This action cannot be undone.')) {
+                fetch('/api/documents/' + id, {
+                  method: 'DELETE'
+                }).then(response => {
+                  if (response.ok) {
+                    location.reload();
+                  } else {
+                    alert('Error deleting document. Please try again.');
+                  }
+                }).catch(error => {
+                  alert('Error deleting document. Please check your connection.');
+                });
+              }
+            }
+
+            function editDocument(id) {
+              // Simple edit functionality - could be expanded to a modal
+              const newTitle = prompt('Enter new title for the document:');
+              if (newTitle && newTitle.trim()) {
+                fetch('/api/documents/' + id, {
+                  method: 'PATCH',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({ title: newTitle.trim() })
+                }).then(response => {
+                  if (response.ok) {
+                    location.reload();
+                  } else {
+                    alert('Error updating document. Please try again.');
+                  }
+                }).catch(error => {
+                  alert('Error updating document. Please check your connection.');
+                });
+              }
+            }
+
+            // Form validation
+            document.querySelector('.upload-form').addEventListener('submit', function(e) {
+              const title = document.getElementById('title').value.trim();
+              const category = document.getElementById('category').value;
+              const file = document.getElementById('file').files[0];
+
+              if (!title) {
+                e.preventDefault();
+                alert('Please enter a document title.');
+                return;
+              }
+
+              if (!category) {
+                e.preventDefault();
+                alert('Please select a category.');
+                return;
+              }
+
+              if (!file) {
+                e.preventDefault();
+                alert('Please select a file to upload.');
+                return;
+              }
+
+              if (file.size > 50 * 1024 * 1024) {
+                e.preventDefault();
+                alert('File size must be less than 50MB.');
+                return;
+              }
+            });
+          </script>
+        </body>
+        </html>
+      `);
+    } catch (error) {
+      console.error("Error loading admin documents:", error);
+      res.status(500).send("Error loading document management");
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
