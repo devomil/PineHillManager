@@ -116,6 +116,9 @@ export const isAuthenticated: RequestHandler = async (req, res, next) => {
 
   if (!user) {
     console.log("No user in session - returning 401");
+    if (req.headers.accept && req.headers.accept.includes('text/html')) {
+      return res.status(401).send("Unauthorized");
+    }
     return res.status(401).json({ message: "Unauthorized" });
   }
   
@@ -130,9 +133,14 @@ export const isAuthenticated: RequestHandler = async (req, res, next) => {
   }
 
   if (user.expires_at && user.expires_at <= now) {
+    console.log("Token expired - returning 401");
+    if (req.headers.accept && req.headers.accept.includes('text/html')) {
+      return res.status(401).send("Token expired");
+    }
     return res.status(401).json({ message: "Token expired" });
   }
 
+  console.log("Authentication successful, proceeding to next middleware");
   req.user = user;
   next();
 };
