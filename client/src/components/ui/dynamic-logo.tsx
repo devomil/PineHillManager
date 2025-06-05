@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Building2 } from "lucide-react";
 
 interface DynamicLogoProps {
-  logoType: "main_logo" | "login_logo" | "header_logo" | "footer_logo" | "favicon";
+  logoType: "login_logo" | "header_logo" | "footer_logo";
   className?: string;
   fallbackText?: string;
   size?: "sm" | "md" | "lg" | "xl";
@@ -31,13 +31,17 @@ export default function DynamicLogo({
         setIsLoading(true);
         setHasError(false);
         
+        console.log(`Fetching logo for type: ${logoType}`);
         const response = await fetch(`/api/logos/${logoType}`);
+        console.log(`Response status for ${logoType}:`, response.status);
         
         if (response.ok) {
           const blob = await response.blob();
           const url = URL.createObjectURL(blob);
+          console.log(`Successfully loaded logo for ${logoType}`);
           setLogoUrl(url);
         } else {
+          console.error(`Failed to fetch ${logoType}, status:`, response.status);
           setHasError(true);
         }
       } catch (error) {
