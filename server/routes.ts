@@ -3292,8 +3292,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             .status-active { background: #d1fae5; color: #065f46; }
             .status-inactive { background: #fee2e2; color: #991b1b; }
             .file-input { margin-bottom: 1rem; }
-            .upload-area { border: 2px dashed #d1d5db; border-radius: 8px; padding: 2rem; text-align: center; background: #f9fafb; margin-bottom: 1rem; transition: border-color 0.2s; }
-            .upload-area:hover { border-color: #607e66; }
+            .upload-area { border: 2px dashed #d1d5db; border-radius: 8px; padding: 2rem; text-align: center; background: #f9fafb; margin-bottom: 1rem; transition: all 0.2s; cursor: pointer; }
+            .upload-area:hover { border-color: #607e66; background: #f0f9ff; }
             .upload-area.dragover { border-color: #607e66; background: #f0f9ff; }
           </style>
         </head>
