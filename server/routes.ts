@@ -5284,7 +5284,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Logo not found" });
       }
 
-      res.sendFile(path.resolve(logo.filePath));
+      // Resolve the file path relative to the project root
+      const fullPath = path.resolve(process.cwd(), logo.filePath);
+      console.log(`Serving logo ${logoName} from path: ${fullPath}`);
+      
+      res.sendFile(fullPath);
     } catch (error) {
       console.error("Error serving logo:", error);
       res.status(404).json({ message: "Logo not found" });
