@@ -5195,8 +5195,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
       
+      console.log("Found user:", user);
+      console.log("User role:", user?.role);
+      
       if (!user || user.role !== 'admin') {
-        console.error("Access denied - not admin");
+        console.error("Access denied - not admin. User role:", user?.role);
         if (req.headers.accept && req.headers.accept.includes('text/html')) {
           return res.status(403).send("Access denied - Admin access required");
         }
