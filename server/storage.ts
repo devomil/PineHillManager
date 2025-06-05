@@ -17,6 +17,7 @@ import {
   documentLogs,
   timeClockEntries,
   userPresence,
+  logos,
   type User,
   type UpsertUser,
   type InsertTimeOffRequest,
@@ -48,6 +49,8 @@ import {
   type Document,
   type InsertDocumentPermission,
   type DocumentPermission,
+  type InsertLogo,
+  type Logo,
   type InsertDocumentLog,
   type DocumentLog,
 } from "@shared/schema";
@@ -169,6 +172,15 @@ export interface IStorage {
   getUserPresence(userId: string): Promise<any | undefined>;
   getAllUserPresence(): Promise<any[]>;
   getOnlineUsers(): Promise<any[]>;
+
+  // Logo management
+  getLogos(): Promise<Logo[]>;
+  createLogo(logoData: InsertLogo): Promise<Logo>;
+  getLogoById(id: number): Promise<Logo | undefined>;
+  getActiveLogoByName(name: string): Promise<Logo | undefined>;
+  updateLogoStatus(id: number, isActive: boolean): Promise<Logo>;
+  deleteLogo(id: number): Promise<void>;
+  deactivateLogoByName(name: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1263,6 +1275,62 @@ export class DatabaseStorage implements IStorage {
         )
       )
       .orderBy(asc(users.firstName));
+  }
+
+  // Logo management methods
+  async getLogos(): Promise<Logo[]> {
+    return await db
+      .select()
+      .from(logos)
+      .orderBy(desc(logos.uploadedAt));
+  }
+
+  async createLogo(logoData: InsertLogo): Promise<Logo> {
+    const [logo] = await db
+      .insert(logos)
+      .values(logoData)
+      .returning();
+    return logo;
+  }
+
+  async getLogoById(id: number): Promise<Logo | undefined> {
+    const [logo] = await db
+      .select()
+      .from(logos)
+      .where(eq(logos.id, id));
+    return logo;
+  }
+
+  async getActiveLogoByName(name: string): Promise<Logo | undefined> {
+    const [logo] = await db
+      .select()
+      .from(logos)
+      .where(and(eq(logos.name, name), eq(logos.isActive, true)))
+      .orderBy(desc(logos.uploadedAt))
+      .limit(1);
+    return logo;
+  }
+
+  async updateLogoStatus(id: number, isActive: boolean): Promise<Logo> {
+    const [logo] = await db
+      .update(logos)
+      .set({ isActive, updatedAt: new Date() })
+      .where(eq(logos.id, id))
+      .returning();
+    return logo;
+  }
+
+  async deleteLogo(id: number): Promise<void> {
+    await db
+      .delete(logos)
+      .where(eq(logos.id, id));
+  }
+
+  async deactivateLogoByName(name: string): Promise<void> {
+    await db
+      .update(logos)
+      .set({ isActive: false, updatedAt: new Date() })
+      .where(eq(logos.name, name));
   }
 }
 

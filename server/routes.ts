@@ -4887,6 +4887,146 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Logo Management API Routes
+  
+  // Get all logos
+  app.get('/api/admin/logos', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      if (!user || user.role !== 'admin') {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+
+      const logos = await storage.getLogos();
+      res.json(logos);
+    } catch (error) {
+      console.error("Error fetching logos:", error);
+      res.status(500).json({ message: "Failed to fetch logos" });
+    }
+  });
+
+  // Upload new logo
+  app.post('/api/admin/logos/upload', isAuthenticated, upload.single('file'), async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      if (!user || user.role !== 'admin') {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
+
+      if (!req.body.name) {
+        return res.status(400).json({ message: "Logo name is required" });
+      }
+
+      // Validate file type
+      const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/svg+xml'];
+      if (!allowedTypes.includes(req.file.mimetype)) {
+        return res.status(400).json({ message: "Invalid file type. Only PNG, JPEG, GIF, and SVG files are allowed." });
+      }
+
+      // Check if logo with this name already exists and deactivate it
+      await storage.deactivateLogoByName(req.body.name);
+
+      const logoData = {
+        name: req.body.name,
+        fileName: req.file.filename,
+        originalName: req.file.originalname,
+        filePath: req.file.path,
+        fileSize: req.file.size,
+        mimeType: req.file.mimetype,
+        uploadedBy: userId,
+        isActive: true
+      };
+
+      const logo = await storage.createLogo(logoData);
+      res.json(logo);
+    } catch (error) {
+      console.error("Error uploading logo:", error);
+      res.status(500).json({ message: "Failed to upload logo" });
+    }
+  });
+
+  // Get logo preview
+  app.get('/api/admin/logos/:id/preview', async (req, res) => {
+    try {
+      const logoId = parseInt(req.params.id);
+      const logo = await storage.getLogoById(logoId);
+      
+      if (!logo) {
+        return res.status(404).json({ message: "Logo not found" });
+      }
+
+      res.sendFile(path.resolve(logo.filePath));
+    } catch (error) {
+      console.error("Error serving logo preview:", error);
+      res.status(500).json({ message: "Failed to serve logo" });
+    }
+  });
+
+  // Get active logo by name for frontend use
+  app.get('/api/logos/:name', async (req, res) => {
+    try {
+      const logoName = req.params.name;
+      const logo = await storage.getActiveLogoByName(logoName);
+      
+      if (!logo) {
+        return res.status(404).json({ message: "Logo not found" });
+      }
+
+      res.sendFile(path.resolve(logo.filePath));
+    } catch (error) {
+      console.error("Error serving logo:", error);
+      res.status(404).json({ message: "Logo not found" });
+    }
+  });
+
+  // Toggle logo active status
+  app.patch('/api/admin/logos/:id/toggle', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      if (!user || user.role !== 'admin') {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+
+      const logoId = parseInt(req.params.id);
+      const { isActive } = req.body;
+
+      const logo = await storage.updateLogoStatus(logoId, isActive);
+      res.json(logo);
+    } catch (error) {
+      console.error("Error updating logo status:", error);
+      res.status(500).json({ message: "Failed to update logo status" });
+    }
+  });
+
+  // Delete logo
+  app.delete('/api/admin/logos/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      if (!user || user.role !== 'admin') {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+
+      const logoId = parseInt(req.params.id);
+      await storage.deleteLogo(logoId);
+      res.json({ message: "Logo deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting logo:", error);
+      res.status(500).json({ message: "Failed to delete logo" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
