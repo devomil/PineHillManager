@@ -5186,7 +5186,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/admin/logos/upload', (req, res, next) => {
     console.log("Starting logo upload process");
     next();
-  }, isAuthenticated, upload.single('file'), async (req: any, res) => {
+  }, isAuthenticated, (req, res, next) => {
+    console.log("Authentication passed, starting file upload");
+    upload.single('file')(req, res, (err) => {
+      if (err) {
+        console.error("Multer upload error:", err);
+        return res.status(400).json({ message: err.message });
+      }
+      console.log("File upload completed");
+      next();
+    });
+  }, async (req: any, res) => {
     try {
       console.log("Logo upload request received");
       console.log("Request method:", req.method);
