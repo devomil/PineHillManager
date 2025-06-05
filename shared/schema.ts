@@ -282,6 +282,21 @@ export const documentLogs = pgTable("document_logs", {
   timestamp: timestamp("timestamp").defaultNow(),
 });
 
+// Logo management for branding customization
+export const logos = pgTable("logos", {
+  id: serial("id").primaryKey(),
+  name: varchar("name").notNull(), // 'main_logo', 'login_logo', 'header_logo', etc.
+  fileName: varchar("file_name").notNull(),
+  originalName: varchar("original_name").notNull(),
+  filePath: varchar("file_path").notNull(),
+  fileSize: integer("file_size").notNull(),
+  mimeType: varchar("mime_type").notNull(),
+  isActive: boolean("is_active").default(true),
+  uploadedBy: varchar("uploaded_by").notNull().references(() => users.id),
+  uploadedAt: timestamp("uploaded_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Define relations
 export const usersRelations = relations(users, ({ many }) => ({
   timeOffRequests: many(timeOffRequests),
@@ -298,6 +313,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   uploadedDocuments: many(documents),
   documentPermissions: many(documentPermissions),
   documentLogs: many(documentLogs),
+  uploadedLogos: many(logos),
 }));
 
 export const timeOffRequestsRelations = relations(timeOffRequests, ({ one }) => ({
@@ -361,6 +377,10 @@ export const documentPermissionsRelations = relations(documentPermissions, ({ on
 export const documentLogsRelations = relations(documentLogs, ({ one }) => ({
   document: one(documents, { fields: [documentLogs.documentId], references: [documents.id] }),
   user: one(users, { fields: [documentLogs.userId], references: [users.id] }),
+}));
+
+export const logosRelations = relations(logos, ({ one }) => ({
+  uploader: one(users, { fields: [logos.uploadedBy], references: [users.id] }),
 }));
 
 // Create insert schemas
@@ -447,6 +467,12 @@ export const insertDocumentLogSchema = createInsertSchema(documentLogs).omit({
   timestamp: true,
 });
 
+export const insertLogoSchema = createInsertSchema(logos).omit({
+  id: true,
+  uploadedAt: true,
+  updatedAt: true,
+});
+
 // Add relations for new tables
 export const pushSubscriptionsRelations = relations(pushSubscriptions, ({ one }) => ({
   user: one(users, { fields: [pushSubscriptions.userId], references: [users.id] }),
@@ -478,6 +504,8 @@ export type PushSubscription = typeof pushSubscriptions.$inferSelect;
 export type InsertNotification = z.infer<typeof insertNotificationSchema>;
 export type Notification = typeof notifications.$inferSelect;
 export type Location = typeof locations.$inferSelect;
+export type InsertLogo = z.infer<typeof insertLogoSchema>;
+export type Logo = typeof logos.$inferSelect;
 export type InsertLocation = typeof locations.$inferInsert;
 export type InsertChatChannel = z.infer<typeof insertChatChannelSchema>;
 export type ChatChannel = typeof chatChannels.$inferSelect;
