@@ -175,6 +175,7 @@ export interface IStorage {
 
   // Logo management
   getLogos(): Promise<Logo[]>;
+  getAllLogos(): Promise<Logo[]>;
   createLogo(logoData: InsertLogo): Promise<Logo>;
   getLogoById(id: number): Promise<Logo | undefined>;
   getActiveLogoByName(name: string): Promise<Logo | undefined>;
@@ -1279,6 +1280,13 @@ export class DatabaseStorage implements IStorage {
 
   // Logo management methods
   async getLogos(): Promise<Logo[]> {
+    return await db
+      .select()
+      .from(logos)
+      .orderBy(desc(logos.uploadedAt));
+  }
+
+  async getAllLogos(): Promise<Logo[]> {
     return await db
       .select()
       .from(logos)
