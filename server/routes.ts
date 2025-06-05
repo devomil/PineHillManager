@@ -5183,7 +5183,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Upload new logo
-  app.post('/api/admin/logos/upload', isAuthenticated, upload.single('file'), async (req: any, res) => {
+  app.post('/api/admin/logos/upload', (req, res, next) => {
+    console.log("Starting logo upload process");
+    next();
+  }, isAuthenticated, upload.single('file'), async (req: any, res) => {
     try {
       console.log("Logo upload request received");
       console.log("Request method:", req.method);
