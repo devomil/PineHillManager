@@ -54,18 +54,20 @@ app.use((req, res, next) => {
 (async () => {
   const server = await registerRoutes(app);
 
-  // Serve static files and handle SPA routing
-  app.use(express.static("dist"));
-  
-  // SPA fallback for React routes
-  app.get('*', (req, res, next) => {
-    // Skip API routes
-    if (req.path.startsWith('/api/')) {
-      return next();
-    }
-    // Serve index.html for all other routes
-    res.sendFile(path.join(process.cwd(), 'dist', 'index.html'));
-  });
+  // Setup Vite integration for React app
+  if (process.env.NODE_ENV === "development") {
+    const { setupVite } = await import("./vite");
+    await setupVite(app, server);
+  } else {
+    // In production, serve static files
+    app.use(express.static("dist/public"));
+    app.get('*', (req, res, next) => {
+      if (req.path.startsWith('/api/')) {
+        return next();
+      }
+      res.sendFile(path.join(process.cwd(), 'dist', 'public', 'index.html'));
+    });
+  }
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
