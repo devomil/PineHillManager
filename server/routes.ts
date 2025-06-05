@@ -3325,11 +3325,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
             <div class="card">
               <h2 style="margin-bottom: 1.5rem;">Upload New Logo</h2>
-              <form action="/api/logos/upload" method="post" enctype="multipart/form-data">
+              <form action="/api/admin/logos/upload" method="post" enctype="multipart/form-data">
                 <div class="form-grid">
                   <div class="form-group">
                     <label class="form-label">Logo Type</label>
-                    <select name="logoType" class="form-select" required>
+                    <select name="name" class="form-select" required>
                       <option value="">Select logo type...</option>
                       <option value="login">Login Page Logo</option>
                       <option value="header">Header Logo</option>
@@ -3350,7 +3350,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   <div class="upload-area" id="uploadArea">
                     <p>Drag and drop your logo here, or click to select</p>
                     <p style="color: #64748b; font-size: 0.875rem; margin-top: 0.5rem;">Supported formats: PNG, JPEG, GIF, SVG (Max 5MB)</p>
-                    <input type="file" name="logo" class="file-input" id="logoFile" accept=".png,.jpg,.jpeg,.gif,.svg" required style="display: none;">
+                    <input type="file" name="file" class="file-input" id="logoFile" accept=".png,.jpg,.jpeg,.gif,.svg" required style="display: none;">
                   </div>
                   <div id="filePreview" style="display: none;">
                     <img id="previewImg" style="max-width: 200px; max-height: 100px; object-fit: contain; border: 1px solid #e2e8f0; border-radius: 4px;">
@@ -3369,22 +3369,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 ${logos.map(logo => `
                   <div class="logo-card">
                     <div class="logo-preview">
-                      <img src="/uploads/${logo.fileName}" alt="${logo.logoType} logo">
+                      <img src="/uploads/${logo.fileName}" alt="${logo.name} logo">
                     </div>
                     <div class="logo-info">
-                      <h3 style="margin-bottom: 0.5rem; text-transform: capitalize;">${logo.logoType} Logo</h3>
-                      <p style="color: #64748b; font-size: 0.875rem;">Uploaded: ${new Date(logo.uploadedAt).toLocaleDateString()}</p>
+                      <h3 style="margin-bottom: 0.5rem; text-transform: capitalize;">${logo.name} Logo</h3>
+                      <p style="color: #64748b; font-size: 0.875rem;">Uploaded: ${logo.uploadedAt ? new Date(logo.uploadedAt).toLocaleDateString() : 'Unknown'}</p>
                       <span class="logo-status ${logo.isActive ? 'status-active' : 'status-inactive'}">
                         ${logo.isActive ? 'Active' : 'Inactive'}
                       </span>
                     </div>
                     <div style="display: flex; gap: 0.5rem;">
-                      <form action="/api/logos/${logo.id}/toggle" method="post" style="display: inline;">
+                      <form action="/api/admin/logos/${logo.id}/toggle" method="post" style="display: inline;">
                         <button type="submit" class="btn-secondary btn" style="font-size: 0.875rem;">
                           ${logo.isActive ? 'Deactivate' : 'Activate'}
                         </button>
                       </form>
-                      <form action="/api/logos/${logo.id}/delete" method="post" style="display: inline;" onsubmit="return confirm('Are you sure you want to delete this logo?')">
+                      <form action="/api/admin/logos/${logo.id}" method="post" style="display: inline;" onsubmit="return confirm('Are you sure you want to delete this logo?')">
+                        <input type="hidden" name="_method" value="DELETE">
                         <button type="submit" class="btn-danger btn" style="font-size: 0.875rem;">Delete</button>
                       </form>
                     </div>
@@ -3457,6 +3458,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error loading logo management:", error);
       res.status(500).send("Error loading logo management");
+    }
+  });
+
+  // Server-side logo toggle route
+  app.post('/api/admin/logos/:id/toggle', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      if (!user || user.role !== 'admin') {
+        return res.status(403).send("Access denied - Admin only");
+      }
+
+      const logoId = parseInt(req.params.id);
+      const currentLogo = await storage.getLogoById(logoId);
+      
+      if (!currentLogo) {
+        return res.status(404).send("Logo not found");
+      }
+
+      await storage.updateLogoStatus(logoId, !currentLogo.isActive);
+      res.redirect('/admin/logos');
+    } catch (error) {
+      console.error("Error toggling logo status:", error);
+      res.status(500).send("Error updating logo status");
+    }
+  });
+
+  // Server-side logo delete route
+  app.post('/api/admin/logos/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      if (!user || user.role !== 'admin') {
+        return res.status(403).send("Access denied - Admin only");
+      }
+
+      if (req.body._method === 'DELETE') {
+        const logoId = parseInt(req.params.id);
+        await storage.deleteLogo(logoId);
+        res.redirect('/admin/logos');
+      } else {
+        res.status(400).send("Invalid request method");
+      }
+    } catch (error) {
+      console.error("Error deleting logo:", error);
+      res.status(500).send("Error deleting logo");
     }
   });
 
