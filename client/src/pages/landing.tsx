@@ -1,6 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Sprout, Users, Clock, MessageSquare } from "lucide-react";
+import { Users, Clock, MessageSquare } from "lucide-react";
+import pineHillLogo from "@/assets/pine-hill-logo.svg";
 
 export default function Landing() {
   const handleLogin = () => {
@@ -13,8 +14,8 @@ export default function Landing() {
         {/* Header */}
         <div className="text-center mb-16">
           <div className="flex items-center justify-center mb-6">
-            <div className="w-16 h-16 bg-farm-green rounded-2xl flex items-center justify-center">
-              <Sprout className="w-8 h-8 text-white" />
+            <div className="w-16 h-16 rounded-2xl flex items-center justify-center">
+              <img src={pineHillLogo} alt="Pine Hill Farm" className="w-16 h-16" />
             </div>
           </div>
           <h1 className="text-4xl font-bold text-slate-900 mb-4">

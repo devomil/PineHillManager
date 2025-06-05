@@ -470,7 +470,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         <div class="header">
           <div class="header-content">
             <div class="logo">
-              <div class="logo-icon">🌲</div>
+              <div class="logo-icon"><svg width="40" height="40" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="24" cy="24" r="23" fill="white" stroke="#607e66" stroke-width="2"/><path d="M18 30 Q18 28 20 28 L28 28 Q30 28 30 30 L30 38 Q30 40 28 40 L20 40 Q18 40 18 38 Z" fill="#8B4513"/><path d="M12 20 Q14 18 16 20 Q18 16 20 18 Q22 14 24 16 Q26 12 28 14 Q30 10 32 12 Q34 8 36 10" stroke="#5a8a6b" stroke-width="2" fill="none"/><ellipse cx="15" cy="19" rx="2" ry="3" fill="#6fa876" transform="rotate(-30 15 19)"/><ellipse cx="19" cy="17" rx="2" ry="3" fill="#7db386" transform="rotate(-15 19 17)"/><ellipse cx="23" cy="15" rx="2" ry="3" fill="#6fa876"/><ellipse cx="27" cy="13" rx="2" ry="3" fill="#7db386" transform="rotate(15 27 13)"/><ellipse cx="31" cy="11" rx="2" ry="3" fill="#6fa876" transform="rotate(30 31 11)"/><g transform="translate(16, 32) scale(0.4)"><rect x="8" y="4" width="12" height="8" fill="#2d4a32" rx="1"/><circle cx="16" cy="14" r="4" fill="#2d4a32"/><circle cx="6" cy="14" r="2.5" fill="#2d4a32"/></g></svg></div>
               <div>
                 <div style="font-weight: 600;">Pine Hill Farm</div>
                 <div style="font-size: 0.875rem; color: #64748b;">Employee Portal</div>
@@ -732,7 +732,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         <div class="header">
           <div class="header-content">
             <div class="logo">
-              <div class="logo-icon">🌲</div>
+              <div class="logo-icon"><svg width="40" height="40" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="24" cy="24" r="23" fill="white" stroke="#607e66" stroke-width="2"/><path d="M18 30 Q18 28 20 28 L28 28 Q30 28 30 30 L30 38 Q30 40 28 40 L20 40 Q18 40 18 38 Z" fill="#8B4513"/><path d="M12 20 Q14 18 16 20 Q18 16 20 18 Q22 14 24 16 Q26 12 28 14 Q30 10 32 12 Q34 8 36 10" stroke="#5a8a6b" stroke-width="2" fill="none"/><ellipse cx="15" cy="19" rx="2" ry="3" fill="#6fa876" transform="rotate(-30 15 19)"/><ellipse cx="19" cy="17" rx="2" ry="3" fill="#7db386" transform="rotate(-15 19 17)"/><ellipse cx="23" cy="15" rx="2" ry="3" fill="#6fa876"/><ellipse cx="27" cy="13" rx="2" ry="3" fill="#7db386" transform="rotate(15 27 13)"/><ellipse cx="31" cy="11" rx="2" ry="3" fill="#6fa876" transform="rotate(30 31 11)"/><g transform="translate(16, 32) scale(0.4)"><rect x="8" y="4" width="12" height="8" fill="#2d4a32" rx="1"/><circle cx="16" cy="14" r="4" fill="#2d4a32"/><circle cx="6" cy="14" r="2.5" fill="#2d4a32"/></g></svg></div>
               <div>
                 <div style="font-weight: 600;">Pine Hill Farm</div>
                 <div style="font-size: 0.875rem; color: #64748b;">Employee Portal</div>
@@ -1525,7 +1525,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         <div class="header">
           <div class="header-content">
             <div class="logo">
-              <div class="logo-icon">🌲</div>
+              <div class="logo-icon"><svg width="40" height="40" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="24" cy="24" r="23" fill="white" stroke="#607e66" stroke-width="2"/><path d="M18 30 Q18 28 20 28 L28 28 Q30 28 30 30 L30 38 Q30 40 28 40 L20 40 Q18 40 18 38 Z" fill="#8B4513"/><path d="M12 20 Q14 18 16 20 Q18 16 20 18 Q22 14 24 16 Q26 12 28 14 Q30 10 32 12 Q34 8 36 10" stroke="#5a8a6b" stroke-width="2" fill="none"/><ellipse cx="15" cy="19" rx="2" ry="3" fill="#6fa876" transform="rotate(-30 15 19)"/><ellipse cx="19" cy="17" rx="2" ry="3" fill="#7db386" transform="rotate(-15 19 17)"/><ellipse cx="23" cy="15" rx="2" ry="3" fill="#6fa876"/><ellipse cx="27" cy="13" rx="2" ry="3" fill="#7db386" transform="rotate(15 27 13)"/><ellipse cx="31" cy="11" rx="2" ry="3" fill="#6fa876" transform="rotate(30 31 11)"/><g transform="translate(16, 32) scale(0.4)"><rect x="8" y="4" width="12" height="8" fill="#2d4a32" rx="1"/><circle cx="16" cy="14" r="4" fill="#2d4a32"/><circle cx="6" cy="14" r="2.5" fill="#2d4a32"/></g></svg></div>
               <div>
                 <div style="font-weight: 600;">Pine Hill Farm</div>
                 <div style="font-size: 0.875rem; color: #64748b;">Employee Portal</div>
@@ -1689,7 +1689,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         <div class="header">
           <div class="header-content">
             <div class="logo">
-              <div class="logo-icon">🌲</div>
+              <div class="logo-icon"><svg width="40" height="40" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="24" cy="24" r="23" fill="white" stroke="#607e66" stroke-width="2"/><path d="M18 30 Q18 28 20 28 L28 28 Q30 28 30 30 L30 38 Q30 40 28 40 L20 40 Q18 40 18 38 Z" fill="#8B4513"/><path d="M12 20 Q14 18 16 20 Q18 16 20 18 Q22 14 24 16 Q26 12 28 14 Q30 10 32 12 Q34 8 36 10" stroke="#5a8a6b" stroke-width="2" fill="none"/><ellipse cx="15" cy="19" rx="2" ry="3" fill="#6fa876" transform="rotate(-30 15 19)"/><ellipse cx="19" cy="17" rx="2" ry="3" fill="#7db386" transform="rotate(-15 19 17)"/><ellipse cx="23" cy="15" rx="2" ry="3" fill="#6fa876"/><ellipse cx="27" cy="13" rx="2" ry="3" fill="#7db386" transform="rotate(15 27 13)"/><ellipse cx="31" cy="11" rx="2" ry="3" fill="#6fa876" transform="rotate(30 31 11)"/><g transform="translate(16, 32) scale(0.4)"><rect x="8" y="4" width="12" height="8" fill="#2d4a32" rx="1"/><circle cx="16" cy="14" r="4" fill="#2d4a32"/><circle cx="6" cy="14" r="2.5" fill="#2d4a32"/></g></svg></div>
               <div>
                 <div style="font-weight: 600;">Pine Hill Farm</div>
                 <div style="font-size: 0.875rem; color: #64748b;">Employee Portal</div>
@@ -1900,7 +1900,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           <div class="header">
             <div class="header-content">
               <div class="logo">
-                <div class="logo-icon">🌲</div>
+                <div class="logo-icon"><svg width="40" height="40" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="24" cy="24" r="23" fill="white" stroke="#607e66" stroke-width="2"/><path d="M18 30 Q18 28 20 28 L28 28 Q30 28 30 30 L30 38 Q30 40 28 40 L20 40 Q18 40 18 38 Z" fill="#8B4513"/><path d="M12 20 Q14 18 16 20 Q18 16 20 18 Q22 14 24 16 Q26 12 28 14 Q30 10 32 12 Q34 8 36 10" stroke="#5a8a6b" stroke-width="2" fill="none"/><ellipse cx="15" cy="19" rx="2" ry="3" fill="#6fa876" transform="rotate(-30 15 19)"/><ellipse cx="19" cy="17" rx="2" ry="3" fill="#7db386" transform="rotate(-15 19 17)"/><ellipse cx="23" cy="15" rx="2" ry="3" fill="#6fa876"/><ellipse cx="27" cy="13" rx="2" ry="3" fill="#7db386" transform="rotate(15 27 13)"/><ellipse cx="31" cy="11" rx="2" ry="3" fill="#6fa876" transform="rotate(30 31 11)"/><g transform="translate(16, 32) scale(0.4)"><rect x="8" y="4" width="12" height="8" fill="#2d4a32" rx="1"/><circle cx="16" cy="14" r="4" fill="#2d4a32"/><circle cx="6" cy="14" r="2.5" fill="#2d4a32"/></g></svg></div>
                 <div>
                   <div style="font-weight: 600;">Pine Hill Farm</div>
                   <div style="font-size: 0.875rem; color: #64748b;">Admin Portal</div>
@@ -2216,7 +2216,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           <div class="header">
             <div class="header-content">
               <div class="logo">
-                <div class="logo-icon">🌲</div>
+                <div class="logo-icon"><svg width="40" height="40" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="24" cy="24" r="23" fill="white" stroke="#607e66" stroke-width="2"/><path d="M18 30 Q18 28 20 28 L28 28 Q30 28 30 30 L30 38 Q30 40 28 40 L20 40 Q18 40 18 38 Z" fill="#8B4513"/><path d="M12 20 Q14 18 16 20 Q18 16 20 18 Q22 14 24 16 Q26 12 28 14 Q30 10 32 12 Q34 8 36 10" stroke="#5a8a6b" stroke-width="2" fill="none"/><ellipse cx="15" cy="19" rx="2" ry="3" fill="#6fa876" transform="rotate(-30 15 19)"/><ellipse cx="19" cy="17" rx="2" ry="3" fill="#7db386" transform="rotate(-15 19 17)"/><ellipse cx="23" cy="15" rx="2" ry="3" fill="#6fa876"/><ellipse cx="27" cy="13" rx="2" ry="3" fill="#7db386" transform="rotate(15 27 13)"/><ellipse cx="31" cy="11" rx="2" ry="3" fill="#6fa876" transform="rotate(30 31 11)"/><g transform="translate(16, 32) scale(0.4)"><rect x="8" y="4" width="12" height="8" fill="#2d4a32" rx="1"/><circle cx="16" cy="14" r="4" fill="#2d4a32"/><circle cx="6" cy="14" r="2.5" fill="#2d4a32"/></g></svg></div>
                 <div>
                   <div style="font-weight: 600;">Pine Hill Farm</div>
                   <div style="font-size: 0.875rem; color: #64748b;">Employee Management</div>
@@ -2406,7 +2406,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           <div class="header">
             <div class="header-content">
               <div class="logo">
-                <div class="logo-icon">🌲</div>
+                <div class="logo-icon"><svg width="40" height="40" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="24" cy="24" r="23" fill="white" stroke="#607e66" stroke-width="2"/><path d="M18 30 Q18 28 20 28 L28 28 Q30 28 30 30 L30 38 Q30 40 28 40 L20 40 Q18 40 18 38 Z" fill="#8B4513"/><path d="M12 20 Q14 18 16 20 Q18 16 20 18 Q22 14 24 16 Q26 12 28 14 Q30 10 32 12 Q34 8 36 10" stroke="#5a8a6b" stroke-width="2" fill="none"/><ellipse cx="15" cy="19" rx="2" ry="3" fill="#6fa876" transform="rotate(-30 15 19)"/><ellipse cx="19" cy="17" rx="2" ry="3" fill="#7db386" transform="rotate(-15 19 17)"/><ellipse cx="23" cy="15" rx="2" ry="3" fill="#6fa876"/><ellipse cx="27" cy="13" rx="2" ry="3" fill="#7db386" transform="rotate(15 27 13)"/><ellipse cx="31" cy="11" rx="2" ry="3" fill="#6fa876" transform="rotate(30 31 11)"/><g transform="translate(16, 32) scale(0.4)"><rect x="8" y="4" width="12" height="8" fill="#2d4a32" rx="1"/><circle cx="16" cy="14" r="4" fill="#2d4a32"/><circle cx="6" cy="14" r="2.5" fill="#2d4a32"/></g></svg></div>
                 <div>
                   <div style="font-weight: 600;">Pine Hill Farm</div>
                   <div style="font-size: 0.875rem; color: #64748b;">Edit Employee</div>
@@ -2568,7 +2568,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           <div class="header">
             <div class="header-content">
               <div class="logo">
-                <div class="logo-icon">🌲</div>
+                <div class="logo-icon"><svg width="40" height="40" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="24" cy="24" r="23" fill="white" stroke="#607e66" stroke-width="2"/><path d="M18 30 Q18 28 20 28 L28 28 Q30 28 30 30 L30 38 Q30 40 28 40 L20 40 Q18 40 18 38 Z" fill="#8B4513"/><path d="M12 20 Q14 18 16 20 Q18 16 20 18 Q22 14 24 16 Q26 12 28 14 Q30 10 32 12 Q34 8 36 10" stroke="#5a8a6b" stroke-width="2" fill="none"/><ellipse cx="15" cy="19" rx="2" ry="3" fill="#6fa876" transform="rotate(-30 15 19)"/><ellipse cx="19" cy="17" rx="2" ry="3" fill="#7db386" transform="rotate(-15 19 17)"/><ellipse cx="23" cy="15" rx="2" ry="3" fill="#6fa876"/><ellipse cx="27" cy="13" rx="2" ry="3" fill="#7db386" transform="rotate(15 27 13)"/><ellipse cx="31" cy="11" rx="2" ry="3" fill="#6fa876" transform="rotate(30 31 11)"/><g transform="translate(16, 32) scale(0.4)"><rect x="8" y="4" width="12" height="8" fill="#2d4a32" rx="1"/><circle cx="16" cy="14" r="4" fill="#2d4a32"/><circle cx="6" cy="14" r="2.5" fill="#2d4a32"/></g></svg></div>
                 <div>
                   <div style="font-weight: 600;">Pine Hill Farm</div>
                   <div style="font-size: 0.875rem; color: #64748b;">Schedule Management</div>
@@ -3097,7 +3097,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           <div class="header">
             <div class="header-content">
               <div class="logo">
-                <div class="logo-icon">🌲</div>
+                <div class="logo-icon"><svg width="40" height="40" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="24" cy="24" r="23" fill="white" stroke="#607e66" stroke-width="2"/><path d="M18 30 Q18 28 20 28 L28 28 Q30 28 30 30 L30 38 Q30 40 28 40 L20 40 Q18 40 18 38 Z" fill="#8B4513"/><path d="M12 20 Q14 18 16 20 Q18 16 20 18 Q22 14 24 16 Q26 12 28 14 Q30 10 32 12 Q34 8 36 10" stroke="#5a8a6b" stroke-width="2" fill="none"/><ellipse cx="15" cy="19" rx="2" ry="3" fill="#6fa876" transform="rotate(-30 15 19)"/><ellipse cx="19" cy="17" rx="2" ry="3" fill="#7db386" transform="rotate(-15 19 17)"/><ellipse cx="23" cy="15" rx="2" ry="3" fill="#6fa876"/><ellipse cx="27" cy="13" rx="2" ry="3" fill="#7db386" transform="rotate(15 27 13)"/><ellipse cx="31" cy="11" rx="2" ry="3" fill="#6fa876" transform="rotate(30 31 11)"/><g transform="translate(16, 32) scale(0.4)"><rect x="8" y="4" width="12" height="8" fill="#2d4a32" rx="1"/><circle cx="16" cy="14" r="4" fill="#2d4a32"/><circle cx="6" cy="14" r="2.5" fill="#2d4a32"/></g></svg></div>
                 <div>
                   <div style="font-weight: 600;">Pine Hill Farm</div>
                   <div style="font-size: 0.875rem; color: #64748b;">Add New Employee</div>
@@ -3331,7 +3331,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           <div class="header">
             <div class="header-content">
               <div class="logo">
-                <div class="logo-icon">🌲</div>
+                <div class="logo-icon"><svg width="40" height="40" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="24" cy="24" r="23" fill="white" stroke="#607e66" stroke-width="2"/><path d="M18 30 Q18 28 20 28 L28 28 Q30 28 30 30 L30 38 Q30 40 28 40 L20 40 Q18 40 18 38 Z" fill="#8B4513"/><path d="M12 20 Q14 18 16 20 Q18 16 20 18 Q22 14 24 16 Q26 12 28 14 Q30 10 32 12 Q34 8 36 10" stroke="#5a8a6b" stroke-width="2" fill="none"/><ellipse cx="15" cy="19" rx="2" ry="3" fill="#6fa876" transform="rotate(-30 15 19)"/><ellipse cx="19" cy="17" rx="2" ry="3" fill="#7db386" transform="rotate(-15 19 17)"/><ellipse cx="23" cy="15" rx="2" ry="3" fill="#6fa876"/><ellipse cx="27" cy="13" rx="2" ry="3" fill="#7db386" transform="rotate(15 27 13)"/><ellipse cx="31" cy="11" rx="2" ry="3" fill="#6fa876" transform="rotate(30 31 11)"/><g transform="translate(16, 32) scale(0.4)"><rect x="8" y="4" width="12" height="8" fill="#2d4a32" rx="1"/><circle cx="16" cy="14" r="4" fill="#2d4a32"/><circle cx="6" cy="14" r="2.5" fill="#2d4a32"/></g></svg></div>
                 <div>
                   <div style="font-weight: 600;">Pine Hill Farm</div>
                   <div style="font-size: 0.875rem; color: #64748b;">Team Chat</div>
@@ -3481,7 +3481,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           <div class="header">
             <div class="header-content">
               <div class="logo">
-                <div class="logo-icon">🌲</div>
+                <div class="logo-icon"><svg width="40" height="40" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="24" cy="24" r="23" fill="white" stroke="#607e66" stroke-width="2"/><path d="M18 30 Q18 28 20 28 L28 28 Q30 28 30 30 L30 38 Q30 40 28 40 L20 40 Q18 40 18 38 Z" fill="#8B4513"/><path d="M12 20 Q14 18 16 20 Q18 16 20 18 Q22 14 24 16 Q26 12 28 14 Q30 10 32 12 Q34 8 36 10" stroke="#5a8a6b" stroke-width="2" fill="none"/><ellipse cx="15" cy="19" rx="2" ry="3" fill="#6fa876" transform="rotate(-30 15 19)"/><ellipse cx="19" cy="17" rx="2" ry="3" fill="#7db386" transform="rotate(-15 19 17)"/><ellipse cx="23" cy="15" rx="2" ry="3" fill="#6fa876"/><ellipse cx="27" cy="13" rx="2" ry="3" fill="#7db386" transform="rotate(15 27 13)"/><ellipse cx="31" cy="11" rx="2" ry="3" fill="#6fa876" transform="rotate(30 31 11)"/><g transform="translate(16, 32) scale(0.4)"><rect x="8" y="4" width="12" height="8" fill="#2d4a32" rx="1"/><circle cx="16" cy="14" r="4" fill="#2d4a32"/><circle cx="6" cy="14" r="2.5" fill="#2d4a32"/></g></svg></div>
                 <div>
                   <div style="font-weight: 600;">Pine Hill Farm</div>
                   <div style="font-size: 0.875rem; color: #64748b;">Documents & Resources</div>
@@ -3665,7 +3665,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           <div class="header">
             <div class="header-content">
               <div class="logo">
-                <div class="logo-icon">🌲</div>
+                <div class="logo-icon"><svg width="40" height="40" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="24" cy="24" r="23" fill="white" stroke="#607e66" stroke-width="2"/><path d="M18 30 Q18 28 20 28 L28 28 Q30 28 30 30 L30 38 Q30 40 28 40 L20 40 Q18 40 18 38 Z" fill="#8B4513"/><path d="M12 20 Q14 18 16 20 Q18 16 20 18 Q22 14 24 16 Q26 12 28 14 Q30 10 32 12 Q34 8 36 10" stroke="#5a8a6b" stroke-width="2" fill="none"/><ellipse cx="15" cy="19" rx="2" ry="3" fill="#6fa876" transform="rotate(-30 15 19)"/><ellipse cx="19" cy="17" rx="2" ry="3" fill="#7db386" transform="rotate(-15 19 17)"/><ellipse cx="23" cy="15" rx="2" ry="3" fill="#6fa876"/><ellipse cx="27" cy="13" rx="2" ry="3" fill="#7db386" transform="rotate(15 27 13)"/><ellipse cx="31" cy="11" rx="2" ry="3" fill="#6fa876" transform="rotate(30 31 11)"/><g transform="translate(16, 32) scale(0.4)"><rect x="8" y="4" width="12" height="8" fill="#2d4a32" rx="1"/><circle cx="16" cy="14" r="4" fill="#2d4a32"/><circle cx="6" cy="14" r="2.5" fill="#2d4a32"/></g></svg></div>
                 <div>
                   <div style="font-weight: 600;">Pine Hill Farm</div>
                   <div style="font-size: 0.875rem; color: #64748b;">Shift Coverage</div>
@@ -4677,7 +4677,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           <div class="header">
             <div class="header-content">
               <div class="logo">
-                <div class="logo-icon">🌲</div>
+                <div class="logo-icon"><svg width="40" height="40" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="24" cy="24" r="23" fill="white" stroke="#607e66" stroke-width="2"/><path d="M18 30 Q18 28 20 28 L28 28 Q30 28 30 30 L30 38 Q30 40 28 40 L20 40 Q18 40 18 38 Z" fill="#8B4513"/><path d="M12 20 Q14 18 16 20 Q18 16 20 18 Q22 14 24 16 Q26 12 28 14 Q30 10 32 12 Q34 8 36 10" stroke="#5a8a6b" stroke-width="2" fill="none"/><ellipse cx="15" cy="19" rx="2" ry="3" fill="#6fa876" transform="rotate(-30 15 19)"/><ellipse cx="19" cy="17" rx="2" ry="3" fill="#7db386" transform="rotate(-15 19 17)"/><ellipse cx="23" cy="15" rx="2" ry="3" fill="#6fa876"/><ellipse cx="27" cy="13" rx="2" ry="3" fill="#7db386" transform="rotate(15 27 13)"/><ellipse cx="31" cy="11" rx="2" ry="3" fill="#6fa876" transform="rotate(30 31 11)"/><g transform="translate(16, 32) scale(0.4)"><rect x="8" y="4" width="12" height="8" fill="#2d4a32" rx="1"/><circle cx="16" cy="14" r="4" fill="#2d4a32"/><circle cx="6" cy="14" r="2.5" fill="#2d4a32"/></g></svg></div>
                 <div>
                   <div style="font-weight: 600;">Pine Hill Farm</div>
                   <div style="font-size: 0.875rem; color: #64748b;">Document Management</div>

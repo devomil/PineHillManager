@@ -1,0 +1,43 @@
+<svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circle -->
+  <circle cx="24" cy="24" r="23" fill="#607e66" stroke="#4a6b55" stroke-width="2"/>
+  
+  <!-- Tree trunk -->
+  <path d="M18 30 Q18 28 20 28 L28 28 Q30 28 30 30 L30 38 Q30 40 28 40 L20 40 Q18 40 18 38 Z" fill="#8B4513"/>
+  
+  <!-- Tree leaves - curved branch with leaves -->
+  <path d="M12 20 Q14 18 16 20 Q18 16 20 18 Q22 14 24 16 Q26 12 28 14 Q30 10 32 12 Q34 8 36 10" 
+        stroke="#5a8a6b" stroke-width="2" fill="none"/>
+  
+  <!-- Individual leaves -->
+  <ellipse cx="15" cy="19" rx="2" ry="3" fill="#6fa876" transform="rotate(-30 15 19)"/>
+  <ellipse cx="19" cy="17" rx="2" ry="3" fill="#7db386" transform="rotate(-15 19 17)"/>
+  <ellipse cx="23" cy="15" rx="2" ry="3" fill="#6fa876" transform="rotate(0 23 15)"/>
+  <ellipse cx="27" cy="13" rx="2" ry="3" fill="#7db386" transform="rotate(15 27 13)"/>
+  <ellipse cx="31" cy="11" rx="2" ry="3" fill="#6fa876" transform="rotate(30 31 11)"/>
+  <ellipse cx="35" cy="9" rx="2" ry="3" fill="#7db386" transform="rotate(45 35 9)"/>
+  
+  <!-- Additional leaves for fullness -->
+  <ellipse cx="17" cy="21" rx="1.5" ry="2.5" fill="#7db386" transform="rotate(-45 17 21)"/>
+  <ellipse cx="21" cy="19" rx="1.5" ry="2.5" fill="#6fa876" transform="rotate(-20 21 19)"/>
+  <ellipse cx="25" cy="17" rx="1.5" ry="2.5" fill="#7db386" transform="rotate(10 25 17)"/>
+  <ellipse cx="29" cy="15" rx="1.5" ry="2.5" fill="#6fa876" transform="rotate(25 29 15)"/>
+  
+  <!-- Small tractor silhouette -->
+  <g transform="translate(16, 32) scale(0.4)">
+    <!-- Tractor body -->
+    <rect x="8" y="4" width="12" height="8" fill="#2d4a32" rx="1"/>
+    <!-- Large back wheel -->
+    <circle cx="16" cy="14" r="4" fill="#2d4a32"/>
+    <circle cx="16" cy="14" r="2.5" fill="#1a2e1f"/>
+    <!-- Small front wheel -->
+    <circle cx="6" cy="14" r="2.5" fill="#2d4a32"/>
+    <circle cx="6" cy="14" r="1.5" fill="#1a2e1f"/>
+    <!-- Cab -->
+    <rect x="12" y="1" width="6" height="6" fill="#2d4a32" rx="1"/>
+  </g>
+  
+  <!-- Farm field lines -->
+  <path d="M8 36 Q16 34 24 36 Q32 38 40 36" stroke="#4a6b55" stroke-width="1" fill="none" opacity="0.6"/>
+  <path d="M8 38 Q16 36 24 38 Q32 40 40 38" stroke="#4a6b55" stroke-width="1" fill="none" opacity="0.4"/>
+</svg>
