@@ -3429,8 +3429,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Documents route commented out - handled by React router
-  /*app.get('/documents', isAuthenticated, async (req: any, res) => {
+  // Documents & Resources page with upload functionality
+  app.get('/documents', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
@@ -3597,13 +3597,180 @@ export async function registerRoutes(app: Express): Promise<Server> {
             ` : ''}
           </div>
         </body>
+      // Fetch existing documents
+      const documents = await storage.getDocuments();
+      const userDocuments = documents.filter(doc => 
+        doc.isPublic || 
+        doc.uploadedBy === userId || 
+        user?.role === 'admin' || 
+        user?.role === 'manager'
+      );
+
+      res.send(`
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+          <title>Pine Hill Farm - Documents & Resources</title>
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { 
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+              background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+              min-height: 100vh; color: #1e293b;
+            }
+            .header { background: white; padding: 1rem 2rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+            .header-content { max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
+            .logo { display: flex; align-items: center; gap: 1rem; }
+            .logo-icon { width: 40px; height: 40px; background: #607e66; border-radius: 10px; display: flex; align-items: center; justify-content: center; color: white; font-size: 1.2rem; }
+            .nav { display: flex; gap: 1rem; flex-wrap: wrap; }
+            .nav a { color: #64748b; text-decoration: none; padding: 0.5rem 1rem; border-radius: 6px; transition: background 0.2s; }
+            .nav a:hover { background: #f1f5f9; }
+            .nav a.active { background: #607e66; color: white; }
+            .container { max-width: 1200px; margin: 0 auto; padding: 2rem; }
+            .page-header { text-align: center; margin-bottom: 3rem; }
+            .upload-section { background: white; padding: 2rem; border-radius: 12px; margin-bottom: 3rem; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+            .upload-form { display: grid; gap: 1rem; max-width: 600px; margin: 0 auto; }
+            .form-group { display: flex; flex-direction: column; gap: 0.5rem; }
+            .form-group label { font-weight: 500; color: #374151; }
+            .form-control { padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 6px; font-size: 1rem; }
+            .form-control:focus { outline: none; border-color: #607e66; box-shadow: 0 0 0 3px rgba(96, 126, 102, 0.1); }
+            .btn { background: #607e66; color: white; padding: 0.75rem 1.5rem; border: none; border-radius: 8px; font-weight: 500; cursor: pointer; transition: background 0.2s; }
+            .btn:hover { background: #4a6b55; }
+            .btn-secondary { background: #6b7280; }
+            .btn-secondary:hover { background: #4b5563; }
+            .documents-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.5rem; }
+            .document-card { background: white; padding: 1.5rem; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+            .document-header { display: flex; justify-content: between; align-items: start; margin-bottom: 1rem; }
+            .document-title { font-weight: 600; margin-bottom: 0.5rem; color: #1e293b; }
+            .document-meta { color: #64748b; font-size: 0.875rem; margin-bottom: 1rem; }
+            .document-actions { display: flex; gap: 0.5rem; }
+            .category-badge { display: inline-block; padding: 0.25rem 0.75rem; background: #e0f2fe; color: #0369a1; border-radius: 1rem; font-size: 0.75rem; font-weight: 500; margin-bottom: 1rem; }
+            .file-info { color: #6b7280; font-size: 0.875rem; }
+            .success-message { background: #d1fae5; color: #065f46; padding: 1rem; border-radius: 6px; margin-bottom: 1rem; }
+            .error-message { background: #fee2e2; color: #991b1b; padding: 1rem; border-radius: 6px; margin-bottom: 1rem; }
+            @media (max-width: 768px) {
+              .nav { flex-direction: column; gap: 0.5rem; }
+              .container { padding: 1rem; }
+              .upload-form { padding: 1rem; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div class="header-content">
+              <div class="logo">
+                <div class="logo-icon">🌲</div>
+                <div>
+                  <div style="font-weight: 600;">Pine Hill Farm</div>
+                  <div style="font-size: 0.875rem; color: #64748b;">Documents & Resources</div>
+                </div>
+              </div>
+              <div class="nav">
+                <a href="/dashboard">Dashboard</a>
+                <a href="/schedule">Schedule</a>
+                <a href="/time-off">Time Off</a>
+                <a href="/announcements">Announcements</a>
+                <a href="/team-chat">Team Chat</a>
+                <a href="/documents" class="active">Documents</a>
+                ${(user?.role === 'admin' || user?.role === 'manager') ? '<a href="/admin">Admin Portal</a>' : ''}
+                <a href="/api/logout">Sign Out</a>
+              </div>
+            </div>
+          </div>
+
+          <div class="container">
+            <div class="page-header">
+              <h1 style="margin-bottom: 0.5rem;">Documents & Resources</h1>
+              <p style="color: #64748b;">Access and manage important company documents, training materials, and resources.</p>
+            </div>
+
+            ${(user?.role === 'admin' || user?.role === 'manager') ? `
+            <div class="upload-section">
+              <h2 style="margin-bottom: 1rem; text-align: center;">Upload New Document</h2>
+              <form class="upload-form" action="/api/documents/upload" method="post" enctype="multipart/form-data">
+                <div class="form-group">
+                  <label for="title">Document Title</label>
+                  <input type="text" id="title" name="title" class="form-control" required>
+                </div>
+                <div class="form-group">
+                  <label for="description">Description</label>
+                  <textarea id="description" name="description" class="form-control" rows="3"></textarea>
+                </div>
+                <div class="form-group">
+                  <label for="category">Category</label>
+                  <select id="category" name="category" class="form-control" required>
+                    <option value="policy">Company Policies</option>
+                    <option value="form">Forms & Templates</option>
+                    <option value="training">Training Materials</option>
+                    <option value="general">General Documents</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label for="file">Choose File</label>
+                  <input type="file" id="file" name="file" class="form-control" required 
+                         accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.jpg,.jpeg,.png,.gif">
+                </div>
+                <div class="form-group">
+                  <label>
+                    <input type="checkbox" name="isPublic" value="true" style="margin-right: 0.5rem;">
+                    Make this document publicly accessible to all employees
+                  </label>
+                </div>
+                <button type="submit" class="btn">Upload Document</button>
+              </form>
+            </div>
+            ` : ''}
+
+            <div class="documents-section">
+              <h2 style="margin-bottom: 2rem;">Available Documents</h2>
+              <div class="documents-grid">
+                ${userDocuments.map(doc => `
+                  <div class="document-card">
+                    <div class="category-badge">${doc.category === 'policy' ? 'Company Policies' : 
+                                                   doc.category === 'form' ? 'Forms & Templates' : 
+                                                   doc.category === 'training' ? 'Training Materials' : 'General Documents'}</div>
+                    <div class="document-title">${doc.originalName}</div>
+                    <div class="document-meta">
+                      Uploaded: ${doc.uploadedAt ? new Date(doc.uploadedAt).toLocaleDateString() : 'Unknown'}<br>
+                      Size: ${(doc.fileSize / 1024).toFixed(1)} KB
+                    </div>
+                    ${doc.description ? `<p style="color: #6b7280; margin-bottom: 1rem;">${doc.description}</p>` : ''}
+                    <div class="document-actions">
+                      <a href="/api/documents/${doc.id}/download" class="btn" style="text-decoration: none; font-size: 0.875rem;">Download</a>
+                      ${(doc.uploadedBy === userId || user?.role === 'admin') ? 
+                        `<button onclick="deleteDocument(${doc.id})" class="btn btn-secondary" style="font-size: 0.875rem;">Delete</button>` : ''}
+                    </div>
+                  </div>
+                `).join('')}
+              </div>
+              ${userDocuments.length === 0 ? '<p style="text-align: center; color: #6b7280; margin-top: 2rem;">No documents available yet.</p>' : ''}
+            </div>
+          </div>
+
+          <script>
+            function deleteDocument(id) {
+              if (confirm('Are you sure you want to delete this document?')) {
+                fetch('/api/documents/' + id, {
+                  method: 'DELETE'
+                }).then(response => {
+                  if (response.ok) {
+                    location.reload();
+                  } else {
+                    alert('Error deleting document');
+                  }
+                });
+              }
+            }
+          </script>
+        </body>
         </html>
       `);
     } catch (error) {
       console.error("Error loading documents:", error);
       res.status(500).send("Error loading documents");
     }
-  });*/
+  });
 
   // Shift Coverage page
   app.get('/shift-coverage', isAuthenticated, async (req: any, res) => {
