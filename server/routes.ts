@@ -5184,23 +5184,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Upload new logo
   app.post('/api/admin/logos/upload', (req, res, next) => {
-    console.log("Starting logo upload process");
+    console.log("=== ROUTE MATCHED: Starting logo upload process ===");
+    console.log("Request URL:", req.url);
+    console.log("Request method:", req.method);
     next();
   }, isAuthenticated, (req, res, next) => {
-    console.log("Authentication passed, starting file upload");
+    console.log("=== Authentication passed, starting file upload ===");
     upload.single('file')(req, res, (err) => {
       if (err) {
         console.error("Multer upload error:", err);
         return res.status(400).json({ message: err.message });
       }
-      console.log("File upload completed");
+      console.log("File upload completed successfully");
       next();
     });
   }, async (req: any, res) => {
     try {
-      console.log("Logo upload request received");
-      console.log("Request method:", req.method);
-      console.log("Request headers:", req.headers);
+      console.log("Processing logo upload request");
       console.log("Request body:", req.body);
       console.log("Request file:", req.file);
       console.log("User:", req.user);
@@ -5213,25 +5213,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (!user || user.role !== 'admin') {
         console.error("Access denied - not admin. User role:", user?.role);
-        if (req.headers.accept && req.headers.accept.includes('text/html')) {
-          return res.status(403).send("Access denied - Admin access required");
-        }
         return res.status(403).json({ message: "Admin access required" });
       }
 
       if (!req.file) {
         console.error("No file uploaded");
-        if (req.headers.accept && req.headers.accept.includes('text/html')) {
-          return res.status(400).send("No file uploaded");
-        }
         return res.status(400).json({ message: "No file uploaded" });
       }
 
       if (!req.body.name) {
         console.error("Logo name is required");
-        if (req.headers.accept && req.headers.accept.includes('text/html')) {
-          return res.status(400).send("Logo name is required");
-        }
         return res.status(400).json({ message: "Logo name is required" });
       }
 
@@ -5239,11 +5230,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/svg+xml'];
       if (!allowedTypes.includes(req.file.mimetype)) {
         console.error("Invalid file type:", req.file.mimetype);
-        const errorMsg = "Invalid file type. Only PNG, JPEG, GIF, and SVG files are allowed.";
-        if (req.headers.accept && req.headers.accept.includes('text/html')) {
-          return res.status(400).send(errorMsg);
-        }
-        return res.status(400).json({ message: errorMsg });
+        return res.status(400).json({ message: "Invalid file type. Only PNG, JPEG, GIF, and SVG files are allowed." });
       }
 
       // Check if logo with this name already exists and deactivate it
@@ -5263,15 +5250,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log("Creating logo with data:", logoData);
       const logo = await storage.createLogo(logoData);
       
-      if (req.headers.accept && req.headers.accept.includes('text/html')) {
-        return res.redirect('/admin/logos?success=true');
-      }
       res.json(logo);
     } catch (error) {
       console.error("Error uploading logo:", error);
-      if (req.headers.accept && req.headers.accept.includes('text/html')) {
-        return res.status(500).send("Failed to upload logo: " + error.message);
-      }
       res.status(500).json({ message: "Failed to upload logo" });
     }
   });
