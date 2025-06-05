@@ -31,7 +31,7 @@ const upload = multer({
     fileSize: 50 * 1024 * 1024, // 50MB limit
   },
   fileFilter: (req, file, cb) => {
-    // Allow common document types
+    // Allow common document types and logo files
     const allowedTypes = [
       'application/pdf',
       'application/msword',
@@ -42,7 +42,8 @@ const upload = multer({
       'text/csv',
       'image/jpeg',
       'image/png',
-      'image/gif'
+      'image/gif',
+      'image/svg+xml'  // Added SVG support for logos
     ];
     
     if (allowedTypes.includes(file.mimetype)) {
@@ -5184,25 +5185,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Upload new logo
   app.post('/api/admin/logos/upload', isAuthenticated, upload.single('file'), async (req: any, res) => {
     try {
+      console.log("Logo upload request received");
+      console.log("Request body:", req.body);
+      console.log("Request file:", req.file);
+      
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
       
       if (!user || user.role !== 'admin') {
+        console.error("Access denied - not admin");
+        if (req.headers.accept && req.headers.accept.includes('text/html')) {
+          return res.status(403).send("Access denied - Admin access required");
+        }
         return res.status(403).json({ message: "Admin access required" });
       }
 
       if (!req.file) {
+        console.error("No file uploaded");
+        if (req.headers.accept && req.headers.accept.includes('text/html')) {
+          return res.status(400).send("No file uploaded");
+        }
         return res.status(400).json({ message: "No file uploaded" });
       }
 
       if (!req.body.name) {
+        console.error("Logo name is required");
+        if (req.headers.accept && req.headers.accept.includes('text/html')) {
+          return res.status(400).send("Logo name is required");
+        }
         return res.status(400).json({ message: "Logo name is required" });
       }
 
       // Validate file type
       const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/svg+xml'];
       if (!allowedTypes.includes(req.file.mimetype)) {
-        return res.status(400).json({ message: "Invalid file type. Only PNG, JPEG, GIF, and SVG files are allowed." });
+        console.error("Invalid file type:", req.file.mimetype);
+        const errorMsg = "Invalid file type. Only PNG, JPEG, GIF, and SVG files are allowed.";
+        if (req.headers.accept && req.headers.accept.includes('text/html')) {
+          return res.status(400).send(errorMsg);
+        }
+        return res.status(400).json({ message: errorMsg });
       }
 
       // Check if logo with this name already exists and deactivate it
@@ -5216,13 +5238,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         fileSize: req.file.size,
         mimeType: req.file.mimetype,
         uploadedBy: userId,
-        isActive: true
+        isActive: req.body.isActive === 'true'
       };
 
+      console.log("Creating logo with data:", logoData);
       const logo = await storage.createLogo(logoData);
+      
+      if (req.headers.accept && req.headers.accept.includes('text/html')) {
+        return res.redirect('/admin/logos?success=true');
+      }
       res.json(logo);
     } catch (error) {
       console.error("Error uploading logo:", error);
+      if (req.headers.accept && req.headers.accept.includes('text/html')) {
+        return res.status(500).send("Failed to upload logo: " + error.message);
+      }
       res.status(500).json({ message: "Failed to upload logo" });
     }
   });
