@@ -33,22 +33,23 @@ export async function setupDevAuth(app: Express) {
   app.set("trust proxy", 1);
   app.use(getSession());
 
-  // Development login route - create manager user for Sarah Johnson
+  // Development login route - create admin user for the current Replit user
   app.get("/api/login", async (req, res) => {
     try {
-      // Create or get Sarah Johnson (manager) for testing
-      let user = await storage.getUser("manager001");
+      // Create admin user for the system owner
+      const adminUserId = "admin_user_001";
+      let user = await storage.getUser(adminUserId);
       if (!user) {
         user = await storage.upsertUser({
-          id: "manager001",
-          email: "sarah@pinehillfarm.co",
-          firstName: "Sarah",
-          lastName: "Johnson",
+          id: adminUserId,
+          email: "admin@pinehillfarm.co",
+          firstName: "Admin",
+          lastName: "User",
           profileImageUrl: null,
         });
-        // Update role to manager after creation
-        await storage.updateUserRole("manager001", "manager");
-        user = await storage.getUser("manager001");
+        // Set as admin after creation
+        await storage.updateUserRole(adminUserId, "admin");
+        user = await storage.getUser(adminUserId);
       }
 
       // Set session with null check
