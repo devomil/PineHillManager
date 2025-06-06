@@ -496,6 +496,12 @@ export const insertLogoSchema = createInsertSchema(logos).omit({
   updatedAt: true,
 });
 
+export const insertEmployeeInvitationSchema = createInsertSchema(employeeInvitations).omit({
+  id: true,
+  invitedAt: true,
+  acceptedAt: true,
+});
+
 // Add relations for new tables
 export const pushSubscriptionsRelations = relations(pushSubscriptions, ({ one }) => ({
   user: one(users, { fields: [pushSubscriptions.userId], references: [users.id] }),
@@ -544,14 +550,6 @@ export type DocumentLog = typeof documentLogs.$inferSelect;
 // Employee invitation types
 export type EmployeeInvitation = typeof employeeInvitations.$inferSelect;
 export type InsertEmployeeInvitation = typeof employeeInvitations.$inferInsert;
-
-// Employee invitation schema for validation
-export const insertEmployeeInvitationSchema = createInsertSchema(employeeInvitations).omit({
-  id: true,
-  invitedAt: true,
-  acceptedAt: true,
-});
-
 
 // Calendar event type for unified calendar view
 export interface CalendarEvent {
