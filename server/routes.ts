@@ -1506,7 +1506,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                       <td>${employee.hireDate ? new Date(employee.hireDate).toLocaleDateString() : 'N/A'}</td>
                       <td><span class="status-${employee.isActive ? 'approved' : 'denied'}">${employee.isActive ? 'Active' : 'Inactive'}</span></td>
                       <td>
-                        <a href="/admin/employees/${employee.id}" style="color: #607e66; text-decoration: none; font-size: 0.875rem;">Edit</a>
+                        <a href="/admin/employees/${employee.id}/edit" style="color: #607e66; text-decoration: none; font-size: 0.875rem;">Edit</a>
                       </td>
                     </tr>
                   `).join('')}
@@ -1671,7 +1671,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                       <td>${employee.hireDate ? new Date(employee.hireDate).toLocaleDateString() : 'N/A'}</td>
                       <td><span class="status-${employee.isActive ? 'active' : 'inactive'}">${employee.isActive ? 'Active' : 'Inactive'}</span></td>
                       <td>
-                        <a href="/admin/employees/${employee.id}" style="color: #607e66; text-decoration: none; font-size: 0.875rem;">Edit</a>
+                        <a href="/admin/employees/${employee.id}/edit" style="color: #607e66; text-decoration: none; font-size: 0.875rem;">Edit</a>
                       </td>
                     </tr>
                   `).join('')}
