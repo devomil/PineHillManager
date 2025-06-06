@@ -123,7 +123,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // CRITICAL: Complete Vite bypass for server-side routes
   app.use((req, res, next) => {
-    const serverRoutes = ['/admin', '/dashboard', '/schedule', '/time-off', '/announcements', '/api'];
+    const serverRoutes = ['/admin', '/dashboard', '/schedule', '/time-off', '/api'];
     const isServerRoute = serverRoutes.some(route => req.path.startsWith(route));
     
     if (isServerRoute) {
