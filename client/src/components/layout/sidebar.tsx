@@ -15,6 +15,7 @@ export default function Sidebar({ mobileMenuOpen, setMobileMenuOpen }: SidebarPr
 
   const navigationItems = [
     { name: "Dashboard", href: "/dashboard", icon: Home, roles: ["employee", "admin", "manager"] },
+    { name: "Announcements", href: "/announcements", icon: Bell, roles: ["employee", "admin", "manager"] },
     { name: "Global Calendar", href: "/calendar", icon: Calendar, roles: ["employee", "admin", "manager"] },
     { name: "Time Management", href: "/time", icon: Clock, roles: ["employee", "admin", "manager"] },
     { name: "Communication", href: "/communication", icon: MessageSquare, roles: ["employee", "admin", "manager"] },
@@ -35,6 +36,7 @@ export default function Sidebar({ mobileMenuOpen, setMobileMenuOpen }: SidebarPr
     { name: "Employees", href: "/employees", icon: Users, roles: ["admin"] },
     { name: "Admin Training", href: "/admin-training", icon: GraduationCap, roles: ["admin"] },
     { name: "Logo Management", href: "/admin/logos", icon: Image, roles: ["admin"] },
+    { name: "Manage Announcements", href: "/admin/announcements", icon: Megaphone, roles: ["admin", "manager"] },
   ];
 
   const handleLogout = () => {
