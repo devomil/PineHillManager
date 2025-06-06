@@ -1691,8 +1691,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
                       <label class="form-label">Location</label>
                       <select name="locationId" class="form-select" required>
                         <option value="">Select Location</option>
-                        <option value="1">Lake Geneva Store</option>
-                        <option value="2">Watertown Store</option>
+                        <option value="1">Lake Geneva Retail</option>
+                        <option value="2">Watertown Retail</option>
+                        <option value="3">Watertown Spa</option>
                       </select>
                     </div>
                   </div>
@@ -1734,8 +1735,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
                       <label class="form-label">Location</label>
                       <select name="locationId" class="form-select" required>
                         <option value="">Select Location</option>
-                        <option value="1">Lake Geneva Store</option>
-                        <option value="2">Watertown Store</option>
+                        <option value="1">Lake Geneva Retail</option>
+                        <option value="2">Watertown Retail</option>
+                        <option value="3">Watertown Spa</option>
                       </select>
                     </div>
                     <div class="form-group">
@@ -2329,8 +2331,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
             <div class="sidebar">
               <h3 style="margin-bottom: 1rem;">Channels</h3>
               <div class="channel active"># General</div>
-              <div class="channel"># Lake Geneva Store</div>
-              <div class="channel"># Watertown Store</div>
+              <div class="channel"># Lake Geneva Retail</div>
+              <div class="channel"># Watertown Retail</div>
+              <div class="channel"># Watertown Spa</div>
               <div class="channel"># Managers</div>
               
               <div class="online-users">
@@ -2684,8 +2687,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
                     <label class="form-label">Location</label>
                     <select name="location" class="form-select" required>
                       <option value="">Select Location</option>
-                      <option value="1">Lake Geneva Store</option>
-                      <option value="2">Watertown Store</option>
+                      <option value="1">Lake Geneva Retail</option>
+                      <option value="2">Watertown Retail</option>
+                      <option value="3">Watertown Spa</option>
                     </select>
                   </div>
                 </div>
@@ -2723,7 +2727,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                         <div class="request-title">Coverage Needed - ${request.shiftDate}</div>
                         <div class="request-meta">
                           ${request.startTime} - ${request.endTime} • 
-                          ${request.locationId === 1 ? 'Lake Geneva Store' : 'Watertown Store'}<br>
+                          ${request.locationId === 1 ? 'Lake Geneva Retail' : request.locationId === 2 ? 'Watertown Retail' : 'Watertown Spa'}<br>
                           Requested by: ${request.requesterId} • ${request.reason || 'No reason provided'}
                         </div>
                       </div>
