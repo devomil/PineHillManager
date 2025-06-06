@@ -1419,10 +1419,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
               </div>
             </div>
 
+            <div class="card">
+              <h2 style="margin-bottom: 1.5rem;">Today's Schedule Overview</h2>
+              ${todaySchedules.length === 0 ? 
+                '<p style="color: #64748b; text-align: center; padding: 2rem;">No schedules for today</p>' :
+                `<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem;">
+                  ${todaySchedules.map(schedule => `
+                    <div style="padding: 1rem; border: 1px solid #e2e8f0; border-radius: 8px;">
+                      <div style="font-weight: 600; margin-bottom: 0.5rem;">Employee: ${schedule.userId}</div>
+                      <div style="color: #64748b; font-size: 0.875rem;">
+                        ${schedule.startTime} - ${schedule.endTime}<br>
+                        Location: ${schedule.locationId === 1 ? 'Lake Geneva Retail' : schedule.locationId === 2 ? 'Watertown Retail' : 'Watertown Spa'}
+                      </div>
+                    </div>
+                  `).join('')}
+                </div>`
+              }
+            </div>
+
             <div class="tabs">
               <a href="#pending-requests" class="tab active">Pending Approvals</a>
               <a href="#employee-overview" class="tab">Employee Overview</a>
-              <a href="#schedule-overview" class="tab">Today's Schedule</a>
             </div>
 
             <div class="card">
@@ -1458,12 +1475,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
             </div>
 
             <div class="card">
-              <h2 style="margin-bottom: 1.5rem;">Employee Overview</h2>
-              <div style="margin-bottom: 1rem;">
-                <a href="/admin/employees/new" class="btn">Add New Employee</a>
-                <a href="/admin/employees" class="btn-secondary btn">Manage All Employees</a>
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                <h2 style="margin: 0;">Employee Overview</h2>
+                <button onclick="toggleEmployeeOverview()" style="background: none; border: none; color: #607e66; cursor: pointer; font-size: 1.2rem;" id="employee-toggle">−</button>
               </div>
-              <table class="table">
+              <div id="employee-overview-content">
+                <div style="margin-bottom: 1rem;">
+                  <a href="/admin/employees/new" class="btn">Add New Employee</a>
+                  <a href="/admin/employees" class="btn-secondary btn">Manage All Employees</a>
+                </div>
+                <table class="table">
                 <thead>
                   <tr>
                     <th>Employee ID</th>
@@ -1491,25 +1512,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   `).join('')}
                 </tbody>
               </table>
+              </div>
             </div>
 
-            <div class="card">
-              <h2 style="margin-bottom: 1.5rem;">Today's Schedule Overview</h2>
-              ${todaySchedules.length === 0 ? 
-                '<p style="color: #64748b; text-align: center; padding: 2rem;">No schedules for today</p>' :
-                `<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem;">
-                  ${todaySchedules.map(schedule => `
-                    <div style="padding: 1rem; border: 1px solid #e2e8f0; border-radius: 8px;">
-                      <div style="font-weight: 600; margin-bottom: 0.5rem;">Employee: ${schedule.userId}</div>
-                      <div style="color: #64748b; font-size: 0.875rem;">
-                        ${schedule.startTime} - ${schedule.endTime}<br>
-                        Location: ${schedule.locationId === 1 ? 'Lake Geneva' : 'Watertown'}
-                      </div>
-                    </div>
-                  `).join('')}
-                </div>`
+            <script>
+              function toggleEmployeeOverview() {
+                const content = document.getElementById('employee-overview-content');
+                const toggle = document.getElementById('employee-toggle');
+                
+                if (content.style.display === 'none') {
+                  content.style.display = 'block';
+                  toggle.textContent = '−';
+                } else {
+                  content.style.display = 'none';
+                  toggle.textContent = '+';
+                }
               }
-            </div>
+            </script>
           </div>
         </body>
         </html>
@@ -1517,6 +1536,155 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error loading admin dashboard:", error);
       res.status(500).send("Error loading admin dashboard");
+    }
+  });
+
+  // Employee management route
+  app.get('/admin/employees', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      if (!user || (user.role !== 'admin' && user.role !== 'manager')) {
+        return res.status(403).send("Access denied");
+      }
+
+      const allUsers = await storage.getAllUsers();
+
+      res.send(`
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+          <title>Pine Hill Farm - Employee Management</title>
+          <style>
+            @import url('https://fonts.googleapis.com/css2?family=Great+Vibes&display=swap');
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { 
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+              background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+              min-height: 100vh; color: #1e293b;
+            }
+            .pine-hill-title { font-family: "Great Vibes", cursive !important; font-size: 1.3em; }
+            .header { background: white; padding: 1rem 2rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+            .header-content { max-width: 1400px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
+            .nav { display: flex; gap: 1rem; }
+            .nav a { color: #64748b; text-decoration: none; padding: 0.5rem 1rem; border-radius: 6px; transition: background 0.2s; }
+            .nav a:hover { background: #f1f5f9; }
+            .nav a.active { background: #607e66; color: white; }
+            .container { max-width: 1400px; margin: 0 auto; padding: 2rem; }
+            .page-header { background: white; padding: 2rem; border-radius: 12px; margin-bottom: 2rem; }
+            .card { background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 2rem; }
+            .btn { background: #607e66; color: white; padding: 0.75rem 1.5rem; border: none; border-radius: 6px; text-decoration: none; display: inline-block; font-weight: 500; transition: background 0.2s; margin-right: 1rem; }
+            .btn:hover { background: #4f6b56; }
+            .btn-secondary { background: #e2e8f0; color: #475569; }
+            .btn-secondary:hover { background: #cbd5e1; }
+            .table { width: 100%; border-collapse: collapse; }
+            .table th, .table td { padding: 1rem; text-align: left; border-bottom: 1px solid #e2e8f0; }
+            .table th { background: #f8fafc; font-weight: 600; }
+            .role-badge { padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.75rem; font-weight: 500; }
+            .role-admin { background: #fee2e2; color: #991b1b; }
+            .role-manager { background: #fef3c7; color: #92400e; }
+            .role-employee { background: #d1fae5; color: #065f46; }
+            .status-active { background: #d1fae5; color: #065f46; }
+            .status-inactive { background: #fee2e2; color: #991b1b; }
+            .search-box { width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 6px; margin-bottom: 1rem; }
+            .filters { display: flex; gap: 1rem; margin-bottom: 1rem; align-items: center; }
+            .filter-select { padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 6px; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div class="header-content">
+              <div class="logo">
+                <div>
+                  <div style="font-weight: 600;" class="pine-hill-title">Pine Hill Farm</div>
+                  <div style="font-size: 0.875rem; color: #64748b;">Employee Management</div>
+                </div>
+              </div>
+              <div class="nav">
+                <a href="/admin">Admin Dashboard</a>
+                <a href="/admin/employees" class="active">Employee Management</a>
+                <a href="/admin/schedule">Schedule Management</a>
+                <a href="/dashboard">Employee View</a>
+                <a href="/api/logout">Sign Out</a>
+              </div>
+            </div>
+          </div>
+
+          <div class="container">
+            <div class="page-header">
+              <h1 style="margin-bottom: 0.5rem;">Employee Management</h1>
+              <p style="color: #64748b;">Manage employee profiles, roles, and permissions across all three locations.</p>
+            </div>
+
+            <div class="card">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+                <h2>All Employees (${allUsers.length})</h2>
+                <a href="/admin/employees/new" class="btn">Add New Employee</a>
+              </div>
+
+              <div class="filters">
+                <input type="text" placeholder="Search employees..." class="search-box" style="flex: 1; margin-bottom: 0;">
+                <select class="filter-select">
+                  <option value="">All Roles</option>
+                  <option value="admin">Admin</option>
+                  <option value="manager">Manager</option>
+                  <option value="employee">Employee</option>
+                </select>
+                <select class="filter-select">
+                  <option value="">All Departments</option>
+                  <option value="sales">Sales</option>
+                  <option value="management">Management</option>
+                  <option value="operations">Operations</option>
+                </select>
+                <select class="filter-select">
+                  <option value="">All Status</option>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+              </div>
+
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>Employee ID</th>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Role</th>
+                    <th>Department</th>
+                    <th>Hire Date</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${allUsers.map(employee => `
+                    <tr>
+                      <td>${employee.employeeId || 'N/A'}</td>
+                      <td>
+                        <div style="font-weight: 500;">${employee.firstName} ${employee.lastName}</div>
+                        <div style="font-size: 0.875rem; color: #64748b;">${employee.position || 'No position'}</div>
+                      </td>
+                      <td>${employee.email}</td>
+                      <td><span class="role-badge role-${employee.role}">${employee.role}</span></td>
+                      <td>${employee.department || 'N/A'}</td>
+                      <td>${employee.hireDate ? new Date(employee.hireDate).toLocaleDateString() : 'N/A'}</td>
+                      <td><span class="status-${employee.isActive ? 'active' : 'inactive'}">${employee.isActive ? 'Active' : 'Inactive'}</span></td>
+                      <td>
+                        <a href="/admin/employees/${employee.id}" style="color: #607e66; text-decoration: none; font-size: 0.875rem;">Edit</a>
+                      </td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </body>
+        </html>
+      `);
+    } catch (error) {
+      console.error("Error loading employee management:", error);
+      res.status(500).send("Error loading employee management");
     }
   });
 
