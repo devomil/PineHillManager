@@ -77,7 +77,7 @@ export const timeClockEntries = pgTable("time_clock_entries", {
 // User presence/status for team chat
 export const userPresence = pgTable("user_presence", {
   id: serial("id").primaryKey(),
-  userId: varchar("user_id").notNull().references(() => users.id),
+  userId: varchar("user_id").notNull().unique().references(() => users.id),
   status: varchar("status").notNull().default("offline"), // online, away, busy, offline, clocked_in, on_break
   lastSeen: timestamp("last_seen").defaultNow(),
   currentLocation: varchar("current_location"),
