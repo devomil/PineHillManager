@@ -170,7 +170,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
             min-height: 100vh; color: #1e293b; padding: 2rem;
           }
-          .pine-hill-title { font-family: "Great Vibes", cursive; font-size: 1.2em; font-weight: 400; }
+          .pine-hill-title { font-family: "Pacifico", cursive; font-size: 1.2em; font-weight: 400; }
           .container { max-width: 1200px; margin: 0 auto; }
           .header { text-align: center; margin-bottom: 3rem; }
           h1 { font-size: 3rem; font-weight: 700; margin-bottom: 1rem; }
