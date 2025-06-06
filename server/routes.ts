@@ -184,7 +184,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       <body>
         <div class="container">
           <div class="header">
-            <div class="logo"><img src="/api/logos/pine-hill-logo" alt="Pine Hill Farm" style="width: 80px; height: 80px; border-radius: 20px; object-fit: cover;"></div>
+            <div class="logo"><img src="/api/logos/pine-hill-logo" alt="Pine Hill Farm" style="width: 60px; height: 60px; border-radius: 12px; object-fit: contain; background: white; padding: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"></div>
             <h1>Pine Hill Farm</h1>
             <div class="subtitle">Employee Portal</div>
             <div class="description">
@@ -288,7 +288,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       <body>
         <div class="container">
           <div class="header">
-            <div class="logo"><img src="/api/logos/pine-hill-logo" alt="Pine Hill Farm" style="width: 80px; height: 80px; border-radius: 20px; object-fit: cover;"></div>
+            <div class="logo"><img src="/api/logos/pine-hill-logo" alt="Pine Hill Farm" style="width: 60px; height: 60px; border-radius: 12px; object-fit: contain; background: white; padding: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"></div>
             <h1>Pine Hill Farm</h1>
             <div class="subtitle">Employee Portal</div>
             <div class="description">
@@ -3996,7 +3996,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         <body>
           <div class="container">
             <div class="card">
-              <div class="logo"><img src="/api/logos/pine-hill-logo" alt="Pine Hill Farm" style="width: 80px; height: 80px; border-radius: 20px; object-fit: cover;"></div>
+              <div class="logo"><img src="/api/logos/pine-hill-logo" alt="Pine Hill Farm" style="width: 60px; height: 60px; border-radius: 12px; object-fit: contain; background: white; padding: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"></div>
               <h1>Pine Hill Farm</h1>
               <p class="subtitle">Employee Management Portal</p>
               <a href="/api/login" class="btn">Sign In to Continue</a>
@@ -5401,7 +5401,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         </head>
         <body>
           <div class="card">
-            <div class="logo"><img src="/api/logos/pine-hill-logo" alt="Pine Hill Farm" style="width: 80px; height: 80px; border-radius: 20px; object-fit: cover;"></div>
+            <div class="logo"><img src="/api/logos/pine-hill-logo" alt="Pine Hill Farm" style="width: 60px; height: 60px; border-radius: 12px; object-fit: contain; background: white; padding: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"></div>
             <h1>Welcome to Pine Hill Farm!</h1>
             <p>You've been invited to join our employee management system.</p>
             
@@ -5605,7 +5605,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           <div class="header">
             <div class="header-content">
               <div class="logo">
-                <div class="logo-icon"><img src="/api/logos/pine-hill-logo" alt="Pine Hill Farm" style="width: 40px; height: 40px; border-radius: 10px; object-fit: cover;"></div>
+                <div class="logo-icon"><img src="/api/logos/pine-hill-logo" alt="Pine Hill Farm" style="width: 32px; height: 32px; border-radius: 8px; object-fit: contain; background: white; padding: 4px; box-shadow: 0 1px 4px rgba(0,0,0,0.1);"></div>
                 <div>
                   <div style="font-weight: 600; font-size: 1.125rem;">Pine Hill Farm</div>
                   <div style="font-size: 0.875rem; color: #64748b;">Admin Portal</div>
