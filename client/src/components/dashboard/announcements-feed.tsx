@@ -1,8 +1,9 @@
 import React from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "wouter";
+import { useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Bell, Calendar, Users, AlertTriangle, Clock } from "lucide-react";
 import { format, isAfter, parseISO } from "date-fns";
 
@@ -18,6 +19,8 @@ interface Announcement {
 }
 
 export default function AnnouncementsFeed() {
+  const [location, setLocation] = useLocation();
+  
   const { data: announcements = [], isLoading } = useQuery<Announcement[]>({
     queryKey: ["/api/announcements/published"],
     retry: 1,
@@ -132,12 +135,17 @@ export default function AnnouncementsFeed() {
             <Bell className="h-5 w-5 text-farm-green" />
             Recent Announcements
           </CardTitle>
-          <Link 
-            href="/announcements" 
-            className="text-sm text-farm-green hover:text-green-700 font-medium"
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-sm text-farm-green hover:text-green-700 font-medium h-auto p-0"
+            onClick={() => {
+              console.log("Announcements button clicked");
+              setLocation("/announcements");
+            }}
           >
             View All →
-          </Link>
+          </Button>
         </div>
       </CardHeader>
       <CardContent>
@@ -189,12 +197,17 @@ export default function AnnouncementsFeed() {
             
             {announcements.length > 0 && (
               <div className="text-center pt-2">
-                <Link 
-                  href="/announcements" 
-                  className="text-sm text-farm-green hover:text-green-700 font-medium"
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-sm text-farm-green hover:text-green-700 font-medium h-auto p-0"
+                  onClick={() => {
+                    console.log("Bottom announcements button clicked");
+                    setLocation("/announcements");
+                  }}
                 >
                   View all announcements →
-                </Link>
+                </Button>
               </div>
             )}
           </div>
