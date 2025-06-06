@@ -572,10 +572,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           <div class="card">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
-              <h2>December 2024</h2>
+              <h2 id="currentMonth">June 2025</h2>
               <div>
-                <a href="#" class="btn-secondary btn">← Previous</a>
-                <a href="#" class="btn-secondary btn">Next →</a>
+                <button onclick="changeMonth(-1)" class="btn-secondary btn">← Previous</button>
+                <button onclick="changeMonth(1)" class="btn-secondary btn">Next →</button>
               </div>
             </div>
 
@@ -651,6 +651,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
             `}
           </div>
         </div>
+        
+        <script>
+          let currentDate = new Date(2025, 5, 1); // June 2025 (month is 0-indexed)
+          
+          const monthNames = [
+            "January", "February", "March", "April", "May", "June",
+            "July", "August", "September", "October", "November", "December"
+          ];
+          
+          function changeMonth(direction) {
+            currentDate.setMonth(currentDate.getMonth() + direction);
+            updateMonthDisplay();
+          }
+          
+          function updateMonthDisplay() {
+            const monthElement = document.getElementById('currentMonth');
+            monthElement.textContent = monthNames[currentDate.getMonth()] + ' ' + currentDate.getFullYear();
+          }
+        </script>
       </body>
       </html>
     `);
