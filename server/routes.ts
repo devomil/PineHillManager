@@ -3777,6 +3777,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get('/api/announcements/published', isAuthenticated, async (req: any, res) => {
+    try {
+      const announcements = await storage.getPublishedAnnouncements();
+      res.json(announcements);
+    } catch (error) {
+      console.error("Error fetching published announcements:", error);
+      res.status(500).json({ message: "Failed to fetch announcements" });
+    }
+  });
+
   // Training modules
   app.post('/api/training-modules', isAuthenticated, async (req: any, res) => {
     try {

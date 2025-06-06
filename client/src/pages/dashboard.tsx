@@ -5,6 +5,7 @@ import StatsCards from "@/components/dashboard/stats-cards";
 import TimeOffRequestsCard from "@/components/dashboard/time-off-requests-card";
 import QuickActionsPanel from "@/components/dashboard/quick-actions-panel";
 import UpcomingShifts from "@/components/dashboard/upcoming-shifts";
+import AnnouncementsFeed from "@/components/dashboard/announcements-feed";
 import { QuickChat } from "@/components/quick-chat";
 
 export default function Dashboard() {
@@ -50,6 +51,9 @@ export default function Dashboard() {
 
       {/* Stats Cards */}
       <StatsCards />
+
+      {/* Announcements Feed */}
+      <AnnouncementsFeed />
 
       {/* Main Dashboard Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

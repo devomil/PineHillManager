@@ -6,6 +6,7 @@ import Dashboard from "@/pages/dashboard";
 import Documents from "@/pages/documents";
 import LogosPage from "@/pages/admin/logos";
 import AnnouncementsPage from "@/pages/admin/announcements";
+import AnnouncementsViewPage from "@/pages/announcements";
 import Calendar from "@/pages/calendar";
 import Employees from "@/pages/employees";
 import TimeManagement from "@/pages/time-management";
@@ -37,6 +38,7 @@ function AuthenticatedApp() {
         <Route path="/documents" component={Documents} />
         <Route path="/admin/logos" component={LogosPage} />
         <Route path="/admin/announcements" component={AnnouncementsPage} />
+        <Route path="/announcements" component={AnnouncementsViewPage} />
         <Route component={NotFound} />
       </Switch>
     </AppLayout>
