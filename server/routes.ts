@@ -470,12 +470,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
             <h3 style="margin-bottom: 1rem;">Store Locations</h3>
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem;">
               <div style="padding: 1rem; border: 1px solid #e2e8f0; border-radius: 8px;">
-                <div style="font-weight: 600; margin-bottom: 0.5rem;">Lake Geneva Store</div>
+                <div style="font-weight: 600; margin-bottom: 0.5rem;">Lake Geneva Retail</div>
                 <div style="color: #64748b; font-size: 0.875rem;">704 W Main St, Lake Geneva, WI</div>
               </div>
               <div style="padding: 1rem; border: 1px solid #e2e8f0; border-radius: 8px;">
-                <div style="font-weight: 600; margin-bottom: 0.5rem;">Watertown Store</div>
+                <div style="font-weight: 600; margin-bottom: 0.5rem;">Watertown Retail</div>
                 <div style="color: #64748b; font-size: 0.875rem;">200 W Main Street, Watertown, WI</div>
+              </div>
+              <div style="padding: 1rem; border: 1px solid #e2e8f0; border-radius: 8px;">
+                <div style="font-weight: 600; margin-bottom: 0.5rem;">Watertown Spa</div>
+                <div style="color: #64748b; font-size: 0.875rem;">201 W Main Street, Watertown, WI</div>
               </div>
             </div>
           </div>
@@ -581,11 +585,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
             <div class="legend">
               <div class="legend-item">
                 <div class="legend-color" style="background: #2563eb;"></div>
-                <span>Lake Geneva Store</span>
+                <span>Lake Geneva Retail</span>
               </div>
               <div class="legend-item">
                 <div class="legend-color" style="background: #059669;"></div>
-                <span>Watertown Store</span>
+                <span>Watertown Retail</span>
+              </div>
+              <div class="legend-item">
+                <div class="legend-color" style="background: #7c3aed;"></div>
+                <span>Watertown Spa</span>
               </div>
               <div class="legend-item">
                 <div class="legend-color" style="background: #fef3c7;"></div>
@@ -952,8 +960,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
             <div class="announcement-content">
               Congratulations to our November Employee of the Month winners:
               <br><br>
-              <strong>Lake Geneva Store:</strong> Sarah Mitchell - Outstanding customer service and team leadership<br>
-              <strong>Watertown Store:</strong> David Chen - Exceptional dedication and problem-solving skills<br>
+              <strong>Lake Geneva Retail:</strong> Sarah Mitchell - Outstanding customer service and team leadership<br>
+              <strong>Watertown Retail:</strong> David Chen - Exceptional dedication and problem-solving skills<br>
+              <strong>Watertown Spa:</strong> Jessica Miller - Excellence in customer care and wellness services<br>
               <br>
               Both employees will receive a $100 gift card and premium parking spot for December.
             </div>
