@@ -8,13 +8,45 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 import { Plus, Send, Save, Calendar, Users, AlertTriangle } from "lucide-react";
 
 export default function AnnouncementsPage() {
   const { toast } = useToast();
+  const { isAuthenticated, isLoading, user } = useAuth();
   const [showForm, setShowForm] = useState(false);
   const [announcements, setAnnouncements] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Check authentication and access
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      toast({
+        title: "Unauthorized",
+        description: "You are logged out. Logging in again...",
+        variant: "destructive",
+      });
+      setTimeout(() => {
+        window.location.href = "/api/login";
+      }, 500);
+      return;
+    }
+
+    if (!isLoading && isAuthenticated && user) {
+      // Check if user has admin or manager role
+      if ((user as any)?.role !== 'admin' && (user as any)?.role !== 'manager') {
+        toast({
+          title: "Access Denied",
+          description: "You don't have permission to access this page.",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          window.location.href = "/dashboard";
+        }, 1000);
+        return;
+      }
+    }
+  }, [isAuthenticated, isLoading, user, toast]);
 
   // Handle URL params for success/error messages
   useEffect(() => {
@@ -70,6 +102,32 @@ export default function AnnouncementsPage() {
       default: return <Users className="h-4 w-4" />;
     }
   };
+
+  // Show loading state during authentication check
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-farm-green"></div>
+      </div>
+    );
+  }
+
+  // Don't render if not authenticated
+  if (!isAuthenticated) {
+    return null;
+  }
+
+  // Don't render if user doesn't have proper role
+  if (user && (user as any)?.role !== 'admin' && (user as any)?.role !== 'manager') {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Access Denied</h2>
+          <p className="text-gray-600">You don't have permission to access this page.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto px-4 py-8">
