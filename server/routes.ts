@@ -4456,8 +4456,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(404).json({ message: 'API endpoint not found' });
     }
     
-    // For any other route, redirect to root
-    res.redirect('/');
+    // For React app routes, serve the main page (let React handle routing)
+    const validRoutes = [
+      '/dashboard', '/announcements', '/calendar', '/employees', 
+      '/time-management', '/shift-scheduling', '/communication', 
+      '/training', '/profile', '/reports', '/notifications', 
+      '/documents', '/admin/logos', '/admin/announcements', '/admin/training'
+    ];
+    
+    if (validRoutes.includes(req.path)) {
+      // Let the React app handle these routes
+      res.redirect('/dashboard');
+    } else {
+      // For any other route, redirect to root
+      res.redirect('/');
+    }
   });
 
   const httpServer = createServer(app);

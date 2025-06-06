@@ -67,7 +67,13 @@ export default function Home() {
             </div>
             <h3 className="text-lg font-semibold mb-2">Announcements</h3>
             <p className="text-slate-600 text-sm mb-4">Company news and updates</p>
-            <button className="w-full bg-purple-600 hover:bg-purple-700 text-white py-2 rounded-lg transition-colors">
+            <button 
+              className="w-full bg-purple-600 hover:bg-purple-700 text-white py-2 rounded-lg transition-colors"
+              onClick={() => {
+                console.log("Home announcements button clicked");
+                window.location.href = "/announcements";
+              }}
+            >
               View Announcements
             </button>
           </div>
