@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { queryClient } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,9 +25,33 @@ export default function AnnouncementsPage() {
   const { data: announcements = [], isLoading, error } = useQuery<Announcement[]>({
     queryKey: ["/api/announcements/published"],
     retry: 1,
+    queryFn: async () => {
+      const response = await fetch("/api/announcements/published", {
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        },
+      });
+      
+      if (!response.ok) {
+        throw new Error(`${response.status}: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      console.log("Fresh API response:", data);
+      return data;
+    },
     refetchOnMount: true,
     refetchOnWindowFocus: true,
+    staleTime: 0,
   });
+
+  // Debug logging
+  console.log("Announcements query state:", { isLoading, error, announcements });
+  console.log("Raw announcements data:", announcements);
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {

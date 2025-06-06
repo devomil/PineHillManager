@@ -20,9 +20,33 @@ export default function AnnouncementsFeed() {
   const { data: announcements = [], isLoading } = useQuery<Announcement[]>({
     queryKey: ["/api/announcements/published"],
     retry: 1,
+    queryFn: async () => {
+      const response = await fetch("/api/announcements/published", {
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        },
+      });
+      
+      if (!response.ok) {
+        throw new Error(`${response.status}: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      console.log("Dashboard fresh API response:", data);
+      return data;
+    },
     refetchOnMount: true,
     refetchOnWindowFocus: true,
+    staleTime: 0,
   });
+
+  // Debug logging
+  console.log("Dashboard announcements query state:", { isLoading, announcements });
+  console.log("Dashboard raw announcements data:", announcements);
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
