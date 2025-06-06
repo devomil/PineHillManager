@@ -123,7 +123,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // CRITICAL: Complete Vite bypass for server-side routes
   app.use((req, res, next) => {
-    const serverRoutes = ['/admin', '/dashboard', '/schedule', '/time-off', '/api'];
+    const serverRoutes = ['/admin', '/schedule', '/time-off', '/api'];
     const isServerRoute = serverRoutes.some(route => req.path.startsWith(route));
     
     if (isServerRoute) {
@@ -455,7 +455,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               <div class="card-icon" style="background: #ede9fe; color: #7c3aed;">📢</div>
               <div class="card-title">Company Announcements</div>
               <div class="card-desc">Stay updated with the latest company news and updates</div>
-              <a href="/announcements" class="btn" onclick="console.log('Dashboard: View Announcements clicked, navigating to /announcements'); return true;">View Announcements</a>
+              <a href="/#/announcements" class="btn" onclick="console.log('Dashboard: View Announcements clicked, navigating to /#/announcements'); return true;">View Announcements</a>
             </div>
 
             <div class="card">
