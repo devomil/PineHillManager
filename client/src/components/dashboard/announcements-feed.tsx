@@ -141,7 +141,7 @@ export default function AnnouncementsFeed() {
             className="text-sm text-farm-green hover:text-green-700 font-medium h-auto p-0"
             onClick={() => {
               console.log("Announcements button clicked");
-              setLocation("/announcements");
+              window.location.href = "/announcements";
             }}
           >
             View All →
@@ -203,7 +203,7 @@ export default function AnnouncementsFeed() {
                   className="text-sm text-farm-green hover:text-green-700 font-medium h-auto p-0"
                   onClick={() => {
                     console.log("Bottom announcements button clicked");
-                    setLocation("/announcements");
+                    window.location.href = "/announcements";
                   }}
                 >
                   View all announcements →
