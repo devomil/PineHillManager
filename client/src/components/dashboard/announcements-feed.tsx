@@ -135,17 +135,17 @@ export default function AnnouncementsFeed() {
             <Bell className="h-5 w-5 text-farm-green" />
             Recent Announcements
           </CardTitle>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-sm text-farm-green hover:text-green-700 font-medium h-auto p-0"
-            onClick={() => {
-              console.log("Announcements button clicked");
+          <a
+            href="/announcements"
+            className="text-sm text-farm-green hover:text-green-700 font-medium cursor-pointer"
+            onClick={(e) => {
+              e.preventDefault();
+              console.log("Announcements link clicked - navigating");
               window.location.href = "/announcements";
             }}
           >
             View All →
-          </Button>
+          </a>
         </div>
       </CardHeader>
       <CardContent>
@@ -197,17 +197,17 @@ export default function AnnouncementsFeed() {
             
             {announcements.length > 0 && (
               <div className="text-center pt-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-sm text-farm-green hover:text-green-700 font-medium h-auto p-0"
-                  onClick={() => {
-                    console.log("Bottom announcements button clicked");
+                <a
+                  href="/announcements"
+                  className="text-sm text-farm-green hover:text-green-700 font-medium cursor-pointer"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    console.log("Bottom announcements link clicked - navigating");
                     window.location.href = "/announcements";
                   }}
                 >
                   View all announcements →
-                </Button>
+                </a>
               </div>
             )}
           </div>

@@ -36,9 +36,9 @@ export default function QuickActionsPanel() {
       color: "text-slate-500",
     },
     {
-      label: "Announcements",
+      label: "View Announcements",
       icon: Megaphone,
-      href: "/communication",
+      href: "/announcements",
       color: "text-purple-500",
     },
   ];
@@ -88,7 +88,20 @@ export default function QuickActionsPanel() {
       {/* Recent Announcements */}
       <Card className="shadow-sm border border-slate-200">
         <CardHeader>
-          <CardTitle>Recent Announcements</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle>Recent Announcements</CardTitle>
+            <a
+              href="/announcements"
+              className="text-sm text-farm-green hover:text-green-700 font-medium cursor-pointer"
+              onClick={(e) => {
+                e.preventDefault();
+                console.log("Quick actions announcements link clicked");
+                window.location.href = "/announcements";
+              }}
+            >
+              View All →
+            </a>
+          </div>
         </CardHeader>
         <CardContent>
           {announcementsLoading ? (
