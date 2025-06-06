@@ -2755,14 +2755,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         <head>
           <title>Pine Hill Farm Employee Portal</title>
           <style>
-            @import url('https://fonts.googleapis.com/css2?family=Brittany+Signature&display=swap');
+            @import url('https://fonts.googleapis.com/css2?family=Great+Vibes&display=swap');
             * { margin: 0; padding: 0; box-sizing: border-box; }
             body { 
               font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
               background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
               min-height: 100vh; color: #1e293b; display: flex; align-items: center; justify-content: center;
             }
-            .pine-hill-title { font-family: "Brittany Signature", cursive !important; font-size: 1.4em; }
+            .pine-hill-title { font-family: "Great Vibes", cursive !important; font-size: 1.6em; }
             .container { max-width: 400px; width: 100%; padding: 2rem; }
             .card { background: white; padding: 3rem; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); text-align: center; }
             .subtitle { color: #64748b; margin-bottom: 2rem; }
