@@ -20,6 +20,7 @@ interface Announcement {
 export default function AnnouncementsFeed() {
   const { data: announcements = [], isLoading } = useQuery<Announcement[]>({
     queryKey: ["/api/announcements/published"],
+    retry: 1,
   });
 
   const getPriorityColor = (priority: string) => {

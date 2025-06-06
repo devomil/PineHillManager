@@ -182,7 +182,7 @@ export default function AnnouncementsPage() {
                       <div className="flex items-center gap-4">
                         <span className="flex items-center gap-1">
                           <Calendar className="h-4 w-4" />
-                          Published {format(new Date(announcement.publishedAt), "MMM d, yyyy 'at' h:mm a")}
+                          Published {announcement.publishedAt ? format(new Date(announcement.publishedAt), "MMM d, yyyy 'at' h:mm a") : 'Unknown'}
                         </span>
                         <span className="flex items-center gap-1">
                           {getTargetAudienceIcon(announcement.targetAudience)}
