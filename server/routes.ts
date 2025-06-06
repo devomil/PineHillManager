@@ -5247,6 +5247,559 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Employee invitation API routes for beta testing
+  app.post('/api/admin/invitations', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      if (!user || user.role !== 'admin') {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+
+      const { email, firstName, lastName, role, department, position, notes } = req.body;
+      
+      // Generate unique invite token
+      const inviteToken = Math.random().toString(36).substring(2) + Date.now().toString(36);
+      
+      // Set expiration to 7 days from now
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 7);
+
+      const invitation = await storage.createEmployeeInvitation({
+        email,
+        firstName,
+        lastName,
+        role: role || 'employee',
+        department,
+        position,
+        inviteToken,
+        invitedBy: userId,
+        expiresAt,
+        status: 'pending',
+        notes
+      });
+
+      res.json({
+        ...invitation,
+        inviteUrl: `${req.protocol}://${req.get('host')}/invitation/${inviteToken}`
+      });
+    } catch (error) {
+      console.error("Error creating invitation:", error);
+      res.status(500).json({ message: "Failed to create invitation" });
+    }
+  });
+
+  app.get('/api/admin/invitations', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      if (!user || user.role !== 'admin') {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+
+      const { status } = req.query;
+      const invitations = await storage.getEmployeeInvitations(status as string);
+      res.json(invitations);
+    } catch (error) {
+      console.error("Error fetching invitations:", error);
+      res.status(500).json({ message: "Failed to fetch invitations" });
+    }
+  });
+
+  app.delete('/api/admin/invitations/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      if (!user || user.role !== 'admin') {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+
+      const invitationId = parseInt(req.params.id);
+      await storage.deleteInvitation(invitationId);
+      res.json({ message: "Invitation deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting invitation:", error);
+      res.status(500).json({ message: "Failed to delete invitation" });
+    }
+  });
+
+  // Public invitation acceptance route (no auth required)
+  app.get('/invitation/:token', async (req, res) => {
+    try {
+      const { token } = req.params;
+      const invitation = await storage.getInvitationByToken(token);
+      
+      if (!invitation) {
+        return res.status(404).send(`
+          <!DOCTYPE html>
+          <html>
+          <head><title>Invalid Invitation</title></head>
+          <body style="font-family: Arial; padding: 40px; text-align: center;">
+            <h1>Invalid Invitation</h1>
+            <p>This invitation link is not valid or has expired.</p>
+            <a href="/">Go to Home Page</a>
+          </body>
+          </html>
+        `);
+      }
+
+      if (invitation.status !== 'pending') {
+        return res.status(400).send(`
+          <!DOCTYPE html>
+          <html>
+          <head><title>Invitation Already Used</title></head>
+          <body style="font-family: Arial; padding: 40px; text-align: center;">
+            <h1>Invitation Already Used</h1>
+            <p>This invitation has already been accepted or has expired.</p>
+            <a href="/api/login">Sign In</a>
+          </body>
+          </html>
+        `);
+      }
+
+      if (new Date() > invitation.expiresAt) {
+        return res.status(400).send(`
+          <!DOCTYPE html>
+          <html>
+          <head><title>Invitation Expired</title></head>
+          <body style="font-family: Arial; padding: 40px; text-align: center;">
+            <h1>Invitation Expired</h1>
+            <p>This invitation has expired. Please contact your administrator for a new invitation.</p>
+            <a href="/">Go to Home Page</a>
+          </body>
+          </html>
+        `);
+      }
+
+      // Show invitation acceptance page
+      res.send(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Welcome to Pine Hill Farm</title>
+          <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { 
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+              background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+              min-height: 100vh; display: flex; align-items: center; justify-content: center;
+            }
+            .card { background: white; padding: 3rem; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); max-width: 500px; text-align: center; }
+            .logo { width: 60px; height: 60px; background: #607e66; border-radius: 15px; margin: 0 auto 2rem; display: flex; align-items: center; justify-content: center; color: white; font-size: 1.5rem; }
+            h1 { color: #1e293b; margin-bottom: 1rem; }
+            .invite-details { background: #f8fafc; padding: 1.5rem; border-radius: 8px; margin: 2rem 0; text-align: left; }
+            .detail-row { display: flex; justify-content: space-between; margin-bottom: 0.5rem; }
+            .detail-label { font-weight: 500; color: #64748b; }
+            .detail-value { color: #1e293b; }
+            .btn { background: #607e66; color: white; padding: 1rem 2rem; border: none; border-radius: 8px; font-size: 1rem; font-weight: 500; cursor: pointer; text-decoration: none; display: inline-block; transition: background 0.2s; }
+            .btn:hover { background: #4f6b56; }
+            .info { color: #64748b; font-size: 0.875rem; margin-top: 2rem; }
+          </style>
+        </head>
+        <body>
+          <div class="card">
+            <div class="logo">🌲</div>
+            <h1>Welcome to Pine Hill Farm!</h1>
+            <p>You've been invited to join our employee management system.</p>
+            
+            <div class="invite-details">
+              <div class="detail-row">
+                <span class="detail-label">Name:</span>
+                <span class="detail-value">${invitation.firstName} ${invitation.lastName}</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Email:</span>
+                <span class="detail-value">${invitation.email}</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Role:</span>
+                <span class="detail-value">${invitation.role}</span>
+              </div>
+              ${invitation.department ? `
+              <div class="detail-row">
+                <span class="detail-label">Department:</span>
+                <span class="detail-value">${invitation.department}</span>
+              </div>
+              ` : ''}
+              ${invitation.position ? `
+              <div class="detail-row">
+                <span class="detail-label">Position:</span>
+                <span class="detail-value">${invitation.position}</span>
+              </div>
+              ` : ''}
+            </div>
+            
+            <a href="/api/accept-invitation/${token}" class="btn">Accept Invitation & Sign In</a>
+            
+            <p class="info">
+              By accepting this invitation, you'll be able to access your schedule, request time off, and communicate with your team.
+            </p>
+          </div>
+        </body>
+        </html>
+      `);
+    } catch (error) {
+      console.error("Error processing invitation:", error);
+      res.status(500).send("Error processing invitation");
+    }
+  });
+
+  // Accept invitation and create user account
+  app.get('/api/accept-invitation/:token', async (req, res) => {
+    try {
+      const { token } = req.params;
+      const invitation = await storage.getInvitationByToken(token);
+      
+      if (!invitation || invitation.status !== 'pending' || new Date() > invitation.expiresAt) {
+        return res.redirect('/invitation/' + token);
+      }
+
+      // Create user account based on invitation
+      const userId = `inv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      const user = await storage.upsertUser({
+        id: userId,
+        email: invitation.email,
+        firstName: invitation.firstName,
+        lastName: invitation.lastName,
+        role: invitation.role,
+        department: invitation.department,
+        position: invitation.position,
+        isActive: true,
+        profileImageUrl: null
+      });
+
+      // Mark invitation as accepted
+      await storage.acceptInvitation(token, userId);
+
+      // Create session for the new user (auto-login)
+      (req.session as any).user = {
+        claims: {
+          sub: user.id,
+          email: user.email,
+          first_name: user.firstName,
+          last_name: user.lastName,
+          profile_image_url: user.profileImageUrl,
+        },
+        access_token: "invitation-token",
+        refresh_token: "invitation-refresh",
+        expires_at: Math.floor(Date.now() / 1000) + 28800, // 8 hours
+      };
+
+      req.session.save((err) => {
+        if (err) {
+          console.error('Session save error:', err);
+          return res.status(500).send("Session error");
+        }
+        res.redirect("/dashboard");
+      });
+    } catch (error) {
+      console.error("Error accepting invitation:", error);
+      res.status(500).send("Error accepting invitation");
+    }
+  });
+
+  // Admin password reset for employees
+  app.post('/api/admin/reset-password/:userId', isAuthenticated, async (req: any, res) => {
+    try {
+      const adminId = req.user.claims.sub;
+      const adminUser = await storage.getUser(adminId);
+      
+      if (!adminUser || adminUser.role !== 'admin') {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+
+      const { userId } = req.params;
+      const targetUser = await storage.getUser(userId);
+      
+      if (!targetUser) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      // Generate temporary password reset token
+      const resetToken = Math.random().toString(36).substring(2) + Date.now().toString(36);
+      
+      // In a real system, you would:
+      // 1. Store the reset token in database with expiration
+      // 2. Send reset email to user
+      // For now, we'll return the reset link for manual sharing
+      
+      res.json({
+        message: "Password reset initiated",
+        resetUrl: `${req.protocol}://${req.get('host')}/reset-password/${resetToken}`,
+        user: {
+          id: targetUser.id,
+          name: `${targetUser.firstName} ${targetUser.lastName}`,
+          email: targetUser.email
+        }
+      });
+    } catch (error) {
+      console.error("Error initiating password reset:", error);
+      res.status(500).json({ message: "Failed to initiate password reset" });
+    }
+  });
+
+  // Admin dashboard route for managing invitations
+  app.get('/admin/invitations', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      if (!user || user.role !== 'admin') {
+        return res.status(403).send("Admin access required");
+      }
+
+      const invitations = await storage.getEmployeeInvitations();
+      const allUsers = await storage.getAllUsers();
+
+      res.send(`
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+          <title>Pine Hill Farm - Employee Invitations</title>
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { 
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+              background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+              min-height: 100vh; color: #1e293b;
+            }
+            .header { background: white; padding: 1rem 2rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+            .header-content { max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
+            .logo { display: flex; align-items: center; gap: 1rem; }
+            .logo-icon { width: 40px; height: 40px; background: #607e66; border-radius: 10px; display: flex; align-items: center; justify-content: center; color: white; font-size: 1.2rem; }
+            .nav { display: flex; gap: 1rem; flex-wrap: wrap; }
+            .nav a { color: #64748b; text-decoration: none; padding: 0.5rem 1rem; border-radius: 6px; transition: background 0.2s; }
+            .nav a:hover { background: #f1f5f9; }
+            .nav a.active { background: #607e66; color: white; }
+            .container { max-width: 1200px; margin: 0 auto; padding: 2rem; }
+            .page-header { text-align: center; margin-bottom: 3rem; }
+            .invite-form { background: white; padding: 2rem; border-radius: 12px; margin-bottom: 3rem; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+            .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; }
+            .form-group { display: flex; flex-direction: column; gap: 0.5rem; }
+            .form-group label { font-weight: 500; color: #374151; }
+            .form-control { padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 6px; font-size: 1rem; }
+            .form-control:focus { outline: none; border-color: #607e66; box-shadow: 0 0 0 3px rgba(96, 126, 102, 0.1); }
+            .btn { background: #607e66; color: white; padding: 0.75rem 1.5rem; border: none; border-radius: 8px; font-weight: 500; cursor: pointer; transition: background 0.2s; }
+            .btn:hover { background: #4a6b55; }
+            .btn-danger { background: #dc2626; }
+            .btn-danger:hover { background: #b91c1c; }
+            .invitations-table { background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+            .table { width: 100%; border-collapse: collapse; }
+            .table th, .table td { padding: 1rem; text-align: left; border-bottom: 1px solid #e5e7eb; }
+            .table th { background: #f9fafb; font-weight: 600; color: #374151; }
+            .status-badge { padding: 0.25rem 0.75rem; border-radius: 1rem; font-size: 0.75rem; font-weight: 500; }
+            .status-pending { background: #fef3c7; color: #92400e; }
+            .status-accepted { background: #d1fae5; color: #065f46; }
+            .status-expired { background: #fee2e2; color: #991b1b; }
+            .url-display { font-family: monospace; font-size: 0.875rem; color: #6b7280; word-break: break-all; }
+            .success-message { background: #d1fae5; color: #065f46; padding: 1rem; border-radius: 6px; margin-bottom: 1rem; }
+            .employees-section { background: white; padding: 2rem; border-radius: 12px; margin-top: 3rem; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div class="header-content">
+              <div class="logo">
+                <div class="logo-icon">🌲</div>
+                <div>
+                  <div style="font-weight: 600; font-size: 1.125rem;">Pine Hill Farm</div>
+                  <div style="font-size: 0.875rem; color: #64748b;">Admin Portal</div>
+                </div>
+              </div>
+              <div class="nav">
+                <a href="/dashboard">Dashboard</a>
+                <a href="/admin/employees">Employees</a>
+                <a href="/admin/schedule">Schedule</a>
+                <a href="/admin/invitations" class="active">Invitations</a>
+                <a href="/admin/documents">Documents</a>
+                <a href="/api/logout">Logout</a>
+              </div>
+            </div>
+          </div>
+
+          <div class="container">
+            <div class="page-header">
+              <h1>Employee Invitations</h1>
+              <p style="color: #64748b; margin-top: 0.5rem;">Manage beta testing invitations for new employees</p>
+            </div>
+
+            <div class="invite-form">
+              <h2 style="margin-bottom: 1.5rem;">Send New Invitation</h2>
+              <form id="inviteForm">
+                <div class="form-grid">
+                  <div class="form-group">
+                    <label for="firstName">First Name *</label>
+                    <input type="text" id="firstName" name="firstName" class="form-control" required>
+                  </div>
+                  <div class="form-group">
+                    <label for="lastName">Last Name *</label>
+                    <input type="text" id="lastName" name="lastName" class="form-control" required>
+                  </div>
+                  <div class="form-group">
+                    <label for="email">Email Address *</label>
+                    <input type="email" id="email" name="email" class="form-control" required>
+                  </div>
+                  <div class="form-group">
+                    <label for="role">Role</label>
+                    <select id="role" name="role" class="form-control">
+                      <option value="employee">Employee</option>
+                      <option value="manager">Manager</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label for="department">Department</label>
+                    <input type="text" id="department" name="department" class="form-control" placeholder="e.g., Sales, Operations">
+                  </div>
+                  <div class="form-group">
+                    <label for="position">Position</label>
+                    <input type="text" id="position" name="position" class="form-control" placeholder="e.g., Sales Associate">
+                  </div>
+                </div>
+                <div class="form-group" style="margin-top: 1rem;">
+                  <label for="notes">Notes (Optional)</label>
+                  <textarea id="notes" name="notes" class="form-control" rows="3" placeholder="Any additional information about this invitation"></textarea>
+                </div>
+                <button type="submit" class="btn" style="margin-top: 1.5rem;">Create Invitation</button>
+              </form>
+            </div>
+
+            <div class="invitations-table">
+              <h2 style="padding: 1.5rem 1.5rem 0;">Recent Invitations</h2>
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Role</th>
+                    <th>Status</th>
+                    <th>Invited</th>
+                    <th>Invitation URL</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${invitations.map(inv => `
+                    <tr>
+                      <td>${inv.firstName} ${inv.lastName}</td>
+                      <td>${inv.email}</td>
+                      <td>${inv.role}</td>
+                      <td><span class="status-badge status-${inv.status}">${inv.status}</span></td>
+                      <td>${new Date(inv.invitedAt).toLocaleDateString()}</td>
+                      <td><div class="url-display">${req.protocol}://${req.get('host')}/invitation/${inv.inviteToken}</div></td>
+                      <td>
+                        <button onclick="copyInviteUrl('${inv.inviteToken}')" class="btn" style="padding: 0.25rem 0.75rem; font-size: 0.875rem;">Copy URL</button>
+                        ${inv.status === 'pending' ? `<button onclick="deleteInvitation(${inv.id})" class="btn btn-danger" style="padding: 0.25rem 0.75rem; font-size: 0.875rem; margin-left: 0.5rem;">Delete</button>` : ''}
+                      </td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+
+            <div class="employees-section">
+              <h2 style="margin-bottom: 1.5rem;">Current Employees (${allUsers.length} total)</h2>
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem;">
+                ${allUsers.map(emp => `
+                  <div style="border: 1px solid #e5e7eb; padding: 1rem; border-radius: 8px;">
+                    <div style="font-weight: 600;">${emp.firstName} ${emp.lastName}</div>
+                    <div style="color: #64748b; font-size: 0.875rem;">${emp.email}</div>
+                    <div style="color: #64748b; font-size: 0.875rem;">Role: ${emp.role}</div>
+                    ${emp.department ? `<div style="color: #64748b; font-size: 0.875rem;">Department: ${emp.department}</div>` : ''}
+                    <button onclick="resetPassword('${emp.id}')" class="btn" style="padding: 0.5rem 1rem; font-size: 0.875rem; margin-top: 0.5rem;">Reset Password</button>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          </div>
+
+          <div id="successMessage" style="display: none; position: fixed; top: 20px; right: 20px; background: #d1fae5; color: #065f46; padding: 1rem; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); z-index: 1000;"></div>
+
+          <script>
+            document.getElementById('inviteForm').addEventListener('submit', async (e) => {
+              e.preventDefault();
+              
+              const formData = new FormData(e.target);
+              const data = Object.fromEntries(formData.entries());
+              
+              try {
+                const response = await fetch('/api/admin/invitations', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(data)
+                });
+                
+                if (response.ok) {
+                  const result = await response.json();
+                  showSuccess('Invitation created successfully! URL: ' + result.inviteUrl);
+                  e.target.reset();
+                  setTimeout(() => location.reload(), 2000);
+                } else {
+                  const error = await response.json();
+                  alert('Error: ' + error.message);
+                }
+              } catch (error) {
+                alert('Error creating invitation. Please try again.');
+              }
+            });
+
+            function copyInviteUrl(token) {
+              const url = '${req.protocol}://${req.get('host')}/invitation/' + token;
+              navigator.clipboard.writeText(url).then(() => {
+                showSuccess('Invitation URL copied to clipboard!');
+              });
+            }
+
+            function deleteInvitation(id) {
+              if (confirm('Are you sure you want to delete this invitation?')) {
+                fetch('/api/admin/invitations/' + id, { method: 'DELETE' })
+                  .then(response => {
+                    if (response.ok) {
+                      showSuccess('Invitation deleted successfully!');
+                      setTimeout(() => location.reload(), 1000);
+                    } else {
+                      alert('Error deleting invitation.');
+                    }
+                  });
+              }
+            }
+
+            function resetPassword(userId) {
+              if (confirm('Generate a password reset link for this employee?')) {
+                fetch('/api/admin/reset-password/' + userId, { method: 'POST' })
+                  .then(response => response.json())
+                  .then(data => {
+                    if (data.resetUrl) {
+                      const message = 'Password reset link generated for ' + data.user.name + ': ' + data.resetUrl;
+                      showSuccess(message);
+                      navigator.clipboard.writeText(data.resetUrl);
+                    } else {
+                      alert('Error generating reset link.');
+                    }
+                  });
+              }
+            }
+
+            function showSuccess(message) {
+              const div = document.getElementById('successMessage');
+              div.textContent = message;
+              div.style.display = 'block';
+              setTimeout(() => { div.style.display = 'none'; }, 5000);
+            }
+          </script>
+        </body>
+        </html>
+      `);
+    } catch (error) {
+      console.error("Error loading invitations page:", error);
+      res.status(500).send("Error loading page");
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

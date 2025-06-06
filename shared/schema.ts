@@ -332,6 +332,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   documentPermissions: many(documentPermissions),
   documentLogs: many(documentLogs),
   uploadedLogos: many(logos),
+  sentInvitations: many(employeeInvitations),
 }));
 
 export const timeOffRequestsRelations = relations(timeOffRequests, ({ one }) => ({
@@ -495,12 +496,6 @@ export const insertLogoSchema = createInsertSchema(logos).omit({
   updatedAt: true,
 });
 
-export const insertEmployeeInvitationSchema = createInsertSchema(employeeInvitations).omit({
-  id: true,
-  invitedAt: true,
-  acceptedAt: true,
-});
-
 // Add relations for new tables
 export const pushSubscriptionsRelations = relations(pushSubscriptions, ({ one }) => ({
   user: one(users, { fields: [pushSubscriptions.userId], references: [users.id] }),
@@ -545,8 +540,18 @@ export type InsertDocumentPermission = z.infer<typeof insertDocumentPermissionSc
 export type DocumentPermission = typeof documentPermissions.$inferSelect;
 export type InsertDocumentLog = z.infer<typeof insertDocumentLogSchema>;
 export type DocumentLog = typeof documentLogs.$inferSelect;
-export type InsertEmployeeInvitation = z.infer<typeof insertEmployeeInvitationSchema>;
+
+// Employee invitation types
 export type EmployeeInvitation = typeof employeeInvitations.$inferSelect;
+export type InsertEmployeeInvitation = typeof employeeInvitations.$inferInsert;
+
+// Employee invitation schema for validation
+export const insertEmployeeInvitationSchema = createInsertSchema(employeeInvitations).omit({
+  id: true,
+  invitedAt: true,
+  acceptedAt: true,
+});
+
 
 // Calendar event type for unified calendar view
 export interface CalendarEvent {
