@@ -297,6 +297,24 @@ export const logos = pgTable("logos", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Employee invitations for beta testing
+export const employeeInvitations = pgTable("employee_invitations", {
+  id: serial("id").primaryKey(),
+  email: varchar("email").notNull().unique(),
+  firstName: varchar("first_name").notNull(),
+  lastName: varchar("last_name").notNull(),
+  role: varchar("role").notNull().default("employee"),
+  department: varchar("department"),
+  position: varchar("position"),
+  inviteToken: varchar("invite_token").notNull().unique(),
+  invitedBy: varchar("invited_by").notNull().references(() => users.id),
+  invitedAt: timestamp("invited_at").defaultNow(),
+  expiresAt: timestamp("expires_at").notNull(),
+  acceptedAt: timestamp("accepted_at"),
+  status: varchar("status").notNull().default("pending"), // pending, accepted, expired
+  notes: text("notes"),
+});
+
 // Define relations
 export const usersRelations = relations(users, ({ many }) => ({
   timeOffRequests: many(timeOffRequests),
@@ -381,6 +399,10 @@ export const documentLogsRelations = relations(documentLogs, ({ one }) => ({
 
 export const logosRelations = relations(logos, ({ one }) => ({
   uploader: one(users, { fields: [logos.uploadedBy], references: [users.id] }),
+}));
+
+export const employeeInvitationsRelations = relations(employeeInvitations, ({ one }) => ({
+  inviter: one(users, { fields: [employeeInvitations.invitedBy], references: [users.id] }),
 }));
 
 // Create insert schemas
@@ -473,6 +495,12 @@ export const insertLogoSchema = createInsertSchema(logos).omit({
   updatedAt: true,
 });
 
+export const insertEmployeeInvitationSchema = createInsertSchema(employeeInvitations).omit({
+  id: true,
+  invitedAt: true,
+  acceptedAt: true,
+});
+
 // Add relations for new tables
 export const pushSubscriptionsRelations = relations(pushSubscriptions, ({ one }) => ({
   user: one(users, { fields: [pushSubscriptions.userId], references: [users.id] }),
@@ -517,6 +545,8 @@ export type InsertDocumentPermission = z.infer<typeof insertDocumentPermissionSc
 export type DocumentPermission = typeof documentPermissions.$inferSelect;
 export type InsertDocumentLog = z.infer<typeof insertDocumentLogSchema>;
 export type DocumentLog = typeof documentLogs.$inferSelect;
+export type InsertEmployeeInvitation = z.infer<typeof insertEmployeeInvitationSchema>;
+export type EmployeeInvitation = typeof employeeInvitations.$inferSelect;
 
 // Calendar event type for unified calendar view
 export interface CalendarEvent {

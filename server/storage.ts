@@ -18,6 +18,7 @@ import {
   timeClockEntries,
   userPresence,
   logos,
+  employeeInvitations,
   type User,
   type UpsertUser,
   type InsertTimeOffRequest,
