@@ -161,12 +161,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       <head>
         <title>Pine Hill Farm Employee Portal</title>
         <style>
+          @import url('https://fonts.googleapis.com/css2?family=Dancing+Script:wght@400;500;600;700&display=swap');
           * { margin: 0; padding: 0; box-sizing: border-box; }
           body { 
+          .pine-hill-title { font-family: "Dancing Script", cursive; font-weight: 600; }
+          @import url("https://fonts.googleapis.com/css2?family=Dancing+Script:wght@400;500;600;700&display=swap");
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
             min-height: 100vh; color: #1e293b; padding: 2rem;
           }
+          .pine-hill-title { font-family: 'Dancing Script', cursive; }
           .container { max-width: 1200px; margin: 0 auto; }
           .header { text-align: center; margin-bottom: 3rem; }
           h1 { font-size: 3rem; font-weight: 700; margin-bottom: 1rem; }
@@ -204,7 +208,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         <div class="container">
           <div class="header">
             
-            <h1>Pine Hill Farm</h1>
+            <h1 class="pine-hill-title">Pine Hill Farm</h1>
             <div class="subtitle">Employee Portal</div>
             <div class="description">
               Welcome to the Pine Hill Farm employee management system. 
@@ -259,6 +263,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         <style>
           * { margin: 0; padding: 0; box-sizing: border-box; }
           body { 
+          .pine-hill-title { font-family: "Dancing Script", cursive; font-weight: 600; }
+          @import url("https://fonts.googleapis.com/css2?family=Dancing+Script:wght@400;500;600;700&display=swap");
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
             min-height: 100vh;
@@ -303,7 +309,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         <div class="container">
           <div class="header">
             
-            <h1>Pine Hill Farm</h1>
+            <h1 class="pine-hill-title">Pine Hill Farm</h1>
             <div class="subtitle">Employee Portal</div>
             <div class="description">
               Welcome to the Pine Hill Farm employee management system. 
@@ -367,6 +373,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         <style>
           * { margin: 0; padding: 0; box-sizing: border-box; }
           body { 
+          .pine-hill-title { font-family: "Dancing Script", cursive; font-weight: 600; }
+          @import url("https://fonts.googleapis.com/css2?family=Dancing+Script:wght@400;500;600;700&display=swap");
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
             min-height: 100vh; color: #1e293b;
@@ -396,7 +404,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             <div class="logo">
               
               <div>
-                <div style="font-weight: 600;">Pine Hill Farm</div>
+                <div style="font-weight: 600;" class="pine-hill-title">Pine Hill Farm</div>
                 <div style="font-size: 0.875rem; color: #64748b;">Employee Portal</div>
               </div>
             </div>
@@ -506,6 +514,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         <style>
           * { margin: 0; padding: 0; box-sizing: border-box; }
           body { 
+          .pine-hill-title { font-family: "Dancing Script", cursive; font-weight: 600; }
+          @import url("https://fonts.googleapis.com/css2?family=Dancing+Script:wght@400;500;600;700&display=swap");
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
             min-height: 100vh; color: #1e293b;
@@ -542,7 +552,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             <div class="logo">
               
               <div>
-                <div style="font-weight: 600;">Pine Hill Farm</div>
+                <div style="font-weight: 600;" class="pine-hill-title">Pine Hill Farm</div>
                 <div style="font-size: 0.875rem; color: #64748b;">Employee Portal</div>
               </div>
             </div>
@@ -662,6 +672,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         <style>
           * { margin: 0; padding: 0; box-sizing: border-box; }
           body { 
+          .pine-hill-title { font-family: "Dancing Script", cursive; font-weight: 600; }
+          @import url("https://fonts.googleapis.com/css2?family=Dancing+Script:wght@400;500;600;700&display=swap");
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
             min-height: 100vh; color: #1e293b;
@@ -697,7 +709,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             <div class="logo">
               
               <div>
-                <div style="font-weight: 600;">Pine Hill Farm</div>
+                <div style="font-weight: 600;" class="pine-hill-title">Pine Hill Farm</div>
                 <div style="font-size: 0.875rem; color: #64748b;">Employee Portal</div>
               </div>
             </div>
@@ -823,6 +835,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         <style>
           * { margin: 0; padding: 0; box-sizing: border-box; }
           body { 
+          .pine-hill-title { font-family: "Dancing Script", cursive; font-weight: 600; }
+          @import url("https://fonts.googleapis.com/css2?family=Dancing+Script:wght@400;500;600;700&display=swap");
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
             min-height: 100vh; color: #1e293b;
@@ -859,7 +873,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             <div class="logo">
               
               <div>
-                <div style="font-weight: 600;">Pine Hill Farm</div>
+                <div style="font-weight: 600;" class="pine-hill-title">Pine Hill Farm</div>
                 <div style="font-size: 0.875rem; color: #64748b;">Employee Portal</div>
               </div>
             </div>
@@ -1020,6 +1034,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           <style>
             * { margin: 0; padding: 0; box-sizing: border-box; }
             body { 
+          .pine-hill-title { font-family: "Dancing Script", cursive; font-weight: 600; }
+          @import url("https://fonts.googleapis.com/css2?family=Dancing+Script:wght@400;500;600;700&display=swap");
               font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
               background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
               min-height: 100vh; color: #1e293b;
@@ -1063,7 +1079,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               <div class="logo">
                 
                 <div>
-                  <div style="font-weight: 600;">Pine Hill Farm</div>
+                  <div style="font-weight: 600;" class="pine-hill-title">Pine Hill Farm</div>
                   <div style="font-size: 0.875rem; color: #64748b;">Admin Portal</div>
                 </div>
               </div>
@@ -1223,6 +1239,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           <style>
             * { margin: 0; padding: 0; box-sizing: border-box; }
             body { 
+          .pine-hill-title { font-family: "Dancing Script", cursive; font-weight: 600; }
+          @import url("https://fonts.googleapis.com/css2?family=Dancing+Script:wght@400;500;600;700&display=swap");
               font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
               background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
               min-height: 100vh; color: #1e293b;
@@ -1262,7 +1280,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               <div class="logo">
                 
                 <div>
-                  <div style="font-weight: 600;">Pine Hill Farm</div>
+                  <div style="font-weight: 600;" class="pine-hill-title">Pine Hill Farm</div>
                   <div style="font-size: 0.875rem; color: #64748b;">Employee Management</div>
                 </div>
               </div>
@@ -1422,6 +1440,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           <style>
             * { margin: 0; padding: 0; box-sizing: border-box; }
             body { 
+          .pine-hill-title { font-family: "Dancing Script", cursive; font-weight: 600; }
+          @import url("https://fonts.googleapis.com/css2?family=Dancing+Script:wght@400;500;600;700&display=swap");
               font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
               background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
               min-height: 100vh; color: #1e293b;
@@ -1450,7 +1470,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               <div class="logo">
                 
                 <div>
-                  <div style="font-weight: 600;">Pine Hill Farm</div>
+                  <div style="font-weight: 600;" class="pine-hill-title">Pine Hill Farm</div>
                   <div style="font-size: 0.875rem; color: #64748b;">Edit Employee</div>
                 </div>
               </div>
@@ -1579,6 +1599,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           <style>
             * { margin: 0; padding: 0; box-sizing: border-box; }
             body { 
+          .pine-hill-title { font-family: "Dancing Script", cursive; font-weight: 600; }
+          @import url("https://fonts.googleapis.com/css2?family=Dancing+Script:wght@400;500;600;700&display=swap");
               font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
               background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
               min-height: 100vh; color: #1e293b;
@@ -1610,7 +1632,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               <div class="logo">
                 
                 <div>
-                  <div style="font-weight: 600;">Pine Hill Farm</div>
+                  <div style="font-weight: 600;" class="pine-hill-title">Pine Hill Farm</div>
                   <div style="font-size: 0.875rem; color: #64748b;">Schedule Management</div>
                 </div>
               </div>
@@ -2011,6 +2033,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           <style>
             * { margin: 0; padding: 0; box-sizing: border-box; }
             body { 
+          .pine-hill-title { font-family: "Dancing Script", cursive; font-weight: 600; }
+          @import url("https://fonts.googleapis.com/css2?family=Dancing+Script:wght@400;500;600;700&display=swap");
               font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
               background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
               min-height: 100vh; color: #1e293b;
@@ -2042,7 +2066,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               <div class="logo">
                 
                 <div>
-                  <div style="font-weight: 600;">Pine Hill Farm</div>
+                  <div style="font-weight: 600;" class="pine-hill-title">Pine Hill Farm</div>
                   <div style="font-size: 0.875rem; color: #64748b;">Add New Employee</div>
                 </div>
               </div>
@@ -2237,6 +2261,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           <style>
             * { margin: 0; padding: 0; box-sizing: border-box; }
             body { 
+          .pine-hill-title { font-family: "Dancing Script", cursive; font-weight: 600; }
+          @import url("https://fonts.googleapis.com/css2?family=Dancing+Script:wght@400;500;600;700&display=swap");
               font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
               background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
               min-height: 100vh; color: #1e293b;
@@ -2274,7 +2300,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               <div class="logo">
                 
                 <div>
-                  <div style="font-weight: 600;">Pine Hill Farm</div>
+                  <div style="font-weight: 600;" class="pine-hill-title">Pine Hill Farm</div>
                   <div style="font-size: 0.875rem; color: #64748b;">Team Chat</div>
                 </div>
               </div>
@@ -2390,6 +2416,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           <style>
             * { margin: 0; padding: 0; box-sizing: border-box; }
             body { 
+          .pine-hill-title { font-family: "Dancing Script", cursive; font-weight: 600; }
+          @import url("https://fonts.googleapis.com/css2?family=Dancing+Script:wght@400;500;600;700&display=swap");
               font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
               background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
               min-height: 100vh; color: #1e293b;
@@ -2422,7 +2450,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               <div class="logo">
                 
                 <div>
-                  <div style="font-weight: 600;">Pine Hill Farm</div>
+                  <div style="font-weight: 600;" class="pine-hill-title">Pine Hill Farm</div>
                   <div style="font-size: 0.875rem; color: #64748b;">Documents & Resources</div>
                 </div>
               </div>
@@ -2565,6 +2593,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           <style>
             * { margin: 0; padding: 0; box-sizing: border-box; }
             body { 
+          .pine-hill-title { font-family: "Dancing Script", cursive; font-weight: 600; }
+          @import url("https://fonts.googleapis.com/css2?family=Dancing+Script:wght@400;500;600;700&display=swap");
               font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
               background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
               min-height: 100vh; color: #1e293b;
@@ -2604,7 +2634,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               <div class="logo">
                 
                 <div>
-                  <div style="font-weight: 600;">Pine Hill Farm</div>
+                  <div style="font-weight: 600;" class="pine-hill-title">Pine Hill Farm</div>
                   <div style="font-size: 0.875rem; color: #64748b;">Shift Coverage</div>
                 </div>
               </div>
@@ -2729,6 +2759,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           <style>
             * { margin: 0; padding: 0; box-sizing: border-box; }
             body { 
+          .pine-hill-title { font-family: "Dancing Script", cursive; font-weight: 600; }
+          @import url("https://fonts.googleapis.com/css2?family=Dancing+Script:wght@400;500;600;700&display=swap");
               font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
               background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
               min-height: 100vh; color: #1e293b; display: flex; align-items: center; justify-content: center;
@@ -2745,7 +2777,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           <div class="container">
             <div class="card">
               
-              <h1>Pine Hill Farm</h1>
+              <h1 class="pine-hill-title">Pine Hill Farm</h1>
               <p class="subtitle">Employee Management Portal</p>
               <a href="/api/login" class="btn">Sign In to Continue</a>
               <div class="footer">Lake Geneva & Watertown Locations</div>
