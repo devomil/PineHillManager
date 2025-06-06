@@ -4,61 +4,100 @@ import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
 import { setupDevAuth, isAuthenticated } from "./devAuth";
-import multer from "multer";
-import path from "path";
-import fs from "fs/promises";
 
-// Configure multer for file uploads
-const storage_config = multer.diskStorage({
-  destination: async (req, file, cb) => {
-    const uploadDir = path.join(process.cwd(), 'uploads');
-    try {
-      await fs.mkdir(uploadDir, { recursive: true });
-    } catch (error) {
-      console.error('Error creating upload directory:', error);
-    }
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, `${uniqueSuffix}-${file.originalname}`);
-  }
-});
-
-const upload = multer({
-  storage: storage_config,
-  limits: {
-    fileSize: 50 * 1024 * 1024, // 50MB limit
-  },
-  fileFilter: (req, file, cb) => {
-    // Allow common document types and logo files
-    const allowedTypes = [
-      'application/pdf',
-      'application/msword',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'application/vnd.ms-excel',
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'text/plain',
-      'text/csv',
-      'image/jpeg',
-      'image/png',
-      'image/gif',
-      'image/svg+xml'  // Added SVG support for logos
-    ];
-    
-    if (allowedTypes.includes(file.mimetype)) {
-      cb(null, true);
-    } else {
-      cb(new Error('File type not allowed'));
-    }
-  }
-});
-
-// Initialize database - no mock data
+// Initialize database with sample users
 async function initializeDatabase() {
   try {
-    // Database connection verified - ready for production use
-    console.log("Database initialized and ready for production");
+    // Create admin user (Ryan Sorensen)
+    let adminUser = await storage.getUser("40154188");
+    if (!adminUser) {
+      await storage.upsertUser({
+        id: "40154188",
+        email: "ryan@pinehillfarm.co",
+        firstName: "Ryan",
+        lastName: "Sorensen",
+        profileImageUrl: null,
+      });
+      await storage.updateUserRole("40154188", "admin");
+    }
+
+    // Create manager user
+    let managerUser = await storage.getUser("manager001");
+    if (!managerUser) {
+      await storage.createEmployee({
+        id: "manager001",
+        employeeId: "PHF-MGR-001",
+        firstName: "Sarah",
+        lastName: "Johnson",
+        email: "sarah@pinehillfarm.co",
+        role: "manager",
+        department: "operations",
+        position: "Store Manager",
+        hireDate: "2023-01-15",
+        isActive: true,
+        timeOffBalance: 40
+      });
+    }
+
+    // Create sample employees
+    let employee1 = await storage.getUser("employee001");
+    if (!employee1) {
+      await storage.createEmployee({
+        id: "employee001",
+        employeeId: "PHF-EMP-001",
+        firstName: "Mike",
+        lastName: "Davis",
+        email: "mike@pinehillfarm.co",
+        role: "employee",
+        department: "sales",
+        position: "Sales Associate",
+        hireDate: "2023-06-01",
+        isActive: true,
+        timeOffBalance: 24
+      });
+    }
+
+    let employee2 = await storage.getUser("employee002");
+    if (!employee2) {
+      await storage.createEmployee({
+        id: "employee002",
+        employeeId: "PHF-EMP-002",
+        firstName: "Jessica",
+        lastName: "Miller",
+        email: "jessica@pinehillfarm.co",
+        role: "employee",
+        department: "sales",
+        position: "Sales Associate",
+        hireDate: "2023-08-15",
+        isActive: true,
+        timeOffBalance: 16
+      });
+    }
+
+    let employee3 = await storage.getUser("employee003");
+    if (!employee3) {
+      await storage.createEmployee({
+        id: "employee003",
+        employeeId: "PHF-EMP-003",
+        firstName: "Alex",
+        lastName: "Thompson",
+        email: "alex@pinehillfarm.co",
+        role: "employee",
+        department: "inventory",
+        position: "Inventory Specialist",
+        hireDate: "2024-01-10",
+        isActive: true,
+        timeOffBalance: 32
+      });
+    }
+
+
+
+    console.log("Database initialized with comprehensive test data:");
+    console.log("- Admin: Ryan Sorensen (ryan@pinehillfarm.co)");
+    console.log("- Manager: Sarah Johnson (sarah@pinehillfarm.co)");
+    console.log("- Employees: Mike Davis, Jessica Miller, Alex Thompson");
+    console.log("- Sample schedules and time-off requests created");
   } catch (error) {
     console.error("Error initializing database:", error);
   }
@@ -95,21 +134,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
     next();
   });
-
-  // Time formatting utility functions
-  function formatTime12Hour(time24: string): string {
-    if (!time24) return '';
-    
-    const [hours, minutes] = time24.split(':').map(Number);
-    const period = hours >= 12 ? 'PM' : 'AM';
-    const hours12 = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
-    
-    return `${hours12}:${minutes.toString().padStart(2, '0')} ${period}`;
-  }
-
-  function formatTimeRange(startTime: string, endTime: string): string {
-    return `${formatTime12Hour(startTime)} - ${formatTime12Hour(endTime)}`;
-  }
 
   // Auth middleware SECOND
   await setupDevAuth(app);
@@ -326,8 +350,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Working dashboard route that bypasses React issues
   app.get('/dashboard', isAuthenticated, async (req: any, res) => {
     try {
-      // Use development user ID if set, otherwise use authenticated user
-      const userId = req.session?.devUserId || req.user.claims.sub;
+      const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
       
       if (!user) {
@@ -370,6 +393,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       <body>
         <div class="header">
           <div class="header-content">
+            <div class="logo">
+              
               <div>
                 <div style="font-weight: 600;">Pine Hill Farm</div>
                 <div style="font-size: 0.875rem; color: #64748b;">Employee Portal</div>
@@ -378,7 +403,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
             <div class="nav">
               <a href="/dashboard" class="active">Dashboard</a>
               <a href="/schedule">Schedule</a>
-              <a href="/time-clock">Time Clock</a>
               <a href="/time-off">Time Off</a>
               <a href="/announcements">Announcements</a>
               ${isAdminOrManager ? '<a href="/admin">Admin Portal</a>' : ''}
@@ -389,19 +413,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         <div class="container">
           <div class="welcome">
-            <h1 style="margin-bottom: 0.5rem;">Welcome to Your Dashboard, ${user.firstName} ${user.lastName}</h1>
+            <h1 style="margin-bottom: 0.5rem;">Welcome to Your Dashboard</h1>
             <p style="color: #64748b;">Here's an overview of your work activities and quick access to important features.</p>
-            ${isAdminOrManager ? `
-              <div style="background: #fef3c7; border: 2px solid #f59e0b; border-radius: 8px; padding: 1rem; margin-top: 1rem;">
-                <strong style="color: #92400e;">Development Testing:</strong>
-                <div style="margin-top: 0.5rem;">
-                  <a href="/dev/switch-user/manager001" style="background: #f59e0b; color: white; padding: 0.5rem 1rem; border-radius: 4px; text-decoration: none; margin-right: 0.5rem; font-size: 0.875rem;">Test as Sarah Johnson</a>
-                  <a href="/dev/switch-user/employee003" style="background: #3b82f6; color: white; padding: 0.5rem 1rem; border-radius: 4px; text-decoration: none; margin-right: 0.5rem; font-size: 0.875rem;">Test as Alex Thompson</a>
-                  <a href="/dev/switch-user/employee001" style="background: #10b981; color: white; padding: 0.5rem 1rem; border-radius: 4px; text-decoration: none; margin-right: 0.5rem; font-size: 0.875rem;">Test as Mike Davis</a>
-                  <a href="/dev/switch-user/employee002" style="background: #8b5cf6; color: white; padding: 0.5rem 1rem; border-radius: 4px; text-decoration: none; font-size: 0.875rem;">Test as Jessica Miller</a>
-                </div>
-              </div>
-            ` : ''}
           </div>
 
           <div class="dashboard-grid">
@@ -410,13 +423,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
               <div class="card-title">My Schedule</div>
               <div class="card-desc">View your upcoming shifts and manage your work schedule</div>
               <a href="/schedule" class="btn">View Schedule</a>
-            </div>
-
-            <div class="card">
-              <div class="card-icon" style="background: #f0fdf4; color: #16a34a;">🕐</div>
-              <div class="card-title">Time Clock</div>
-              <div class="card-desc">Clock in/out, manage breaks, and track your work hours</div>
-              <a href="/time-clock" class="btn">Open Time Clock</a>
             </div>
 
             <div class="card">
@@ -478,114 +484,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Development user switcher for testing (no auth required)
-  app.get('/dev/switch-user/:testUserId', async (req: any, res) => {
-    const testUserId = req.params.testUserId;
-    const user = await storage.getUser(testUserId);
-    
-    if (!user) {
-      return res.status(404).send("Test user not found");
-    }
-    
-    // Create a mock session to simulate authentication
-    req.session.user = {
-      claims: {
-        sub: testUserId,
-        email: user.email,
-        first_name: user.firstName,
-        last_name: user.lastName,
-        profile_image_url: user.profileImageUrl
-      },
-      access_token: "dev_token",
-      expires_at: Math.floor(Date.now() / 1000) + 3600 // 1 hour from now
-    };
-    
-    req.session.devUserId = testUserId;
-    res.redirect('/dashboard');
-  });
-
-  // Helper function to convert military time to CST display
-  function convertToCSTDisplay(timeStr: string): string {
-    const [hours, minutes] = timeStr.split(':');
-    const hour24 = parseInt(hours);
-    const hour12 = hour24 === 0 ? 12 : hour24 > 12 ? hour24 - 12 : hour24;
-    const ampm = hour24 >= 12 ? 'PM' : 'AM';
-    return `${hour12}:${minutes} ${ampm}`;
-  }
-
-  // Helper function to generate calendar HTML
-  function generateCalendarHTML(year: number, month: number, schedules: any[], locations: any[], currentDate: Date): string {
-    const firstDay = new Date(year, month, 1);
-    const startCalendar = new Date(firstDay);
-    startCalendar.setDate(startCalendar.getDate() - firstDay.getDay());
-    
-    let cells = '';
-    let current = new Date(startCalendar);
-    
-    for (let i = 0; i < 42; i++) {
-      const dateStr = current.toISOString().split('T')[0];
-      const isCurrentMonth = current.getMonth() === month;
-      const isToday = current.toDateString() === currentDate.toDateString();
-      const daySchedules = schedules.filter(s => s.date === dateStr);
-      
-      cells += `<div class="calendar-cell${isToday ? ' today' : ''}">`;
-      cells += `<div class="date-number" style="${!isCurrentMonth ? 'color: #cbd5e1;' : ''}">${current.getDate()}</div>`;
-      
-      daySchedules.forEach(schedule => {
-        const location = locations.find(loc => loc.id === schedule.locationId);
-        const startTime = convertToCSTDisplay(schedule.startTime);
-        const endTime = convertToCSTDisplay(schedule.endTime);
-        const locationClass = location?.name === 'Lake Geneva Store' ? 'lake-geneva' : 'watertown';
-        
-        cells += `<div class="shift ${locationClass}">`;
-        cells += `${startTime}-${endTime}`;
-        cells += `</div>`;
-      });
-      
-      cells += `</div>`;
-      current.setDate(current.getDate() + 1);
-    }
-    
-    return cells;
-  }
-
-  // Schedule page with month navigation
+  // Schedule page
   app.get('/schedule', isAuthenticated, async (req: any, res) => {
     try {
-      // Use development user ID if set, otherwise use authenticated user
-      const userId = req.session?.devUserId || req.user.claims.sub;
+      const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
       
       if (!user) {
         return res.status(404).send("User not found");
       }
 
-      // Get current date and month navigation
-      const currentDate = new Date();
-      const month = req.query.month ? parseInt(req.query.month as string) : currentDate.getMonth();
-      const year = req.query.year ? parseInt(req.query.year as string) : currentDate.getFullYear();
-      
-      // Calculate start and end dates for the month
-      const startDate = new Date(year, month, 1);
-      const endDate = new Date(year, month + 1, 0);
-      
-      const startDateStr = startDate.toISOString().split('T')[0];
-      const endDateStr = endDate.toISOString().split('T')[0];
-
-      // Get real schedules for this user for the current month
-      console.log(`Getting schedules for user ${userId} (${user.firstName} ${user.lastName}) from ${startDateStr} to ${endDateStr}`);
-      const userSchedules = await storage.getUserWorkSchedules(userId, startDateStr, endDateStr);
-      console.log(`Found ${userSchedules.length} schedules for user ${userId}`);
+      // Get real schedules for this user
+      const userSchedules = await storage.getUserWorkSchedules(userId);
       const locations = await storage.getAllLocations();
-      
-      // Calculate previous and next month
-      const prevMonth = month === 0 ? 11 : month - 1;
-      const prevYear = month === 0 ? year - 1 : year;
-      const nextMonth = month === 11 ? 0 : month + 1;
-      const nextYear = month === 11 ? year + 1 : year;
-      
-      const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
-                         'July', 'August', 'September', 'October', 'November', 'December'];
       
       res.send(`
       <!DOCTYPE html>
@@ -615,12 +526,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .shift { background: #607e66; color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; margin-bottom: 0.25rem; }
           .shift.lake-geneva { background: #2563eb; }
           .shift.watertown { background: #059669; }
-          .btn { background: #607e66; color: white; padding: 0.75rem 1.5rem; border: none; border-radius: 6px; text-decoration: none; display: inline-block; font-weight: 500; transition: background 0.2s; margin-right: 1rem; cursor: pointer; }
+          .btn { background: #607e66; color: white; padding: 0.75rem 1.5rem; border: none; border-radius: 6px; text-decoration: none; display: inline-block; font-weight: 500; transition: background 0.2s; margin-right: 1rem; }
           .btn:hover { background: #4f6b56; }
           .btn-secondary { background: #e2e8f0; color: #475569; }
           .btn-secondary:hover { background: #cbd5e1; }
           .today { background: #fef3c7; }
-          .legend { display: flex; gap: 1rem; }
+          .legend { display: flex; gap: 1rem; margin-bottom: 1rem; }
           .legend-item { display: flex; align-items: center; gap: 0.5rem; }
           .legend-color { width: 16px; height: 16px; border-radius: 4px; }
         </style>
@@ -628,6 +539,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       <body>
         <div class="header">
           <div class="header-content">
+            <div class="logo">
+              
               <div>
                 <div style="font-weight: 600;">Pine Hill Farm</div>
                 <div style="font-size: 0.875rem; color: #64748b;">Employee Portal</div>
@@ -651,723 +564,91 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           <div class="card">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
-              <h2>${monthNames[month]} ${year}</h2>
+              <h2>December 2024</h2>
               <div>
-                <a href="/schedule?month=${prevMonth}&year=${prevYear}" class="btn-secondary btn">← Previous</a>
-                <a href="/schedule?month=${nextMonth}&year=${nextYear}" class="btn-secondary btn">Next →</a>
+                <a href="#" class="btn-secondary btn">← Previous</a>
+                <a href="#" class="btn-secondary btn">Next →</a>
               </div>
             </div>
 
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-              <div class="legend">
-                <div class="legend-item">
-                  <div class="legend-color" style="background: #2563eb;"></div>
-                  <span>Lake Geneva Store</span>
-                </div>
-                <div class="legend-item">
-                  <div class="legend-color" style="background: #059669;"></div>
-                  <span>Watertown Store</span>
-                </div>
+            <div class="legend">
+              <div class="legend-item">
+                <div class="legend-color" style="background: #2563eb;"></div>
+                <span>Lake Geneva Store</span>
               </div>
-              <div>
-                <button onclick="printSchedule('month')" class="btn">Print Month</button>
-                <button onclick="printSchedule('week')" class="btn-secondary">Print Week</button>
+              <div class="legend-item">
+                <div class="legend-color" style="background: #059669;"></div>
+                <span>Watertown Store</span>
+              </div>
+              <div class="legend-item">
+                <div class="legend-color" style="background: #fef3c7;"></div>
+                <span>Today</span>
               </div>
             </div>
 
-            <div class="calendar-grid">
-              <div class="calendar-header">Sunday</div>
-              <div class="calendar-header">Monday</div>
-              <div class="calendar-header">Tuesday</div>
-              <div class="calendar-header">Wednesday</div>
-              <div class="calendar-header">Thursday</div>
-              <div class="calendar-header">Friday</div>
-              <div class="calendar-header">Saturday</div>
-              ${generateCalendarHTML(year, month, userSchedules, locations, currentDate)}
-            </div>
-          </div>
-
-          <div class="card">
-            <h3 style="margin-bottom: 1rem;">Your Upcoming Shifts</h3>
-            ${userSchedules.length > 0 ? userSchedules.map(schedule => {
-              const location = locations.find(loc => loc.id === schedule.locationId);
-              const scheduleDate = new Date(schedule.date + 'T00:00:00');
-              const dayName = scheduleDate.toLocaleDateString('en-US', { weekday: 'long' });
-              const dateStr = scheduleDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-              
-              // Convert military time to CST format
-              const startTime = convertToCSTDisplay(schedule.startTime);
-              const endTime = convertToCSTDisplay(schedule.endTime);
-              
-              return `
-                <div style="border: 1px solid #e2e8f0; border-radius: 8px; padding: 1.5rem; margin-bottom: 1rem;">
-                  <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <div>
-                      <strong>${dayName}, ${dateStr}</strong><br>
-                      <span style="color: #64748b;">Time: ${startTime} - ${endTime}</span><br>
-                      <span style="color: #64748b;">Location: ${location ? location.name : 'Unknown Location'}</span>
+            <!-- Real Schedule Data -->
+            ${userSchedules.length === 0 ? `
+              <div style="text-align: center; padding: 3rem; color: #64748b;">
+                <h3>No schedules found</h3>
+                <p>You don't have any scheduled shifts yet. Contact your manager for schedule assignment.</p>
+              </div>
+            ` : `
+              <div style="margin-bottom: 2rem;">
+                <h3>Your Upcoming Shifts</h3>
+              </div>
+              <div class="schedule-list">
+                ${userSchedules.map(schedule => {
+                  const scheduleDate = new Date(schedule.date);
+                  const location = locations.find(l => l.id === schedule.locationId);
+                  const today = new Date();
+                  const isToday = scheduleDate.toDateString() === today.toDateString();
+                  
+                  return `
+                    <div class="schedule-item ${isToday ? 'today' : ''}" style="
+                      background: white; 
+                      border: 2px solid ${isToday ? '#fbbf24' : '#e2e8f0'}; 
+                      border-radius: 8px; 
+                      padding: 1.5rem; 
+                      margin-bottom: 1rem;
+                      ${isToday ? 'box-shadow: 0 4px 12px rgba(251, 191, 36, 0.2);' : ''}
+                    ">
+                      <div style="display: flex; justify-content: space-between; align-items: start;">
+                        <div>
+                          <h4 style="font-size: 1.1rem; font-weight: 600; margin-bottom: 0.5rem;">
+                            ${scheduleDate.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                            ${isToday ? '<span style="background: #fbbf24; color: #92400e; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; margin-left: 0.5rem;">TODAY</span>' : ''}
+                          </h4>
+                          <p style="color: #64748b; margin-bottom: 0.5rem;">
+                            <strong>Time:</strong> ${schedule.startTime} - ${schedule.endTime}
+                          </p>
+                          <p style="color: #64748b;">
+                            <strong>Location:</strong> ${location ? location.name : 'Unknown Location'}
+                          </p>
+                        </div>
+                        <div style="
+                          padding: 0.5rem 1rem; 
+                          background: ${schedule.locationId === 1 ? '#dbeafe' : '#d1fae5'}; 
+                          color: ${schedule.locationId === 1 ? '#1e40af' : '#065f46'}; 
+                          border-radius: 6px; 
+                          font-size: 0.875rem; 
+                          font-weight: 500;
+                        ">
+                          ${schedule.locationId === 1 ? 'Lake Geneva' : 'Watertown'}
+                        </div>
+                      </div>
                     </div>
-                    <div style="background: ${location?.name === 'Lake Geneva Store' ? '#2563eb' : '#059669'}; color: white; padding: 0.5rem 1rem; border-radius: 6px; font-size: 0.875rem;">
-                      ${location ? location.name.replace(' Store', '') : 'Unknown'}
-                    </div>
-                  </div>
-                </div>
-              `;
-            }).join('') : '<p style="color: #64748b; text-align: center; padding: 2rem;">No shifts scheduled for this month.</p>'}
+                  `;
+                }).join('')}
+              </div>
+            `}
           </div>
         </div>
-
-        <script>
-          function convertToCSTDisplay(timeStr) {
-            const [hours, minutes] = timeStr.split(':');
-            const hour24 = parseInt(hours);
-            const hour12 = hour24 === 0 ? 12 : hour24 > 12 ? hour24 - 12 : hour24;
-            const ampm = hour24 >= 12 ? 'PM' : 'AM';
-            return hour12 + ':' + minutes + ' ' + ampm;
-          }
-
-          function printSchedule(type) {
-            const printWindow = window.open('', '_blank');
-            const currentMonth = '${monthNames[month]} ${year}';
-            
-            if (type === 'month') {
-              const calendarHTML = document.querySelector('.calendar-grid').innerHTML;
-              printWindow.document.write(\`
-                <html>
-                <head>
-                  <title>Work Schedule - \${currentMonth}</title>
-                  <style>
-                    @media print {
-                      body { font-family: Arial, sans-serif; font-size: 12px; margin: 20px; }
-                      .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; border: 1px solid #ccc; }
-                      .calendar-cell { border: 1px solid #ccc; padding: 8px; min-height: 100px; }
-                      .calendar-header { font-weight: bold; text-align: center; padding: 8px; background: #f0f0f0; border: 1px solid #ccc; }
-                      .shift { background: #e0e0e0; padding: 2px 4px; margin: 2px 0; font-size: 10px; border-radius: 2px; }
-                      .date-number { font-weight: bold; margin-bottom: 4px; }
-                      .today { background: #fff3cd; }
-                    }
-                  </style>
-                </head>
-                <body>
-                  <h1>Pine Hill Farm - Work Schedule</h1>
-                  <h2>\${currentMonth}</h2>
-                  <div class="calendar-grid">
-                    \${calendarHTML}
-                  </div>
-                </body>
-                </html>
-              \`);
-            } else {
-              const shiftsHTML = document.querySelector('.card:last-child').innerHTML;
-              printWindow.document.write(\`
-                <html>
-                <head>
-                  <title>Weekly Schedule - \${currentMonth}</title>
-                  <style>
-                    @media print {
-                      body { font-family: Arial, sans-serif; margin: 20px; }
-                      .shift-item { border: 1px solid #ccc; padding: 12px; margin: 8px 0; }
-                    }
-                  </style>
-                </head>
-                <body>
-                  <h1>Pine Hill Farm - Weekly Schedule</h1>
-                  <h2>\${currentMonth}</h2>
-                  \${shiftsHTML}
-                </body>
-                </html>
-              \`);
-            }
-            
-            printWindow.document.close();
-            printWindow.print();
-          }
-        </script>
       </body>
       </html>
-      `);
+    `);
     } catch (error) {
       console.error("Error loading schedule:", error);
       res.status(500).send("Error loading schedule");
-    }
-  });
-
-
-
-  // Time Clock API routes
-  app.post('/api/time-clock/clock-in', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.session?.devUserId || req.user.claims.sub;
-      const { locationId } = req.body;
-      const ipAddress = req.ip || req.connection.remoteAddress;
-      const deviceInfo = req.headers['user-agent'];
-
-      const timeEntry = await storage.clockIn(userId, locationId, ipAddress, deviceInfo);
-      res.json({ success: true, timeEntry });
-    } catch (error: any) {
-      res.status(400).json({ success: false, error: error.message });
-    }
-  });
-
-  app.post('/api/time-clock/clock-out', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.session?.devUserId || req.user.claims.sub;
-      const { notes } = req.body;
-
-      const timeEntry = await storage.clockOut(userId, notes);
-      res.json({ success: true, timeEntry });
-    } catch (error: any) {
-      res.status(400).json({ success: false, error: error.message });
-    }
-  });
-
-  app.post('/api/time-clock/start-break', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.session?.devUserId || req.user.claims.sub;
-      const timeEntry = await storage.startBreak(userId);
-      res.json({ success: true, timeEntry });
-    } catch (error: any) {
-      res.status(400).json({ success: false, error: error.message });
-    }
-  });
-
-  app.post('/api/time-clock/end-break', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.session?.devUserId || req.user.claims.sub;
-      const timeEntry = await storage.endBreak(userId);
-      res.json({ success: true, timeEntry });
-    } catch (error: any) {
-      res.status(400).json({ success: false, error: error.message });
-    }
-  });
-
-  app.get('/api/time-clock/current', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.session?.devUserId || req.user.claims.sub;
-      const timeEntry = await storage.getCurrentTimeEntry(userId);
-      res.json({ timeEntry });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  app.get('/api/user-presence/all', isAuthenticated, async (req: any, res) => {
-    try {
-      const presence = await storage.getAllUserPresence();
-      res.json({ presence });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  // Time Clock Dashboard
-  app.get('/time-clock', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.session?.devUserId || req.user.claims.sub;
-      const user = await storage.getUser(userId);
-      
-      if (!user) {
-        return res.status(404).send("User not found");
-      }
-
-      const locations = await storage.getAllLocations();
-      const currentTimeEntry = await storage.getCurrentTimeEntry(userId);
-      const today = new Date().toISOString().split('T')[0];
-      const todayEntries = await storage.getTimeEntriesByDate(userId, today);
-      const allUserPresence = await storage.getAllUserPresence();
-
-      res.send(`
-        <!DOCTYPE html>
-        <html lang="en">
-        <head>
-          <title>Pine Hill Farm - Time Clock</title>
-          <style>
-            * { margin: 0; padding: 0; box-sizing: border-box; }
-            body { 
-              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-              background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
-              min-height: 100vh; color: #1e293b;
-            }
-            .header { background: white; padding: 1rem 2rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-            .header-content { max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
-            .nav { display: flex; gap: 1rem; }
-            .nav a { color: #64748b; text-decoration: none; padding: 0.5rem 1rem; border-radius: 6px; transition: background 0.2s; }
-            .nav a:hover { background: #f1f5f9; }
-            .nav a.active { background: #607e66; color: white; }
-            .container { max-width: 1200px; margin: 0 auto; padding: 2rem; }
-            .card { background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 2rem; }
-            .clock-card { text-align: center; padding: 3rem; background: linear-gradient(135deg, #607e66, #4f6b56); color: white; border-radius: 12px; margin-bottom: 2rem; }
-            .current-time { font-size: 3rem; font-weight: bold; margin-bottom: 1rem; }
-            .status-badge { display: inline-block; padding: 0.5rem 1rem; border-radius: 20px; font-weight: 500; margin: 0.5rem; }
-            .status-clocked-in { background: #dcfce7; color: #166534; }
-            .status-on-break { background: #fef3c7; color: #92400e; }
-            .status-clocked-out { background: #fecaca; color: #991b1b; }
-            .btn { background: #607e66; color: white; padding: 1rem 2rem; border: none; border-radius: 8px; font-size: 1.1rem; cursor: pointer; margin: 0.5rem; transition: background 0.2s; }
-            .btn:hover { background: #4f6b56; }
-            .btn-danger { background: #dc2626; }
-            .btn-danger:hover { background: #b91c1c; }
-            .btn-warning { background: #d97706; }
-            .btn-warning:hover { background: #b45309; }
-            .time-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2rem; }
-            .presence-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; }
-            .presence-item { padding: 1rem; border-radius: 8px; background: #f8fafc; border-left: 4px solid #e2e8f0; }
-            .presence-online { border-left-color: #10b981; }
-            .presence-working { border-left-color: #3b82f6; }
-            .presence-break { border-left-color: #f59e0b; }
-            .presence-offline { border-left-color: #6b7280; }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <div class="header-content">
-                <div>
-                  <div style="font-weight: 600;">Pine Hill Farm</div>
-                  <div style="font-size: 0.875rem; color: #64748b;">Time Clock</div>
-                </div>
-              </div>
-              <div class="nav">
-                <a href="/dashboard">Dashboard</a>
-                <a href="/schedule">Schedule</a>
-                <a href="/time-clock" class="active">Time Clock</a>
-                <a href="/chat">Team Chat</a>
-                <a href="/api/logout">Sign Out</a>
-              </div>
-            </div>
-          </div>
-
-          <div class="container">
-            <div class="clock-card">
-              <div class="current-time" id="currentTime"></div>
-              <div>
-                <span class="status-badge ${currentTimeEntry ? (currentTimeEntry.status === 'clocked_in' ? 'status-clocked-in' : currentTimeEntry.status === 'on_break' ? 'status-on-break' : 'status-clocked-out') : 'status-clocked-out'}">
-                  ${currentTimeEntry ? (currentTimeEntry.status === 'clocked_in' ? '🟢 Clocked In' : currentTimeEntry.status === 'on_break' ? '🟡 On Break' : '🔴 Clocked Out') : '🔴 Clocked Out'}
-                </span>
-              </div>
-              ${currentTimeEntry && currentTimeEntry.status === 'clocked_in' ? `
-                <p style="margin-top: 1rem;">Working since ${new Date(currentTimeEntry.clockInTime).toLocaleTimeString('en-US', { timeZone: 'America/Chicago', hour12: true })}</p>
-              ` : ''}
-            </div>
-
-            <div class="time-grid">
-              <div class="card">
-                <h3 style="margin-bottom: 1.5rem;">Time Clock Actions</h3>
-                
-                ${!currentTimeEntry || currentTimeEntry.status === 'clocked_out' ? `
-                  <div style="margin-bottom: 1rem;">
-                    <label style="display: block; margin-bottom: 0.5rem;">Select Location:</label>
-                    <select id="locationSelect" style="width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 6px;">
-                      ${locations.map(loc => `<option value="${loc.id}">${loc.name}</option>`).join('')}
-                    </select>
-                  </div>
-                  <button onclick="clockIn()" class="btn">🕐 Clock In</button>
-                ` : ''}
-                
-                ${currentTimeEntry && currentTimeEntry.status === 'clocked_in' ? `
-                  <button onclick="startBreak()" class="btn btn-warning">☕ Start Break</button>
-                  <button onclick="clockOut()" class="btn btn-danger">🕐 Clock Out</button>
-                ` : ''}
-                
-                ${currentTimeEntry && currentTimeEntry.status === 'on_break' ? `
-                  <button onclick="endBreak()" class="btn btn-warning">🔄 End Break</button>
-                  <button onclick="clockOut()" class="btn btn-danger">🕐 Clock Out</button>
-                ` : ''}
-              </div>
-
-              <div class="card">
-                <h3 style="margin-bottom: 1.5rem;">Today's Hours</h3>
-                ${todayEntries.length > 0 ? todayEntries.map(entry => `
-                  <div style="border: 1px solid #e2e8f0; border-radius: 6px; padding: 1rem; margin-bottom: 1rem;">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                      <div>
-                        <strong>Clock In:</strong> ${new Date(entry.clockInTime).toLocaleTimeString('en-US', { timeZone: 'America/Chicago', hour12: true })}<br>
-                        ${entry.clockOutTime ? `<strong>Clock Out:</strong> ${new Date(entry.clockOutTime).toLocaleTimeString('en-US', { timeZone: 'America/Chicago', hour12: true })}<br>` : ''}
-                        <strong>Status:</strong> ${entry.status}
-                      </div>
-                      <div style="text-align: right;">
-                        ${entry.totalWorkedMinutes ? `<strong>${Math.floor(entry.totalWorkedMinutes / 60)}h ${entry.totalWorkedMinutes % 60}m</strong>` : 'In Progress'}
-                      </div>
-                    </div>
-                  </div>
-                `).join('') : '<p style="color: #64748b; text-align: center;">No time entries for today</p>'}
-              </div>
-            </div>
-
-            <div class="card">
-              <h3 style="margin-bottom: 1.5rem;">Team Status</h3>
-              <div class="presence-list">
-                ${allUserPresence.map(presence => `
-                  <div class="presence-item ${presence.isWorking ? (presence.status === 'on_break' ? 'presence-break' : 'presence-working') : 'presence-offline'}">
-                    <div style="font-weight: 600;">${presence.firstName} ${presence.lastName}</div>
-                    <div style="font-size: 0.875rem; color: #64748b;">${presence.role}</div>
-                    <div style="font-size: 0.875rem; margin-top: 0.5rem;">
-                      Status: ${presence.statusMessage || presence.status}
-                    </div>
-                    ${presence.isWorking ? `<div style="font-size: 0.75rem; color: #10b981;">Currently working</div>` : ''}
-                  </div>
-                `).join('')}
-              </div>
-            </div>
-          </div>
-
-          <script>
-            function updateCurrentTime() {
-              const now = new Date();
-              const options = { 
-                timeZone: 'America/Chicago', 
-                hour12: true, 
-                hour: '2-digit', 
-                minute: '2-digit', 
-                second: '2-digit' 
-              };
-              document.getElementById('currentTime').textContent = now.toLocaleTimeString('en-US', options);
-            }
-            
-            updateCurrentTime();
-            setInterval(updateCurrentTime, 1000);
-
-            async function clockIn() {
-              const locationId = document.getElementById('locationSelect').value;
-              try {
-                const response = await fetch('/api/time-clock/clock-in', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ locationId: parseInt(locationId) })
-                });
-                const result = await response.json();
-                if (result.success) {
-                  location.reload();
-                } else {
-                  alert('Error: ' + result.error);
-                }
-              } catch (error) {
-                alert('Error: ' + error.message);
-              }
-            }
-
-            async function clockOut() {
-              const notes = prompt('Add any notes for your shift (optional):');
-              try {
-                const response = await fetch('/api/time-clock/clock-out', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ notes })
-                });
-                const result = await response.json();
-                if (result.success) {
-                  location.reload();
-                } else {
-                  alert('Error: ' + result.error);
-                }
-              } catch (error) {
-                alert('Error: ' + error.message);
-              }
-            }
-
-            async function startBreak() {
-              try {
-                const response = await fetch('/api/time-clock/start-break', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' }
-                });
-                const result = await response.json();
-                if (result.success) {
-                  location.reload();
-                } else {
-                  alert('Error: ' + result.error);
-                }
-              } catch (error) {
-                alert('Error: ' + error.message);
-              }
-            }
-
-            async function endBreak() {
-              try {
-                const response = await fetch('/api/time-clock/end-break', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' }
-                });
-                const result = await response.json();
-                if (result.success) {
-                  location.reload();
-                } else {
-                  alert('Error: ' + result.error);
-                }
-              } catch (error) {
-                alert('Error: ' + error.message);
-              }
-            }
-          </script>
-        </body>
-        </html>
-      `);
-    } catch (error) {
-      console.error("Error loading time clock:", error);
-      res.status(500).send("Error loading time clock");
-    }
-  });
-
-  // Enhanced Team Chat route with presence integration
-  app.get('/chat', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const user = await storage.getUser(userId);
-      
-      if (!user) {
-        return res.status(404).send("User not found");
-      }
-
-      const channels = await storage.getAllChannels();
-      const employees = await storage.getAllUsers();
-      const allUserPresence = await storage.getAllUserPresence();
-      
-      res.send(`
-        <!DOCTYPE html>
-        <html lang="en">
-        <head>
-          <title>Pine Hill Farm - Team Chat</title>
-          <style>
-            * { margin: 0; padding: 0; box-sizing: border-box; }
-            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f8fafc; min-height: 100vh; }
-            .chat-container { display: flex; height: 100vh; }
-            .sidebar { width: 300px; background: white; border-right: 1px solid #e2e8f0; display: flex; flex-direction: column; }
-            .main-chat { flex: 1; display: flex; flex-direction: column; }
-            .header { padding: 1rem; border-bottom: 1px solid #e2e8f0; background: #607e66; color: white; }
-            .channel-list { flex: 1; padding: 1rem; overflow-y: auto; }
-            .channel-item { padding: 0.75rem; margin-bottom: 0.5rem; border-radius: 8px; cursor: pointer; transition: background 0.2s; }
-            .channel-item:hover { background: #f1f5f9; }
-            .channel-item.active { background: #dbeafe; color: #1e40af; }
-            .chat-messages { flex: 1; padding: 1rem; overflow-y: auto; background: #f8fafc; }
-            .chat-input { padding: 1rem; border-top: 1px solid #e2e8f0; background: white; }
-            .input-group { display: flex; gap: 0.5rem; }
-            .message-input { flex: 1; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 6px; }
-            .send-btn { background: #607e66; color: white; padding: 0.75rem 1.5rem; border: none; border-radius: 6px; cursor: pointer; }
-            .message { margin-bottom: 1rem; padding: 0.75rem; background: white; border-radius: 8px; }
-            .message-header { display: flex; justify-content: space-between; margin-bottom: 0.5rem; font-size: 0.875rem; }
-            .message-author { font-weight: 600; color: #374151; }
-            .message-time { color: #9ca3af; }
-            .online-status { width: 8px; height: 8px; background: #10b981; border-radius: 50%; display: inline-block; margin-left: 0.5rem; }
-          </style>
-        </head>
-        <body>
-          <div class="chat-container">
-            <div class="sidebar">
-              <div class="header">
-                <h2>Team Chat</h2>
-                <p style="font-size: 0.875rem; opacity: 0.9;">Select a channel or employee</p>
-              </div>
-              
-              <div class="channel-list">
-                <h3 style="margin-bottom: 1rem; color: #374151;">Channels</h3>
-                ${channels.map(channel => `
-                  <div class="channel-item" onclick="selectChannel('${channel.id}', '${channel.name}')">
-                    <div style="font-weight: 500;"># ${channel.name}</div>
-                    <div style="font-size: 0.875rem; color: #6b7280;">${channel.description || 'No description'}</div>
-                  </div>
-                `).join('')}
-                
-                <h3 style="margin: 2rem 0 1rem 0; color: #374151;">Team Status</h3>
-                ${allUserPresence.map(presence => `
-                  <div class="channel-item" onclick="selectDirectMessage('${presence.userId}', '${presence.firstName} ${presence.lastName}')">
-                    <div style="display: flex; align-items: center; justify-content: space-between;">
-                      <div>
-                        <div style="font-weight: 500;">${presence.firstName} ${presence.lastName}</div>
-                        <div style="font-size: 0.75rem; color: #6b7280;">${presence.role || 'Employee'}</div>
-                      </div>
-                      <div style="display: flex; align-items: center; gap: 0.5rem;">
-                        ${presence.isWorking 
-                          ? `<span style="background: ${presence.status === 'on_break' ? '#f59e0b' : '#10b981'}; color: white; padding: 0.25rem 0.5rem; border-radius: 12px; font-size: 0.75rem;">
-                              ${presence.status === 'on_break' ? '☕ Break' : '🕐 Working'}
-                            </span>`
-                          : `<span style="background: #6b7280; color: white; padding: 0.25rem 0.5rem; border-radius: 12px; font-size: 0.75rem;">
-                              📴 Offline
-                            </span>`
-                        }
-                      </div>
-                    </div>
-                    ${presence.statusMessage ? `<div style="font-size: 0.75rem; color: #9ca3af; margin-top: 0.25rem;">${presence.statusMessage}</div>` : ''}
-                  </div>
-                `).join('')}
-              </div>
-            </div>
-            
-            <div class="main-chat">
-              <div class="header">
-                <h3 id="chat-title">Select a channel or employee to start chatting</h3>
-              </div>
-              
-              <div class="chat-messages" id="messages">
-                <div style="text-align: center; color: #6b7280; padding: 2rem;">
-                  <p>Choose a channel or start a direct message to begin the conversation</p>
-                </div>
-              </div>
-              
-              <div class="chat-input">
-                <div class="input-group">
-                  <input type="text" class="message-input" placeholder="Type your message..." id="messageInput" disabled>
-                  <button class="send-btn" onclick="sendMessage()" disabled id="sendBtn">Send</button>
-                </div>
-              </div>
-            </div>
-          </div>
-          
-          <script>
-            let currentChatType = null;
-            let currentChatId = null;
-            
-            function selectChannel(channelId, channelName) {
-              currentChatType = 'channel';
-              currentChatId = channelId;
-              document.getElementById('chat-title').textContent = '# ' + channelName;
-              document.getElementById('messageInput').disabled = false;
-              document.getElementById('sendBtn').disabled = false;
-              loadMessages();
-            }
-            
-            function selectDirectMessage(userId, userName) {
-              currentChatType = 'direct';
-              currentChatId = userId;
-              document.getElementById('chat-title').textContent = userName;
-              document.getElementById('messageInput').disabled = false;
-              document.getElementById('sendBtn').disabled = false;
-              loadMessages();
-            }
-            
-            function loadMessages() {
-              // Load messages for current chat
-              document.getElementById('messages').innerHTML = '<div style="padding: 1rem; color: #6b7280;">Loading messages...</div>';
-            }
-            
-            function sendMessage() {
-              const input = document.getElementById('messageInput');
-              const message = input.value.trim();
-              if (!message) return;
-              
-              // Send message via API
-              input.value = '';
-            }
-          </script>
-        </body>
-        </html>
-      `);
-    } catch (error) {
-      console.error("Error loading chat:", error);
-      res.status(500).send("Error loading chat");
-    }
-  });
-
-  // Enhanced Announcements route with read/unread status
-  app.get('/announcements', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const user = await storage.getUser(userId);
-      
-      if (!user) {
-        return res.status(404).send("User not found");
-      }
-
-      const announcements = await storage.getPublishedAnnouncements();
-      const readAnnouncements = await storage.getUserReadAnnouncements(userId);
-      const readIds = new Set(readAnnouncements.map(r => r.announcementId));
-      
-      res.send(`
-        <!DOCTYPE html>
-        <html lang="en">
-        <head>
-          <title>Pine Hill Farm - Announcements</title>
-          <style>
-            * { margin: 0; padding: 0; box-sizing: border-box; }
-            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f8fafc; min-height: 100vh; }
-            .header { background: white; padding: 1rem 2rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-            .container { max-width: 800px; margin: 0 auto; padding: 2rem; }
-            .announcement { background: white; border-radius: 12px; padding: 1.5rem; margin-bottom: 1.5rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border-left: 4px solid #e2e8f0; }
-            .announcement.unread { border-left-color: #3b82f6; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15); }
-            .announcement-header { display: flex; justify-content: between; align-items: start; margin-bottom: 1rem; }
-            .announcement-title { font-size: 1.25rem; font-weight: 600; margin-bottom: 0.5rem; }
-            .announcement-meta { display: flex; gap: 1rem; align-items: center; color: #6b7280; font-size: 0.875rem; }
-            .status-badge { padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.75rem; font-weight: 500; }
-            .status-new { background: #dbeafe; color: #1e40af; }
-            .status-read { background: #f3f4f6; color: #6b7280; }
-            .announcement-content { color: #374151; line-height: 1.6; }
-            .mark-read-btn { background: #3b82f6; color: white; border: none; padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; font-size: 0.875rem; }
-            .nav { display: flex; gap: 1rem; }
-            .nav a { color: #64748b; text-decoration: none; padding: 0.5rem 1rem; border-radius: 6px; }
-            .nav a.active { background: #607e66; color: white; }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <div style="max-width: 800px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center;">
-              <h1>Company Announcements</h1>
-              <div class="nav">
-                <a href="/dashboard">Dashboard</a>
-                <a href="/schedule">Schedule</a>
-                <a href="/chat">Chat</a>
-                <a href="/announcements" class="active">Announcements</a>
-                <a href="/api/logout">Sign Out</a>
-              </div>
-            </div>
-          </div>
-          
-          <div class="container">
-            ${announcements.length === 0 ? `
-              <div style="text-align: center; padding: 3rem; color: #6b7280;">
-                <h3>No announcements</h3>
-                <p>There are no company announcements at this time.</p>
-              </div>
-            ` : announcements.map(announcement => {
-              const isRead = readIds.has(announcement.id);
-              return `
-                <div class="announcement ${!isRead ? 'unread' : ''}" id="announcement-${announcement.id}">
-                  <div class="announcement-header">
-                    <div style="flex: 1;">
-                      <h2 class="announcement-title">${announcement.title}</h2>
-                      <div class="announcement-meta">
-                        <span>Posted ${new Date(announcement.publishedAt || announcement.createdAt).toLocaleDateString()}</span>
-                        <span class="status-badge ${!isRead ? 'status-new' : 'status-read'}">
-                          ${!isRead ? 'NEW' : 'READ'}
-                        </span>
-                        ${announcement.priority === 'high' ? '<span style="color: #ef4444; font-weight: 600;">HIGH PRIORITY</span>' : ''}
-                      </div>
-                    </div>
-                    ${!isRead ? `
-                      <button class="mark-read-btn" onclick="markAsRead(${announcement.id})">
-                        Mark as Read
-                      </button>
-                    ` : ''}
-                  </div>
-                  <div class="announcement-content">
-                    ${announcement.content.replace(/\n/g, '<br>')}
-                  </div>
-                </div>
-              `;
-            }).join('')}
-          </div>
-          
-          <script>
-            function markAsRead(announcementId) {
-              fetch('/api/announcements/' + announcementId + '/read', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
-              })
-              .then(response => response.json())
-              .then(data => {
-                if (data.success) {
-                  const announcement = document.getElementById('announcement-' + announcementId);
-                  announcement.classList.remove('unread');
-                  announcement.querySelector('.status-badge').textContent = 'READ';
-                  announcement.querySelector('.status-badge').className = 'status-badge status-read';
-                  const button = announcement.querySelector('.mark-read-btn');
-                  if (button) button.style.display = 'none';
-                }
-              });
-            }
-          </script>
-        </body>
-        </html>
-      `);
-    } catch (error) {
-      console.error("Error loading announcements:", error);
-      res.status(500).send("Error loading announcements");
     }
   });
 
@@ -1413,6 +694,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       <body>
         <div class="header">
           <div class="header-content">
+            <div class="logo">
+              
               <div>
                 <div style="font-weight: 600;">Pine Hill Farm</div>
                 <div style="font-size: 0.875rem; color: #64748b;">Employee Portal</div>
@@ -1573,6 +856,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       <body>
         <div class="header">
           <div class="header-content">
+            <div class="logo">
+              
               <div>
                 <div style="font-weight: 600;">Pine Hill Farm</div>
                 <div style="font-size: 0.875rem; color: #64748b;">Employee Portal</div>
@@ -1726,11 +1011,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const allUsers = await storage.getAllUsers();
       const pendingTimeOffRequests = await storage.getPendingTimeOffRequests();
       const todaySchedules = await storage.getWorkSchedulesByDate(new Date().toISOString().split('T')[0]);
-      const locations = await storage.getAllLocations();
-      
-      // Group schedules by location
-      const lakeGenevaSchedules = todaySchedules.filter(s => s.locationId === 1);
-      const watertownSchedules = todaySchedules.filter(s => s.locationId === 2);
 
       res.send(`
         <!DOCTYPE html>
@@ -1780,6 +1060,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         <body>
           <div class="header">
             <div class="header-content">
+              <div class="logo">
+                
                 <div>
                   <div style="font-weight: 600;">Pine Hill Farm</div>
                   <div style="font-size: 0.875rem; color: #64748b;">Admin Portal</div>
@@ -1789,7 +1071,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 <a href="/admin" class="active">Admin Dashboard</a>
                 <a href="/admin/employees">Employee Management</a>
                 <a href="/admin/schedule">Schedule Management</a>
-                <a href="/admin/logos">Logo Management</a>
                 <a href="/dashboard">Employee View</a>
                 <a href="/api/logout">Sign Out</a>
               </div>
@@ -1821,63 +1102,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
               </div>
             </div>
 
-            <!-- Today's Schedule Overview - Moved to Top -->
-            <div class="card">
-              <h2 style="margin-bottom: 1.5rem;">📅 Today's Schedule Overview</h2>
-              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;">
-                <!-- Lake Geneva Store -->
-                <div style="border: 1px solid #e2e8f0; border-radius: 8px; padding: 1.5rem; border-left: 4px solid #3b82f6;">
-                  <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; font-weight: 600;">
-                    <span style="color: #3b82f6;">🏪</span>
-                    Lake Geneva Store
-                    <span style="background: #dbeafe; color: #1e40af; padding: 0.25rem 0.5rem; border-radius: 12px; font-size: 0.75rem;">${lakeGenevaSchedules.length} scheduled</span>
-                  </div>
-                  ${lakeGenevaSchedules.length === 0 ? 
-                    '<p style="color: #64748b; font-style: italic;">No schedules for today</p>' :
-                    lakeGenevaSchedules.map(schedule => {
-                      const employee = allUsers.find(u => u.id === schedule.userId);
-                      const employeeName = employee ? `${employee.firstName} ${employee.lastName}` : 'Unknown Employee';
-                      return `
-                        <div style="padding: 0.75rem; margin-bottom: 0.5rem; background: #f8fafc; border-radius: 6px; border-left: 3px solid #3b82f6;">
-                          <div style="font-weight: 500;">${employeeName}</div>
-                          <div style="font-size: 0.875rem; color: #64748b;">${formatTimeRange(schedule.startTime, schedule.endTime)}</div>
-                          <div style="font-size: 0.75rem; color: #6b7280;">${schedule.position || 'Staff'}</div>
-                        </div>
-                      `;
-                    }).join('')
-                  }
-                </div>
-
-                <!-- Watertown Store -->
-                <div style="border: 1px solid #e2e8f0; border-radius: 8px; padding: 1.5rem; border-left: 4px solid #10b981;">
-                  <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; font-weight: 600;">
-                    <span style="color: #10b981;">🏪</span>
-                    Watertown Store
-                    <span style="background: #d1fae5; color: #065f46; padding: 0.25rem 0.5rem; border-radius: 12px; font-size: 0.75rem;">${watertownSchedules.length} scheduled</span>
-                  </div>
-                  ${watertownSchedules.length === 0 ? 
-                    '<p style="color: #64748b; font-style: italic;">No schedules for today</p>' :
-                    watertownSchedules.map(schedule => {
-                      const employee = allUsers.find(u => u.id === schedule.userId);
-                      const employeeName = employee ? `${employee.firstName} ${employee.lastName}` : 'Unknown Employee';
-                      return `
-                        <div style="padding: 0.75rem; margin-bottom: 0.5rem; background: #f8fafc; border-radius: 6px; border-left: 3px solid #10b981;">
-                          <div style="font-weight: 500;">${employeeName}</div>
-                          <div style="font-size: 0.875rem; color: #64748b;">${formatTimeRange(schedule.startTime, schedule.endTime)}</div>
-                          <div style="font-size: 0.75rem; color: #6b7280;">${schedule.position || 'Staff'}</div>
-                        </div>
-                      `;
-                    }).join('')
-                  }
-                </div>
-              </div>
-              <div style="margin-top: 1rem; text-align: center;">
-                <a href="/admin/schedule" class="btn">Manage Full Schedule</a>
-              </div>
+            <div class="tabs">
+              <a href="#pending-requests" class="tab active">Pending Approvals</a>
+              <a href="#employee-overview" class="tab">Employee Overview</a>
+              <a href="#schedule-overview" class="tab">Today's Schedule</a>
             </div>
 
             <div class="card">
-              <h2 style="margin-bottom: 1.5rem;">⏰ Pending Time Off Requests</h2>
+              <h2 style="margin-bottom: 1.5rem;">Pending Time Off Requests</h2>
               ${pendingTimeOffRequests.length === 0 ? 
                 '<p style="color: #64748b; text-align: center; padding: 2rem;">No pending requests</p>' :
                 `<table class="table">
@@ -1909,16 +1141,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
             </div>
 
             <div class="card">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; cursor: pointer;" onclick="toggleEmployeeOverview()">
-                <h2 style="margin: 0;">👥 Employee Overview</h2>
-                <span id="employeeToggleArrow" style="transition: transform 0.3s ease; font-size: 1.2rem;">▶</span>
+              <h2 style="margin-bottom: 1.5rem;">Employee Overview</h2>
+              <div style="margin-bottom: 1rem;">
+                <a href="/admin/employees/new" class="btn">Add New Employee</a>
+                <a href="/admin/employees" class="btn-secondary btn">Manage All Employees</a>
               </div>
-              <div id="employeeOverviewContent" style="overflow: hidden; max-height: 0; transition: max-height 0.3s ease;">
-                <div style="margin-bottom: 1rem;">
-                  <a href="/admin/employees/new" class="btn">Add New Employee</a>
-                  <a href="/admin/employees" class="btn-secondary btn">Manage All Employees</a>
-                </div>
-                <table class="table">
+              <table class="table">
                 <thead>
                   <tr>
                     <th>Employee ID</th>
@@ -1945,89 +1173,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
                     </tr>
                   `).join('')}
                 </tbody>
-                </table>
-              </div>
+              </table>
             </div>
 
+            <div class="card">
+              <h2 style="margin-bottom: 1.5rem;">Today's Schedule Overview</h2>
+              ${todaySchedules.length === 0 ? 
+                '<p style="color: #64748b; text-align: center; padding: 2rem;">No schedules for today</p>' :
+                `<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem;">
+                  ${todaySchedules.map(schedule => `
+                    <div style="padding: 1rem; border: 1px solid #e2e8f0; border-radius: 8px;">
+                      <div style="font-weight: 600; margin-bottom: 0.5rem;">Employee: ${schedule.userId}</div>
+                      <div style="color: #64748b; font-size: 0.875rem;">
+                        ${schedule.startTime} - ${schedule.endTime}<br>
+                        Location: ${schedule.locationId === 1 ? 'Lake Geneva' : 'Watertown'}
+                      </div>
+                    </div>
+                  `).join('')}
+                </div>`
+              }
+            </div>
           </div>
-          
-          <script>
-            function toggleEmployeeOverview() {
-              const content = document.getElementById('employeeOverviewContent');
-              const arrow = document.getElementById('employeeToggleArrow');
-              
-              if (content.style.maxHeight === '0px' || content.style.maxHeight === '') {
-                content.style.maxHeight = '2000px';
-                arrow.style.transform = 'rotate(90deg)';
-                arrow.innerHTML = '▼';
-              } else {
-                content.style.maxHeight = '0px';
-                arrow.style.transform = 'rotate(0deg)';
-                arrow.innerHTML = '▶';
-              }
-            }
-
-            function filterSchedules() {
-              const employeeFilter = document.getElementById('employeeFilter').value.toLowerCase();
-              const locationFilter = document.getElementById('locationFilter').value;
-              const dateFilter = document.getElementById('dateFilter').value;
-              const table = document.getElementById('schedulesTable');
-              
-              if (!table) return;
-              
-              const rows = table.getElementsByTagName('tbody')[0].getElementsByTagName('tr');
-              let visibleCount = 0;
-              
-              for (let i = 0; i < rows.length; i++) {
-                const row = rows[i];
-                const cells = row.getElementsByTagName('td');
-                
-                if (cells.length >= 4) {
-                  const employeeName = cells[0].textContent.toLowerCase();
-                  const scheduleDate = cells[1].textContent;
-                  const location = cells[3].textContent;
-                  
-                  let showRow = true;
-                  
-                  // Filter by employee name
-                  if (employeeFilter && !employeeName.includes(employeeFilter)) {
-                    showRow = false;
-                  }
-                  
-                  // Filter by location
-                  if (locationFilter && location !== locationFilter) {
-                    showRow = false;
-                  }
-                  
-                  // Filter by date
-                  if (dateFilter && scheduleDate !== dateFilter) {
-                    showRow = false;
-                  }
-                  
-                  if (showRow) {
-                    row.style.display = '';
-                    visibleCount++;
-                  } else {
-                    row.style.display = 'none';
-                  }
-                }
-              }
-              
-              // Show/hide no results message
-              let noResultsMsg = document.getElementById('noResultsMessage');
-              if (visibleCount === 0 && (employeeFilter || locationFilter || dateFilter)) {
-                if (!noResultsMsg) {
-                  noResultsMsg = document.createElement('tr');
-                  noResultsMsg.id = 'noResultsMessage';
-                  noResultsMsg.innerHTML = '<td colspan="6" style="padding: 2rem; text-align: center; color: #64748b; font-style: italic;">No schedules match your filters. Try adjusting your search criteria.</td>';
-                  table.getElementsByTagName('tbody')[0].appendChild(noResultsMsg);
-                }
-                noResultsMsg.style.display = '';
-              } else if (noResultsMsg) {
-                noResultsMsg.style.display = 'none';
-              }
-            }
-          </script>
         </body>
         </html>
       `);
@@ -2093,6 +1259,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         <body>
           <div class="header">
             <div class="header-content">
+              <div class="logo">
+                
                 <div>
                   <div style="font-weight: 600;">Pine Hill Farm</div>
                   <div style="font-size: 0.875rem; color: #64748b;">Employee Management</div>
@@ -2279,6 +1447,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         <body>
           <div class="header">
             <div class="header-content">
+              <div class="logo">
+                
                 <div>
                   <div style="font-weight: 600;">Pine Hill Farm</div>
                   <div style="font-size: 0.875rem; color: #64748b;">Edit Employee</div>
@@ -2437,6 +1607,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         <body>
           <div class="header">
             <div class="header-content">
+              <div class="logo">
+                
                 <div>
                   <div style="font-weight: 600;">Pine Hill Farm</div>
                   <div style="font-size: 0.875rem; color: #64748b;">Schedule Management</div>
@@ -2453,13 +1625,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           </div>
 
           <div class="container">
-            <!-- Success Message -->
-            ${req.query.success ? `
-              <div style="background: #d1fae5; border: 1px solid #10b981; color: #065f46; padding: 1rem; border-radius: 8px; margin-bottom: 2rem;">
-                <strong>Success!</strong> ${decodeURIComponent(req.query.success)}
-              </div>
-            ` : ''}
-            
             <div class="page-header">
               <h1 style="margin-bottom: 0.5rem;">Schedule Management</h1>
               <p style="color: #64748b;">Create and manage employee work schedules for both store locations.</p>
@@ -2579,36 +1744,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
             <div class="card">
               <h2 style="margin-bottom: 1.5rem;">Upcoming Schedules (Next 2 Weeks)</h2>
-              
-              <!-- Search Filters -->
-              <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem; padding: 1rem; background: #f8fafc; border-radius: 8px;">
-                <div>
-                  <label style="display: block; font-size: 0.875rem; font-weight: 500; margin-bottom: 0.5rem; color: #374151;">Filter by Employee</label>
-                  <input type="text" id="employeeFilter" placeholder="e.g., Alex Thompson" 
-                         style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.875rem;"
-                         onkeyup="filterSchedules()">
-                </div>
-                <div>
-                  <label style="display: block; font-size: 0.875rem; font-weight: 500; margin-bottom: 0.5rem; color: #374151;">Filter by Location</label>
-                  <select id="locationFilter" onchange="filterSchedules()" 
-                          style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.875rem;">
-                    <option value="">All Locations</option>
-                    <option value="Lake Geneva">Lake Geneva</option>
-                    <option value="Watertown">Watertown</option>
-                  </select>
-                </div>
-                <div>
-                  <label style="display: block; font-size: 0.875rem; font-weight: 500; margin-bottom: 0.5rem; color: #374151;">Filter by Date</label>
-                  <input type="date" id="dateFilter" 
-                         style="width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.875rem;"
-                         onchange="filterSchedules()">
-                </div>
-              </div>
-              
               ${schedules.length === 0 ? 
                 '<p style="color: #64748b; text-align: center; padding: 2rem;">No schedules found for the next 2 weeks.</p>' :
                 `<div style="overflow-x: auto;">
-                  <table id="schedulesTable" style="width: 100%; border-collapse: collapse;">
+                  <table style="width: 100%; border-collapse: collapse;">
                     <thead>
                       <tr style="background: #f8fafc;">
                         <th style="padding: 1rem; text-align: left; border-bottom: 1px solid #e2e8f0;">Employee</th>
@@ -2626,7 +1765,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                           <tr>
                             <td style="padding: 1rem; border-bottom: 1px solid #e2e8f0;">${employee ? `${employee.firstName} ${employee.lastName}` : 'Unknown'}</td>
                             <td style="padding: 1rem; border-bottom: 1px solid #e2e8f0;">${schedule.date}</td>
-                            <td style="padding: 1rem; border-bottom: 1px solid #e2e8f0;">${formatTimeRange(schedule.startTime, schedule.endTime)}</td>
+                            <td style="padding: 1rem; border-bottom: 1px solid #e2e8f0;">${schedule.startTime} - ${schedule.endTime}</td>
                             <td style="padding: 1rem; border-bottom: 1px solid #e2e8f0;">${schedule.locationId === 1 ? 'Lake Geneva' : 'Watertown'}</td>
                             <td style="padding: 1rem; border-bottom: 1px solid #e2e8f0;">${schedule.position || 'N/A'}</td>
                             <td style="padding: 1rem; border-bottom: 1px solid #e2e8f0;">
@@ -2646,68 +1785,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           <script>
             let bulkMode = false;
             let selectedDates = [];
-
-            // Schedule filtering functionality
-            function filterSchedules() {
-              const employeeFilter = document.getElementById('employeeFilter').value.toLowerCase();
-              const locationFilter = document.getElementById('locationFilter').value;
-              const dateFilter = document.getElementById('dateFilter').value;
-              const table = document.getElementById('schedulesTable');
-              
-              if (!table) return;
-              
-              const rows = table.getElementsByTagName('tbody')[0].getElementsByTagName('tr');
-              let visibleCount = 0;
-              
-              for (let i = 0; i < rows.length; i++) {
-                const row = rows[i];
-                const cells = row.getElementsByTagName('td');
-                
-                if (cells.length >= 4) {
-                  const employeeName = cells[0].textContent.toLowerCase();
-                  const scheduleDate = cells[1].textContent;
-                  const location = cells[3].textContent;
-                  
-                  let showRow = true;
-                  
-                  // Filter by employee name
-                  if (employeeFilter && !employeeName.includes(employeeFilter)) {
-                    showRow = false;
-                  }
-                  
-                  // Filter by location
-                  if (locationFilter && location !== locationFilter) {
-                    showRow = false;
-                  }
-                  
-                  // Filter by date
-                  if (dateFilter && scheduleDate !== dateFilter) {
-                    showRow = false;
-                  }
-                  
-                  if (showRow) {
-                    row.style.display = '';
-                    visibleCount++;
-                  } else {
-                    row.style.display = 'none';
-                  }
-                }
-              }
-              
-              // Show/hide no results message
-              let noResultsMsg = document.getElementById('noResultsMessage');
-              if (visibleCount === 0 && (employeeFilter || locationFilter || dateFilter)) {
-                if (!noResultsMsg) {
-                  noResultsMsg = document.createElement('tr');
-                  noResultsMsg.id = 'noResultsMessage';
-                  noResultsMsg.innerHTML = '<td colspan="6" style="padding: 2rem; text-align: center; color: #64748b; font-style: italic;">No schedules match your filters. Try adjusting your search criteria.</td>';
-                  table.getElementsByTagName('tbody')[0].appendChild(noResultsMsg);
-                }
-                noResultsMsg.style.display = '';
-              } else if (noResultsMsg) {
-                noResultsMsg.style.display = 'none';
-              }
-            }
 
             // Keep session alive during bulk scheduling
             function keepSessionAlive() {
@@ -2962,6 +2039,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         <body>
           <div class="header">
             <div class="header-content">
+              <div class="logo">
+                
                 <div>
                   <div style="font-weight: 600;">Pine Hill Farm</div>
                   <div style="font-size: 0.875rem; color: #64748b;">Add New Employee</div>
@@ -3099,147 +2178,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Admin Logo Management Route
-  app.get('/admin/logos', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const user = await storage.getUser(userId);
-      
-      if (!user || user.role !== 'admin') {
-        return res.status(403).send("Access denied - Admin only");
-      }
-
-      const logos = await storage.getAllLogos();
-
-      res.send(`
-        <!DOCTYPE html>
-        <html lang="en">
-        <head>
-          <title>Pine Hill Farm - Logo Management</title>
-          <style>
-            * { margin: 0; padding: 0; box-sizing: border-box; }
-            body { 
-              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-              background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
-              min-height: 100vh; color: #1e293b;
-            }
-            .header { background: white; padding: 1rem 2rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-            .header-content { max-width: 1400px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
-            .nav { display: flex; gap: 1rem; }
-            .nav a { color: #64748b; text-decoration: none; padding: 0.5rem 1rem; border-radius: 6px; transition: background 0.2s; }
-            .nav a:hover { background: #f1f5f9; }
-            .nav a.active { background: #607e66; color: white; }
-            .container { max-width: 1400px; margin: 0 auto; padding: 2rem; }
-            .page-header { background: white; padding: 2rem; border-radius: 12px; margin-bottom: 2rem; }
-            .card { background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 2rem; }
-            .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; }
-            .form-group { margin-bottom: 1.5rem; }
-            .form-label { display: block; margin-bottom: 0.5rem; font-weight: 500; color: #374151; }
-            .form-input, .form-select { width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 6px; font-size: 1rem; }
-            .form-input:focus, .form-select:focus { outline: none; border-color: #607e66; box-shadow: 0 0 0 3px rgba(96, 126, 102, 0.1); }
-            .btn { background: #607e66; color: white; padding: 0.75rem 1.5rem; border: none; border-radius: 6px; text-decoration: none; display: inline-block; font-weight: 500; transition: background 0.2s; margin-right: 1rem; cursor: pointer; }
-            .btn:hover { background: #4f6b56; }
-            .btn-secondary { background: #e2e8f0; color: #475569; }
-            .btn-secondary:hover { background: #cbd5e1; }
-            .btn-danger { background: #dc2626; color: white; }
-            .btn-danger:hover { background: #b91c1c; }
-            .logos-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2rem; margin-top: 2rem; }
-            .logo-card { border: 1px solid #e2e8f0; border-radius: 8px; padding: 1.5rem; }
-            .logo-preview { width: 100%; height: 120px; border: 2px dashed #d1d5db; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 1rem; background: #f9fafb; }
-            .logo-preview img { max-width: 100%; max-height: 100%; object-fit: contain; }
-            .logo-info { margin-bottom: 1rem; }
-            .logo-status { padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.75rem; font-weight: 500; }
-            .status-active { background: #d1fae5; color: #065f46; }
-            .status-inactive { background: #fee2e2; color: #991b1b; }
-            .file-input { margin-bottom: 1rem; }
-            .upload-area { border: 2px dashed #d1d5db; border-radius: 8px; padding: 2rem; text-align: center; background: #f9fafb; margin-bottom: 1rem; transition: all 0.2s; cursor: pointer; }
-            .upload-area:hover { border-color: #607e66; background: #f0f9ff; }
-            .upload-area.dragover { border-color: #607e66; background: #f0f9ff; }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <div class="header-content">
-                <div>
-                  <div style="font-weight: 600;">Pine Hill Farm</div>
-                  <div style="font-size: 0.875rem; color: #64748b;">Admin Portal</div>
-                </div>
-              </div>
-              <div class="nav">
-                <a href="/admin">Admin Dashboard</a>
-                <a href="/admin/employees">Employee Management</a>
-                <a href="/admin/schedule">Schedule Management</a>
-                <a href="/admin/logos" class="active">Logo Management</a>
-                <a href="/dashboard">Employee View</a>
-                <a href="/api/logout">Sign Out</a>
-              </div>
-            </div>
-          </div>
-
-          <div class="container">
-            <div class="page-header">
-              <h1 style="margin-bottom: 0.5rem;">Logo Management</h1>
-              <p style="color: #64748b;">Upload and manage company logos used throughout the employee portal.</p>
-            </div>
-
-            <div class="card">
-              <h2 style="margin-bottom: 1.5rem;">Upload New Logo</h2>
-
-            uploadArea.addEventListener('dragleave', () => {
-              uploadArea.classList.remove('dragover');
-            });
-
-            uploadArea.addEventListener('drop', (e) => {
-              e.preventDefault();
-              uploadArea.classList.remove('dragover');
-              const files = e.dataTransfer.files;
-              if (files.length > 0) {
-                fileInput.files = files;
-                handleFileSelect(files[0]);
-              }
-            });
-
-            fileInput.addEventListener('change', (e) => {
-              if (e.target.files.length > 0) {
-                handleFileSelect(e.target.files[0]);
-              }
-            });
-
-            function handleFileSelect(file) {
-              if (file.size > 5 * 1024 * 1024) {
-                alert('File size must be less than 5MB');
-                return;
-              }
-
-              const reader = new FileReader();
-              reader.onload = (e) => {
-                previewImg.src = e.target.result;
-                fileName.textContent = file.name;
-                filePreview.style.display = 'block';
-                uploadArea.style.display = 'none';
-              };
-              reader.readAsDataURL(file);
-            }
-
-            function resetForm() {
-              document.querySelector('form').reset();
-              filePreview.style.display = 'none';
-              uploadArea.style.display = 'block';
-            }
-          </script>
-        </body>
-        </html>
-      `);
-    } catch (error) {
-      console.error("Error loading logo management:", error);
-      res.status(500).send("Error loading logo management");
-    }
-  });
-
-  // Server-side logo toggle route
-
-  // Server-side logo delete route
-
   // Create Employee API
   app.post('/admin/employees/create', isAuthenticated, async (req: any, res) => {
     try {
@@ -3333,6 +2271,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         <body>
           <div class="header">
             <div class="header-content">
+              <div class="logo">
+                
                 <div>
                   <div style="font-weight: 600;">Pine Hill Farm</div>
                   <div style="font-size: 0.875rem; color: #64748b;">Team Chat</div>
@@ -3430,7 +2370,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Documents & Resources page with upload functionality
+  // Documents & Resources page
   app.get('/documents', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
@@ -3479,6 +2419,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         <body>
           <div class="header">
             <div class="header-content">
+              <div class="logo">
+                
                 <div>
                   <div style="font-weight: 600;">Pine Hill Farm</div>
                   <div style="font-size: 0.875rem; color: #64748b;">Documents & Resources</div>
@@ -3659,6 +2601,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         <body>
           <div class="header">
             <div class="header-content">
+              <div class="logo">
+                
                 <div>
                   <div style="font-weight: 600;">Pine Hill Farm</div>
                   <div style="font-size: 0.875rem; color: #64748b;">Shift Coverage</div>
@@ -4005,8 +2949,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         schedules.push(schedule);
       }
       
-      // Redirect back to schedule management page with success message
-      res.redirect('/admin/schedule?success=' + encodeURIComponent(`Created ${schedules.length} schedule(s) successfully`));
+      res.json({ 
+        message: `Created ${schedules.length} schedule(s) successfully`,
+        schedules: schedules 
+      });
     } catch (error) {
       console.error("Error creating work schedule:", error);
       res.status(500).json({ message: "Failed to create work schedule" });
@@ -4598,931 +3544,355 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Admin Documents Management page with upload functionality
-  app.get('/admin/documents', isAuthenticated, async (req: any, res) => {
+  // Push notification endpoints
+  app.get('/api/notifications/vapid-key', (req, res) => {
+    if (!process.env.VAPID_PUBLIC_KEY) {
+      return res.status(500).json({ message: "VAPID keys not configured" });
+    }
+    res.json({ publicKey: process.env.VAPID_PUBLIC_KEY });
+  });
+
+  app.post('/api/notifications/subscribe', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      const user = await storage.getUser(userId);
+      const { endpoint, auth, p256dh } = req.body;
       
-      if (!user || (user.role !== 'admin' && user.role !== 'manager')) {
-        return res.status(403).send("Access denied - Admin or Manager role required");
+      // Validate required fields
+      if (!endpoint || !auth || !p256dh) {
+        return res.status(400).json({ message: "Invalid subscription data: missing required fields" });
       }
-
-      const documents = await storage.getDocuments();
-
-      res.send(`
-        <!DOCTYPE html>
-        <html lang="en">
-        <head>
-          <title>Pine Hill Farm - Document Management</title>
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <style>
-            * { margin: 0; padding: 0; box-sizing: border-box; }
-            body { 
-              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-              background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
-              min-height: 100vh; color: #1e293b;
-            }
-            .header { background: white; padding: 1rem 2rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-            .header-content { max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
-            .nav { display: flex; gap: 1rem; flex-wrap: wrap; }
-            .nav a { color: #64748b; text-decoration: none; padding: 0.5rem 1rem; border-radius: 6px; transition: background 0.2s; }
-            .nav a:hover { background: #f1f5f9; }
-            .nav a.active { background: #607e66; color: white; }
-            .container { max-width: 1200px; margin: 0 auto; padding: 2rem; }
-            .page-header { text-align: center; margin-bottom: 3rem; }
-            .upload-section { background: white; padding: 2rem; border-radius: 12px; margin-bottom: 3rem; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
-            .upload-form { display: grid; gap: 1rem; max-width: 600px; margin: 0 auto; }
-            .form-group { display: flex; flex-direction: column; gap: 0.5rem; }
-            .form-group label { font-weight: 500; color: #374151; }
-            .form-control { padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 6px; font-size: 1rem; }
-            .form-control:focus { outline: none; border-color: #607e66; box-shadow: 0 0 0 3px rgba(96, 126, 102, 0.1); }
-            .btn { background: #607e66; color: white; padding: 0.75rem 1.5rem; border: none; border-radius: 8px; font-weight: 500; cursor: pointer; transition: background 0.2s; }
-            .btn:hover { background: #4a6b55; }
-            .btn-secondary { background: #6b7280; }
-            .btn-secondary:hover { background: #4b5563; }
-            .btn-danger { background: #dc2626; }
-            .btn-danger:hover { background: #b91c1c; }
-            .documents-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.5rem; }
-            .document-card { background: white; padding: 1.5rem; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
-            .document-title { font-weight: 600; margin-bottom: 0.5rem; color: #1e293b; }
-            .document-meta { color: #64748b; font-size: 0.875rem; margin-bottom: 1rem; }
-            .document-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
-            .category-badge { display: inline-block; padding: 0.25rem 0.75rem; background: #e0f2fe; color: #0369a1; border-radius: 1rem; font-size: 0.75rem; font-weight: 500; margin-bottom: 1rem; }
-            .success-message { background: #d1fae5; color: #065f46; padding: 1rem; border-radius: 6px; margin-bottom: 1rem; }
-            .error-message { background: #fee2e2; color: #991b1b; padding: 1rem; border-radius: 6px; margin-bottom: 1rem; }
-            .file-upload-area { border: 2px dashed #d1d5db; padding: 2rem; text-align: center; border-radius: 8px; transition: border-color 0.2s; }
-            .file-upload-area:hover { border-color: #607e66; }
-            .file-upload-area.dragover { border-color: #607e66; background: #f0f9ff; }
-            @media (max-width: 768px) {
-              .nav { flex-direction: column; gap: 0.5rem; }
-              .container { padding: 1rem; }
-              .upload-form { padding: 1rem; }
-              .document-actions { flex-direction: column; }
-            }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <div class="header-content">
-                <div>
-                  <div style="font-weight: 600;">Pine Hill Farm</div>
-                  <div style="font-size: 0.875rem; color: #64748b;">Document Management</div>
-                </div>
-              </div>
-              <div class="nav">
-                <a href="/dashboard">Dashboard</a>
-                <a href="/schedule">Schedule</a>
-                <a href="/time-off">Time Off</a>
-                <a href="/announcements">Announcements</a>
-                <a href="/team-chat">Team Chat</a>
-                <a href="/documents">Documents</a>
-                <a href="/admin">Admin Portal</a>
-                <a href="/api/logout">Sign Out</a>
-              </div>
-            </div>
-          </div>
-
-          <div class="container">
-            <div class="page-header">
-              <h1 style="margin-bottom: 0.5rem;">Document Management</h1>
-              <p style="color: #64748b;">Upload and manage company documents, training materials, and resources for all employees.</p>
-            </div>
-
-            <div class="upload-section">
-              <h2 style="margin-bottom: 1.5rem; text-align: center;">Upload New Document</h2>
-              <form class="upload-form" action="/api/documents/upload" method="post" enctype="multipart/form-data">
-                <div class="form-group">
-                  <label for="title">Document Title</label>
-                  <input type="text" id="title" name="title" class="form-control" required 
-                         placeholder="Enter a descriptive title for the document">
-                </div>
-                <div class="form-group">
-                  <label for="description">Description (Optional)</label>
-                  <textarea id="description" name="description" class="form-control" rows="3" 
-                            placeholder="Provide additional details about this document"></textarea>
-                </div>
-                <div class="form-group">
-                  <label for="category">Category</label>
-                  <select id="category" name="category" class="form-control" required>
-                    <option value="">Select a category</option>
-                    <option value="policy">Company Policies</option>
-                    <option value="form">Forms & Templates</option>
-                    <option value="training">Training Materials</option>
-                    <option value="general">General Documents</option>
-                  </select>
-                </div>
-                <div class="form-group">
-                  <label for="file">Choose File</label>
-                  <div class="file-upload-area" onclick="document.getElementById('file').click()">
-                    <p style="margin-bottom: 0.5rem; font-weight: 500;">Click to select a file or drag and drop</p>
-                    <p style="font-size: 0.875rem; color: #64748b;">Supports: PDF, Word, Excel, PowerPoint, Images, Text files (Max: 50MB)</p>
-                  </div>
-                  <input type="file" id="file" name="file" class="form-control" required style="display: none;"
-                         accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.jpg,.jpeg,.png,.gif">
-                  <div id="file-info" style="margin-top: 0.5rem; font-size: 0.875rem; color: #374151;"></div>
-                </div>
-                <div class="form-group">
-                  <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                    <input type="checkbox" name="isPublic" value="true">
-                    <span>Make this document publicly accessible to all employees</span>
-                  </label>
-                  <p style="font-size: 0.875rem; color: #64748b; margin-top: 0.25rem;">
-                    Unchecked documents will only be visible to admins and managers
-                  </p>
-                </div>
-                <button type="submit" class="btn" style="margin-top: 1rem;">Upload Document</button>
-              </form>
-            </div>
-
-            <div class="documents-section">
-              <h2 style="margin-bottom: 2rem;">All Documents (${documents.length})</h2>
-              <div class="documents-grid">
-                ${documents.map(doc => `
-                  <div class="document-card">
-                    <div class="category-badge">${doc.category === 'policy' ? 'Company Policies' : 
-                                                   doc.category === 'form' ? 'Forms & Templates' : 
-                                                   doc.category === 'training' ? 'Training Materials' : 'General Documents'}</div>
-                    <div class="document-title">${doc.originalName}</div>
-                    <div class="document-meta">
-                      Uploaded: ${doc.uploadedAt ? new Date(doc.uploadedAt).toLocaleDateString() : 'Unknown'}<br>
-                      Size: ${(doc.fileSize / 1024).toFixed(1)} KB<br>
-                      ${doc.isPublic ? 'Public' : 'Private'} • Uploaded by: ${doc.uploadedBy}
-                    </div>
-                    ${doc.description ? `<p style="color: #6b7280; margin-bottom: 1rem; font-size: 0.875rem;">${doc.description}</p>` : ''}
-                    <div class="document-actions">
-                      <a href="/api/documents/${doc.id}/download" class="btn" style="text-decoration: none; font-size: 0.875rem;">Download</a>
-                      <button onclick="editDocument(${doc.id})" class="btn btn-secondary" style="font-size: 0.875rem;">Edit</button>
-                      <button onclick="deleteDocument(${doc.id})" class="btn btn-danger" style="font-size: 0.875rem;">Delete</button>
-                    </div>
-                  </div>
-                `).join('')}
-              </div>
-              ${documents.length === 0 ? '<p style="text-align: center; color: #6b7280; margin-top: 2rem;">No documents uploaded yet. Use the form above to upload your first document.</p>' : ''}
-            </div>
-          </div>
-
-          <script>
-            // File upload handling
-            const fileInput = document.getElementById('file');
-            const fileInfo = document.getElementById('file-info');
-            const uploadArea = document.querySelector('.file-upload-area');
-
-            fileInput.addEventListener('change', function(e) {
-              const file = e.target.files[0];
-              if (file) {
-                fileInfo.textContent = \`Selected: \${file.name} (\${(file.size / 1024 / 1024).toFixed(2)} MB)\`;
-              }
-            });
-
-            // Drag and drop functionality
-            uploadArea.addEventListener('dragover', function(e) {
-              e.preventDefault();
-              uploadArea.classList.add('dragover');
-            });
-
-            uploadArea.addEventListener('dragleave', function(e) {
-              e.preventDefault();
-              uploadArea.classList.remove('dragover');
-            });
-
-            uploadArea.addEventListener('drop', function(e) {
-              e.preventDefault();
-              uploadArea.classList.remove('dragover');
-              const files = e.dataTransfer.files;
-              if (files.length > 0) {
-                fileInput.files = files;
-                fileInput.dispatchEvent(new Event('change'));
-              }
-            });
-
-            function deleteDocument(id) {
-              if (confirm('Are you sure you want to delete this document? This action cannot be undone.')) {
-                fetch('/api/documents/' + id, {
-                  method: 'DELETE'
-                }).then(response => {
-                  if (response.ok) {
-                    location.reload();
-                  } else {
-                    alert('Error deleting document. Please try again.');
-                  }
-                }).catch(error => {
-                  alert('Error deleting document. Please check your connection.');
-                });
-              }
-            }
-
-            function editDocument(id) {
-              // Simple edit functionality - could be expanded to a modal
-              const newTitle = prompt('Enter new title for the document:');
-              if (newTitle && newTitle.trim()) {
-                fetch('/api/documents/' + id, {
-                  method: 'PATCH',
-                  headers: {
-                    'Content-Type': 'application/json',
-                  },
-                  body: JSON.stringify({ title: newTitle.trim() })
-                }).then(response => {
-                  if (response.ok) {
-                    location.reload();
-                  } else {
-                    alert('Error updating document. Please try again.');
-                  }
-                }).catch(error => {
-                  alert('Error updating document. Please check your connection.');
-                });
-              }
-            }
-
-            // Form validation
-            document.querySelector('.upload-form').addEventListener('submit', function(e) {
-              const title = document.getElementById('title').value.trim();
-              const category = document.getElementById('category').value;
-              const file = document.getElementById('file').files[0];
-
-              if (!title) {
-                e.preventDefault();
-                alert('Please enter a document title.');
-                return;
-              }
-
-              if (!category) {
-                e.preventDefault();
-                alert('Please select a category.');
-                return;
-              }
-
-              if (!file) {
-                e.preventDefault();
-                alert('Please select a file to upload.');
-                return;
-              }
-
-              if (file.size > 50 * 1024 * 1024) {
-                e.preventDefault();
-                alert('File size must be less than 50MB.');
-                return;
-              }
-            });
-          </script>
-        </body>
-        </html>
-      `);
+      
+      console.log("Saving push subscription for user:", userId);
+      
+      await storage.savePushSubscription({
+        userId,
+        endpoint,
+        authKey: auth,
+        p256dhKey: p256dh
+      });
+      
+      console.log("Push subscription saved successfully");
+      res.json({ success: true });
     } catch (error) {
-      console.error("Error loading admin documents:", error);
-      res.status(500).send("Error loading document management");
+      console.error("Error saving push subscription:", error);
+      res.status(400).json({ message: "Invalid subscription data" });
     }
   });
 
+  app.post('/api/notifications/unsubscribe', isAuthenticated, async (req: any, res) => {
+    try {
+      const { endpoint } = req.body;
+      // Note: Would need to add a method to remove subscriptions by endpoint
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error removing push subscription:", error);
+      res.status(500).json({ message: "Failed to remove push subscription" });
+    }
+  });
 
-      
+  // Document management routes
+  app.get('/api/documents', isAuthenticated, async (req: any, res) => {
+    try {
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
+      const { category } = req.query;
       
-      console.log("Found user:", user);
-      console.log("User role:", user?.role);
+      const documents = await storage.getUserAccessibleDocuments(
+        userId, 
+        user?.role || 'employee', 
+        user?.department || ''
+      );
       
-      if (!user || user.role !== 'admin') {
-        console.error("Access denied - not admin. User role:", user?.role);
+      const filteredDocs = category 
+        ? documents.filter(doc => doc.category === category)
+        : documents;
+        
+      res.json(filteredDocs);
+    } catch (error) {
+      console.error("Error fetching documents:", error);
+      res.status(500).json({ message: "Failed to fetch documents" });
+    }
+  });
+
+  app.post('/api/documents', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const documentData = insertDocumentSchema.parse({
+        ...req.body,
+        uploadedBy: userId
+      });
+      
+      const document = await storage.createDocument(documentData);
+      
+      // Log the upload action
+      await storage.logDocumentAction({
+        documentId: document.id,
+        userId,
+        action: 'upload',
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent')
+      });
+      
+      res.json(document);
+    } catch (error) {
+      console.error("Error creating document:", error);
+      res.status(500).json({ message: "Failed to create document" });
+    }
+  });
+
+  app.get('/api/documents/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      const documentId = parseInt(req.params.id);
+      
+      const hasAccess = await storage.checkDocumentAccess(
+        documentId, 
+        userId, 
+        user?.role || 'employee', 
+        user?.department || ''
+      );
+      
+      if (!hasAccess) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      const document = await storage.getDocumentById(documentId);
+      if (!document) {
+        return res.status(404).json({ message: "Document not found" });
+      }
+      
+      // Log the view action
+      await storage.logDocumentAction({
+        documentId,
+        userId,
+        action: 'view',
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent')
+      });
+      
+      res.json(document);
+    } catch (error) {
+      console.error("Error fetching document:", error);
+      res.status(500).json({ message: "Failed to fetch document" });
+    }
+  });
+
+  app.patch('/api/documents/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      const documentId = parseInt(req.params.id);
+      
+      const document = await storage.getDocumentById(documentId);
+      if (!document) {
+        return res.status(404).json({ message: "Document not found" });
+      }
+      
+      // Only owner or admin can update
+      if (document.uploadedBy !== userId && user?.role !== 'admin') {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      const updatedDocument = await storage.updateDocument(documentId, req.body);
+      
+      // Log the update action
+      await storage.logDocumentAction({
+        documentId,
+        userId,
+        action: 'update',
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent')
+      });
+      
+      res.json(updatedDocument);
+    } catch (error) {
+      console.error("Error updating document:", error);
+      res.status(500).json({ message: "Failed to update document" });
+    }
+  });
+
+  app.delete('/api/documents/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      const documentId = parseInt(req.params.id);
+      
+      const document = await storage.getDocumentById(documentId);
+      if (!document) {
+        return res.status(404).json({ message: "Document not found" });
+      }
+      
+      // Only owner or admin can delete
+      if (document.uploadedBy !== userId && user?.role !== 'admin') {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      await storage.deleteDocument(documentId);
+      
+      // Log the delete action
+      await storage.logDocumentAction({
+        documentId,
+        userId,
+        action: 'delete',
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent')
+      });
+      
+      res.json({ message: "Document deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting document:", error);
+      res.status(500).json({ message: "Failed to delete document" });
+    }
+  });
+
+  // Document permissions routes
+  app.post('/api/documents/:id/permissions', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      const documentId = parseInt(req.params.id);
+      
+      const document = await storage.getDocumentById(documentId);
+      if (!document) {
+        return res.status(404).json({ message: "Document not found" });
+      }
+      
+      // Only owner or admin can grant permissions
+      if (document.uploadedBy !== userId && user?.role !== 'admin') {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      const permissionData = insertDocumentPermissionSchema.parse({
+        ...req.body,
+        documentId,
+        grantedBy: userId
+      });
+      
+      const permission = await storage.createDocumentPermission(permissionData);
+      res.json(permission);
+    } catch (error) {
+      console.error("Error creating document permission:", error);
+      res.status(500).json({ message: "Failed to create permission" });
+    }
+  });
+
+  app.get('/api/documents/:id/permissions', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      const documentId = parseInt(req.params.id);
+      
+      const document = await storage.getDocumentById(documentId);
+      if (!document) {
+        return res.status(404).json({ message: "Document not found" });
+      }
+      
+      // Only owner or admin can view permissions
+      if (document.uploadedBy !== userId && user?.role !== 'admin') {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      const permissions = await storage.getDocumentPermissions(documentId);
+      res.json(permissions);
+    } catch (error) {
+      console.error("Error fetching document permissions:", error);
+      res.status(500).json({ message: "Failed to fetch permissions" });
+    }
+  });
+
+  app.delete('/api/documents/permissions/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      const permissionId = parseInt(req.params.id);
+      
+      // Get permission to check document ownership
+      const permissions = await storage.getDocumentPermissions(0); // We'll need to modify this
+      // For now, allow admin or permission granter to revoke
+      if (user?.role !== 'admin') {
         return res.status(403).json({ message: "Admin access required" });
       }
-
-      if (!req.file) {
-        console.error("No file uploaded");
-        return res.status(400).json({ message: "No file uploaded" });
-      }
-
-      if (!req.body.name) {
-        console.error("Logo name is required");
-        return res.status(400).json({ message: "Logo name is required" });
-      }
-
-      // Validate file type
-      const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/svg+xml'];
-      if (!allowedTypes.includes(req.file.mimetype)) {
-        console.error("Invalid file type:", req.file.mimetype);
-        return res.status(400).json({ message: "Invalid file type. Only PNG, JPEG, GIF, and SVG files are allowed." });
-      }
-
-      // Check if logo with this name already exists and deactivate it
-      await storage.deactivateLogoByName(req.body.name);
-
-      const logoData = {
-        name: req.body.name,
-        fileName: req.file.filename,
-        originalName: req.file.originalname,
-        filePath: req.file.path,
-        fileSize: req.file.size,
-        mimeType: req.file.mimetype,
-        uploadedBy: userId,
-        isActive: req.body.isActive === 'true'
-      };
-
-      console.log("Creating logo with data:", logoData);
-      const logo = await storage.createLogo(logoData);
       
-      res.json(logo);
+      await storage.revokeDocumentPermission(permissionId);
+      res.json({ message: "Permission revoked successfully" });
     } catch (error) {
-      console.error("Error uploading logo:", error);
-      res.status(500).json({ message: "Failed to upload logo" });
+      console.error("Error revoking document permission:", error);
+      res.status(500).json({ message: "Failed to revoke permission" });
     }
   });
 
-  // Get logo preview
-      }
-
-      res.sendFile(path.resolve(logo.filePath));
-    } catch (error) {
-      console.error("Error serving logo preview:", error);
-      res.status(500).json({ message: "Failed to serve logo" });
-    }
-  });
-
-  // Get active logo by name for frontend use
-      }
-
-      // Resolve the file path relative to the project root
-      const fullPath = path.resolve(process.cwd(), logo.filePath);
-      console.log(`Serving logo ${logoName} from path: ${fullPath}`);
-      
-      res.sendFile(fullPath);
-    } catch (error) {
-      console.error("Error serving logo:", error);
-      res.status(404).json({ message: "Logo not found" });
-    }
-  });
-
-  // Toggle logo active status
-      }
-
-      const logoId = parseInt(req.params.id);
-      const { isActive } = req.body;
-
-      const logo = await storage.updateLogoStatus(logoId, isActive);
-      res.json(logo);
-    } catch (error) {
-      console.error("Error updating logo status:", error);
-      res.status(500).json({ message: "Failed to update logo status" });
-    }
-  });
-
-  // Delete logo
-      }
-
-      const logoId = parseInt(req.params.id);
-      await storage.deleteLogo(logoId);
-      res.json({ message: "Logo deleted successfully" });
-    } catch (error) {
-      console.error("Error deleting logo:", error);
-      res.status(500).json({ message: "Failed to delete logo" });
-    }
-  });
-
-  // Employee invitation API routes for beta testing
-  app.post('/api/admin/invitations', isAuthenticated, async (req: any, res) => {
+  app.get('/api/documents/:id/logs', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
+      const documentId = parseInt(req.params.id);
       
-      if (!user || user.role !== 'admin') {
-        return res.status(403).json({ message: "Admin access required" });
+      const document = await storage.getDocumentById(documentId);
+      if (!document) {
+        return res.status(404).json({ message: "Document not found" });
       }
-
-      const { email, firstName, lastName, role, department, position, notes } = req.body;
       
-      // Generate unique invite token
-      const inviteToken = Math.random().toString(36).substring(2) + Date.now().toString(36);
+      // Only owner or admin can view logs
+      if (document.uploadedBy !== userId && user?.role !== 'admin') {
+        return res.status(403).json({ message: "Access denied" });
+      }
       
-      // Set expiration to 7 days from now
-      const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + 7);
-
-      const invitation = await storage.createEmployeeInvitation({
-        email,
-        firstName,
-        lastName,
-        role: role || 'employee',
-        department,
-        position,
-        inviteToken,
-        invitedBy: userId,
-        expiresAt,
-        status: 'pending',
-        notes
-      });
-
-      res.json({
-        ...invitation,
-        inviteUrl: `${req.protocol}://${req.get('host')}/invitation/${inviteToken}`
-      });
+      const logs = await storage.getDocumentLogs(documentId);
+      res.json(logs);
     } catch (error) {
-      console.error("Error creating invitation:", error);
-      res.status(500).json({ message: "Failed to create invitation" });
+      console.error("Error fetching document logs:", error);
+      res.status(500).json({ message: "Failed to fetch logs" });
     }
   });
 
-  app.get('/api/admin/invitations', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const user = await storage.getUser(userId);
-      
-      if (!user || user.role !== 'admin') {
-        return res.status(403).json({ message: "Admin access required" });
-      }
-
-      const { status } = req.query;
-      const invitations = await storage.getEmployeeInvitations(status as string);
-      res.json(invitations);
-    } catch (error) {
-      console.error("Error fetching invitations:", error);
-      res.status(500).json({ message: "Failed to fetch invitations" });
+  // Catch-all handler (MUST be last)
+  app.get('*', (req, res) => {
+    // If it's an API route, return 404
+    if (req.path.startsWith('/api/')) {
+      return res.status(404).json({ message: 'API endpoint not found' });
     }
-  });
-
-  app.delete('/api/admin/invitations/:id', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const user = await storage.getUser(userId);
-      
-      if (!user || user.role !== 'admin') {
-        return res.status(403).json({ message: "Admin access required" });
-      }
-
-      const invitationId = parseInt(req.params.id);
-      await storage.deleteInvitation(invitationId);
-      res.json({ message: "Invitation deleted successfully" });
-    } catch (error) {
-      console.error("Error deleting invitation:", error);
-      res.status(500).json({ message: "Failed to delete invitation" });
-    }
-  });
-
-  // Public invitation acceptance route (no auth required)
-  app.get('/invitation/:token', async (req, res) => {
-    try {
-      const { token } = req.params;
-      const invitation = await storage.getInvitationByToken(token);
-      
-      if (!invitation) {
-        return res.status(404).send(`
-          <!DOCTYPE html>
-          <html>
-          <head><title>Invalid Invitation</title></head>
-          <body style="font-family: Arial; padding: 40px; text-align: center;">
-            <h1>Invalid Invitation</h1>
-            <p>This invitation link is not valid or has expired.</p>
-            <a href="/">Go to Home Page</a>
-          </body>
-          </html>
-        `);
-      }
-
-      if (invitation.status !== 'pending') {
-        return res.status(400).send(`
-          <!DOCTYPE html>
-          <html>
-          <head><title>Invitation Already Used</title></head>
-          <body style="font-family: Arial; padding: 40px; text-align: center;">
-            <h1>Invitation Already Used</h1>
-            <p>This invitation has already been accepted or has expired.</p>
-            <a href="/api/login">Sign In</a>
-          </body>
-          </html>
-        `);
-      }
-
-      if (new Date() > invitation.expiresAt) {
-        return res.status(400).send(`
-          <!DOCTYPE html>
-          <html>
-          <head><title>Invitation Expired</title></head>
-          <body style="font-family: Arial; padding: 40px; text-align: center;">
-            <h1>Invitation Expired</h1>
-            <p>This invitation has expired. Please contact your administrator for a new invitation.</p>
-            <a href="/">Go to Home Page</a>
-          </body>
-          </html>
-        `);
-      }
-
-      // Show invitation acceptance page
-      res.send(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <title>Welcome to Pine Hill Farm</title>
-          <style>
-            * { margin: 0; padding: 0; box-sizing: border-box; }
-            body { 
-              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-              background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
-              min-height: 100vh; display: flex; align-items: center; justify-content: center;
-            }
-            .card { background: white; padding: 3rem; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); max-width: 500px; text-align: center; }
-            .invite-details { background: #f8fafc; padding: 1.5rem; border-radius: 8px; margin: 2rem 0; text-align: left; }
-            .detail-row { display: flex; justify-content: space-between; margin-bottom: 0.5rem; }
-            .detail-label { font-weight: 500; color: #64748b; }
-            .detail-value { color: #1e293b; }
-            .btn { background: #607e66; color: white; padding: 1rem 2rem; border: none; border-radius: 8px; font-size: 1rem; font-weight: 500; cursor: pointer; text-decoration: none; display: inline-block; transition: background 0.2s; }
-            .btn:hover { background: #4f6b56; }
-            .info { color: #64748b; font-size: 0.875rem; margin-top: 2rem; }
-          </style>
-        </head>
-        <body>
-          <div class="card">
-            
-            <h1>Welcome to Pine Hill Farm!</h1>
-            <p>You've been invited to join our employee management system.</p>
-            
-            <div class="invite-details">
-              <div class="detail-row">
-                <span class="detail-label">Name:</span>
-                <span class="detail-value">${invitation.firstName} ${invitation.lastName}</span>
-              </div>
-              <div class="detail-row">
-                <span class="detail-label">Email:</span>
-                <span class="detail-value">${invitation.email}</span>
-              </div>
-              <div class="detail-row">
-                <span class="detail-label">Role:</span>
-                <span class="detail-value">${invitation.role}</span>
-              </div>
-              ${invitation.department ? `
-              <div class="detail-row">
-                <span class="detail-label">Department:</span>
-                <span class="detail-value">${invitation.department}</span>
-              </div>
-              ` : ''}
-              ${invitation.position ? `
-              <div class="detail-row">
-                <span class="detail-label">Position:</span>
-                <span class="detail-value">${invitation.position}</span>
-              </div>
-              ` : ''}
-            </div>
-            
-            <a href="/api/accept-invitation/${token}" class="btn">Accept Invitation & Sign In</a>
-            
-            <p class="info">
-              By accepting this invitation, you'll be able to access your schedule, request time off, and communicate with your team.
-            </p>
-          </div>
-        </body>
-        </html>
-      `);
-    } catch (error) {
-      console.error("Error processing invitation:", error);
-      res.status(500).send("Error processing invitation");
-    }
-  });
-
-  // Accept invitation and create user account
-  app.get('/api/accept-invitation/:token', async (req, res) => {
-    try {
-      const { token } = req.params;
-      const invitation = await storage.getInvitationByToken(token);
-      
-      if (!invitation || invitation.status !== 'pending' || new Date() > invitation.expiresAt) {
-        return res.redirect('/invitation/' + token);
-      }
-
-      // Create user account based on invitation
-      const userId = `inv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      
-      const user = await storage.upsertUser({
-        id: userId,
-        email: invitation.email,
-        firstName: invitation.firstName,
-        lastName: invitation.lastName,
-        role: invitation.role,
-        department: invitation.department,
-        position: invitation.position,
-        isActive: true,
-        profileImageUrl: null
-      });
-
-      // Mark invitation as accepted
-      await storage.acceptInvitation(token, userId);
-
-      // Create session for the new user (auto-login)
-      (req.session as any).user = {
-        claims: {
-          sub: user.id,
-          email: user.email,
-          first_name: user.firstName,
-          last_name: user.lastName,
-          profile_image_url: user.profileImageUrl,
-        },
-        access_token: "invitation-token",
-        refresh_token: "invitation-refresh",
-        expires_at: Math.floor(Date.now() / 1000) + 28800, // 8 hours
-      };
-
-      req.session.save((err) => {
-        if (err) {
-          console.error('Session save error:', err);
-          return res.status(500).send("Session error");
-        }
-        res.redirect("/dashboard");
-      });
-    } catch (error) {
-      console.error("Error accepting invitation:", error);
-      res.status(500).send("Error accepting invitation");
-    }
-  });
-
-  // Admin password reset for employees
-  app.post('/api/admin/reset-password/:userId', isAuthenticated, async (req: any, res) => {
-    try {
-      const adminId = req.user.claims.sub;
-      const adminUser = await storage.getUser(adminId);
-      
-      if (!adminUser || adminUser.role !== 'admin') {
-        return res.status(403).json({ message: "Admin access required" });
-      }
-
-      const { userId } = req.params;
-      const targetUser = await storage.getUser(userId);
-      
-      if (!targetUser) {
-        return res.status(404).json({ message: "User not found" });
-      }
-
-      // Generate temporary password reset token
-      const resetToken = Math.random().toString(36).substring(2) + Date.now().toString(36);
-      
-      // In a real system, you would:
-      // 1. Store the reset token in database with expiration
-      // 2. Send reset email to user
-      // For now, we'll return the reset link for manual sharing
-      
-      res.json({
-        message: "Password reset initiated",
-        resetUrl: `${req.protocol}://${req.get('host')}/reset-password/${resetToken}`,
-        user: {
-          id: targetUser.id,
-          name: `${targetUser.firstName} ${targetUser.lastName}`,
-          email: targetUser.email
-        }
-      });
-    } catch (error) {
-      console.error("Error initiating password reset:", error);
-      res.status(500).json({ message: "Failed to initiate password reset" });
-    }
-  });
-
-  // Admin dashboard route for managing invitations
-  app.get('/admin/invitations', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const user = await storage.getUser(userId);
-      
-      if (!user || user.role !== 'admin') {
-        return res.status(403).send("Admin access required");
-      }
-
-      const invitations = await storage.getEmployeeInvitations();
-      const allUsers = await storage.getAllUsers();
-
-      res.send(`
-        <!DOCTYPE html>
-        <html lang="en">
-        <head>
-          <title>Pine Hill Farm - Employee Invitations</title>
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <style>
-            * { margin: 0; padding: 0; box-sizing: border-box; }
-            body { 
-              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-              background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
-              min-height: 100vh; color: #1e293b;
-            }
-            .header { background: white; padding: 1rem 2rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-            .header-content { max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
-            .nav { display: flex; gap: 1rem; flex-wrap: wrap; }
-            .nav a { color: #64748b; text-decoration: none; padding: 0.5rem 1rem; border-radius: 6px; transition: background 0.2s; }
-            .nav a:hover { background: #f1f5f9; }
-            .nav a.active { background: #607e66; color: white; }
-            .container { max-width: 1200px; margin: 0 auto; padding: 2rem; }
-            .page-header { text-align: center; margin-bottom: 3rem; }
-            .invite-form { background: white; padding: 2rem; border-radius: 12px; margin-bottom: 3rem; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
-            .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; }
-            .form-group { display: flex; flex-direction: column; gap: 0.5rem; }
-            .form-group label { font-weight: 500; color: #374151; }
-            .form-control { padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 6px; font-size: 1rem; }
-            .form-control:focus { outline: none; border-color: #607e66; box-shadow: 0 0 0 3px rgba(96, 126, 102, 0.1); }
-            .btn { background: #607e66; color: white; padding: 0.75rem 1.5rem; border: none; border-radius: 8px; font-weight: 500; cursor: pointer; transition: background 0.2s; }
-            .btn:hover { background: #4a6b55; }
-            .btn-danger { background: #dc2626; }
-            .btn-danger:hover { background: #b91c1c; }
-            .invitations-table { background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
-            .table { width: 100%; border-collapse: collapse; }
-            .table th, .table td { padding: 1rem; text-align: left; border-bottom: 1px solid #e5e7eb; }
-            .table th { background: #f9fafb; font-weight: 600; color: #374151; }
-            .status-badge { padding: 0.25rem 0.75rem; border-radius: 1rem; font-size: 0.75rem; font-weight: 500; }
-            .status-pending { background: #fef3c7; color: #92400e; }
-            .status-accepted { background: #d1fae5; color: #065f46; }
-            .status-expired { background: #fee2e2; color: #991b1b; }
-            .url-display { font-family: monospace; font-size: 0.875rem; color: #6b7280; word-break: break-all; }
-            .success-message { background: #d1fae5; color: #065f46; padding: 1rem; border-radius: 6px; margin-bottom: 1rem; }
-            .employees-section { background: white; padding: 2rem; border-radius: 12px; margin-top: 3rem; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <div class="header-content">
-                  <div style="font-size: 0.875rem; color: #64748b;">Admin Portal</div>
-                </div>
-              </div>
-              <div class="nav">
-                <a href="/dashboard">Dashboard</a>
-                <a href="/admin/employees">Employees</a>
-                <a href="/admin/schedule">Schedule</a>
-                <a href="/admin/invitations" class="active">Invitations</a>
-                <a href="/admin/documents">Documents</a>
-                <a href="/api/logout">Logout</a>
-              </div>
-            </div>
-          </div>
-
-          <div class="container">
-            <div class="page-header">
-              <h1>Employee Invitations</h1>
-              <p style="color: #64748b; margin-top: 0.5rem;">Manage beta testing invitations for new employees</p>
-            </div>
-
-            <div class="invite-form">
-              <h2 style="margin-bottom: 1.5rem;">Send New Invitation</h2>
-              <form id="inviteForm">
-                <div class="form-grid">
-                  <div class="form-group">
-                    <label for="firstName">First Name *</label>
-                    <input type="text" id="firstName" name="firstName" class="form-control" required>
-                  </div>
-                  <div class="form-group">
-                    <label for="lastName">Last Name *</label>
-                    <input type="text" id="lastName" name="lastName" class="form-control" required>
-                  </div>
-                  <div class="form-group">
-                    <label for="email">Email Address *</label>
-                    <input type="email" id="email" name="email" class="form-control" required>
-                  </div>
-                  <div class="form-group">
-                    <label for="role">Role</label>
-                    <select id="role" name="role" class="form-control">
-                      <option value="employee">Employee</option>
-                      <option value="manager">Manager</option>
-                    </select>
-                  </div>
-                  <div class="form-group">
-                    <label for="department">Department</label>
-                    <input type="text" id="department" name="department" class="form-control" placeholder="e.g., Sales, Operations">
-                  </div>
-                  <div class="form-group">
-                    <label for="position">Position</label>
-                    <input type="text" id="position" name="position" class="form-control" placeholder="e.g., Sales Associate">
-                  </div>
-                </div>
-                <div class="form-group" style="margin-top: 1rem;">
-                  <label for="notes">Notes (Optional)</label>
-                  <textarea id="notes" name="notes" class="form-control" rows="3" placeholder="Any additional information about this invitation"></textarea>
-                </div>
-                <button type="submit" class="btn" style="margin-top: 1.5rem;">Create Invitation</button>
-              </form>
-            </div>
-
-            <div class="invitations-table">
-              <h2 style="padding: 1.5rem 1.5rem 0;">Recent Invitations</h2>
-              <table class="table">
-                <thead>
-                  <tr>
-                    <th>Name</th>
-                    <th>Email</th>
-                    <th>Role</th>
-                    <th>Status</th>
-                    <th>Invited</th>
-                    <th>Invitation URL</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${invitations.map(inv => `
-                    <tr>
-                      <td>${inv.firstName} ${inv.lastName}</td>
-                      <td>${inv.email}</td>
-                      <td>${inv.role}</td>
-                      <td><span class="status-badge status-${inv.status}">${inv.status}</span></td>
-                      <td>${new Date(inv.invitedAt).toLocaleDateString()}</td>
-                      <td><div class="url-display">${req.protocol}://${req.get('host')}/invitation/${inv.inviteToken}</div></td>
-                      <td>
-                        <button onclick="copyInviteUrl('${inv.inviteToken}')" class="btn" style="padding: 0.25rem 0.75rem; font-size: 0.875rem;">Copy URL</button>
-                        ${inv.status === 'pending' ? `<button onclick="deleteInvitation(${inv.id})" class="btn btn-danger" style="padding: 0.25rem 0.75rem; font-size: 0.875rem; margin-left: 0.5rem;">Delete</button>` : ''}
-                      </td>
-                    </tr>
-                  `).join('')}
-                </tbody>
-              </table>
-            </div>
-
-            <div class="employees-section">
-              <h2 style="margin-bottom: 1.5rem;">Current Employees (${allUsers.length} total)</h2>
-              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem;">
-                ${allUsers.map(emp => `
-                  <div style="border: 1px solid #e5e7eb; padding: 1rem; border-radius: 8px;">
-                    <div style="font-weight: 600;">${emp.firstName} ${emp.lastName}</div>
-                    <div style="color: #64748b; font-size: 0.875rem;">${emp.email}</div>
-                    <div style="color: #64748b; font-size: 0.875rem;">Role: ${emp.role}</div>
-                    ${emp.department ? `<div style="color: #64748b; font-size: 0.875rem;">Department: ${emp.department}</div>` : ''}
-                    <button onclick="resetPassword('${emp.id}')" class="btn" style="padding: 0.5rem 1rem; font-size: 0.875rem; margin-top: 0.5rem;">Reset Password</button>
-                  </div>
-                `).join('')}
-              </div>
-            </div>
-          </div>
-
-          <div id="successMessage" style="display: none; position: fixed; top: 20px; right: 20px; background: #d1fae5; color: #065f46; padding: 1rem; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); z-index: 1000;"></div>
-
-          <script>
-            document.getElementById('inviteForm').addEventListener('submit', async (e) => {
-              e.preventDefault();
-              
-              const formData = new FormData(e.target);
-              const data = Object.fromEntries(formData.entries());
-              
-              try {
-                const response = await fetch('/api/admin/invitations', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify(data)
-                });
-                
-                if (response.ok) {
-                  const result = await response.json();
-                  showSuccess('Invitation created successfully! URL: ' + result.inviteUrl);
-                  e.target.reset();
-                  setTimeout(() => location.reload(), 2000);
-                } else {
-                  const error = await response.json();
-                  alert('Error: ' + error.message);
-                }
-              } catch (error) {
-                alert('Error creating invitation. Please try again.');
-              }
-            });
-
-            function copyInviteUrl(token) {
-              const url = '${req.protocol}://${req.get('host')}/invitation/' + token;
-              navigator.clipboard.writeText(url).then(() => {
-                showSuccess('Invitation URL copied to clipboard!');
-              });
-            }
-
-            function deleteInvitation(id) {
-              if (confirm('Are you sure you want to delete this invitation?')) {
-                fetch('/api/admin/invitations/' + id, { method: 'DELETE' })
-                  .then(response => {
-                    if (response.ok) {
-                      showSuccess('Invitation deleted successfully!');
-                      setTimeout(() => location.reload(), 1000);
-                    } else {
-                      alert('Error deleting invitation.');
-                    }
-                  });
-              }
-            }
-
-            function resetPassword(userId) {
-              if (confirm('Generate a password reset link for this employee?')) {
-                fetch('/api/admin/reset-password/' + userId, { method: 'POST' })
-                  .then(response => response.json())
-                  .then(data => {
-                    if (data.resetUrl) {
-                      const message = 'Password reset link generated for ' + data.user.name + ': ' + data.resetUrl;
-                      showSuccess(message);
-                      navigator.clipboard.writeText(data.resetUrl);
-                    } else {
-                      alert('Error generating reset link.');
-                    }
-                  });
-              }
-            }
-
-            function showSuccess(message) {
-              const div = document.getElementById('successMessage');
-              div.textContent = message;
-              div.style.display = 'block';
-              setTimeout(() => { div.style.display = 'none'; }, 5000);
-            }
-          </script>
-        </body>
-        </html>
-      `);
-    } catch (error) {
-      console.error("Error loading invitations page:", error);
-      res.status(500).send("Error loading page");
-    }
+    
+    // For any other route, redirect to root
+    res.redirect('/');
   });
 
   const httpServer = createServer(app);
+
+  // WebSocket server for real-time updates
+  const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
+
+  wss.on('connection', (ws) => {
+    console.log('Client connected to WebSocket');
+
+    ws.on('message', (message) => {
+      try {
+        const data = JSON.parse(message.toString());
+        
+        // Handle different message types
+        switch (data.type) {
+          case 'subscribe':
+            // Subscribe to specific channels
+            ws.send(JSON.stringify({ type: 'subscribed', channel: data.channel }));
+            break;
+          case 'ping':
+            ws.send(JSON.stringify({ type: 'pong' }));
+            break;
+        }
+      } catch (error) {
+        console.error('WebSocket message error:', error);
+      }
+    });
+
+    ws.on('close', () => {
+      console.log('Client disconnected from WebSocket');
+    });
+
+    // Send welcome message
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'connected', message: 'Welcome to Pine Hill Farm' }));
+    }
+  });
+
   return httpServer;
 }
