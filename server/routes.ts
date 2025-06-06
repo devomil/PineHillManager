@@ -762,11 +762,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                   <div class="form-group">
                     <label class="form-label">Start Date</label>
-                    <input type="date" class="form-input" value="2024-12-10">
+                    <input type="date" class="form-input" value="">
                   </div>
                   <div class="form-group">
                     <label class="form-label">End Date</label>
-                    <input type="date" class="form-input" value="2024-12-12">
+                    <input type="date" class="form-input" value="">
                   </div>
                 </div>
 
@@ -796,43 +796,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
               </div>
               
               <h3 style="margin-bottom: 1rem;">Upcoming Time Off</h3>
-              <div style="color: #64748b;">
-                <div style="padding: 0.75rem; background: #f8fafc; border-radius: 6px;">
-                  <strong>Dec 23-26, 2024</strong><br>
-                  Christmas Vacation (4 days)
-                </div>
+              <div style="color: #64748b; text-align: center; padding: 2rem;">
+                <p>No upcoming time off scheduled</p>
               </div>
             </div>
           </div>
 
           <div class="card">
             <h2 style="margin-bottom: 1.5rem;">Request History</h2>
-            
-            <div class="request-item">
-              <div style="display: flex; justify-content: between; align-items: center; margin-bottom: 0.5rem;">
-                <div style="font-weight: 600;">December 23-26, 2024</div>
-                <span class="status-badge status-approved">Approved</span>
-              </div>
-              <div style="color: #64748b; margin-bottom: 0.5rem;">Vacation - Christmas Holiday</div>
-              <div style="font-size: 0.875rem; color: #6b7280;">Submitted: Nov 15, 2024 • Approved by: Sarah Johnson</div>
-            </div>
-
-            <div class="request-item">
-              <div style="display: flex; justify-content: between; align-items: center; margin-bottom: 0.5rem;">
-                <div style="font-weight: 600;">November 8, 2024</div>
-                <span class="status-badge status-approved">Approved</span>
-              </div>
-              <div style="color: #64748b; margin-bottom: 0.5rem;">Sick Leave - Doctor's appointment</div>
-              <div style="font-size: 0.875rem; color: #6b7280;">Submitted: Nov 7, 2024 • Approved by: Sarah Johnson</div>
-            </div>
-
-            <div class="request-item">
-              <div style="display: flex; justify-content: between; align-items: center; margin-bottom: 0.5rem;">
-                <div style="font-weight: 600;">October 15-16, 2024</div>
-                <span class="status-badge status-pending">Pending</span>
-              </div>
-              <div style="color: #64748b; margin-bottom: 0.5rem;">Personal Days - Family event</div>
-              <div style="font-size: 0.875rem; color: #6b7280;">Submitted: Oct 10, 2024 • Awaiting approval</div>
+            <div style="text-align: center; padding: 3rem; color: #64748b;">
+              <p>No time-off requests found</p>
+              <p style="font-size: 0.875rem; margin-top: 0.5rem;">Submit your first request above to get started</p>
             </div>
           </div>
         </div>
