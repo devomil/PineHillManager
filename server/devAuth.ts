@@ -14,17 +14,17 @@ export function getSession() {
     tableName: "sessions",
   });
   return session({
-    secret: process.env.SESSION_SECRET!,
+    secret: process.env.SESSION_SECRET || 'dev-secret-key-for-pine-hill-farm',
     store: sessionStore,
     resave: false,
     saveUninitialized: false,
-    name: 'connect.sid', // Standard session name
+    name: 'connect.sid',
     cookie: {
-      httpOnly: false, // Allow client-side access for debugging
-      secure: false, // Allow HTTP in development
+      httpOnly: false,
+      secure: false,
       maxAge: sessionTtl,
-      sameSite: 'lax', // Allow cross-site requests in development
-      path: '/', // Ensure cookie is available site-wide
+      sameSite: 'lax',
+      path: '/',
     },
   });
 }
