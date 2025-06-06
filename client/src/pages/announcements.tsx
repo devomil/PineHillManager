@@ -15,13 +15,15 @@ interface Announcement {
   publishedAt: string;
   expiresAt?: string;
   authorId: string;
+  createdAt?: string;
 }
 
 export default function AnnouncementsPage() {
   const [selectedFilter, setSelectedFilter] = useState<string>("all");
   
-  const { data: announcements = [], isLoading } = useQuery<Announcement[]>({
+  const { data: announcements = [], isLoading, error } = useQuery<Announcement[]>({
     queryKey: ["/api/announcements/published"],
+    retry: 1,
   });
 
   const getPriorityColor = (priority: string) => {
@@ -91,6 +93,22 @@ export default function AnnouncementsPage() {
     );
   }
 
+  if (error) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <Card>
+          <CardContent className="text-center py-12">
+            <AlertTriangle className="h-16 w-16 mx-auto mb-4 text-red-500" />
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">Unable to load announcements</h3>
+            <p className="text-gray-500 dark:text-gray-400">
+              Please check your connection and try again.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="mb-8">
@@ -135,16 +153,23 @@ export default function AnnouncementsPage() {
         </Button>
       </div>
 
-      {filteredAnnouncements.length === 0 ? (
+      {announcements.length === 0 ? (
         <Card>
           <CardContent className="text-center py-12">
             <Bell className="h-16 w-16 mx-auto mb-4 text-gray-300" />
             <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No announcements</h3>
             <p className="text-gray-500 dark:text-gray-400">
-              {selectedFilter === "all" 
-                ? "There are no announcements to display at this time."
-                : `No ${selectedFilter} announcements found.`
-              }
+              There are no announcements to display at this time.
+            </p>
+          </CardContent>
+        </Card>
+      ) : filteredAnnouncements.length === 0 ? (
+        <Card>
+          <CardContent className="text-center py-12">
+            <Bell className="h-16 w-16 mx-auto mb-4 text-gray-300" />
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No matching announcements</h3>
+            <p className="text-gray-500 dark:text-gray-400">
+              No announcements found for the selected filter.
             </p>
           </CardContent>
         </Card>
@@ -235,7 +260,7 @@ export default function AnnouncementsPage() {
                         <div className="flex items-center gap-4">
                           <span className="flex items-center gap-1">
                             <Calendar className="h-4 w-4" />
-                            Published {format(new Date(announcement.publishedAt), "MMM d, yyyy 'at' h:mm a")}
+                            Published {announcement.publishedAt ? format(new Date(announcement.publishedAt), "MMM d, yyyy 'at' h:mm a") : 'Unknown'}
                           </span>
                           <span className="flex items-center gap-1">
                             {getTargetAudienceIcon(announcement.targetAudience)}
