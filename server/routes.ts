@@ -709,6 +709,90 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const today = new Date().toISOString().split('T')[0];
       const todaysEntries = await storage.getTimeEntriesByDate(userId, today);
 
+      // Build location options HTML
+      const locationOptions = locations.map(location => 
+        `<option value="${location.id}">${location.name}</option>`
+      ).join('');
+
+      // Build today's entries HTML
+      const todaysEntriesHTML = todaysEntries.length === 0 ? 
+        '<p style="color: #64748b; text-align: center; padding: 2rem;">No time entries for today</p>' :
+        todaysEntries.map(entry => {
+          const locationName = locations.find(l => l.id === entry.locationId)?.name || 'Unknown';
+          const clockInTime = new Date(entry.clockInTime).toLocaleTimeString();
+          const clockOutTime = entry.clockOutTime ? new Date(entry.clockOutTime).toLocaleTimeString() : 'In Progress';
+          const totalTime = entry.totalWorkedMinutes ? `Total: ${Math.floor(entry.totalWorkedMinutes / 60)}h ${entry.totalWorkedMinutes % 60}m` : '';
+          const breakTime = entry.totalBreakMinutes > 0 ? ` • Break: ${entry.totalBreakMinutes}m` : '';
+          
+          return `
+            <div class="time-entry">
+              <div style="font-weight: 600; margin-bottom: 0.5rem;">
+                ${clockInTime} - ${clockOutTime}
+              </div>
+              <div style="color: #64748b; font-size: 0.875rem;">
+                Location: ${locationName}<br>
+                ${totalTime}${breakTime}
+              </div>
+            </div>
+          `;
+        }).join('');
+
+      // Build status and buttons HTML
+      let statusHTML = '';
+      if (currentTimeEntry) {
+        const statusClass = currentTimeEntry.status === 'clocked_in' ? 'status-clocked-in' : 
+                           currentTimeEntry.status === 'on_break' ? 'status-on-break' : 'status-clocked-out';
+        const statusText = currentTimeEntry.status === 'clocked_in' ? 'Currently Working' : 
+                          currentTimeEntry.status === 'on_break' ? 'On Break' : 'Clocked Out';
+        
+        let timeText = '';
+        if (currentTimeEntry.status === 'clocked_in') {
+          timeText = `Clocked in at ${new Date(currentTimeEntry.clockInTime).toLocaleTimeString()}`;
+        } else if (currentTimeEntry.status === 'on_break') {
+          timeText = `Break started at ${new Date(currentTimeEntry.breakStartTime).toLocaleTimeString()}`;
+        } else {
+          timeText = 'Ready to clock in';
+        }
+
+        let buttonsHTML = '';
+        if (currentTimeEntry.status === 'clocked_in') {
+          buttonsHTML = `
+            <button class="btn btn-secondary" onclick="startBreak()">Start Break</button>
+            <button class="btn btn-danger" onclick="clockOut()">Clock Out</button>
+          `;
+        } else if (currentTimeEntry.status === 'on_break') {
+          buttonsHTML = `
+            <button class="btn" onclick="endBreak()">End Break</button>
+            <button class="btn btn-danger" onclick="clockOut()">Clock Out</button>
+          `;
+        }
+
+        statusHTML = `
+          <div class="status-card ${statusClass}">
+            <div style="font-size: 1.5rem; font-weight: bold; margin-bottom: 0.5rem;">${statusText}</div>
+            <div>${timeText}</div>
+          </div>
+          ${buttonsHTML}
+        `;
+      } else {
+        statusHTML = `
+          <div class="status-card status-clocked-out">
+            <div style="font-size: 1.5rem; font-weight: bold; margin-bottom: 0.5rem;">Ready to Start</div>
+            <div>Select your location and clock in to begin your shift</div>
+          </div>
+          <form onsubmit="clockIn(event)">
+            <div class="form-group">
+              <label class="form-label">Location</label>
+              <select id="locationSelect" class="form-select" required>
+                <option value="">Select Location</option>
+                ${locationOptions}
+              </select>
+            </div>
+            <button type="submit" class="btn">Clock In</button>
+          </form>
+        `;
+      }
+
       res.send(`
         <!DOCTYPE html>
         <html lang="en">
@@ -784,68 +868,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
             <div class="grid-2">
               <div class="card">
                 <h2 style="margin-bottom: 1.5rem;">Clock In/Out</h2>
-                
-                ${currentTimeEntry ? `
-                  <div class="status-card ${currentTimeEntry.status === 'clocked_in' ? 'status-clocked-in' : currentTimeEntry.status === 'on_break' ? 'status-on-break' : 'status-clocked-out'}">
-                    <div style="font-size: 1.5rem; font-weight: bold; margin-bottom: 0.5rem;">
-                      ${currentTimeEntry.status === 'clocked_in' ? 'Currently Working' : currentTimeEntry.status === 'on_break' ? 'On Break' : 'Clocked Out'}
-                    </div>
-                    <div>
-                      ${currentTimeEntry.status === 'clocked_in' ? 
-                        `Clocked in at ${new Date(currentTimeEntry.clockInTime).toLocaleTimeString()}` :
-                        currentTimeEntry.status === 'on_break' ?
-                        `Break started at ${new Date(currentTimeEntry.breakStartTime).toLocaleTimeString()}` :
-                        'Ready to clock in'
-                      }
-                    </div>
-                  </div>
-
-                  ${currentTimeEntry.status === 'clocked_in' ? `
-                    <button class="btn btn-secondary" onclick="startBreak()">Start Break</button>
-                    <button class="btn btn-danger" onclick="clockOut()">Clock Out</button>
-                  ` : currentTimeEntry.status === 'on_break' ? `
-                    <button class="btn" onclick="endBreak()">End Break</button>
-                    <button class="btn btn-danger" onclick="clockOut()">Clock Out</button>
-                  ` : ''}
-                ` : `
-                  <div class="status-card status-clocked-out">
-                    <div style="font-size: 1.5rem; font-weight: bold; margin-bottom: 0.5rem;">Ready to Start</div>
-                    <div>Select your location and clock in to begin your shift</div>
-                  </div>
-
-                  <form onsubmit="clockIn(event)">
-                    <div class="form-group">
-                      <label class="form-label">Location</label>
-                      <select id="locationSelect" class="form-select" required>
-                        <option value="">Select Location</option>
-                        ${locations.map(location => `
-                          <option value="${location.id}">${location.name}</option>
-                        `).join('')}
-                      </select>
-                    </div>
-                    <button type="submit" class="btn">Clock In</button>
-                  </form>
-                `}
+                ${statusHTML}
               </div>
 
               <div class="card">
                 <h2 style="margin-bottom: 1.5rem;">Today's Time Entries</h2>
-                ${todaysEntries.length === 0 ? 
-                  '<p style="color: #64748b; text-align: center; padding: 2rem;">No time entries for today</p>' : 
-                  todaysEntries.map(entry => 
-                    `<div class="time-entry">
-                      <div style="font-weight: 600; margin-bottom: 0.5rem;">
-                        ${new Date(entry.clockInTime).toLocaleTimeString()} - 
-                        ${entry.clockOutTime ? new Date(entry.clockOutTime).toLocaleTimeString() : 'In Progress'}
-                      </div>
-                      <div style="color: #64748b; font-size: 0.875rem;">
-                        Location: ${locations.find(l => l.id === entry.locationId)?.name || 'Unknown'}<br>
-                        ${entry.totalWorkedMinutes ? `Total: ${Math.floor(entry.totalWorkedMinutes / 60)}h ${entry.totalWorkedMinutes % 60}m` : ''}
-                        ${entry.totalBreakMinutes > 0 ? ` • Break: ${entry.totalBreakMinutes}m` : ''}
-                      </div>
-                    </div>`
-                  ).join('')
-                }
+                ${todaysEntriesHTML}
               </div>
             </div>
           </div>
