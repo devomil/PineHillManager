@@ -2042,6 +2042,182 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Announcement management route
+  app.get('/admin/announcements', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      if (!user || (user.role !== 'admin' && user.role !== 'manager')) {
+        return res.status(403).send("Access denied");
+      }
+
+      const announcements = await storage.getAllAnnouncements();
+
+      res.send(`
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+          <title>Pine Hill Farm - Announcement Management</title>
+          <style>
+            @import url('https://fonts.googleapis.com/css2?family=Great+Vibes&display=swap');
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { 
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+              background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+              min-height: 100vh; color: #1e293b;
+            }
+            .pine-hill-title { font-family: "Great Vibes", cursive !important; font-size: 1.3em; }
+            .header { background: white; padding: 1rem 2rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+            .header-content { max-width: 1400px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
+            .nav { display: flex; gap: 1rem; }
+            .nav a { color: #64748b; text-decoration: none; padding: 0.5rem 1rem; border-radius: 6px; transition: background 0.2s; }
+            .nav a:hover { background: #f1f5f9; }
+            .nav a.active { background: #607e66; color: white; }
+            .container { max-width: 1400px; margin: 0 auto; padding: 2rem; }
+            .page-header { background: white; padding: 2rem; border-radius: 12px; margin-bottom: 2rem; }
+            .card { background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 2rem; }
+            .btn { background: #607e66; color: white; padding: 0.75rem 1.5rem; border: none; border-radius: 6px; text-decoration: none; display: inline-block; font-weight: 500; transition: background 0.2s; margin-right: 1rem; }
+            .btn:hover { background: #4f6b56; }
+            .btn-secondary { background: #e2e8f0; color: #475569; }
+            .btn-secondary:hover { background: #cbd5e1; }
+            .btn-danger { background: #ef4444; color: white; }
+            .btn-danger:hover { background: #dc2626; }
+            .form-group { margin-bottom: 1.5rem; }
+            .form-label { display: block; margin-bottom: 0.5rem; font-weight: 500; color: #374151; }
+            .form-input, .form-textarea, .form-select { width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 6px; font-size: 1rem; }
+            .form-textarea { min-height: 120px; resize: vertical; }
+            .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+            .priority-badge { padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.75rem; font-weight: 500; }
+            .priority-low { background: #e0f2fe; color: #0369a1; }
+            .priority-normal { background: #f0f9ff; color: #1e40af; }
+            .priority-high { background: #fef3c7; color: #92400e; }
+            .priority-urgent { background: #fee2e2; color: #991b1b; }
+            .table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+            .table th, .table td { padding: 1rem; text-align: left; border-bottom: 1px solid #e2e8f0; }
+            .table th { background: #f8fafc; font-weight: 600; }
+            .announcement-card { border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem; margin-bottom: 1rem; }
+            .announcement-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem; }
+            .announcement-title { font-weight: 600; color: #1e293b; }
+            .announcement-meta { font-size: 0.875rem; color: #64748b; margin-top: 0.25rem; }
+            .announcement-content { color: #374151; margin-bottom: 1rem; }
+            .announcement-actions { display: flex; gap: 0.5rem; }
+            .status-published { background: #d1fae5; color: #065f46; padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.75rem; }
+            .status-draft { background: #f3f4f6; color: #374151; padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.75rem; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div class="header-content">
+              <div class="logo">
+                <div>
+                  <div style="font-weight: 600;" class="pine-hill-title">Pine Hill Farm</div>
+                  <div style="font-size: 0.875rem; color: #64748b;">Employee Management</div>
+                </div>
+              </div>
+              <div class="nav">
+                <a href="/admin">Admin Dashboard</a>
+                <a href="/admin/employees">Employee Management</a>
+                <a href="/admin/schedule">Schedule Management</a>
+                <a href="/admin/announcements" class="active">Announcements</a>
+                <a href="/dashboard">Employee View</a>
+                <a href="/api/logout">Sign Out</a>
+              </div>
+            </div>
+          </div>
+
+          <div class="container">
+            <div class="page-header">
+              <h1 style="margin-bottom: 0.5rem;">Announcement Management</h1>
+              <p style="color: #64748b;">Create and manage company announcements for all three locations.</p>
+            </div>
+
+            <div class="card">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+                <h2>Create New Announcement</h2>
+              </div>
+
+              <form action="/api/announcements" method="POST">
+                <div class="form-row">
+                  <div class="form-group">
+                    <label class="form-label">Title *</label>
+                    <input type="text" name="title" class="form-input" required placeholder="Enter announcement title">
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Priority</label>
+                    <select name="priority" class="form-select">
+                      <option value="low">Low</option>
+                      <option value="normal" selected>Normal</option>
+                      <option value="high">High</option>
+                      <option value="urgent">Urgent</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div class="form-row">
+                  <div class="form-group">
+                    <label class="form-label">Target Audience</label>
+                    <select name="targetAudience" class="form-select">
+                      <option value="all" selected>All Employees</option>
+                      <option value="employees">Employees Only</option>
+                      <option value="managers">Managers Only</option>
+                      <option value="admins">Admins Only</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Expires At (Optional)</label>
+                    <input type="datetime-local" name="expiresAt" class="form-input">
+                  </div>
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label">Content *</label>
+                  <textarea name="content" class="form-textarea" required placeholder="Enter announcement content..."></textarea>
+                </div>
+
+                <div style="display: flex; gap: 1rem;">
+                  <button type="submit" name="action" value="draft" class="btn-secondary btn">Save as Draft</button>
+                  <button type="submit" name="action" value="publish" class="btn">Publish Now</button>
+                </div>
+              </form>
+            </div>
+
+            <div class="card">
+              <h2 style="margin-bottom: 1.5rem;">Recent Announcements</h2>
+              ${announcements.length === 0 ? 
+                '<p style="color: #64748b; text-align: center; padding: 2rem;">No announcements created yet</p>' :
+                announcements.map(announcement => `
+                  <div class="announcement-card">
+                    <div class="announcement-header">
+                      <div>
+                        <div class="announcement-title">${announcement.title}</div>
+                        <div class="announcement-meta">
+                          Created ${announcement.createdAt ? new Date(announcement.createdAt).toLocaleDateString() : 'Unknown'} • 
+                          Priority: <span class="priority-badge priority-${announcement.priority}">${announcement.priority}</span> • 
+                          <span class="status-${announcement.isPublished ? 'published' : 'draft'}">${announcement.isPublished ? 'Published' : 'Draft'}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="announcement-content">${announcement.content}</div>
+                    <div class="announcement-actions">
+                      <a href="/admin/announcements/${announcement.id}/edit" style="color: #607e66; text-decoration: none; font-size: 0.875rem;">Edit</a>
+                      ${!announcement.isPublished ? `<a href="/admin/announcements/${announcement.id}/publish" style="color: #2563eb; text-decoration: none; font-size: 0.875rem;">Publish</a>` : ''}
+                      <a href="/admin/announcements/${announcement.id}/delete" style="color: #dc2626; text-decoration: none; font-size: 0.875rem;" onclick="return confirm('Are you sure you want to delete this announcement?')">Delete</a>
+                    </div>
+                  </div>
+                `).join('')
+              }
+            </div>
+          </div>
+        </body>
+        </html>
+      `);
+    } catch (error) {
+      console.error("Error loading announcement management:", error);
+      res.status(500).send("Error loading announcement management");
+    }
+  });
+
   // Schedule management route
   app.get('/admin/schedule', isAuthenticated, async (req: any, res) => {
     try {
