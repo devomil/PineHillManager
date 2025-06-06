@@ -48,6 +48,38 @@ export default function AnnouncementsPage() {
     }
   }, [isAuthenticated, isLoading, user, toast]);
 
+  // Fetch announcements
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      fetchAnnouncements();
+    }
+  }, [isAuthenticated, user]);
+
+  const fetchAnnouncements = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch('/api/announcements');
+      if (response.ok) {
+        const data = await response.json();
+        setAnnouncements(data);
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to load announcements",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to load announcements",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Handle URL params for success/error messages
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -254,11 +286,52 @@ export default function AnnouncementsPage() {
           <CardTitle>Recent Announcements</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-            <Calendar className="h-12 w-12 mx-auto mb-4 opacity-50" />
-            <p>No announcements yet.</p>
-            <p className="text-sm">Click "New Announcement" to create your first announcement.</p>
-          </div>
+          {loading ? (
+            <div className="text-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-farm-green mx-auto"></div>
+              <p className="mt-2 text-gray-500">Loading announcements...</p>
+            </div>
+          ) : announcements.length === 0 ? (
+            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+              <Calendar className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p>No announcements yet.</p>
+              <p className="text-sm">Click "New Announcement" to create your first announcement.</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {announcements.map((announcement: any) => (
+                <div key={announcement.id} className="border rounded-lg p-4 hover:bg-gray-50 dark:hover:bg-gray-800">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <h3 className="font-semibold text-gray-900 dark:text-white">{announcement.title}</h3>
+                        <Badge className={getPriorityColor(announcement.priority)}>
+                          {announcement.priority}
+                        </Badge>
+                        <Badge variant="outline" className="flex items-center gap-1">
+                          {getTargetAudienceIcon(announcement.targetAudience)}
+                          {announcement.targetAudience === 'all' ? 'All Employees' : 
+                           announcement.targetAudience === 'employees' ? 'Employees Only' : 'Admins & Managers'}
+                        </Badge>
+                        {!announcement.isPublished && (
+                          <Badge variant="secondary">Draft</Badge>
+                        )}
+                      </div>
+                      <p className="text-gray-600 dark:text-gray-400 text-sm line-clamp-2">
+                        {announcement.content}
+                      </p>
+                      <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
+                        <span>Created: {new Date(announcement.createdAt).toLocaleDateString()}</span>
+                        {announcement.expiresAt && (
+                          <span>Expires: {new Date(announcement.expiresAt).toLocaleDateString()}</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
