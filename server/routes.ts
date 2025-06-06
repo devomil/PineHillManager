@@ -749,14 +749,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
             <div class="card">
               <h2 style="margin-bottom: 1.5rem;">Submit New Request</h2>
               <form>
-                <div class="form-group">
-                  <label class="form-label">Request Type</label>
-                  <select class="form-select">
-                    <option>Vacation</option>
-                    <option>Sick Leave</option>
-                    <option>Personal Day</option>
-                    <option>Emergency Leave</option>
-                  </select>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                  <div class="form-group">
+                    <label class="form-label">Request Type</label>
+                    <select class="form-select">
+                      <option>Vacation</option>
+                      <option>Sick Leave</option>
+                      <option>Personal Day</option>
+                      <option>Emergency Leave</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label">Location</label>
+                    <select class="form-select">
+                      <option value="1">Lake Geneva Retail</option>
+                      <option value="2">Watertown Retail</option>
+                      <option value="3">Watertown Spa</option>
+                    </select>
+                  </div>
                 </div>
 
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
