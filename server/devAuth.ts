@@ -76,7 +76,7 @@ export async function setupDevAuth(app: Express) {
             return res.status(500).json({ message: "Session error" });
           }
           console.log("Session saved, redirecting to dashboard");
-          res.redirect("/");
+          res.redirect("/dashboard");
         });
       } else {
         res.status(500).json({ message: "Failed to create user" });

@@ -350,7 +350,298 @@ export async function registerRoutes(app: Express): Promise<Server> {
     `);
   });
 
-  // Dashboard now handled by React - removed server-side HTML route
+  // Working dashboard route with announcements navigation
+  app.get('/dashboard', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      if (!user) {
+        return res.status(404).send("User not found");
+      }
+
+      const isAdminOrManager = user.role === 'admin' || user.role === 'manager';
+
+      res.send(`
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>Pine Hill Farm - Employee Dashboard</title>
+        <style>
+          @import url('https://fonts.googleapis.com/css2?family=Great+Vibes&display=swap');
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+            min-height: 100vh; color: #1e293b;
+          }
+          .pine-hill-title { font-family: "Great Vibes", cursive !important; font-size: 1.3em; }
+          .header { background: white; padding: 1rem 2rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+          .header-content { max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
+          .nav { display: flex; gap: 1rem; }
+          .nav a { color: #64748b; text-decoration: none; padding: 0.5rem 1rem; border-radius: 6px; transition: background 0.2s; }
+          .nav a:hover { background: #f1f5f9; }
+          .nav a.active { background: #607e66; color: white; }
+          .container { max-width: 1200px; margin: 0 auto; padding: 2rem; }
+          .welcome { background: white; padding: 2rem; border-radius: 12px; margin-bottom: 2rem; }
+          .dashboard-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2rem; }
+          .card { background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+          .card-icon { width: 48px; height: 48px; border-radius: 8px; margin-bottom: 1rem; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; }
+          .card-title { font-size: 1.25rem; font-weight: 600; margin-bottom: 1rem; }
+          .card-desc { color: #64748b; margin-bottom: 1.5rem; }
+          .btn { background: #607e66; color: white; padding: 0.75rem 1.5rem; border: none; border-radius: 6px; text-decoration: none; display: inline-block; font-weight: 500; transition: background 0.2s; }
+          .btn:hover { background: #4f6b56; }
+          .btn-secondary { background: #e2e8f0; color: #475569; }
+          .btn-secondary:hover { background: #cbd5e1; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div class="header-content">
+            <div class="logo">
+              <div>
+                <div style="font-weight: 600;" class="pine-hill-title">Pine Hill Farm</div>
+                <div style="font-size: 0.875rem; color: #64748b;">Employee Portal</div>
+              </div>
+            </div>
+            <div class="nav">
+              <a href="/dashboard" class="active">Dashboard</a>
+              <a href="/time-clock">Time Clock</a>
+              <a href="/schedule">Schedule</a>
+              <a href="/time-off">Time Off</a>
+              <a href="/announcements-view">Announcements</a>
+              ${isAdminOrManager ? '<a href="/admin">Admin Portal</a>' : ''}
+              <a href="/api/logout">Sign Out</a>
+            </div>
+          </div>
+        </div>
+
+        <div class="container">
+          <div class="welcome">
+            <h1 style="margin-bottom: 0.5rem;">Welcome to Your Dashboard</h1>
+            <p style="color: #64748b;">Here's an overview of your work activities and quick access to important features.</p>
+          </div>
+
+          <div class="dashboard-grid">
+            <div class="card">
+              <div class="card-icon" style="background: #dbeafe; color: #2563eb;">🕐</div>
+              <div class="card-title">Time Clock</div>
+              <div class="card-desc">Clock in/out, track breaks, and manage your work time</div>
+              <a href="/time-clock" class="btn">Clock In/Out</a>
+            </div>
+            <div class="card">
+              <div class="card-icon" style="background: #dcfce7; color: #16a34a;">📅</div>
+              <div class="card-title">My Schedule</div>
+              <div class="card-desc">View your upcoming shifts and manage your work schedule</div>
+              <a href="/schedule" class="btn">View Schedule</a>
+            </div>
+
+            <div class="card">
+              <div class="card-icon" style="background: #dbeafe; color: #2563eb;">🏖️</div>
+              <div class="card-title">Time Off Requests</div>
+              <div class="card-desc">Request vacation days, sick leave, and personal time</div>
+              <a href="/time-off" class="btn">Request Time Off</a>
+            </div>
+
+            <div class="card">
+              <div class="card-icon" style="background: #fef3c7; color: #d97706;">🔄</div>
+              <div class="card-title">Shift Coverage</div>
+              <div class="card-desc">Find coverage for your shifts or cover for colleagues</div>
+              <a href="/shift-coverage" class="btn">Manage Coverage</a>
+            </div>
+
+            <div class="card">
+              <div class="card-icon" style="background: #ede9fe; color: #7c3aed;">📢</div>
+              <div class="card-title">Company Announcements</div>
+              <div class="card-desc">Stay updated with the latest company news and updates</div>
+              <a href="/announcements-view" class="btn">View Announcements</a>
+            </div>
+
+            <div class="card">
+              <div class="card-icon" style="background: #ecfdf5; color: #059669;">💬</div>
+              <div class="card-title">Team Communication</div>
+              <div class="card-desc">Chat with your team and stay connected</div>
+              <a href="/team-chat" class="btn">Open Chat</a>
+            </div>
+
+            <div class="card">
+              <div class="card-icon" style="background: #f1f5f9; color: #64748b;">📋</div>
+              <div class="card-title">Documents & Resources</div>
+              <div class="card-desc">Access company documents, policies, and training materials</div>
+              <a href="/documents" class="btn">View Documents</a>
+            </div>
+          </div>
+
+          <div style="margin-top: 3rem; background: white; padding: 2rem; border-radius: 12px;">
+            <h3 style="margin-bottom: 1rem;">Store Locations</h3>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem;">
+              <div style="padding: 1rem; border: 1px solid #e2e8f0; border-radius: 8px;">
+                <div style="font-weight: 600; margin-bottom: 0.5rem;">Lake Geneva Retail</div>
+                <div style="color: #64748b; font-size: 0.875rem;">704 W Main St, Lake Geneva, WI</div>
+              </div>
+              <div style="padding: 1rem; border: 1px solid #e2e8f0; border-radius: 8px;">
+                <div style="font-weight: 600; margin-bottom: 0.5rem;">Watertown Retail</div>
+                <div style="color: #64748b; font-size: 0.875rem;">200 W Main Street, Watertown, WI</div>
+              </div>
+              <div style="padding: 1rem; border: 1px solid #e2e8f0; border-radius: 8px;">
+                <div style="font-weight: 600; margin-bottom: 0.5rem;">Watertown Spa</div>
+                <div style="color: #64748b; font-size: 0.875rem;">201 W Main Street, Watertown, WI</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </body>
+      </html>
+      `);
+    } catch (error) {
+      console.error("Error loading dashboard:", error);
+      res.status(500).send("Error loading dashboard");
+    }
+  });
+
+  // Announcements view page
+  app.get('/announcements-view', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      if (!user) {
+        return res.status(404).send("User not found");
+      }
+
+      // Get all announcements from database
+      const announcements = await storage.getAllAnnouncements();
+      const isAdminOrManager = user.role === 'admin' || user.role === 'manager';
+
+      res.send(`
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+          <title>Pine Hill Farm - Company Announcements</title>
+          <style>
+            @import url('https://fonts.googleapis.com/css2?family=Great+Vibes&display=swap');
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { 
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+              background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+              min-height: 100vh; color: #1e293b;
+            }
+            .pine-hill-title { font-family: "Great Vibes", cursive !important; font-size: 1.3em; }
+            .header { background: white; padding: 1rem 2rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+            .header-content { max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
+            .nav { display: flex; gap: 1rem; }
+            .nav a { color: #64748b; text-decoration: none; padding: 0.5rem 1rem; border-radius: 6px; transition: background 0.2s; }
+            .nav a:hover { background: #f1f5f9; }
+            .nav a.active { background: #607e66; color: white; }
+            .container { max-width: 1200px; margin: 0 auto; padding: 2rem; }
+            .page-header { background: white; padding: 2rem; border-radius: 12px; margin-bottom: 2rem; }
+            .announcement { background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 2rem; }
+            .announcement-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem; }
+            .announcement-title { font-size: 1.5rem; font-weight: 600; margin-bottom: 0.5rem; }
+            .announcement-meta { font-size: 0.875rem; color: #64748b; }
+            .announcement-content { line-height: 1.6; color: #374151; }
+            .priority-badge { padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.75rem; font-weight: 500; margin-left: 1rem; }
+            .priority-high { background: #fee2e2; color: #991b1b; }
+            .priority-medium { background: #fef3c7; color: #92400e; }
+            .priority-low { background: #d1fae5; color: #065f46; }
+            .btn { background: #607e66; color: white; padding: 0.75rem 1.5rem; border: none; border-radius: 6px; text-decoration: none; display: inline-block; font-weight: 500; transition: background 0.2s; margin-right: 1rem; }
+            .btn:hover { background: #4f6b56; }
+            .empty-state { text-align: center; padding: 3rem; color: #64748b; }
+            .locations-info { background: #f8fafc; padding: 1.5rem; border-radius: 8px; margin-top: 2rem; }
+            .location-tags { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
+            .location-tag { background: #e2e8f0; color: #475569; padding: 0.25rem 0.75rem; border-radius: 12px; font-size: 0.75rem; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div class="header-content">
+              <div class="logo">
+                <div>
+                  <div style="font-weight: 600;" class="pine-hill-title">Pine Hill Farm</div>
+                  <div style="font-size: 0.875rem; color: #64748b;">Company Announcements</div>
+                </div>
+              </div>
+              <div class="nav">
+                <a href="/dashboard">Dashboard</a>
+                <a href="/time-clock">Time Clock</a>
+                <a href="/schedule">Schedule</a>
+                <a href="/time-off">Time Off</a>
+                <a href="/announcements-view" class="active">Announcements</a>
+                ${isAdminOrManager ? '<a href="/admin">Admin Portal</a>' : ''}
+                <a href="/api/logout">Sign Out</a>
+              </div>
+            </div>
+          </div>
+
+          <div class="container">
+            <div class="page-header">
+              <h1 style="margin-bottom: 0.5rem;">Company Announcements</h1>
+              <p style="color: #64748b;">Stay updated with important company news and information for all three locations.</p>
+              ${isAdminOrManager ? `<div style="margin-top: 1rem;"><a href="/admin/announcements" class="btn">Manage Announcements</a></div>` : ''}
+            </div>
+
+            ${announcements.length === 0 ? `
+              <div class="empty-state">
+                <h3 style="margin-bottom: 1rem;">No Announcements Yet</h3>
+                <p>Check back later for company updates and important information.</p>
+              </div>
+            ` : announcements.map(announcement => {
+              const createdDate = new Date(announcement.createdAt || '').toLocaleDateString();
+              const createdTime = new Date(announcement.createdAt || '').toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+              
+              return `
+                <div class="announcement">
+                  <div class="announcement-header">
+                    <div>
+                      <div class="announcement-title">${announcement.title}</div>
+                      <div class="announcement-meta">
+                        Posted on ${createdDate} at ${createdTime}
+                        ${announcement.priority !== 'low' ? `<span class="priority-badge priority-${announcement.priority}">${announcement.priority.toUpperCase()} PRIORITY</span>` : ''}
+                      </div>
+                    </div>
+                  </div>
+                  <div class="announcement-content">
+                    ${announcement.content}
+                  </div>
+                  ${announcement.targetLocations && announcement.targetLocations.length > 0 ? `
+                    <div class="location-tags">
+                      <strong style="color: #64748b; font-size: 0.875rem;">Applies to:</strong>
+                      ${announcement.targetLocations.map(locationId => {
+                        const locationNames = {1: 'Lake Geneva Retail', 2: 'Watertown Retail', 3: 'Watertown Spa'};
+                        return `<span class="location-tag">${locationNames[locationId] || 'All Locations'}</span>`;
+                      }).join('')}
+                    </div>
+                  ` : '<div class="location-tags"><span class="location-tag">All Locations</span></div>'}
+                </div>
+              `;
+            }).join('')}
+
+            <div class="locations-info">
+              <h3 style="margin-bottom: 1rem;">Our Locations</h3>
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem;">
+                <div>
+                  <div style="font-weight: 600; margin-bottom: 0.25rem;">Lake Geneva Retail</div>
+                  <div style="color: #64748b; font-size: 0.875rem;">704 W Main St, Lake Geneva, WI</div>
+                </div>
+                <div>
+                  <div style="font-weight: 600; margin-bottom: 0.25rem;">Watertown Retail</div>
+                  <div style="color: #64748b; font-size: 0.875rem;">200 W Main Street, Watertown, WI</div>
+                </div>
+                <div>
+                  <div style="font-weight: 600; margin-bottom: 0.25rem;">Watertown Spa</div>
+                  <div style="color: #64748b; font-size: 0.875rem;">201 W Main Street, Watertown, WI</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </body>
+        </html>
+      `);
+    } catch (error) {
+      console.error("Error loading announcements:", error);
+      res.status(500).send("Error loading announcements");
+    }
+  });
 
   // Schedule page
   app.get('/schedule', isAuthenticated, async (req: any, res) => {
