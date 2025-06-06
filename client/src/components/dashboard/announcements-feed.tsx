@@ -127,10 +127,18 @@ export default function AnnouncementsFeed() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-lg font-medium flex items-center gap-2">
-          <Bell className="h-5 w-5 text-farm-green" />
-          Recent Announcements
-        </CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-lg font-medium flex items-center gap-2">
+            <Bell className="h-5 w-5 text-farm-green" />
+            Recent Announcements
+          </CardTitle>
+          <Link 
+            href="/announcements" 
+            className="text-sm text-farm-green hover:text-green-700 font-medium"
+          >
+            View All →
+          </Link>
+        </div>
       </CardHeader>
       <CardContent>
         {activeAnnouncements.length === 0 ? (
@@ -179,7 +187,7 @@ export default function AnnouncementsFeed() {
               </div>
             ))}
             
-            {announcements.length > 5 && (
+            {announcements.length > 0 && (
               <div className="text-center pt-2">
                 <Link 
                   href="/announcements" 
