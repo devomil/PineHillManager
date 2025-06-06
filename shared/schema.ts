@@ -551,9 +551,7 @@ export type DocumentLog = typeof documentLogs.$inferSelect;
 export type EmployeeInvitation = typeof employeeInvitations.$inferSelect;
 export type InsertEmployeeInvitation = typeof employeeInvitations.$inferInsert;
 
-// Announcement types
-export type Announcement = typeof announcements.$inferSelect;
-export type InsertAnnouncement = typeof announcements.$inferInsert;
+
 
 // Calendar event type for unified calendar view
 export interface CalendarEvent {

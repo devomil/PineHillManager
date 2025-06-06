@@ -101,9 +101,11 @@ export interface IStorage {
 
   // Announcements
   createAnnouncement(announcement: InsertAnnouncement): Promise<Announcement>;
+  getAllAnnouncements(): Promise<Announcement[]>;
   getPublishedAnnouncements(): Promise<Announcement[]>;
   updateAnnouncement(id: number, announcement: Partial<InsertAnnouncement>): Promise<Announcement>;
   publishAnnouncement(id: number): Promise<Announcement>;
+  deleteAnnouncement(id: number): Promise<void>;
 
   // Training modules
   createTrainingModule(module: InsertTrainingModule): Promise<TrainingModule>;
@@ -560,33 +562,7 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
-  // Announcements
-  async createAnnouncement(announcement: InsertAnnouncement): Promise<Announcement> {
-    const [newAnnouncement] = await db
-      .insert(announcements)
-      .values(announcement)
-      .returning();
-    return newAnnouncement;
-  }
 
-  async getAllAnnouncements(): Promise<Announcement[]> {
-    return await db
-      .select()
-      .from(announcements)
-      .orderBy(desc(announcements.createdAt));
-  }
-
-  async getPublishedAnnouncements(): Promise<Announcement[]> {
-    return await db
-      .select()
-      .from(announcements)
-      .where(eq(announcements.isPublished, true))
-      .orderBy(desc(announcements.publishedAt));
-  }
-
-  async deleteAnnouncement(id: number): Promise<void> {
-    await db.delete(announcements).where(eq(announcements.id, id));
-  }
 
   // Training modules
   async createTrainingModule(module: InsertTrainingModule): Promise<TrainingModule> {

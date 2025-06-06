@@ -3736,24 +3736,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Announcements
+  // Handle announcement form submission
   app.post('/api/announcements', isAuthenticated, async (req: any, res) => {
     try {
       const user = await storage.getUser(req.user.claims.sub);
-      if (user?.role !== 'admin') {
-        return res.status(403).json({ message: "Admin access required" });
+      if (!user || (user.role !== 'admin' && user.role !== 'manager')) {
+        return res.status(403).redirect('/admin/announcements?error=access_denied');
       }
+
+      const { title, content, priority, targetAudience, expiresAt, action } = req.body;
       
-      const validatedData = insertAnnouncementSchema.parse({
-        ...req.body,
+      const announcementData = {
+        title,
+        content,
         authorId: req.user.claims.sub,
-      });
+        priority: priority || 'normal',
+        targetAudience: targetAudience || 'all',
+        expiresAt: expiresAt ? new Date(expiresAt) : null,
+        isPublished: action === 'publish',
+        publishedAt: action === 'publish' ? new Date() : null,
+      };
       
-      const announcement = await storage.createAnnouncement(validatedData);
-      res.json(announcement);
+      await storage.createAnnouncement(announcementData);
+      
+      const successMessage = action === 'publish' ? 'published' : 'saved_as_draft';
+      res.redirect(`/admin/announcements?success=${successMessage}`);
     } catch (error) {
       console.error("Error creating announcement:", error);
-      res.status(500).json({ message: "Failed to create announcement" });
+      res.redirect('/admin/announcements?error=creation_failed');
     }
   });
 
