@@ -4,13 +4,15 @@ export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       retry: false,
-      refetchOnWindowFocus: false,
+      refetchOnWindowFocus: true,
+      staleTime: 0,
       queryFn: async ({ queryKey }) => {
         const url = queryKey[0] as string;
         const response = await fetch(url, {
           credentials: 'include',
           headers: {
             'Content-Type': 'application/json',
+            'Cache-Control': 'no-cache',
           },
         });
         

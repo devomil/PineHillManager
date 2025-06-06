@@ -20,6 +20,8 @@ export default function AnnouncementsFeed() {
   const { data: announcements = [], isLoading } = useQuery<Announcement[]>({
     queryKey: ["/api/announcements/published"],
     retry: 1,
+    refetchOnMount: true,
+    refetchOnWindowFocus: true,
   });
 
   const getPriorityColor = (priority: string) => {
