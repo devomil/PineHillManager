@@ -1,7 +1,8 @@
-import React from "react";
+import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Bell, Calendar, Users, AlertTriangle, Clock } from "lucide-react";
 import { format, isAfter, parseISO } from "date-fns";
 
@@ -17,6 +18,8 @@ interface Announcement {
 }
 
 export default function AnnouncementsPage() {
+  const [selectedFilter, setSelectedFilter] = useState<string>("all");
+  
   const { data: announcements = [], isLoading } = useQuery<Announcement[]>({
     queryKey: ["/api/announcements/published"],
   });
@@ -54,7 +57,19 @@ export default function AnnouncementsPage() {
     return isAfter(new Date(), parseISO(expiresAt));
   };
 
-  const activeAnnouncements = announcements.filter(announcement => !isExpired(announcement.expiresAt));
+  // Filter announcements based on selected filter
+  const getFilteredAnnouncements = () => {
+    const activeAnnouncements = announcements.filter(announcement => !isExpired(announcement.expiresAt));
+    
+    if (selectedFilter === "all") return activeAnnouncements;
+    if (selectedFilter === "important") return activeAnnouncements.filter(a => a.priority === "urgent" || a.priority === "high");
+    if (selectedFilter === "general") return activeAnnouncements.filter(a => a.priority === "normal" || a.priority === "low");
+    if (selectedFilter === "policy") return activeAnnouncements.filter(a => a.title.toLowerCase().includes("policy"));
+    
+    return activeAnnouncements;
+  };
+
+  const filteredAnnouncements = getFilteredAnnouncements();
   const expiredAnnouncements = announcements.filter(announcement => isExpired(announcement.expiresAt));
 
   if (isLoading) {
@@ -84,75 +99,111 @@ export default function AnnouncementsPage() {
           Company Announcements
         </h1>
         <p className="text-gray-600 dark:text-gray-400 mt-2">
-          Stay up to date with important company news and updates
+          Stay updated with the latest company news, policy changes, and important updates.
         </p>
       </div>
 
-      {activeAnnouncements.length === 0 && expiredAnnouncements.length === 0 ? (
+      {/* Filter Buttons */}
+      <div className="mb-6 flex flex-wrap gap-2">
+        <Button
+          variant={selectedFilter === "all" ? "default" : "outline"}
+          onClick={() => setSelectedFilter("all")}
+          className={selectedFilter === "all" ? "bg-farm-green hover:bg-farm-green/90" : ""}
+        >
+          All Announcements
+        </Button>
+        <Button
+          variant={selectedFilter === "important" ? "default" : "outline"}
+          onClick={() => setSelectedFilter("important")}
+          className={selectedFilter === "important" ? "bg-red-500 hover:bg-red-600" : ""}
+        >
+          Important
+        </Button>
+        <Button
+          variant={selectedFilter === "general" ? "default" : "outline"}
+          onClick={() => setSelectedFilter("general")}
+          className={selectedFilter === "general" ? "bg-blue-500 hover:bg-blue-600" : ""}
+        >
+          General
+        </Button>
+        <Button
+          variant={selectedFilter === "policy" ? "default" : "outline"}
+          onClick={() => setSelectedFilter("policy")}
+          className={selectedFilter === "policy" ? "bg-purple-500 hover:bg-purple-600" : ""}
+        >
+          Policy Updates
+        </Button>
+      </div>
+
+      {filteredAnnouncements.length === 0 ? (
         <Card>
           <CardContent className="text-center py-12">
             <Bell className="h-16 w-16 mx-auto mb-4 text-gray-300" />
             <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No announcements</h3>
             <p className="text-gray-500 dark:text-gray-400">
-              There are no announcements to display at this time.
+              {selectedFilter === "all" 
+                ? "There are no announcements to display at this time."
+                : `No ${selectedFilter} announcements found.`
+              }
             </p>
           </CardContent>
         </Card>
       ) : (
         <div className="space-y-8">
-          {/* Active Announcements */}
-          {activeAnnouncements.length > 0 && (
-            <div>
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-                Current Announcements
-              </h2>
-              <div className="space-y-4">
-                {activeAnnouncements.map((announcement) => (
-                  <Card key={announcement.id} className="border-l-4 border-l-farm-green">
-                    <CardHeader className="pb-3">
-                      <div className="flex items-start justify-between">
-                        <CardTitle className="text-lg">{announcement.title}</CardTitle>
-                        <div className="flex items-center gap-2">
-                          <Badge className={`${getPriorityColor(announcement.priority)} text-xs`}>
-                            {announcement.priority}
-                          </Badge>
-                        </div>
+          {/* Filtered Announcements */}
+          <div>
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+              {selectedFilter === "all" ? "Current Announcements" : 
+               selectedFilter === "important" ? "Important Announcements" :
+               selectedFilter === "general" ? "General Announcements" :
+               selectedFilter === "policy" ? "Policy Updates" : "Announcements"}
+            </h2>
+            <div className="space-y-4">
+              {filteredAnnouncements.map((announcement) => (
+                <Card key={announcement.id} className="border-l-4 border-l-farm-green">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-start justify-between">
+                      <CardTitle className="text-lg">{announcement.title}</CardTitle>
+                      <div className="flex items-center gap-2">
+                        <Badge className={`${getPriorityColor(announcement.priority)} text-xs`}>
+                          {announcement.priority}
+                        </Badge>
                       </div>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="prose prose-sm max-w-none mb-4">
-                        <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
-                          {announcement.content}
-                        </p>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="prose prose-sm max-w-none mb-4">
+                      <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
+                        {announcement.content}
+                      </p>
+                    </div>
+                    
+                    <div className="flex items-center justify-between text-sm text-gray-500 dark:text-gray-400">
+                      <div className="flex items-center gap-4">
+                        <span className="flex items-center gap-1">
+                          <Calendar className="h-4 w-4" />
+                          Published {format(new Date(announcement.publishedAt), "MMM d, yyyy 'at' h:mm a")}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          {getTargetAudienceIcon(announcement.targetAudience)}
+                          {formatAudience(announcement.targetAudience)}
+                        </span>
                       </div>
-                      
-                      <div className="flex items-center justify-between text-sm text-gray-500 dark:text-gray-400">
-                        <div className="flex items-center gap-4">
-                          <span className="flex items-center gap-1">
-                            <Calendar className="h-4 w-4" />
-                            Published {format(new Date(announcement.publishedAt), "MMM d, yyyy 'at' h:mm a")}
-                          </span>
-                          <span className="flex items-center gap-1">
-                            {getTargetAudienceIcon(announcement.targetAudience)}
-                            {formatAudience(announcement.targetAudience)}
-                          </span>
-                        </div>
-                        {announcement.expiresAt && (
-                          <span className="flex items-center gap-1 text-orange-600">
-                            <Clock className="h-4 w-4" />
-                            Expires {format(new Date(announcement.expiresAt), "MMM d, yyyy")}
-                          </span>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
+                      {announcement.expiresAt && (
+                        <span className="flex items-center gap-1 text-orange-600">
+                          <Clock className="h-4 w-4" />
+                          Expires {format(new Date(announcement.expiresAt), "MMM d, yyyy")}
+                        </span>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
             </div>
-          )}
+          </div>
 
           {/* Expired Announcements */}
-          {expiredAnnouncements.length > 0 && (
+          {expiredAnnouncements.length > 0 && selectedFilter === "all" && (
             <div>
               <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
                 Past Announcements
@@ -167,7 +218,7 @@ export default function AnnouncementsPage() {
                           <Badge variant="secondary" className="text-xs">
                             Expired
                           </Badge>
-                          <Badge className={`${getPriorityColor(announcement.priority)} text-xs`}>
+                          <Badge className={`${getPriorityColor(announcement.priority)} text-xs opacity-75`}>
                             {announcement.priority}
                           </Badge>
                         </div>
@@ -184,7 +235,7 @@ export default function AnnouncementsPage() {
                         <div className="flex items-center gap-4">
                           <span className="flex items-center gap-1">
                             <Calendar className="h-4 w-4" />
-                            Published {format(new Date(announcement.publishedAt), "MMM d, yyyy")}
+                            Published {format(new Date(announcement.publishedAt), "MMM d, yyyy 'at' h:mm a")}
                           </span>
                           <span className="flex items-center gap-1">
                             {getTargetAudienceIcon(announcement.targetAudience)}
