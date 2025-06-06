@@ -93,11 +93,10 @@ async function initializeDatabase() {
 
 
 
-    console.log("Database initialized with comprehensive test data:");
+    console.log("Database initialized with user accounts:");
     console.log("- Admin: Ryan Sorensen (ryan@pinehillfarm.co)");
     console.log("- Manager: Sarah Johnson (sarah@pinehillfarm.co)");
     console.log("- Employees: Mike Davis, Jessica Miller, Alex Thompson");
-    console.log("- Sample schedules and time-off requests created");
   } catch (error) {
     console.error("Error initializing database:", error);
   }
