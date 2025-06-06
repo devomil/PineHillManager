@@ -4449,33 +4449,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Catch-all handler (MUST be last)
-  app.get('*', (req, res) => {
-    console.log(`Server: Catch-all handler received request for: ${req.path}`);
-    
-    // If it's an API route, return 404
-    if (req.path.startsWith('/api/')) {
-      return res.status(404).json({ message: 'API endpoint not found' });
-    }
-    
-    // For React app routes, serve the main page (let React handle routing)
-    const validRoutes = [
-      '/dashboard', '/announcements', '/calendar', '/employees', 
-      '/time-management', '/shift-scheduling', '/communication', 
-      '/training', '/profile', '/reports', '/notifications', 
-      '/documents', '/admin/logos', '/admin/announcements', '/admin/training'
-    ];
-    
-    if (validRoutes.includes(req.path)) {
-      console.log(`Server: Valid React route ${req.path}, serving React app`);
-      // Let the React app handle these routes - don't redirect, just serve the app
-      res.redirect('/');
-    } else {
-      console.log(`Server: Invalid route ${req.path}, redirecting to root`);
-      // For any other route, redirect to root
-      res.redirect('/');
-    }
-  });
+  // Let Vite handle all non-API routes (React routing)
+  // No catch-all needed - Vite middleware will handle this
 
   const httpServer = createServer(app);
 
