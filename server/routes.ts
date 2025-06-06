@@ -161,14 +161,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       <head>
         <title>Pine Hill Farm Employee Portal</title>
         <style>
-          @import url('https://fonts.googleapis.com/css2?family=Pacifico&display=swap');
+          @import url('https://fonts.googleapis.com/css2?family=Brittany+Signature&display=swap');
           * { margin: 0; padding: 0; box-sizing: border-box; }
           body { 
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
             min-height: 100vh; color: #1e293b; padding: 2rem;
           }
-          .pine-hill-title { font-family: "Pacifico", cursive !important; font-size: 1.3em; }
+          .pine-hill-title { font-family: "Brittany Signature", cursive !important; font-size: 1.3em; }
           .container { max-width: 1200px; margin: 0 auto; }
           .header { text-align: center; margin-bottom: 3rem; }
           h1 { font-size: 3rem; font-weight: 700; margin-bottom: 1rem; }
@@ -2755,14 +2755,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         <head>
           <title>Pine Hill Farm Employee Portal</title>
           <style>
-            @import url('https://fonts.googleapis.com/css2?family=Pacifico&display=swap');
+            @import url('https://fonts.googleapis.com/css2?family=Brittany+Signature&display=swap');
             * { margin: 0; padding: 0; box-sizing: border-box; }
             body { 
               font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
               background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
               min-height: 100vh; color: #1e293b; display: flex; align-items: center; justify-content: center;
             }
-            .pine-hill-title { font-family: "Pacifico", cursive !important; font-size: 1.4em; }
+            .pine-hill-title { font-family: "Brittany Signature", cursive !important; font-size: 1.4em; }
             .container { max-width: 400px; width: 100%; padding: 2rem; }
             .card { background: white; padding: 3rem; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); text-align: center; }
             .subtitle { color: #64748b; margin-bottom: 2rem; }
