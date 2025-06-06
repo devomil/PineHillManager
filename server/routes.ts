@@ -4467,9 +4467,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     ];
     
     if (validRoutes.includes(req.path)) {
-      console.log(`Server: Valid React route ${req.path}, redirecting to dashboard`);
-      // Let the React app handle these routes
-      res.redirect('/dashboard');
+      console.log(`Server: Valid React route ${req.path}, serving React app`);
+      // Let the React app handle these routes - don't redirect, just serve the app
+      res.redirect('/');
     } else {
       console.log(`Server: Invalid route ${req.path}, redirecting to root`);
       // For any other route, redirect to root
