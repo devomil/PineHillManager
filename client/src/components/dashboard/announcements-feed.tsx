@@ -1,5 +1,6 @@
 import React from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Bell, Calendar, Users, AlertTriangle, Clock } from "lucide-react";
@@ -180,12 +181,12 @@ export default function AnnouncementsFeed() {
             
             {announcements.length > 5 && (
               <div className="text-center pt-2">
-                <a 
+                <Link 
                   href="/announcements" 
                   className="text-sm text-farm-green hover:text-green-700 font-medium"
                 >
                   View all announcements →
-                </a>
+                </Link>
               </div>
             )}
           </div>
