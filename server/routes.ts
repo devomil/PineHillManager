@@ -407,6 +407,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             </div>
             <div class="nav">
               <a href="/dashboard" class="active">Dashboard</a>
+              <a href="/time-clock">Time Clock</a>
               <a href="/schedule">Schedule</a>
               <a href="/time-off">Time Off</a>
               <a href="/announcements">Announcements</a>
@@ -423,6 +424,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           </div>
 
           <div class="dashboard-grid">
+            <div class="card">
+              <div class="card-icon" style="background: #dbeafe; color: #2563eb;">🕐</div>
+              <div class="card-title">Time Clock</div>
+              <div class="card-desc">Clock in/out, track breaks, and manage your work time</div>
+              <a href="/time-clock" class="btn">Clock In/Out</a>
+            </div>
             <div class="card">
               <div class="card-icon" style="background: #dcfce7; color: #16a34a;">📅</div>
               <div class="card-title">My Schedule</div>
@@ -683,6 +690,263 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error loading schedule:", error);
       res.status(500).send("Error loading schedule");
+    }
+  });
+
+  // Time Clock page
+  app.get('/time-clock', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      if (!user) {
+        return res.status(404).send("User not found");
+      }
+
+      const isAdminOrManager = user.role === 'admin' || user.role === 'manager';
+      const currentTimeEntry = await storage.getCurrentTimeEntry(userId);
+      const locations = await storage.getAllLocations();
+      const today = new Date().toISOString().split('T')[0];
+      const todaysEntries = await storage.getTimeEntriesByDate(userId, today);
+
+      res.send(`
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+          <title>Pine Hill Farm - Time Clock</title>
+          <style>
+            @import url('https://fonts.googleapis.com/css2?family=Great+Vibes&display=swap');
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { 
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+              background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+              min-height: 100vh; color: #1e293b;
+            }
+            .pine-hill-title { font-family: "Great Vibes", cursive !important; font-size: 1.3em; }
+            .header { background: white; padding: 1rem 2rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+            .header-content { max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
+            .nav { display: flex; gap: 1rem; }
+            .nav a { color: #64748b; text-decoration: none; padding: 0.5rem 1rem; border-radius: 6px; transition: background 0.2s; }
+            .nav a:hover { background: #f1f5f9; }
+            .nav a.active { background: #607e66; color: white; }
+            .container { max-width: 1200px; margin: 0 auto; padding: 2rem; }
+            .page-header { background: white; padding: 2rem; border-radius: 12px; margin-bottom: 2rem; }
+            .card { background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 2rem; }
+            .clock-display { text-align: center; font-size: 3rem; font-weight: bold; color: #2563eb; margin-bottom: 2rem; }
+            .status-card { padding: 1.5rem; border-radius: 8px; margin-bottom: 1.5rem; text-align: center; }
+            .status-clocked-in { background: #dcfce7; color: #166534; border: 2px solid #16a34a; }
+            .status-on-break { background: #fef3c7; color: #92400e; border: 2px solid #f59e0b; }
+            .status-clocked-out { background: #f1f5f9; color: #475569; border: 2px solid #64748b; }
+            .btn { background: #607e66; color: white; padding: 1rem 2rem; border: none; border-radius: 8px; text-decoration: none; display: inline-block; font-weight: 500; transition: background 0.2s; margin: 0.5rem; font-size: 1.1rem; cursor: pointer; }
+            .btn:hover { background: #4f6b56; }
+            .btn-secondary { background: #f59e0b; }
+            .btn-secondary:hover { background: #d97706; }
+            .btn-danger { background: #dc2626; }
+            .btn-danger:hover { background: #b91c1c; }
+            .btn:disabled { background: #9ca3af; cursor: not-allowed; }
+            .form-group { margin-bottom: 1.5rem; }
+            .form-label { display: block; margin-bottom: 0.5rem; font-weight: 500; color: #374151; }
+            .form-select { width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 6px; }
+            .time-entry { padding: 1rem; border: 1px solid #e5e7eb; border-radius: 8px; margin-bottom: 1rem; }
+            .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; }
+            .current-time { font-size: 1.2rem; color: #64748b; margin-bottom: 1rem; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div class="header-content">
+              <div class="logo">
+                <div>
+                  <div style="font-weight: 600;" class="pine-hill-title">Pine Hill Farm</div>
+                  <div style="font-size: 0.875rem; color: #64748b;">Employee Portal</div>
+                </div>
+              </div>
+              <div class="nav">
+                <a href="/dashboard">Dashboard</a>
+                <a href="/time-clock" class="active">Time Clock</a>
+                <a href="/schedule">Schedule</a>
+                <a href="/time-off">Time Off</a>
+                <a href="/announcements">Announcements</a>
+                ${isAdminOrManager ? '<a href="/admin">Admin Portal</a>' : ''}
+                <a href="/api/logout">Sign Out</a>
+              </div>
+            </div>
+          </div>
+
+          <div class="container">
+            <div class="page-header">
+              <h1 style="margin-bottom: 0.5rem;">Time Clock</h1>
+              <p style="color: #64748b;">Track your work hours, breaks, and manage time entries</p>
+            </div>
+
+            <div class="current-time" id="currentTime"></div>
+
+            <div class="grid-2">
+              <div class="card">
+                <h2 style="margin-bottom: 1.5rem;">Clock In/Out</h2>
+                
+                ${currentTimeEntry ? `
+                  <div class="status-card ${currentTimeEntry.status === 'clocked_in' ? 'status-clocked-in' : currentTimeEntry.status === 'on_break' ? 'status-on-break' : 'status-clocked-out'}">
+                    <div style="font-size: 1.5rem; font-weight: bold; margin-bottom: 0.5rem;">
+                      ${currentTimeEntry.status === 'clocked_in' ? 'Currently Working' : currentTimeEntry.status === 'on_break' ? 'On Break' : 'Clocked Out'}
+                    </div>
+                    <div>
+                      ${currentTimeEntry.status === 'clocked_in' ? 
+                        `Clocked in at ${new Date(currentTimeEntry.clockInTime).toLocaleTimeString()}` :
+                        currentTimeEntry.status === 'on_break' ?
+                        `Break started at ${new Date(currentTimeEntry.breakStartTime).toLocaleTimeString()}` :
+                        'Ready to clock in'
+                      }
+                    </div>
+                  </div>
+
+                  ${currentTimeEntry.status === 'clocked_in' ? `
+                    <button class="btn btn-secondary" onclick="startBreak()">Start Break</button>
+                    <button class="btn btn-danger" onclick="clockOut()">Clock Out</button>
+                  ` : currentTimeEntry.status === 'on_break' ? `
+                    <button class="btn" onclick="endBreak()">End Break</button>
+                    <button class="btn btn-danger" onclick="clockOut()">Clock Out</button>
+                  ` : ''}
+                ` : `
+                  <div class="status-card status-clocked-out">
+                    <div style="font-size: 1.5rem; font-weight: bold; margin-bottom: 0.5rem;">Ready to Start</div>
+                    <div>Select your location and clock in to begin your shift</div>
+                  </div>
+
+                  <form onsubmit="clockIn(event)">
+                    <div class="form-group">
+                      <label class="form-label">Location</label>
+                      <select id="locationSelect" class="form-select" required>
+                        <option value="">Select Location</option>
+                        ${locations.map(location => `
+                          <option value="${location.id}">${location.name}</option>
+                        `).join('')}
+                      </select>
+                    </div>
+                    <button type="submit" class="btn">Clock In</button>
+                  </form>
+                `}
+              </div>
+
+              <div class="card">
+                <h2 style="margin-bottom: 1.5rem;">Today's Time Entries</h2>
+                ${todaysEntries.length === 0 ? 
+                  '<p style="color: #64748b; text-align: center; padding: 2rem;">No time entries for today</p>' : 
+                  todaysEntries.map(entry => 
+                    `<div class="time-entry">
+                      <div style="font-weight: 600; margin-bottom: 0.5rem;">
+                        ${new Date(entry.clockInTime).toLocaleTimeString()} - 
+                        ${entry.clockOutTime ? new Date(entry.clockOutTime).toLocaleTimeString() : 'In Progress'}
+                      </div>
+                      <div style="color: #64748b; font-size: 0.875rem;">
+                        Location: ${locations.find(l => l.id === entry.locationId)?.name || 'Unknown'}<br>
+                        ${entry.totalWorkedMinutes ? `Total: ${Math.floor(entry.totalWorkedMinutes / 60)}h ${entry.totalWorkedMinutes % 60}m` : ''}
+                        ${entry.totalBreakMinutes > 0 ? ` • Break: ${entry.totalBreakMinutes}m` : ''}
+                      </div>
+                    </div>`
+                  ).join('')
+                }
+              </div>
+            </div>
+          </div>
+
+          <script>
+            function updateCurrentTime() {
+              const now = new Date();
+              document.getElementById('currentTime').textContent = 
+                'Current Time: ' + now.toLocaleString();
+            }
+            updateCurrentTime();
+            setInterval(updateCurrentTime, 1000);
+
+            async function clockIn(event) {
+              event.preventDefault();
+              const locationId = document.getElementById('locationSelect').value;
+              if (!locationId) {
+                alert('Please select a location');
+                return;
+              }
+
+              try {
+                const response = await fetch('/api/time-clock/clock-in', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ locationId: parseInt(locationId) })
+                });
+                
+                if (response.ok) {
+                  location.reload();
+                } else {
+                  const error = await response.text();
+                  alert('Error: ' + error);
+                }
+              } catch (error) {
+                alert('Network error: ' + error.message);
+              }
+            }
+
+            async function clockOut() {
+              if (confirm('Are you sure you want to clock out?')) {
+                try {
+                  const response = await fetch('/api/time-clock/clock-out', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                  });
+                  
+                  if (response.ok) {
+                    location.reload();
+                  } else {
+                    const error = await response.text();
+                    alert('Error: ' + error);
+                  }
+                } catch (error) {
+                  alert('Network error: ' + error.message);
+                }
+              }
+            }
+
+            async function startBreak() {
+              try {
+                const response = await fetch('/api/time-clock/start-break', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' }
+                });
+                
+                if (response.ok) {
+                  location.reload();
+                } else {
+                  const error = await response.text();
+                  alert('Error: ' + error);
+                }
+              } catch (error) {
+                alert('Network error: ' + error.message);
+              }
+            }
+
+            async function endBreak() {
+              try {
+                const response = await fetch('/api/time-clock/end-break', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' }
+                });
+                
+                if (response.ok) {
+                  location.reload();
+                } else {
+                  const error = await response.text();
+                  alert('Error: ' + error);
+                }
+              } catch (error) {
+                alert('Network error: ' + error.message);
+              }
+            }
+          </script>
+        </body>
+        </html>
+      `);
+    } catch (error) {
+      console.error("Error loading time clock page:", error);
+      res.status(500).send("Error loading time clock page");
     }
   });
 
@@ -3271,6 +3535,85 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching unread notifications:", error);
       res.status(500).json({ message: "Failed to fetch unread notifications" });
+    }
+  });
+
+  // Time Clock API Routes
+  app.post('/api/time-clock/clock-in', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { locationId } = req.body;
+      
+      if (!locationId) {
+        return res.status(400).json({ error: 'Location ID is required' });
+      }
+
+      const ipAddress = req.ip || req.connection.remoteAddress;
+      const deviceInfo = req.get('User-Agent');
+
+      const timeEntry = await storage.clockIn(userId, locationId, ipAddress, deviceInfo);
+      res.json(timeEntry);
+    } catch (error) {
+      console.error('Clock in error:', error);
+      res.status(400).json({ error: error instanceof Error ? error.message : 'Failed to clock in' });
+    }
+  });
+
+  app.post('/api/time-clock/clock-out', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { notes } = req.body;
+
+      const timeEntry = await storage.clockOut(userId, notes);
+      res.json(timeEntry);
+    } catch (error) {
+      console.error('Clock out error:', error);
+      res.status(400).json({ error: error instanceof Error ? error.message : 'Failed to clock out' });
+    }
+  });
+
+  app.post('/api/time-clock/start-break', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const timeEntry = await storage.startBreak(userId);
+      res.json(timeEntry);
+    } catch (error) {
+      console.error('Start break error:', error);
+      res.status(400).json({ error: error instanceof Error ? error.message : 'Failed to start break' });
+    }
+  });
+
+  app.post('/api/time-clock/end-break', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const timeEntry = await storage.endBreak(userId);
+      res.json(timeEntry);
+    } catch (error) {
+      console.error('End break error:', error);
+      res.status(400).json({ error: error instanceof Error ? error.message : 'Failed to end break' });
+    }
+  });
+
+  app.get('/api/time-clock/current', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const currentEntry = await storage.getCurrentTimeEntry(userId);
+      res.json(currentEntry || null);
+    } catch (error) {
+      console.error('Get current time entry error:', error);
+      res.status(500).json({ error: 'Failed to get current time entry' });
+    }
+  });
+
+  app.get('/api/time-clock/entries/:date', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { date } = req.params;
+      const entries = await storage.getTimeEntriesByDate(userId, date);
+      res.json(entries);
+    } catch (error) {
+      console.error('Get time entries error:', error);
+      res.status(500).json({ error: 'Failed to get time entries' });
     }
   });
 
