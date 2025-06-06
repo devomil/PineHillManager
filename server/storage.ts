@@ -54,6 +54,8 @@ import {
   type Logo,
   type InsertDocumentLog,
   type DocumentLog,
+  type InsertEmployeeInvitation,
+  type EmployeeInvitation,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, asc, gte, lte, or } from "drizzle-orm";
@@ -183,6 +185,14 @@ export interface IStorage {
   updateLogoStatus(id: number, isActive: boolean): Promise<Logo>;
   deleteLogo(id: number): Promise<void>;
   deactivateLogoByName(name: string): Promise<void>;
+
+  // Employee invitations for beta testing
+  createEmployeeInvitation(invitation: InsertEmployeeInvitation): Promise<EmployeeInvitation>;
+  getEmployeeInvitations(status?: string): Promise<EmployeeInvitation[]>;
+  getInvitationByToken(token: string): Promise<EmployeeInvitation | undefined>;
+  acceptInvitation(token: string, userId: string): Promise<EmployeeInvitation>;
+  expireOldInvitations(): Promise<void>;
+  deleteInvitation(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1340,6 +1350,52 @@ export class DatabaseStorage implements IStorage {
       .update(logos)
       .set({ isActive: false, updatedAt: new Date() })
       .where(eq(logos.name, name));
+  }
+
+  // Employee invitations for beta testing
+  async createEmployeeInvitation(invitation: InsertEmployeeInvitation): Promise<EmployeeInvitation> {
+    const [invite] = await db
+      .insert(employeeInvitations)
+      .values(invitation)
+      .returning();
+    return invite;
+  }
+
+  async getEmployeeInvitations(status?: string): Promise<EmployeeInvitation[]> {
+    if (status) {
+      return await db.select().from(employeeInvitations).where(eq(employeeInvitations.status, status)).orderBy(desc(employeeInvitations.invitedAt));
+    }
+    return await db.select().from(employeeInvitations).orderBy(desc(employeeInvitations.invitedAt));
+  }
+
+  async getInvitationByToken(token: string): Promise<EmployeeInvitation | undefined> {
+    const [invitation] = await db.select().from(employeeInvitations).where(eq(employeeInvitations.inviteToken, token));
+    return invitation;
+  }
+
+  async acceptInvitation(token: string, userId: string): Promise<EmployeeInvitation> {
+    const [invitation] = await db
+      .update(employeeInvitations)
+      .set({ status: 'accepted', acceptedAt: new Date() })
+      .where(eq(employeeInvitations.inviteToken, token))
+      .returning();
+    return invitation;
+  }
+
+  async expireOldInvitations(): Promise<void> {
+    await db
+      .update(employeeInvitations)
+      .set({ status: 'expired' })
+      .where(and(
+        eq(employeeInvitations.status, 'pending'),
+        lte(employeeInvitations.expiresAt, new Date())
+      ));
+  }
+
+  async deleteInvitation(id: number): Promise<void> {
+    await db
+      .delete(employeeInvitations)
+      .where(eq(employeeInvitations.id, id));
   }
 }
 
