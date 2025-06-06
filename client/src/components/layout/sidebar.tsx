@@ -30,13 +30,13 @@ export default function Sidebar({ mobileMenuOpen, setMobileMenuOpen }: SidebarPr
 
   const managerItems = [
     { name: "Shift Scheduling", href: "/shift-scheduling", icon: CalendarDays, roles: ["admin", "manager"] },
+    { name: "Manage Announcements", href: "/admin/announcements", icon: Megaphone, roles: ["admin", "manager"] },
   ];
 
   const adminItems = [
     { name: "Employees", href: "/employees", icon: Users, roles: ["admin"] },
     { name: "Admin Training", href: "/admin-training", icon: GraduationCap, roles: ["admin"] },
     { name: "Logo Management", href: "/admin/logos", icon: Image, roles: ["admin"] },
-    { name: "Manage Announcements", href: "/admin/announcements", icon: Megaphone, roles: ["admin", "manager"] },
   ];
 
   const handleLogout = () => {
