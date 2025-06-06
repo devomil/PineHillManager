@@ -20,6 +20,7 @@ interface Announcement {
 }
 
 export default function AnnouncementsPage() {
+  console.log("AnnouncementsPage component rendered");
   const [selectedFilter, setSelectedFilter] = useState<string>("all");
   
   const { data: announcements = [], isLoading, error } = useQuery<Announcement[]>({

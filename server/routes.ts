@@ -455,7 +455,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               <div class="card-icon" style="background: #ede9fe; color: #7c3aed;">📢</div>
               <div class="card-title">Company Announcements</div>
               <div class="card-desc">Stay updated with the latest company news and updates</div>
-              <a href="/announcements" class="btn">View Announcements</a>
+              <a href="/announcements" class="btn" onclick="console.log('Dashboard: View Announcements clicked, navigating to /announcements'); return true;">View Announcements</a>
             </div>
 
             <div class="card">
@@ -4451,6 +4451,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Catch-all handler (MUST be last)
   app.get('*', (req, res) => {
+    console.log(`Server: Catch-all handler received request for: ${req.path}`);
+    
     // If it's an API route, return 404
     if (req.path.startsWith('/api/')) {
       return res.status(404).json({ message: 'API endpoint not found' });
@@ -4465,9 +4467,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     ];
     
     if (validRoutes.includes(req.path)) {
+      console.log(`Server: Valid React route ${req.path}, redirecting to dashboard`);
       // Let the React app handle these routes
       res.redirect('/dashboard');
     } else {
+      console.log(`Server: Invalid route ${req.path}, redirecting to root`);
       // For any other route, redirect to root
       res.redirect('/');
     }
