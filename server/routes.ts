@@ -161,16 +161,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       <head>
         <title>Pine Hill Farm Employee Portal</title>
         <style>
-          @import url('https://fonts.googleapis.com/css2?family=Poppins+Bounce:wght@400:wght@400;500;600;700&display=swap');
+          @import url('https://fonts.googleapis.com/css2?family=Great+Vibes+Bounce:wght@400:wght@400;500;600;700&display=swap');
           * { margin: 0; padding: 0; box-sizing: border-box; }
           body { 
-          .pine-hill-title { font-family: "Poppins", cursive; font-weight: 600; }
-          @import url("https://fonts.googleapis.com/css2?family=Poppins+Bounce:wght@400:wght@400;500;600;700&display=swap");
+          .pine-hill-title { font-family: "Great+Vibes", cursive; font-weight: 600; }
+          @import url("https://fonts.googleapis.com/css2?family=Great+Vibes+Bounce:wght@400:wght@400;500;600;700&display=swap");
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
             min-height: 100vh; color: #1e293b; padding: 2rem;
           }
-          .pine-hill-title { font-family: 'Poppins', cursive; }
+          .pine-hill-title { font-family: 'Great+Vibes', cursive; }
           .container { max-width: 1200px; margin: 0 auto; }
           .header { text-align: center; margin-bottom: 3rem; }
           h1 { font-size: 3rem; font-weight: 700; margin-bottom: 1rem; }
@@ -263,8 +263,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         <style>
           * { margin: 0; padding: 0; box-sizing: border-box; }
           body { 
-          .pine-hill-title { font-family: "Poppins", cursive; font-weight: 600; }
-          @import url("https://fonts.googleapis.com/css2?family=Poppins+Bounce:wght@400:wght@400;500;600;700&display=swap");
+          .pine-hill-title { font-family: "Great+Vibes", cursive; font-weight: 600; }
+          @import url("https://fonts.googleapis.com/css2?family=Great+Vibes+Bounce:wght@400:wght@400;500;600;700&display=swap");
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
             min-height: 100vh;
@@ -373,8 +373,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         <style>
           * { margin: 0; padding: 0; box-sizing: border-box; }
           body { 
-          .pine-hill-title { font-family: "Poppins", cursive; font-weight: 600; }
-          @import url("https://fonts.googleapis.com/css2?family=Poppins+Bounce:wght@400:wght@400;500;600;700&display=swap");
+          .pine-hill-title { font-family: "Great+Vibes", cursive; font-weight: 600; }
+          @import url("https://fonts.googleapis.com/css2?family=Great+Vibes+Bounce:wght@400:wght@400;500;600;700&display=swap");
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
             min-height: 100vh; color: #1e293b;
@@ -514,8 +514,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         <style>
           * { margin: 0; padding: 0; box-sizing: border-box; }
           body { 
-          .pine-hill-title { font-family: "Poppins", cursive; font-weight: 600; }
-          @import url("https://fonts.googleapis.com/css2?family=Poppins+Bounce:wght@400:wght@400;500;600;700&display=swap");
+          .pine-hill-title { font-family: "Great+Vibes", cursive; font-weight: 600; }
+          @import url("https://fonts.googleapis.com/css2?family=Great+Vibes+Bounce:wght@400:wght@400;500;600;700&display=swap");
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
             min-height: 100vh; color: #1e293b;
@@ -672,8 +672,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         <style>
           * { margin: 0; padding: 0; box-sizing: border-box; }
           body { 
-          .pine-hill-title { font-family: "Poppins", cursive; font-weight: 600; }
-          @import url("https://fonts.googleapis.com/css2?family=Poppins+Bounce:wght@400:wght@400;500;600;700&display=swap");
+          .pine-hill-title { font-family: "Great+Vibes", cursive; font-weight: 600; }
+          @import url("https://fonts.googleapis.com/css2?family=Great+Vibes+Bounce:wght@400:wght@400;500;600;700&display=swap");
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
             min-height: 100vh; color: #1e293b;
@@ -835,8 +835,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         <style>
           * { margin: 0; padding: 0; box-sizing: border-box; }
           body { 
-          .pine-hill-title { font-family: "Poppins", cursive; font-weight: 600; }
-          @import url("https://fonts.googleapis.com/css2?family=Poppins+Bounce:wght@400:wght@400;500;600;700&display=swap");
+          .pine-hill-title { font-family: "Great+Vibes", cursive; font-weight: 600; }
+          @import url("https://fonts.googleapis.com/css2?family=Great+Vibes+Bounce:wght@400:wght@400;500;600;700&display=swap");
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
             min-height: 100vh; color: #1e293b;
@@ -1034,8 +1034,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           <style>
             * { margin: 0; padding: 0; box-sizing: border-box; }
             body { 
-          .pine-hill-title { font-family: "Poppins", cursive; font-weight: 600; }
-          @import url("https://fonts.googleapis.com/css2?family=Poppins+Bounce:wght@400:wght@400;500;600;700&display=swap");
+          .pine-hill-title { font-family: "Great+Vibes", cursive; font-weight: 600; }
+          @import url("https://fonts.googleapis.com/css2?family=Great+Vibes+Bounce:wght@400:wght@400;500;600;700&display=swap");
               font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
               background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
               min-height: 100vh; color: #1e293b;
@@ -1239,8 +1239,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           <style>
             * { margin: 0; padding: 0; box-sizing: border-box; }
             body { 
-          .pine-hill-title { font-family: "Poppins", cursive; font-weight: 600; }
-          @import url("https://fonts.googleapis.com/css2?family=Poppins+Bounce:wght@400:wght@400;500;600;700&display=swap");
+          .pine-hill-title { font-family: "Great+Vibes", cursive; font-weight: 600; }
+          @import url("https://fonts.googleapis.com/css2?family=Great+Vibes+Bounce:wght@400:wght@400;500;600;700&display=swap");
               font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
               background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
               min-height: 100vh; color: #1e293b;
@@ -1440,8 +1440,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           <style>
             * { margin: 0; padding: 0; box-sizing: border-box; }
             body { 
-          .pine-hill-title { font-family: "Poppins", cursive; font-weight: 600; }
-          @import url("https://fonts.googleapis.com/css2?family=Poppins+Bounce:wght@400:wght@400;500;600;700&display=swap");
+          .pine-hill-title { font-family: "Great+Vibes", cursive; font-weight: 600; }
+          @import url("https://fonts.googleapis.com/css2?family=Great+Vibes+Bounce:wght@400:wght@400;500;600;700&display=swap");
               font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
               background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
               min-height: 100vh; color: #1e293b;
@@ -1599,8 +1599,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           <style>
             * { margin: 0; padding: 0; box-sizing: border-box; }
             body { 
-          .pine-hill-title { font-family: "Poppins", cursive; font-weight: 600; }
-          @import url("https://fonts.googleapis.com/css2?family=Poppins+Bounce:wght@400:wght@400;500;600;700&display=swap");
+          .pine-hill-title { font-family: "Great+Vibes", cursive; font-weight: 600; }
+          @import url("https://fonts.googleapis.com/css2?family=Great+Vibes+Bounce:wght@400:wght@400;500;600;700&display=swap");
               font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
               background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
               min-height: 100vh; color: #1e293b;
@@ -2033,8 +2033,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           <style>
             * { margin: 0; padding: 0; box-sizing: border-box; }
             body { 
-          .pine-hill-title { font-family: "Poppins", cursive; font-weight: 600; }
-          @import url("https://fonts.googleapis.com/css2?family=Poppins+Bounce:wght@400:wght@400;500;600;700&display=swap");
+          .pine-hill-title { font-family: "Great+Vibes", cursive; font-weight: 600; }
+          @import url("https://fonts.googleapis.com/css2?family=Great+Vibes+Bounce:wght@400:wght@400;500;600;700&display=swap");
               font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
               background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
               min-height: 100vh; color: #1e293b;
@@ -2261,8 +2261,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           <style>
             * { margin: 0; padding: 0; box-sizing: border-box; }
             body { 
-          .pine-hill-title { font-family: "Poppins", cursive; font-weight: 600; }
-          @import url("https://fonts.googleapis.com/css2?family=Poppins+Bounce:wght@400:wght@400;500;600;700&display=swap");
+          .pine-hill-title { font-family: "Great+Vibes", cursive; font-weight: 600; }
+          @import url("https://fonts.googleapis.com/css2?family=Great+Vibes+Bounce:wght@400:wght@400;500;600;700&display=swap");
               font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
               background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
               min-height: 100vh; color: #1e293b;
@@ -2416,8 +2416,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           <style>
             * { margin: 0; padding: 0; box-sizing: border-box; }
             body { 
-          .pine-hill-title { font-family: "Poppins", cursive; font-weight: 600; }
-          @import url("https://fonts.googleapis.com/css2?family=Poppins+Bounce:wght@400:wght@400;500;600;700&display=swap");
+          .pine-hill-title { font-family: "Great+Vibes", cursive; font-weight: 600; }
+          @import url("https://fonts.googleapis.com/css2?family=Great+Vibes+Bounce:wght@400:wght@400;500;600;700&display=swap");
               font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
               background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
               min-height: 100vh; color: #1e293b;
@@ -2593,8 +2593,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           <style>
             * { margin: 0; padding: 0; box-sizing: border-box; }
             body { 
-          .pine-hill-title { font-family: "Poppins", cursive; font-weight: 600; }
-          @import url("https://fonts.googleapis.com/css2?family=Poppins+Bounce:wght@400:wght@400;500;600;700&display=swap");
+          .pine-hill-title { font-family: "Great+Vibes", cursive; font-weight: 600; }
+          @import url("https://fonts.googleapis.com/css2?family=Great+Vibes+Bounce:wght@400:wght@400;500;600;700&display=swap");
               font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
               background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
               min-height: 100vh; color: #1e293b;
@@ -2759,8 +2759,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           <style>
             * { margin: 0; padding: 0; box-sizing: border-box; }
             body { 
-          .pine-hill-title { font-family: "Poppins", cursive; font-weight: 600; }
-          @import url("https://fonts.googleapis.com/css2?family=Poppins+Bounce:wght@400:wght@400;500;600;700&display=swap");
+          .pine-hill-title { font-family: "Great+Vibes", cursive; font-weight: 600; }
+          @import url("https://fonts.googleapis.com/css2?family=Great+Vibes+Bounce:wght@400:wght@400;500;600;700&display=swap");
               font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
               background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
               min-height: 100vh; color: #1e293b; display: flex; align-items: center; justify-content: center;
