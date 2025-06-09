@@ -2931,12 +2931,64 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const isAdminOrManager = user.role === 'admin' || user.role === 'manager';
+      
+      // Get all users with their current online status
+      const allUsers = await storage.getAllUsers();
+      const onlineUsers = [];
+      
+      for (const employee of allUsers) {
+        const presence = await storage.getUserPresence(employee.id);
+        const timeEntry = await storage.getCurrentTimeEntry(employee.id);
+        
+        // Determine status based on time clock and presence
+        let status = 'offline';
+        let statusIcon = '⚫';
+        let statusText = 'Offline';
+        
+        if (timeEntry && (timeEntry.status === 'clocked_in' || timeEntry.status === 'on_break')) {
+          if (timeEntry.status === 'clocked_in') {
+            status = 'working';
+            statusIcon = '🟢';
+            statusText = 'Working';
+          } else if (timeEntry.status === 'on_break') {
+            status = 'on_break';
+            statusIcon = '🟡';
+            statusText = 'On Break';
+          }
+          onlineUsers.push({
+            id: employee.id,
+            name: `${employee.firstName} ${employee.lastName}`,
+            status,
+            statusIcon,
+            statusText,
+            location: timeEntry.locationId
+          });
+        } else if (presence && presence.status === 'online') {
+          status = 'online';
+          statusIcon = '🔵';
+          statusText = 'Online';
+          onlineUsers.push({
+            id: employee.id,
+            name: `${employee.firstName} ${employee.lastName}`,
+            status,
+            statusIcon,
+            statusText,
+            location: null
+          });
+        }
+      }
+      
+      // Get recent messages
+      const recentMessages = await storage.getChannelMessages('general', 20);
+      
+      // Get unread message count for current user
+      const unreadCount = await storage.getUnreadMessageCount(userId);
 
       res.send(`
         <!DOCTYPE html>
         <html lang="en">
         <head>
-          <title>Pine Hill Farm - Team Chat</title>
+          <title>Pine Hill Farm - Team Chat ${unreadCount > 0 ? `(${unreadCount})` : ''}</title>
           <style>
             @import url('https://fonts.googleapis.com/css2?family=Great+Vibes&display=swap');
             * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -2949,35 +3001,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
             .header { background: white; padding: 1rem 2rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
             .header-content { max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
             .nav { display: flex; gap: 1rem; }
-            .nav a { color: #64748b; text-decoration: none; padding: 0.5rem 1rem; border-radius: 6px; transition: background 0.2s; }
+            .nav a { color: #64748b; text-decoration: none; padding: 0.5rem 1rem; border-radius: 6px; transition: background 0.2s; position: relative; }
             .nav a:hover { background: #f1f5f9; }
             .nav a.active { background: #607e66; color: white; }
+            .unread-badge { position: absolute; top: -5px; right: -5px; background: #ef4444; color: white; border-radius: 50%; width: 20px; height: 20px; font-size: 0.75rem; display: flex; align-items: center; justify-content: center; }
             .container { max-width: 1200px; margin: 0 auto; padding: 2rem; display: grid; grid-template-columns: 300px 1fr; gap: 2rem; height: calc(100vh - 140px); }
-            .sidebar { background: white; border-radius: 12px; padding: 1.5rem; }
+            .sidebar { background: white; border-radius: 12px; padding: 1.5rem; overflow-y: auto; }
             .chat-area { background: white; border-radius: 12px; display: flex; flex-direction: column; }
             .chat-header { padding: 1.5rem; border-bottom: 1px solid #e2e8f0; }
-            .messages { flex: 1; padding: 1rem; overflow-y: auto; max-height: 400px; }
+            .messages { flex: 1; padding: 1rem; overflow-y: auto; max-height: 500px; }
             .message { margin-bottom: 1rem; padding: 1rem; border-radius: 8px; background: #f8fafc; }
+            .message.unread { border-left: 3px solid #ef4444; background: #fef2f2; }
             .message-sender { font-weight: 600; margin-bottom: 0.5rem; color: #607e66; }
-            .message-time { font-size: 0.75rem; color: #64748b; }
+            .message-time { font-size: 0.75rem; color: #64748b; margin-top: 0.5rem; }
             .chat-input { padding: 1.5rem; border-top: 1px solid #e2e8f0; }
             .input-form { display: flex; gap: 1rem; }
             .message-input { flex: 1; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 6px; }
             .btn { background: #607e66; color: white; padding: 0.75rem 1.5rem; border: none; border-radius: 6px; font-weight: 500; cursor: pointer; }
             .btn:hover { background: #4f6b56; }
-            .channel { padding: 0.75rem; margin-bottom: 0.5rem; border-radius: 6px; cursor: pointer; transition: background 0.2s; }
+            .channel { padding: 0.75rem; margin-bottom: 0.5rem; border-radius: 6px; cursor: pointer; transition: background 0.2s; position: relative; }
             .channel:hover { background: #f1f5f9; }
             .channel.active { background: #607e66; color: white; }
+            .channel-unread { background: #fef3c7; border-left: 3px solid #f59e0b; }
             .online-users { margin-top: 2rem; }
-            .user-item { padding: 0.5rem; margin-bottom: 0.25rem; border-radius: 4px; font-size: 0.875rem; }
-            .user-online { color: #10b981; }
+            .user-item { padding: 0.5rem; margin-bottom: 0.25rem; border-radius: 4px; font-size: 0.875rem; display: flex; align-items: center; gap: 0.5rem; }
+            .user-status { font-size: 0.75rem; color: #64748b; }
+            .location-badge { background: #e0f2fe; color: #0369a1; padding: 0.125rem 0.5rem; border-radius: 12px; font-size: 0.625rem; margin-left: auto; }
+            .notification { position: fixed; top: 20px; right: 20px; background: #607e66; color: white; padding: 1rem; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 1000; }
+            .typing-indicator { padding: 0.5rem 1rem; color: #64748b; font-style: italic; font-size: 0.875rem; }
+            .status-indicator { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 0.5rem; }
+            .status-working { background: #10b981; }
+            .status-break { background: #f59e0b; }
+            .status-online { background: #3b82f6; }
+            .status-offline { background: #6b7280; }
           </style>
         </head>
         <body>
           <div class="header">
             <div class="header-content">
               <div class="logo">
-                
                 <div>
                   <div style="font-weight: 600;" class="pine-hill-title">Pine Hill Farm</div>
                   <div style="font-size: 0.875rem; color: #64748b;">Team Chat</div>
@@ -2988,7 +3050,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 <a href="/schedule">Schedule</a>
                 <a href="/time-off">Time Off</a>
                 <a href="/announcements">Announcements</a>
-                <a href="/team-chat" class="active">Team Chat</a>
+                <a href="/team-chat" class="active">
+                  Team Chat
+                  ${unreadCount > 0 ? `<span class="unread-badge">${unreadCount}</span>` : ''}
+                </a>
                 ${isAdminOrManager ? '<a href="/admin">Admin Portal</a>' : ''}
                 <a href="/api/logout">Sign Out</a>
               </div>
@@ -2998,45 +3063,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
           <div class="container">
             <div class="sidebar">
               <h3 style="margin-bottom: 1rem;">Channels</h3>
-              <div class="channel active"># General</div>
-              <div class="channel"># Lake Geneva Retail</div>
-              <div class="channel"># Watertown Retail</div>
-              <div class="channel"># Watertown Spa</div>
-              <div class="channel"># Managers</div>
+              <div class="channel active" data-channel="general"># General</div>
+              <div class="channel" data-channel="lake-geneva"># Lake Geneva Retail</div>
+              <div class="channel" data-channel="watertown-retail"># Watertown Retail</div>
+              <div class="channel" data-channel="watertown-spa"># Watertown Spa</div>
+              ${isAdminOrManager ? '<div class="channel" data-channel="managers"># Managers</div>' : ''}
               
               <div class="online-users">
-                <h4 style="margin-bottom: 0.5rem; color: #64748b;">Online Now</h4>
-                <div class="user-item"><span class="user-online">●</span> ${user.firstName} ${user.lastName}</div>
-                <div class="user-item"><span class="user-online">●</span> Sarah Johnson</div>
-                <div class="user-item"><span class="user-online">●</span> Mike Davis</div>
+                <h4 style="margin-bottom: 0.5rem; color: #64748b;">Team Status (${onlineUsers.length} active)</h4>
+                ${onlineUsers.length > 0 ? onlineUsers.map(u => `
+                  <div class="user-item">
+                    <span class="status-indicator status-${u.status}"></span>
+                    <span style="flex: 1;">${u.name}</span>
+                    <div class="user-status">${u.statusText}</div>
+                    ${u.location ? `<span class="location-badge">${u.location === 1 ? 'Lake Geneva' : u.location === 2 ? 'Watertown Retail' : 'Watertown Spa'}</span>` : ''}
+                  </div>
+                `).join('') : '<div class="user-item" style="color: #64748b; text-align: center;">No active team members</div>'}
               </div>
             </div>
 
             <div class="chat-area">
               <div class="chat-header">
-                <h2># General</h2>
-                <p style="color: #64748b; margin-top: 0.5rem;">Team-wide communication and updates</p>
+                <h2 id="channel-title"># General</h2>
+                <p style="color: #64748b; margin-top: 0.5rem;" id="channel-description">Team-wide communication and updates</p>
               </div>
 
-              <div class="messages">
-                <div class="message">
-                  <div class="message-sender">Sarah Johnson</div>
-                  <div>Good morning team! Don't forget about the inventory count this weekend.</div>
-                  <div class="message-time">Today at 9:15 AM</div>
-                </div>
-                
-                <div class="message">
-                  <div class="message-sender">Mike Davis</div>
-                  <div>The new shipment arrived at Watertown. Everything looks good!</div>
-                  <div class="message-time">Today at 10:30 AM</div>
-                </div>
-                
-                <div class="message">
-                  <div class="message-sender">${user.firstName} ${user.lastName}</div>
-                  <div>Thanks for the update Mike. I'll be there this afternoon to help with stocking.</div>
-                  <div class="message-time">Today at 11:45 AM</div>
-                </div>
+              <div class="messages" id="messages-container">
+                ${recentMessages.length > 0 ? recentMessages.reverse().map(msg => `
+                  <div class="message">
+                    <div class="message-sender">${msg.senderName || 'Unknown User'}</div>
+                    <div>${msg.content}</div>
+                    <div class="message-time">${new Date(msg.sentAt).toLocaleString()}</div>
+                  </div>
+                `).join('') : `
+                  <div class="message">
+                    <div class="message-sender">System</div>
+                    <div>Welcome to team chat! Start a conversation with your colleagues.</div>
+                    <div class="message-time">Today</div>
+                  </div>
+                `}
               </div>
+
+              <div class="typing-indicator" id="typing-indicator" style="display: none;"></div>
 
               <div class="chat-input">
                 <form class="input-form" onsubmit="sendMessage(event)">
@@ -3048,24 +3116,141 @@ export async function registerRoutes(app: Express): Promise<Server> {
           </div>
 
           <script>
+            let currentChannel = 'general';
+            let unreadMessages = ${unreadCount};
+            let lastMessageTime = new Date();
+            
+            // Update user presence every 30 seconds
+            setInterval(function() {
+              fetch('/api/user-presence/update', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: 'online' })
+              });
+            }, 30000);
+            
             function sendMessage(event) {
               event.preventDefault();
               const input = event.target.querySelector('.message-input');
-              const messagesContainer = document.querySelector('.messages');
               
               if (input.value.trim()) {
-                const messageDiv = document.createElement('div');
-                messageDiv.className = 'message';
-                messageDiv.innerHTML = \`
-                  <div class="message-sender">${user.firstName} ${user.lastName}</div>
-                  <div>\${input.value}</div>
-                  <div class="message-time">Just now</div>
-                \`;
-                messagesContainer.appendChild(messageDiv);
-                messagesContainer.scrollTop = messagesContainer.scrollHeight;
-                input.value = '';
+                // Send message to server
+                fetch('/api/chat/send-message', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    channelId: currentChannel,
+                    content: input.value.trim()
+                  })
+                })
+                .then(response => response.json())
+                .then(data => {
+                  if (data.id) {
+                    addMessageToChat({
+                      senderName: '${user.firstName} ${user.lastName}',
+                      content: input.value.trim(),
+                      sentAt: new Date()
+                    });
+                    input.value = '';
+                  }
+                })
+                .catch(error => {
+                  console.error('Error sending message:', error);
+                  showNotification('Failed to send message');
+                });
               }
             }
+            
+            function addMessageToChat(message) {
+              const messagesContainer = document.getElementById('messages-container');
+              const messageDiv = document.createElement('div');
+              messageDiv.className = 'message';
+              messageDiv.innerHTML = \`
+                <div class="message-sender">\${message.senderName}</div>
+                <div>\${message.content}</div>
+                <div class="message-time">Just now</div>
+              \`;
+              messagesContainer.appendChild(messageDiv);
+              messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            }
+            
+            function showNotification(text) {
+              const notification = document.createElement('div');
+              notification.className = 'notification';
+              notification.textContent = text;
+              document.body.appendChild(notification);
+              
+              setTimeout(() => {
+                notification.remove();
+              }, 3000);
+            }
+            
+            // Channel switching
+            document.querySelectorAll('.channel').forEach(channel => {
+              channel.addEventListener('click', function() {
+                const channelId = this.getAttribute('data-channel');
+                switchChannel(channelId);
+              });
+            });
+            
+            function switchChannel(channelId) {
+              currentChannel = channelId;
+              
+              // Update active channel
+              document.querySelectorAll('.channel').forEach(ch => ch.classList.remove('active'));
+              document.querySelector(\`[data-channel="\${channelId}"]\`).classList.add('active');
+              
+              // Update channel header
+              const titles = {
+                'general': '# General',
+                'lake-geneva': '# Lake Geneva Retail',
+                'watertown-retail': '# Watertown Retail',
+                'watertown-spa': '# Watertown Spa',
+                'managers': '# Managers'
+              };
+              
+              const descriptions = {
+                'general': 'Team-wide communication and updates',
+                'lake-geneva': 'Lake Geneva Retail location discussions',
+                'watertown-retail': 'Watertown Retail location discussions',
+                'watertown-spa': 'Watertown Spa location discussions',
+                'managers': 'Management team communications'
+              };
+              
+              document.getElementById('channel-title').textContent = titles[channelId];
+              document.getElementById('channel-description').textContent = descriptions[channelId];
+              
+              // Load channel messages
+              loadChannelMessages(channelId);
+              
+              // Mark messages as read for this channel
+              fetch('/api/chat/mark-read', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ channelId })
+              });
+            }
+            
+            function loadChannelMessages(channelId) {
+              const messagesContainer = document.getElementById('messages-container');
+              messagesContainer.innerHTML = '<div class="message"><div class="message-sender">System</div><div>Loading messages...</div></div>';
+              
+              // In a real implementation, this would fetch messages from the server
+              setTimeout(() => {
+                messagesContainer.innerHTML = \`
+                  <div class="message">
+                    <div class="message-sender">System</div>
+                    <div>Welcome to \${channelId.replace('-', ' ')} channel!</div>
+                    <div class="message-time">Today</div>
+                  </div>
+                \`;
+              }, 500);
+            }
+            
+            // Refresh online status every minute
+            setInterval(function() {
+              location.reload();
+            }, 60000);
           </script>
         </body>
         </html>
