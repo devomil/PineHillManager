@@ -137,20 +137,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Auth middleware SECOND
   setupAuth(app);
 
-  // Test route to debug blank page issue
-  app.get('/test', (req, res) => {
-    res.send(`
-      <!DOCTYPE html>
-      <html>
-      <head><title>Test Page</title></head>
-      <body style="font-family: Arial; padding: 20px; background: #f0f0f0;">
-        <h1>Pine Hill Farm Test Page</h1>
-        <p>If you can see this, the server is working correctly.</p>
-        <a href="/api/login" style="background: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Test Login</a>
-      </body>
-      </html>
-    `);
-  });
+  // Test route removed - React app handles authentication
 
   // Static landing page that bypasses all Vite processing
   app.get('/static', (req, res) => {
