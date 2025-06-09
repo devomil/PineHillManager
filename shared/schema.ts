@@ -233,6 +233,7 @@ export const chatChannels = pgTable("chat_channels", {
   description: text("description"),
   type: varchar("type").default("team"), // 'team', 'department', 'general'
   isPrivate: boolean("is_private").default(false),
+  isActive: boolean("is_active").default(true),
   createdBy: varchar("created_by").notNull().references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
 });

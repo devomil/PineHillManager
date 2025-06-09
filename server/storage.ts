@@ -1090,14 +1090,6 @@ export class DatabaseStorage implements IStorage {
       .orderBy(asc(chatChannels.name));
   }
 
-  async createChatChannel(channel: InsertChatChannel): Promise<ChatChannel> {
-    const [newChannel] = await db
-      .insert(chatChannels)
-      .values(channel)
-      .returning();
-    return newChannel;
-  }
-
   // Announcement read tracking
   async getUserReadAnnouncements(userId: string): Promise<any[]> {
     // For now, return empty array as we need to implement announcement_reads table
