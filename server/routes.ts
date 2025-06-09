@@ -3851,6 +3851,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Handle shift coverage from HTML links
+  app.get('/api/shift-coverage-requests/:id/cover', isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const userId = req.user.claims.sub;
+      
+      const request = await storage.coverShiftRequest(parseInt(id), userId);
+      res.redirect('/shift-coverage?success=shift_covered');
+    } catch (error) {
+      console.error("Error covering shift request:", error);
+      res.redirect('/shift-coverage?error=cover_failed');
+    }
+  });
+
   // Handle announcement form submission
   app.post('/api/announcements', isAuthenticated, async (req: any, res) => {
     try {
