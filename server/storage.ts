@@ -19,6 +19,7 @@ import {
   userPresence,
   logos,
   employeeInvitations,
+  passwordResetTokens,
   type User,
   type UpsertUser,
   type InsertTimeOffRequest,

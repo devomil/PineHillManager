@@ -3,7 +3,7 @@ import express from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
-import { setupDevAuth, isAuthenticated } from "./devAuth";
+import { setupAuth, isAuthenticated } from "./auth";
 
 // Initialize database with sample users
 async function initializeDatabase() {
@@ -135,7 +135,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Auth middleware SECOND
-  await setupDevAuth(app);
+  setupAuth(app);
 
   // Test route to debug blank page issue
   app.get('/test', (req, res) => {

@@ -284,4 +284,12 @@ export function setupAuth(app: Express) {
   });
 }
 
+// Authentication middleware for protected routes
+export function isAuthenticated(req: any, res: any, next: any) {
+  if (!req.isAuthenticated() || !req.user) {
+    return res.status(401).json({ error: "Authentication required" });
+  }
+  next();
+}
+
 export { hashPassword, comparePasswords };
