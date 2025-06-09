@@ -571,32 +571,6 @@ export class DatabaseStorage implements IStorage {
     return newAnnouncement;
   }
 
-  async getPublishedAnnouncements(): Promise<Announcement[]> {
-    return await db
-      .select()
-      .from(announcements)
-      .where(eq(announcements.isPublished, true))
-      .orderBy(desc(announcements.publishedAt));
-  }
-
-  async updateAnnouncement(id: number, announcement: Partial<InsertAnnouncement>): Promise<Announcement> {
-    const [updated] = await db
-      .update(announcements)
-      .set(announcement)
-      .where(eq(announcements.id, id))
-      .returning();
-    return updated;
-  }
-
-  // Announcements
-  async createAnnouncement(announcement: InsertAnnouncement): Promise<Announcement> {
-    const [newAnnouncement] = await db
-      .insert(announcements)
-      .values(announcement)
-      .returning();
-    return newAnnouncement;
-  }
-
   async getAllAnnouncements(): Promise<Announcement[]> {
     return await db
       .select()
@@ -610,6 +584,14 @@ export class DatabaseStorage implements IStorage {
       .from(announcements)
       .where(eq(announcements.isPublished, true))
       .orderBy(desc(announcements.publishedAt));
+  }
+
+  async getAnnouncementById(id: number): Promise<Announcement | undefined> {
+    const [announcement] = await db
+      .select()
+      .from(announcements)
+      .where(eq(announcements.id, id));
+    return announcement;
   }
 
   async updateAnnouncement(id: number, announcement: Partial<InsertAnnouncement>): Promise<Announcement> {
@@ -865,29 +847,7 @@ export class DatabaseStorage implements IStorage {
     return newMessage;
   }
 
-  async getChannelMessages(channelId: string, limit: number = 50): Promise<Message[]> {
-    return await db
-      .select()
-      .from(messages)
-      .where(eq(messages.channelId, channelId))
-      .orderBy(desc(messages.sentAt))
-      .limit(limit);
-  }
 
-  async getDirectMessages(userId1: string, userId2: string, limit: number = 50): Promise<Message[]> {
-    return await db
-      .select()
-      .from(messages)
-      .where(and(
-        eq(messages.messageType, "direct"),
-        and(
-          eq(messages.senderId, userId1),
-          eq(messages.recipientId, userId2)
-        )
-      ))
-      .orderBy(desc(messages.sentAt))
-      .limit(limit);
-  }
 
   // Document management
   async createDocument(document: InsertDocument): Promise<Document> {
@@ -1509,18 +1469,7 @@ export class DatabaseStorage implements IStorage {
     return message;
   }
 
-  async markMessagesAsRead(userId: string, channelId?: string): Promise<void> {
-    const whereConditions = [eq(messages.recipientId, userId)];
-    
-    if (channelId) {
-      whereConditions.push(eq(messages.channelId, channelId));
-    }
-    
-    await db
-      .update(messages)
-      .set({ isRead: true, readAt: new Date() })
-      .where(and(...whereConditions));
-  }
+
 
   async getAllUsersWithPresence(): Promise<any[]> {
     const usersWithPresence = await db
@@ -1581,18 +1530,32 @@ export class DatabaseStorage implements IStorage {
     return Number(result[0]?.count || 0);
   }
 
-  async markMessagesAsRead(userId: string, channelId: string): Promise<void> {
-    await db.update(messages)
+  async markMessagesAsRead(userId: string, channelId?: string): Promise<void> {
+    const whereConditions = [eq(messages.recipientId, userId)];
+    
+    if (channelId) {
+      whereConditions.push(eq(messages.channelId, channelId));
+    }
+    
+    await db
+      .update(messages)
       .set({ isRead: true, readAt: new Date() })
-      .where(and(
-        eq(messages.recipientId, userId),
-        eq(messages.channelId, channelId),
-        eq(messages.isRead, false)
-      ));
+      .where(and(...whereConditions));
   }
 
-  async updateUserPresenceOnClockIn(userId: string, locationId: number): Promise<void> {
-    await this.updateUserPresence(userId, 'working', locationId);
+  async getDirectMessages(userId1: string, userId2: string, limit: number = 50): Promise<Message[]> {
+    return await db
+      .select()
+      .from(messages)
+      .where(and(
+        eq(messages.messageType, "direct"),
+        or(
+          and(eq(messages.senderId, userId1), eq(messages.recipientId, userId2)),
+          and(eq(messages.senderId, userId2), eq(messages.recipientId, userId1))
+        )
+      ))
+      .orderBy(desc(messages.sentAt))
+      .limit(limit);
   }
 }
 
