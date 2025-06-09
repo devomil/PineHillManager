@@ -67,7 +67,12 @@ function AppRouter() {
 
   console.log('Rendering:', isAuthenticated ? 'AuthenticatedApp' : 'UnauthenticatedApp');
   
-  return isAuthenticated ? <AuthenticatedApp /> : <UnauthenticatedApp />;
+  // Force re-render when user data changes
+  if (isAuthenticated && user) {
+    return <AuthenticatedApp key={user.id} />;
+  } else {
+    return <UnauthenticatedApp />;
+  }
 }
 
 function App() {

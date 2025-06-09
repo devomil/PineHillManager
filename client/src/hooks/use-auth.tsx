@@ -51,7 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           },
         });
         if (response.status === 401) {
-          return undefined;
+          return null;
         }
         if (!response.ok) {
           throw new Error("Failed to fetch user");
@@ -61,12 +61,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return userData;
       } catch (error) {
         console.error("Auth fetch error:", error);
-        return undefined;
+        return null;
       }
     },
     retry: false,
-    staleTime: 30 * 1000, // 30 seconds
-    gcTime: 5 * 60 * 1000, // 5 minutes
+    refetchOnWindowFocus: false,
+    staleTime: Infinity,
+    gcTime: 5 * 60 * 1000
   });
 
   const loginMutation = useMutation({
@@ -160,6 +161,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
     },
   });
+
+  console.log("useAuth - user:", user, "isLoading:", isLoading, "error:", error);
 
   return (
     <AuthContext.Provider
