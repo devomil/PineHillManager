@@ -44,7 +44,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     queryKey: ["/api/user"],
     queryFn: async () => {
       try {
-        const response = await fetch("/api/user");
+        const response = await fetch("/api/user", {
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
         if (response.status === 401) {
           return null;
         }
@@ -53,9 +58,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         return await response.json();
       } catch (error) {
-        throw error;
+        console.error("Auth fetch error:", error);
+        return null;
       }
     },
+    retry: false,
+    staleTime: 5 * 60 * 1000, // 5 minutes
   });
 
   const loginMutation = useMutation({
@@ -65,6 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         headers: {
           "Content-Type": "application/json",
         },
+        credentials: 'include',
         body: JSON.stringify(credentials),
       });
       if (!res.ok) {
@@ -75,6 +84,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     onSuccess: (user: SelectUser) => {
       queryClient.setQueryData(["/api/user"], user);
+      queryClient.invalidateQueries({ queryKey: ["/api/user"] });
       toast({
         title: "Welcome back!",
         description: `Logged in as ${user.firstName} ${user.lastName}`,
@@ -96,6 +106,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         headers: {
           "Content-Type": "application/json",
         },
+        credentials: 'include',
         body: JSON.stringify(credentials),
       });
       if (!res.ok) {
@@ -124,6 +135,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     mutationFn: async () => {
       const res = await fetch("/api/logout", {
         method: "POST",
+        credentials: 'include',
       });
       if (!res.ok) {
         throw new Error("Logout failed");
