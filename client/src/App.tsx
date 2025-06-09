@@ -1,7 +1,7 @@
 import { Router, Route, Switch } from "wouter";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/hooks/use-auth";
 import AppLayout from "@/components/layout/app-layout";
-import Home from "@/pages/Home";
+import AuthPage from "@/pages/auth-page";
 import Dashboard from "@/pages/dashboard";
 import Documents from "@/pages/documents";
 import LogosPage from "@/pages/admin/logos";
