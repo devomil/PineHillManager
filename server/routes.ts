@@ -1046,6 +1046,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 });
                 
                 if (response.ok) {
+                  // Update user presence status
+                  await fetch('/api/user-presence/update', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status: 'clocked_in', locationId: parseInt(locationId) })
+                  });
                   location.reload();
                 } else {
                   const error = await response.text();
@@ -3862,6 +3868,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error covering shift request:", error);
       res.redirect('/shift-coverage?error=cover_failed');
+    }
+  });
+
+  // User presence API endpoints
+  app.post('/api/user-presence/update', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { status, locationId, statusMessage } = req.body;
+      
+      await storage.updateUserPresence(userId, status, locationId, statusMessage);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error updating user presence:", error);
+      res.status(500).json({ message: "Failed to update presence" });
+    }
+  });
+
+  app.get('/api/user-presence/:userId', isAuthenticated, async (req: any, res) => {
+    try {
+      const { userId } = req.params;
+      const presence = await storage.getUserPresence(userId);
+      res.json(presence);
+    } catch (error) {
+      console.error("Error fetching user presence:", error);
+      res.status(500).json({ message: "Failed to fetch presence" });
+    }
+  });
+
+  // Team chat messaging endpoints
+  app.post('/api/chat/send-message', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { channelId, content } = req.body;
+      
+      const message = await storage.sendChannelMessage(userId, channelId, content);
+      res.json(message);
+    } catch (error) {
+      console.error("Error sending message:", error);
+      res.status(500).json({ message: "Failed to send message" });
+    }
+  });
+
+  app.post('/api/chat/mark-read', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { channelId } = req.body;
+      
+      await storage.markMessagesAsRead(userId, channelId);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error marking messages as read:", error);
+      res.status(500).json({ message: "Failed to mark messages as read" });
     }
   });
 

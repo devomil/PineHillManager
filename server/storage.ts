@@ -58,7 +58,7 @@ import {
   type EmployeeInvitation,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, desc, asc, gte, lte, or } from "drizzle-orm";
+import { eq, and, desc, asc, gte, lte, or, sql } from "drizzle-orm";
 
 export interface IStorage {
   // User operations - mandatory for Replit Auth
@@ -1452,6 +1452,97 @@ export class DatabaseStorage implements IStorage {
     await db
       .delete(employeeInvitations)
       .where(eq(employeeInvitations.id, id));
+  }
+
+  // Enhanced chat and messaging functionality
+  async getUnreadMessageCount(userId: string): Promise<number> {
+    const result = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(messages)
+      .where(and(
+        eq(messages.recipientId, userId),
+        eq(messages.isRead, false)
+      ));
+    
+    return result[0]?.count || 0;
+  }
+
+  async getChannelMessages(channelId: string, limit: number = 50): Promise<any[]> {
+    const channelMessages = await db
+      .select({
+        id: messages.id,
+        content: messages.content,
+        sentAt: messages.sentAt,
+        senderId: messages.senderId,
+        senderName: sql<string>`COALESCE(${users.firstName} || ' ' || ${users.lastName}, 'Unknown User')`
+      })
+      .from(messages)
+      .leftJoin(users, eq(messages.senderId, users.id))
+      .where(eq(messages.channelId, channelId))
+      .orderBy(desc(messages.sentAt))
+      .limit(limit);
+    
+    return channelMessages;
+  }
+
+  async sendChannelMessage(senderId: string, channelId: string, content: string): Promise<any> {
+    const [message] = await db
+      .insert(messages)
+      .values({
+        senderId,
+        content,
+        channelId,
+        messageType: 'channel',
+        sentAt: new Date()
+      })
+      .returning();
+    
+    return message;
+  }
+
+  async markMessagesAsRead(userId: string, channelId?: string): Promise<void> {
+    const whereConditions = [eq(messages.recipientId, userId)];
+    
+    if (channelId) {
+      whereConditions.push(eq(messages.channelId, channelId));
+    }
+    
+    await db
+      .update(messages)
+      .set({ isRead: true, readAt: new Date() })
+      .where(and(...whereConditions));
+  }
+
+  async getAllUsersWithPresence(): Promise<any[]> {
+    const usersWithPresence = await db
+      .select({
+        id: users.id,
+        firstName: users.firstName,
+        lastName: users.lastName,
+        email: users.email,
+        role: users.role,
+        status: userPresence.status,
+        isWorking: userPresence.isWorking,
+        lastSeen: userPresence.lastSeen,
+        currentLocation: userPresence.currentLocation
+      })
+      .from(users)
+      .leftJoin(userPresence, eq(users.id, userPresence.userId))
+      .where(eq(users.isActive, true));
+    
+    return usersWithPresence;
+  }
+
+  async updateUserPresenceOnClockIn(userId: string, locationId: number): Promise<void> {
+    await this.updateUserPresence(userId, 'clocked_in', locationId);
+  }
+
+  async updateUserPresenceOnClockOut(userId: string): Promise<void> {
+    await this.updateUserPresence(userId, 'offline');
+  }
+
+  async updateUserPresenceOnBreak(userId: string, locationId: number): Promise<void> {
+    await this.updateUserPresence(userId, 'on_break', locationId);
   }
 }
 
