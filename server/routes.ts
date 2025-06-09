@@ -410,7 +410,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               <a href="/schedule">Schedule</a>
               <a href="/time-off">Time Off</a>
               <a href="/announcements-view">Announcements</a>
-              ${isAdminOrManager ? '<a href="/admin">Admin Portal</a>' : ''}
+              <a href="/team-chat">Team Chat</a>
               <a href="/api/logout">Sign Out</a>
             </div>
           </div>
@@ -1360,6 +1360,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 <a href="/admin/employees">Employee Management</a>
                 <a href="/admin/schedule">Schedule Management</a>
                 <a href="/admin/announcements">Announcements</a>
+                <a href="/admin/support">System Support</a>
                 <a href="/dashboard">Employee View</a>
                 <a href="/api/logout">Sign Out</a>
               </div>
