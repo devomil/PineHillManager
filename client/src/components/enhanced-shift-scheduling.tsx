@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/hooks/use-auth";
 import { Calendar, Clock, MapPin, User, Plus, Edit, ChevronLeft, ChevronRight, Copy, Users, CalendarDays } from "lucide-react";
 import { format, addDays, startOfWeek, endOfWeek, isWithinInterval, parseISO, addWeeks, subWeeks, getDay } from "date-fns";
 import type { WorkSchedule, User as UserType, Location } from "@shared/schema";

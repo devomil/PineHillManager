@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/hooks/use-auth";
 import { FileText, Upload, Download, Share, Eye, Trash2, Users, Filter, Search, FolderOpen, Shield, Clock, FileImage, FileVideo, FileArchive, Paperclip } from "lucide-react";
 import { format } from "date-fns";
 import type { Document, User } from "@shared/schema";

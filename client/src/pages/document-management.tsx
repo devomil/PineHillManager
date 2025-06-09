@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/hooks/use-auth";
 import { FileText, Upload, Download, Eye, Share2, Trash2, Lock, Unlock, Plus, Search, Filter } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import type { Document as DocumentType } from "@shared/schema";

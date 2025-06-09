@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import StatsCards from "@/components/dashboard/stats-cards";
 import TimeOffRequestsCard from "@/components/dashboard/time-off-requests-card";
