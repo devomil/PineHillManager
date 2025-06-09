@@ -2098,6 +2098,66 @@ export async function registerRoutes(app: Express): Promise<Server> {
               <p style="color: #64748b;">Create and manage company announcements for all three locations.</p>
             </div>
 
+            <!-- Success/Error Notifications -->
+            <script>
+              const urlParams = new URLSearchParams(window.location.search);
+              const success = urlParams.get('success');
+              const error = urlParams.get('error');
+              
+              if (success) {
+                const messages = {
+                  'published': 'Announcement published successfully and is now visible to all employees.',
+                  'saved_as_draft': 'Announcement saved as draft. You can publish it later.',
+                  'updated_and_published': 'Announcement updated and published successfully.',
+                  'updated_as_draft': 'Announcement updated and saved as draft.',
+                  'deleted': 'Announcement has been permanently removed.'
+                };
+                
+                if (messages[success]) {
+                  showNotification(messages[success], 'success');
+                }
+              }
+              
+              if (error) {
+                const messages = {
+                  'access_denied': 'You do not have permission to perform this action.',
+                  'creation_failed': 'Failed to create announcement. Please try again.',
+                  'update_failed': 'Failed to update announcement. Please try again.',
+                  'delete_failed': 'Failed to delete announcement. Please try again.',
+                  'publish_failed': 'Failed to publish announcement. Please try again.'
+                };
+                
+                if (messages[error]) {
+                  showNotification(messages[error], 'error');
+                }
+              }
+              
+              function showNotification(message, type) {
+                const notification = document.createElement('div');
+                notification.style.cssText = \`
+                  position: fixed;
+                  top: 20px;
+                  right: 20px;
+                  padding: 1rem 1.5rem;
+                  border-radius: 8px;
+                  color: white;
+                  font-weight: 500;
+                  z-index: 1000;
+                  max-width: 400px;
+                  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                  background: \${type === 'success' ? '#059669' : '#dc2626'};
+                \`;
+                notification.textContent = message;
+                document.body.appendChild(notification);
+                
+                setTimeout(() => {
+                  notification.remove();
+                  // Clean URL
+                  window.history.replaceState({}, '', window.location.pathname);
+                }, 4000);
+              }
+            </script>
+
             <div class="card">
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
                 <h2>Create New Announcement</h2>
@@ -2168,7 +2228,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                     <div class="announcement-actions">
                       <a href="/admin/announcements/${announcement.id}/edit" style="color: #607e66; text-decoration: none; font-size: 0.875rem;">Edit</a>
                       ${!announcement.isPublished ? `<a href="/admin/announcements/${announcement.id}/publish" style="color: #2563eb; text-decoration: none; font-size: 0.875rem;">Publish</a>` : ''}
-                      <a href="/admin/announcements/${announcement.id}/delete" style="color: #dc2626; text-decoration: none; font-size: 0.875rem;" onclick="return confirm('Are you sure you want to delete this announcement?')">Delete</a>
+                      <a href="/admin/announcements/${announcement.id}/delete" style="color: #dc2626; text-decoration: none; font-size: 0.875rem;" onclick="return confirm('This will permanently remove the announcement. Are you sure you want to continue?')">Delete</a>
                     </div>
                   </div>
                 `).join('')
