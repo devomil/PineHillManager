@@ -21,7 +21,6 @@ export default function AppLayout({ children }: AppLayoutProps) {
   
   // Extract current page from location for contextual help
   const currentPage = location.split('/')[1] || 'dashboard';
-  const { isFirstVisit } = useContextualHelp(currentPage, user?.role);
 
   const handleTimeOffRequest = () => {
     toast({
@@ -127,7 +126,6 @@ export default function AppLayout({ children }: AppLayoutProps) {
       <ContextualHelp 
         currentPage={currentPage}
         userRole={user?.role}
-        isFirstVisit={isFirstVisit}
       />
     </div>
   );

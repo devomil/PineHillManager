@@ -163,10 +163,9 @@ const contextualTips: HelpTip[] = [
 interface ContextualHelpProps {
   currentPage?: string;
   userRole?: string;
-  isFirstVisit?: boolean;
 }
 
-export function ContextualHelp({ currentPage = "dashboard", userRole = "employee", isFirstVisit = false }: ContextualHelpProps) {
+export function ContextualHelp({ currentPage = "dashboard", userRole = "employee" }: ContextualHelpProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [selectedCharacter, setSelectedCharacter] = useState<HelpCharacter | null>(null);
   const [currentTip, setCurrentTip] = useState<HelpTip | null>(null);
@@ -174,7 +173,7 @@ export function ContextualHelp({ currentPage = "dashboard", userRole = "employee
 
   // Show welcome tip for first-time visitors
   useEffect(() => {
-    if (isFirstVisit && !hasSeenWelcome) {
+    if (currentPage === "dashboard" && !hasSeenWelcome) {
       const welcomeTip = contextualTips.find(tip => tip.id === "welcome_tip");
       if (welcomeTip) {
         setCurrentTip(welcomeTip);
@@ -183,7 +182,7 @@ export function ContextualHelp({ currentPage = "dashboard", userRole = "employee
         setHasSeenWelcome(true);
       }
     }
-  }, [isFirstVisit, hasSeenWelcome]);
+  }, [currentPage, hasSeenWelcome]);
 
   // Get relevant tips based on current context
   const getRelevantTips = () => {

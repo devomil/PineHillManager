@@ -51,19 +51,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           },
         });
         if (response.status === 401) {
-          return null;
+          return undefined;
         }
         if (!response.ok) {
           throw new Error("Failed to fetch user");
         }
-        return await response.json();
+        const userData = await response.json();
+        console.log("User data fetched:", userData);
+        return userData;
       } catch (error) {
         console.error("Auth fetch error:", error);
-        return null;
+        return undefined;
       }
     },
     retry: false,
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 30 * 1000, // 30 seconds
+    gcTime: 5 * 60 * 1000, // 5 minutes
   });
 
   const loginMutation = useMutation({
