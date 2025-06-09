@@ -1,11 +1,13 @@
 import { useState } from "react";
+import { useLocation } from "wouter";
 import Sidebar from "./sidebar";
 import { Button } from "@/components/ui/button";
 import { Bell, Plus } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/hooks/use-auth";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { ContextualHelp, useContextualHelp } from "@/components/ui/contextual-help";
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -13,8 +15,13 @@ interface AppLayoutProps {
 
 export default function AppLayout({ children }: AppLayoutProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [location] = useLocation();
   const { user } = useAuth();
   const { toast } = useToast();
+  
+  // Extract current page from location for contextual help
+  const currentPage = location.split('/')[1] || 'dashboard';
+  const { isFirstVisit } = useContextualHelp(currentPage, user?.role);
 
   const handleTimeOffRequest = () => {
     toast({
