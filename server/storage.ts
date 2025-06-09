@@ -195,6 +195,15 @@ export interface IStorage {
   acceptInvitation(token: string, userId: string): Promise<EmployeeInvitation>;
   expireOldInvitations(): Promise<void>;
   deleteInvitation(id: number): Promise<void>;
+
+  // System analytics methods for technical support
+  getAllTimeEntries(): Promise<any[]>;
+  getAllWorkSchedules(): Promise<WorkSchedule[]>;
+  getAllShiftCoverageRequests(): Promise<ShiftCoverageRequest[]>;
+  getAllTimeOffRequests(): Promise<TimeOffRequest[]>;
+  getUnreadMessageCount(userId: string): Promise<number>;
+  markMessagesAsRead(userId: string, channelId: string): Promise<void>;
+  updateUserPresenceOnClockIn(userId: string, locationId: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1543,6 +1552,47 @@ export class DatabaseStorage implements IStorage {
 
   async updateUserPresenceOnBreak(userId: string, locationId: number): Promise<void> {
     await this.updateUserPresence(userId, 'on_break', locationId);
+  }
+
+  // System analytics methods for technical support
+  async getAllTimeEntries(): Promise<any[]> {
+    return await db.select().from(timeClockEntries);
+  }
+
+  async getAllWorkSchedules(): Promise<WorkSchedule[]> {
+    return await db.select().from(workSchedules);
+  }
+
+  async getAllShiftCoverageRequests(): Promise<ShiftCoverageRequest[]> {
+    return await db.select().from(shiftCoverageRequests);
+  }
+
+  async getAllTimeOffRequests(): Promise<TimeOffRequest[]> {
+    return await db.select().from(timeOffRequests);
+  }
+
+  async getUnreadMessageCount(userId: string): Promise<number> {
+    const result = await db.select({ count: sql`count(*)` })
+      .from(messages)
+      .where(and(
+        eq(messages.recipientId, userId),
+        eq(messages.isRead, false)
+      ));
+    return Number(result[0]?.count || 0);
+  }
+
+  async markMessagesAsRead(userId: string, channelId: string): Promise<void> {
+    await db.update(messages)
+      .set({ isRead: true, readAt: new Date() })
+      .where(and(
+        eq(messages.recipientId, userId),
+        eq(messages.channelId, channelId),
+        eq(messages.isRead, false)
+      ));
+  }
+
+  async updateUserPresenceOnClockIn(userId: string, locationId: number): Promise<void> {
+    await this.updateUserPresence(userId, 'working', locationId);
   }
 }
 
