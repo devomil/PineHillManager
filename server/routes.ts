@@ -1353,6 +1353,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 <a href="/admin" class="active">Admin Dashboard</a>
                 <a href="/admin/employees">Employee Management</a>
                 <a href="/admin/schedule">Schedule Management</a>
+                <a href="/admin/announcements">Announcements</a>
                 <a href="/dashboard">Employee View</a>
                 <a href="/api/logout">Sign Out</a>
               </div>
@@ -3750,6 +3751,221 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching published announcements:", error);
       res.status(500).json({ message: "Failed to fetch announcements" });
+    }
+  });
+
+  // Delete announcement endpoint
+  app.delete('/api/announcements/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const user = await storage.getUser(req.user.claims.sub);
+      if (!user || (user.role !== 'admin' && user.role !== 'manager')) {
+        return res.status(403).json({ message: "Admin or manager access required" });
+      }
+
+      const announcementId = parseInt(req.params.id);
+      await storage.deleteAnnouncement(announcementId);
+      
+      res.json({ success: true, message: "Announcement deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting announcement:", error);
+      res.status(500).json({ message: "Failed to delete announcement" });
+    }
+  });
+
+  // Edit announcement routes
+  app.get('/admin/announcements/:id/edit', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      if (!user || (user.role !== 'admin' && user.role !== 'manager')) {
+        return res.status(403).send("Access denied");
+      }
+
+      const announcementId = parseInt(req.params.id);
+      const announcement = await storage.getAnnouncementById(announcementId);
+      
+      if (!announcement) {
+        return res.status(404).send("Announcement not found");
+      }
+
+      res.send(`
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+          <title>Pine Hill Farm - Edit Announcement</title>
+          <style>
+            @import url('https://fonts.googleapis.com/css2?family=Great+Vibes&display=swap');
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { 
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+              background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+              min-height: 100vh; color: #1e293b;
+            }
+            .pine-hill-title { font-family: "Great Vibes", cursive !important; font-size: 1.3em; }
+            .header { background: white; padding: 1rem 2rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+            .header-content { max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
+            .nav { display: flex; gap: 1rem; }
+            .nav a { color: #64748b; text-decoration: none; padding: 0.5rem 1rem; border-radius: 6px; transition: background 0.2s; }
+            .nav a:hover { background: #f1f5f9; }
+            .nav a.active { background: #607e66; color: white; }
+            .container { max-width: 800px; margin: 0 auto; padding: 2rem; }
+            .card { background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+            .form-group { margin-bottom: 1.5rem; }
+            .form-label { display: block; margin-bottom: 0.5rem; font-weight: 500; color: #374151; }
+            .form-input, .form-textarea, .form-select { width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 6px; }
+            .form-textarea { min-height: 120px; resize: vertical; }
+            .btn { background: #607e66; color: white; padding: 0.75rem 1.5rem; border: none; border-radius: 6px; text-decoration: none; display: inline-block; font-weight: 500; transition: background 0.2s; margin-right: 1rem; cursor: pointer; }
+            .btn:hover { background: #4f6b56; }
+            .btn-secondary { background: #e2e8f0; color: #475569; }
+            .btn-secondary:hover { background: #cbd5e1; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div class="header-content">
+              <div class="logo">
+                <div>
+                  <div style="font-weight: 600;" class="pine-hill-title">Pine Hill Farm</div>
+                  <div style="font-size: 0.875rem; color: #64748b;">Edit Announcement</div>
+                </div>
+              </div>
+              <div class="nav">
+                <a href="/admin">Admin Dashboard</a>
+                <a href="/admin/employees">Employee Management</a>
+                <a href="/admin/schedule">Schedule Management</a>
+                <a href="/admin/announcements" class="active">Announcements</a>
+                <a href="/dashboard">Employee View</a>
+                <a href="/api/logout">Sign Out</a>
+              </div>
+            </div>
+          </div>
+
+          <div class="container">
+            <div class="card">
+              <h2 style="margin-bottom: 2rem;">Edit Announcement</h2>
+              <form action="/api/announcements/${announcement.id}/update" method="POST">
+                <div class="form-group">
+                  <label class="form-label">Announcement Title *</label>
+                  <input type="text" name="title" class="form-input" required value="${announcement.title}">
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label">Content *</label>
+                  <textarea name="content" class="form-textarea" required>${announcement.content}</textarea>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;">
+                  <div class="form-group">
+                    <label class="form-label">Priority Level</label>
+                    <select name="priority" class="form-select">
+                      <option value="low" ${announcement.priority === 'low' ? 'selected' : ''}>Low</option>
+                      <option value="normal" ${announcement.priority === 'normal' ? 'selected' : ''}>Normal</option>
+                      <option value="high" ${announcement.priority === 'high' ? 'selected' : ''}>High</option>
+                      <option value="urgent" ${announcement.priority === 'urgent' ? 'selected' : ''}>Urgent</option>
+                    </select>
+                  </div>
+
+                  <div class="form-group">
+                    <label class="form-label">Target Audience</label>
+                    <select name="targetAudience" class="form-select">
+                      <option value="all" ${announcement.targetAudience === 'all' ? 'selected' : ''}>All Employees</option>
+                      <option value="employees" ${announcement.targetAudience === 'employees' ? 'selected' : ''}>Employees Only</option>
+                      <option value="managers" ${announcement.targetAudience === 'managers' ? 'selected' : ''}>Managers Only</option>
+                      <option value="admins" ${announcement.targetAudience === 'admins' ? 'selected' : ''}>Admins Only</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label">Expires At (Optional)</label>
+                  <input type="datetime-local" name="expiresAt" class="form-input" value="${announcement.expiresAt ? new Date(announcement.expiresAt).toISOString().slice(0, -1) : ''}">
+                </div>
+
+                <div style="display: flex; gap: 1rem; margin-top: 2rem;">
+                  <button type="submit" name="action" value="publish" class="btn">Update & Publish</button>
+                  <button type="submit" name="action" value="draft" class="btn-secondary btn">Save as Draft</button>
+                  <a href="/admin/announcements" class="btn-secondary btn">Cancel</a>
+                </div>
+              </form>
+            </div>
+          </div>
+        </body>
+        </html>
+      `);
+    } catch (error) {
+      console.error("Error loading announcement for editing:", error);
+      res.status(500).send("Error loading announcement");
+    }
+  });
+
+  // Update announcement endpoint
+  app.post('/api/announcements/:id/update', isAuthenticated, async (req: any, res) => {
+    try {
+      const user = await storage.getUser(req.user.claims.sub);
+      if (!user || (user.role !== 'admin' && user.role !== 'manager')) {
+        return res.status(403).redirect('/admin/announcements?error=access_denied');
+      }
+
+      const announcementId = parseInt(req.params.id);
+      const { title, content, priority, targetAudience, expiresAt, action } = req.body;
+
+      const updateData = {
+        title,
+        content,
+        priority: priority || 'normal',
+        targetAudience: targetAudience || 'all',
+        expiresAt: expiresAt ? new Date(expiresAt) : null,
+        isPublished: action === 'publish',
+        publishedAt: action === 'publish' ? new Date() : null,
+      };
+
+      await storage.updateAnnouncement(announcementId, updateData);
+      
+      const successMessage = action === 'publish' ? 'updated_and_published' : 'updated_as_draft';
+      res.redirect(`/admin/announcements?success=${successMessage}`);
+    } catch (error) {
+      console.error("Error updating announcement:", error);
+      res.redirect('/admin/announcements?error=update_failed');
+    }
+  });
+
+  // Delete announcement route (for HTML links)
+  app.get('/admin/announcements/:id/delete', isAuthenticated, async (req: any, res) => {
+    try {
+      const user = await storage.getUser(req.user.claims.sub);
+      if (!user || (user.role !== 'admin' && user.role !== 'manager')) {
+        return res.status(403).send("Access denied");
+      }
+
+      const announcementId = parseInt(req.params.id);
+      await storage.deleteAnnouncement(announcementId);
+      
+      res.redirect('/admin/announcements?success=deleted');
+    } catch (error) {
+      console.error("Error deleting announcement:", error);
+      res.redirect('/admin/announcements?error=delete_failed');
+    }
+  });
+
+  // Publish announcement route
+  app.get('/admin/announcements/:id/publish', isAuthenticated, async (req: any, res) => {
+    try {
+      const user = await storage.getUser(req.user.claims.sub);
+      if (!user || (user.role !== 'admin' && user.role !== 'manager')) {
+        return res.status(403).send("Access denied");
+      }
+
+      const announcementId = parseInt(req.params.id);
+      await storage.updateAnnouncement(announcementId, {
+        isPublished: true,
+        publishedAt: new Date(),
+      });
+      
+      res.redirect('/admin/announcements?success=published');
+    } catch (error) {
+      console.error("Error publishing announcement:", error);
+      res.redirect('/admin/announcements?error=publish_failed');
     }
   });
 
