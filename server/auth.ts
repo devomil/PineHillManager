@@ -65,25 +65,35 @@ export function setupAuth(app: Express) {
       },
       async (email, password, done) => {
         try {
+          console.log("Authenticating user with email:", email);
           const user = await storage.getUserByEmail(email);
+          console.log("User found:", user ? "Yes" : "No");
+          
           if (!user || !user.password) {
+            console.log("User not found or no password");
             return done(null, false, { message: "Invalid email or password" });
           }
 
+          console.log("Comparing passwords...");
           const isValidPassword = await comparePasswords(password, user.password);
+          console.log("Password valid:", isValidPassword);
+          
           if (!isValidPassword) {
             return done(null, false, { message: "Invalid email or password" });
           }
 
           if (!user.isActive) {
+            console.log("User account is inactive");
             return done(null, false, { message: "Account is deactivated" });
           }
 
           // Update last login
           await storage.updateUserProfile(user.id, { lastLogin: new Date() });
 
+          console.log("Authentication successful for user:", user.email);
           return done(null, user);
         } catch (error) {
+          console.error("Authentication error in strategy:", error);
           return done(error);
         }
       }
@@ -147,18 +157,24 @@ export function setupAuth(app: Express) {
 
   // Login endpoint
   app.post("/api/login", (req, res, next) => {
+    console.log("Login attempt for email:", req.body.email);
+    
     passport.authenticate("local", (err: any, user: any, info: any) => {
       if (err) {
+        console.error("Authentication error:", err);
         return res.status(500).json({ error: "Authentication error" });
       }
       if (!user) {
+        console.log("Login failed:", info?.message);
         return res.status(401).json({ error: info?.message || "Invalid credentials" });
       }
 
       req.login(user, (loginErr) => {
         if (loginErr) {
+          console.error("Session login error:", loginErr);
           return res.status(500).json({ error: "Login failed" });
         }
+        console.log("Login successful for user:", user.email);
         res.json({
           id: user.id,
           email: user.email,
