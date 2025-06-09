@@ -69,31 +69,94 @@ const contextualTips: HelpTip[] = [
     priority: "high"
   },
   {
+    id: "dashboard_overview",
+    characterId: "sage",
+    title: "Dashboard Overview",
+    content: "Your dashboard shows upcoming shifts, recent announcements, and quick actions. Use the sidebar to navigate to different sections.",
+    context: ["dashboard"],
+    icon: <Settings className="w-4 h-4" />,
+    priority: "medium"
+  },
+  {
     id: "time_tracking_tip",
     characterId: "alex",
     title: "Track Your Time Efficiently",
-    content: "Need help with time tracking? I can show you how to clock in/out, request time off, and manage your schedule like a pro!",
-    context: ["time_management", "calendar"],
+    content: "Click 'Clock In/Out' to start tracking your shift. You can also view your timesheet history and submit corrections if needed.",
+    context: ["time-management", "calendar"],
     icon: <Clock className="w-4 h-4" />,
     priority: "medium"
+  },
+  {
+    id: "time_off_requests",
+    characterId: "alex",
+    title: "Request Time Off",
+    content: "Need time off? Submit requests here and track their approval status. Plan ahead for better approval chances!",
+    context: ["time-management"],
+    icon: <Calendar className="w-4 h-4" />,
+    priority: "high"
   },
   {
     id: "messaging_tip",
     characterId: "maya",
     title: "Stay Connected",
-    content: "Want to chat with your team? I'll help you navigate our messaging system and keep up with important announcements!",
-    context: ["communication", "messages"],
+    content: "Use our messaging system to chat with colleagues, create group discussions, and receive important notifications.",
+    context: ["communication"],
     icon: <MessageCircle className="w-4 h-4" />,
     priority: "medium"
   },
   {
-    id: "management_tip",
+    id: "announcements_tip",
+    characterId: "maya",
+    title: "Important Announcements",
+    content: "Check here for company updates, policy changes, and important notices. New announcements are highlighted!",
+    context: ["announcements"],
+    icon: <MessageCircle className="w-4 h-4" />,
+    priority: "high"
+  },
+  {
+    id: "schedule_management",
+    characterId: "alex",
+    title: "Manage Your Schedule",
+    content: "View your upcoming shifts, request shift swaps, and check coverage requests from teammates.",
+    context: ["shift-scheduling", "calendar"],
+    icon: <Calendar className="w-4 h-4" />,
+    priority: "high"
+  },
+  {
+    id: "employee_directory",
+    characterId: "maya",
+    title: "Team Directory",
+    content: "Find contact information for your colleagues, see who's working today, and check department assignments.",
+    context: ["employees"],
+    icon: <Users className="w-4 h-4" />,
+    priority: "medium"
+  },
+  {
+    id: "management_oversight",
     characterId: "coach",
-    title: "Manager Tools",
-    content: "As a manager, you have access to powerful tools for overseeing your team, approving requests, and generating reports.",
-    context: ["management", "admin"],
+    title: "Manager Dashboard",
+    content: "As a manager, you can approve time-off requests, oversee team schedules, and access performance reports.",
+    context: ["dashboard", "management"],
     icon: <Users className="w-4 h-4" />,
     priority: "high"
+  },
+  {
+    id: "reports_access",
+    characterId: "coach",
+    title: "Generate Reports",
+    content: "Access detailed reports on attendance, productivity, and team metrics. Export data for further analysis.",
+    context: ["reports", "management"],
+    icon: <Settings className="w-4 h-4" />,
+    priority: "medium"
+  },
+  {
+    id: "notification_center",
+    characterId: "sage",
+    title: "Stay Informed",
+    content: "Check your notifications for approval updates, schedule changes, and messages from colleagues.",
+    context: ["notifications"],
+    icon: <Lightbulb className="w-4 h-4" />,
+    priority: "medium"
   }
 ];
 

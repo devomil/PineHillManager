@@ -96,7 +96,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
               <div className="flex items-center space-x-3">
                 <Avatar className="w-8 h-8">
                   <AvatarImage 
-                    src={user?.profileImageUrl} 
+                    src={user?.profileImageUrl || undefined} 
                     alt={user?.firstName || 'User'}
                     className="object-cover"
                   />
@@ -122,6 +122,13 @@ export default function AppLayout({ children }: AppLayoutProps) {
           {children}
         </main>
       </div>
+
+      {/* Contextual Help System */}
+      <ContextualHelp 
+        currentPage={currentPage}
+        userRole={user?.role}
+        isFirstVisit={isFirstVisit}
+      />
     </div>
   );
 }
