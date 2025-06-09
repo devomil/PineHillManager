@@ -26,11 +26,12 @@ export const sessions = pgTable(
   (table) => [index("IDX_session_expire").on(table.expire)],
 );
 
-// User storage table - mandatory for Replit Auth
+// User storage table with email/password authentication
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().notNull(),
   employeeId: varchar("employee_id").unique(), // Custom employee ID for HR management
-  email: varchar("email").unique(),
+  email: varchar("email").unique().notNull(),
+  password: varchar("password"), // Hashed password for traditional auth
   firstName: varchar("first_name"),
   lastName: varchar("last_name"),
   profileImageUrl: varchar("profile_image_url"),
@@ -53,7 +54,11 @@ export const users = pgTable("users", {
   lastLogin: timestamp("last_login"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => ({
+  emailIdx: index("idx_users_email").on(table.email),
+  employeeIdIdx: index("idx_users_employee_id").on(table.employeeId),
+  roleIdx: index("idx_users_role").on(table.role),
+}));
 
 // Time clock entries for punch in/out system
 export const timeClockEntries = pgTable("time_clock_entries", {
@@ -336,6 +341,18 @@ export const employeeInvitations = pgTable("employee_invitations", {
   status: varchar("status").notNull().default("pending"), // pending, accepted, expired
   notes: text("notes"),
 });
+
+// Password reset tokens for traditional authentication
+export const passwordResetTokens = pgTable("password_reset_tokens", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  token: varchar("token").notNull().unique(),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  tokenIdx: index("idx_password_reset_token").on(table.token),
+  userIdx: index("idx_password_reset_user").on(table.userId),
+}));
 
 // Define relations
 export const usersRelations = relations(users, ({ many }) => ({

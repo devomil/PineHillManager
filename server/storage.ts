@@ -61,12 +61,19 @@ import { db } from "./db";
 import { eq, and, desc, asc, gte, lte, or, sql } from "drizzle-orm";
 
 export interface IStorage {
-  // User operations - mandatory for Replit Auth
+  // User operations - supports both Replit Auth and traditional email/password
   getUser(id: string): Promise<User | undefined>;
+  getUserByEmail(email: string): Promise<User | undefined>;
   upsertUser(user: UpsertUser): Promise<User>;
+  createUser(userData: any): Promise<User>;
   getAllUsers(): Promise<User[]>;
   updateUserRole(id: string, role: string): Promise<User>;
   updateUserProfile(id: string, profileData: any): Promise<User>;
+  
+  // Password reset functionality
+  createPasswordResetToken(userId: string, token: string): Promise<void>;
+  validatePasswordResetToken(token: string): Promise<string | null>;
+  deletePasswordResetToken(token: string): Promise<void>;
   
   // Admin employee management
   createEmployee(employeeData: any): Promise<User>;
@@ -226,6 +233,52 @@ export class DatabaseStorage implements IStorage {
       })
       .returning();
     return user;
+  }
+
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.email, email));
+    return user;
+  }
+
+  async createUser(userData: any): Promise<User> {
+    const userId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const [user] = await db
+      .insert(users)
+      .values({
+        id: userId,
+        ...userData,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .returning();
+    return user;
+  }
+
+  // Password reset functionality
+  async createPasswordResetToken(userId: string, token: string): Promise<void> {
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+    await db.insert(passwordResetTokens).values({
+      userId,
+      token,
+      expiresAt,
+    });
+  }
+
+  async validatePasswordResetToken(token: string): Promise<string | null> {
+    const [resetToken] = await db
+      .select()
+      .from(passwordResetTokens)
+      .where(eq(passwordResetTokens.token, token));
+
+    if (!resetToken || resetToken.expiresAt < new Date()) {
+      return null;
+    }
+
+    return resetToken.userId;
+  }
+
+  async deletePasswordResetToken(token: string): Promise<void> {
+    await db.delete(passwordResetTokens).where(eq(passwordResetTokens.token, token));
   }
 
   async getAllUsers(): Promise<User[]> {
