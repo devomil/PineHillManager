@@ -511,8 +511,25 @@ export class DatabaseStorage implements IStorage {
     return coverageRequest;
   }
 
-  async getShiftCoverageRequests(status?: string): Promise<ShiftCoverageRequest[]> {
-    const baseQuery = db.select().from(shiftCoverageRequests);
+  async getShiftCoverageRequests(status?: string): Promise<any[]> {
+    const baseQuery = db
+      .select({
+        id: shiftCoverageRequests.id,
+        status: shiftCoverageRequests.status,
+        reason: shiftCoverageRequests.reason,
+        requestedAt: shiftCoverageRequests.requestedAt,
+        requesterId: shiftCoverageRequests.requesterId,
+        scheduleId: shiftCoverageRequests.scheduleId,
+        coveredBy: shiftCoverageRequests.coveredBy,
+        coveredAt: shiftCoverageRequests.coveredAt,
+        // Include schedule data
+        shiftDate: workSchedules.date,
+        startTime: workSchedules.startTime,
+        endTime: workSchedules.endTime,
+        locationId: workSchedules.locationId,
+      })
+      .from(shiftCoverageRequests)
+      .leftJoin(workSchedules, eq(shiftCoverageRequests.scheduleId, workSchedules.id));
     
     if (status) {
       return await baseQuery

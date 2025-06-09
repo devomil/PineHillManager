@@ -3331,6 +3331,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
               <p style="color: #64748b;">Request coverage for your shifts or volunteer to cover for colleagues.</p>
             </div>
 
+            <!-- Success/Error Notifications -->
+            <script>
+              const urlParams = new URLSearchParams(window.location.search);
+              const success = urlParams.get('success');
+              const error = urlParams.get('error');
+              
+              if (success) {
+                const messages = {
+                  'request_created': 'Coverage request submitted successfully. Your colleagues will be notified.',
+                  'shift_covered': 'Thank you for volunteering! The requester has been notified.'
+                };
+                
+                if (messages[success]) {
+                  showNotification(messages[success], 'success');
+                }
+              }
+              
+              if (error) {
+                const messages = {
+                  'request_failed': 'Failed to submit coverage request. Please try again.',
+                  'cover_failed': 'Failed to volunteer for shift coverage. Please try again.'
+                };
+                
+                if (messages[error]) {
+                  showNotification(messages[error], 'error');
+                }
+              }
+              
+              function showNotification(message, type) {
+                const notification = document.createElement('div');
+                notification.style.cssText = \`
+                  position: fixed;
+                  top: 20px;
+                  right: 20px;
+                  padding: 1rem 1.5rem;
+                  border-radius: 8px;
+                  color: white;
+                  font-weight: 500;
+                  z-index: 1000;
+                  max-width: 400px;
+                  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                  background: \${type === 'success' ? '#059669' : '#dc2626'};
+                \`;
+                notification.textContent = message;
+                document.body.appendChild(notification);
+                
+                setTimeout(() => {
+                  notification.remove();
+                  window.history.replaceState({}, '', window.location.pathname);
+                }, 4000);
+              }
+            </script>
+
             <div class="tabs">
               <a href="#request" class="tab active">Request Coverage</a>
               <a href="#available" class="tab">Available to Cover</a>
@@ -3339,7 +3392,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
             <div class="card">
               <h2 style="margin-bottom: 1.5rem;">Request Shift Coverage</h2>
-              <form action="/api/shift-coverage/create" method="POST">
+              <form action="/api/shift-coverage-requests" method="POST">
                 <div class="form-row">
                   <div class="form-group">
                     <label class="form-label">Shift Date</label>
@@ -3400,7 +3453,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                       </div>
                     </div>
                     ${request.status !== 'covered' && request.requesterId !== userId ? 
-                      `<a href="/api/shift-coverage/${request.id}/cover" class="btn" style="font-size: 0.875rem; padding: 0.5rem 1rem;">Volunteer to Cover</a>` : 
+                      `<a href="/api/shift-coverage-requests/${request.id}/cover" class="btn" style="font-size: 0.875rem; padding: 0.5rem 1rem;">Volunteer to Cover</a>` : 
                       ''
                     }
                   </div>
@@ -3725,16 +3778,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/shift-coverage-requests', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      const validatedData = insertShiftCoverageRequestSchema.parse({
-        ...req.body,
-        requesterId: userId,
-      });
       
-      const request = await storage.createShiftCoverageRequest(validatedData);
-      res.json(request);
+      // Handle both HTML form and API requests
+      if (req.headers['content-type']?.includes('application/x-www-form-urlencoded')) {
+        // HTML form submission - create schedule first then coverage request
+        const { shiftDate, location, startTime, endTime, reason } = req.body;
+        
+        // Create a work schedule entry
+        const scheduleData = {
+          userId,
+          locationId: parseInt(location),
+          date: shiftDate,
+          startTime,
+          endTime,
+          position: null,
+          notes: 'Coverage request shift'
+        };
+        
+        const schedule = await storage.createWorkSchedule(scheduleData);
+        
+        // Create coverage request linked to the schedule
+        const coverageData = {
+          requesterId: userId,
+          scheduleId: schedule.id,
+          reason: reason || null,
+          status: 'pending'
+        };
+        
+        const request = await storage.createShiftCoverageRequest(coverageData);
+        res.redirect('/shift-coverage?success=request_created');
+      } else {
+        // API request (from React components)
+        const validatedData = insertShiftCoverageRequestSchema.parse({
+          ...req.body,
+          requesterId: userId,
+        });
+        
+        const request = await storage.createShiftCoverageRequest(validatedData);
+        res.json(request);
+      }
     } catch (error) {
       console.error("Error creating shift coverage request:", error);
-      res.status(500).json({ message: "Failed to create shift coverage request" });
+      if (req.headers['content-type']?.includes('application/x-www-form-urlencoded')) {
+        res.redirect('/shift-coverage?error=request_failed');
+      } else {
+        res.status(500).json({ message: "Failed to create shift coverage request" });
+      }
     }
   });
 
