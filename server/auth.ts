@@ -6,6 +6,7 @@ import bcrypt from "bcrypt";
 import { storage } from "./storage";
 import { User as SelectUser } from "@shared/schema";
 import connectPg from "connect-pg-simple";
+import MemoryStore from "memorystore";
 
 declare global {
   namespace Express {
@@ -29,13 +30,32 @@ async function comparePasswords(supplied: string, stored: string) {
 
 export function getSession() {
   const sessionTtl = 7 * 24 * 60 * 60 * 1000; // 1 week
-  const pgStore = connectPg(session);
-  const sessionStore = new pgStore({
-    conString: process.env.DATABASE_URL,
-    createTableIfMissing: true,
-    ttl: sessionTtl,
-    tableName: "sessions",
-  });
+  let sessionStore;
+
+  // Try PostgreSQL session store first, fallback to memory store
+  try {
+    const pgStore = connectPg(session);
+    sessionStore = new pgStore({
+      conString: process.env.DATABASE_URL,
+      createTableIfMissing: true,
+      ttl: sessionTtl,
+      tableName: "sessions",
+      errorLog: console.error,
+    });
+    
+    sessionStore.on('error', (err) => {
+      console.error('PostgreSQL session store error:', err);
+    });
+    
+    console.log("Using PostgreSQL session store");
+  } catch (error) {
+    console.warn("PostgreSQL session store failed, using memory store:", error.message);
+    const MemStore = MemoryStore(session);
+    sessionStore = new MemStore({
+      checkPeriod: 86400000, // prune expired entries every 24h
+    });
+  }
+
   return session({
     secret: process.env.SESSION_SECRET || "pine-hill-farm-secret-key",
     store: sessionStore,
