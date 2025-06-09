@@ -3662,52 +3662,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Root route - serve static HTML directly (bypassing all React/Vite issues)
-  app.get('/', (req, res) => {
-    const user = (req.session as any)?.user;
-    
-    if (user) {
-      // User is logged in, redirect to dashboard
-      res.redirect('/dashboard');
-    } else {
-      // User not logged in, show landing page with login
-      res.send(`
-        <!DOCTYPE html>
-        <html lang="en">
-        <head>
-          <title>Pine Hill Farm Employee Portal</title>
-          <style>
-            @import url('https://fonts.googleapis.com/css2?family=Great+Vibes&display=swap');
-            * { margin: 0; padding: 0; box-sizing: border-box; }
-            body { 
-              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-              background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
-              min-height: 100vh; color: #1e293b; display: flex; align-items: center; justify-content: center;
-            }
-            .pine-hill-title { font-family: "Great Vibes", cursive !important; font-size: 1.6em; }
-            .container { max-width: 400px; width: 100%; padding: 2rem; }
-            .card { background: white; padding: 3rem; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); text-align: center; }
-            .subtitle { color: #64748b; margin-bottom: 2rem; }
-            .btn { background: #607e66; color: white; padding: 1rem 2rem; border: none; border-radius: 8px; text-decoration: none; display: inline-block; font-weight: 600; font-size: 1.1rem; transition: background 0.2s; }
-            .btn:hover { background: #4f6b56; }
-            .footer { margin-top: 2rem; color: #94a3b8; font-size: 0.875rem; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="card">
-              
-              <h1 class="pine-hill-title">Pine Hill Farm</h1>
-              <p class="subtitle">Employee Management Portal</p>
-              <a href="/api/login" class="btn">Sign In to Continue</a>
-              <div class="footer">Lake Geneva & Watertown Locations</div>
-            </div>
-          </div>
-        </body>
-        </html>
-      `);
-    }
-  });
+  // Let Vite handle the root route to serve the React app
 
   // Remove duplicate auth middleware - already set up above
 
