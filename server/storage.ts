@@ -850,6 +850,7 @@ export class DatabaseStorage implements IStorage {
         description: chatChannels.description,
         type: chatChannels.type,
         isPrivate: chatChannels.isPrivate,
+        isActive: chatChannels.isActive,
         createdBy: chatChannels.createdBy,
         createdAt: chatChannels.createdAt,
       })
@@ -1500,20 +1501,7 @@ export class DatabaseStorage implements IStorage {
     return channelMessages;
   }
 
-  async sendChannelMessage(senderId: string, channelId: string, content: string): Promise<any> {
-    const [message] = await db
-      .insert(messages)
-      .values({
-        senderId,
-        content,
-        channelId,
-        messageType: 'channel',
-        sentAt: new Date()
-      })
-      .returning();
-    
-    return message;
-  }
+
 
 
 
