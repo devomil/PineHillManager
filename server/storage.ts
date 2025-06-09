@@ -1471,17 +1471,6 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Enhanced chat and messaging functionality
-  async getUnreadMessageCount(userId: string): Promise<number> {
-    const result = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(messages)
-      .where(and(
-        eq(messages.recipientId, userId),
-        eq(messages.isRead, false)
-      ));
-    
-    return result[0]?.count || 0;
-  }
 
   async getChannelMessages(channelId: string, limit: number = 50): Promise<any[]> {
     const channelMessages = await db
@@ -1554,15 +1543,7 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(timeOffRequests);
   }
 
-  async getUnreadMessageCount(userId: string): Promise<number> {
-    const result = await db.select({ count: sql`count(*)` })
-      .from(messages)
-      .where(and(
-        eq(messages.recipientId, userId),
-        eq(messages.isRead, false)
-      ));
-    return Number(result[0]?.count || 0);
-  }
+
 
   async markMessagesAsRead(userId: string, channelId?: string): Promise<void> {
     const whereConditions = [eq(messages.recipientId, userId)];
