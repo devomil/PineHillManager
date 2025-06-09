@@ -1,5 +1,5 @@
 import { Router, Route, Switch } from "wouter";
-import { useAuth } from "@/hooks/use-auth";
+import { useAuth, AuthProvider } from "@/hooks/use-auth";
 import AppLayout from "@/components/layout/app-layout";
 import AuthPage from "@/pages/auth-page";
 import Dashboard from "@/pages/dashboard";
@@ -46,7 +46,7 @@ function AuthenticatedApp() {
 }
 
 function UnauthenticatedApp() {
-  return <Home />;
+  return <AuthPage />;
 }
 
 function AppRouter() {
@@ -65,9 +65,11 @@ function AppRouter() {
 
 function App() {
   return (
-    <Router>
-      <AppRouter />
-    </Router>
+    <AuthProvider>
+      <Router>
+        <AppRouter />
+      </Router>
+    </AuthProvider>
   );
 }
 
