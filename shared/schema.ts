@@ -72,7 +72,12 @@ export const timeClockEntries = pgTable("time_clock_entries", {
   deviceInfo: text("device_info"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => ({
+  userClockInIdx: index("idx_time_clock_user_clockin").on(table.userId, table.clockInTime),
+  statusIdx: index("idx_time_clock_status").on(table.status),
+  locationIdx: index("idx_time_clock_location").on(table.locationId),
+  clockInDateIdx: index("idx_time_clock_date").on(table.clockInTime),
+}));
 
 // User presence/status for team chat
 export const userPresence = pgTable("user_presence", {
@@ -99,7 +104,11 @@ export const timeOffRequests = pgTable("time_off_requests", {
   reviewedAt: timestamp("reviewed_at"),
   reviewedBy: varchar("reviewed_by").references(() => users.id),
   comments: text("comments"),
-});
+}, (table) => ({
+  userStatusIdx: index("idx_time_off_user_status").on(table.userId, table.status),
+  statusIdx: index("idx_time_off_status").on(table.status),
+  requestedAtIdx: index("idx_time_off_requested_at").on(table.requestedAt),
+}));
 
 // Locations
 export const locations = pgTable("locations", {
@@ -131,7 +140,11 @@ export const workSchedules = pgTable("work_schedules", {
   approvedBy: varchar("approved_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => ({
+  userDateIdx: index("idx_work_schedules_user_date").on(table.userId, table.date),
+  locationDateIdx: index("idx_work_schedules_location_date").on(table.locationId, table.date),
+  statusIdx: index("idx_work_schedules_status").on(table.status),
+}));
 
 // Shift coverage requests
 export const shiftCoverageRequests = pgTable("shift_coverage_requests", {
@@ -157,7 +170,11 @@ export const announcements = pgTable("announcements", {
   publishedAt: timestamp("published_at"),
   expiresAt: timestamp("expires_at"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  publishedCreatedIdx: index("idx_announcements_published_created").on(table.isPublished, table.createdAt),
+  priorityIdx: index("idx_announcements_priority").on(table.priority),
+  authorIdx: index("idx_announcements_author").on(table.authorId),
+}));
 
 // Training modules
 export const trainingModules = pgTable("training_modules", {
@@ -197,7 +214,12 @@ export const messages = pgTable("messages", {
   readAt: timestamp("read_at"),
   messageType: varchar("message_type").default("direct"), // 'direct', 'channel', 'announcement'
   channelId: varchar("channel_id"), // for team/group messages
-});
+}, (table) => ({
+  recipientReadIdx: index("idx_messages_recipient_read").on(table.recipientId, table.isRead),
+  channelIdx: index("idx_messages_channel").on(table.channelId),
+  sentAtIdx: index("idx_messages_sent_at").on(table.sentAt),
+  senderIdx: index("idx_messages_sender").on(table.senderId),
+}));
 
 // Chat channels for team communication
 export const chatChannels = pgTable("chat_channels", {
