@@ -396,13 +396,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   <div class="announcement-content">
                     ${announcement.content}
                   </div>
-                  ${announcement.targetLocations && announcement.targetLocations.length > 0 ? `
+                  ${false ? `
                     <div class="location-tags">
                       <strong style="color: #64748b; font-size: 0.875rem;">Applies to:</strong>
-                      ${announcement.targetLocations.map(locationId => {
-                        const locationNames = {1: 'Lake Geneva Retail', 2: 'Watertown Retail', 3: 'Watertown Spa'};
-                        return `<span class="location-tag">${locationNames[locationId] || 'All Locations'}</span>`;
-                      }).join('')}
+                      <span class="location-tag">All Locations</span>
                     </div>
                   ` : '<div class="location-tags"><span class="location-tag">All Locations</span></div>'}
                 </div>
