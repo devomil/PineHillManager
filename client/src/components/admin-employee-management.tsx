@@ -106,8 +106,16 @@ export default function AdminEmployeeManagement() {
   });
   const { toast } = useToast();
 
-  const { data: employees, isLoading } = useQuery<UserType[]>({
+  const { data: employees, isLoading, error } = useQuery<UserType[]>({
     queryKey: ["/api/employees"],
+  });
+
+  // Debug logging
+  console.log("Employee Management Debug:", {
+    employees,
+    isLoading,
+    error,
+    employeeCount: employees?.length || 0
   });
 
   const addForm = useForm<AddEmployeeFormData>({
