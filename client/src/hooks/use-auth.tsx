@@ -90,10 +90,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Set the user data immediately
       queryClient.setQueryData(["/api/user"], user);
       
-      // Force a fresh fetch to ensure consistency
-      await queryClient.refetchQueries({ 
-        queryKey: ["/api/user"],
-        type: 'all'
+      // Invalidate and refetch to ensure fresh data
+      await queryClient.invalidateQueries({ 
+        queryKey: ["/api/user"]
       });
       
       toast({
