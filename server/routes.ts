@@ -1,6 +1,6 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { WebSocketServer, WebSocket } from 'ws';
+// WebSocket functionality handled by Vite in development
 import { setupAuth, isAuthenticated } from "./auth";
 import { storage } from "./storage";
 import { performanceMiddleware, getPerformanceMetrics, resetPerformanceMetrics } from "./performance-middleware";
@@ -130,40 +130,5 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/uploads', express.static('uploads'));
 
   const httpServer = createServer(app);
-
-  // WebSocket setup for real-time features
-  const wss = new WebSocketServer({ server: httpServer });
-
-  wss.on('connection', (ws: WebSocket, req) => {
-    console.log('New WebSocket connection established');
-
-    ws.on('message', (message: string) => {
-      try {
-        const data = JSON.parse(message);
-        console.log('Received WebSocket message:', data);
-        
-        // Echo the message back to all connected clients
-        wss.clients.forEach((client) => {
-          if (client.readyState === WebSocket.OPEN) {
-            client.send(JSON.stringify({
-              type: 'broadcast',
-              data: data
-            }));
-          }
-        });
-      } catch (error) {
-        console.error('Error processing WebSocket message:', error);
-      }
-    });
-
-    ws.on('close', () => {
-      console.log('WebSocket connection closed');
-    });
-
-    ws.on('error', (error) => {
-      console.error('WebSocket error:', error);
-    });
-  });
-
   return httpServer;
 }
