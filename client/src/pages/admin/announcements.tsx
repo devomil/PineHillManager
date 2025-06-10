@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import AdminLayout from "@/components/admin-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,7 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { Plus, Send, Save, Calendar, Users, AlertTriangle } from "lucide-react";
 
-export default function AnnouncementsPage() {
+function AnnouncementsContent() {
   const { toast } = useToast();
   const { isAuthenticated, isLoading, user } = useAuth();
   const [showForm, setShowForm] = useState(false);

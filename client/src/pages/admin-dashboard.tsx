@@ -11,7 +11,7 @@ import { Link, useLocation } from "wouter";
 import EmployeesPage from "@/pages/employees";
 import ShiftScheduling from "@/pages/shift-scheduling";
 import AnnouncementsPage from "@/pages/admin/announcements";
-import AdminTraining from "@/pages/admin-training";
+import SystemSupport from "@/pages/system-support";
 import ReportsPage from "@/pages/reports";
 import HomeDashboard from "@/pages/home-dashboard";
 
@@ -375,7 +375,7 @@ export default function AdminDashboard() {
           </TabsContent>
 
           <TabsContent value="training" className="space-y-6">
-            <AdminTraining />
+            <SystemSupport />
           </TabsContent>
 
           <TabsContent value="employee-view" className="space-y-6">
