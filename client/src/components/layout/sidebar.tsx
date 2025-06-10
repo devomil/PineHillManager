@@ -2,7 +2,7 @@ import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useAuth } from "@/hooks/use-auth";
-import { Sprout, Home, Calendar, Clock, MessageSquare, Users, GraduationCap, Megaphone, BookOpen, BarChart3, Settings, User, X, CalendarDays, Bell, FileText, Image } from "lucide-react";
+import { Home, Calendar, Clock, MessageSquare, Users, GraduationCap, Megaphone, BookOpen, BarChart3, Settings, User, X, CalendarDays, Bell, FileText, Image } from "lucide-react";
 
 interface SidebarProps {
   mobileMenuOpen: boolean;
@@ -60,9 +60,6 @@ export default function Sidebar({ mobileMenuOpen, setMobileMenuOpen }: SidebarPr
       {/* Logo Section */}
       <div className="flex items-center justify-between p-6 border-b border-slate-200">
         <div className="flex items-center">
-          <div className="w-10 h-10 bg-farm-green rounded-lg flex items-center justify-center">
-            <Sprout className="w-6 h-6 text-white" />
-          </div>
           <div className="ml-3">
             <h1 className="text-xl font-bold text-slate-900">Pine Hill Farm</h1>
             <p className="text-sm text-slate-500">Employee Portal</p>
