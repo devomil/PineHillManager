@@ -7,6 +7,7 @@ import AdminDashboard from "@/pages/admin-dashboard";
 import Documents from "@/pages/documents";
 import LogosPage from "@/pages/admin/logos";
 import AnnouncementsPage from "@/pages/admin/announcements";
+import AdminEmployeesPage from "@/pages/admin/employees";
 import AnnouncementsViewPage from "@/pages/announcements";
 import Calendar from "@/pages/calendar";
 import Employees from "@/pages/employees";
@@ -38,6 +39,7 @@ function AuthenticatedApp() {
       <Route path="/admin" component={AdminDashboard} />
       <Route path="/calendar" component={Calendar} />
       <Route path="/employees" component={Employees} />
+      <Route path="/admin/employees" component={AdminEmployeesPage} />
       <Route path="/time-management" component={TimeManagement} />
       <Route path="/shift-scheduling" component={ShiftScheduling} />
       <Route path="/communication" component={Communication} />
