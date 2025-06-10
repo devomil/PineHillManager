@@ -3494,6 +3494,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Admin stats API endpoint
+  app.get('/api/admin/stats', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const user = await storage.getUser(userId);
+      
+      if (!user || user.role !== 'admin') {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+
+      // Get all users for employee count
+      const allUsers = await storage.getAllUsers();
+      const totalEmployees = allUsers.length;
+
+      // Get pending time off requests
+      const allTimeOffRequests = await storage.getAllTimeOffRequests();
+      const pendingRequests = allTimeOffRequests.filter(r => r.status === 'pending').length;
+
+      // Get today's schedules
+      const today = new Date().toISOString().split('T')[0];
+      const todaySchedules = await storage.getWorkSchedulesByDate(today);
+      const scheduledToday = todaySchedules.length;
+
+      res.json({
+        totalEmployees,
+        pendingRequests,
+        scheduledToday,
+        storeLocations: 2 // Fixed count for Pine Hill Farm locations
+      });
+    } catch (error) {
+      console.error("Error fetching admin stats:", error);
+      res.status(500).json({ message: "Failed to fetch admin stats" });
+    }
+  });
+
+  // Today's work schedules API endpoint
+  app.get('/api/work-schedules/today', isAuthenticated, async (req: any, res) => {
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const todaySchedules = await storage.getWorkSchedulesByDate(today);
+      
+      // Enhance schedules with user and location data
+      const enhancedSchedules = await Promise.all(
+        todaySchedules.map(async (schedule) => {
+          const user = await storage.getUser(schedule.userId);
+          const location = await storage.getLocationById(schedule.locationId);
+          return {
+            ...schedule,
+            user: user ? { name: `${user.firstName} ${user.lastName}` } : null,
+            location: location ? { name: location.name } : null
+          };
+        })
+      );
+
+      res.json(enhancedSchedules);
+    } catch (error) {
+      console.error("Error fetching today's schedules:", error);
+      res.status(500).json({ message: "Failed to fetch today's schedules" });
+    }
+  });
+
   // Dashboard stats
   app.get('/api/dashboard/stats', isAuthenticated, async (req: any, res) => {
     try {
