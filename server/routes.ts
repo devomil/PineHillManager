@@ -2772,11 +2772,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
-      // Get recent messages
-      const recentMessages = await storage.getChannelMessages('general', 20);
+      // Get recent messages with error handling
+      let recentMessages = [];
+      let unreadCount = 0;
       
-      // Get unread message count for current user
-      const unreadCount = await storage.getUnreadMessageCount(userId);
+      try {
+        recentMessages = await storage.getChannelMessages('general', 20);
+        unreadCount = await storage.getUnreadMessageCount(userId);
+      } catch (error) {
+        console.log("Chat data temporarily unavailable, using fallback");
+        // Use empty arrays as fallback when database is unavailable
+        recentMessages = [];
+        unreadCount = 0;
+      }
 
       res.send(`
         <!DOCTYPE html>

@@ -153,6 +153,8 @@ export interface IStorage {
   sendChannelMessage(message: InsertMessage): Promise<Message>;
   getChannelMessages(channelId: string, limit?: number): Promise<Message[]>;
   getDirectMessages(userId1: string, userId2: string, limit?: number): Promise<Message[]>;
+  getUnreadMessageCount(userId: string): Promise<number>;
+  markMessagesAsRead(userId: string, channelId: string): Promise<void>;
 
   // Document management
   createDocument(document: InsertDocument): Promise<Document>;
@@ -900,6 +902,34 @@ export class DatabaseStorage implements IStorage {
       .values(message)
       .returning();
     return newMessage;
+  }
+
+
+
+  async getUnreadMessageCount(userId: string): Promise<number> {
+    const result = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(messages)
+      .where(
+        and(
+          eq(messages.recipientId, userId),
+          eq(messages.isRead, false)
+        )
+      );
+    return result[0]?.count || 0;
+  }
+
+  async markMessagesAsRead(userId: string, channelId: string): Promise<void> {
+    await db
+      .update(messages)
+      .set({ isRead: true, readAt: new Date() })
+      .where(
+        and(
+          eq(messages.recipientId, userId),
+          eq(messages.channelId, channelId),
+          eq(messages.isRead, false)
+        )
+      );
   }
 
 
