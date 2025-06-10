@@ -1,5 +1,6 @@
 import { Router, Route, Switch } from "wouter";
 import { useAuth, AuthProvider } from "@/hooks/use-auth";
+import { useFontLoader } from "@/hooks/use-font-loader";
 import AuthPage from "@/pages/auth-page";
 import HomeDashboard from "@/pages/home-dashboard";
 import AdminDashboard from "@/pages/admin-dashboard";
@@ -60,6 +61,9 @@ function UnauthenticatedApp() {
 
 function AppRouter() {
   const { isAuthenticated, isLoading, user } = useAuth();
+  
+  // Initialize font loading for consistent branding
+  useFontLoader();
 
   console.log('Auth state:', { isAuthenticated, isLoading, user });
 

@@ -29,7 +29,30 @@
         font-weight: 400;
         font-style: normal;
       }
+      
+      /* Force immediate font application */
+      .brand-title, .pine-hill-title, [data-brand="pine-hill"] {
+        font-family: 'Great Vibes', cursive !important;
+      }
     </style>
+    
+    <!-- Font loading optimization script -->
+    <script>
+      // Force font loading on page initialization
+      document.addEventListener('DOMContentLoaded', function() {
+        // Create font loading promise
+        if ('fonts' in document) {
+          document.fonts.load('400 1em "Great Vibes"').then(function() {
+            // Apply font to all brand elements immediately
+            const brandElements = document.querySelectorAll('.brand-title, .pine-hill-title, [data-brand="pine-hill"]');
+            brandElements.forEach(el => {
+              el.style.fontFamily = '"Great Vibes", cursive';
+              el.style.fontDisplay = 'swap';
+            });
+          });
+        }
+      });
+    </script>
   </head>
   <body>
     <div id="root"></div>
