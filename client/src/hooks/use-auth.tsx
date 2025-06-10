@@ -65,8 +65,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     },
     retry: false,
-    refetchOnWindowFocus: false,
-    staleTime: Infinity,
+    refetchOnWindowFocus: true,
+    staleTime: 0,
     gcTime: 5 * 60 * 1000
   });
 
@@ -86,9 +86,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       return await res.json();
     },
-    onSuccess: (user: SelectUser) => {
+    onSuccess: async (user: SelectUser) => {
+      // Set the user data immediately
       queryClient.setQueryData(["/api/user"], user);
-      queryClient.invalidateQueries({ queryKey: ["/api/user"] });
+      
+      // Force a fresh fetch to ensure consistency
+      await queryClient.refetchQueries({ 
+        queryKey: ["/api/user"],
+        type: 'all'
+      });
+      
       toast({
         title: "Welcome back!",
         description: `Logged in as ${user.firstName} ${user.lastName}`,
