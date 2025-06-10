@@ -6,7 +6,7 @@ import { Users, Clock, Calendar, MapPin } from "lucide-react";
 import { Link } from "wouter";
 
 export default function AdminDashboard() {
-  const { user } = useAuth();
+  const { user, logoutMutation } = useAuth();
 
   // Fetch dashboard stats
   const { data: stats } = useQuery({
@@ -64,7 +64,7 @@ export default function AdminDashboard() {
               <Link href="/dashboard">
                 <Button variant="ghost">Employee View</Button>
               </Link>
-              <Button variant="ghost" onClick={() => window.location.href = '/api/logout'}>
+              <Button variant="ghost" onClick={() => logoutMutation.mutate()}>
                 Sign Out
               </Button>
             </nav>

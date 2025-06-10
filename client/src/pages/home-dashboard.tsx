@@ -5,7 +5,7 @@ import { Clock, Calendar, FileText, Users, MessageCircle, Bell, ChevronRight } f
 import { Link } from "wouter";
 
 export default function HomeDashboard() {
-  const { user } = useAuth();
+  const { user, logoutMutation } = useAuth();
 
   const isAdmin = user?.role === 'admin';
   const isManager = user?.role === 'manager' || user?.role === 'admin';
@@ -102,7 +102,7 @@ export default function HomeDashboard() {
                   <Button variant="ghost">Admin Portal</Button>
                 </Link>
               )}
-              <Button variant="ghost" onClick={() => window.location.href = '/api/logout'}>
+              <Button variant="ghost" onClick={() => logoutMutation.mutate()}>
                 Sign Out
               </Button>
             </nav>

@@ -11,7 +11,7 @@ interface SidebarProps {
 
 export default function Sidebar({ mobileMenuOpen, setMobileMenuOpen }: SidebarProps) {
   const [location] = useLocation();
-  const { user } = useAuth();
+  const { user, logoutMutation } = useAuth();
 
   const navigationItems = [
     { name: "Dashboard", href: "/dashboard", icon: Home, roles: ["employee", "admin", "manager"] },
@@ -40,7 +40,7 @@ export default function Sidebar({ mobileMenuOpen, setMobileMenuOpen }: SidebarPr
   ];
 
   const handleLogout = () => {
-    window.location.href = "/api/logout";
+    logoutMutation.mutate();
   };
 
   const isActive = (href: string) => {
