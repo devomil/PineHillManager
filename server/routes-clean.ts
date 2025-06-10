@@ -179,8 +179,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Get basic counts from existing methods
-      const allEmployees = await storage.getAllEmployees();
-      const totalEmployees = allEmployees.length;
+      const allUsers = await storage.getAllUsers();
+      const totalEmployees = allUsers.length;
       
       // Get pending time off requests count
       const allTimeOffRequests = await storage.getAllTimeOffRequests();
