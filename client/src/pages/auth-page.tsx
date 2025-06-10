@@ -30,7 +30,8 @@ export default function AuthPage() {
     e.preventDefault();
     try {
       await loginMutation.mutateAsync(loginForm);
-      setLocation("/");
+      // Force a page reload to ensure proper state update
+      window.location.href = "/";
     } catch (error) {
       // Error handled by mutation onError
     }

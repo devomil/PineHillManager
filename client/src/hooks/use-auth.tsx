@@ -86,14 +86,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       return await res.json();
     },
-    onSuccess: async (user: SelectUser) => {
-      // Set the user data immediately
+    onSuccess: (user: SelectUser) => {
+      // Set the user data immediately and force a re-render
       queryClient.setQueryData(["/api/user"], user);
-      
-      // Invalidate and refetch to ensure fresh data
-      await queryClient.invalidateQueries({ 
-        queryKey: ["/api/user"]
-      });
       
       toast({
         title: "Welcome back!",
