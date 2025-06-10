@@ -129,6 +129,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Serve uploaded files
   app.use('/uploads', express.static('uploads'));
 
+  // Catch-all route for non-API requests - serve React app
+  app.get('*', (req, res, next) => {
+    // Skip API routes and let them be handled by the API handlers
+    if (req.path.startsWith('/api/')) {
+      return next();
+    }
+    // In development, let Vite handle the React app serving
+    // This is a fallback that shouldn't normally be reached due to Vite middleware
+    next();
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
