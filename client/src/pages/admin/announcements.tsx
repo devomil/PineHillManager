@@ -338,3 +338,11 @@ function AnnouncementsContent() {
     </div>
   );
 }
+
+export default function AnnouncementsPage() {
+  return (
+    <AdminLayout currentTab="announcements">
+      <AnnouncementsContent />
+    </AdminLayout>
+  );
+}

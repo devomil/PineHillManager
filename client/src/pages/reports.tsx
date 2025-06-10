@@ -1,10 +1,11 @@
 import { useEffect } from "react";
+import AdminLayout from "@/components/admin-layout";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart3, FileText, Download, Calendar } from "lucide-react";
 
-export default function Reports() {
+function ReportsContent() {
   const { toast } = useToast();
   const { isAuthenticated, isLoading } = useAuth();
 
@@ -103,5 +104,13 @@ export default function Reports() {
         </Card>
       </div>
     </div>
+  );
+}
+
+export default function Reports() {
+  return (
+    <AdminLayout currentTab="reports">
+      <ReportsContent />
+    </AdminLayout>
   );
 }
