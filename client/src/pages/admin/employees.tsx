@@ -3,7 +3,7 @@ import AdminEmployeeManagement from "@/components/admin-employee-management";
 
 export default function AdminEmployeesPage() {
   return (
-    <AdminLayout>
+    <AdminLayout currentTab="employees">
       <AdminEmployeeManagement />
     </AdminLayout>
   );

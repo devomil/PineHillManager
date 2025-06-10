@@ -20,7 +20,7 @@ export default function AdminLayout({ children, currentTab }: AdminLayoutProps) 
         setLocation('/admin');
         break;
       case 'employees':
-        setLocation('/employees');
+        setLocation('/admin/employees');
         break;
       case 'scheduling':
         setLocation('/shift-scheduling');
