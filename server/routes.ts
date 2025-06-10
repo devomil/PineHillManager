@@ -389,7 +389,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                       <div class="announcement-title">${announcement.title}</div>
                       <div class="announcement-meta">
                         Posted on ${createdDate} at ${createdTime}
-                        ${announcement.priority !== 'low' ? `<span class="priority-badge priority-${announcement.priority}">${announcement.priority.toUpperCase()} PRIORITY</span>` : ''}
+                        ${announcement.priority && announcement.priority !== 'low' ? `<span class="priority-badge priority-${announcement.priority}">${announcement.priority.toUpperCase()} PRIORITY</span>` : ''}
                       </div>
                     </div>
                   </div>

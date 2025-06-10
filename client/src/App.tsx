@@ -1,8 +1,6 @@
 import { Router, Route, Switch } from "wouter";
 import { useAuth, AuthProvider } from "@/hooks/use-auth";
-import AppLayout from "@/components/layout/app-layout";
 import AuthPage from "@/pages/auth-page";
-import Dashboard from "@/pages/dashboard";
 import HomeDashboard from "@/pages/home-dashboard";
 import AdminDashboard from "@/pages/admin-dashboard";
 import Documents from "@/pages/documents";
