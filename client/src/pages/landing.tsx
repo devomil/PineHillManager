@@ -1,94 +1,85 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Users, Clock, MessageSquare } from "lucide-react";
-import DynamicLogo from "@/components/ui/dynamic-logo";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Clock, MessageCircle, Users } from "lucide-react";
+import { Link } from "wouter";
 
 export default function Landing() {
-  const handleLogin = () => {
-    window.location.href = "/api/login";
-  };
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 via-blue-50 to-white">
-      <div className="container mx-auto px-4 py-16">
+    <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         {/* Header */}
         <div className="text-center mb-16">
-          <div className="flex items-center justify-center mb-6">
-            <DynamicLogo 
-              logoType="login_logo" 
-              size="lg"
-              fallbackText="Pine Hill Farm"
-              className="rounded-2xl"
-            />
+          <div className="w-20 h-20 bg-green-600 rounded-2xl flex items-center justify-center mx-auto mb-6">
+            <span className="text-white font-bold text-3xl">🌲</span>
           </div>
-          <h1 className="text-4xl font-bold text-slate-900 mb-4">
+          <h1 className="text-4xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Great Vibes, cursive' }}>
             Pine Hill Farm
           </h1>
-          <p className="text-xl text-slate-600 mb-8">
-            Employee Portal
+          <p className="text-xl text-gray-600 mb-8">Employee Portal</p>
+          <p className="text-gray-600 max-w-2xl mx-auto mb-12">
+            Welcome to the Pine Hill Farm employee management system. Access your
+            schedule, manage time off, and stay connected with your team.
           </p>
-          <p className="text-lg text-slate-500 max-w-2xl mx-auto mb-8">
-            Welcome to the Pine Hill Farm employee management system. 
-            Access your schedule, manage time off, and stay connected with your team.
-          </p>
-          <Button 
-            onClick={handleLogin}
-            size="lg"
-            className="bg-farm-green hover:bg-green-600 text-white px-8 py-3 text-lg"
-          >
-            Sign In to Continue
-          </Button>
+          
+          <Link href="/auth">
+            <Button size="lg" className="bg-green-600 hover:bg-green-700 text-white px-8 py-3 text-lg">
+              Sign In to Continue
+            </Button>
+          </Link>
         </div>
 
-        {/* Features */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
-          <Card className="border-0 shadow-lg">
-            <CardHeader className="text-center">
-              <div className="w-12 h-12 bg-emerald-50 rounded-lg flex items-center justify-center mx-auto mb-4">
-                <Clock className="w-6 h-6 text-emerald-500" />
+        {/* Feature Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <Card className="text-center bg-white/80 backdrop-blur-sm border-0 shadow-lg">
+            <CardHeader>
+              <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Clock className="h-8 w-8 text-red-600" />
               </div>
-              <CardTitle>Time Management</CardTitle>
+              <CardTitle className="text-lg font-semibold">Time Management</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-slate-600 text-center">
+              <CardDescription className="text-gray-600">
                 Request time off, view your schedule, and manage shift coverage with ease.
-              </p>
+              </CardDescription>
             </CardContent>
           </Card>
 
-          <Card className="border-0 shadow-lg">
-            <CardHeader className="text-center">
-              <div className="w-12 h-12 bg-blue-50 rounded-lg flex items-center justify-center mx-auto mb-4">
-                <MessageSquare className="w-6 h-6 text-blue-500" />
+          <Card className="text-center bg-white/80 backdrop-blur-sm border-0 shadow-lg">
+            <CardHeader>
+              <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <MessageCircle className="h-8 w-8 text-blue-600" />
               </div>
-              <CardTitle>Communication</CardTitle>
+              <CardTitle className="text-lg font-semibold">Communication</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-slate-600 text-center">
+              <CardDescription className="text-gray-600">
                 Stay updated with company announcements and team communications.
-              </p>
+              </CardDescription>
             </CardContent>
           </Card>
 
-          <Card className="border-0 shadow-lg">
-            <CardHeader className="text-center">
-              <div className="w-12 h-12 bg-slate-100 rounded-lg flex items-center justify-center mx-auto mb-4">
-                <Users className="w-6 h-6 text-slate-500" />
+          <Card className="text-center bg-white/80 backdrop-blur-sm border-0 shadow-lg">
+            <CardHeader>
+              <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Users className="h-8 w-8 text-purple-600" />
               </div>
-              <CardTitle>Team Collaboration</CardTitle>
+              <CardTitle className="text-lg font-semibold">Team Collaboration</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-slate-600 text-center">
+              <CardDescription className="text-gray-600">
                 Connect with your colleagues and access training materials.
-              </p>
+              </CardDescription>
             </CardContent>
           </Card>
         </div>
 
         {/* Footer */}
         <div className="text-center mt-16">
-          <p className="text-slate-500">
-            Need help? Contact your supervisor or IT support.
+          <p className="text-gray-500 font-medium">
+            Pine Hill Farm Employee Portal
+          </p>
+          <p className="text-gray-400 text-sm mt-2">
+            Lake Geneva • Watertown Retail • Watertown Spa
           </p>
         </div>
       </div>
