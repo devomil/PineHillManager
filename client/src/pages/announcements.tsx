@@ -106,7 +106,7 @@ export default function AnnouncementsPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-green-100">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100">
         <div className="bg-white shadow-sm">
           <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between items-center py-6">
@@ -149,7 +149,7 @@ export default function AnnouncementsPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-green-100">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100">
         <div className="bg-white shadow-sm">
           <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between items-center py-6">
@@ -188,7 +188,7 @@ export default function AnnouncementsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-green-100">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100">
       {/* Header */}
       <div className="bg-white shadow-sm">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
