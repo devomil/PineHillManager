@@ -4,6 +4,32 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
     <title>Pine Hill Farm - Employee Portal</title>
+    
+    <!-- Preconnect to Google Fonts for faster loading -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    
+    <!-- Preload Great Vibes font with high priority -->
+    <link rel="preload" href="https://fonts.googleapis.com/css2?family=Great+Vibes&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'">
+    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Great+Vibes&display=swap"></noscript>
+    
+    <!-- Inline critical font loading to prevent FOUT -->
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Great+Vibes&display=swap');
+      
+      .font-brand {
+        font-family: 'Great Vibes', cursive !important;
+        font-optical-sizing: auto;
+        font-style: normal;
+      }
+      
+      /* Ensure brand font loads immediately */
+      .pine-hill-brand {
+        font-family: 'Great Vibes', cursive !important;
+        font-weight: 400;
+        font-style: normal;
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>

@@ -94,7 +94,7 @@ export default function AdminDashboard() {
                 <span className="text-white font-bold text-xl">🌲</span>
               </div>
               <div>
-                <h1 className="text-3xl font-bold text-gray-900" style={{ fontFamily: 'Great Vibes, cursive' }}>
+                <h1 className="text-3xl font-bold text-gray-900 brand-title" data-brand="pine-hill">
                   Pine Hill Farm
                 </h1>
                 <p className="text-sm text-gray-600">Admin Dashboard</p>

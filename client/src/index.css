@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Great+Vibes&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -55,5 +57,30 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+@layer components {
+  /* Pine Hill Farm Brand Styling */
+  .brand-title {
+    font-family: 'Great Vibes', cursive !important;
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+  }
+  
+  .pine-hill-brand {
+    font-family: 'Great Vibes', cursive !important;
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+  }
+  
+  /* Ensure immediate font loading */
+  h1.brand-title,
+  .brand-title,
+  .pine-hill-title,
+  [data-brand="pine-hill"] {
+    font-family: 'Great Vibes', cursive !important;
   }
 }
