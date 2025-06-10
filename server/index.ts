@@ -1,6 +1,6 @@
 import express, { type Request, Response, NextFunction } from "express";
 import path from "path";
-import { registerRoutes } from "./routes-clean";
+import { registerRoutes } from "./routes";
 import { performanceMiddleware, getPerformanceMetrics, resetPerformanceMetrics } from "./performance-middleware";
 
 function log(message: string, source = "express") {
