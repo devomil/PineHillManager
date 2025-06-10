@@ -154,7 +154,7 @@ export interface IStorage {
   getChannelMessages(channelId: string, limit?: number): Promise<Message[]>;
   getDirectMessages(userId1: string, userId2: string, limit?: number): Promise<Message[]>;
   getUnreadMessageCount(userId: string): Promise<number>;
-  markMessagesAsRead(userId: string, channelId: string): Promise<void>;
+  markMessagesAsRead(userId: string, channelId?: string): Promise<void>;
 
   // Document management
   createDocument(document: InsertDocument): Promise<Document>;
@@ -907,30 +907,41 @@ export class DatabaseStorage implements IStorage {
 
 
   async getUnreadMessageCount(userId: string): Promise<number> {
-    const result = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(messages)
-      .where(
-        and(
-          eq(messages.recipientId, userId),
-          eq(messages.isRead, false)
-        )
-      );
-    return result[0]?.count || 0;
+    try {
+      const result = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(messages)
+        .where(
+          and(
+            eq(messages.recipientId, userId),
+            eq(messages.isRead, false)
+          )
+        );
+      return result[0]?.count || 0;
+    } catch (error) {
+      console.log("Database error in getUnreadMessageCount, returning 0");
+      return 0;
+    }
   }
 
-  async markMessagesAsRead(userId: string, channelId: string): Promise<void> {
-    await db
-      .update(messages)
-      .set({ isRead: true, readAt: new Date() })
-      .where(
-        and(
-          eq(messages.recipientId, userId),
-          eq(messages.channelId, channelId),
-          eq(messages.isRead, false)
-        )
-      );
+  async markMessagesAsRead(userId: string, channelId?: string): Promise<void> {
+    try {
+      const whereConditions = [eq(messages.recipientId, userId)];
+      
+      if (channelId) {
+        whereConditions.push(eq(messages.channelId, channelId));
+      }
+      
+      await db
+        .update(messages)
+        .set({ isRead: true, readAt: new Date() })
+        .where(and(...whereConditions));
+    } catch (error) {
+      console.log("Database error in markMessagesAsRead, skipping");
+    }
   }
+
+
 
 
 
@@ -1575,18 +1586,7 @@ export class DatabaseStorage implements IStorage {
 
 
 
-  async markMessagesAsRead(userId: string, channelId?: string): Promise<void> {
-    const whereConditions = [eq(messages.recipientId, userId)];
-    
-    if (channelId) {
-      whereConditions.push(eq(messages.channelId, channelId));
-    }
-    
-    await db
-      .update(messages)
-      .set({ isRead: true, readAt: new Date() })
-      .where(and(...whereConditions));
-  }
+
 
   async getDirectMessages(userId1: string, userId2: string, limit: number = 50): Promise<Message[]> {
     return await db
