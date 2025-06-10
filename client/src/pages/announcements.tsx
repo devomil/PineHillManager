@@ -111,9 +111,6 @@ export default function AnnouncementsPage() {
           <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between items-center py-6">
               <div className="flex items-center space-x-4">
-                <div className="w-12 h-12 bg-green-600 rounded-xl flex items-center justify-center shadow-lg">
-                  <Bell className="text-white h-6 w-6" />
-                </div>
                 <div>
                   <h1 className="text-3xl font-bold text-gray-900 font-brand" 
                       style={{ fontFamily: "'Great Vibes', cursive" }}>
@@ -157,9 +154,6 @@ export default function AnnouncementsPage() {
           <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between items-center py-6">
               <div className="flex items-center space-x-4">
-                <div className="w-12 h-12 bg-green-600 rounded-xl flex items-center justify-center shadow-lg">
-                  <Bell className="text-white h-6 w-6" />
-                </div>
                 <div>
                   <h1 className="text-3xl font-bold text-gray-900 font-brand" 
                       style={{ fontFamily: "'Great Vibes', cursive" }}>
@@ -200,9 +194,6 @@ export default function AnnouncementsPage() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-6">
             <div className="flex items-center space-x-4">
-              <div className="w-12 h-12 bg-green-600 rounded-xl flex items-center justify-center shadow-lg">
-                <Bell className="text-white h-6 w-6" />
-              </div>
               <div>
                 <h1 className="text-3xl font-bold text-gray-900 font-brand" 
                     style={{ fontFamily: "'Great Vibes', cursive" }}>
