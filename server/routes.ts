@@ -107,6 +107,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Employees route (alias for users for admin employee management)
+  app.get('/api/employees', isAuthenticated, async (req, res) => {
+    try {
+      const users = await storage.getAllUsers();
+      res.json(users);
+    } catch (error) {
+      console.error('Error fetching employees:', error);
+      res.status(500).json({ message: 'Failed to fetch employees' });
+    }
+  });
+
+  // Add new employee
+  app.post('/api/employees', isAuthenticated, async (req, res) => {
+    try {
+      const userData = req.body;
+      const newEmployee = await storage.createEmployee(userData);
+      res.status(201).json(newEmployee);
+    } catch (error) {
+      console.error('Error creating employee:', error);
+      res.status(500).json({ message: 'Failed to create employee' });
+    }
+  });
+
+  // Update employee
+  app.patch('/api/employees/:id', isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const updateData = req.body;
+      const updatedEmployee = await storage.updateEmployee(id, updateData);
+      if (!updatedEmployee) {
+        return res.status(404).json({ message: 'Employee not found' });
+      }
+      res.json(updatedEmployee);
+    } catch (error) {
+      console.error('Error updating employee:', error);
+      res.status(500).json({ message: 'Failed to update employee' });
+    }
+  });
+
+  // Delete employee
+  app.delete('/api/employees/:id', isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      await storage.deleteEmployee(id);
+      res.status(204).send();
+    } catch (error) {
+      console.error('Error deleting employee:', error);
+      res.status(500).json({ message: 'Failed to delete employee' });
+    }
+  });
+
   // File upload routes
   app.post('/api/upload', isAuthenticated, upload.single('file'), (req, res) => {
     try {
