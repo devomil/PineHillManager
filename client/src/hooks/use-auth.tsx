@@ -64,10 +64,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return null;
       }
     },
-    retry: false,
-    refetchOnWindowFocus: true,
-    staleTime: 0,
-    gcTime: 5 * 60 * 1000
+    retry: 1,
+    refetchOnWindowFocus: false,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    gcTime: 30 * 60 * 1000 // 30 minutes
   });
 
   const loginMutation = useMutation({
@@ -147,8 +147,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     },
     onSuccess: () => {
+      // Clear user data and all cached queries
       queryClient.setQueryData(["/api/user"], null);
       queryClient.clear();
+      
+      // Force a page reload to ensure complete state reset
+      setTimeout(() => {
+        window.location.href = "/";
+      }, 100);
+      
       toast({
         title: "Logged out",
         description: "You have been successfully logged out",

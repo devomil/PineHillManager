@@ -58,16 +58,18 @@ export function getSession() {
   }
 
   return session({
-    secret: process.env.SESSION_SECRET || "pine-hill-farm-secret-key",
+    secret: process.env.SESSION_SECRET || "pine-hill-farm-secret-key-very-long-and-secure",
     store: sessionStore,
     resave: false,
     saveUninitialized: false,
+    rolling: true, // Reset expiration on activity
     cookie: {
       httpOnly: true,
       secure: false, // Allow non-HTTPS for development
       maxAge: sessionTtl,
       sameSite: 'lax',
     },
+    name: 'pine-hill-session',
   });
 }
 
@@ -209,8 +211,24 @@ export function setupAuth(app: Express) {
   // Logout endpoint
   app.post("/api/logout", (req, res, next) => {
     req.logout((err) => {
-      if (err) return next(err);
-      res.sendStatus(200);
+      if (err) {
+        console.error("Logout error:", err);
+        return next(err);
+      }
+      
+      // Destroy the session completely
+      req.session.destroy((destroyErr) => {
+        if (destroyErr) {
+          console.error("Session destroy error:", destroyErr);
+          return res.status(500).json({ error: "Logout failed" });
+        }
+        
+        // Clear the session cookie
+        res.clearCookie('pine-hill-session');
+        res.clearCookie('connect.sid');
+        console.log("User logged out successfully");
+        res.sendStatus(200);
+      });
     });
   });
 
