@@ -18,6 +18,11 @@ import AdminTraining from "@/pages/admin-training";
 import Profile from "@/pages/profile";
 import Reports from "@/pages/reports";
 import Notifications from "@/pages/notifications";
+import TimeClock from "@/pages/time-clock";
+import Schedule from "@/pages/schedule";
+import TimeOff from "@/pages/time-off";
+import ShiftCoverage from "@/pages/shift-coverage";
+import TeamCommunication from "@/pages/team-communication";
 import NotFound from "@/pages/not-found";
 import Landing from "@/pages/landing";
 
@@ -45,6 +50,11 @@ function AuthenticatedApp() {
       <Route path="/admin/logos" component={LogosPage} />
       <Route path="/admin/announcements" component={AnnouncementsPage} />
       <Route path="/announcements" component={AnnouncementsViewPage} />
+      <Route path="/time-clock" component={TimeClock} />
+      <Route path="/schedule" component={Schedule} />
+      <Route path="/time-off" component={TimeOff} />
+      <Route path="/shift-coverage" component={ShiftCoverage} />
+      <Route path="/team-communication" component={TeamCommunication} />
       <Route component={NotFound} />
     </Switch>
   );

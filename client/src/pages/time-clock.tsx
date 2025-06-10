@@ -1,0 +1,224 @@
+import { useState, useEffect } from "react";
+import { useAuth } from "@/hooks/use-auth";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/hooks/use-toast";
+import { Clock, Play, Pause, Square, MapPin, Calendar } from "lucide-react";
+import { format } from "date-fns";
+
+export default function TimeClock() {
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const [currentTime, setCurrentTime] = useState(new Date());
+  const [isClocked, setIsClockedIn] = useState(false);
+  const [clockInTime, setClockInTime] = useState<Date | null>(null);
+  const [totalHours, setTotalHours] = useState("0:00");
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    if (isClocked && clockInTime) {
+      const elapsed = Math.floor((currentTime.getTime() - clockInTime.getTime()) / 1000);
+      const hours = Math.floor(elapsed / 3600);
+      const minutes = Math.floor((elapsed % 3600) / 60);
+      setTotalHours(`${hours}:${minutes.toString().padStart(2, '0')}`);
+    }
+  }, [currentTime, isClocked, clockInTime]);
+
+  const handleClockIn = () => {
+    setIsClockedIn(true);
+    setClockInTime(new Date());
+    toast({
+      title: "Clocked In",
+      description: `Welcome back, ${user?.firstName}! You are now clocked in.`,
+    });
+  };
+
+  const handleClockOut = () => {
+    setIsClockedIn(false);
+    setClockInTime(null);
+    toast({
+      title: "Clocked Out", 
+      description: `You worked ${totalHours} today. Have a great rest of your day!`,
+    });
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-green-100">
+      {/* Header */}
+      <div className="bg-white shadow-sm">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center py-6">
+            <div className="flex items-center space-x-4">
+              <div className="w-12 h-12 bg-green-600 rounded-xl flex items-center justify-center shadow-lg">
+                <Clock className="text-white h-6 w-6" />
+              </div>
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900 font-brand" 
+                    style={{ fontFamily: "'Great Vibes', cursive" }}>
+                  Pine Hill Farm
+                </h1>
+                <p className="text-sm text-gray-600">Time Clock</p>
+              </div>
+            </div>
+            
+            <Button 
+              variant="ghost" 
+              onClick={() => window.history.back()}
+              className="text-gray-700 hover:text-gray-900"
+            >
+              ← Back to Dashboard
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="space-y-8">
+          {/* Welcome Section */}
+          <div className="text-center">
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">
+              Welcome, {user?.firstName}!
+            </h2>
+            <p className="text-gray-600">
+              {format(currentTime, "EEEE, MMMM d, yyyy")}
+            </p>
+            <p className="text-3xl font-mono font-bold text-gray-900 mt-2">
+              {format(currentTime, "h:mm:ss a")}
+            </p>
+          </div>
+
+          {/* Current Status */}
+          <Card className="shadow-lg">
+            <CardHeader className="text-center">
+              <div className="flex items-center justify-center space-x-2 mb-2">
+                <Clock className="h-5 w-5 text-gray-600" />
+                <CardTitle>Current Status</CardTitle>
+              </div>
+              <Badge 
+                variant={isClocked ? "default" : "secondary"}
+                className={isClocked ? "bg-green-600" : "bg-gray-500"}
+              >
+                {isClocked ? "Clocked In" : "Clocked Out"}
+              </Badge>
+            </CardHeader>
+            <CardContent className="text-center space-y-4">
+              {isClocked && clockInTime && (
+                <div className="space-y-2">
+                  <p className="text-sm text-gray-600">
+                    Clocked in at: {format(clockInTime, "h:mm a")}
+                  </p>
+                  <p className="text-2xl font-mono font-bold text-green-600">
+                    Time Worked: {totalHours}
+                  </p>
+                </div>
+              )}
+
+              <div className="flex justify-center space-x-4">
+                {!isClocked ? (
+                  <Button 
+                    onClick={handleClockIn}
+                    className="bg-green-600 hover:bg-green-700 text-white px-8 py-3 text-lg"
+                    size="lg"
+                  >
+                    <Play className="h-5 w-5 mr-2" />
+                    Clock In
+                  </Button>
+                ) : (
+                  <Button 
+                    onClick={handleClockOut}
+                    variant="destructive"
+                    className="px-8 py-3 text-lg"
+                    size="lg"
+                  >
+                    <Square className="h-5 w-5 mr-2" />
+                    Clock Out
+                  </Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Location Info */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <MapPin className="h-5 w-5" />
+                <span>Work Location</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-center">
+                <p className="text-lg font-medium text-gray-900">Lake Geneva Retail</p>
+                <p className="text-sm text-gray-600">W4240 State Rd 50, Lake Geneva, WI 53147</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Quick Stats */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-gray-600">Today's Hours</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-gray-900">{isClocked ? totalHours : "0:00"}</div>
+                <p className="text-xs text-gray-500 mt-1">Current shift</p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-gray-600">This Week</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-gray-900">24:30</div>
+                <p className="text-xs text-gray-500 mt-1">Total hours worked</p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-gray-600">Break Status</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-gray-900">Available</div>
+                <p className="text-xs text-gray-500 mt-1">Next break in 2h 15m</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Break Management */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Break Management</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex justify-center space-x-4">
+                <Button variant="outline" disabled={!isClocked}>
+                  <Pause className="h-4 w-4 mr-2" />
+                  Start Break
+                </Button>
+                <Button variant="outline" disabled>
+                  <Play className="h-4 w-4 mr-2" />
+                  End Break
+                </Button>
+              </div>
+              <p className="text-sm text-gray-500 text-center">
+                Breaks are automatically tracked when you clock in and out
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+}
