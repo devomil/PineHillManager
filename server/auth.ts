@@ -339,11 +339,18 @@ export function setupAuth(app: Express) {
 }
 
 // Authentication middleware for protected routes
-export function isAuthenticated(req: any, res: any, next: any) {
-  if (!req.isAuthenticated() || !req.user) {
-    return res.status(401).json({ error: "Authentication required" });
+function isAuthenticated(req: any, res: any, next: any) {
+  console.log('Auth check - isAuthenticated():', req.isAuthenticated());
+  console.log('Auth check - user:', req.user);
+  
+  if (req.isAuthenticated() && req.user) {
+    return next();
   }
-  next();
+  
+  console.log('Authentication failed, returning 401');
+  res.status(401).json({ error: "Authentication required" });
 }
+
+export { isAuthenticated };
 
 export { hashPassword, comparePasswords };
