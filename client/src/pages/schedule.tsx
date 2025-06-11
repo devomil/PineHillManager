@@ -5,21 +5,31 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useQuery } from "@tanstack/react-query";
 import { Calendar, Clock, MapPin, User } from "lucide-react";
-import { format, addDays, startOfWeek, endOfWeek } from "date-fns";
+import { format, addDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, addWeeks, addMonths, eachDayOfInterval, isSameMonth, isToday } from "date-fns";
 
 export default function Schedule() {
   const { user } = useAuth();
   const [currentWeek, setCurrentWeek] = useState(new Date());
+  const [viewMode, setViewMode] = useState<'week' | 'month'>('week');
+  const [currentMonth, setCurrentMonth] = useState(new Date());
 
   const weekStart = startOfWeek(currentWeek, { weekStartsOn: 0 });
   const weekEnd = endOfWeek(currentWeek, { weekStartsOn: 0 });
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
 
+  const monthStart = startOfMonth(currentMonth);
+  const monthEnd = endOfMonth(currentMonth);
+  const monthDays = eachDayOfInterval({ start: monthStart, end: monthEnd });
+
+  // Determine the date range based on view mode
+  const startDate = viewMode === 'week' ? weekStart : monthStart;
+  const endDate = viewMode === 'week' ? weekEnd : monthEnd;
+
   // Fetch user's schedules
   const { data: schedules = [] } = useQuery({
-    queryKey: ["/api/my-schedules", format(weekStart, "yyyy-MM-dd"), format(weekEnd, "yyyy-MM-dd")],
+    queryKey: ["/api/my-schedules", format(startDate, "yyyy-MM-dd"), format(endDate, "yyyy-MM-dd")],
     queryFn: async () => {
-      const response = await fetch(`/api/my-schedules?start=${format(weekStart, "yyyy-MM-dd")}&end=${format(weekEnd, "yyyy-MM-dd")}`, {
+      const response = await fetch(`/api/my-schedules?start=${format(startDate, "yyyy-MM-dd")}&end=${format(endDate, "yyyy-MM-dd")}`, {
         credentials: 'include'
       });
       if (!response.ok) throw new Error("Failed to fetch schedules");
@@ -71,35 +81,85 @@ export default function Schedule() {
       {/* Main Content */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="space-y-8">
-          {/* Week Navigation */}
+          {/* Navigation */}
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-2xl font-bold text-gray-900">
-                Week of {format(weekStart, "MMM d, yyyy")}
+                {viewMode === 'week' 
+                  ? `Week of ${format(weekStart, "MMM d, yyyy")}`
+                  : format(currentMonth, "MMMM yyyy")
+                }
               </h2>
               <p className="text-gray-600">
-                {format(weekStart, "MMM d")} - {format(weekEnd, "MMM d, yyyy")}
+                {viewMode === 'week'
+                  ? `${format(weekStart, "MMM d")} - ${format(weekEnd, "MMM d, yyyy")}`
+                  : `${format(monthStart, "MMM d")} - ${format(monthEnd, "MMM d, yyyy")}`
+                }
               </p>
             </div>
-            <div className="flex items-center space-x-4">
-              <Button 
-                variant="outline"
-                onClick={() => setCurrentWeek(addDays(currentWeek, -7))}
-              >
-                ← Previous Week
-              </Button>
-              <Button 
-                variant="outline"
-                onClick={() => setCurrentWeek(new Date())}
-              >
-                This Week
-              </Button>
-              <Button 
-                variant="outline"
-                onClick={() => setCurrentWeek(addDays(currentWeek, 7))}
-              >
-                Next Week →
-              </Button>
+            <div className="flex items-center space-x-2">
+              {/* View Mode Toggle */}
+              <div className="flex items-center space-x-2 mr-4">
+                <Button 
+                  variant={viewMode === 'week' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setViewMode('week')}
+                >
+                  This Week
+                </Button>
+                <Button 
+                  variant={viewMode === 'month' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setViewMode('month')}
+                >
+                  This Month
+                </Button>
+              </div>
+              
+              {/* Navigation Buttons */}
+              {viewMode === 'week' ? (
+                <>
+                  <Button 
+                    variant="outline"
+                    onClick={() => setCurrentWeek(addDays(currentWeek, -7))}
+                  >
+                    ← Previous Week
+                  </Button>
+                  <Button 
+                    variant="outline"
+                    onClick={() => setCurrentWeek(new Date())}
+                  >
+                    Today
+                  </Button>
+                  <Button 
+                    variant="outline"
+                    onClick={() => setCurrentWeek(addDays(currentWeek, 7))}
+                  >
+                    Next Week →
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button 
+                    variant="outline"
+                    onClick={() => setCurrentMonth(addMonths(currentMonth, -1))}
+                  >
+                    ← Previous Month
+                  </Button>
+                  <Button 
+                    variant="outline"
+                    onClick={() => setCurrentMonth(new Date())}
+                  >
+                    Today
+                  </Button>
+                  <Button 
+                    variant="outline"
+                    onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
+                  >
+                    Next Month →
+                  </Button>
+                </>
+              )}
             </div>
           </div>
 
@@ -140,70 +200,136 @@ export default function Schedule() {
             </Card>
           </div>
 
-          {/* Weekly Calendar */}
+          {/* Schedule Display */}
           <Card className="shadow-lg">
             <CardHeader>
-              <CardTitle>Weekly Schedule</CardTitle>
+              <CardTitle>
+                {viewMode === 'week' ? 'Weekly Schedule' : 'Monthly Schedule'}
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 lg:grid-cols-7 gap-4">
-                {weekDays.map((day, index) => {
-                  const daySchedules = getScheduleForDay(day);
-                  const isToday = format(day, "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd");
-                  
-                  return (
-                    <div key={index} className={`border rounded-lg p-4 ${isToday ? 'border-green-500 bg-green-50' : 'border-gray-200'}`}>
-                      <div className="text-center mb-3">
-                        <h3 className="font-semibold text-gray-900">
-                          {format(day, "EEE")}
-                        </h3>
-                        <p className={`text-lg font-bold ${isToday ? 'text-green-600' : 'text-gray-600'}`}>
-                          {format(day, "d")}
-                        </p>
-                      </div>
-                      
-                      <div className="space-y-2">
-                        {daySchedules.length > 0 ? (
-                          daySchedules.map((schedule: any, schedIndex: number) => (
-                            <div key={schedIndex} className="bg-white rounded p-3 border border-gray-200 shadow-sm">
-                              <div className="flex items-center space-x-2 mb-2">
-                                <Clock className="h-4 w-4 text-gray-500" />
-                                <span className="font-medium text-sm">
-                                  {schedule.startTime} - {schedule.endTime}
-                                </span>
-                              </div>
-                              <div className="flex items-center space-x-2 mb-2">
-                                <MapPin className="h-4 w-4 text-gray-500" />
-                                <span className="text-sm text-gray-600">
-                                  {schedule.locationName || "Location TBD"}
-                                </span>
-                              </div>
-                              {schedule.position && (
-                                <div className="flex items-center space-x-2">
-                                  <User className="h-4 w-4 text-gray-500" />
-                                  <span className="text-sm text-gray-600">
-                                    {schedule.position}
+              {viewMode === 'week' ? (
+                /* Weekly View */
+                <div className="grid grid-cols-1 lg:grid-cols-7 gap-4">
+                  {weekDays.map((day, index) => {
+                    const daySchedules = getScheduleForDay(day);
+                    const isTodayWeek = format(day, "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd");
+                    
+                    return (
+                      <div key={index} className={`border rounded-lg p-4 ${isTodayWeek ? 'border-green-500 bg-green-50' : 'border-gray-200'}`}>
+                        <div className="text-center mb-3">
+                          <h3 className="font-semibold text-gray-900">
+                            {format(day, "EEE")}
+                          </h3>
+                          <p className={`text-lg font-bold ${isTodayWeek ? 'text-green-600' : 'text-gray-600'}`}>
+                            {format(day, "d")}
+                          </p>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          {daySchedules.length > 0 ? (
+                            daySchedules.map((schedule: any, schedIndex: number) => (
+                              <div key={schedIndex} className="bg-white rounded p-3 border border-gray-200 shadow-sm">
+                                <div className="flex items-center space-x-2 mb-2">
+                                  <Clock className="h-4 w-4 text-gray-500" />
+                                  <span className="font-medium text-sm">
+                                    {schedule.startTime} - {schedule.endTime}
                                   </span>
                                 </div>
-                              )}
-                              <Badge 
-                                variant="secondary" 
-                                className="mt-2 bg-green-100 text-green-800 text-xs"
-                              >
-                                {schedule.status || "Scheduled"}
-                              </Badge>
+                                <div className="flex items-center space-x-2 mb-2">
+                                  <MapPin className="h-4 w-4 text-gray-500" />
+                                  <span className="text-sm text-gray-600">
+                                    {schedule.locationName || "Location TBD"}
+                                  </span>
+                                </div>
+                                {schedule.position && (
+                                  <div className="flex items-center space-x-2">
+                                    <User className="h-4 w-4 text-gray-500" />
+                                    <span className="text-sm text-gray-600">
+                                      {schedule.position}
+                                    </span>
+                                  </div>
+                                )}
+                                <Badge 
+                                  variant="secondary" 
+                                  className="mt-2 bg-green-100 text-green-800 text-xs"
+                                >
+                                  {schedule.status || "Scheduled"}
+                                </Badge>
+                              </div>
+                            ))
+                          ) : (
+                            <div className="text-center py-4">
+                              <p className="text-sm text-gray-500">No shifts</p>
                             </div>
-                          ))
-                        ) : (
-                          <div className="text-center py-4">
-                            <p className="text-sm text-gray-500">No shifts</p>
-                          </div>
-                        )}
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                /* Monthly View */
+                <div className="space-y-4">
+                  {/* Calendar Header */}
+                  <div className="grid grid-cols-7 gap-2 text-center font-semibold text-gray-700 border-b pb-2">
+                    <div>Sun</div>
+                    <div>Mon</div>
+                    <div>Tue</div>
+                    <div>Wed</div>
+                    <div>Thu</div>
+                    <div>Fri</div>
+                    <div>Sat</div>
+                  </div>
+                  
+                  {/* Calendar Grid */}
+                  <div className="grid grid-cols-7 gap-2">
+                    {/* Empty cells for days before month starts */}
+                    {Array.from({ length: startOfWeek(monthStart).getDay() }).map((_, index) => (
+                      <div key={`empty-${index}`} className="h-24 border border-gray-100 rounded bg-gray-50"></div>
+                    ))}
+                    
+                    {/* Month days */}
+                    {monthDays.map((day, index) => {
+                      const daySchedules = getScheduleForDay(day);
+                      const isTodayMonth = isToday(day);
+                      const isCurrentMonth = isSameMonth(day, currentMonth);
+                      
+                      return (
+                        <div 
+                          key={index} 
+                          className={`h-24 border rounded p-1 ${
+                            isTodayMonth 
+                              ? 'border-green-500 bg-green-50' 
+                              : isCurrentMonth 
+                                ? 'border-gray-200 bg-white' 
+                                : 'border-gray-100 bg-gray-50'
+                          }`}
+                        >
+                          <div className={`text-sm font-semibold mb-1 ${
+                            isTodayMonth ? 'text-green-600' : 'text-gray-700'
+                          }`}>
+                            {format(day, "d")}
+                          </div>
+                          
+                          <div className="space-y-1">
+                            {daySchedules.slice(0, 2).map((schedule: any, schedIndex: number) => (
+                              <div key={schedIndex} className="text-xs bg-blue-100 text-blue-800 px-1 py-0.5 rounded truncate">
+                                {schedule.startTime}
+                              </div>
+                            ))}
+                            {daySchedules.length > 2 && (
+                              <div className="text-xs text-gray-500 px-1">
+                                +{daySchedules.length - 2} more
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 
