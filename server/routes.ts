@@ -169,6 +169,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // User presence route that syncs with time clock data
+  app.get('/api/user-presence', isAuthenticated, async (req, res) => {
+    try {
+      // Get all users and their current time entries to determine work status
+      const users = await storage.getAllUsers();
+      const locations = await storage.getAllLocations();
+      
+      const presenceData = await Promise.all(
+        users.map(async (user) => {
+          const currentEntry = await storage.getCurrentTimeEntry(user.id);
+          const location = currentEntry?.locationId 
+            ? locations.find(loc => loc.id === currentEntry.locationId)
+            : null;
+          
+          return {
+            userId: user.id,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            role: user.role,
+            status: currentEntry ? (currentEntry.breakStartTime ? 'on_break' : 'clocked_in') : 'offline',
+            isWorking: !!currentEntry && !currentEntry.clockOutTime,
+            currentLocation: location?.name || null,
+            clockedInAt: currentEntry?.clockInTime || null,
+            lastSeen: currentEntry?.clockInTime || user.lastLogin || new Date(),
+            statusMessage: currentEntry?.breakStartTime ? 'On break' : 
+                          currentEntry ? `Working at ${location?.name}` : null
+          };
+        })
+      );
+      
+      res.json(presenceData);
+    } catch (error) {
+      console.error('Error fetching user presence:', error);
+      res.status(500).json({ message: 'Failed to fetch user presence' });
+    }
+  });
+
   // Time clock API endpoints
   app.post('/api/time-clock/clock-in', async (req, res) => {
     try {

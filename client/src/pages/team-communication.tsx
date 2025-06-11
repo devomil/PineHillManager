@@ -55,6 +55,18 @@ export default function TeamCommunication() {
     refetchInterval: 5000, // Refresh every 5 seconds
   });
 
+  // Fetch store locations for channels
+  const { data: locations = [] } = useQuery({
+    queryKey: ["/api/locations"],
+    queryFn: async () => {
+      const response = await fetch("/api/locations", {
+        credentials: 'include'
+      });
+      if (!response.ok) throw new Error("Failed to fetch locations");
+      return response.json();
+    }
+  });
+
   const sendMessageMutation = useMutation({
     mutationFn: async (messageData: { content: string; channelId: string }) => {
       const response = await fetch("/api/messages", {
@@ -93,14 +105,29 @@ export default function TeamCommunication() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const defaultChannels = [
-    { id: "general", name: "General", description: "General team discussion" },
-    { id: "announcements", name: "Announcements", description: "Important company updates" },
-    { id: "schedule", name: "Schedule Updates", description: "Shift and schedule discussions" },
-    { id: "breaks", name: "Break Room", description: "Casual conversations" }
-  ];
+  // Create channels based on store locations
+  const createChannelsFromLocations = () => {
+    const generalChannel = { id: "general", name: "General", description: "General team discussion" };
+    
+    if (locations.length > 0) {
+      const locationChannels = locations.map((location: any) => ({
+        id: `location-${location.id}`,
+        name: location.name,
+        description: `Discussion for ${location.name} team`
+      }));
+      return [generalChannel, ...locationChannels];
+    }
+    
+    // Fallback channels if locations haven't loaded yet
+    return [
+      generalChannel,
+      { id: "location-1", name: "Lake Geneva Retail", description: "Discussion for Lake Geneva Retail team" },
+      { id: "location-2", name: "Watertown Retail", description: "Discussion for Watertown Retail team" },
+      { id: "location-3", name: "Watertown Spa", description: "Discussion for Watertown Spa team" }
+    ];
+  };
 
-  const allChannels = channels.length > 0 ? channels : defaultChannels;
+  const allChannels = createChannelsFromLocations();
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100">
@@ -166,7 +193,7 @@ export default function TeamCommunication() {
                   <Users className="h-5 w-5" />
                   <span>Team Members</span>
                   <Badge variant="outline" className="ml-auto text-xs">
-                    {employeePresence?.filter((emp: any) => emp.status === 'online' || emp.isWorking).length || 0} active
+                    {employeePresence?.filter((emp: any) => emp.isWorking).length || 0} active
                   </Badge>
                 </CardTitle>
               </CardHeader>
