@@ -17,6 +17,11 @@ export const queryClient = new QueryClient({
         });
         
         if (!response.ok) {
+          if (response.status === 401) {
+            console.log('Authentication required for:', url);
+            console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+          }
+          console.log('Request failed:', response.status, response.statusText, 'for URL:', url);
           throw new Error(`${response.status}: ${response.statusText}`);
         }
         

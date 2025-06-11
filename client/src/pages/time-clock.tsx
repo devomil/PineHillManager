@@ -41,6 +41,8 @@ export default function TimeClock() {
     refetchInterval: 1000, // Refresh every 1 second for real-time updates
     refetchOnMount: true,
     refetchOnWindowFocus: true,
+    retry: 3,
+    retryDelay: 1000,
   });
 
   const { data: todayEntries = [], isLoading: todayLoading } = useQuery<any[]>({
