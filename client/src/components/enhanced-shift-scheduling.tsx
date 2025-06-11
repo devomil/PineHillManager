@@ -52,23 +52,49 @@ export default function EnhancedShiftScheduling() {
 
   const { data: employees = [], isLoading: employeesLoading, error: employeesError } = useQuery({
     queryKey: ["/api/employees"],
+    queryFn: async () => {
+      const response = await fetch("/api/employees", {
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      if (!response.ok) {
+        throw new Error(`${response.status}: ${response.statusText}`);
+      }
+      return response.json();
+    },
     retry: 1,
+    enabled: !!user, // Only run when user is authenticated
   });
 
-  // Debug logging for employees
-  console.log("Employees query state:", { 
-    employees, 
-    employeesLoading, 
-    employeesError,
-    employeesCount: Array.isArray(employees) ? employees.length : 0
-  });
-
-  if (employeesError) {
-    console.error("Employee query error details:", employeesError);
-  }
-
-  const { data: locations = [] } = useQuery({
+  const { data: locations = [], isLoading: locationsLoading, error: locationsError } = useQuery({
     queryKey: ["/api/locations"],
+    queryFn: async () => {
+      const response = await fetch("/api/locations", {
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      if (!response.ok) {
+        throw new Error(`${response.status}: ${response.statusText}`);
+      }
+      return response.json();
+    },
+    retry: 1,
+    enabled: !!user, // Only run when user is authenticated
+  });
+
+  // Debug logging
+  console.log("Shift scheduling queries:", { 
+    user: !!user,
+    employees: Array.isArray(employees) ? employees.length : 0, 
+    employeesLoading, 
+    employeesError: employeesError?.message,
+    locations: Array.isArray(locations) ? locations.length : 0,
+    locationsLoading,
+    locationsError: locationsError?.message
   });
 
   const { data: schedules = [], isLoading } = useQuery({

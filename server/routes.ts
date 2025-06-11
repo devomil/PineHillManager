@@ -158,6 +158,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Locations routes
+  app.get('/api/locations', isAuthenticated, async (req, res) => {
+    try {
+      console.log('Locations endpoint called');
+      const locations = await storage.getAllLocations();
+      console.log('Locations fetched from DB:', locations);
+      res.json(locations);
+    } catch (error) {
+      console.error('Error fetching locations:', error);
+      res.status(500).json({ message: 'Failed to fetch locations' });
+    }
+  });
+
   // Time clock API endpoints
   app.post('/api/time-clock/clock-in', async (req, res) => {
     try {
