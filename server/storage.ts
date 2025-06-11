@@ -447,6 +447,23 @@ export class DatabaseStorage implements IStorage {
       .orderBy(asc(workSchedules.startTime));
   }
 
+  async getWorkSchedulesByDateRange(startDate: string, endDate: string, userId?: string): Promise<WorkSchedule[]> {
+    const conditions = [
+      gte(workSchedules.date, startDate),
+      lte(workSchedules.date, endDate)
+    ];
+    
+    if (userId) {
+      conditions.push(eq(workSchedules.userId, userId));
+    }
+
+    return await db
+      .select()
+      .from(workSchedules)
+      .where(and(...conditions))
+      .orderBy(asc(workSchedules.date), asc(workSchedules.startTime));
+  }
+
   async updateWorkSchedule(id: number, schedule: Partial<InsertWorkSchedule>): Promise<WorkSchedule> {
     const [updatedSchedule] = await db
       .update(workSchedules)
@@ -473,18 +490,7 @@ export class DatabaseStorage implements IStorage {
       .orderBy(asc(workSchedules.date), asc(workSchedules.startTime));
   }
 
-  async getWorkSchedulesByDateRange(startDate: string, endDate: string): Promise<WorkSchedule[]> {
-    return await db
-      .select()
-      .from(workSchedules)
-      .where(
-        and(
-          gte(workSchedules.date, startDate),
-          lte(workSchedules.date, endDate)
-        )
-      )
-      .orderBy(asc(workSchedules.date), asc(workSchedules.startTime));
-  }
+
 
   async getCalendarEvents(startDate: string, endDate: string): Promise<CalendarEvent[]> {
     const events: CalendarEvent[] = [];

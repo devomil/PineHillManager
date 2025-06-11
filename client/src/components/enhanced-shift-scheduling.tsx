@@ -90,7 +90,10 @@ export default function EnhancedShiftScheduling() {
 
   const { data: schedules = [], isLoading } = useQuery({
     queryKey: ["/api/work-schedules", format(weekStart, "yyyy-MM-dd"), format(weekEnd, "yyyy-MM-dd")],
-    queryFn: () => apiRequest(`/api/work-schedules?startDate=${format(weekStart, "yyyy-MM-dd")}&endDate=${format(weekEnd, "yyyy-MM-dd")}`),
+    queryFn: async () => {
+      const response = await apiRequest("GET", `/api/work-schedules?startDate=${format(weekStart, "yyyy-MM-dd")}&endDate=${format(weekEnd, "yyyy-MM-dd")}`);
+      return response.json();
+    },
   });
 
   const createScheduleMutation = useMutation({

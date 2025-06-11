@@ -55,9 +55,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Work schedule routes
   app.get('/api/work-schedules', isAuthenticated, async (req, res) => {
     try {
-      const today = new Date().toISOString().split('T')[0];
-      const schedules = await storage.getWorkSchedulesByDate(today);
-      res.json(schedules);
+      const { startDate, endDate, userId } = req.query;
+      
+      if (startDate && endDate) {
+        // Get schedules for date range
+        const schedules = await storage.getWorkSchedulesByDateRange(
+          startDate as string, 
+          endDate as string, 
+          userId as string | undefined
+        );
+        res.json(schedules);
+      } else {
+        // Default to today's schedules
+        const today = new Date().toISOString().split('T')[0];
+        const schedules = await storage.getWorkSchedulesByDate(today);
+        res.json(schedules);
+      }
     } catch (error) {
       console.error('Error fetching schedules:', error);
       res.status(500).json({ message: 'Failed to fetch schedules' });
