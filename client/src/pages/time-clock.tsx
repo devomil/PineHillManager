@@ -38,11 +38,11 @@ export default function TimeClock() {
   // Get current time entry and real-time data
   const { data: currentEntry, isLoading: currentEntryLoading, error: currentEntryError } = useQuery<any>({
     queryKey: ['/api/time-clock/current'],
-    refetchInterval: 1000, // Refresh every 1 second for real-time updates
+    refetchInterval: 2000, // Refresh every 2 seconds for real-time updates
     refetchOnMount: true,
     refetchOnWindowFocus: true,
-    retry: 3,
-    retryDelay: 1000,
+    retry: false, // Disable retry to see exact errors
+    enabled: !!user, // Only run when user is authenticated
   });
 
   const { data: todayEntries = [], isLoading: todayLoading } = useQuery<any[]>({
@@ -240,6 +240,7 @@ export default function TimeClock() {
     console.log('Is On Break:', isOnBreak);
     console.log('Current Entry Loading:', currentEntryLoading);
     console.log('Current Entry Error:', currentEntryError);
+    console.log('Making request to: /api/time-clock/current');
   }, [currentEntry, isClockedIn, isOnBreak, currentEntryLoading, currentEntryError]);
 
   if (!user) {

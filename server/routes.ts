@@ -251,11 +251,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get('/api/time-clock/current', async (req, res) => {
     try {
+      console.log('Time clock current request - isAuthenticated:', req.isAuthenticated());
+      console.log('Time clock current request - user:', req.user ? 'present' : 'missing');
+      
       // Get authenticated user from session or use fallback for testing
       let userId = "40154188"; // Your actual user ID from database
       
       if (req.isAuthenticated() && req.user) {
         userId = req.user.id;
+        console.log('Using authenticated user:', userId);
+      } else {
+        console.log('Using fallback user for testing:', userId);
       }
       
       console.log('Getting current time entry for user:', userId);
