@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useQuery } from "@tanstack/react-query";
-import { Calendar, Clock, MapPin, User } from "lucide-react";
+import { Calendar, Clock, MapPin, User, Printer } from "lucide-react";
 import { format, addDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, addWeeks, addMonths, eachDayOfInterval, isSameMonth, isToday } from "date-fns";
 
 export default function Schedule() {
@@ -49,6 +49,238 @@ export default function Schedule() {
       const hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
       return total + hours;
     }, 0);
+  };
+
+  const handlePrint = () => {
+    const printContent = generatePrintContent();
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write(printContent);
+      printWindow.document.close();
+      printWindow.focus();
+      printWindow.print();
+      printWindow.close();
+    }
+  };
+
+  const generatePrintContent = () => {
+    const title = viewMode === 'week' 
+      ? `Schedule for Week of ${format(weekStart, "MMM d, yyyy")}`
+      : `Schedule for ${format(currentMonth, "MMMM yyyy")}`;
+    
+    const scheduleHtml = viewMode === 'week' ? generateWeeklyPrintHtml() : generateMonthlyPrintHtml();
+    
+    return `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>${title}</title>
+          <style>
+            body { 
+              font-family: Arial, sans-serif; 
+              margin: 20px; 
+              line-height: 1.4;
+            }
+            .header { 
+              text-align: center; 
+              margin-bottom: 30px; 
+              border-bottom: 2px solid #333;
+              padding-bottom: 15px;
+            }
+            .company-name { 
+              font-size: 28px; 
+              font-weight: bold; 
+              color: #2563eb;
+              margin-bottom: 5px;
+            }
+            .employee-info { 
+              font-size: 14px; 
+              color: #666; 
+              margin-bottom: 10px;
+            }
+            .period { 
+              font-size: 16px; 
+              font-weight: bold; 
+            }
+            .schedule-grid { 
+              width: 100%; 
+              border-collapse: collapse; 
+              margin-top: 20px;
+            }
+            .schedule-grid th, .schedule-grid td { 
+              border: 1px solid #ddd; 
+              padding: 12px; 
+              text-align: left; 
+              vertical-align: top;
+            }
+            .schedule-grid th { 
+              background-color: #f8f9fa; 
+              font-weight: bold; 
+            }
+            .day-header { 
+              font-weight: bold; 
+              font-size: 14px;
+            }
+            .shift-item { 
+              margin-bottom: 8px; 
+              padding: 8px; 
+              background-color: #f0f9ff; 
+              border-radius: 4px;
+              font-size: 12px;
+            }
+            .shift-time { 
+              font-weight: bold; 
+              color: #1d4ed8;
+            }
+            .shift-location { 
+              color: #666; 
+              margin-top: 2px;
+            }
+            .no-shifts { 
+              color: #999; 
+              font-style: italic; 
+              text-align: center;
+            }
+            .summary { 
+              margin-top: 20px; 
+              padding: 15px; 
+              background-color: #f8f9fa; 
+              border-radius: 6px;
+            }
+            @media print {
+              body { margin: 10px; }
+              .no-print { display: none; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div class="company-name">Pine Hill Farm</div>
+            <div class="employee-info">
+              Employee: ${user?.firstName} ${user?.lastName}<br>
+              Generated: ${format(new Date(), "MMM d, yyyy 'at' h:mm a")}
+            </div>
+            <div class="period">${title}</div>
+          </div>
+          ${scheduleHtml}
+        </body>
+      </html>
+    `;
+  };
+
+  const generateWeeklyPrintHtml = () => {
+    const totalHours = getTotalWeeklyHours();
+    
+    return `
+      <table class="schedule-grid">
+        <thead>
+          <tr>
+            ${weekDays.map(day => `
+              <th class="day-header">
+                ${format(day, "EEE, MMM d")}
+                ${isToday(day) ? ' (Today)' : ''}
+              </th>
+            `).join('')}
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            ${weekDays.map(day => {
+              const daySchedules = getScheduleForDay(day);
+              return `
+                <td>
+                  ${daySchedules.length > 0 ? 
+                    daySchedules.map(schedule => `
+                      <div class="shift-item">
+                        <div class="shift-time">${schedule.startTime} - ${schedule.endTime}</div>
+                        <div class="shift-location">${schedule.locationName || 'Location TBD'}</div>
+                        ${schedule.position ? `<div class="shift-location">${schedule.position}</div>` : ''}
+                      </div>
+                    `).join('') :
+                    '<div class="no-shifts">No shifts</div>'
+                  }
+                </td>
+              `;
+            }).join('')}
+          </tr>
+        </tbody>
+      </table>
+      <div class="summary">
+        <strong>Weekly Summary:</strong><br>
+        Total Hours: ${totalHours.toFixed(1)}h<br>
+        Total Shifts: ${schedules.length}
+      </div>
+    `;
+  };
+
+  const generateMonthlyPrintHtml = () => {
+    const monthlySchedules = schedules.filter(schedule => {
+      const scheduleDate = new Date(schedule.date);
+      return isSameMonth(scheduleDate, currentMonth);
+    });
+    
+    const totalMonthlyHours = monthlySchedules.reduce((total: number, schedule: any) => {
+      const start = new Date(`2000-01-01T${schedule.startTime}`);
+      const end = new Date(`2000-01-01T${schedule.endTime}`);
+      const hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+      return total + hours;
+    }, 0);
+
+    // Create calendar grid
+    const calendarWeeks = [];
+    let currentDate = startOfWeek(monthStart);
+    
+    while (currentDate <= endOfMonth(currentMonth)) {
+      const week = [];
+      for (let i = 0; i < 7; i++) {
+        week.push(new Date(currentDate));
+        currentDate = addDays(currentDate, 1);
+      }
+      calendarWeeks.push(week);
+      
+      // Break if we've covered the entire month
+      if (currentDate > endOfMonth(currentMonth)) break;
+    }
+
+    return `
+      <table class="schedule-grid">
+        <thead>
+          <tr>
+            <th>Sun</th><th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th><th>Fri</th><th>Sat</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${calendarWeeks.map(week => `
+            <tr>
+              ${week.map(day => {
+                const daySchedules = getScheduleForDay(day);
+                const isCurrentMonth = isSameMonth(day, currentMonth);
+                const isDayToday = isToday(day);
+                
+                return `
+                  <td style="${!isCurrentMonth ? 'background-color: #f5f5f5; color: #ccc;' : ''} height: 100px;">
+                    <div class="day-header" style="${isDayToday ? 'color: #059669; font-weight: bold;' : ''}">
+                      ${format(day, "d")}
+                    </div>
+                    ${daySchedules.slice(0, 3).map(schedule => `
+                      <div class="shift-item" style="margin: 2px 0; padding: 2px 4px; font-size: 10px;">
+                        <div class="shift-time">${schedule.startTime}</div>
+                      </div>
+                    `).join('')}
+                    ${daySchedules.length > 3 ? `<div style="font-size: 10px; color: #666;">+${daySchedules.length - 3} more</div>` : ''}
+                  </td>
+                `;
+              }).join('')}
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+      <div class="summary">
+        <strong>Monthly Summary:</strong><br>
+        Total Hours: ${totalMonthlyHours.toFixed(1)}h<br>
+        Total Shifts: ${monthlySchedules.length}
+      </div>
+    `;
   };
 
   return (
@@ -160,6 +392,16 @@ export default function Schedule() {
                   </Button>
                 </>
               )}
+              
+              {/* Print Button */}
+              <Button 
+                variant="default"
+                onClick={handlePrint}
+                className="bg-blue-600 hover:bg-blue-700 text-white ml-2"
+              >
+                <Printer className="h-4 w-4 mr-2" />
+                Print Schedule
+              </Button>
             </div>
           </div>
 
