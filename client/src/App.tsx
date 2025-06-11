@@ -42,7 +42,7 @@ function AuthenticatedApp() {
       <Route path="/admin/employees" component={AdminEmployeesPage} />
       <Route path="/time-management" component={TimeManagement} />
       <Route path="/shift-scheduling" component={ShiftScheduling} />
-      <Route path="/communication" component={Communication} />
+      <Route path="/communication" component={TeamCommunication} />
       <Route path="/training" component={Training} />
       <Route path="/admin/training" component={AdminTraining} />
       <Route path="/profile" component={Profile} />

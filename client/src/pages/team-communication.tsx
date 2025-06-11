@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { MessageCircle, Send, Users, Hash } from "lucide-react";
+import { MessageCircle, Send, Users, Hash, MapPin, Clock, Wifi, WifiOff } from "lucide-react";
 import { format } from "date-fns";
 
 export default function TeamCommunication() {
@@ -40,6 +40,19 @@ export default function TeamCommunication() {
       if (!response.ok) throw new Error("Failed to fetch channels");
       return response.json();
     }
+  });
+
+  // Fetch employee presence data with location and work status
+  const { data: employeePresence = [] } = useQuery({
+    queryKey: ["/api/user-presence"],
+    queryFn: async () => {
+      const response = await fetch("/api/user-presence", {
+        credentials: 'include'
+      });
+      if (!response.ok) throw new Error("Failed to fetch employee presence");
+      return response.json();
+    },
+    refetchInterval: 5000, // Refresh every 5 seconds
   });
 
   const sendMessageMutation = useMutation({
@@ -146,33 +159,78 @@ export default function TeamCommunication() {
               </CardContent>
             </Card>
 
-            {/* Online Users */}
+            {/* Employee Presence */}
             <Card className="mt-6">
               <CardHeader>
                 <CardTitle className="text-lg flex items-center space-x-2">
                   <Users className="h-5 w-5" />
                   <span>Team Members</span>
+                  <Badge variant="outline" className="ml-auto text-xs">
+                    {employeePresence?.filter((emp: any) => emp.status === 'online' || emp.isWorking).length || 0} active
+                  </Badge>
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-2">
-                  <div className="flex items-center space-x-2">
-                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                    <span className="text-sm">{user?.firstName} {user?.lastName}</span>
-                    <Badge variant="secondary" className="text-xs">You</Badge>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                    <span className="text-sm">Sarah Johnson</span>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
-                    <span className="text-sm">Mike Chen</span>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
-                    <span className="text-sm text-gray-500">Emma Wilson</span>
-                  </div>
+                <div className="space-y-3 max-h-64 overflow-y-auto">
+                  {employeePresence?.length > 0 ? (
+                    employeePresence.map((employee: any) => (
+                      <div key={employee.userId} className="flex items-start space-x-3 p-2 rounded-lg hover:bg-gray-50">
+                        <div className="flex-shrink-0">
+                          {employee.isWorking ? (
+                            <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+                          ) : employee.status === 'online' ? (
+                            <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                          ) : employee.status === 'away' ? (
+                            <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
+                          ) : (
+                            <div className="w-3 h-3 bg-gray-400 rounded-full"></div>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center space-x-2">
+                            <span className="text-sm font-medium truncate">
+                              {employee.firstName} {employee.lastName}
+                            </span>
+                            {employee.userId === user?.id && (
+                              <Badge variant="secondary" className="text-xs">You</Badge>
+                            )}
+                          </div>
+                          <div className="flex items-center space-x-2 mt-1">
+                            {employee.isWorking && (
+                              <div className="flex items-center space-x-1">
+                                <Clock className="h-3 w-3 text-green-600" />
+                                <span className="text-xs text-green-600">Working</span>
+                              </div>
+                            )}
+                            {employee.currentLocation && (
+                              <div className="flex items-center space-x-1">
+                                <MapPin className="h-3 w-3 text-blue-600" />
+                                <span className="text-xs text-blue-600 truncate">
+                                  {employee.currentLocation}
+                                </span>
+                              </div>
+                            )}
+                            {employee.status === 'on_break' && (
+                              <Badge variant="outline" className="text-xs">Break</Badge>
+                            )}
+                          </div>
+                          {employee.statusMessage && (
+                            <p className="text-xs text-gray-500 mt-1 truncate">
+                              {employee.statusMessage}
+                            </p>
+                          )}
+                          <p className="text-xs text-gray-400">
+                            Last seen: {employee.lastSeen ? format(new Date(employee.lastSeen), 'MMM d, h:mm a') : 'Unknown'}
+                          </p>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center py-4">
+                      <WifiOff className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                      <p className="text-sm text-gray-500">No team members online</p>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
