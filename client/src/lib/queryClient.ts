@@ -14,9 +14,10 @@ export const queryClient = new QueryClient({
         try {
           const response = await fetch(url, {
             credentials: 'include',
+            mode: 'cors',
+            cache: 'no-cache',
             headers: {
               'Content-Type': 'application/json',
-              'Cache-Control': 'no-cache',
               'Accept': 'application/json',
             },
           });
@@ -45,18 +46,28 @@ export const queryClient = new QueryClient({
 });
 
 export async function apiRequest(url: string, options: RequestInit = {}) {
+  console.log('API Request to:', url, 'with options:', options);
   const response = await fetch(url, {
     credentials: 'include',
+    mode: 'cors',
+    cache: 'no-cache',
     headers: {
       "Content-Type": "application/json",
+      "Accept": "application/json",
       ...options.headers,
     },
     ...options,
   });
 
+  console.log('API Response status:', response.status, 'for', url);
+
   if (!response.ok) {
+    const errorText = await response.text();
+    console.error('API Error:', response.status, errorText);
     throw new Error(`${response.status}: ${response.statusText}`);
   }
 
-  return response.json();
+  const data = await response.json();
+  console.log('API Response data for', url, ':', data);
+  return data;
 }
