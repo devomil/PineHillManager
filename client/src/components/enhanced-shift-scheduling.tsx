@@ -556,7 +556,7 @@ export default function EnhancedShiftScheduling() {
                             {getEmployeeName(schedule.userId)}
                           </p>
                           <p className="text-xs text-blue-700 dark:text-blue-300">
-                            {format(parseISO(schedule.startTime), "h:mm a")} - {format(parseISO(schedule.endTime), "h:mm a")}
+                            {schedule.startTime} - {schedule.endTime}
                           </p>
                           <p className="text-xs text-blue-600 dark:text-blue-400">
                             {getLocationName(schedule.locationId)}
