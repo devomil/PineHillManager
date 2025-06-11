@@ -314,22 +314,22 @@ export default function TimeClock() {
                   <Button
                     size="lg"
                     onClick={() => clockInMutation.mutate()}
-                    disabled={clockInMutation.isPending || !selectedLocation}
+                    disabled={clockInMutation.isPending || currentEntryLoading}
                     className="bg-green-600 hover:bg-green-700 text-white px-8 py-3"
                   >
                     <Play className="mr-2 h-5 w-5" />
-                    Clock In
+                    {clockInMutation.isPending ? "Clocking In..." : "Clock In"}
                   </Button>
                 ) : (
                   <Button
                     size="lg"
                     onClick={() => clockOutMutation.mutate()}
-                    disabled={clockOutMutation.isPending}
+                    disabled={clockOutMutation.isPending || currentEntryLoading}
                     variant="destructive"
                     className="px-8 py-3"
                   >
                     <Square className="mr-2 h-5 w-5" />
-                    Clock Out
+                    {clockOutMutation.isPending ? "Clocking Out..." : "Clock Out"}
                   </Button>
                 )}
               </div>
