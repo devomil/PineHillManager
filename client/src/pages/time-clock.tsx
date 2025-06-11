@@ -5,10 +5,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Clock, Play, Pause, Square, MapPin, Calendar } from "lucide-react";
+import { Clock, Play, Pause, Square, MapPin, Calendar, ArrowLeft, Home } from "lucide-react";
 import { format } from "date-fns";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { Link } from "wouter";
 
 export default function TimeClock() {
   const { user } = useAuth();
@@ -280,6 +281,36 @@ export default function TimeClock() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100">
+      {/* Navigation Header */}
+      <div className="bg-white shadow-sm border-b">
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <Link href="/">
+                <Button variant="ghost" size="sm" className="flex items-center space-x-2">
+                  <ArrowLeft className="h-4 w-4" />
+                  <span>Back to Dashboard</span>
+                </Button>
+              </Link>
+              <div className="text-sm text-gray-500">Time Clock</div>
+            </div>
+            <div className="flex items-center space-x-4">
+              <Link href="/">
+                <Button variant="outline" size="sm" className="flex items-center space-x-2">
+                  <Home className="h-4 w-4" />
+                  <span>Dashboard</span>
+                </Button>
+              </Link>
+              {user.role === 'admin' && (
+                <Link href="/admin">
+                  <Button variant="outline" size="sm">Admin</Button>
+                </Link>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
         <div className="text-center mb-8">
