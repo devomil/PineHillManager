@@ -264,7 +264,7 @@ export default function Schedule() {
                     <div class="day-header" style="${isDayToday ? 'color: #059669; font-weight: bold;' : ''}">
                       ${format(day, "d")}
                     </div>
-                    ${daySchedules.slice(0, 3).map(schedule => `
+                    ${daySchedules.slice(0, 3).map((schedule: any) => `
                       <div class="shift-item" style="margin: 2px 0; padding: 2px 4px; font-size: 10px;">
                         <div class="shift-time">${schedule.startTime}</div>
                       </div>
