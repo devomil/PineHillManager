@@ -135,7 +135,8 @@ export default function AdminEmployeeManagement() {
   // Add new employee mutation
   const addEmployeeMutation = useMutation({
     mutationFn: async (data: AddEmployeeFormData) => {
-      return await apiRequest("/api/employees", "POST", data);
+      const response = await apiRequest("POST", "/api/employees", data);
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/employees"] });
