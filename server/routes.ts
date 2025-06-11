@@ -106,6 +106,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Admin endpoints for schedule modification
+  app.put('/api/admin/work-schedules/:id', isAuthenticated, async (req, res) => {
+    try {
+      if (!req.user || (req.user.role !== 'admin' && req.user.role !== 'manager')) {
+        return res.status(403).json({ error: 'Admin or Manager access required' });
+      }
+
+      const scheduleId = parseInt(req.params.id);
+      const updates = {
+        ...req.body,
+        updatedAt: new Date(),
+        approvedBy: req.user.id
+      };
+
+      const updatedSchedule = await storage.updateWorkSchedule(scheduleId, updates);
+      res.json(updatedSchedule);
+    } catch (error) {
+      console.error('Error updating work schedule:', error);
+      res.status(500).json({ message: 'Failed to update work schedule' });
+    }
+  });
+
+  app.delete('/api/admin/work-schedules/:id', isAuthenticated, async (req, res) => {
+    try {
+      if (!req.user || (req.user.role !== 'admin' && req.user.role !== 'manager')) {
+        return res.status(403).json({ error: 'Admin or Manager access required' });
+      }
+
+      const scheduleId = parseInt(req.params.id);
+      await storage.deleteWorkSchedule(scheduleId);
+      res.json({ message: 'Schedule deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting work schedule:', error);
+      res.status(500).json({ message: 'Failed to delete work schedule' });
+    }
+  });
+
+  app.patch('/api/admin/work-schedules/:id/status', isAuthenticated, async (req, res) => {
+    try {
+      if (!req.user || (req.user.role !== 'admin' && req.user.role !== 'manager')) {
+        return res.status(403).json({ error: 'Admin or Manager access required' });
+      }
+
+      const scheduleId = parseInt(req.params.id);
+      const { status, notes } = req.body;
+
+      const updates = {
+        status,
+        notes,
+        updatedAt: new Date(),
+        approvedBy: req.user.id
+      };
+
+      const updatedSchedule = await storage.updateWorkSchedule(scheduleId, updates);
+      res.json(updatedSchedule);
+    } catch (error) {
+      console.error('Error updating schedule status:', error);
+      res.status(500).json({ message: 'Failed to update schedule status' });
+    }
+  });
+
   // Announcements routes
   app.get('/api/announcements', isAuthenticated, async (req, res) => {
     try {

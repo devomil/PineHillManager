@@ -15,6 +15,7 @@ import { Calendar, Clock, MapPin, User, Plus, Edit, ChevronLeft, ChevronRight, C
 import { format, addDays, startOfWeek, endOfWeek, isWithinInterval, parseISO, addWeeks, subWeeks, getDay } from "date-fns";
 import type { WorkSchedule, User as UserType, Location } from "@shared/schema";
 import { ClearScheduleData } from "@/components/clear-schedule-data";
+import { ScheduleEditDialog } from "@/components/schedule-edit-dialog";
 
 interface ScheduleEntry {
   employeeId: string;
@@ -39,6 +40,8 @@ export default function EnhancedShiftScheduling() {
   const [isScheduleDialogOpen, setIsScheduleDialogOpen] = useState(false);
   const [isBulkScheduleMode, setIsBulkScheduleMode] = useState(false);
   const [isSingleDayDialogOpen, setIsSingleDayDialogOpen] = useState(false);
+  const [editingSchedule, setEditingSchedule] = useState<WorkSchedule | null>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [singleDayData, setSingleDayData] = useState({
     employeeId: "",
     locationId: 1,
@@ -562,7 +565,25 @@ export default function EnhancedShiftScheduling() {
                           <p className="text-xs text-blue-600 dark:text-blue-400">
                             {getLocationName(schedule.locationId)}
                           </p>
+                          {schedule.status && schedule.status !== 'scheduled' && (
+                            <Badge variant="secondary" className="text-xs mt-1">
+                              {schedule.status.replace('_', ' ')}
+                            </Badge>
+                          )}
                         </div>
+                        {(user?.role === 'admin' || user?.role === 'manager') && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              setEditingSchedule(schedule);
+                              setIsEditDialogOpen(true);
+                            }}
+                            className="h-6 w-6 p-0 ml-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <Edit className="h-3 w-3" />
+                          </Button>
+                        )}
                       </div>
                     </div>
                   ))

@@ -138,7 +138,7 @@ export const workSchedules = pgTable("work_schedules", {
   startTime: varchar("start_time").notNull(),
   endTime: varchar("end_time").notNull(),
   shiftType: varchar("shift_type").default("regular"), // regular, coverage, overtime
-  status: varchar("status").default("scheduled"), // scheduled, completed, cancelled, no_show
+  status: varchar("status").default("scheduled"), // scheduled, completed, cancelled, no_show, sick_day, vacation, personal_day
   breaks: text("breaks"), // JSON string for break times
   notes: text("notes"),
   createdBy: varchar("created_by").references(() => users.id),
