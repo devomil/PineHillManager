@@ -101,6 +101,7 @@ export interface IStorage {
   getCalendarEvents(startDate: string, endDate: string): Promise<CalendarEvent[]>;
   updateWorkSchedule(id: number, schedule: Partial<InsertWorkSchedule>): Promise<WorkSchedule>;
   deleteWorkSchedule(id: number): Promise<void>;
+  clearAllWorkSchedules(): Promise<number>;
 
   // Shift coverage requests
   createShiftCoverageRequest(request: InsertShiftCoverageRequest): Promise<ShiftCoverageRequest>;
@@ -471,6 +472,11 @@ export class DatabaseStorage implements IStorage {
       .where(eq(workSchedules.id, id))
       .returning();
     return updatedSchedule;
+  }
+
+  async clearAllWorkSchedules(): Promise<number> {
+    const result = await db.delete(workSchedules);
+    return result.rowCount || 0;
   }
 
   async getWorkSchedulesByLocation(locationId: number, startDate?: string, endDate?: string): Promise<WorkSchedule[]> {

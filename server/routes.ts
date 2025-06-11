@@ -88,6 +88,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Admin endpoint to clear all work schedules (for removing mock data)
+  app.delete('/api/admin/work-schedules/clear', isAuthenticated, async (req, res) => {
+    try {
+      if (!req.user || (req.user.role !== 'admin' && req.user.role !== 'manager')) {
+        return res.status(403).json({ error: 'Admin or Manager access required' });
+      }
+
+      const deletedCount = await storage.clearAllWorkSchedules();
+      res.json({ 
+        message: 'All work schedules cleared successfully',
+        deletedCount 
+      });
+    } catch (error) {
+      console.error('Error clearing work schedules:', error);
+      res.status(500).json({ message: 'Failed to clear work schedules' });
+    }
+  });
+
   // Announcements routes
   app.get('/api/announcements', isAuthenticated, async (req, res) => {
     try {

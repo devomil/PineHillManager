@@ -14,6 +14,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { Calendar, Clock, MapPin, User, Plus, Edit, ChevronLeft, ChevronRight, Copy, Users, CalendarDays } from "lucide-react";
 import { format, addDays, startOfWeek, endOfWeek, isWithinInterval, parseISO, addWeeks, subWeeks, getDay } from "date-fns";
 import type { WorkSchedule, User as UserType, Location } from "@shared/schema";
+import { ClearScheduleData } from "@/components/clear-schedule-data";
 
 interface ScheduleEntry {
   employeeId: string;
@@ -618,6 +619,16 @@ export default function EnhancedShiftScheduling() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Admin Tools Section - Only show for managers and admins */}
+      {(user?.role === 'admin' || user?.role === 'manager') && (
+        <div className="mt-8">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+            Admin Tools
+          </h3>
+          <ClearScheduleData />
+        </div>
+      )}
     </div>
   );
 }
