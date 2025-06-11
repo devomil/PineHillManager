@@ -45,8 +45,11 @@ export default function AdminDashboard() {
       case 'announcements':
         setLocation('/admin/announcements');
         break;
-      case 'training':
-        setLocation('/admin/training');
+      case 'system-support':
+        setLocation('/system-support');
+        break;
+      case 'communication':
+        setLocation('/communication');
         break;
       case 'reports':
         setLocation('/reports');
@@ -107,10 +110,10 @@ export default function AdminDashboard() {
       bgColor: "bg-purple-50"
     },
     {
-      title: "Training Management",
-      description: "Manage training modules and progress",
+      title: "System Support",
+      description: "Access support resources and documentation",
       icon: FileText,
-      href: "/admin/training",
+      href: "/system-support",
       color: "text-indigo-600",
       bgColor: "bg-indigo-50"
     },
@@ -215,7 +218,8 @@ export default function AdminDashboard() {
                 onClick={() => handleTabChange(action.href.includes('/employees') ? 'employees' : 
                   action.href.includes('/shift-scheduling') ? 'scheduling' :
                   action.href.includes('/announcements') ? 'announcements' :
-                  action.href.includes('/training') ? 'training' :
+                  action.href.includes('/system-support') ? 'system-support' :
+                  action.href.includes('/communication') ? 'communication' :
                   action.href.includes('/reports') ? 'reports' : 'dashboard')}
               >
                 <CardContent className="p-4">
