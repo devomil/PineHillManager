@@ -183,7 +183,8 @@ export default function EnhancedShiftScheduling() {
     mutationFn: async () => {
       const nextWeekStart = addWeeks(weekStart, 1);
       const schedulePromises = schedules.map((schedule: WorkSchedule) => {
-        const originalDate = parseISO(schedule.startTime);
+        // Use the schedule date to determine day of week
+        const originalDate = parseISO(schedule.date);
         const dayOfWeek = getDay(originalDate);
         const newDate = addDays(nextWeekStart, dayOfWeek);
         
@@ -193,8 +194,9 @@ export default function EnhancedShiftScheduling() {
           body: JSON.stringify({
             userId: schedule.userId,
             locationId: schedule.locationId,
-            startTime: `${format(newDate, "yyyy-MM-dd")}T${format(parseISO(schedule.startTime), "HH:mm")}:00`,
-            endTime: `${format(newDate, "yyyy-MM-dd")}T${format(parseISO(schedule.endTime), "HH:mm")}:00`,
+            date: format(newDate, "yyyy-MM-dd"),
+            startTime: schedule.startTime,
+            endTime: schedule.endTime,
             role: "employee"
           }),
         }).then(res => res.json());
@@ -251,8 +253,8 @@ export default function EnhancedShiftScheduling() {
   const getSchedulesForDay = (date: Date) => {
     if (!Array.isArray(schedules)) return [];
     return schedules.filter((schedule: WorkSchedule) => {
-      const scheduleDate = parseISO(schedule.startTime);
-      return format(scheduleDate, "yyyy-MM-dd") === format(date, "yyyy-MM-dd");
+      // Use the date field directly since startTime is just a time string
+      return schedule.date === format(date, "yyyy-MM-dd");
     });
   };
 
