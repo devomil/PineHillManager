@@ -360,6 +360,36 @@ function isAuthenticated(req: any, res: any, next: any) {
   res.status(401).json({ error: "Authentication required" });
 }
 
-export { isAuthenticated };
+// Role-based authorization middleware
+function requireRole(roles: string | string[]) {
+  return (req: any, res: any, next: any) => {
+    if (!req.isAuthenticated() || !req.user) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    const userRole = req.user.role;
+    const allowedRoles = Array.isArray(roles) ? roles : [roles];
+    
+    if (!allowedRoles.includes(userRole)) {
+      console.log(`Access denied for user ${req.user.id} with role ${userRole}. Required: ${allowedRoles.join(', ')}`);
+      return res.status(403).json({ error: "Insufficient permissions" });
+    }
+
+    console.log(`Access granted for user ${req.user.id} with role ${userRole}`);
+    next();
+  };
+}
+
+// Admin-only middleware
+function requireAdmin(req: any, res: any, next: any) {
+  return requireRole('admin')(req, res, next);
+}
+
+// Manager or Admin middleware
+function requireManagerOrAdmin(req: any, res: any, next: any) {
+  return requireRole(['manager', 'admin'])(req, res, next);
+}
+
+export { isAuthenticated, requireRole, requireAdmin, requireManagerOrAdmin };
 
 export { hashPassword, comparePasswords };

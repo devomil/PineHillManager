@@ -158,6 +158,243 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Employee invitation system for admin registration
+  app.post('/api/admin/invite-employee', isAuthenticated, async (req, res) => {
+    try {
+      // Only admins can send invitations
+      if (!req.user || req.user.role !== 'admin') {
+        return res.status(403).json({ error: 'Only administrators can invite employees' });
+      }
+
+      const { email, firstName, lastName, role, department, position, notes } = req.body;
+
+      if (!email || !firstName || !lastName) {
+        return res.status(400).json({ error: 'Email, first name, and last name are required' });
+      }
+
+      // Check if user already exists
+      const existingUser = await storage.getUserByEmail(email);
+      if (existingUser) {
+        return res.status(400).json({ error: 'User with this email already exists' });
+      }
+
+      // Check for existing pending invitation
+      const existingInvitations = await storage.getEmployeeInvitations('pending');
+      const existingInvite = existingInvitations.find(inv => inv.email === email);
+      if (existingInvite) {
+        return res.status(400).json({ error: 'Invitation already sent to this email' });
+      }
+
+      // Generate secure invitation token
+      const inviteToken = require('crypto').randomBytes(32).toString('hex');
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+
+      const invitation = await storage.createEmployeeInvitation({
+        email,
+        firstName,
+        lastName,
+        role: role || 'employee',
+        department,
+        position,
+        inviteToken,
+        invitedBy: req.user.id,
+        expiresAt,
+        notes,
+      });
+
+      // In production, send email with invitation link
+      console.log(`Employee invitation created for ${email}: ${inviteToken}`);
+      console.log(`Invitation link: /register?token=${inviteToken}`);
+
+      res.status(201).json({
+        message: 'Employee invitation sent successfully',
+        invitationId: invitation.id,
+        token: inviteToken, // Remove in production
+      });
+    } catch (error) {
+      console.error('Error creating employee invitation:', error);
+      res.status(500).json({ error: 'Failed to send invitation' });
+    }
+  });
+
+  // Get all employee invitations (admin only)
+  app.get('/api/admin/invitations', isAuthenticated, async (req, res) => {
+    try {
+      if (!req.user || req.user.role !== 'admin') {
+        return res.status(403).json({ error: 'Admin access required' });
+      }
+
+      const { status } = req.query;
+      const invitations = await storage.getEmployeeInvitations(status as string);
+      
+      res.json(invitations);
+    } catch (error) {
+      console.error('Error fetching invitations:', error);
+      res.status(500).json({ error: 'Failed to fetch invitations' });
+    }
+  });
+
+  // Delete invitation (admin only)
+  app.delete('/api/admin/invitations/:id', isAuthenticated, async (req, res) => {
+    try {
+      if (!req.user || req.user.role !== 'admin') {
+        return res.status(403).json({ error: 'Admin access required' });
+      }
+
+      const { id } = req.params;
+      await storage.deleteInvitation(parseInt(id));
+      
+      res.status(204).send();
+    } catch (error) {
+      console.error('Error deleting invitation:', error);
+      res.status(500).json({ error: 'Failed to delete invitation' });
+    }
+  });
+
+  // Registration with invitation token
+  app.post('/api/register-with-invitation', async (req, res) => {
+    try {
+      const { token, password } = req.body;
+
+      if (!token || !password) {
+        return res.status(400).json({ error: 'Invitation token and password are required' });
+      }
+
+      if (password.length < 8) {
+        return res.status(400).json({ error: 'Password must be at least 8 characters long' });
+      }
+
+      // Validate invitation token
+      const invitation = await storage.getInvitationByToken(token);
+      if (!invitation) {
+        return res.status(400).json({ error: 'Invalid invitation token' });
+      }
+
+      if (invitation.status !== 'pending') {
+        return res.status(400).json({ error: 'Invitation has already been used or expired' });
+      }
+
+      if (invitation.expiresAt < new Date()) {
+        return res.status(400).json({ error: 'Invitation has expired' });
+      }
+
+      // Check if user already exists
+      const existingUser = await storage.getUserByEmail(invitation.email);
+      if (existingUser) {
+        return res.status(400).json({ error: 'User already exists' });
+      }
+
+      // Create user account
+      const { hashPassword } = require('./auth');
+      const hashedPassword = await hashPassword(password);
+      
+      const user = await storage.createUser({
+        email: invitation.email,
+        password: hashedPassword,
+        firstName: invitation.firstName,
+        lastName: invitation.lastName,
+        role: invitation.role,
+        department: invitation.department,
+        position: invitation.position,
+        isActive: true,
+      });
+
+      // Accept the invitation
+      await storage.acceptInvitation(token, user.id);
+
+      // Auto-login the user
+      req.login(user, (err) => {
+        if (err) {
+          console.error('Auto-login error:', err);
+          return res.status(201).json({
+            message: 'Account created successfully. Please log in.',
+            userId: user.id,
+          });
+        }
+        
+        res.status(201).json({
+          message: 'Account created and logged in successfully',
+          user: {
+            id: user.id,
+            email: user.email,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            role: user.role,
+          },
+        });
+      });
+    } catch (error) {
+      console.error('Registration with invitation error:', error);
+      res.status(500).json({ error: 'Registration failed' });
+    }
+  });
+
+  // Update user role (admin only)
+  app.patch('/api/admin/users/:id/role', isAuthenticated, async (req, res) => {
+    try {
+      if (!req.user || req.user.role !== 'admin') {
+        return res.status(403).json({ error: 'Admin access required' });
+      }
+
+      const { id } = req.params;
+      const { role } = req.body;
+
+      if (!role || !['employee', 'manager', 'admin'].includes(role)) {
+        return res.status(400).json({ error: 'Valid role is required (employee, manager, admin)' });
+      }
+
+      // Prevent self-demotion from admin
+      if (req.user.id === id && req.user.role === 'admin' && role !== 'admin') {
+        return res.status(400).json({ error: 'Cannot demote yourself from admin role' });
+      }
+
+      const updatedUser = await storage.updateUserRole(id, role);
+      
+      res.json({
+        message: 'User role updated successfully',
+        user: {
+          id: updatedUser.id,
+          email: updatedUser.email,
+          firstName: updatedUser.firstName,
+          lastName: updatedUser.lastName,
+          role: updatedUser.role,
+        },
+      });
+    } catch (error) {
+      console.error('Error updating user role:', error);
+      res.status(500).json({ error: 'Failed to update user role' });
+    }
+  });
+
+  // Admin password reset for users
+  app.post('/api/admin/reset-user-password', isAuthenticated, async (req, res) => {
+    try {
+      if (!req.user || req.user.role !== 'admin') {
+        return res.status(403).json({ error: 'Admin access required' });
+      }
+
+      const { userId, newPassword } = req.body;
+
+      if (!userId || !newPassword) {
+        return res.status(400).json({ error: 'User ID and new password are required' });
+      }
+
+      if (newPassword.length < 8) {
+        return res.status(400).json({ error: 'Password must be at least 8 characters long' });
+      }
+
+      const { hashPassword } = require('./auth');
+      const hashedPassword = await hashPassword(newPassword);
+      
+      await storage.updateUserProfile(userId, { password: hashedPassword });
+
+      res.json({ message: 'User password reset successfully' });
+    } catch (error) {
+      console.error('Admin password reset error:', error);
+      res.status(500).json({ error: 'Password reset failed' });
+    }
+  });
+
   // Locations routes
   app.get('/api/locations', isAuthenticated, async (req, res) => {
     try {
