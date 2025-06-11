@@ -36,9 +36,11 @@ export default function TimeClock() {
   ];
 
   // Get current time entry and real-time data
-  const { data: currentEntry, isLoading: currentEntryLoading } = useQuery<any>({
+  const { data: currentEntry, isLoading: currentEntryLoading, error: currentEntryError } = useQuery<any>({
     queryKey: ['/api/time-clock/current'],
-    refetchInterval: 5000, // Refresh every 5 seconds
+    refetchInterval: 1000, // Refresh every 1 second for real-time updates
+    refetchOnMount: true,
+    refetchOnWindowFocus: true,
   });
 
   const { data: todayEntries = [], isLoading: todayLoading } = useQuery<any[]>({
@@ -228,6 +230,15 @@ export default function TimeClock() {
   const todaysHours = calculateTodaysHours();
   const weekHours = calculateWeekHours();
   const currentBreakTime = calculateCurrentBreakTime();
+
+  // Debug logging
+  useEffect(() => {
+    console.log('Current Entry:', currentEntry);
+    console.log('Is Clocked In:', isClockedIn);
+    console.log('Is On Break:', isOnBreak);
+    console.log('Current Entry Loading:', currentEntryLoading);
+    console.log('Current Entry Error:', currentEntryError);
+  }, [currentEntry, isClockedIn, isOnBreak, currentEntryLoading, currentEntryError]);
 
   if (!user) {
     return (
