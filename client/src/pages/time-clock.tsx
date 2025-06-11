@@ -3,8 +3,9 @@ import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Clock, Play, Pause, Square, MapPin, Calendar } from "lucide-react";
+import { Clock, Play, Pause, Square, MapPin, Calendar, ChevronDown } from "lucide-react";
 import { format } from "date-fns";
 
 export default function TimeClock() {
@@ -17,6 +18,25 @@ export default function TimeClock() {
   const [isOnBreak, setIsOnBreak] = useState(false);
   const [breakStartTime, setBreakStartTime] = useState<Date | null>(null);
   const [totalBreakTime, setTotalBreakTime] = useState("0:00");
+  const [selectedLocation, setSelectedLocation] = useState("lake-geneva-retail");
+
+  const locations = [
+    {
+      id: "lake-geneva-retail",
+      name: "Lake Geneva Retail",
+      address: "W4240 State Rd 50, Lake Geneva, WI 53147"
+    },
+    {
+      id: "watertown-retail", 
+      name: "Watertown Retail",
+      address: "919 N Church St, Watertown, WI 53094"
+    },
+    {
+      id: "watertown-spa",
+      name: "Watertown Spa",
+      address: "504 S Church St, Watertown, WI 53094"
+    }
+  ];
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -45,11 +65,12 @@ export default function TimeClock() {
   }, [currentTime, isOnBreak, breakStartTime]);
 
   const handleClockIn = () => {
+    const location = locations.find(loc => loc.id === selectedLocation);
     setIsClockedIn(true);
     setClockInTime(new Date());
     toast({
       title: "Clocked In",
-      description: `Welcome back, ${user?.firstName}! You are now clocked in.`,
+      description: `Welcome back, ${user?.firstName}! You are now clocked in at ${location?.name}.`,
     });
   };
 
@@ -177,7 +198,7 @@ export default function TimeClock() {
             </CardContent>
           </Card>
 
-          {/* Location Info */}
+          {/* Location Selection */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
@@ -185,11 +206,33 @@ export default function TimeClock() {
                 <span>Work Location</span>
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="text-center">
-                <p className="text-lg font-medium text-gray-900">Lake Geneva Retail</p>
-                <p className="text-sm text-gray-600">W4240 State Rd 50, Lake Geneva, WI 53147</p>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700">Select Your Location</label>
+                <Select value={selectedLocation} onValueChange={setSelectedLocation}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Choose work location" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {locations.map((location) => (
+                      <SelectItem key={location.id} value={location.id}>
+                        {location.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
+              
+              {selectedLocation && (
+                <div className="text-center p-4 bg-gray-50 rounded-lg">
+                  <p className="text-lg font-medium text-gray-900">
+                    {locations.find(loc => loc.id === selectedLocation)?.name}
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    {locations.find(loc => loc.id === selectedLocation)?.address}
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
 
