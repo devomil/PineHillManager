@@ -192,7 +192,7 @@ export default function Schedule() {
               return `
                 <td>
                   ${daySchedules.length > 0 ? 
-                    daySchedules.map(schedule => `
+                    daySchedules.map((schedule: any) => `
                       <div class="shift-item">
                         <div class="shift-time">${schedule.startTime} - ${schedule.endTime}</div>
                         <div class="shift-location">${schedule.locationName || 'Location TBD'}</div>
@@ -216,7 +216,7 @@ export default function Schedule() {
   };
 
   const generateMonthlyPrintHtml = () => {
-    const monthlySchedules = schedules.filter(schedule => {
+    const monthlySchedules = schedules.filter((schedule: any) => {
       const scheduleDate = new Date(schedule.date);
       return isSameMonth(scheduleDate, currentMonth);
     });
