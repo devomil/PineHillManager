@@ -14,6 +14,9 @@ export default function TimeClock() {
   const [isClocked, setIsClockedIn] = useState(false);
   const [clockInTime, setClockInTime] = useState<Date | null>(null);
   const [totalHours, setTotalHours] = useState("0:00");
+  const [isOnBreak, setIsOnBreak] = useState(false);
+  const [breakStartTime, setBreakStartTime] = useState<Date | null>(null);
+  const [totalBreakTime, setTotalBreakTime] = useState("0:00");
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -32,6 +35,15 @@ export default function TimeClock() {
     }
   }, [currentTime, isClocked, clockInTime]);
 
+  useEffect(() => {
+    if (isOnBreak && breakStartTime) {
+      const elapsed = Math.floor((currentTime.getTime() - breakStartTime.getTime()) / 1000);
+      const hours = Math.floor(elapsed / 3600);
+      const minutes = Math.floor((elapsed % 3600) / 60);
+      setTotalBreakTime(`${hours}:${minutes.toString().padStart(2, '0')}`);
+    }
+  }, [currentTime, isOnBreak, breakStartTime]);
+
   const handleClockIn = () => {
     setIsClockedIn(true);
     setClockInTime(new Date());
@@ -44,10 +56,31 @@ export default function TimeClock() {
   const handleClockOut = () => {
     setIsClockedIn(false);
     setClockInTime(null);
+    setIsOnBreak(false);
+    setBreakStartTime(null);
     toast({
       title: "Clocked Out", 
       description: `You worked ${totalHours} today. Have a great rest of your day!`,
     });
+  };
+
+  const handleStartBreak = () => {
+    setIsOnBreak(true);
+    setBreakStartTime(new Date());
+    toast({
+      title: "Break Started",
+      description: "Enjoy your break! Remember to end it when you return.",
+    });
+  };
+
+  const handleEndBreak = () => {
+    setIsOnBreak(false);
+    setBreakStartTime(null);
+    toast({
+      title: "Break Ended",
+      description: `Break time: ${totalBreakTime}. Welcome back!`,
+    });
+    setTotalBreakTime("0:00");
   };
 
   return (
@@ -187,8 +220,12 @@ export default function TimeClock() {
                 <CardTitle className="text-sm font-medium text-gray-600">Break Status</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-gray-900">Available</div>
-                <p className="text-xs text-gray-500 mt-1">Next break in 2h 15m</p>
+                <div className="text-2xl font-bold text-gray-900">
+                  {isOnBreak ? "On Break" : "Available"}
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  {isOnBreak ? `Break time: ${totalBreakTime}` : "Ready for break"}
+                </p>
               </CardContent>
             </Card>
           </div>
@@ -200,17 +237,30 @@ export default function TimeClock() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex justify-center space-x-4">
-                <Button variant="outline" disabled={!isClocked}>
+                <Button 
+                  variant="outline" 
+                  disabled={!isClocked || isOnBreak}
+                  onClick={handleStartBreak}
+                  className={isOnBreak ? "opacity-50" : ""}
+                >
                   <Pause className="h-4 w-4 mr-2" />
                   Start Break
                 </Button>
-                <Button variant="outline" disabled>
+                <Button 
+                  variant="outline" 
+                  disabled={!isOnBreak}
+                  onClick={handleEndBreak}
+                  className={!isOnBreak ? "opacity-50" : "bg-green-50 border-green-300 hover:bg-green-100"}
+                >
                   <Play className="h-4 w-4 mr-2" />
                   End Break
                 </Button>
               </div>
               <p className="text-sm text-gray-500 text-center">
-                Breaks are automatically tracked when you clock in and out
+                {isOnBreak 
+                  ? `Break started at ${breakStartTime ? format(breakStartTime, "h:mm a") : ""}`
+                  : "Click 'Start Break' when you need to take a break"
+                }
               </p>
             </CardContent>
           </Card>
