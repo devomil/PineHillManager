@@ -42,8 +42,11 @@ export default function TimeClock() {
       console.log('Custom queryFn for current entry');
       const response = await fetch('/api/time-clock/current', {
         credentials: 'include',
+        cache: 'no-cache',
         headers: {
           'Accept': 'application/json',
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache',
         },
       });
       console.log('Current entry response status:', response.status);
@@ -59,6 +62,8 @@ export default function TimeClock() {
     refetchOnWindowFocus: true,
     retry: false,
     enabled: !!user,
+    staleTime: 0,
+    gcTime: 0,
   });
 
   const { data: todayEntries = [], isLoading: todayLoading } = useQuery<any[]>({
@@ -241,22 +246,25 @@ export default function TimeClock() {
   };
 
   const isLoading = currentEntryLoading || todayLoading || weekLoading;
-  const isClockedIn = currentEntry && typeof currentEntry === 'object' && 
-    (currentEntry.status === 'clocked_in' || currentEntry.status === 'on_break');
-  const isOnBreak = currentEntry && typeof currentEntry === 'object' && 
-    currentEntry.status === 'on_break';
+  const isClockedIn = Boolean(currentEntry && typeof currentEntry === 'object' && 
+    (currentEntry.status === 'clocked_in' || currentEntry.status === 'on_break'));
+  const isOnBreak = Boolean(currentEntry && typeof currentEntry === 'object' && 
+    currentEntry.status === 'on_break');
   const todaysHours = calculateTodaysHours();
   const weekHours = calculateWeekHours();
   const currentBreakTime = calculateCurrentBreakTime();
 
   // Debug logging
   useEffect(() => {
+    console.log('=== TIME CLOCK STATE DEBUG ===');
     console.log('Current Entry:', currentEntry);
+    console.log('Current Entry Type:', typeof currentEntry);
     console.log('Is Clocked In:', isClockedIn);
     console.log('Is On Break:', isOnBreak);
     console.log('Current Entry Loading:', currentEntryLoading);
     console.log('Current Entry Error:', currentEntryError);
-    console.log('Making request to: /api/time-clock/current');
+    console.log('Button should show:', !isClockedIn ? 'Clock In' : 'Clock Out');
+    console.log('===========================');
   }, [currentEntry, isClockedIn, isOnBreak, currentEntryLoading, currentEntryError]);
 
   if (!user) {
