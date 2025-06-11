@@ -50,7 +50,7 @@ export function getSession() {
     
     console.log("Using PostgreSQL session store");
   } catch (error) {
-    console.warn("PostgreSQL session store failed, using memory store:", error.message);
+    console.warn("PostgreSQL session store failed, using memory store:", error instanceof Error ? error.message : String(error));
     const MemStore = MemoryStore(session);
     sessionStore = new MemStore({
       checkPeriod: 86400000, // prune expired entries every 24h

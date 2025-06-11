@@ -45,21 +45,26 @@ export const queryClient = new QueryClient({
   },
 });
 
-export async function apiRequest(url: string, options: RequestInit = {}) {
-  console.log('API Request to:', url, 'with options:', options);
-  const response = await fetch(url, {
+export async function apiRequest(method: string, url: string, data?: any) {
+  console.log('API Request:', method, url, 'with data:', data);
+  
+  const options: RequestInit = {
+    method,
     credentials: 'include',
     mode: 'cors',
     cache: 'no-cache',
     headers: {
       "Content-Type": "application/json",
       "Accept": "application/json",
-      ...options.headers,
     },
-    ...options,
-  });
+  };
 
-  console.log('API Response status:', response.status, 'for', url);
+  if (data && (method === 'POST' || method === 'PUT' || method === 'PATCH')) {
+    options.body = JSON.stringify(data);
+  }
+
+  const response = await fetch(url, options);
+  console.log('API Response status:', response.status, 'for', method, url);
 
   if (!response.ok) {
     const errorText = await response.text();
@@ -67,7 +72,5 @@ export async function apiRequest(url: string, options: RequestInit = {}) {
     throw new Error(`${response.status}: ${response.statusText}`);
   }
 
-  const data = await response.json();
-  console.log('API Response data for', url, ':', data);
-  return data;
+  return response;
 }

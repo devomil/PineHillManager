@@ -202,7 +202,8 @@ export default function AdminEmployeeManagement() {
   // Update employee mutation
   const updateEmployeeMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: EditEmployeeFormData }) => {
-      return await apiRequest(`/api/employees/${id}`, "PATCH", data);
+      const response = await apiRequest("PATCH", `/api/employees/${id}`, data);
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/employees"] });
@@ -237,7 +238,8 @@ export default function AdminEmployeeManagement() {
   // Deactivate employee mutation
   const deactivateEmployeeMutation = useMutation({
     mutationFn: async (employeeId: string) => {
-      return await apiRequest(`/api/employees/${employeeId}`, "PATCH", { isActive: false });
+      const response = await apiRequest("PATCH", `/api/employees/${employeeId}`, { isActive: false });
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/employees"] });
