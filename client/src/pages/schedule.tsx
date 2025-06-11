@@ -6,12 +6,14 @@ import { Badge } from "@/components/ui/badge";
 import { useQuery } from "@tanstack/react-query";
 import { Calendar, Clock, MapPin, User, Printer } from "lucide-react";
 import { format, addDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, addWeeks, addMonths, eachDayOfInterval, isSameMonth, isToday } from "date-fns";
+import { useLocation } from "wouter";
 
 export default function Schedule() {
   const { user } = useAuth();
   const [currentWeek, setCurrentWeek] = useState(new Date());
   const [viewMode, setViewMode] = useState<'week' | 'month'>('week');
   const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [, setLocation] = useLocation();
 
   const weekStart = startOfWeek(currentWeek, { weekStartsOn: 0 });
   const weekEnd = endOfWeek(currentWeek, { weekStartsOn: 0 });
@@ -582,15 +584,27 @@ export default function Schedule() {
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Button variant="outline" className="h-auto p-4 flex flex-col items-center space-y-2">
+                <Button 
+                  variant="outline" 
+                  className="h-auto p-4 flex flex-col items-center space-y-2 hover:bg-blue-50 hover:border-blue-300 transition-colors"
+                  onClick={() => setLocation('/time-off')}
+                >
                   <Calendar className="h-6 w-6 text-gray-600" />
                   <span className="text-sm">Request Time Off</span>
                 </Button>
-                <Button variant="outline" className="h-auto p-4 flex flex-col items-center space-y-2">
+                <Button 
+                  variant="outline" 
+                  className="h-auto p-4 flex flex-col items-center space-y-2 hover:bg-blue-50 hover:border-blue-300 transition-colors"
+                  onClick={() => setLocation('/shift-coverage')}
+                >
                   <User className="h-6 w-6 text-gray-600" />
                   <span className="text-sm">Find Shift Coverage</span>
                 </Button>
-                <Button variant="outline" className="h-auto p-4 flex flex-col items-center space-y-2">
+                <Button 
+                  variant="outline" 
+                  className="h-auto p-4 flex flex-col items-center space-y-2 hover:bg-blue-50 hover:border-blue-300 transition-colors"
+                  onClick={() => setLocation('/time-clock')}
+                >
                   <Clock className="h-6 w-6 text-gray-600" />
                   <span className="text-sm">View Time Clock</span>
                 </Button>
