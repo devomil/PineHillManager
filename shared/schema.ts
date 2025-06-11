@@ -64,7 +64,7 @@ export const users = pgTable("users", {
 export const timeClockEntries = pgTable("time_clock_entries", {
   id: serial("id").primaryKey(),
   userId: varchar("user_id").notNull().references(() => users.id),
-  locationId: integer("location_id").references(() => locations.id),
+  locationId: integer("location_id"),
   clockInTime: timestamp("clock_in_time").notNull(),
   clockOutTime: timestamp("clock_out_time"),
   breakStartTime: timestamp("break_start_time"),
