@@ -54,10 +54,13 @@ export default function TimeClock() {
   // Clock in mutation
   const clockInMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiRequest('POST', '/api/time-clock/clock-in', {
-        locationId: parseInt(selectedLocation)
+      const res = await apiRequest('/api/time-clock/clock-in', {
+        method: 'POST',
+        body: JSON.stringify({
+          locationId: parseInt(selectedLocation)
+        })
       });
-      return res.json();
+      return res;
     },
     onSuccess: () => {
       const location = locations.find(loc => loc.id === selectedLocation);
@@ -81,8 +84,11 @@ export default function TimeClock() {
   // Clock out mutation
   const clockOutMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiRequest('POST', '/api/time-clock/clock-out', {});
-      return res.json();
+      const res = await apiRequest('/api/time-clock/clock-out', {
+        method: 'POST',
+        body: JSON.stringify({})
+      });
+      return res;
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['/api/time-clock/current'] });
@@ -106,8 +112,11 @@ export default function TimeClock() {
   // Start break mutation
   const startBreakMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiRequest('POST', '/api/time-clock/start-break', {});
-      return res.json();
+      const res = await apiRequest('/api/time-clock/start-break', {
+        method: 'POST',
+        body: JSON.stringify({})
+      });
+      return res;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/time-clock/current'] });
@@ -128,8 +137,11 @@ export default function TimeClock() {
   // End break mutation
   const endBreakMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiRequest('POST', '/api/time-clock/end-break', {});
-      return res.json();
+      const res = await apiRequest('/api/time-clock/end-break', {
+        method: 'POST',
+        body: JSON.stringify({})
+      });
+      return res;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/time-clock/current'] });
