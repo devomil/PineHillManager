@@ -161,12 +161,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Time clock API endpoints
   app.post('/api/time-clock/clock-in', isAuthenticated, async (req, res) => {
     try {
+      console.log('Clock-in request body:', req.body);
+      console.log('User:', req.user);
+      
       const { locationId } = req.body;
+      
+      if (!locationId) {
+        console.error('No locationId provided');
+        return res.status(400).json({ message: 'Location ID is required' });
+      }
+      
       const userId = req.user!.id;
       const ipAddress = req.ip;
       const deviceInfo = req.get('User-Agent');
 
+      console.log('Calling storage.clockIn with:', { userId, locationId, ipAddress, deviceInfo });
       const timeEntry = await storage.clockIn(userId, locationId, ipAddress, deviceInfo);
+      console.log('Clock-in successful:', timeEntry);
       res.json(timeEntry);
     } catch (error) {
       console.error('Error clocking in:', error);
