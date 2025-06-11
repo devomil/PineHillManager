@@ -79,7 +79,7 @@ export default function SystemSupport() {
     },
     {
       method: "Phone Support",
-      contact: "(555) 123-4567",
+      contact: "262-804-7976",
       description: "Call during business hours (8AM - 6PM CST)",
       icon: Phone,
       primary: false

@@ -161,9 +161,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Locations routes
   app.get('/api/locations', isAuthenticated, async (req, res) => {
     try {
-      console.log('Locations endpoint called');
       const locations = await storage.getAllLocations();
-      console.log('Locations fetched from DB:', locations);
       res.json(locations);
     } catch (error) {
       console.error('Error fetching locations:', error);

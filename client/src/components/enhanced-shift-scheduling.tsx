@@ -86,16 +86,7 @@ export default function EnhancedShiftScheduling() {
     enabled: !!user, // Only run when user is authenticated
   });
 
-  // Debug logging
-  console.log("Shift scheduling queries:", { 
-    user: !!user,
-    employees: Array.isArray(employees) ? employees.length : 0, 
-    employeesLoading, 
-    employeesError: employeesError?.message,
-    locations: Array.isArray(locations) ? locations.length : 0,
-    locationsLoading,
-    locationsError: locationsError?.message
-  });
+
 
   const { data: schedules = [], isLoading } = useQuery({
     queryKey: ["/api/work-schedules", format(weekStart, "yyyy-MM-dd"), format(weekEnd, "yyyy-MM-dd")],
