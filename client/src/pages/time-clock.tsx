@@ -263,7 +263,7 @@ export default function TimeClock() {
             {format(currentTime, "EEEE, MMMM d, yyyy")}
           </p>
           <div className="text-5xl font-mono font-bold text-gray-800">
-            {format(currentTime, "HH:mm:ss")} {format(currentTime, "a")}
+            {format(currentTime, "h:mm:ss a")} CST
           </div>
         </div>
 

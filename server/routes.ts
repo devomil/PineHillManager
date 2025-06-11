@@ -220,10 +220,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/time-clock/current', async (req, res) => {
+  app.get('/api/time-clock/current', isAuthenticated, async (req, res) => {
     try {
-      // Temporarily hardcode user ID for testing
-      const userId = "1"; // Test user ID
+      const userId = req.user!.id;
       console.log('Getting current time entry for user:', userId);
       const currentEntry = await storage.getCurrentTimeEntry(userId);
       console.log('Current entry result:', currentEntry);
