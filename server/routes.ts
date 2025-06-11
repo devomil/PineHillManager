@@ -158,6 +158,98 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Time clock API endpoints
+  app.post('/api/time-clock/clock-in', isAuthenticated, async (req, res) => {
+    try {
+      const { locationId } = req.body;
+      const userId = req.user!.id;
+      const ipAddress = req.ip;
+      const deviceInfo = req.get('User-Agent');
+
+      const timeEntry = await storage.clockIn(userId, locationId, ipAddress, deviceInfo);
+      res.json(timeEntry);
+    } catch (error) {
+      console.error('Error clocking in:', error);
+      res.status(400).json({ message: error instanceof Error ? error.message : 'Failed to clock in' });
+    }
+  });
+
+  app.post('/api/time-clock/clock-out', isAuthenticated, async (req, res) => {
+    try {
+      const { notes } = req.body;
+      const userId = req.user!.id;
+
+      const timeEntry = await storage.clockOut(userId, notes);
+      res.json(timeEntry);
+    } catch (error) {
+      console.error('Error clocking out:', error);
+      res.status(400).json({ message: error instanceof Error ? error.message : 'Failed to clock out' });
+    }
+  });
+
+  app.post('/api/time-clock/start-break', isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user!.id;
+      const timeEntry = await storage.startBreak(userId);
+      res.json(timeEntry);
+    } catch (error) {
+      console.error('Error starting break:', error);
+      res.status(400).json({ message: error instanceof Error ? error.message : 'Failed to start break' });
+    }
+  });
+
+  app.post('/api/time-clock/end-break', isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user!.id;
+      const timeEntry = await storage.endBreak(userId);
+      res.json(timeEntry);
+    } catch (error) {
+      console.error('Error ending break:', error);
+      res.status(400).json({ message: error instanceof Error ? error.message : 'Failed to end break' });
+    }
+  });
+
+  app.get('/api/time-clock/current', isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user!.id;
+      const currentEntry = await storage.getCurrentTimeEntry(userId);
+      res.json(currentEntry || null);
+    } catch (error) {
+      console.error('Error getting current time entry:', error);
+      res.status(500).json({ message: 'Failed to get current time entry' });
+    }
+  });
+
+  app.get('/api/time-clock/today', isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user!.id;
+      const today = new Date().toISOString().split('T')[0];
+      const entries = await storage.getTimeEntriesByDate(userId, today);
+      res.json(entries);
+    } catch (error) {
+      console.error('Error getting today\'s time entries:', error);
+      res.status(500).json({ message: 'Failed to get today\'s time entries' });
+    }
+  });
+
+  app.get('/api/time-clock/week', isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user!.id;
+      const today = new Date();
+      const startOfWeek = new Date(today.setDate(today.getDate() - today.getDay()));
+      const endOfWeek = new Date(today.setDate(startOfWeek.getDate() + 6));
+      
+      const startDate = startOfWeek.toISOString().split('T')[0];
+      const endDate = endOfWeek.toISOString().split('T')[0];
+      
+      const entries = await storage.getTimeEntriesByDateRange(userId, startDate, endDate);
+      res.json(entries);
+    } catch (error) {
+      console.error('Error getting week\'s time entries:', error);
+      res.status(500).json({ message: 'Failed to get week\'s time entries' });
+    }
+  });
+
   // File upload routes
   app.post('/api/upload', isAuthenticated, upload.single('file'), (req, res) => {
     try {

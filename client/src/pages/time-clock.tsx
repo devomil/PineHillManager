@@ -7,36 +7,49 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { Clock, Play, Pause, Square, MapPin, Calendar, ChevronDown } from "lucide-react";
 import { format } from "date-fns";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 
 export default function TimeClock() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [isClocked, setIsClockedIn] = useState(false);
-  const [clockInTime, setClockInTime] = useState<Date | null>(null);
-  const [totalHours, setTotalHours] = useState("0:00");
-  const [isOnBreak, setIsOnBreak] = useState(false);
-  const [breakStartTime, setBreakStartTime] = useState<Date | null>(null);
-  const [totalBreakTime, setTotalBreakTime] = useState("0:00");
-  const [selectedLocation, setSelectedLocation] = useState("lake-geneva-retail");
+  const [selectedLocation, setSelectedLocation] = useState("1");
 
   const locations = [
     {
-      id: "lake-geneva-retail",
+      id: "1",
       name: "Lake Geneva Retail",
       address: "W4240 State Rd 50, Lake Geneva, WI 53147"
     },
     {
-      id: "watertown-retail", 
+      id: "2", 
       name: "Watertown Retail",
       address: "919 N Church St, Watertown, WI 53094"
     },
     {
-      id: "watertown-spa",
+      id: "3",
       name: "Watertown Spa",
       address: "504 S Church St, Watertown, WI 53094"
     }
   ];
+
+  // Get current time entry and real-time data
+  const { data: currentEntry, isLoading: currentEntryLoading } = useQuery({
+    queryKey: ['/api/time-clock/current'],
+    refetchInterval: 5000, // Refresh every 5 seconds
+  });
+
+  const { data: todayEntries = [], isLoading: todayLoading } = useQuery({
+    queryKey: ['/api/time-clock/today'],
+    refetchInterval: 30000, // Refresh every 30 seconds
+  });
+
+  const { data: weekEntries = [], isLoading: weekLoading } = useQuery({
+    queryKey: ['/api/time-clock/week'],
+    refetchInterval: 30000, // Refresh every 30 seconds
+  });
 
   useEffect(() => {
     const timer = setInterval(() => {
