@@ -552,7 +552,7 @@ export default function EnhancedShiftScheduling() {
                   daySchedules.map((schedule: WorkSchedule) => (
                     <div
                       key={schedule.id}
-                      className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800"
+                      className="group p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
                     >
                       <div className="flex items-start justify-between">
                         <div className="flex-1 min-w-0">
@@ -650,6 +650,18 @@ export default function EnhancedShiftScheduling() {
           <ClearScheduleData />
         </div>
       )}
+
+      {/* Schedule Edit Dialog */}
+      <ScheduleEditDialog
+        schedule={editingSchedule}
+        isOpen={isEditDialogOpen}
+        onClose={() => {
+          setIsEditDialogOpen(false);
+          setEditingSchedule(null);
+        }}
+        employees={employees}
+        locations={locations}
+      />
     </div>
   );
 }
