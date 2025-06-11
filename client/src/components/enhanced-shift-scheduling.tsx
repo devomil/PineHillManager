@@ -50,8 +50,17 @@ export default function EnhancedShiftScheduling() {
   const weekEnd = endOfWeek(currentWeek, { weekStartsOn: 0 });
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
 
-  const { data: employees = [] } = useQuery({
+  const { data: employees = [], isLoading: employeesLoading, error: employeesError } = useQuery({
     queryKey: ["/api/employees"],
+    retry: 1,
+  });
+
+  // Debug logging for employees
+  console.log("Employees query state:", { 
+    employees, 
+    employeesLoading, 
+    employeesError,
+    employeesCount: Array.isArray(employees) ? employees.length : 0
   });
 
   const { data: locations = [] } = useQuery({
