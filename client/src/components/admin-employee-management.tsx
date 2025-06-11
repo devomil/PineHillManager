@@ -108,6 +108,33 @@ export default function AdminEmployeeManagement() {
 
   const { data: employees, isLoading, error } = useQuery<UserType[]>({
     queryKey: ["/api/employees"],
+    queryFn: async () => {
+      console.log("Making request to /api/employees");
+      try {
+        const response = await fetch('/api/employees', {
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+        
+        console.log("Response status:", response.status);
+        console.log("Response ok:", response.ok);
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.log("Error response:", errorText);
+          throw new Error(`${response.status}: ${errorText}`);
+        }
+        
+        const data = await response.json();
+        console.log("Employees data received:", data);
+        return data;
+      } catch (err) {
+        console.error("Fetch error:", err);
+        throw err;
+      }
+    },
   });
 
   // Debug logging
