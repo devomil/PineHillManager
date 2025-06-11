@@ -63,6 +63,10 @@ export default function EnhancedShiftScheduling() {
     employeesCount: Array.isArray(employees) ? employees.length : 0
   });
 
+  if (employeesError) {
+    console.error("Employee query error details:", employeesError);
+  }
+
   const { data: locations = [] } = useQuery({
     queryKey: ["/api/locations"],
   });
