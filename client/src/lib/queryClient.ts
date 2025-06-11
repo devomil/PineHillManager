@@ -8,13 +8,17 @@ export const queryClient = new QueryClient({
       staleTime: 0,
       queryFn: async ({ queryKey }) => {
         const url = queryKey[0] as string;
+        console.log('Making request to:', url);
         const response = await fetch(url, {
           credentials: 'include',
           headers: {
             'Content-Type': 'application/json',
             'Cache-Control': 'no-cache',
+            'Accept': 'application/json',
           },
         });
+        
+        console.log('Response status:', response.status, 'for', url);
         
         if (!response.ok) {
           if (response.status === 401) {
@@ -25,7 +29,9 @@ export const queryClient = new QueryClient({
           throw new Error(`${response.status}: ${response.statusText}`);
         }
         
-        return response.json();
+        const data = await response.json();
+        console.log('Response data for', url, ':', data);
+        return data;
       },
     },
   },
