@@ -716,7 +716,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Serve uploaded files
   app.use('/uploads', express.static('uploads'));
 
-  // Support ticket submission endpoint
+  // System support ticket submission endpoint (admin/manager view)
+  app.post('/api/system-support-tickets', isAuthenticated, async (req, res) => {
+    try {
+      const { subject, description, priority } = req.body;
+      const user = req.user as any;
+
+      if (!subject || !description) {
+        return res.status(400).json({ message: 'Missing required fields' });
+      }
+
+      // All system support tickets go to Ryan (IT Support)
+      const assignedTo = {
+        name: "Ryan (IT Support)",
+        email: "ryan@pinehillfarm.co"
+      };
+      
+      // Send email notification with priority information
+      const emailSent = await sendSupportTicketNotification({
+        category: `system-${priority || 'medium'}-priority`,
+        subject: `[${(priority || 'medium').toUpperCase()} PRIORITY] ${subject}`,
+        description: `Priority Level: ${(priority || 'medium').toUpperCase()}\n\n${description}`,
+        submittedBy: {
+          name: `${user.firstName} ${user.lastName} (${user.role})`,
+          email: user.email
+        },
+        assignedTo
+      });
+
+      res.json({
+        success: true,
+        message: `System support ticket submitted and routed to ${assignedTo.name}`,
+        emailSent,
+        assignedTo: assignedTo.name,
+        priority: priority || 'medium'
+      });
+
+    } catch (error) {
+      console.error('Error submitting system support ticket:', error);
+      res.status(500).json({ message: 'Failed to submit system support ticket' });
+    }
+  });
+
+  // Employee support ticket submission endpoint
   app.post('/api/support-tickets', isAuthenticated, async (req, res) => {
     try {
       const { category, subject, description } = req.body;

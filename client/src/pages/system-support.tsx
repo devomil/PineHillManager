@@ -30,7 +30,7 @@ export default function SystemSupport() {
   const [ticketPriority, setTicketPriority] = useState("medium");
   const { toast } = useToast();
 
-  const handleSubmitTicket = () => {
+  const handleSubmitTicket = async () => {
     if (!ticketSubject || !ticketDescription) {
       toast({
         title: "Missing Information",
@@ -40,14 +40,43 @@ export default function SystemSupport() {
       return;
     }
 
-    toast({
-      title: "Support Ticket Submitted",
-      description: "Your support request has been submitted. We'll respond within 24 hours.",
-    });
+    try {
+      const response = await fetch('/api/system-support-tickets', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          subject: ticketSubject,
+          description: ticketDescription,
+          priority: ticketPriority,
+        }),
+      });
 
-    setTicketSubject("");
-    setTicketDescription("");
-    setTicketPriority("medium");
+      if (!response.ok) {
+        throw new Error('Failed to submit system support ticket');
+      }
+
+      const result = await response.json();
+      
+      toast({
+        title: "System Support Ticket Submitted",
+        description: `Your ${ticketPriority} priority ticket has been routed to ${result.assignedTo}${result.emailSent ? ' and an email notification has been sent' : ''}. Response within 24 hours.`,
+      });
+
+      setTicketSubject("");
+      setTicketDescription("");
+      setTicketPriority("medium");
+
+    } catch (error) {
+      console.error('Error submitting system support ticket:', error);
+      toast({
+        title: "Submission Failed",
+        description: "Unable to submit your system support ticket. Please try again or contact IT support directly.",
+        variant: "destructive",
+      });
+    }
   };
 
   const faqItems = [
