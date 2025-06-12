@@ -5,6 +5,7 @@ import { setupAuth, isAuthenticated } from "./auth";
 import { storage } from "./storage";
 import { performanceMiddleware, getPerformanceMetrics, resetPerformanceMetrics } from "./performance-middleware";
 import { notificationService } from "./notificationService";
+import { sendSupportTicketNotification } from "./emailService";
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -714,6 +715,66 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Serve uploaded files
   app.use('/uploads', express.static('uploads'));
+
+  // Support ticket submission endpoint
+  app.post('/api/support-tickets', isAuthenticated, async (req, res) => {
+    try {
+      const { category, subject, description } = req.body;
+      const user = req.user as any;
+
+      if (!category || !subject || !description) {
+        return res.status(400).json({ message: 'Missing required fields' });
+      }
+
+      // Determine assigned personnel based on category
+      const getAssignedPersonnel = (category: string) => {
+        const jackieCategories = ["general", "time-tracking", "scheduling", "payroll-benefits"];
+        const ryanCategories = ["technical-issue", "account-access"];
+        
+        if (jackieCategories.includes(category)) {
+          return {
+            name: "Manager Jackie",
+            email: "jackie@pinehillfarm.co"
+          };
+        } else if (ryanCategories.includes(category)) {
+          return {
+            name: "Ryan (IT Support)",
+            email: "ryan@pinehillfarm.co"
+          };
+        }
+        
+        return {
+          name: "Manager Jackie",
+          email: "jackie@pinehillfarm.co"
+        };
+      };
+
+      const assignedTo = getAssignedPersonnel(category);
+      
+      // Send email notification
+      const emailSent = await sendSupportTicketNotification({
+        category,
+        subject,
+        description,
+        submittedBy: {
+          name: `${user.firstName} ${user.lastName}`,
+          email: user.email
+        },
+        assignedTo
+      });
+
+      res.json({
+        success: true,
+        message: `Support ticket submitted and routed to ${assignedTo.name}`,
+        emailSent,
+        assignedTo: assignedTo.name
+      });
+
+    } catch (error) {
+      console.error('Error submitting support ticket:', error);
+      res.status(500).json({ message: 'Failed to submit support ticket' });
+    }
+  });
 
   // Catch-all route for non-API requests - serve React app
   app.get('*', (req, res, next) => {

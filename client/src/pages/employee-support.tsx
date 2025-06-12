@@ -54,7 +54,7 @@ export default function EmployeeSupport() {
     };
   };
 
-  const handleSubmitTicket = () => {
+  const handleSubmitTicket = async () => {
     if (!ticketSubject.trim() || !ticketDescription.trim()) {
       toast({
         title: "Missing Information",
@@ -64,18 +64,44 @@ export default function EmployeeSupport() {
       return;
     }
 
-    const assignedTo = getAssignedPersonnel(ticketCategory);
-    
-    // Submit ticket with proper routing
-    toast({
-      title: "Support Ticket Submitted",
-      description: `Your ${ticketCategory.replace("-", " ")} request has been routed to ${assignedTo.name}. You'll receive a response within 24 hours.`,
-    });
+    try {
+      const response = await fetch('/api/support-tickets', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          category: ticketCategory,
+          subject: ticketSubject,
+          description: ticketDescription,
+        }),
+      });
 
-    // Reset form
-    setTicketSubject("");
-    setTicketDescription("");
-    setTicketCategory("general");
+      if (!response.ok) {
+        throw new Error('Failed to submit support ticket');
+      }
+
+      const result = await response.json();
+      
+      toast({
+        title: "Support Ticket Submitted",
+        description: `Your ticket has been routed to ${result.assignedTo}${result.emailSent ? ' and an email notification has been sent' : ''}. You'll receive a response within 24 hours.`,
+      });
+
+      // Reset form
+      setTicketSubject("");
+      setTicketDescription("");
+      setTicketCategory("general");
+
+    } catch (error) {
+      console.error('Error submitting support ticket:', error);
+      toast({
+        title: "Submission Failed",
+        description: "Unable to submit your support ticket. Please try again or contact support directly.",
+        variant: "destructive",
+      });
+    }
   };
 
   const faqItems = [
