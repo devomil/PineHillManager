@@ -89,6 +89,109 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // User's personal schedules endpoint
+  app.get('/api/my-schedules', isAuthenticated, async (req, res) => {
+    try {
+      const { start, end } = req.query;
+      const userId = req.user!.id;
+      
+      if (start && end) {
+        // Get schedules for date range
+        const schedules = await storage.getUserWorkSchedules(
+          userId,
+          start as string,
+          end as string
+        );
+        res.json(schedules);
+      } else {
+        // Get all user schedules (last 30 days by default)
+        const endDate = new Date();
+        const startDate = new Date();
+        startDate.setDate(endDate.getDate() - 30);
+        
+        const schedules = await storage.getUserWorkSchedules(
+          userId,
+          startDate.toISOString().split('T')[0],
+          endDate.toISOString().split('T')[0]
+        );
+        res.json(schedules);
+      }
+    } catch (error) {
+      console.error('Error fetching user schedules:', error);
+      res.status(500).json({ message: 'Failed to fetch user schedules' });
+    }
+  });
+
+  // Shift coverage requests routes
+  app.get('/api/shift-coverage-requests', isAuthenticated, async (req, res) => {
+    try {
+      const { status } = req.query;
+      const coverageRequests = await storage.getShiftCoverageRequests(status as string);
+      res.json(coverageRequests);
+    } catch (error) {
+      console.error('Error fetching shift coverage requests:', error);
+      res.status(500).json({ message: 'Failed to fetch shift coverage requests' });
+    }
+  });
+
+  app.get('/api/my-coverage-requests', isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user!.id;
+      const allRequests = await storage.getShiftCoverageRequests();
+      const userRequests = allRequests.filter((request: any) => request.requesterId === userId);
+      res.json(userRequests);
+    } catch (error) {
+      console.error('Error fetching user coverage requests:', error);
+      res.status(500).json({ message: 'Failed to fetch user coverage requests' });
+    }
+  });
+
+  app.post('/api/shift-coverage-requests', isAuthenticated, async (req, res) => {
+    try {
+      const { scheduleId, reason } = req.body;
+      const userId = req.user!.id;
+      
+      const coverageRequest = await storage.createShiftCoverageRequest({
+        requesterId: userId,
+        scheduleId: parseInt(scheduleId),
+        reason: reason || null,
+        status: 'open',
+        requestedAt: new Date()
+      });
+      
+      res.status(201).json(coverageRequest);
+    } catch (error) {
+      console.error('Error creating shift coverage request:', error);
+      res.status(500).json({ message: 'Failed to create shift coverage request' });
+    }
+  });
+
+  app.post('/api/shift-coverage-requests/:id/accept', isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const userId = req.user!.id;
+      
+      const coverageRequest = await storage.coverShiftRequest(parseInt(id), userId);
+      res.json(coverageRequest);
+    } catch (error) {
+      console.error('Error accepting shift coverage:', error);
+      res.status(500).json({ message: 'Failed to accept shift coverage' });
+    }
+  });
+
+  app.patch('/api/shift-coverage-requests/:id/cover', isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const userId = req.user!.id;
+      
+      const coverageRequest = await storage.coverShiftRequest(parseInt(id), userId);
+      res.json(coverageRequest);
+    } catch (error) {
+      console.error('Error covering shift:', error);
+      res.status(500).json({ message: 'Failed to cover shift' });
+    }
+  });
+
   // Admin endpoint to clear all work schedules (for removing mock data)
   app.delete('/api/admin/work-schedules/clear', isAuthenticated, async (req, res) => {
     try {
