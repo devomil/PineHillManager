@@ -59,13 +59,13 @@ export default function TimeClock() {
       console.log('Current entry data received:', data);
       return data;
     },
-    refetchInterval: 2000,
+    refetchInterval: 30000, // Poll every 30 seconds instead of 2 seconds
     refetchOnMount: true,
     refetchOnWindowFocus: true,
-    retry: false,
+    retry: 1,
     enabled: !!user,
-    staleTime: 0,
-    gcTime: 0,
+    staleTime: 10000, // Allow 10 seconds of stale data
+    gcTime: 60000,
   });
 
   const { data: todayEntries = [], isLoading: todayLoading } = useQuery<any[]>({
@@ -247,7 +247,10 @@ export default function TimeClock() {
     return `${hours}:${remainingMinutes.toString().padStart(2, '0')}`;
   };
 
-  const isLoading = currentEntryLoading || todayLoading || weekLoading;
+  // Only show loading on initial load, not during background refreshes
+  const isLoading = (currentEntryLoading && currentEntry === undefined) || 
+                   (todayLoading && todayEntries.length === 0) || 
+                   (weekLoading && weekEntries.length === 0);
   const isClockedIn = Boolean(currentEntry && typeof currentEntry === 'object' && 
     (currentEntry.status === 'clocked_in' || currentEntry.status === 'on_break'));
   const isOnBreak = Boolean(currentEntry && typeof currentEntry === 'object' && 
