@@ -50,6 +50,9 @@ export default function AdminDashboard() {
       case 'system-support':
         setLocation('/system-support');
         break;
+      case 'user-management':
+        setLocation('/user-management');
+        break;
       case 'communication':
         setLocation('/communication');
         break;
