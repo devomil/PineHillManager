@@ -17,29 +17,13 @@ export default function UserManagement() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // State for forms
-  const [newUser, setNewUser] = useState({
-    email: "",
-    password: "",
-    firstName: "",
-    lastName: "",
-    role: "employee",
-    department: "",
-    position: ""
-  });
-
+  // State for password reset form
   const [passwordReset, setPasswordReset] = useState({
     userId: "",
     newPassword: ""
   });
 
-  const [showPasswords, setShowPasswords] = useState({
-    newUser: false,
-    reset: false
-  });
-
-  const [isCreateUserOpen, setIsCreateUserOpen] = useState(false);
-  const [isResetPasswordOpen, setIsResetPasswordOpen] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   // Check if user is admin
   if (user?.role !== 'admin') {
@@ -75,46 +59,7 @@ export default function UserManagement() {
     }
   });
 
-  // Create user mutation
-  const createUserMutation = useMutation({
-    mutationFn: async (userData: typeof newUser) => {
-      const response = await fetch("/api/admin/create-user", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: 'include',
-        body: JSON.stringify(userData)
-      });
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || "Failed to create user");
-      }
-      return response.json();
-    },
-    onSuccess: () => {
-      toast({
-        title: "User Created",
-        description: "New user has been created successfully.",
-      });
-      queryClient.invalidateQueries({ queryKey: ["/api/employees"] });
-      setNewUser({
-        email: "",
-        password: "",
-        firstName: "",
-        lastName: "",
-        role: "employee",
-        department: "",
-        position: ""
-      });
-      setIsCreateUserOpen(false);
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
-    }
-  });
+
 
   // Reset password mutation
   const resetPasswordMutation = useMutation({
@@ -137,7 +82,6 @@ export default function UserManagement() {
         description: "User password has been reset successfully.",
       });
       setPasswordReset({ userId: "", newPassword: "" });
-      setIsResetPasswordOpen(false);
     },
     onError: (error: Error) => {
       toast({
@@ -148,18 +92,7 @@ export default function UserManagement() {
     }
   });
 
-  const handleCreateUser = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newUser.email || !newUser.password || !newUser.firstName || !newUser.lastName) {
-      toast({
-        title: "Error",
-        description: "Please fill in all required fields.",
-        variant: "destructive",
-      });
-      return;
-    }
-    createUserMutation.mutate(newUser);
-  };
+
 
   const handleResetPassword = (e: React.FormEvent) => {
     e.preventDefault();
@@ -184,7 +117,7 @@ export default function UserManagement() {
               <h1 className="text-2xl font-bold text-gray-900 font-brand brand-title" data-brand="pine-hill">
                 Pine Hill Farm
               </h1>
-              <p className="text-sm text-gray-500">User Management</p>
+              <p className="text-sm text-gray-500">Password & Authentication Management</p>
             </div>
             <Link href="/admin">
               <Button variant="outline">
@@ -198,10 +131,9 @@ export default function UserManagement() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Tabs defaultValue="overview" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="overview">User Overview</TabsTrigger>
-            <TabsTrigger value="create">Create User</TabsTrigger>
-            <TabsTrigger value="manage">Manage Passwords</TabsTrigger>
+            <TabsTrigger value="manage">Password Management</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="space-y-6">
@@ -264,116 +196,7 @@ export default function UserManagement() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="create" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <UserPlus className="h-5 w-5" />
-                  <span>Create New User</span>
-                </CardTitle>
-                <CardDescription>
-                  Add a new user to the system with login credentials
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={handleCreateUser} className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="firstName">First Name *</Label>
-                      <Input
-                        id="firstName"
-                        value={newUser.firstName}
-                        onChange={(e) => setNewUser({ ...newUser, firstName: e.target.value })}
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="lastName">Last Name *</Label>
-                      <Input
-                        id="lastName"
-                        value={newUser.lastName}
-                        onChange={(e) => setNewUser({ ...newUser, lastName: e.target.value })}
-                        required
-                      />
-                    </div>
-                  </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email *</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      value={newUser.email}
-                      onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
-                      required
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="password">Password *</Label>
-                    <div className="relative">
-                      <Input
-                        id="password"
-                        type={showPasswords.newUser ? "text" : "password"}
-                        value={newUser.password}
-                        onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
-                        required
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="absolute right-2 top-1/2 transform -translate-y-1/2"
-                        onClick={() => setShowPasswords({ ...showPasswords, newUser: !showPasswords.newUser })}
-                      >
-                        {showPasswords.newUser ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </Button>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="role">Role</Label>
-                      <Select value={newUser.role} onValueChange={(value) => setNewUser({ ...newUser, role: value })}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="employee">Employee</SelectItem>
-                          <SelectItem value="manager">Manager</SelectItem>
-                          <SelectItem value="admin">Admin</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="department">Department</Label>
-                      <Input
-                        id="department"
-                        value={newUser.department}
-                        onChange={(e) => setNewUser({ ...newUser, department: e.target.value })}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="position">Position</Label>
-                      <Input
-                        id="position"
-                        value={newUser.position}
-                        onChange={(e) => setNewUser({ ...newUser, position: e.target.value })}
-                      />
-                    </div>
-                  </div>
-
-                  <Button 
-                    type="submit" 
-                    className="w-full"
-                    disabled={createUserMutation.isPending}
-                  >
-                    {createUserMutation.isPending ? "Creating..." : "Create User"}
-                  </Button>
-                </form>
-              </CardContent>
-            </Card>
-          </TabsContent>
 
           <TabsContent value="manage" className="space-y-6">
             <Card>
@@ -409,7 +232,7 @@ export default function UserManagement() {
                     <div className="relative">
                       <Input
                         id="newPassword"
-                        type={showPasswords.reset ? "text" : "password"}
+                        type={showPassword ? "text" : "password"}
                         value={passwordReset.newPassword}
                         onChange={(e) => setPasswordReset({ ...passwordReset, newPassword: e.target.value })}
                         required
@@ -419,9 +242,9 @@ export default function UserManagement() {
                         variant="ghost"
                         size="sm"
                         className="absolute right-2 top-1/2 transform -translate-y-1/2"
-                        onClick={() => setShowPasswords({ ...showPasswords, reset: !showPasswords.reset })}
+                        onClick={() => setShowPassword(!showPassword)}
                       >
-                        {showPasswords.reset ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </Button>
                     </div>
                   </div>
