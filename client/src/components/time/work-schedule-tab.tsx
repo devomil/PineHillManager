@@ -19,8 +19,27 @@ export default function WorkScheduleTab() {
   const { data: schedules, isLoading } = useQuery({
     queryKey: ["/api/work-schedules", { 
       startDate: startOfMonth.toISOString().split('T')[0],
-      endDate: endOfMonth.toISOString().split('T')[0]
+      endDate: endOfMonth.toISOString().split('T')[0],
+      userId: user?.id
     }],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        startDate: startOfMonth.toISOString().split('T')[0],
+        endDate: endOfMonth.toISOString().split('T')[0],
+        userId: user?.id || ''
+      });
+      
+      const response = await fetch(`/api/work-schedules?${params}`, {
+        credentials: 'include'
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch schedules: ${response.statusText}`);
+      }
+      
+      return response.json();
+    },
+    enabled: !!user?.id,
   });
 
   const handlePrint = () => {
