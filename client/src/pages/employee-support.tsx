@@ -147,13 +147,14 @@ export default function EmployeeSupport() {
               </div>
             </div>
             
-            <Button 
-              variant="ghost" 
-              onClick={() => window.history.back()}
-              className="text-gray-700 hover:text-gray-900"
-            >
-              ← Back to Dashboard
-            </Button>
+            <Link href="/">
+              <Button 
+                variant="ghost" 
+                className="text-gray-700 hover:text-gray-900"
+              >
+                ← Back to Dashboard
+              </Button>
+            </Link>
           </div>
         </div>
       </div>
