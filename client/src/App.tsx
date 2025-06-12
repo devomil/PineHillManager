@@ -25,6 +25,7 @@ import TimeOff from "@/pages/time-off";
 import ShiftCoverage from "@/pages/shift-coverage";
 import TeamCommunication from "@/pages/team-communication";
 import SystemSupport from "@/pages/system-support";
+import EmployeeSupport from "@/pages/employee-support";
 import NotFound from "@/pages/not-found";
 import Landing from "@/pages/landing";
 
@@ -59,6 +60,7 @@ function AuthenticatedApp() {
       <Route path="/shift-coverage" component={ShiftCoverage} />
       <Route path="/team-communication" component={TeamCommunication} />
       <Route path="/system-support" component={SystemSupport} />
+      <Route path="/support" component={EmployeeSupport} />
       <Route component={NotFound} />
     </Switch>
   );

@@ -1,7 +1,7 @@
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Clock, Calendar, FileText, Users, MessageCircle, Bell, ChevronRight } from "lucide-react";
+import { Clock, Calendar, FileText, Users, MessageCircle, Bell, ChevronRight, HelpCircle } from "lucide-react";
 import { Link } from "wouter";
 
 export default function HomeDashboard() {
@@ -58,6 +58,14 @@ export default function HomeDashboard() {
       href: "/communication",
       color: "bg-teal-50 border-teal-200",
       iconColor: "text-teal-600"
+    },
+    {
+      title: "Support Center",
+      description: "Get help, submit tickets, and find answers to questions",
+      icon: HelpCircle,
+      href: "/support",
+      color: "bg-indigo-50 border-indigo-200",
+      iconColor: "text-indigo-600"
     }
   ];
 
