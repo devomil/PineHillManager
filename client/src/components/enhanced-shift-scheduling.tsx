@@ -632,10 +632,27 @@ export default function EnhancedShiftScheduling() {
           <CardContent>
             <div className="text-2xl font-bold text-gray-900 dark:text-white">
               {schedules.reduce((total: number, schedule: WorkSchedule) => {
-                const start = parseISO(schedule.startTime);
-                const end = parseISO(schedule.endTime);
-                const hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
-                return total + hours;
+                try {
+                  // Parse time strings (e.g., "09:00", "17:00")
+                  const [startHour, startMin] = schedule.startTime.split(':').map(Number);
+                  const [endHour, endMin] = schedule.endTime.split(':').map(Number);
+                  
+                  const startTotalMinutes = startHour * 60 + startMin;
+                  const endTotalMinutes = endHour * 60 + endMin;
+                  
+                  // Handle overnight shifts (e.g., 22:00 to 06:00)
+                  let hours;
+                  if (endTotalMinutes < startTotalMinutes) {
+                    hours = (24 * 60 - startTotalMinutes + endTotalMinutes) / 60;
+                  } else {
+                    hours = (endTotalMinutes - startTotalMinutes) / 60;
+                  }
+                  
+                  return total + hours;
+                } catch (error) {
+                  console.error('Error calculating hours for schedule:', schedule, error);
+                  return total;
+                }
               }, 0).toFixed(1)}h
             </div>
           </CardContent>
