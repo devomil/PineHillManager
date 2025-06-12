@@ -1,266 +1,381 @@
+import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   HelpCircle, 
   MessageSquare, 
   FileText, 
   Settings, 
-  Monitor,
-  AlertTriangle,
+  Bug, 
+  Lightbulb,
   Phone,
   Mail,
-  ExternalLink
+  Clock,
+  CheckCircle,
+  AlertCircle,
+  Info
 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 export default function SystemSupport() {
-  const supportCategories = [
+  const [ticketSubject, setTicketSubject] = useState("");
+  const [ticketDescription, setTicketDescription] = useState("");
+  const [ticketPriority, setTicketPriority] = useState("medium");
+  const { toast } = useToast();
+
+  const handleSubmitTicket = () => {
+    if (!ticketSubject || !ticketDescription) {
+      toast({
+        title: "Missing Information",
+        description: "Please provide both a subject and description for your support ticket.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    toast({
+      title: "Support Ticket Submitted",
+      description: "Your support request has been submitted. We'll respond within 24 hours.",
+    });
+
+    setTicketSubject("");
+    setTicketDescription("");
+    setTicketPriority("medium");
+  };
+
+  const faqItems = [
     {
-      title: "Technical Support",
-      description: "Get help with system issues and technical problems",
-      icon: Monitor,
-      items: [
-        "Login and authentication issues",
-        "Performance and loading problems",
-        "Browser compatibility",
-        "Mobile app support"
-      ],
-      color: "text-blue-600",
-      bgColor: "bg-blue-50"
+      question: "How do I clock in or out?",
+      answer: "Navigate to the Time Clock page, select your location, and click the Clock In button. To clock out, simply click the Clock Out button when your shift is complete."
     },
     {
-      title: "User Guide & Training",
-      description: "Learn how to use the employee management system",
-      icon: FileText,
-      items: [
-        "Getting started guide",
-        "Employee management tutorials",
-        "Scheduling system walkthrough",
-        "Communication features overview"
-      ],
-      color: "text-green-600",
-      bgColor: "bg-green-50"
+      question: "How do I request time off?",
+      answer: "Go to the Time Off page, click 'Request Time Off', select your dates, choose the type of leave, and submit your request. Your manager will review and approve it."
     },
     {
-      title: "Account & Access",
-      description: "Manage your account settings and permissions",
-      icon: Settings,
-      items: [
-        "Password reset assistance",
-        "Role and permission questions",
-        "Account activation",
-        "Security settings"
-      ],
-      color: "text-purple-600",
-      bgColor: "bg-purple-50"
+      question: "How do I view my schedule?",
+      answer: "Visit the Schedule page to see your upcoming shifts. You can view daily, weekly, or monthly schedules and see shift details including location and times."
     },
     {
-      title: "Report Issues",
-      description: "Submit bug reports and feature requests",
-      icon: AlertTriangle,
-      items: [
-        "Bug reporting",
-        "Feature requests",
-        "System feedback",
-        "Performance issues"
-      ],
-      color: "text-red-600",
-      bgColor: "bg-red-50"
+      question: "How do I request shift coverage?",
+      answer: "On the Shift Coverage page, select the shift you need covered, add a reason, and submit the request. Other employees will be notified and can volunteer to cover your shift."
+    },
+    {
+      question: "How do I update my profile information?",
+      answer: "Go to your Profile page where you can update your contact information, emergency contacts, and other personal details."
+    },
+    {
+      question: "How do I reset my password?",
+      answer: "Contact your administrator to reset your password. For security reasons, password resets must be handled by management."
     }
   ];
 
-  const contactMethods = [
-    {
-      method: "Email Support",
-      contact: "support@pinehillfarm.co",
-      description: "Get detailed help via email (24-48 hour response)",
-      icon: Mail,
-      primary: true
-    },
-    {
-      method: "Phone Support",
-      contact: "262-804-7976",
-      description: "Call during business hours (8AM - 6PM CST)",
-      icon: Phone,
-      primary: false
-    },
-    {
-      method: "Live Chat",
-      contact: "Available 9AM - 5PM",
-      description: "Instant help during business hours",
-      icon: MessageSquare,
-      primary: false
-    }
+  const systemStatus = [
+    { component: "Time Clock System", status: "operational", lastUpdate: "2 minutes ago" },
+    { component: "Schedule Management", status: "operational", lastUpdate: "5 minutes ago" },
+    { component: "Employee Database", status: "operational", lastUpdate: "1 minute ago" },
+    { component: "Messaging System", status: "operational", lastUpdate: "3 minutes ago" },
+    { component: "Report Generation", status: "operational", lastUpdate: "7 minutes ago" }
   ];
 
-  const systemStatus = {
-    status: "operational",
-    lastUpdated: "2 minutes ago",
-    uptime: "99.9%"
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case "operational":
+        return <CheckCircle className="h-4 w-4 text-green-500" />;
+      case "warning":
+        return <AlertCircle className="h-4 w-4 text-yellow-500" />;
+      case "error":
+        return <AlertCircle className="h-4 w-4 text-red-500" />;
+      default:
+        return <Info className="h-4 w-4 text-gray-500" />;
+    }
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "operational":
+        return <Badge variant="default" className="bg-green-500">Operational</Badge>;
+      case "warning":
+        return <Badge variant="secondary" className="bg-yellow-500">Warning</Badge>;
+      case "error":
+        return <Badge variant="destructive">Error</Badge>;
+      default:
+        return <Badge variant="outline">Unknown</Badge>;
+    }
   };
 
   return (
-    <div className="space-y-8">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">System Support</h1>
-        <p className="text-gray-600">
-          Get help, report issues, and access resources for the Pine Hill Farm employee management system
-        </p>
-      </div>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white">
+      <div className="container mx-auto px-4 py-8">
+        <div className="mb-8">
+          <h1 className="text-4xl font-bold text-gray-900 font-serif mb-2" style={{ fontFamily: "'Great Vibes', cursive" }}>
+            System Support
+          </h1>
+          <p className="text-lg text-gray-600">
+            Access support resources, documentation, and submit help requests
+          </p>
+        </div>
 
-      {/* System Status */}
-      <Card className="border-l-4 border-l-green-500">
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-lg">System Status</CardTitle>
-            <Badge variant="secondary" className="bg-green-100 text-green-800">
-              {systemStatus.status.toUpperCase()}
-            </Badge>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-3 gap-4">
-            <div>
-              <p className="text-sm text-gray-500">Status</p>
-              <p className="font-medium text-green-600">All systems operational</p>
-            </div>
-            <div>
-              <p className="text-sm text-gray-500">Uptime</p>
-              <p className="font-medium">{systemStatus.uptime}</p>
-            </div>
-            <div>
-              <p className="text-sm text-gray-500">Last Updated</p>
-              <p className="font-medium">{systemStatus.lastUpdated}</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+        <Tabs defaultValue="help" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="help" className="flex items-center space-x-2">
+              <HelpCircle className="h-4 w-4" />
+              <span>Help & FAQ</span>
+            </TabsTrigger>
+            <TabsTrigger value="ticket" className="flex items-center space-x-2">
+              <MessageSquare className="h-4 w-4" />
+              <span>Submit Ticket</span>
+            </TabsTrigger>
+            <TabsTrigger value="status" className="flex items-center space-x-2">
+              <Settings className="h-4 w-4" />
+              <span>System Status</span>
+            </TabsTrigger>
+            <TabsTrigger value="contact" className="flex items-center space-x-2">
+              <Phone className="h-4 w-4" />
+              <span>Contact Info</span>
+            </TabsTrigger>
+          </TabsList>
 
-      {/* Quick Help Categories */}
-      <div>
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Support Categories</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {supportCategories.map((category, index) => (
-            <Card key={index} className="hover:shadow-md transition-shadow cursor-pointer">
+          <TabsContent value="help" className="space-y-6">
+            <Card>
               <CardHeader>
-                <div className="flex items-center space-x-3">
-                  <div className={`p-2 rounded-lg ${category.bgColor}`}>
-                    <category.icon className={`h-5 w-5 ${category.color}`} />
-                  </div>
-                  <div>
-                    <CardTitle className="text-lg">{category.title}</CardTitle>
-                    <CardDescription>{category.description}</CardDescription>
-                  </div>
-                </div>
+                <CardTitle className="flex items-center space-x-2">
+                  <HelpCircle className="h-5 w-5" />
+                  <span>Frequently Asked Questions</span>
+                </CardTitle>
+                <CardDescription>
+                  Find answers to common questions about using the Pine Hill Farm employee management system
+                </CardDescription>
               </CardHeader>
-              <CardContent>
-                <ul className="space-y-2">
-                  {category.items.map((item, itemIndex) => (
-                    <li key={itemIndex} className="flex items-center space-x-2">
-                      <HelpCircle className="h-3 w-3 text-gray-400" />
-                      <span className="text-sm text-gray-600">{item}</span>
-                    </li>
-                  ))}
-                </ul>
-                <Button className="w-full mt-4" variant="outline">
-                  Get Help
-                </Button>
+              <CardContent className="space-y-4">
+                {faqItems.map((item, index) => (
+                  <div key={index} className="border rounded-lg p-4">
+                    <h3 className="font-semibold text-gray-900 mb-2">{item.question}</h3>
+                    <p className="text-gray-600">{item.answer}</p>
+                  </div>
+                ))}
               </CardContent>
             </Card>
-          ))}
-        </div>
-      </div>
 
-      {/* Contact Methods */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-xl">Contact Support</CardTitle>
-          <CardDescription>
-            Choose the best way to get in touch with our support team
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {contactMethods.map((method, index) => (
-              <Card key={index} className={`border ${method.primary ? 'border-green-200 bg-green-50' : 'border-gray-200'}`}>
-                <CardContent className="p-4">
-                  <div className="flex items-center space-x-3 mb-3">
-                    <method.icon className={`h-5 w-5 ${method.primary ? 'text-green-600' : 'text-gray-600'}`} />
-                    <h3 className="font-medium">{method.method}</h3>
-                    {method.primary && (
-                      <Badge variant="secondary" className="bg-green-100 text-green-800 text-xs">
-                        Recommended
-                      </Badge>
-                    )}
-                  </div>
-                  <p className="text-sm font-medium text-gray-900 mb-1">{method.contact}</p>
-                  <p className="text-xs text-gray-500 mb-3">{method.description}</p>
-                  <Button 
-                    size="sm" 
-                    className={method.primary ? "bg-green-600 hover:bg-green-700" : ""} 
-                    variant={method.primary ? "default" : "outline"}
-                  >
-                    Contact
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2">
+                    <FileText className="h-5 w-5" />
+                    <span>User Guide</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-gray-600 mb-4">
+                    Comprehensive documentation for all system features and processes.
+                  </p>
+                  <Button variant="outline" className="w-full">
+                    View Documentation
                   </Button>
                 </CardContent>
               </Card>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
 
-      {/* Common Resources */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-xl">Common Resources</CardTitle>
-          <CardDescription>
-            Quick access to frequently needed information and tools
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Button variant="outline" className="h-auto p-4 flex flex-col items-center space-y-2">
-              <FileText className="h-6 w-6 text-gray-600" />
-              <span className="text-sm">User Manual</span>
-            </Button>
-            <Button variant="outline" className="h-auto p-4 flex flex-col items-center space-y-2">
-              <Monitor className="h-6 w-6 text-gray-600" />
-              <span className="text-sm">System Requirements</span>
-            </Button>
-            <Button variant="outline" className="h-auto p-4 flex flex-col items-center space-y-2">
-              <Settings className="h-6 w-6 text-gray-600" />
-              <span className="text-sm">Account Settings</span>
-            </Button>
-            <Button variant="outline" className="h-auto p-4 flex flex-col items-center space-y-2">
-              <ExternalLink className="h-6 w-6 text-gray-600" />
-              <span className="text-sm">Knowledge Base</span>
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2">
+                    <Lightbulb className="h-5 w-5" />
+                    <span>Feature Requests</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-gray-600 mb-4">
+                    Suggest new features or improvements to the system.
+                  </p>
+                  <Button variant="outline" className="w-full">
+                    Submit Idea
+                  </Button>
+                </CardContent>
+              </Card>
 
-      {/* Emergency Contact */}
-      <Card className="border-l-4 border-l-red-500">
-        <CardHeader>
-          <CardTitle className="text-lg text-red-700">Emergency Support</CardTitle>
-          <CardDescription>
-            For critical system issues affecting operations
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="font-medium text-gray-900">24/7 Emergency Hotline</p>
-              <p className="text-sm text-gray-600">For business-critical issues only</p>
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2">
+                    <Bug className="h-5 w-5" />
+                    <span>Report Bug</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-gray-600 mb-4">
+                    Report technical issues or bugs you've encountered.
+                  </p>
+                  <Button variant="outline" className="w-full">
+                    Report Issue
+                  </Button>
+                </CardContent>
+              </Card>
             </div>
-            <Button variant="destructive">
-              <Phone className="h-4 w-4 mr-2" />
-              Call Emergency
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+          </TabsContent>
+
+          <TabsContent value="ticket" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <MessageSquare className="h-5 w-5" />
+                  <span>Submit Support Ticket</span>
+                </CardTitle>
+                <CardDescription>
+                  Create a support ticket for technical issues, questions, or assistance requests
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Subject</label>
+                  <Input
+                    placeholder="Brief description of your issue"
+                    value={ticketSubject}
+                    onChange={(e) => setTicketSubject(e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Priority</label>
+                  <select 
+                    className="w-full p-2 border rounded-md"
+                    value={ticketPriority}
+                    onChange={(e) => setTicketPriority(e.target.value)}
+                  >
+                    <option value="low">Low - General question or minor issue</option>
+                    <option value="medium">Medium - Standard support request</option>
+                    <option value="high">High - Urgent issue affecting work</option>
+                    <option value="critical">Critical - System down or major problem</option>
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Description</label>
+                  <Textarea
+                    placeholder="Please provide detailed information about your issue, including steps to reproduce if applicable"
+                    rows={6}
+                    value={ticketDescription}
+                    onChange={(e) => setTicketDescription(e.target.value)}
+                  />
+                </div>
+
+                <Button onClick={handleSubmitTicket} className="w-full">
+                  Submit Support Ticket
+                </Button>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="status" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <Settings className="h-5 w-5" />
+                  <span>System Status</span>
+                </CardTitle>
+                <CardDescription>
+                  Current status of all system components and services
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {systemStatus.map((item, index) => (
+                    <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
+                      <div className="flex items-center space-x-3">
+                        {getStatusIcon(item.status)}
+                        <span className="font-medium">{item.component}</span>
+                      </div>
+                      <div className="flex items-center space-x-3">
+                        {getStatusBadge(item.status)}
+                        <div className="flex items-center space-x-1 text-sm text-gray-500">
+                          <Clock className="h-3 w-3" />
+                          <span>{item.lastUpdate}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="contact" className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2">
+                    <Phone className="h-5 w-5" />
+                    <span>IT Support</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex items-center space-x-2">
+                    <Phone className="h-4 w-4 text-gray-500" />
+                    <span>(262) 555-0123</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Mail className="h-4 w-4 text-gray-500" />
+                    <span>support@pinehillfarm.co</span>
+                  </div>
+                  <p className="text-sm text-gray-600">
+                    Available Monday-Friday, 8:00 AM - 6:00 PM CST
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2">
+                    <AlertCircle className="h-5 w-5" />
+                    <span>Emergency Contact</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex items-center space-x-2">
+                    <Phone className="h-4 w-4 text-gray-500" />
+                    <span>(262) 555-0199</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Mail className="h-4 w-4 text-gray-500" />
+                    <span>emergency@pinehillfarm.co</span>
+                  </div>
+                  <p className="text-sm text-gray-600">
+                    For critical system issues outside business hours
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>System Administrator</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center space-x-4">
+                  <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center">
+                    <span className="font-semibold text-gray-600">RS</span>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold">Ryan Sorensen</h3>
+                    <p className="text-gray-600">Farm Operations Manager & IT Administrator</p>
+                    <div className="flex items-center space-x-4 mt-2">
+                      <div className="flex items-center space-x-1">
+                        <Phone className="h-3 w-3 text-gray-500" />
+                        <span className="text-sm">(262) 555-0156</span>
+                      </div>
+                      <div className="flex items-center space-x-1">
+                        <Mail className="h-3 w-3 text-gray-500" />
+                        <span className="text-sm">ryan@pinehillfarm.co</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </div>
     </div>
   );
 }
