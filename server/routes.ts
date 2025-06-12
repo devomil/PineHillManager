@@ -436,9 +436,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: 'Valid role is required (employee, manager, admin)' });
       }
 
-      // Prevent self-demotion from admin
-      if (req.user.id === id && req.user.role === 'admin' && role !== 'admin') {
-        return res.status(400).json({ error: 'Cannot demote yourself from admin role' });
+      // Prevent self-demotion from admin or manager
+      if (req.user.id === id && (req.user.role === 'admin' || req.user.role === 'manager') && !['admin', 'manager'].includes(role)) {
+        return res.status(400).json({ error: 'Cannot demote yourself from admin/manager role' });
       }
 
       const updatedUser = await storage.updateUserRole(id, role);

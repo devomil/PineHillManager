@@ -380,9 +380,9 @@ function requireRole(roles: string | string[]) {
   };
 }
 
-// Admin-only middleware
+// Admin-only middleware (includes managers)
 function requireAdmin(req: any, res: any, next: any) {
-  return requireRole('admin')(req, res, next);
+  return requireRole(['admin', 'manager'])(req, res, next);
 }
 
 // Manager or Admin middleware

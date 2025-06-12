@@ -39,8 +39,12 @@ export default function ProtectedRoute({ children, requiredRole }: ProtectedRout
     return null;
   }
 
-  // Check role-based access
-  if (requiredRole && user?.role !== requiredRole) {
+  // Check role-based access (managers have admin privileges)
+  const hasRequiredRole = requiredRole ? 
+    (requiredRole === 'admin' ? (user?.role === 'admin' || user?.role === 'manager') : user?.role === requiredRole) 
+    : true;
+    
+  if (requiredRole && !hasRequiredRole) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <Card className="w-full max-w-md">
