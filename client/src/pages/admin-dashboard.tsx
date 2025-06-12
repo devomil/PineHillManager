@@ -13,6 +13,7 @@ import EmployeesPage from "@/pages/employees";
 import ShiftScheduling from "@/pages/shift-scheduling";
 import AnnouncementsPage from "@/pages/admin/announcements";
 import SystemSupport from "@/pages/system-support";
+import UserManagement from "@/pages/user-management";
 import ReportsPage from "@/pages/reports";
 import HomeDashboard from "@/pages/home-dashboard";
 
@@ -385,6 +386,10 @@ export default function AdminDashboard() {
               <FileText className="h-4 w-4" />
               System Support
             </TabsTrigger>
+            <TabsTrigger value="user-management" className="flex items-center gap-2">
+              <Settings className="h-4 w-4" />
+              User Management
+            </TabsTrigger>
             <TabsTrigger value="employee-view" className="flex items-center gap-2">
               <Eye className="h-4 w-4" />
               Employee View
@@ -413,6 +418,10 @@ export default function AdminDashboard() {
 
           <TabsContent value="system-support" className="space-y-6">
             <SystemSupport />
+          </TabsContent>
+
+          <TabsContent value="user-management" className="space-y-6">
+            <UserManagement />
           </TabsContent>
 
           <TabsContent value="employee-view" className="space-y-6">
