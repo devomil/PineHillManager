@@ -153,44 +153,7 @@ export default function EmployeeSupport() {
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <FileText className="h-5 w-5 text-green-600" />
-                  <span>Quick Help Topics</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-gray-50">
-                  <Clock className="h-8 w-8 text-blue-600" />
-                  <div>
-                    <h4 className="font-medium">Time Tracking</h4>
-                    <p className="text-sm text-gray-600">Clock in/out, time corrections</p>
-                  </div>
-                </div>
-                <div className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-gray-50">
-                  <Calendar className="h-8 w-8 text-green-600" />
-                  <div>
-                    <h4 className="font-medium">Scheduling</h4>
-                    <p className="text-sm text-gray-600">View shifts, request time off</p>
-                  </div>
-                </div>
-                <div className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-gray-50">
-                  <Users className="h-8 w-8 text-purple-600" />
-                  <div>
-                    <h4 className="font-medium">Team Communication</h4>
-                    <p className="text-sm text-gray-600">Messages, announcements</p>
-                  </div>
-                </div>
-                <div className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-gray-50">
-                  <Settings className="h-8 w-8 text-orange-600" />
-                  <div>
-                    <h4 className="font-medium">Profile Settings</h4>
-                    <p className="text-sm text-gray-600">Update personal information</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+
           </TabsContent>
 
           {/* Contact Info Tab */}
