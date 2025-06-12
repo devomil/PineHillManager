@@ -78,21 +78,14 @@ export default function EmployeeSupport() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white">
-      {/* Navigation Header */}
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100">
+      {/* Header */}
       <div className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-6">
             <div className="flex items-center space-x-4">
-              <Link href="/dashboard">
-                <Button variant="ghost" className="flex items-center space-x-2 text-gray-600 hover:text-gray-900">
-                  <ArrowLeft className="h-4 w-4" />
-                  <span>Back to Dashboard</span>
-                </Button>
-              </Link>
-              <div className="h-6 w-px bg-gray-300"></div>
               <div>
-                <h1 className="text-3xl font-bold text-gray-900 font-brand brand-title" 
+                <h1 className="text-3xl font-bold text-gray-900 font-brand" 
                     style={{ fontFamily: "'Great Vibes', cursive" }}>
                   Pine Hill Farm
                 </h1>
@@ -100,19 +93,19 @@ export default function EmployeeSupport() {
               </div>
             </div>
             
-            <div className="flex items-center space-x-4">
-              <Link href="/dashboard">
-                <Button variant="outline" className="flex items-center space-x-2">
-                  <Home className="h-4 w-4" />
-                  <span>Dashboard</span>
-                </Button>
-              </Link>
-            </div>
+            <Button 
+              variant="ghost" 
+              onClick={() => window.history.back()}
+              className="text-gray-700 hover:text-gray-900"
+            >
+              ← Back to Dashboard
+            </Button>
           </div>
         </div>
       </div>
 
-      <div className="container mx-auto px-4 py-8">
+      {/* Main Content */}
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-8">
           <h2 className="text-2xl font-bold text-gray-900 mb-2">
             Support Center
