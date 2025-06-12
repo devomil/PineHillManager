@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useQuery } from "@tanstack/react-query";
 import { Users, Clock, Calendar, MapPin, ChevronRight, FileText, MessageCircle, Bell, Settings, Eye } from "lucide-react";
 import { Link, useLocation } from "wouter";
+import { formatTimeStringToCST } from "@/lib/time-utils";
 
 // Import tab components
 import EmployeesPage from "@/pages/employees";
@@ -301,7 +302,7 @@ export default function AdminDashboard() {
                   </div>
                   <div className="text-right">
                     <p className="font-medium text-gray-900">
-                      {schedule.startTime} - {schedule.endTime}
+                      {formatTimeStringToCST(schedule.startTime)} - {formatTimeStringToCST(schedule.endTime)}
                     </p>
                     <p className="text-sm text-gray-500">{schedule.position || 'Staff'}</p>
                   </div>

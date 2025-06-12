@@ -10,6 +10,7 @@ import { format } from "date-fns";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { Link } from "wouter";
+import { formatTimeToCST, formatDateTimeToCST, getCurrentTimeCST } from "@/lib/time-utils";
 
 export default function TimeClock() {
   const { user } = useAuth();
@@ -375,7 +376,7 @@ export default function TimeClock() {
 
               {isClockedIn && currentEntry && typeof currentEntry === 'object' && currentEntry.clockInTime && (
                 <div className="text-center text-sm text-gray-600">
-                  Clocked in at {format(new Date(currentEntry.clockInTime), "h:mm a")}
+                  Clocked in at {formatTimeToCST(currentEntry.clockInTime)}
                 </div>
               )}
             </CardContent>
