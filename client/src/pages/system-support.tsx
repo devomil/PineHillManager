@@ -17,9 +17,12 @@ import {
   Clock,
   CheckCircle,
   AlertCircle,
-  Info
+  Info,
+  ArrowLeft,
+  Home
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { Link } from "wouter";
 
 export default function SystemSupport() {
   const [ticketSubject, setTicketSubject] = useState("");
@@ -110,11 +113,44 @@ export default function SystemSupport() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white">
+      {/* Navigation Header */}
+      <div className="bg-white shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center py-6">
+            <div className="flex items-center space-x-4">
+              <Link href="/admin">
+                <Button variant="ghost" className="flex items-center space-x-2 text-gray-600 hover:text-gray-900">
+                  <ArrowLeft className="h-4 w-4" />
+                  <span>Back to Dashboard</span>
+                </Button>
+              </Link>
+              <div className="h-6 w-px bg-gray-300"></div>
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900 font-brand brand-title" 
+                    style={{ fontFamily: "'Great Vibes', cursive" }}>
+                  Pine Hill Farm
+                </h1>
+                <p className="text-sm text-gray-600">System Support</p>
+              </div>
+            </div>
+            
+            <div className="flex items-center space-x-4">
+              <Link href="/admin">
+                <Button variant="outline" className="flex items-center space-x-2">
+                  <Home className="h-4 w-4" />
+                  <span>Admin Dashboard</span>
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div className="container mx-auto px-4 py-8">
         <div className="mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 font-serif mb-2" style={{ fontFamily: "'Great Vibes', cursive" }}>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">
             System Support
-          </h1>
+          </h2>
           <p className="text-lg text-gray-600">
             Access support resources, documentation, and submit help requests
           </p>
