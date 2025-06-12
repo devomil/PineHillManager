@@ -16,6 +16,18 @@ export default function WorkScheduleTab() {
   const startOfMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
   const endOfMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 0);
 
+  // Get locations for mapping locationId to names
+  const { data: locations = [] } = useQuery({
+    queryKey: ["/api/locations"],
+    queryFn: async () => {
+      const response = await fetch("/api/locations", {
+        credentials: 'include'
+      });
+      if (!response.ok) throw new Error("Failed to fetch locations");
+      return response.json();
+    }
+  });
+
   const { data: schedules, isLoading } = useQuery({
     queryKey: ["/api/work-schedules", { 
       startDate: startOfMonth.toISOString().split('T')[0],
@@ -50,6 +62,11 @@ export default function WorkScheduleTab() {
     if (!schedules) return null;
     const dateString = date.toISOString().split('T')[0];
     return schedules.find((schedule: any) => schedule.date === dateString);
+  };
+
+  const getLocationName = (locationId: number) => {
+    const location = locations.find((loc: any) => loc.id === locationId);
+    return location ? location.name : "Location TBD";
   };
 
   const getShiftColor = (shift?: string) => {
@@ -183,7 +200,7 @@ export default function WorkScheduleTab() {
                         </div>
                         {day.schedule ? (
                           <div className={`text-xs px-2 py-1 rounded ${getShiftColor(day.schedule.shift)}`}>
-                            {day.schedule.startTime}
+                            {formatTimeStringToCST(day.schedule.startTime)}
                           </div>
                         ) : (
                           <div className="text-xs text-slate-400">
@@ -244,10 +261,10 @@ export default function WorkScheduleTab() {
                           </div>
                         </div>
                         
-                        {daySchedule.location && (
+                        {daySchedule.locationId && (
                           <div className="flex items-center text-slate-600">
                             <MapPin className="w-4 h-4 mr-2" />
-                            {daySchedule.location}
+                            {getLocationName(daySchedule.locationId)}
                           </div>
                         )}
                         
