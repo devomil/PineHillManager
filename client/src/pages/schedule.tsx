@@ -212,8 +212,8 @@ export default function Schedule() {
                   ${daySchedules.length > 0 ? 
                     daySchedules.map((schedule: any) => `
                       <div class="shift-item">
-                        <div class="shift-time">${schedule.startTime} - ${schedule.endTime}</div>
-                        <div class="shift-location">${schedule.locationName || 'Location TBD'}</div>
+                        <div class="shift-time">${formatTimeStringToCST(schedule.startTime)} - ${formatTimeStringToCST(schedule.endTime)}</div>
+                        <div class="shift-location">${schedule.locationId ? getLocationName(schedule.locationId) : 'Location TBD'}</div>
                         ${schedule.position ? `<div class="shift-location">${schedule.position}</div>` : ''}
                       </div>
                     `).join('') :
@@ -284,7 +284,7 @@ export default function Schedule() {
                     </div>
                     ${daySchedules.slice(0, 3).map((schedule: any) => `
                       <div class="shift-item" style="margin: 2px 0; padding: 2px 4px; font-size: 10px;">
-                        <div class="shift-time">${schedule.startTime}</div>
+                        <div class="shift-time">${formatTimeStringToCST(schedule.startTime)}</div>
                       </div>
                     `).join('')}
                     ${daySchedules.length > 3 ? `<div style="font-size: 10px; color: #666;">+${daySchedules.length - 3} more</div>` : ''}
