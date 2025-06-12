@@ -155,8 +155,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         requesterId: userId,
         scheduleId: parseInt(scheduleId),
         reason: reason || null,
-        status: 'open',
-        requestedAt: new Date()
+        status: 'open'
       });
       
       res.status(201).json(coverageRequest);
