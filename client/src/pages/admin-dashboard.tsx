@@ -72,6 +72,30 @@ export default function AdminDashboard() {
     }
   });
 
+  // Fetch employees for name mapping
+  const { data: employees = [] } = useQuery({
+    queryKey: ["/api/employees"],
+    queryFn: async () => {
+      const response = await fetch("/api/employees", {
+        credentials: 'include'
+      });
+      if (!response.ok) throw new Error("Failed to fetch employees");
+      return response.json();
+    }
+  });
+
+  // Fetch locations for location mapping
+  const { data: locations = [] } = useQuery({
+    queryKey: ["/api/locations"],
+    queryFn: async () => {
+      const response = await fetch("/api/locations", {
+        credentials: 'include'
+      });
+      if (!response.ok) throw new Error("Failed to fetch locations");
+      return response.json();
+    }
+  });
+
   // Fetch today's schedules
   const { data: todaySchedules } = useQuery({
     queryKey: ["/api/work-schedules/today"],
@@ -83,6 +107,17 @@ export default function AdminDashboard() {
       return response.json();
     }
   });
+
+  // Helper functions to map IDs to names
+  const getEmployeeName = (userId: string) => {
+    const employee = employees.find((emp: any) => emp.id === userId);
+    return employee ? `${employee.firstName} ${employee.lastName}` : 'Unknown Employee';
+  };
+
+  const getLocationName = (locationId: number) => {
+    const location = locations.find((loc: any) => loc.id === locationId);
+    return location ? location.name : 'Location TBD';
+  };
 
   const adminQuickActions = [
     {
@@ -256,12 +291,12 @@ export default function AdminDashboard() {
                   <div className="flex items-center space-x-3">
                     <div className="w-8 h-8 bg-green-600 rounded-full flex items-center justify-center">
                       <span className="text-white text-sm font-medium">
-                        {schedule.userName?.charAt(0) || 'U'}
+                        {getEmployeeName(schedule.userId).charAt(0) || 'U'}
                       </span>
                     </div>
                     <div>
-                      <p className="font-medium text-gray-900">{schedule.userName || 'Unknown Employee'}</p>
-                      <p className="text-sm text-gray-500">{schedule.locationName || 'Location TBD'}</p>
+                      <p className="font-medium text-gray-900">{getEmployeeName(schedule.userId)}</p>
+                      <p className="text-sm text-gray-500">{getLocationName(schedule.locationId)}</p>
                     </div>
                   </div>
                   <div className="text-right">
