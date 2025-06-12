@@ -26,7 +26,7 @@ export default function AdminDashboard() {
     if (path.includes('/employees')) return 'employees';
     if (path.includes('/shift-scheduling')) return 'scheduling';
     if (path.includes('/announcements')) return 'announcements';
-    if (path.includes('/training')) return 'training';
+    if (path.includes('/system-support')) return 'system-support';
     if (path.includes('/reports')) return 'reports';
     if (path.includes('/dashboard') && !path.includes('/admin')) return 'employee-view';
     return 'dashboard';
@@ -381,7 +381,7 @@ export default function AdminDashboard() {
               <Bell className="h-4 w-4" />
               Announcements
             </TabsTrigger>
-            <TabsTrigger value="training" className="flex items-center gap-2">
+            <TabsTrigger value="system-support" className="flex items-center gap-2">
               <FileText className="h-4 w-4" />
               System Support
             </TabsTrigger>
@@ -411,7 +411,7 @@ export default function AdminDashboard() {
             <AnnouncementsPage />
           </TabsContent>
 
-          <TabsContent value="training" className="space-y-6">
+          <TabsContent value="system-support" className="space-y-6">
             <SystemSupport />
           </TabsContent>
 
