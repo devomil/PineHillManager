@@ -6,6 +6,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { Clock, MapPin, Calendar as CalendarIcon, Printer } from "lucide-react";
+import { formatTimeStringToCST } from "@/lib/time-utils";
 
 export default function WorkScheduleTab() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
@@ -219,7 +220,7 @@ export default function WorkScheduleTab() {
                             </Badge>
                             <div className="flex items-center text-slate-600">
                               <Clock className="w-4 h-4 mr-1" />
-                              {daySchedule.startTime} - {daySchedule.endTime}
+                              {formatTimeStringToCST(daySchedule.startTime)} - {formatTimeStringToCST(daySchedule.endTime)}
                             </div>
                           </div>
                         </div>

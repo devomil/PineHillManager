@@ -16,6 +16,7 @@ import { format, addDays, startOfWeek, endOfWeek, isWithinInterval, parseISO, ad
 import type { WorkSchedule, User as UserType, Location } from "@shared/schema";
 import { ClearScheduleData } from "@/components/clear-schedule-data";
 import { ScheduleEditDialog } from "@/components/schedule-edit-dialog";
+import { formatTimeStringToCST } from "@/lib/time-utils";
 
 interface ScheduleEntry {
   employeeId: string;
@@ -560,7 +561,7 @@ export default function EnhancedShiftScheduling() {
                             {getEmployeeName(schedule.userId)}
                           </p>
                           <p className="text-xs text-blue-700 dark:text-blue-300">
-                            {schedule.startTime} - {schedule.endTime}
+                            {formatTimeStringToCST(schedule.startTime)} - {formatTimeStringToCST(schedule.endTime)}
                           </p>
                           <p className="text-xs text-blue-600 dark:text-blue-400">
                             {getLocationName(schedule.locationId)}
