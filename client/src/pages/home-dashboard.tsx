@@ -102,9 +102,11 @@ export default function HomeDashboard() {
               <Link href="/announcements">
                 <Button variant="ghost">Announcements</Button>
               </Link>
-              {isAdmin && (
+              {isManager && (
                 <Link href="/admin">
-                  <Button variant="ghost">Admin Portal</Button>
+                  <Button variant="outline" className="bg-blue-600 text-white hover:bg-blue-700 border-blue-600">
+                    ← Back to Admin View
+                  </Button>
                 </Link>
               )}
               <Button variant="ghost" onClick={() => logoutMutation.mutate()}>
