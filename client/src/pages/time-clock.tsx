@@ -275,30 +275,26 @@ export default function TimeClock() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100">
       {/* Navigation Header */}
-      <div className="bg-white shadow-sm border-b">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
+      <div className="bg-white shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center py-6">
             <div className="flex items-center space-x-4">
-              <Link href="/">
-                <Button variant="ghost" size="sm" className="flex items-center space-x-2">
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900 font-brand brand-title" 
+                    style={{ fontFamily: "'Great Vibes', cursive" }}>
+                  Pine Hill Farm
+                </h1>
+                <p className="text-sm text-gray-600">Time Clock</p>
+              </div>
+            </div>
+            
+            <div className="flex items-center space-x-4">
+              <Link href="/dashboard">
+                <Button variant="outline" className="flex items-center space-x-2">
                   <ArrowLeft className="h-4 w-4" />
                   <span>Back to Dashboard</span>
                 </Button>
               </Link>
-              <div className="text-sm text-gray-500">Time Clock</div>
-            </div>
-            <div className="flex items-center space-x-4">
-              <Link href="/">
-                <Button variant="outline" size="sm" className="flex items-center space-x-2">
-                  <Home className="h-4 w-4" />
-                  <span>Dashboard</span>
-                </Button>
-              </Link>
-              {user.role === 'admin' && (
-                <Link href="/admin">
-                  <Button variant="outline" size="sm">Admin</Button>
-                </Link>
-              )}
             </div>
           </div>
         </div>

@@ -213,12 +213,12 @@ export default function EmployeeSupport() {
                 <CardContent className="space-y-4">
                   <div>
                     <h4 className="font-medium text-gray-900">Main Office</h4>
-                    <p className="text-gray-600">(262) 555-0100</p>
+                    <p className="text-gray-600">(414) 737-4100</p>
                     <p className="text-sm text-gray-500">Monday - Friday, 8:00 AM - 5:00 PM</p>
                   </div>
                   <div>
                     <h4 className="font-medium text-gray-900">IT Support Hotline</h4>
-                    <p className="text-gray-600">(262) 555-0199</p>
+                    <p className="text-gray-600">(262) 804-7976</p>
                     <p className="text-sm text-gray-500">Available 24/7 for urgent issues</p>
                   </div>
                 </CardContent>
