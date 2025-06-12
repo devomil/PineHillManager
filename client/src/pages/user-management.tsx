@@ -1,16 +1,28 @@
 import { useState } from "react";
-import { useAuth } from "@/hooks/use-auth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/hooks/use-auth";
+import { useToast } from "@/hooks/use-toast";
+import { Link } from "wouter";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { useToast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Eye, EyeOff, UserPlus, Key, Users, ArrowLeft } from "lucide-react";
-import { Link } from "wouter";
+import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { ArrowLeft, Eye, EyeOff, Key } from "lucide-react";
 
 export default function UserManagement() {
   const { user } = useAuth();
@@ -28,38 +40,29 @@ export default function UserManagement() {
   // Check if user is admin
   if (user?.role !== 'admin') {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100 flex items-center justify-center">
-        <Card className="w-96">
-          <CardHeader>
-            <CardTitle>Access Denied</CardTitle>
-            <CardDescription>Admin access required for user management.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Link href="/admin">
-              <Button variant="outline" className="w-full">
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Back to Admin Dashboard
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+        <div className="max-w-md mx-auto mt-20">
+          <Card>
+            <CardHeader>
+              <CardTitle>Access Denied</CardTitle>
+              <CardDescription>
+                You don't have permission to access this page.
+              </CardDescription>
+            </CardHeader>
+          </Card>
+        </div>
       </div>
     );
   }
 
-  // Fetch all users
-  const { data: employees = [], isLoading } = useQuery({
+  // Fetch employees
+  const { data: employees, isLoading: employeesLoading } = useQuery({
     queryKey: ["/api/employees"],
-    queryFn: async () => {
-      const response = await fetch("/api/employees", {
-        credentials: 'include'
-      });
-      if (!response.ok) throw new Error("Failed to fetch employees");
-      return response.json();
+    select: (data) => {
+      if (!data) return [];
+      return data.filter((emp: any) => emp.isActive);
     }
   });
-
-
 
   // Reset password mutation
   const resetPasswordMutation = useMutation({
@@ -92,8 +95,6 @@ export default function UserManagement() {
     }
   });
 
-
-
   const handleResetPassword = (e: React.FormEvent) => {
     e.preventDefault();
     if (!passwordReset.userId || !passwordReset.newPassword) {
@@ -108,11 +109,11 @@ export default function UserManagement() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       {/* Header */}
       <div className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-4">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold text-gray-900 font-brand brand-title" data-brand="pine-hill">
                 Pine Hill Farm
@@ -122,7 +123,7 @@ export default function UserManagement() {
             <Link href="/admin">
               <Button variant="outline">
                 <ArrowLeft className="h-4 w-4 mr-2" />
-                Back to Admin
+                Back to Admin View
               </Button>
             </Link>
           </div>
@@ -140,63 +141,43 @@ export default function UserManagement() {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center space-x-2">
-                  <Users className="h-5 w-5" />
-                  <span>All Users</span>
+                  <Key className="h-5 w-5" />
+                  <span>System Users Overview</span>
                 </CardTitle>
                 <CardDescription>
-                  Overview of all users in the system
+                  View all users with login credentials. Create new users in Employee Management.
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {isLoading ? (
-                  <div className="text-center py-8">Loading users...</div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full border-collapse border border-gray-200">
-                      <thead>
-                        <tr className="bg-gray-50">
-                          <th className="border border-gray-200 px-4 py-2 text-left">Name</th>
-                          <th className="border border-gray-200 px-4 py-2 text-left">Email</th>
-                          <th className="border border-gray-200 px-4 py-2 text-left">Role</th>
-                          <th className="border border-gray-200 px-4 py-2 text-left">Department</th>
-                          <th className="border border-gray-200 px-4 py-2 text-left">Status</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {employees.map((employee: any) => (
-                          <tr key={employee.id} className="hover:bg-gray-50">
-                            <td className="border border-gray-200 px-4 py-2">
-                              {employee.firstName} {employee.lastName}
-                            </td>
-                            <td className="border border-gray-200 px-4 py-2">{employee.email}</td>
-                            <td className="border border-gray-200 px-4 py-2">
-                              <span className={`px-2 py-1 rounded text-xs font-medium ${
-                                employee.role === 'admin' ? 'bg-red-100 text-red-800' :
-                                employee.role === 'manager' ? 'bg-blue-100 text-blue-800' :
-                                'bg-green-100 text-green-800'
-                              }`}>
-                                {employee.role}
-                              </span>
-                            </td>
-                            <td className="border border-gray-200 px-4 py-2">{employee.department || 'N/A'}</td>
-                            <td className="border border-gray-200 px-4 py-2">
-                              <span className={`px-2 py-1 rounded text-xs font-medium ${
-                                employee.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-                              }`}>
-                                {employee.isActive ? 'Active' : 'Inactive'}
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                {employeesLoading ? (
+                  <p>Loading users...</p>
+                ) : employees && employees.length > 0 ? (
+                  <div className="grid gap-4">
+                    {employees.map((employee: any) => (
+                      <div key={employee.id} className="flex items-center justify-between p-4 border rounded-lg">
+                        <div className="flex items-center space-x-4">
+                          <div>
+                            <h3 className="font-medium">{employee.firstName} {employee.lastName}</h3>
+                            <p className="text-sm text-gray-500">{employee.email}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <Badge variant={employee.role === 'admin' ? 'destructive' : employee.role === 'manager' ? 'default' : 'secondary'}>
+                            {employee.role}
+                          </Badge>
+                          <Badge variant={employee.isActive ? 'default' : 'secondary'}>
+                            {employee.isActive ? 'Active' : 'Inactive'}
+                          </Badge>
+                        </div>
+                      </div>
+                    ))}
                   </div>
+                ) : (
+                  <p className="text-gray-500">No users found.</p>
                 )}
               </CardContent>
             </Card>
           </TabsContent>
-
-
 
           <TabsContent value="manage" className="space-y-6">
             <Card>
@@ -206,19 +187,19 @@ export default function UserManagement() {
                   <span>Reset User Password</span>
                 </CardTitle>
                 <CardDescription>
-                  Reset passwords for existing users
+                  Reset passwords for existing users. Use Employee Management to create new users.
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <form onSubmit={handleResetPassword} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="userSelect">Select User</Label>
+                    <Label htmlFor="userId">Select User</Label>
                     <Select value={passwordReset.userId} onValueChange={(value) => setPasswordReset({ ...passwordReset, userId: value })}>
                       <SelectTrigger>
                         <SelectValue placeholder="Choose a user" />
                       </SelectTrigger>
                       <SelectContent>
-                        {employees.map((employee: any) => (
+                        {employees?.map((employee: any) => (
                           <SelectItem key={employee.id} value={employee.id}>
                             {employee.firstName} {employee.lastName} ({employee.email})
                           </SelectItem>
