@@ -7,6 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Calendar, Clock, MapPin, User, Printer } from "lucide-react";
 import { format, addDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, addWeeks, addMonths, eachDayOfInterval, isSameMonth, isToday } from "date-fns";
 import { useLocation } from "wouter";
+import { formatTimeStringToCST } from "@/lib/time-utils";
 
 export default function Schedule() {
   const { user } = useAuth();
@@ -27,6 +28,18 @@ export default function Schedule() {
   const startDate = viewMode === 'week' ? weekStart : monthStart;
   const endDate = viewMode === 'week' ? weekEnd : monthEnd;
 
+  // Fetch locations for mapping
+  const { data: locations = [] } = useQuery({
+    queryKey: ["/api/locations"],
+    queryFn: async () => {
+      const response = await fetch("/api/locations", {
+        credentials: 'include'
+      });
+      if (!response.ok) throw new Error("Failed to fetch locations");
+      return response.json();
+    }
+  });
+
   // Fetch user's schedules
   const { data: schedules = [] } = useQuery({
     queryKey: ["/api/my-schedules", format(startDate, "yyyy-MM-dd"), format(endDate, "yyyy-MM-dd")],
@@ -42,6 +55,11 @@ export default function Schedule() {
   const getScheduleForDay = (date: Date) => {
     const dateStr = format(date, "yyyy-MM-dd");
     return schedules.filter((schedule: any) => schedule.date === dateStr);
+  };
+
+  const getLocationName = (locationId: number) => {
+    const location = locations.find((loc: any) => loc.id === locationId);
+    return location ? location.name : "Location TBD";
   };
 
   const getTotalWeeklyHours = () => {
@@ -477,13 +495,13 @@ export default function Schedule() {
                                 <div className="flex items-center space-x-2 mb-2">
                                   <Clock className="h-4 w-4 text-gray-500" />
                                   <span className="font-medium text-sm">
-                                    {schedule.startTime} - {schedule.endTime}
+                                    {formatTimeStringToCST(schedule.startTime)} - {formatTimeStringToCST(schedule.endTime)}
                                   </span>
                                 </div>
                                 <div className="flex items-center space-x-2 mb-2">
                                   <MapPin className="h-4 w-4 text-gray-500" />
                                   <span className="text-sm text-gray-600">
-                                    {schedule.locationName || "Location TBD"}
+                                    {schedule.locationId ? getLocationName(schedule.locationId) : "Location TBD"}
                                   </span>
                                 </div>
                                 {schedule.position && (
@@ -559,7 +577,7 @@ export default function Schedule() {
                           <div className="space-y-1">
                             {daySchedules.slice(0, 2).map((schedule: any, schedIndex: number) => (
                               <div key={schedIndex} className="text-xs bg-blue-100 text-blue-800 px-1 py-0.5 rounded truncate">
-                                {schedule.startTime}
+                                {formatTimeStringToCST(schedule.startTime)}
                               </div>
                             ))}
                             {daySchedules.length > 2 && (
