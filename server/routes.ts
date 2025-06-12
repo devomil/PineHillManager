@@ -239,6 +239,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Admin-only password management routes
+  const isAdmin = (req: any, res: any, next: any) => {
+    if (!req.user || req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Admin access required' });
+    }
+    next();
+  };
+
+  // Reset user password (admin only)
+  app.post('/api/admin/reset-password', isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const { userId, newPassword } = req.body;
+      
+      if (!userId || !newPassword) {
+        return res.status(400).json({ message: 'User ID and new password are required' });
+      }
+
+      const hashedPassword = await storage.hashPassword(newPassword);
+      const updatedUser = await storage.updateUserPassword(userId, hashedPassword);
+      
+      if (!updatedUser) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+
+      res.json({ message: 'Password reset successfully', userId });
+    } catch (error) {
+      console.error('Error resetting password:', error);
+      res.status(500).json({ message: 'Failed to reset password' });
+    }
+  });
+
+  // Create new user with password (admin only)
+  app.post('/api/admin/create-user', isAuthenticated, isAdmin, async (req, res) => {
+    try {
+      const userData = req.body;
+      
+      if (!userData.email || !userData.password) {
+        return res.status(400).json({ message: 'Email and password are required' });
+      }
+
+      // Check if user already exists
+      const existingUser = await storage.getUserByEmail(userData.email);
+      if (existingUser) {
+        return res.status(400).json({ message: 'User with this email already exists' });
+      }
+
+      const hashedPassword = await storage.hashPassword(userData.password);
+      const newUser = await storage.createUser({
+        ...userData,
+        password: hashedPassword
+      });
+
+      // Remove password from response
+      const { password, ...userResponse } = newUser;
+      res.status(201).json(userResponse);
+    } catch (error) {
+      console.error('Error creating user:', error);
+      res.status(500).json({ message: 'Failed to create user' });
+    }
+  });
+
   // Delete employee
   app.delete('/api/employees/:id', isAuthenticated, async (req, res) => {
     try {

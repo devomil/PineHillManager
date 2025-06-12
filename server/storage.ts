@@ -81,6 +81,11 @@ export interface IStorage {
   updateEmployee(id: string, employeeData: any): Promise<User>;
   deleteEmployee(id: string): Promise<void>;
   getEmployeeByEmployeeId(employeeId: string): Promise<User | undefined>;
+  
+  // Password management (admin only)
+  hashPassword(password: string): Promise<string>;
+  updateUserPassword(userId: string, hashedPassword: string): Promise<User | undefined>;
+  getUserByEmail(email: string): Promise<User | undefined>;
 
   // Time off requests
   createTimeOffRequest(request: InsertTimeOffRequest): Promise<TimeOffRequest>;
@@ -239,11 +244,6 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
 
-  async getUserByEmail(email: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.email, email));
-    return user;
-  }
-
   async createUser(userData: any): Promise<User> {
     const userId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const [user] = await db
@@ -357,6 +357,29 @@ export class DatabaseStorage implements IStorage {
 
   async getEmployeeByEmployeeId(employeeId: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.employeeId, employeeId));
+    return user;
+  }
+
+  // Password management methods
+  async hashPassword(password: string): Promise<string> {
+    const bcrypt = await import('bcrypt');
+    return bcrypt.hash(password, 12);
+  }
+
+  async updateUserPassword(userId: string, hashedPassword: string): Promise<User | undefined> {
+    const [user] = await db
+      .update(users)
+      .set({ 
+        password: hashedPassword,
+        updatedAt: new Date()
+      })
+      .where(eq(users.id, userId))
+      .returning();
+    return user;
+  }
+
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.email, email));
     return user;
   }
 
