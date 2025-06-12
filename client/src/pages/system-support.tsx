@@ -226,58 +226,7 @@ export default function SystemSupport() {
               </CardContent>
             </Card>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center space-x-2">
-                    <FileText className="h-5 w-5" />
-                    <span>User Guide</span>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-gray-600 mb-4">
-                    Comprehensive documentation for all system features and processes.
-                  </p>
-                  <Button variant="outline" className="w-full">
-                    View Documentation
-                  </Button>
-                </CardContent>
-              </Card>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center space-x-2">
-                    <Lightbulb className="h-5 w-5" />
-                    <span>Feature Requests</span>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-gray-600 mb-4">
-                    Suggest new features or improvements to the system.
-                  </p>
-                  <Button variant="outline" className="w-full">
-                    Submit Idea
-                  </Button>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center space-x-2">
-                    <Bug className="h-5 w-5" />
-                    <span>Report Bug</span>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-gray-600 mb-4">
-                    Report technical issues or bugs you've encountered.
-                  </p>
-                  <Button variant="outline" className="w-full">
-                    Report Issue
-                  </Button>
-                </CardContent>
-              </Card>
-            </div>
           </TabsContent>
 
           <TabsContent value="ticket" className="space-y-6">
