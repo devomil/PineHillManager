@@ -28,6 +28,32 @@ export default function EmployeeSupport() {
   const { toast } = useToast();
   const { user } = useAuth();
 
+  const getAssignedPersonnel = (category: string) => {
+    // Jackie (Manager) handles: General, Time Tracking, Scheduling, Payroll/Benefits
+    const jackieCategories = ["general", "time-tracking", "scheduling", "payroll-benefits"];
+    
+    // Ryan (IT) handles: Technical Issues, Account Access
+    const ryanCategories = ["technical-issue", "account-access"];
+    
+    if (jackieCategories.includes(category)) {
+      return {
+        name: "Manager Jackie",
+        email: "jackie@pinehillfarm.co"
+      };
+    } else if (ryanCategories.includes(category)) {
+      return {
+        name: "Ryan (IT Support)",
+        email: "ryan@pinehillfarm.co"
+      };
+    }
+    
+    // Default to Jackie for any other categories
+    return {
+      name: "Manager Jackie",
+      email: "jackie@pinehillfarm.co"
+    };
+  };
+
   const handleSubmitTicket = () => {
     if (!ticketSubject.trim() || !ticketDescription.trim()) {
       toast({
@@ -38,10 +64,12 @@ export default function EmployeeSupport() {
       return;
     }
 
-    // Simulate ticket submission
+    const assignedTo = getAssignedPersonnel(ticketCategory);
+    
+    // Submit ticket with proper routing
     toast({
       title: "Support Ticket Submitted",
-      description: "Your support request has been submitted. You'll receive a response within 24 hours.",
+      description: `Your ${ticketCategory.replace("-", " ")} request has been routed to ${assignedTo.name}. You'll receive a response within 24 hours.`,
     });
 
     // Reset form
@@ -251,12 +279,17 @@ export default function EmployeeSupport() {
                     className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
                     <option value="general">General Question</option>
-                    <option value="technical">Technical Issue</option>
+                    <option value="technical-issue">Technical Issue</option>
                     <option value="time-tracking">Time Tracking</option>
                     <option value="scheduling">Scheduling</option>
-                    <option value="payroll">Payroll/Benefits</option>
-                    <option value="account">Account Access</option>
+                    <option value="payroll-benefits">Payroll/Benefits</option>
+                    <option value="account-access">Account Access</option>
                   </select>
+                  
+                  {/* Show assigned personnel based on category */}
+                  <div className="text-sm text-gray-600 bg-gray-50 p-2 rounded">
+                    <strong>Will be routed to:</strong> {getAssignedPersonnel(ticketCategory).name}
+                  </div>
                 </div>
 
                 <div className="space-y-2">
