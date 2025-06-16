@@ -981,6 +981,69 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Messages API endpoints
+  app.get('/api/messages', isAuthenticated, async (req, res) => {
+    try {
+      const { channel } = req.query;
+      const messages = await storage.getMessagesByChannel(channel as string || 'general');
+      res.json(messages);
+    } catch (error) {
+      console.error('Error fetching messages:', error);
+      res.status(500).json({ message: 'Failed to fetch messages' });
+    }
+  });
+
+  app.post('/api/messages', isAuthenticated, async (req, res) => {
+    try {
+      const { content, channelId } = req.body;
+      const senderId = req.user!.id;
+
+      if (!content || !content.trim()) {
+        return res.status(400).json({ message: 'Message content is required' });
+      }
+
+      const message = await storage.createMessage({
+        senderId,
+        content: content.trim(),
+        channelId: channelId || 'general',
+        messageType: 'channel'
+      });
+
+      res.status(201).json(message);
+    } catch (error) {
+      console.error('Error creating message:', error);
+      res.status(500).json({ message: 'Failed to send message' });
+    }
+  });
+
+  // Chat channels API
+  app.get('/api/chat-channels', isAuthenticated, async (req, res) => {
+    try {
+      // Return static channels based on locations
+      const channels = [
+        { id: 'general', name: 'General', description: 'General team discussion' },
+        { id: 'location-1', name: 'Lake Geneva Retail', description: 'Discussion for Lake Geneva Retail team' },
+        { id: 'location-2', name: 'Watertown Retail', description: 'Discussion for Watertown Retail team' },
+        { id: 'location-3', name: 'Watertown Spa', description: 'Discussion for Watertown Spa team' }
+      ];
+      res.json(channels);
+    } catch (error) {
+      console.error('Error fetching chat channels:', error);
+      res.status(500).json({ message: 'Failed to fetch chat channels' });
+    }
+  });
+
+  // User presence API
+  app.get('/api/user-presence', isAuthenticated, async (req, res) => {
+    try {
+      const presenceData = await storage.getUserPresence();
+      res.json(presenceData);
+    } catch (error) {
+      console.error('Error fetching user presence:', error);
+      res.status(500).json({ message: 'Failed to fetch user presence' });
+    }
+  });
+
   // Catch-all route for non-API requests - serve React app
   app.get('*', (req, res, next) => {
     // Skip API routes and let them be handled by the API handlers

@@ -220,6 +220,11 @@ export interface IStorage {
   getUnreadMessageCount(userId: string): Promise<number>;
   markMessagesAsRead(userId: string, channelId: string): Promise<void>;
   updateUserPresenceOnClockIn(userId: string, locationId: number): Promise<void>;
+
+  // Messages and communication
+  getMessagesByChannel(channelId: string): Promise<Message[]>;
+  createMessage(messageData: InsertMessage): Promise<Message>;
+  getUserPresence(): Promise<any[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1636,6 +1641,59 @@ export class DatabaseStorage implements IStorage {
       ))
       .orderBy(desc(messages.sentAt))
       .limit(limit);
+  }
+
+  // Messages and communication - required by API endpoints
+  async getMessagesByChannel(channelId: string): Promise<Message[]> {
+    return await db
+      .select({
+        id: messages.id,
+        content: messages.content,
+        sentAt: messages.sentAt,
+        senderId: messages.senderId,
+        channelId: messages.channelId,
+        messageType: messages.messageType,
+        senderName: sql<string>`COALESCE(${users.firstName} || ' ' || ${users.lastName}, 'Unknown User')`
+      })
+      .from(messages)
+      .leftJoin(users, eq(messages.senderId, users.id))
+      .where(and(
+        eq(messages.channelId, channelId),
+        eq(messages.messageType, 'channel')
+      ))
+      .orderBy(desc(messages.sentAt))
+      .limit(50);
+  }
+
+  async createMessage(messageData: InsertMessage): Promise<Message> {
+    const [message] = await db
+      .insert(messages)
+      .values({
+        ...messageData,
+        sentAt: new Date()
+      })
+      .returning();
+    return message;
+  }
+
+  async getUserPresence(): Promise<any[]> {
+    return await db
+      .select({
+        userId: userPresence.userId,
+        status: userPresence.status,
+        lastSeen: userPresence.lastSeen,
+        currentLocation: userPresence.currentLocation,
+        statusMessage: userPresence.statusMessage,
+        isWorking: userPresence.isWorking,
+        clockedInAt: userPresence.clockedInAt,
+        firstName: users.firstName,
+        lastName: users.lastName,
+        role: users.role,
+      })
+      .from(userPresence)
+      .leftJoin(users, eq(userPresence.userId, users.id))
+      .where(eq(users.isActive, true))
+      .orderBy(asc(users.firstName));
   }
 }
 
