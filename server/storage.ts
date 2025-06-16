@@ -222,9 +222,9 @@ export interface IStorage {
   updateUserPresenceOnClockIn(userId: string, locationId: number): Promise<void>;
 
   // Messages and communication
-  getMessagesByChannel(channelId: string): Promise<Message[]>;
+  getMessagesByChannel(channelId: string): Promise<any[]>;
   createMessage(messageData: InsertMessage): Promise<Message>;
-  getUserPresence(): Promise<any[]>;
+  getAllUserPresence(): Promise<any[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -772,13 +772,6 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Messages
-  async createMessage(message: InsertMessage): Promise<Message> {
-    const [newMessage] = await db
-      .insert(messages)
-      .values(message)
-      .returning();
-    return newMessage;
-  }
 
   async getUserMessages(userId: string): Promise<Message[]> {
     return await db
@@ -1384,15 +1377,6 @@ export class DatabaseStorage implements IStorage {
     return presence;
   }
 
-  async getUserPresence(userId: string): Promise<any | undefined> {
-    const [presence] = await db
-      .select()
-      .from(userPresence)
-      .where(eq(userPresence.userId, userId));
-    
-    return presence;
-  }
-
   async getAllUserPresence(): Promise<any[]> {
     return await db
       .select({
@@ -1676,25 +1660,7 @@ export class DatabaseStorage implements IStorage {
     return message;
   }
 
-  async getUserPresence(): Promise<any[]> {
-    return await db
-      .select({
-        userId: userPresence.userId,
-        status: userPresence.status,
-        lastSeen: userPresence.lastSeen,
-        currentLocation: userPresence.currentLocation,
-        statusMessage: userPresence.statusMessage,
-        isWorking: userPresence.isWorking,
-        clockedInAt: userPresence.clockedInAt,
-        firstName: users.firstName,
-        lastName: users.lastName,
-        role: users.role,
-      })
-      .from(userPresence)
-      .leftJoin(users, eq(userPresence.userId, users.id))
-      .where(eq(users.isActive, true))
-      .orderBy(asc(users.firstName));
-  }
+
 }
 
 export const storage = new DatabaseStorage();

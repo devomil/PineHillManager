@@ -1036,7 +1036,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // User presence API
   app.get('/api/user-presence', isAuthenticated, async (req, res) => {
     try {
-      const presenceData = await storage.getUserPresence();
+      const presenceData = await storage.getAllUserPresence();
       res.json(presenceData);
     } catch (error) {
       console.error('Error fetching user presence:', error);
