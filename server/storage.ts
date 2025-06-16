@@ -225,6 +225,7 @@ export interface IStorage {
   getMessagesByChannel(channelId: string): Promise<any[]>;
   createMessage(messageData: InsertMessage): Promise<Message>;
   getAllUserPresence(): Promise<any[]>;
+  getUserPresence(userId: string): Promise<any | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1377,24 +1378,7 @@ export class DatabaseStorage implements IStorage {
     return presence;
   }
 
-  async getAllUserPresence(): Promise<any[]> {
-    return await db
-      .select({
-        userId: userPresence.userId,
-        status: userPresence.status,
-        lastSeen: userPresence.lastSeen,
-        currentLocation: userPresence.currentLocation,
-        statusMessage: userPresence.statusMessage,
-        isWorking: userPresence.isWorking,
-        clockedInAt: userPresence.clockedInAt,
-        firstName: users.firstName,
-        lastName: users.lastName,
-        role: users.role,
-      })
-      .from(userPresence)
-      .leftJoin(users, eq(userPresence.userId, users.id))
-      .orderBy(asc(users.firstName));
-  }
+
 
   async getOnlineUsers(): Promise<any[]> {
     const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
@@ -1628,7 +1612,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Messages and communication - required by API endpoints
-  async getMessagesByChannel(channelId: string): Promise<Message[]> {
+  async getMessagesByChannel(channelId: string): Promise<any[]> {
     return await db
       .select({
         id: messages.id,
@@ -1660,7 +1644,34 @@ export class DatabaseStorage implements IStorage {
     return message;
   }
 
+  async getUserPresence(userId: string): Promise<any | undefined> {
+    const [presence] = await db
+      .select()
+      .from(userPresence)
+      .where(eq(userPresence.userId, userId));
+    
+    return presence;
+  }
 
+  async getAllUserPresence(): Promise<any[]> {
+    return await db
+      .select({
+        userId: userPresence.userId,
+        status: userPresence.status,
+        lastSeen: userPresence.lastSeen,
+        currentLocation: userPresence.currentLocation,
+        statusMessage: userPresence.statusMessage,
+        isWorking: userPresence.isWorking,
+        clockedInAt: userPresence.clockedInAt,
+        firstName: users.firstName,
+        lastName: users.lastName,
+        role: users.role,
+      })
+      .from(userPresence)
+      .leftJoin(users, eq(userPresence.userId, users.id))
+      .where(eq(users.isActive, true))
+      .orderBy(asc(users.firstName));
+  }
 }
 
 export const storage = new DatabaseStorage();
