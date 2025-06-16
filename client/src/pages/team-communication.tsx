@@ -292,7 +292,7 @@ export default function TeamCommunication() {
                               {message.senderName || 'Unknown User'}
                             </span>
                             <span className="text-xs text-gray-500">
-                              {format(new Date(message.createdAt), "MMM d, h:mm a")}
+                              {message.sentAt ? format(new Date(message.sentAt), "MMM d, h:mm a") : 'Just now'}
                             </span>
                           </div>
                           <p className="text-gray-700">{message.content}</p>
