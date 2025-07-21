@@ -16,6 +16,8 @@ import SystemSupport from "@/pages/system-support";
 import UserManagement from "@/pages/user-management";
 import ReportsPage from "@/pages/reports";
 import HomeDashboard from "@/pages/home-dashboard";
+import AccountingDashboard from "@/pages/accounting-dashboard";
+import IntegrationsPage from "@/pages/integrations-page";
 
 export default function AdminDashboard() {
   const { user, logoutMutation } = useAuth();
@@ -30,6 +32,8 @@ export default function AdminDashboard() {
     if (path.includes('/system-support')) return 'system-support';
     if (path.includes('/reports')) return 'reports';
     if (path.includes('/dashboard') && !path.includes('/admin')) return 'employee-view';
+    if (path.includes('/accounting')) return 'accounting';
+    if (path.includes('/integrations')) return 'integrations';
     return 'dashboard';
   };
 
@@ -52,6 +56,12 @@ export default function AdminDashboard() {
         break;
       case 'user-management':
         setLocation('/user-management');
+        break;
+      case 'accounting':
+        setLocation('/accounting');
+        break;
+      case 'integrations':
+        setLocation('/integrations');
         break;
       case 'communication':
         setLocation('/communication');
@@ -376,7 +386,7 @@ export default function AdminDashboard() {
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Tabs value={getCurrentTab()} onValueChange={handleTabChange} className="w-full">
-          <TabsList className="grid w-full grid-cols-7 mb-8">
+          <TabsList className="grid w-full grid-cols-9 mb-8">
             <TabsTrigger value="dashboard" className="flex items-center gap-2">
               <Settings className="h-4 w-4" />
               Admin Dashboard
@@ -408,6 +418,14 @@ export default function AdminDashboard() {
             <TabsTrigger value="reports" className="flex items-center gap-2">
               <Clock className="h-4 w-4" />
               Reports
+            </TabsTrigger>
+            <TabsTrigger value="accounting" className="flex items-center gap-2">
+              <DollarSign className="h-4 w-4" />
+              Accounting
+            </TabsTrigger>
+            <TabsTrigger value="integrations" className="flex items-center gap-2">
+              <Settings className="h-4 w-4" />
+              Integrations
             </TabsTrigger>
           </TabsList>
 
@@ -441,6 +459,14 @@ export default function AdminDashboard() {
 
           <TabsContent value="reports" className="space-y-6">
             <ReportsPage />
+          </TabsContent>
+
+          <TabsContent value="accounting" className="space-y-6">
+            <AccountingDashboard />
+          </TabsContent>
+
+          <TabsContent value="integrations" className="space-y-6">
+            <IntegrationsPage />
           </TabsContent>
         </Tabs>
       </div>
