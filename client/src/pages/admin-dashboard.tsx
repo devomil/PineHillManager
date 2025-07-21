@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useQuery } from "@tanstack/react-query";
-import { Users, Clock, Calendar, MapPin, ChevronRight, FileText, MessageCircle, Bell, Settings, Eye, DollarSign } from "lucide-react";
+import { Users, Clock, Calendar, MapPin, ChevronRight, FileText, MessageCircle, Bell, Settings, Eye, DollarSign, Menu, X } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { formatTimeStringToCST } from "@/lib/time-utils";
 
@@ -22,6 +22,7 @@ import IntegrationsPage from "@/pages/integrations-page";
 export default function AdminDashboard() {
   const { user, logoutMutation } = useAuth();
   const [location, setLocation] = useLocation();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   
   // Extract the current tab from the URL
   const getCurrentTab = () => {
@@ -386,48 +387,171 @@ export default function AdminDashboard() {
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Tabs value={getCurrentTab()} onValueChange={handleTabChange} className="w-full">
-          <TabsList className="grid w-full grid-cols-9 mb-8 overflow-x-auto">
-            <TabsTrigger value="dashboard" className="flex items-center gap-2 text-sm px-2 py-2">
-              <Settings className="h-4 w-4" />
-              Admin Dashboard
-            </TabsTrigger>
-            <TabsTrigger value="employees" className="flex items-center gap-2 text-sm px-2 py-2">
-              <Users className="h-4 w-4" />
-              Employee Management
-            </TabsTrigger>
-            <TabsTrigger value="scheduling" className="flex items-center gap-2 text-sm px-2 py-2">
-              <Calendar className="h-4 w-4" />
-              Schedule Management
-            </TabsTrigger>
-            <TabsTrigger value="announcements" className="flex items-center gap-2 text-sm px-2 py-2">
-              <Bell className="h-4 w-4" />
-              Announcements
-            </TabsTrigger>
-            <TabsTrigger value="system-support" className="flex items-center gap-2 text-sm px-2 py-2">
-              <FileText className="h-4 w-4" />
-              System Support
-            </TabsTrigger>
-            <TabsTrigger value="user-management" className="flex items-center gap-2 text-sm px-2 py-2">
-              <Settings className="h-4 w-4" />
-              User Management
-            </TabsTrigger>
-            <TabsTrigger value="employee-view" className="flex items-center gap-2 text-sm px-2 py-2">
-              <Eye className="h-4 w-4" />
-              Employee View
-            </TabsTrigger>
-            <TabsTrigger value="reports" className="flex items-center gap-2 text-sm px-2 py-2">
-              <Clock className="h-4 w-4" />
-              Reports
-            </TabsTrigger>
-            <TabsTrigger value="accounting" className="flex items-center gap-2 text-sm px-2 py-2">
-              <DollarSign className="h-4 w-4" />
-              Accounting
-            </TabsTrigger>
-            <TabsTrigger value="integrations" className="flex items-center gap-2 text-sm px-2 py-2">
-              <Settings className="h-4 w-4" />
-              Integrations
-            </TabsTrigger>
-          </TabsList>
+          {/* Desktop Navigation */}
+          <div className="hidden lg:block">
+            <TabsList className="grid w-full grid-cols-10 mb-8 h-12">
+              <TabsTrigger value="dashboard" className="flex items-center gap-2 text-sm px-3 py-2 mx-1">
+                <Settings className="h-4 w-4" />
+                <span className="hidden xl:inline">Admin Dashboard</span>
+                <span className="xl:hidden">Dashboard</span>
+              </TabsTrigger>
+              <TabsTrigger value="employees" className="flex items-center gap-2 text-sm px-3 py-2 mx-1">
+                <Users className="h-4 w-4" />
+                <span className="hidden xl:inline">Employee Management</span>
+                <span className="xl:hidden">Employees</span>
+              </TabsTrigger>
+              <TabsTrigger value="scheduling" className="flex items-center gap-2 text-sm px-3 py-2 mx-1">
+                <Calendar className="h-4 w-4" />
+                <span className="hidden xl:inline">Schedule Management</span>
+                <span className="xl:hidden">Schedule</span>
+              </TabsTrigger>
+              <TabsTrigger value="announcements" className="flex items-center gap-2 text-sm px-3 py-2 mx-1">
+                <Bell className="h-4 w-4" />
+                <span className="hidden xl:inline">Announcements</span>
+                <span className="xl:hidden">News</span>
+              </TabsTrigger>
+              <TabsTrigger value="system-support" className="flex items-center gap-2 text-sm px-3 py-2 mx-1">
+                <FileText className="h-4 w-4" />
+                <span className="hidden xl:inline">System Support</span>
+                <span className="xl:hidden">Support</span>
+              </TabsTrigger>
+              <TabsTrigger value="user-management" className="flex items-center gap-2 text-sm px-3 py-2 mx-1">
+                <Settings className="h-4 w-4" />
+                <span className="hidden xl:inline">User Management</span>
+                <span className="xl:hidden">Users</span>
+              </TabsTrigger>
+              <TabsTrigger value="employee-view" className="flex items-center gap-2 text-sm px-3 py-2 mx-1">
+                <Eye className="h-4 w-4" />
+                <span className="hidden xl:inline">Employee View</span>
+                <span className="xl:hidden">Employee</span>
+              </TabsTrigger>
+              <TabsTrigger value="reports" className="flex items-center gap-2 text-sm px-3 py-2 mx-1">
+                <Clock className="h-4 w-4" />
+                <span className="hidden xl:inline">Reports</span>
+                <span className="xl:hidden">Reports</span>
+              </TabsTrigger>
+              <TabsTrigger value="accounting" className="flex items-center gap-2 text-sm px-3 py-2 mx-1">
+                <DollarSign className="h-4 w-4" />
+                <span className="hidden xl:inline">Accounting</span>
+                <span className="xl:hidden">Finance</span>
+              </TabsTrigger>
+              <TabsTrigger value="integrations" className="flex items-center gap-2 text-sm px-3 py-2 mx-1">
+                <Settings className="h-4 w-4" />
+                <span className="hidden xl:inline">Integrations</span>
+                <span className="xl:hidden">Integrations</span>
+              </TabsTrigger>
+            </TabsList>
+          </div>
+
+          {/* Tablet Navigation - Priority Items */}
+          <div className="hidden md:block lg:hidden">
+            <TabsList className="grid w-full grid-cols-3 mb-8 h-12">
+              <TabsTrigger value="dashboard" className="flex items-center gap-2 text-sm px-4 py-2">
+                <Settings className="h-4 w-4" />
+                Admin Dashboard
+              </TabsTrigger>
+              <TabsTrigger value="employees" className="flex items-center gap-2 text-sm px-4 py-2">
+                <Users className="h-4 w-4" />
+                Employees
+              </TabsTrigger>
+              <TabsTrigger value="scheduling" className="flex items-center gap-2 text-sm px-4 py-2">
+                <Calendar className="h-4 w-4" />
+                Schedule
+              </TabsTrigger>
+            </TabsList>
+            
+            {/* Mobile Menu Button for Tablet */}
+            <div className="mb-8">
+              <Button
+                variant="outline"
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                className="w-full flex items-center justify-center gap-2"
+              >
+                <Menu className="h-4 w-4" />
+                More Options
+              </Button>
+            </div>
+          </div>
+
+          {/* Mobile Navigation */}
+          <div className="md:hidden mb-8">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-gray-900">Navigation</h2>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                className="flex items-center gap-2"
+              >
+                {mobileMenuOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
+                Menu
+              </Button>
+            </div>
+          </div>
+
+          {/* Mobile/Tablet Dropdown Menu */}
+          {mobileMenuOpen && (
+            <div className="lg:hidden mb-8 bg-white border rounded-lg shadow-lg p-4">
+              <div className="space-y-2">
+                <Button
+                  variant={getCurrentTab() === "announcements" ? "default" : "ghost"}
+                  onClick={() => { handleTabChange("announcements"); setMobileMenuOpen(false); }}
+                  className="w-full justify-start gap-2 h-12"
+                >
+                  <Bell className="h-4 w-4" />
+                  Announcements
+                </Button>
+                <Button
+                  variant={getCurrentTab() === "system-support" ? "default" : "ghost"}
+                  onClick={() => { handleTabChange("system-support"); setMobileMenuOpen(false); }}
+                  className="w-full justify-start gap-2 h-12"
+                >
+                  <FileText className="h-4 w-4" />
+                  System Support
+                </Button>
+                <Button
+                  variant={getCurrentTab() === "user-management" ? "default" : "ghost"}
+                  onClick={() => { handleTabChange("user-management"); setMobileMenuOpen(false); }}
+                  className="w-full justify-start gap-2 h-12"
+                >
+                  <Settings className="h-4 w-4" />
+                  User Management
+                </Button>
+                <Button
+                  variant={getCurrentTab() === "employee-view" ? "default" : "ghost"}
+                  onClick={() => { handleTabChange("employee-view"); setMobileMenuOpen(false); }}
+                  className="w-full justify-start gap-2 h-12"
+                >
+                  <Eye className="h-4 w-4" />
+                  Employee View
+                </Button>
+                <Button
+                  variant={getCurrentTab() === "reports" ? "default" : "ghost"}
+                  onClick={() => { handleTabChange("reports"); setMobileMenuOpen(false); }}
+                  className="w-full justify-start gap-2 h-12"
+                >
+                  <Clock className="h-4 w-4" />
+                  Reports
+                </Button>
+                <Button
+                  variant={getCurrentTab() === "accounting" ? "default" : "ghost"}
+                  onClick={() => { handleTabChange("accounting"); setMobileMenuOpen(false); }}
+                  className="w-full justify-start gap-2 h-12"
+                >
+                  <DollarSign className="h-4 w-4" />
+                  Accounting
+                </Button>
+                <Button
+                  variant={getCurrentTab() === "integrations" ? "default" : "ghost"}
+                  onClick={() => { handleTabChange("integrations"); setMobileMenuOpen(false); }}
+                  className="w-full justify-start gap-2 h-12"
+                >
+                  <Settings className="h-4 w-4" />
+                  Integrations
+                </Button>
+              </div>
+            </div>
+          )}
 
           <TabsContent value="dashboard" className="space-y-6">
             <DashboardContent />
