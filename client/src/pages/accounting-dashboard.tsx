@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+// Tabs component no longer needed - using custom navigation
 import { Separator } from '@/components/ui/separator';
 import { 
   DollarSign, 
@@ -39,6 +39,8 @@ type FinancialAccount = {
 };
 
 function AccountingContent() {
+  const [activeSection, setActiveSection] = useState('overview');
+  
   // System health check
   const { data: systemHealth, isLoading: healthLoading } = useQuery<SystemHealth>({
     queryKey: ['/api/accounting/health'],
@@ -158,18 +160,66 @@ function AccountingContent() {
           </CardContent>
         </Card>
 
-        {/* Main Dashboard Tabs */}
-        <Tabs defaultValue="overview" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5">
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="accounts">Chart of Accounts</TabsTrigger>
-            <TabsTrigger value="transactions">Transactions</TabsTrigger>
-            <TabsTrigger value="reports">Reports</TabsTrigger>
-            <TabsTrigger value="integrations">Integrations</TabsTrigger>
-          </TabsList>
+        {/* Main Dashboard Navigation */}
+        <div className="space-y-6">
+          <div className="border-b border-gray-200">
+            <nav className="-mb-px flex space-x-8">
+              <button
+                onClick={() => setActiveSection('overview')}
+                className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                  activeSection === 'overview'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                Overview
+              </button>
+              <button
+                onClick={() => setActiveSection('accounts')}
+                className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                  activeSection === 'accounts'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                Chart of Accounts
+              </button>
+              <button
+                onClick={() => setActiveSection('transactions')}
+                className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                  activeSection === 'transactions'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                Transactions
+              </button>
+              <button
+                onClick={() => setActiveSection('reports')}
+                className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                  activeSection === 'reports'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                Reports
+              </button>
+              <button
+                onClick={() => setActiveSection('integrations')}
+                className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                  activeSection === 'integrations'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                Integrations
+              </button>
+            </nav>
+          </div>
 
-          {/* Overview Tab */}
-          <TabsContent value="overview" className="space-y-6">
+          {/* Overview Section */}
+          {activeSection === 'overview' && (
+            <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -245,87 +295,95 @@ function AccountingContent() {
                 </div>
               </CardContent>
             </Card>
-          </TabsContent>
+            </div>
+          )}
 
-          {/* Chart of Accounts Tab */}
-          <TabsContent value="accounts" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Chart of Accounts</CardTitle>
-                <CardDescription>
-                  Manage your financial account structure
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {accountsLoading ? (
-                  <div className="flex items-center justify-center h-20">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                  </div>
-                ) : accounts.length > 0 ? (
-                  <div className="space-y-2">
-                    {accounts.map((account) => (
-                      <div key={account.id} className="flex items-center justify-between p-3 border rounded-lg">
-                        <div>
-                          <h3 className="font-medium">{account.accountName}</h3>
-                          <p className="text-sm text-gray-500">{account.accountType}</p>
+          {/* Chart of Accounts Section */}
+          {activeSection === 'accounts' && (
+            <div className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Chart of Accounts</CardTitle>
+                  <CardDescription>
+                    Manage your financial account structure
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {accountsLoading ? (
+                    <div className="flex items-center justify-center h-20">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                    </div>
+                  ) : accounts.length > 0 ? (
+                    <div className="space-y-2">
+                      {accounts.map((account) => (
+                        <div key={account.id} className="flex items-center justify-between p-3 border rounded-lg">
+                          <div>
+                            <h3 className="font-medium">{account.accountName}</h3>
+                            <p className="text-sm text-gray-500">{account.accountType}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-medium">${account.balance}</p>
+                            <Badge variant={account.isActive ? "default" : "secondary"}>
+                              {account.isActive ? "Active" : "Inactive"}
+                            </Badge>
+                          </div>
                         </div>
-                        <div className="text-right">
-                          <p className="font-medium">${account.balance}</p>
-                          <Badge variant={account.isActive ? "default" : "secondary"}>
-                            {account.isActive ? "Active" : "Inactive"}
-                          </Badge>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <p className="text-gray-500 mb-4">No accounts found. Start by setting up your chart of accounts.</p>
+                      <Button>Add First Account</Button>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* Transactions Section */}
+          {activeSection === 'transactions' && (
+            <div className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Financial Transactions</CardTitle>
+                  <CardDescription>
+                    View and manage all financial transactions
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
                   <div className="text-center py-8">
-                    <p className="text-gray-500 mb-4">No accounts found. Start by setting up your chart of accounts.</p>
-                    <Button>Add First Account</Button>
+                    <p className="text-gray-500 mb-4">Transaction management will be available in Phase 2.</p>
+                    <Button variant="outline" disabled>Coming Soon</Button>
                   </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
+                </CardContent>
+              </Card>
+            </div>
+          )}
 
-          {/* Transactions Tab */}
-          <TabsContent value="transactions" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Financial Transactions</CardTitle>
-                <CardDescription>
-                  View and manage all financial transactions
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-center py-8">
-                  <p className="text-gray-500 mb-4">Transaction management will be available in Phase 2.</p>
-                  <Button variant="outline" disabled>Coming Soon</Button>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
+          {/* Reports Section */}
+          {activeSection === 'reports' && (
+            <div className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Financial Reports</CardTitle>
+                  <CardDescription>
+                    Generate and view financial reports
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-center py-8">
+                    <p className="text-gray-500 mb-4">Advanced reporting will be available in Phase 3.</p>
+                    <Button variant="outline" disabled>Coming Soon</Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
 
-          {/* Reports Tab */}
-          <TabsContent value="reports" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Financial Reports</CardTitle>
-                <CardDescription>
-                  Generate and view financial reports
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-center py-8">
-                  <p className="text-gray-500 mb-4">Advanced reporting will be available in Phase 3.</p>
-                  <Button variant="outline" disabled>Coming Soon</Button>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Integrations Tab */}
-          <TabsContent value="integrations" className="space-y-6">
+          {/* Integrations Section */}
+          {activeSection === 'integrations' && (
+            <div className="space-y-6">
             <Card>
               <CardHeader>
                 <CardTitle>System Integrations</CardTitle>
@@ -389,8 +447,9 @@ function AccountingContent() {
                 </div>
               </CardContent>
             </Card>
-          </TabsContent>
-        </Tabs>
+            </div>
+          )}
+        </div>
       </div>
     </AdminLayout>
   );

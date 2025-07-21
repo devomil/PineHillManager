@@ -1,0 +1,27 @@
+The above error occurred in the <RovingFocusGroupItem> component:
+
+    at https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@radix-ui_react-tabs.js?v=3810acfb:157:7
+    at https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@radix-ui_react-tabs.js?v=3810acfb:337:13
+    at _c3 (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/src/components/ui/tabs.tsx:47:12)
+    at div
+    at div
+    at div
+    at https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-BOL2CCOG.js?v=3810acfb:42:13
+    at Provider (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-OXZDJRWN.js?v=3810acfb:38:15)
+    at https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@radix-ui_react-tabs.js?v=3810acfb:267:7
+    at div
+    at div
+    at AdminLayout (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/src/components/admin-layout.tsx:24:39)
+    at ShiftScheduling
+    at Route (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=3810acfb:323:16)
+    at Switch (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=3810acfb:379:17)
+    at AuthenticatedApp (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/src/App.tsx?v=9trPwh_2Zwx9rOYYYJbnQ:52:20)
+    at AppRouter (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/src/App.tsx?v=9trPwh_2Zwx9rOYYYJbnQ:236:48)
+    at Router (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=3810acfb:291:17)
+    at AuthProvider (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/src/hooks/use-auth.tsx:26:32)
+    at App
+    at QueryClientProvider (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@tanstack_react-query.js?v=3810acfb:2805:3)
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries.
+`RovingFocusGroupItem` must be used within `RovingFocusGroup`
