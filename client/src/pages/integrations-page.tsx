@@ -5,8 +5,11 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
+import { useLocation } from 'wouter';
 import { 
   Settings, 
   RefreshCw, 
@@ -16,7 +19,8 @@ import {
   DollarSign,
   ShoppingCart,
   Heart,
-  Package
+  Package,
+  ArrowLeft
 } from 'lucide-react';
 
 interface IntegrationStatus {
@@ -30,6 +34,32 @@ interface IntegrationStatus {
 const IntegrationsPage = () => {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState('overview');
+  const [, setLocation] = useLocation();
+
+  // Form states for credentials
+  const [quickbooksCredentials, setQuickbooksCredentials] = useState({
+    clientId: '',
+    clientSecret: '',
+    sandboxMode: true
+  });
+
+  const [cloverCredentials, setCloverCredentials] = useState({
+    merchantId: '',
+    apiToken: '',
+    environment: 'sandbox'
+  });
+
+  const [hsaCredentials, setHsaCredentials] = useState({
+    providerId: '',
+    apiKey: '',
+    baseUrl: ''
+  });
+
+  const [thriveCredentials, setThriveCredentials] = useState({
+    apiKey: '',
+    baseUrl: '',
+    warehouseId: ''
+  });
 
   // Fetch integration statuses
   const { data: integrationStatus, isLoading } = useQuery({
@@ -157,6 +187,51 @@ const IntegrationsPage = () => {
     }
   });
 
+  // Save credentials mutations
+  const saveQuickbooksMutation = useMutation({
+    mutationFn: async (credentials: typeof quickbooksCredentials) => {
+      const response = await apiRequest('POST', '/api/accounting/config/quickbooks', credentials);
+      return await response.json();
+    },
+    onSuccess: () => {
+      toast({ title: 'QuickBooks credentials saved successfully' });
+      queryClient.invalidateQueries({ queryKey: ['/api/accounting/health'] });
+    }
+  });
+
+  const saveCloverMutation = useMutation({
+    mutationFn: async (credentials: typeof cloverCredentials) => {
+      const response = await apiRequest('POST', '/api/accounting/config/clover', credentials);
+      return await response.json();
+    },
+    onSuccess: () => {
+      toast({ title: 'Clover credentials saved successfully' });
+      queryClient.invalidateQueries({ queryKey: ['/api/accounting/health'] });
+    }
+  });
+
+  const saveHsaMutation = useMutation({
+    mutationFn: async (credentials: typeof hsaCredentials) => {
+      const response = await apiRequest('POST', '/api/accounting/config/hsa', credentials);
+      return await response.json();
+    },
+    onSuccess: () => {
+      toast({ title: 'HSA credentials saved successfully' });
+      queryClient.invalidateQueries({ queryKey: ['/api/accounting/health'] });
+    }
+  });
+
+  const saveThriveMutation = useMutation({
+    mutationFn: async (credentials: typeof thriveCredentials) => {
+      const response = await apiRequest('POST', '/api/accounting/config/thrive', credentials);
+      return await response.json();
+    },
+    onSuccess: () => {
+      toast({ title: 'Thrive credentials saved successfully' });
+      queryClient.invalidateQueries({ queryKey: ['/api/accounting/health'] });
+    }
+  });
+
   const getIntegrations = (): IntegrationStatus[] => {
     if (!integrationStatus) return [];
     
@@ -165,25 +240,25 @@ const IntegrationsPage = () => {
         name: 'QuickBooks',
         status: (integrationStatus as any).quickbooks || 'not_configured',
         icon: <DollarSign className="h-6 w-6" />,
-        color: (integrationStatus as any).quickbooks === 'configured' ? 'bg-green-500' : 'bg-gray-400'
+        color: (integrationStatus as any).quickbooks === 'connected' ? 'bg-green-500' : 'bg-gray-400'
       },
       {
         name: 'Clover POS',
         status: (integrationStatus as any).clover || 'not_configured',
         icon: <ShoppingCart className="h-6 w-6" />,
-        color: (integrationStatus as any).clover === 'configured' ? 'bg-green-500' : 'bg-gray-400'
+        color: (integrationStatus as any).clover === 'connected' ? 'bg-green-500' : 'bg-gray-400'
       },
       {
         name: 'HSA Provider',
         status: (integrationStatus as any).hsa || 'not_configured',
         icon: <Heart className="h-6 w-6" />,
-        color: (integrationStatus as any).hsa === 'configured' ? 'bg-green-500' : 'bg-gray-400'
+        color: (integrationStatus as any).hsa === 'connected' ? 'bg-green-500' : 'bg-gray-400'
       },
       {
         name: 'Thrive Inventory',
         status: (integrationStatus as any).thrive || 'not_configured',
         icon: <Package className="h-6 w-6" />,
-        color: (integrationStatus as any).thrive === 'configured' ? 'bg-green-500' : 'bg-gray-400'
+        color: (integrationStatus as any).thrive === 'connected' ? 'bg-green-500' : 'bg-gray-400'
       }
     ];
   };
@@ -217,13 +292,23 @@ const IntegrationsPage = () => {
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900" style={{ fontFamily: 'Great Vibes, cursive' }}>
-            External Integrations
-          </h1>
-          <p className="text-gray-600 mt-2">
-            Connect and manage external systems for comprehensive business data
-          </p>
+        <div className="flex items-center space-x-4">
+          <Button 
+            variant="outline" 
+            onClick={() => setLocation('/accounting')}
+            className="flex items-center gap-2"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to Dashboard
+          </Button>
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900" style={{ fontFamily: 'Great Vibes, cursive' }}>
+              External Integrations
+            </h1>
+            <p className="text-gray-600 mt-2">
+              Connect and manage external systems for comprehensive business data
+            </p>
+          </div>
         </div>
         <Button 
           variant="outline" 
@@ -288,7 +373,7 @@ const IntegrationsPage = () => {
                 QuickBooks Integration
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-6">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="font-medium">Connection Status</p>
@@ -298,6 +383,53 @@ const IntegrationsPage = () => {
                 </div>
                 {getStatusBadge((integrationStatus as any)?.quickbooks || 'not_configured')}
               </div>
+
+              {/* Credentials Form */}
+              <Card className="border-dashed">
+                <CardHeader>
+                  <CardTitle className="text-lg">API Credentials</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="qb-client-id">Client ID</Label>
+                      <Input
+                        id="qb-client-id"
+                        type="text"
+                        value={quickbooksCredentials.clientId}
+                        onChange={(e) => setQuickbooksCredentials(prev => ({ ...prev, clientId: e.target.value }))}
+                        placeholder="Enter QuickBooks Client ID"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="qb-client-secret">Client Secret</Label>
+                      <Input
+                        id="qb-client-secret"
+                        type="password"
+                        value={quickbooksCredentials.clientSecret}
+                        onChange={(e) => setQuickbooksCredentials(prev => ({ ...prev, clientSecret: e.target.value }))}
+                        placeholder="Enter QuickBooks Client Secret"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <input
+                      id="qb-sandbox"
+                      type="checkbox"
+                      checked={quickbooksCredentials.sandboxMode}
+                      onChange={(e) => setQuickbooksCredentials(prev => ({ ...prev, sandboxMode: e.target.checked }))}
+                    />
+                    <Label htmlFor="qb-sandbox">Use Sandbox Environment</Label>
+                  </div>
+                  <Button 
+                    onClick={() => saveQuickbooksMutation.mutate(quickbooksCredentials)}
+                    disabled={saveQuickbooksMutation.isPending || !quickbooksCredentials.clientId || !quickbooksCredentials.clientSecret}
+                  >
+                    {saveQuickbooksMutation.isPending && <RefreshCw className="h-4 w-4 mr-2 animate-spin" />}
+                    Save Credentials
+                  </Button>
+                </CardContent>
+              </Card>
 
               <div className="flex gap-2">
                 <Button 
@@ -320,7 +452,7 @@ const IntegrationsPage = () => {
 
               <Alert>
                 <AlertDescription>
-                  Configure QuickBooks credentials in the accounting settings first. 
+                  Enter your QuickBooks app credentials above, then test the connection. 
                   Once connected, you can sync your chart of accounts and customer data.
                 </AlertDescription>
               </Alert>
@@ -336,7 +468,7 @@ const IntegrationsPage = () => {
                 Clover POS Integration
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-6">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="font-medium">Connection Status</p>
@@ -346,6 +478,56 @@ const IntegrationsPage = () => {
                 </div>
                 {getStatusBadge((integrationStatus as any)?.clover || 'not_configured')}
               </div>
+
+              {/* Credentials Form */}
+              <Card className="border-dashed">
+                <CardHeader>
+                  <CardTitle className="text-lg">API Credentials</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="clover-merchant-id">Merchant ID</Label>
+                      <Input
+                        id="clover-merchant-id"
+                        type="text"
+                        value={cloverCredentials.merchantId}
+                        onChange={(e) => setCloverCredentials(prev => ({ ...prev, merchantId: e.target.value }))}
+                        placeholder="Enter Clover Merchant ID"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="clover-api-token">API Token</Label>
+                      <Input
+                        id="clover-api-token"
+                        type="password"
+                        value={cloverCredentials.apiToken}
+                        onChange={(e) => setCloverCredentials(prev => ({ ...prev, apiToken: e.target.value }))}
+                        placeholder="Enter Clover API Token"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <Label htmlFor="clover-environment">Environment</Label>
+                    <select
+                      id="clover-environment"
+                      value={cloverCredentials.environment}
+                      onChange={(e) => setCloverCredentials(prev => ({ ...prev, environment: e.target.value }))}
+                      className="w-full p-2 border rounded-md"
+                    >
+                      <option value="sandbox">Sandbox</option>
+                      <option value="production">Production</option>
+                    </select>
+                  </div>
+                  <Button 
+                    onClick={() => saveCloverMutation.mutate(cloverCredentials)}
+                    disabled={saveCloverMutation.isPending || !cloverCredentials.merchantId || !cloverCredentials.apiToken}
+                  >
+                    {saveCloverMutation.isPending && <RefreshCw className="h-4 w-4 mr-2 animate-spin" />}
+                    Save Credentials
+                  </Button>
+                </CardContent>
+              </Card>
 
               <div className="flex gap-2">
                 <Button 
@@ -368,8 +550,8 @@ const IntegrationsPage = () => {
 
               <Alert>
                 <AlertDescription>
-                  Configure your Clover merchant ID and API token in the accounting settings. 
-                  Sales data will be automatically synchronized daily.
+                  Enter your Clover merchant ID and API token above. 
+                  Sales data will be automatically synchronized daily once configured.
                 </AlertDescription>
               </Alert>
             </CardContent>
@@ -384,7 +566,7 @@ const IntegrationsPage = () => {
                 HSA Provider Integration
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-6">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="font-medium">Connection Status</p>
@@ -394,6 +576,54 @@ const IntegrationsPage = () => {
                 </div>
                 {getStatusBadge((integrationStatus as any)?.hsa || 'not_configured')}
               </div>
+
+              {/* Credentials Form */}
+              <Card className="border-dashed">
+                <CardHeader>
+                  <CardTitle className="text-lg">HSA Provider Credentials</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-1 gap-4">
+                    <div>
+                      <Label htmlFor="hsa-provider-id">Provider ID</Label>
+                      <Input
+                        id="hsa-provider-id"
+                        type="text"
+                        value={hsaCredentials.providerId}
+                        onChange={(e) => setHsaCredentials(prev => ({ ...prev, providerId: e.target.value }))}
+                        placeholder="Enter HSA Provider ID"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="hsa-api-key">API Key</Label>
+                      <Input
+                        id="hsa-api-key"
+                        type="password"
+                        value={hsaCredentials.apiKey}
+                        onChange={(e) => setHsaCredentials(prev => ({ ...prev, apiKey: e.target.value }))}
+                        placeholder="Enter HSA API Key"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="hsa-base-url">Base URL</Label>
+                      <Input
+                        id="hsa-base-url"
+                        type="url"
+                        value={hsaCredentials.baseUrl}
+                        onChange={(e) => setHsaCredentials(prev => ({ ...prev, baseUrl: e.target.value }))}
+                        placeholder="https://api.hsaprovider.com"
+                      />
+                    </div>
+                  </div>
+                  <Button 
+                    onClick={() => saveHsaMutation.mutate(hsaCredentials)}
+                    disabled={saveHsaMutation.isPending || !hsaCredentials.providerId || !hsaCredentials.apiKey}
+                  >
+                    {saveHsaMutation.isPending && <RefreshCw className="h-4 w-4 mr-2 animate-spin" />}
+                    Save Credentials
+                  </Button>
+                </CardContent>
+              </Card>
 
               <div className="flex gap-2">
                 <Button 
@@ -424,7 +654,7 @@ const IntegrationsPage = () => {
                 Thrive Inventory Integration
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-6">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="font-medium">Connection Status</p>
@@ -434,6 +664,54 @@ const IntegrationsPage = () => {
                 </div>
                 {getStatusBadge((integrationStatus as any)?.thrive || 'not_configured')}
               </div>
+
+              {/* Credentials Form */}
+              <Card className="border-dashed">
+                <CardHeader>
+                  <CardTitle className="text-lg">Thrive API Credentials</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-1 gap-4">
+                    <div>
+                      <Label htmlFor="thrive-api-key">API Key</Label>
+                      <Input
+                        id="thrive-api-key"
+                        type="password"
+                        value={thriveCredentials.apiKey}
+                        onChange={(e) => setThriveCredentials(prev => ({ ...prev, apiKey: e.target.value }))}
+                        placeholder="Enter Thrive API Key"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="thrive-base-url">Base URL</Label>
+                      <Input
+                        id="thrive-base-url"
+                        type="url"
+                        value={thriveCredentials.baseUrl}
+                        onChange={(e) => setThriveCredentials(prev => ({ ...prev, baseUrl: e.target.value }))}
+                        placeholder="https://api.thrive.com"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="thrive-warehouse-id">Warehouse ID</Label>
+                      <Input
+                        id="thrive-warehouse-id"
+                        type="text"
+                        value={thriveCredentials.warehouseId}
+                        onChange={(e) => setThriveCredentials(prev => ({ ...prev, warehouseId: e.target.value }))}
+                        placeholder="Enter Warehouse ID"
+                      />
+                    </div>
+                  </div>
+                  <Button 
+                    onClick={() => saveThriveMutation.mutate(thriveCredentials)}
+                    disabled={saveThriveMutation.isPending || !thriveCredentials.apiKey || !thriveCredentials.baseUrl}
+                  >
+                    {saveThriveMutation.isPending && <RefreshCw className="h-4 w-4 mr-2 animate-spin" />}
+                    Save Credentials
+                  </Button>
+                </CardContent>
+              </Card>
 
               <div className="flex gap-2">
                 <Button 
@@ -463,6 +741,7 @@ const IntegrationsPage = () => {
             </CardContent>
           </Card>
         </TabsContent>
+
       </Tabs>
     </div>
   );
