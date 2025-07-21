@@ -2107,16 +2107,37 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Stub implementations for remaining methods (to be implemented in future phases)
-  async createPosSale(sale: InsertPosSale): Promise<PosSale> { throw new Error("Not implemented yet"); }
-  async getAllPosSales(limit?: number, offset?: number): Promise<PosSale[]> { return []; }
+  async createPosSale(sale: InsertPosSale): Promise<PosSale> {
+    const [posSale] = await db.insert(posSales).values(sale).returning();
+    return posSale;
+  }
+  async getAllPosSales(limit?: number, offset?: number): Promise<PosSale[]> {
+    let query = db.select().from(posSales).orderBy(desc(posSales.createdAt));
+    
+    if (limit) {
+      query = query.limit(limit);
+    }
+    
+    if (offset) {
+      query = query.offset(offset);
+    }
+    
+    return await query;
+  }
   async getPosSaleById(id: number): Promise<PosSale | undefined> { return undefined; }
-  async getPosSaleByCloverOrderId(cloverOrderId: string): Promise<PosSale | undefined> { return undefined; }
+  async getPosSaleByCloverOrderId(cloverOrderId: string): Promise<PosSale | undefined> {
+    const [sale] = await db.select().from(posSales).where(eq(posSales.cloverOrderId, cloverOrderId));
+    return sale;
+  }
   async getSalesByDateRange(startDate: string, endDate: string): Promise<PosSale[]> { return []; }
   async getSalesByLocation(locationId: number, startDate?: string, endDate?: string): Promise<PosSale[]> { return []; }
   async getUnpostedSales(): Promise<PosSale[]> { return []; }
   async updatePosSale(id: number, sale: Partial<InsertPosSale>): Promise<PosSale> { throw new Error("Not implemented yet"); }
   async markSaleAsPostedToQB(id: number, qbTransactionId: string): Promise<PosSale> { throw new Error("Not implemented yet"); }
-  async createPosSaleItem(item: InsertPosSaleItem): Promise<PosSaleItem> { throw new Error("Not implemented yet"); }
+  async createPosSaleItem(item: InsertPosSaleItem): Promise<PosSaleItem> {
+    const [saleItem] = await db.insert(posSaleItems).values(item).returning();
+    return saleItem;
+  }
   async getSaleItems(saleId: number): Promise<PosSaleItem[]> { return []; }
   async updatePosSaleItem(id: number, item: Partial<InsertPosSaleItem>): Promise<PosSaleItem> { throw new Error("Not implemented yet"); }
   async deleteSaleItem(id: number): Promise<void> { }
@@ -2131,8 +2152,29 @@ export class DatabaseStorage implements IStorage {
   async approveHsaExpense(id: number, approvedBy: string): Promise<HsaExpense> { throw new Error("Not implemented yet"); }
   async markHsaExpenseAsPostedToQB(id: number, qbTransactionId: string): Promise<HsaExpense> { throw new Error("Not implemented yet"); }
   async deleteHsaExpense(id: number): Promise<void> { }
-  async createIntegrationLog(log: InsertIntegrationLog): Promise<IntegrationLog> { throw new Error("Not implemented yet"); }
-  async getIntegrationLogs(system?: string, status?: string, limit?: number): Promise<IntegrationLog[]> { return []; }
+  async createIntegrationLog(log: InsertIntegrationLog): Promise<IntegrationLog> {
+    const [integrationLog] = await db.insert(integrationLogs).values(log).returning();
+    return integrationLog;
+  }
+  async getIntegrationLogs(system?: string, status?: string, limit?: number): Promise<IntegrationLog[]> {
+    let query = db.select().from(integrationLogs);
+    
+    if (system) {
+      query = query.where(eq(integrationLogs.system, system));
+    }
+    
+    if (status) {
+      query = query.where(eq(integrationLogs.status, status));
+    }
+    
+    if (limit) {
+      query = query.limit(limit);
+    }
+    
+    query = query.orderBy(desc(integrationLogs.createdAt));
+    
+    return await query;
+  }
   async getIntegrationLogsByDateRange(startDate: string, endDate: string, system?: string): Promise<IntegrationLog[]> { return []; }
   async deleteOldLogs(daysToKeep: number): Promise<number> { return 0; }
   async createReportConfig(config: InsertReportConfig): Promise<ReportConfig> { throw new Error("Not implemented yet"); }
