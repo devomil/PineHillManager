@@ -386,46 +386,46 @@ export default function AdminDashboard() {
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Tabs value={getCurrentTab()} onValueChange={handleTabChange} className="w-full">
-          <TabsList className="grid w-full grid-cols-9 mb-8 h-auto min-h-[3rem]">
-            <TabsTrigger value="dashboard" className="flex flex-col items-center gap-1 p-2 text-xs">
+          <TabsList className="grid w-full grid-cols-9 mb-8 overflow-x-auto">
+            <TabsTrigger value="dashboard" className="flex items-center gap-2 text-sm px-2 py-2">
               <Settings className="h-4 w-4" />
-              <span className="whitespace-nowrap">Admin Dashboard</span>
+              Admin Dashboard
             </TabsTrigger>
-            <TabsTrigger value="employees" className="flex flex-col items-center gap-1 p-2 text-xs">
+            <TabsTrigger value="employees" className="flex items-center gap-2 text-sm px-2 py-2">
               <Users className="h-4 w-4" />
-              <span className="whitespace-nowrap">Employee Management</span>
+              Employee Management
             </TabsTrigger>
-            <TabsTrigger value="scheduling" className="flex flex-col items-center gap-1 p-2 text-xs">
+            <TabsTrigger value="scheduling" className="flex items-center gap-2 text-sm px-2 py-2">
               <Calendar className="h-4 w-4" />
-              <span className="whitespace-nowrap">Schedule Management</span>
+              Schedule Management
             </TabsTrigger>
-            <TabsTrigger value="announcements" className="flex flex-col items-center gap-1 p-2 text-xs">
+            <TabsTrigger value="announcements" className="flex items-center gap-2 text-sm px-2 py-2">
               <Bell className="h-4 w-4" />
-              <span className="whitespace-nowrap">Announcements</span>
+              Announcements
             </TabsTrigger>
-            <TabsTrigger value="system-support" className="flex flex-col items-center gap-1 p-2 text-xs">
+            <TabsTrigger value="system-support" className="flex items-center gap-2 text-sm px-2 py-2">
               <FileText className="h-4 w-4" />
-              <span className="whitespace-nowrap">System Support</span>
+              System Support
             </TabsTrigger>
-            <TabsTrigger value="user-management" className="flex flex-col items-center gap-1 p-2 text-xs">
+            <TabsTrigger value="user-management" className="flex items-center gap-2 text-sm px-2 py-2">
               <Settings className="h-4 w-4" />
-              <span className="whitespace-nowrap">User Management</span>
+              User Management
             </TabsTrigger>
-            <TabsTrigger value="employee-view" className="flex flex-col items-center gap-1 p-2 text-xs">
+            <TabsTrigger value="employee-view" className="flex items-center gap-2 text-sm px-2 py-2">
               <Eye className="h-4 w-4" />
-              <span className="whitespace-nowrap">Employee View</span>
+              Employee View
             </TabsTrigger>
-            <TabsTrigger value="reports" className="flex flex-col items-center gap-1 p-2 text-xs">
+            <TabsTrigger value="reports" className="flex items-center gap-2 text-sm px-2 py-2">
               <Clock className="h-4 w-4" />
-              <span className="whitespace-nowrap">Reports</span>
+              Reports
             </TabsTrigger>
-            <TabsTrigger value="accounting" className="flex flex-col items-center gap-1 p-2 text-xs">
+            <TabsTrigger value="accounting" className="flex items-center gap-2 text-sm px-2 py-2">
               <DollarSign className="h-4 w-4" />
-              <span className="whitespace-nowrap">Accounting</span>
+              Accounting
             </TabsTrigger>
-            <TabsTrigger value="integrations" className="flex flex-col items-center gap-1 p-2 text-xs">
+            <TabsTrigger value="integrations" className="flex items-center gap-2 text-sm px-2 py-2">
               <Settings className="h-4 w-4" />
-              <span className="whitespace-nowrap">Integrations</span>
+              Integrations
             </TabsTrigger>
           </TabsList>
 
