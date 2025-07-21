@@ -38,7 +38,7 @@ type FinancialAccount = {
   isActive: boolean;
 };
 
-export default function AccountingDashboard() {
+function AccountingContent() {
   // System health check
   const { data: systemHealth, isLoading: healthLoading } = useQuery<SystemHealth>({
     queryKey: ['/api/accounting/health'],
@@ -394,4 +394,8 @@ export default function AccountingDashboard() {
       </div>
     </AdminLayout>
   );
+}
+
+export default function AccountingDashboard() {
+  return <AccountingContent />;
 }
