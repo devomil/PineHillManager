@@ -1044,6 +1044,401 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ============================================
+  // ACCOUNTING TOOL API ROUTES
+  // ============================================
+
+  // Integration Configuration Routes
+  app.get('/api/accounting/quickbooks-config', isAuthenticated, async (req, res) => {
+    try {
+      const config = await storage.getActiveQuickbooksConfig();
+      res.json(config || null);
+    } catch (error) {
+      console.error('Error fetching QuickBooks config:', error);
+      res.status(500).json({ message: 'Failed to fetch QuickBooks configuration' });
+    }
+  });
+
+  app.post('/api/accounting/quickbooks-config', isAuthenticated, async (req, res) => {
+    try {
+      const { companyId, accessToken, refreshToken, realmId, baseUrl, isActive } = req.body;
+      const config = await storage.createQuickbooksConfig({
+        companyId: companyId || '',
+        accessToken: accessToken || '',
+        refreshToken: refreshToken || '',
+        realmId: realmId || '',
+        baseUrl: baseUrl || 'https://sandbox-quickbooks.api.intuit.com',
+        isActive: isActive ?? true,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      });
+      res.status(201).json(config);
+    } catch (error) {
+      console.error('Error creating QuickBooks config:', error);
+      res.status(500).json({ message: 'Failed to create QuickBooks configuration' });
+    }
+  });
+
+  app.get('/api/accounting/clover-config', isAuthenticated, async (req, res) => {
+    try {
+      const config = await storage.getActiveCloverConfig();
+      res.json(config || null);
+    } catch (error) {
+      console.error('Error fetching Clover config:', error);
+      res.status(500).json({ message: 'Failed to fetch Clover configuration' });
+    }
+  });
+
+  app.post('/api/accounting/clover-config', isAuthenticated, async (req, res) => {
+    try {
+      const { merchantId, apiKey, baseUrl, isActive } = req.body;
+      const config = await storage.createCloverConfig({
+        merchantId: merchantId || '',
+        apiKey: apiKey || '',
+        baseUrl: baseUrl || 'https://api.clover.com',
+        isActive: isActive ?? true,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      });
+      res.status(201).json(config);
+    } catch (error) {
+      console.error('Error creating Clover config:', error);
+      res.status(500).json({ message: 'Failed to create Clover configuration' });
+    }
+  });
+
+  // Financial Accounts (Chart of Accounts) Routes
+  app.get('/api/accounting/accounts', isAuthenticated, async (req, res) => {
+    try {
+      const { type } = req.query;
+      let accounts;
+      
+      if (type) {
+        accounts = await storage.getAccountsByType(type as string);
+      } else {
+        accounts = await storage.getAllFinancialAccounts();
+      }
+      
+      res.json(accounts);
+    } catch (error) {
+      console.error('Error fetching financial accounts:', error);
+      res.status(500).json({ message: 'Failed to fetch financial accounts' });
+    }
+  });
+
+  app.post('/api/accounting/accounts', isAuthenticated, async (req, res) => {
+    try {
+      const { accountName, accountType, accountNumber, description, parentAccountId, qbAccountId } = req.body;
+      
+      if (!accountName || !accountType) {
+        return res.status(400).json({ message: 'Account name and type are required' });
+      }
+
+      const account = await storage.createFinancialAccount({
+        accountName,
+        accountType,
+        accountNumber: accountNumber || null,
+        description: description || null,
+        parentAccountId: parentAccountId || null,
+        qbAccountId: qbAccountId || null,
+        balance: '0.00',
+        isActive: true,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      });
+      
+      res.status(201).json(account);
+    } catch (error) {
+      console.error('Error creating financial account:', error);
+      res.status(500).json({ message: 'Failed to create financial account' });
+    }
+  });
+
+  app.get('/api/accounting/accounts/:id', isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const account = await storage.getFinancialAccountById(id);
+      
+      if (!account) {
+        return res.status(404).json({ message: 'Account not found' });
+      }
+      
+      res.json(account);
+    } catch (error) {
+      console.error('Error fetching financial account:', error);
+      res.status(500).json({ message: 'Failed to fetch financial account' });
+    }
+  });
+
+  app.put('/api/accounting/accounts/:id', isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const updates = req.body;
+      
+      const account = await storage.updateFinancialAccount(id, updates);
+      res.json(account);
+    } catch (error) {
+      console.error('Error updating financial account:', error);
+      res.status(500).json({ message: 'Failed to update financial account' });
+    }
+  });
+
+  // Financial Transactions Routes
+  app.get('/api/accounting/transactions', isAuthenticated, async (req, res) => {
+    try {
+      const { limit, offset, startDate, endDate, sourceSystem } = req.query;
+      let transactions;
+
+      if (startDate && endDate) {
+        transactions = await storage.getTransactionsByDateRange(startDate as string, endDate as string);
+      } else if (sourceSystem) {
+        transactions = await storage.getTransactionsBySourceSystem(sourceSystem as string);
+      } else {
+        transactions = await storage.getAllFinancialTransactions(
+          limit ? parseInt(limit as string) : undefined,
+          offset ? parseInt(offset as string) : undefined
+        );
+      }
+
+      res.json(transactions);
+    } catch (error) {
+      console.error('Error fetching financial transactions:', error);
+      res.status(500).json({ message: 'Failed to fetch financial transactions' });
+    }
+  });
+
+  app.post('/api/accounting/transactions', isAuthenticated, async (req, res) => {
+    try {
+      const { 
+        transactionDate, 
+        description, 
+        totalAmount, 
+        sourceSystem, 
+        externalId, 
+        reference,
+        lines 
+      } = req.body;
+
+      if (!transactionDate || !description || !totalAmount || !sourceSystem) {
+        return res.status(400).json({ message: 'Missing required transaction fields' });
+      }
+
+      // Create the transaction
+      const transaction = await storage.createFinancialTransaction({
+        transactionDate,
+        description,
+        totalAmount,
+        sourceSystem,
+        externalId: externalId || null,
+        reference: reference || null,
+        isReconciled: false,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      });
+
+      // Create transaction lines if provided
+      if (lines && Array.isArray(lines)) {
+        for (const line of lines) {
+          await storage.createTransactionLine({
+            transactionId: transaction.id,
+            accountId: line.accountId,
+            amount: line.amount,
+            description: line.description || '',
+            debitCredit: line.debitCredit || 'debit'
+          });
+        }
+      }
+
+      res.status(201).json(transaction);
+    } catch (error) {
+      console.error('Error creating financial transaction:', error);
+      res.status(500).json({ message: 'Failed to create financial transaction' });
+    }
+  });
+
+  // Customers and Vendors Routes
+  app.get('/api/accounting/customers-vendors', isAuthenticated, async (req, res) => {
+    try {
+      const { type } = req.query;
+      let customersVendors;
+
+      if (type && (type === 'customer' || type === 'vendor')) {
+        customersVendors = await storage.getCustomersByType(type);
+      } else {
+        customersVendors = await storage.getAllCustomersVendors();
+      }
+
+      res.json(customersVendors);
+    } catch (error) {
+      console.error('Error fetching customers/vendors:', error);
+      res.status(500).json({ message: 'Failed to fetch customers and vendors' });
+    }
+  });
+
+  app.post('/api/accounting/customers-vendors', isAuthenticated, async (req, res) => {
+    try {
+      const { name, type, email, phone, address, qbId } = req.body;
+
+      if (!name || !type || (type !== 'customer' && type !== 'vendor')) {
+        return res.status(400).json({ message: 'Name and valid type (customer/vendor) are required' });
+      }
+
+      const customerVendor = await storage.createCustomerVendor({
+        name,
+        type,
+        email: email || null,
+        phone: phone || null,
+        address: address || null,
+        qbId: qbId || null,
+        isActive: true,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      });
+
+      res.status(201).json(customerVendor);
+    } catch (error) {
+      console.error('Error creating customer/vendor:', error);
+      res.status(500).json({ message: 'Failed to create customer/vendor' });
+    }
+  });
+
+  // Inventory Items Routes
+  app.get('/api/accounting/inventory', isAuthenticated, async (req, res) => {
+    try {
+      const { lowStock } = req.query;
+      let items;
+
+      if (lowStock === 'true') {
+        items = await storage.getLowStockItems();
+      } else {
+        items = await storage.getAllInventoryItems();
+      }
+
+      res.json(items);
+    } catch (error) {
+      console.error('Error fetching inventory items:', error);
+      res.status(500).json({ message: 'Failed to fetch inventory items' });
+    }
+  });
+
+  app.post('/api/accounting/inventory', isAuthenticated, async (req, res) => {
+    try {
+      const { 
+        itemName, 
+        sku, 
+        quantityOnHand, 
+        unitCost, 
+        unitPrice, 
+        reorderPoint, 
+        description,
+        qbItemId,
+        thriveItemId 
+      } = req.body;
+
+      if (!itemName || !sku) {
+        return res.status(400).json({ message: 'Item name and SKU are required' });
+      }
+
+      const item = await storage.createInventoryItem({
+        itemName,
+        sku,
+        quantityOnHand: quantityOnHand || '0',
+        unitCost: unitCost || '0.00',
+        unitPrice: unitPrice || '0.00',
+        reorderPoint: reorderPoint || '0',
+        description: description || null,
+        qbItemId: qbItemId || null,
+        thriveItemId: thriveItemId || null,
+        isActive: true,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      });
+
+      res.status(201).json(item);
+    } catch (error) {
+      console.error('Error creating inventory item:', error);
+      res.status(500).json({ message: 'Failed to create inventory item' });
+    }
+  });
+
+  // Analytics Routes (using stub implementations for now)
+  app.get('/api/accounting/analytics/trial-balance', isAuthenticated, async (req, res) => {
+    try {
+      const { asOfDate } = req.query;
+      const trialBalance = await storage.getTrialBalance(asOfDate as string);
+      res.json(trialBalance);
+    } catch (error) {
+      console.error('Error fetching trial balance:', error);
+      res.status(500).json({ message: 'Failed to fetch trial balance' });
+    }
+  });
+
+  app.get('/api/accounting/analytics/profit-loss', isAuthenticated, async (req, res) => {
+    try {
+      const { startDate, endDate } = req.query;
+      
+      if (!startDate || !endDate) {
+        return res.status(400).json({ message: 'Start date and end date are required' });
+      }
+
+      const profitLoss = await storage.getProfitLoss(startDate as string, endDate as string);
+      res.json(profitLoss);
+    } catch (error) {
+      console.error('Error fetching profit and loss:', error);
+      res.status(500).json({ message: 'Failed to fetch profit and loss report' });
+    }
+  });
+
+  app.get('/api/accounting/analytics/sales-summary', isAuthenticated, async (req, res) => {
+    try {
+      const { startDate, endDate, locationId } = req.query;
+      
+      if (!startDate || !endDate) {
+        return res.status(400).json({ message: 'Start date and end date are required' });
+      }
+
+      const salesSummary = await storage.getSalesSummary(
+        startDate as string, 
+        endDate as string,
+        locationId ? parseInt(locationId as string) : undefined
+      );
+      res.json(salesSummary);
+    } catch (error) {
+      console.error('Error fetching sales summary:', error);
+      res.status(500).json({ message: 'Failed to fetch sales summary' });
+    }
+  });
+
+  // System Health Check Route for Accounting
+  app.get('/api/accounting/health', isAuthenticated, async (req, res) => {
+    try {
+      const health = {
+        database: 'connected',
+        quickbooks: 'not_configured',
+        clover: 'not_configured',
+        hsa: 'not_configured',
+        thrive: 'not_configured',
+        timestamp: new Date().toISOString()
+      };
+
+      // Check if integrations are configured
+      const qbConfig = await storage.getActiveQuickbooksConfig();
+      const cloverConfig = await storage.getActiveCloverConfig();
+      const hsaConfig = await storage.getHsaConfig();
+      const thriveConfig = await storage.getActiveThriveConfig();
+
+      if (qbConfig) health.quickbooks = 'configured';
+      if (cloverConfig) health.clover = 'configured';
+      if (hsaConfig) health.hsa = 'configured';
+      if (thriveConfig) health.thrive = 'configured';
+
+      res.json(health);
+    } catch (error) {
+      console.error('Error checking accounting system health:', error);
+      res.status(500).json({ message: 'Failed to check system health' });
+    }
+  });
+
   // Catch-all route for non-API requests - serve React app
   app.get('*', (req, res, next) => {
     // Skip API routes and let them be handled by the API handlers

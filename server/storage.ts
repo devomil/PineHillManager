@@ -20,6 +20,22 @@ import {
   logos,
   employeeInvitations,
   passwordResetTokens,
+  // Accounting Tables
+  quickbooksConfig,
+  cloverConfig,
+  hsaConfig,
+  thriveConfig,
+  financialAccounts,
+  financialTransactions,
+  financialTransactionLines,
+  customersVendors,
+  inventoryItems,
+  posSales,
+  posSaleItems,
+  hsaExpenses,
+  integrationLogs,
+  reportConfigs,
+  dashboardWidgets,
   type User,
   type UpsertUser,
   type InsertTimeOffRequest,
@@ -57,6 +73,37 @@ import {
   type DocumentLog,
   type InsertEmployeeInvitation,
   type EmployeeInvitation,
+  // Accounting Types
+  type QuickbooksConfig,
+  type InsertQuickbooksConfig,
+  type CloverConfig,
+  type InsertCloverConfig,
+  type HsaConfig,
+  type InsertHsaConfig,
+  type ThriveConfig,
+  type InsertThriveConfig,
+  type FinancialAccount,
+  type InsertFinancialAccount,
+  type FinancialTransaction,
+  type InsertFinancialTransaction,
+  type FinancialTransactionLine,
+  type InsertFinancialTransactionLine,
+  type CustomersVendors,
+  type InsertCustomersVendors,
+  type InventoryItem,
+  type InsertInventoryItem,
+  type PosSale,
+  type InsertPosSale,
+  type PosSaleItem,
+  type InsertPosSaleItem,
+  type HsaExpense,
+  type InsertHsaExpense,
+  type IntegrationLog,
+  type InsertIntegrationLog,
+  type ReportConfig,
+  type InsertReportConfig,
+  type DashboardWidget,
+  type InsertDashboardWidget,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, asc, gte, lte, or, sql } from "drizzle-orm";
@@ -226,6 +273,135 @@ export interface IStorage {
   createMessage(messageData: InsertMessage): Promise<Message>;
   getAllUserPresence(): Promise<any[]>;
   getUserPresence(userId: string): Promise<any | undefined>;
+
+  // ============================================
+  // ACCOUNTING TOOL STORAGE OPERATIONS
+  // ============================================
+
+  // Integration Configuration Management
+  createQuickbooksConfig(config: InsertQuickbooksConfig): Promise<QuickbooksConfig>;
+  getQuickbooksConfig(companyId: string): Promise<QuickbooksConfig | undefined>;
+  updateQuickbooksConfig(id: number, config: Partial<InsertQuickbooksConfig>): Promise<QuickbooksConfig>;
+  getActiveQuickbooksConfig(): Promise<QuickbooksConfig | undefined>;
+  
+  createCloverConfig(config: InsertCloverConfig): Promise<CloverConfig>;
+  getCloverConfig(merchantId: string): Promise<CloverConfig | undefined>;
+  updateCloverConfig(id: number, config: Partial<InsertCloverConfig>): Promise<CloverConfig>;
+  getActiveCloverConfig(): Promise<CloverConfig | undefined>;
+  
+  createHsaConfig(config: InsertHsaConfig): Promise<HsaConfig>;
+  getHsaConfig(): Promise<HsaConfig | undefined>;
+  updateHsaConfig(id: number, config: Partial<InsertHsaConfig>): Promise<HsaConfig>;
+  
+  createThriveConfig(config: InsertThriveConfig): Promise<ThriveConfig>;
+  getThriveConfig(storeId: string): Promise<ThriveConfig | undefined>;
+  updateThriveConfig(id: number, config: Partial<InsertThriveConfig>): Promise<ThriveConfig>;
+  getActiveThriveConfig(): Promise<ThriveConfig | undefined>;
+
+  // Financial Accounts (Chart of Accounts)
+  createFinancialAccount(account: InsertFinancialAccount): Promise<FinancialAccount>;
+  getAllFinancialAccounts(): Promise<FinancialAccount[]>;
+  getFinancialAccountById(id: number): Promise<FinancialAccount | undefined>;
+  getFinancialAccountByQBId(qbAccountId: string): Promise<FinancialAccount | undefined>;
+  updateFinancialAccount(id: number, account: Partial<InsertFinancialAccount>): Promise<FinancialAccount>;
+  deleteFinancialAccount(id: number): Promise<void>;
+  getAccountsByType(accountType: string): Promise<FinancialAccount[]>;
+
+  // Financial Transactions
+  createFinancialTransaction(transaction: InsertFinancialTransaction): Promise<FinancialTransaction>;
+  getAllFinancialTransactions(limit?: number, offset?: number): Promise<FinancialTransaction[]>;
+  getFinancialTransactionById(id: number): Promise<FinancialTransaction | undefined>;
+  getTransactionsByDateRange(startDate: string, endDate: string): Promise<FinancialTransaction[]>;
+  getTransactionsBySourceSystem(sourceSystem: string): Promise<FinancialTransaction[]>;
+  updateFinancialTransaction(id: number, transaction: Partial<InsertFinancialTransaction>): Promise<FinancialTransaction>;
+  deleteFinancialTransaction(id: number): Promise<void>;
+
+  // Financial Transaction Lines
+  createTransactionLine(line: InsertFinancialTransactionLine): Promise<FinancialTransactionLine>;
+  getTransactionLines(transactionId: number): Promise<FinancialTransactionLine[]>;
+  updateTransactionLine(id: number, line: Partial<InsertFinancialTransactionLine>): Promise<FinancialTransactionLine>;
+  deleteTransactionLine(id: number): Promise<void>;
+
+  // Customers and Vendors
+  createCustomerVendor(customerVendor: InsertCustomersVendors): Promise<CustomersVendors>;
+  getAllCustomersVendors(): Promise<CustomersVendors[]>;
+  getCustomerVendorById(id: number): Promise<CustomersVendors | undefined>;
+  getCustomerVendorByQBId(qbId: string): Promise<CustomersVendors | undefined>;
+  getCustomersByType(type: 'customer' | 'vendor'): Promise<CustomersVendors[]>;
+  updateCustomerVendor(id: number, customerVendor: Partial<InsertCustomersVendors>): Promise<CustomersVendors>;
+  deleteCustomerVendor(id: number): Promise<void>;
+
+  // Inventory Items
+  createInventoryItem(item: InsertInventoryItem): Promise<InventoryItem>;
+  getAllInventoryItems(): Promise<InventoryItem[]>;
+  getInventoryItemById(id: number): Promise<InventoryItem | undefined>;
+  getInventoryItemByQBId(qbItemId: string): Promise<InventoryItem | undefined>;
+  getInventoryItemByThriveId(thriveItemId: string): Promise<InventoryItem | undefined>;
+  getInventoryItemsBySKU(sku: string): Promise<InventoryItem[]>;
+  getLowStockItems(): Promise<InventoryItem[]>;
+  updateInventoryItem(id: number, item: Partial<InsertInventoryItem>): Promise<InventoryItem>;
+  updateInventoryQuantity(id: number, quantity: string): Promise<InventoryItem>;
+  deleteInventoryItem(id: number): Promise<void>;
+
+  // POS Sales (from Clover)
+  createPosSale(sale: InsertPosSale): Promise<PosSale>;
+  getAllPosSales(limit?: number, offset?: number): Promise<PosSale[]>;
+  getPosSaleById(id: number): Promise<PosSale | undefined>;
+  getPosSaleByCloverOrderId(cloverOrderId: string): Promise<PosSale | undefined>;
+  getSalesByDateRange(startDate: string, endDate: string): Promise<PosSale[]>;
+  getSalesByLocation(locationId: number, startDate?: string, endDate?: string): Promise<PosSale[]>;
+  getUnpostedSales(): Promise<PosSale[]>;
+  updatePosSale(id: number, sale: Partial<InsertPosSale>): Promise<PosSale>;
+  markSaleAsPostedToQB(id: number, qbTransactionId: string): Promise<PosSale>;
+
+  // POS Sale Items
+  createPosSaleItem(item: InsertPosSaleItem): Promise<PosSaleItem>;
+  getSaleItems(saleId: number): Promise<PosSaleItem[]>;
+  updatePosSaleItem(id: number, item: Partial<InsertPosSaleItem>): Promise<PosSaleItem>;
+  deleteSaleItem(id: number): Promise<void>;
+
+  // HSA Expenses
+  createHsaExpense(expense: InsertHsaExpense): Promise<HsaExpense>;
+  getAllHsaExpenses(): Promise<HsaExpense[]>;
+  getHsaExpenseById(id: number): Promise<HsaExpense | undefined>;
+  getHsaExpensesByEmployee(employeeId: string): Promise<HsaExpense[]>;
+  getHsaExpensesByDateRange(startDate: string, endDate: string): Promise<HsaExpense[]>;
+  getPendingHsaExpenses(): Promise<HsaExpense[]>;
+  getUnpostedHsaExpenses(): Promise<HsaExpense[]>;
+  updateHsaExpense(id: number, expense: Partial<InsertHsaExpense>): Promise<HsaExpense>;
+  approveHsaExpense(id: number, approvedBy: string): Promise<HsaExpense>;
+  markHsaExpenseAsPostedToQB(id: number, qbTransactionId: string): Promise<HsaExpense>;
+  deleteHsaExpense(id: number): Promise<void>;
+
+  // Integration Logs
+  createIntegrationLog(log: InsertIntegrationLog): Promise<IntegrationLog>;
+  getIntegrationLogs(system?: string, status?: string, limit?: number): Promise<IntegrationLog[]>;
+  getIntegrationLogsByDateRange(startDate: string, endDate: string, system?: string): Promise<IntegrationLog[]>;
+  deleteOldLogs(daysToKeep: number): Promise<number>;
+
+  // Report Configurations
+  createReportConfig(config: InsertReportConfig): Promise<ReportConfig>;
+  getAllReportConfigs(): Promise<ReportConfig[]>;
+  getReportConfigById(id: number): Promise<ReportConfig | undefined>;
+  getUserReportConfigs(userId: string): Promise<ReportConfig[]>;
+  getPublicReportConfigs(): Promise<ReportConfig[]>;
+  updateReportConfig(id: number, config: Partial<InsertReportConfig>): Promise<ReportConfig>;
+  deleteReportConfig(id: number): Promise<void>;
+
+  // Dashboard Widgets
+  createDashboardWidget(widget: InsertDashboardWidget): Promise<DashboardWidget>;
+  getUserDashboardWidgets(userId: string): Promise<DashboardWidget[]>;
+  updateDashboardWidget(id: number, widget: Partial<InsertDashboardWidget>): Promise<DashboardWidget>;
+  deleteDashboardWidget(id: number): Promise<void>;
+  updateWidgetPosition(id: number, position: number): Promise<DashboardWidget>;
+
+  // Financial Analytics Methods
+  getAccountBalance(accountId: number, asOfDate?: string): Promise<string>;
+  getTrialBalance(asOfDate?: string): Promise<{ accountName: string; balance: string; accountType: string }[]>;
+  getProfitLoss(startDate: string, endDate: string): Promise<{ revenue: string; expenses: string; netIncome: string }>;
+  getCashFlow(startDate: string, endDate: string): Promise<{ cashIn: string; cashOut: string; netCash: string }>;
+  getSalesSummary(startDate: string, endDate: string, locationId?: number): Promise<{ totalSales: string; totalTax: string; totalTips: string; transactionCount: number }>;
+  getInventoryValuation(): Promise<{ totalCost: string; totalRetail: string; itemCount: number }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1672,6 +1848,312 @@ export class DatabaseStorage implements IStorage {
       .where(eq(users.isActive, true))
       .orderBy(asc(users.firstName));
   }
+
+  // ============================================
+  // ACCOUNTING TOOL IMPLEMENTATIONS
+  // ============================================
+
+  // QuickBooks Configuration Management
+  async createQuickbooksConfig(config: InsertQuickbooksConfig): Promise<QuickbooksConfig> {
+    const [qbConfig] = await db.insert(quickbooksConfig).values(config).returning();
+    return qbConfig;
+  }
+
+  async getQuickbooksConfig(companyId: string): Promise<QuickbooksConfig | undefined> {
+    const [config] = await db.select().from(quickbooksConfig).where(eq(quickbooksConfig.companyId, companyId));
+    return config;
+  }
+
+  async updateQuickbooksConfig(id: number, config: Partial<InsertQuickbooksConfig>): Promise<QuickbooksConfig> {
+    const [updated] = await db.update(quickbooksConfig).set({ ...config, updatedAt: new Date() }).where(eq(quickbooksConfig.id, id)).returning();
+    return updated;
+  }
+
+  async getActiveQuickbooksConfig(): Promise<QuickbooksConfig | undefined> {
+    const [config] = await db.select().from(quickbooksConfig).where(eq(quickbooksConfig.isActive, true));
+    return config;
+  }
+
+  // Clover Configuration Management  
+  async createCloverConfig(config: InsertCloverConfig): Promise<CloverConfig> {
+    const [cloverConf] = await db.insert(cloverConfig).values(config).returning();
+    return cloverConf;
+  }
+
+  async getCloverConfig(merchantId: string): Promise<CloverConfig | undefined> {
+    const [config] = await db.select().from(cloverConfig).where(eq(cloverConfig.merchantId, merchantId));
+    return config;
+  }
+
+  async updateCloverConfig(id: number, config: Partial<InsertCloverConfig>): Promise<CloverConfig> {
+    const [updated] = await db.update(cloverConfig).set({ ...config, updatedAt: new Date() }).where(eq(cloverConfig.id, id)).returning();
+    return updated;
+  }
+
+  async getActiveCloverConfig(): Promise<CloverConfig | undefined> {
+    const [config] = await db.select().from(cloverConfig).where(eq(cloverConfig.isActive, true));
+    return config;
+  }
+
+  // HSA Configuration Management
+  async createHsaConfig(config: InsertHsaConfig): Promise<HsaConfig> {
+    const [hsaConf] = await db.insert(hsaConfig).values(config).returning();
+    return hsaConf;
+  }
+
+  async getHsaConfig(): Promise<HsaConfig | undefined> {
+    const [config] = await db.select().from(hsaConfig).where(eq(hsaConfig.isActive, true));
+    return config;
+  }
+
+  async updateHsaConfig(id: number, config: Partial<InsertHsaConfig>): Promise<HsaConfig> {
+    const [updated] = await db.update(hsaConfig).set({ ...config, updatedAt: new Date() }).where(eq(hsaConfig.id, id)).returning();
+    return updated;
+  }
+
+  // Thrive Configuration Management
+  async createThriveConfig(config: InsertThriveConfig): Promise<ThriveConfig> {
+    const [thriveConf] = await db.insert(thriveConfig).values(config).returning();
+    return thriveConf;
+  }
+
+  async getThriveConfig(storeId: string): Promise<ThriveConfig | undefined> {
+    const [config] = await db.select().from(thriveConfig).where(eq(thriveConfig.storeId, storeId));
+    return config;
+  }
+
+  async updateThriveConfig(id: number, config: Partial<InsertThriveConfig>): Promise<ThriveConfig> {
+    const [updated] = await db.update(thriveConfig).set({ ...config, updatedAt: new Date() }).where(eq(thriveConfig.id, id)).returning();
+    return updated;
+  }
+
+  async getActiveThriveConfig(): Promise<ThriveConfig | undefined> {
+    const [config] = await db.select().from(thriveConfig).where(eq(thriveConfig.isActive, true));
+    return config;
+  }
+
+  // Financial Accounts Management
+  async createFinancialAccount(account: InsertFinancialAccount): Promise<FinancialAccount> {
+    const [newAccount] = await db.insert(financialAccounts).values(account).returning();
+    return newAccount;
+  }
+
+  async getAllFinancialAccounts(): Promise<FinancialAccount[]> {
+    return await db.select().from(financialAccounts).where(eq(financialAccounts.isActive, true)).orderBy(asc(financialAccounts.accountName));
+  }
+
+  async getFinancialAccountById(id: number): Promise<FinancialAccount | undefined> {
+    const [account] = await db.select().from(financialAccounts).where(eq(financialAccounts.id, id));
+    return account;
+  }
+
+  async getFinancialAccountByQBId(qbAccountId: string): Promise<FinancialAccount | undefined> {
+    const [account] = await db.select().from(financialAccounts).where(eq(financialAccounts.qbAccountId, qbAccountId));
+    return account;
+  }
+
+  async updateFinancialAccount(id: number, account: Partial<InsertFinancialAccount>): Promise<FinancialAccount> {
+    const [updated] = await db.update(financialAccounts).set({ ...account, updatedAt: new Date() }).where(eq(financialAccounts.id, id)).returning();
+    return updated;
+  }
+
+  async deleteFinancialAccount(id: number): Promise<void> {
+    await db.update(financialAccounts).set({ isActive: false }).where(eq(financialAccounts.id, id));
+  }
+
+  async getAccountsByType(accountType: string): Promise<FinancialAccount[]> {
+    return await db.select().from(financialAccounts)
+      .where(and(eq(financialAccounts.accountType, accountType), eq(financialAccounts.isActive, true)))
+      .orderBy(asc(financialAccounts.accountName));
+  }
+
+  // Financial Transactions
+  async createFinancialTransaction(transaction: InsertFinancialTransaction): Promise<FinancialTransaction> {
+    const [newTransaction] = await db.insert(financialTransactions).values(transaction).returning();
+    return newTransaction;
+  }
+
+  async getAllFinancialTransactions(limit?: number, offset?: number): Promise<FinancialTransaction[]> {
+    let query = db.select().from(financialTransactions).orderBy(desc(financialTransactions.transactionDate));
+    if (limit) query = query.limit(limit);
+    if (offset) query = query.offset(offset);
+    return await query;
+  }
+
+  async getFinancialTransactionById(id: number): Promise<FinancialTransaction | undefined> {
+    const [transaction] = await db.select().from(financialTransactions).where(eq(financialTransactions.id, id));
+    return transaction;
+  }
+
+  async getTransactionsByDateRange(startDate: string, endDate: string): Promise<FinancialTransaction[]> {
+    return await db.select().from(financialTransactions)
+      .where(and(gte(financialTransactions.transactionDate, startDate), lte(financialTransactions.transactionDate, endDate)))
+      .orderBy(desc(financialTransactions.transactionDate));
+  }
+
+  async getTransactionsBySourceSystem(sourceSystem: string): Promise<FinancialTransaction[]> {
+    return await db.select().from(financialTransactions)
+      .where(eq(financialTransactions.sourceSystem, sourceSystem))
+      .orderBy(desc(financialTransactions.transactionDate));
+  }
+
+  async updateFinancialTransaction(id: number, transaction: Partial<InsertFinancialTransaction>): Promise<FinancialTransaction> {
+    const [updated] = await db.update(financialTransactions).set({ ...transaction, updatedAt: new Date() }).where(eq(financialTransactions.id, id)).returning();
+    return updated;
+  }
+
+  async deleteFinancialTransaction(id: number): Promise<void> {
+    await db.delete(financialTransactions).where(eq(financialTransactions.id, id));
+  }
+
+  // Transaction Lines
+  async createTransactionLine(line: InsertFinancialTransactionLine): Promise<FinancialTransactionLine> {
+    const [newLine] = await db.insert(financialTransactionLines).values(line).returning();
+    return newLine;
+  }
+
+  async getTransactionLines(transactionId: number): Promise<FinancialTransactionLine[]> {
+    return await db.select().from(financialTransactionLines).where(eq(financialTransactionLines.transactionId, transactionId));
+  }
+
+  async updateTransactionLine(id: number, line: Partial<InsertFinancialTransactionLine>): Promise<FinancialTransactionLine> {
+    const [updated] = await db.update(financialTransactionLines).set(line).where(eq(financialTransactionLines.id, id)).returning();
+    return updated;
+  }
+
+  async deleteTransactionLine(id: number): Promise<void> {
+    await db.delete(financialTransactionLines).where(eq(financialTransactionLines.id, id));
+  }
+
+  // Customers and Vendors
+  async createCustomerVendor(customerVendor: InsertCustomersVendors): Promise<CustomersVendors> {
+    const [newCV] = await db.insert(customersVendors).values(customerVendor).returning();
+    return newCV;
+  }
+
+  async getAllCustomersVendors(): Promise<CustomersVendors[]> {
+    return await db.select().from(customersVendors).where(eq(customersVendors.isActive, true));
+  }
+
+  async getCustomerVendorById(id: number): Promise<CustomersVendors | undefined> {
+    const [cv] = await db.select().from(customersVendors).where(eq(customersVendors.id, id));
+    return cv;
+  }
+
+  async getCustomerVendorByQBId(qbId: string): Promise<CustomersVendors | undefined> {
+    const [cv] = await db.select().from(customersVendors).where(eq(customersVendors.qbId, qbId));
+    return cv;
+  }
+
+  async getCustomersByType(type: 'customer' | 'vendor'): Promise<CustomersVendors[]> {
+    return await db.select().from(customersVendors).where(and(eq(customersVendors.type, type), eq(customersVendors.isActive, true)));
+  }
+
+  async updateCustomerVendor(id: number, customerVendor: Partial<InsertCustomersVendors>): Promise<CustomersVendors> {
+    const [updated] = await db.update(customersVendors).set({ ...customerVendor, updatedAt: new Date() }).where(eq(customersVendors.id, id)).returning();
+    return updated;
+  }
+
+  async deleteCustomerVendor(id: number): Promise<void> {
+    await db.update(customersVendors).set({ isActive: false }).where(eq(customersVendors.id, id));
+  }
+
+  // Inventory Items
+  async createInventoryItem(item: InsertInventoryItem): Promise<InventoryItem> {
+    const [newItem] = await db.insert(inventoryItems).values(item).returning();
+    return newItem;
+  }
+
+  async getAllInventoryItems(): Promise<InventoryItem[]> {
+    return await db.select().from(inventoryItems).where(eq(inventoryItems.isActive, true));
+  }
+
+  async getInventoryItemById(id: number): Promise<InventoryItem | undefined> {
+    const [item] = await db.select().from(inventoryItems).where(eq(inventoryItems.id, id));
+    return item;
+  }
+
+  async getInventoryItemByQBId(qbItemId: string): Promise<InventoryItem | undefined> {
+    const [item] = await db.select().from(inventoryItems).where(eq(inventoryItems.qbItemId, qbItemId));
+    return item;
+  }
+
+  async getInventoryItemByThriveId(thriveItemId: string): Promise<InventoryItem | undefined> {
+    const [item] = await db.select().from(inventoryItems).where(eq(inventoryItems.thriveItemId, thriveItemId));
+    return item;
+  }
+
+  async getInventoryItemsBySKU(sku: string): Promise<InventoryItem[]> {
+    return await db.select().from(inventoryItems).where(eq(inventoryItems.sku, sku));
+  }
+
+  async getLowStockItems(): Promise<InventoryItem[]> {
+    return await db.select().from(inventoryItems)
+      .where(sql`${inventoryItems.quantityOnHand} <= ${inventoryItems.reorderPoint} AND ${inventoryItems.isActive} = true`);
+  }
+
+  async updateInventoryItem(id: number, item: Partial<InsertInventoryItem>): Promise<InventoryItem> {
+    const [updated] = await db.update(inventoryItems).set({ ...item, updatedAt: new Date() }).where(eq(inventoryItems.id, id)).returning();
+    return updated;
+  }
+
+  async updateInventoryQuantity(id: number, quantity: string): Promise<InventoryItem> {
+    const [updated] = await db.update(inventoryItems).set({ quantityOnHand: quantity, updatedAt: new Date() }).where(eq(inventoryItems.id, id)).returning();
+    return updated;
+  }
+
+  async deleteInventoryItem(id: number): Promise<void> {
+    await db.update(inventoryItems).set({ isActive: false }).where(eq(inventoryItems.id, id));
+  }
+
+  // Stub implementations for remaining methods (to be implemented in future phases)
+  async createPosSale(sale: InsertPosSale): Promise<PosSale> { throw new Error("Not implemented yet"); }
+  async getAllPosSales(limit?: number, offset?: number): Promise<PosSale[]> { return []; }
+  async getPosSaleById(id: number): Promise<PosSale | undefined> { return undefined; }
+  async getPosSaleByCloverOrderId(cloverOrderId: string): Promise<PosSale | undefined> { return undefined; }
+  async getSalesByDateRange(startDate: string, endDate: string): Promise<PosSale[]> { return []; }
+  async getSalesByLocation(locationId: number, startDate?: string, endDate?: string): Promise<PosSale[]> { return []; }
+  async getUnpostedSales(): Promise<PosSale[]> { return []; }
+  async updatePosSale(id: number, sale: Partial<InsertPosSale>): Promise<PosSale> { throw new Error("Not implemented yet"); }
+  async markSaleAsPostedToQB(id: number, qbTransactionId: string): Promise<PosSale> { throw new Error("Not implemented yet"); }
+  async createPosSaleItem(item: InsertPosSaleItem): Promise<PosSaleItem> { throw new Error("Not implemented yet"); }
+  async getSaleItems(saleId: number): Promise<PosSaleItem[]> { return []; }
+  async updatePosSaleItem(id: number, item: Partial<InsertPosSaleItem>): Promise<PosSaleItem> { throw new Error("Not implemented yet"); }
+  async deleteSaleItem(id: number): Promise<void> { }
+  async createHsaExpense(expense: InsertHsaExpense): Promise<HsaExpense> { throw new Error("Not implemented yet"); }
+  async getAllHsaExpenses(): Promise<HsaExpense[]> { return []; }
+  async getHsaExpenseById(id: number): Promise<HsaExpense | undefined> { return undefined; }
+  async getHsaExpensesByEmployee(employeeId: string): Promise<HsaExpense[]> { return []; }
+  async getHsaExpensesByDateRange(startDate: string, endDate: string): Promise<HsaExpense[]> { return []; }
+  async getPendingHsaExpenses(): Promise<HsaExpense[]> { return []; }
+  async getUnpostedHsaExpenses(): Promise<HsaExpense[]> { return []; }
+  async updateHsaExpense(id: number, expense: Partial<InsertHsaExpense>): Promise<HsaExpense> { throw new Error("Not implemented yet"); }
+  async approveHsaExpense(id: number, approvedBy: string): Promise<HsaExpense> { throw new Error("Not implemented yet"); }
+  async markHsaExpenseAsPostedToQB(id: number, qbTransactionId: string): Promise<HsaExpense> { throw new Error("Not implemented yet"); }
+  async deleteHsaExpense(id: number): Promise<void> { }
+  async createIntegrationLog(log: InsertIntegrationLog): Promise<IntegrationLog> { throw new Error("Not implemented yet"); }
+  async getIntegrationLogs(system?: string, status?: string, limit?: number): Promise<IntegrationLog[]> { return []; }
+  async getIntegrationLogsByDateRange(startDate: string, endDate: string, system?: string): Promise<IntegrationLog[]> { return []; }
+  async deleteOldLogs(daysToKeep: number): Promise<number> { return 0; }
+  async createReportConfig(config: InsertReportConfig): Promise<ReportConfig> { throw new Error("Not implemented yet"); }
+  async getAllReportConfigs(): Promise<ReportConfig[]> { return []; }
+  async getReportConfigById(id: number): Promise<ReportConfig | undefined> { return undefined; }
+  async getUserReportConfigs(userId: string): Promise<ReportConfig[]> { return []; }
+  async getPublicReportConfigs(): Promise<ReportConfig[]> { return []; }
+  async updateReportConfig(id: number, config: Partial<InsertReportConfig>): Promise<ReportConfig> { throw new Error("Not implemented yet"); }
+  async deleteReportConfig(id: number): Promise<void> { }
+  async createDashboardWidget(widget: InsertDashboardWidget): Promise<DashboardWidget> { throw new Error("Not implemented yet"); }
+  async getUserDashboardWidgets(userId: string): Promise<DashboardWidget[]> { return []; }
+  async updateDashboardWidget(id: number, widget: Partial<InsertDashboardWidget>): Promise<DashboardWidget> { throw new Error("Not implemented yet"); }
+  async deleteDashboardWidget(id: number): Promise<void> { }
+  async updateWidgetPosition(id: number, position: number): Promise<DashboardWidget> { throw new Error("Not implemented yet"); }
+  async getAccountBalance(accountId: number, asOfDate?: string): Promise<string> { return "0.00"; }
+  async getTrialBalance(asOfDate?: string): Promise<{ accountName: string; balance: string; accountType: string }[]> { return []; }
+  async getProfitLoss(startDate: string, endDate: string): Promise<{ revenue: string; expenses: string; netIncome: string }> { return { revenue: "0.00", expenses: "0.00", netIncome: "0.00" }; }
+  async getCashFlow(startDate: string, endDate: string): Promise<{ cashIn: string; cashOut: string; netCash: string }> { return { cashIn: "0.00", cashOut: "0.00", netCash: "0.00" }; }
+  async getSalesSummary(startDate: string, endDate: string, locationId?: number): Promise<{ totalSales: string; totalTax: string; totalTips: string; transactionCount: number }> { return { totalSales: "0.00", totalTax: "0.00", totalTips: "0.00", transactionCount: 0 }; }
+  async getInventoryValuation(): Promise<{ totalCost: string; totalRetail: string; itemCount: number }> { return { totalCost: "0.00", totalRetail: "0.00", itemCount: 0 }; }
 }
 
 export const storage = new DatabaseStorage();
+

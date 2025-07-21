@@ -606,3 +606,486 @@ export interface CalendarEvent {
   description?: string;
   data?: any;
 }
+
+// ============================================
+// ACCOUNTING TOOL SCHEMA EXTENSION
+// ============================================
+
+// QuickBooks Integration Configuration
+export const quickbooksConfig = pgTable("quickbooks_config", {
+  id: serial("id").primaryKey(),
+  companyId: varchar("company_id").notNull().unique(), // QB Company ID
+  accessToken: text("access_token"), // Encrypted OAuth token
+  refreshToken: text("refresh_token"), // Encrypted refresh token
+  tokenExpiry: timestamp("token_expires_at"),
+  realmId: varchar("realm_id"), // QB Realm ID
+  baseUrl: varchar("base_url"), // Sandbox vs Production URL
+  isActive: boolean("is_active").default(true),
+  lastSyncAt: timestamp("last_sync_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  companyIdIdx: index("idx_qb_company_id").on(table.companyId),
+}));
+
+// Clover POS Integration Configuration
+export const cloverConfig = pgTable("clover_config", {
+  id: serial("id").primaryKey(),
+  merchantId: varchar("merchant_id").notNull().unique(),
+  apiToken: text("api_token"), // Encrypted API token
+  baseUrl: varchar("base_url"), // Sandbox vs Production
+  isActive: boolean("is_active").default(true),
+  lastSyncAt: timestamp("last_sync_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  merchantIdIdx: index("idx_clover_merchant_id").on(table.merchantId),
+}));
+
+// HSA Tools Configuration
+export const hsaConfig = pgTable("hsa_config", {
+  id: serial("id").primaryKey(),
+  systemName: varchar("system_name").notNull(), // HSA provider name
+  apiEndpoint: varchar("api_endpoint"),
+  apiKey: text("api_key"), // Encrypted API key
+  accountNumber: varchar("account_number"),
+  isActive: boolean("is_active").default(true),
+  lastSyncAt: timestamp("last_sync_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Thrive Inventory Configuration
+export const thriveConfig = pgTable("thrive_config", {
+  id: serial("id").primaryKey(),
+  storeId: varchar("store_id").notNull().unique(),
+  apiToken: text("api_token"), // Encrypted API token
+  baseUrl: varchar("base_url"),
+  isActive: boolean("is_active").default(true),
+  lastSyncAt: timestamp("last_sync_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  storeIdIdx: index("idx_thrive_store_id").on(table.storeId),
+}));
+
+// Financial Accounts (Chart of Accounts from QB)
+export const financialAccounts = pgTable("financial_accounts", {
+  id: serial("id").primaryKey(),
+  qbAccountId: varchar("qb_account_id").unique(), // QuickBooks Account ID
+  accountNumber: varchar("account_number"),
+  accountName: varchar("account_name").notNull(),
+  accountType: varchar("account_type").notNull(), // Asset, Liability, Equity, Income, Expense
+  subType: varchar("sub_type"),
+  description: text("description"),
+  balance: decimal("balance", { precision: 15, scale: 2 }).default("0.00"),
+  isActive: boolean("is_active").default(true),
+  parentAccountId: integer("parent_account_id"),
+  lastSyncAt: timestamp("last_sync_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  qbAccountIdIdx: index("idx_fa_qb_account_id").on(table.qbAccountId),
+  accountTypeIdx: index("idx_fa_account_type").on(table.accountType),
+  parentAccountIdx: index("idx_fa_parent_account").on(table.parentAccountId),
+}));
+
+// Financial Transactions (General Ledger Entries)
+export const financialTransactions = pgTable("financial_transactions", {
+  id: serial("id").primaryKey(),
+  qbTransactionId: varchar("qb_transaction_id").unique(),
+  transactionNumber: varchar("transaction_number"),
+  transactionDate: date("transaction_date").notNull(),
+  transactionType: varchar("transaction_type").notNull(), // Journal Entry, Invoice, Bill, Payment, etc.
+  description: text("description"),
+  referenceNumber: varchar("reference_number"),
+  totalAmount: decimal("total_amount", { precision: 15, scale: 2 }).notNull(),
+  sourceSystem: varchar("source_system").notNull(), // QB, Clover, HSA, Thrive, Manual
+  sourceId: varchar("source_id"), // Original system's transaction ID
+  status: varchar("status").default("pending"), // pending, posted, voided
+  createdBy: varchar("created_by").references(() => users.id),
+  lastSyncAt: timestamp("last_sync_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  qbTransactionIdIdx: index("idx_ft_qb_transaction_id").on(table.qbTransactionId),
+  transactionDateIdx: index("idx_ft_transaction_date").on(table.transactionDate),
+  sourceSystemIdx: index("idx_ft_source_system").on(table.sourceSystem),
+  statusIdx: index("idx_ft_status").on(table.status),
+}));
+
+// Financial Transaction Lines (Journal Entry Details)
+export const financialTransactionLines = pgTable("financial_transaction_lines", {
+  id: serial("id").primaryKey(),
+  transactionId: integer("transaction_id").notNull().references(() => financialTransactions.id, { onDelete: "cascade" }),
+  accountId: integer("account_id").notNull().references(() => financialAccounts.id),
+  description: text("description"),
+  debitAmount: decimal("debit_amount", { precision: 15, scale: 2 }).default("0.00"),
+  creditAmount: decimal("credit_amount", { precision: 15, scale: 2 }).default("0.00"),
+  lineNumber: integer("line_number").default(1),
+  customerVendorId: varchar("customer_vendor_id"), // Reference to QB Customer/Vendor
+  itemId: varchar("item_id"), // Product/Service Item from inventory
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  transactionIdIdx: index("idx_ftl_transaction_id").on(table.transactionId),
+  accountIdIdx: index("idx_ftl_account_id").on(table.accountId),
+}));
+
+// Customers and Vendors (from QuickBooks)
+export const customersVendors = pgTable("customers_vendors", {
+  id: serial("id").primaryKey(),
+  qbId: varchar("qb_id").unique(), // QuickBooks Customer/Vendor ID
+  name: varchar("name").notNull(),
+  type: varchar("type").notNull(), // customer, vendor
+  companyName: varchar("company_name"),
+  email: varchar("email"),
+  phone: varchar("phone"),
+  address: text("address"),
+  city: varchar("city"),
+  state: varchar("state"),
+  zipCode: varchar("zip_code"),
+  balance: decimal("balance", { precision: 15, scale: 2 }).default("0.00"),
+  isActive: boolean("is_active").default(true),
+  lastSyncAt: timestamp("last_sync_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  qbIdIdx: index("idx_cv_qb_id").on(table.qbId),
+  typeIdx: index("idx_cv_type").on(table.type),
+  nameIdx: index("idx_cv_name").on(table.name),
+}));
+
+// Inventory Items (from Thrive and QB)
+export const inventoryItems = pgTable("inventory_items", {
+  id: serial("id").primaryKey(),
+  qbItemId: varchar("qb_item_id").unique(),
+  thriveItemId: varchar("thrive_item_id").unique(),
+  sku: varchar("sku"),
+  itemName: varchar("item_name").notNull(),
+  description: text("description"),
+  category: varchar("category"),
+  unitOfMeasure: varchar("unit_of_measure"),
+  unitCost: decimal("unit_cost", { precision: 10, scale: 2 }),
+  unitPrice: decimal("unit_price", { precision: 10, scale: 2 }),
+  quantityOnHand: decimal("quantity_on_hand", { precision: 10, scale: 3 }).default("0.000"),
+  reorderPoint: decimal("reorder_point", { precision: 10, scale: 3 }).default("0.000"),
+  isActive: boolean("is_active").default(true),
+  lastSyncAt: timestamp("last_sync_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  qbItemIdIdx: index("idx_ii_qb_item_id").on(table.qbItemId),
+  thriveItemIdIdx: index("idx_ii_thrive_item_id").on(table.thriveItemId),
+  skuIdx: index("idx_ii_sku").on(table.sku),
+  categoryIdx: index("idx_ii_category").on(table.category),
+}));
+
+// POS Sales Data (from Clover)
+export const posSales = pgTable("pos_sales", {
+  id: serial("id").primaryKey(),
+  cloverOrderId: varchar("clover_order_id").unique(),
+  saleDate: date("sale_date").notNull(),
+  saleTime: timestamp("sale_time").notNull(),
+  totalAmount: decimal("total_amount", { precision: 10, scale: 2 }).notNull(),
+  taxAmount: decimal("tax_amount", { precision: 10, scale: 2 }).default("0.00"),
+  tipAmount: decimal("tip_amount", { precision: 10, scale: 2 }).default("0.00"),
+  paymentMethod: varchar("payment_method"), // cash, card, mobile
+  cardType: varchar("card_type"), // visa, mastercard, amex, etc.
+  locationId: integer("location_id").references(() => locations.id),
+  employeeId: varchar("employee_id").references(() => users.id),
+  customerCount: integer("customer_count").default(1),
+  status: varchar("status").default("completed"), // completed, refunded, voided
+  qbPosted: boolean("qb_posted").default(false),
+  qbTransactionId: varchar("qb_transaction_id"),
+  lastSyncAt: timestamp("last_sync_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  cloverOrderIdIdx: index("idx_ps_clover_order_id").on(table.cloverOrderId),
+  saleDateIdx: index("idx_ps_sale_date").on(table.saleDate),
+  locationIdIdx: index("idx_ps_location_id").on(table.locationId),
+  qbPostedIdx: index("idx_ps_qb_posted").on(table.qbPosted),
+}));
+
+// POS Sale Items (Line items from Clover sales)
+export const posSaleItems = pgTable("pos_sale_items", {
+  id: serial("id").primaryKey(),
+  saleId: integer("sale_id").notNull().references(() => posSales.id, { onDelete: "cascade" }),
+  inventoryItemId: integer("inventory_item_id").references(() => inventoryItems.id),
+  itemName: varchar("item_name").notNull(),
+  quantity: decimal("quantity", { precision: 10, scale: 3 }).notNull(),
+  unitPrice: decimal("unit_price", { precision: 10, scale: 2 }).notNull(),
+  lineTotal: decimal("line_total", { precision: 10, scale: 2 }).notNull(),
+  discountAmount: decimal("discount_amount", { precision: 10, scale: 2 }).default("0.00"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  saleIdIdx: index("idx_psi_sale_id").on(table.saleId),
+  inventoryItemIdIdx: index("idx_psi_inventory_item_id").on(table.inventoryItemId),
+}));
+
+// HSA Expenses
+export const hsaExpenses = pgTable("hsa_expenses", {
+  id: serial("id").primaryKey(),
+  hsaSystemId: varchar("hsa_system_id").unique(),
+  employeeId: varchar("employee_id").references(() => users.id),
+  expenseDate: date("expense_date").notNull(),
+  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+  category: varchar("category").notNull(), // medical, dental, vision, etc.
+  description: text("description"),
+  receiptUrl: varchar("receipt_url"),
+  isEligible: boolean("is_eligible").default(true),
+  status: varchar("status").default("pending"), // pending, approved, denied, reimbursed
+  approvedBy: varchar("approved_by").references(() => users.id),
+  approvedAt: timestamp("approved_at"),
+  qbPosted: boolean("qb_posted").default(false),
+  qbTransactionId: varchar("qb_transaction_id"),
+  lastSyncAt: timestamp("last_sync_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  hsaSystemIdIdx: index("idx_hsa_system_id").on(table.hsaSystemId),
+  employeeIdIdx: index("idx_hsa_employee_id").on(table.employeeId),
+  expenseDateIdx: index("idx_hsa_expense_date").on(table.expenseDate),
+  statusIdx: index("idx_hsa_status").on(table.status),
+  qbPostedIdx: index("idx_hsa_qb_posted").on(table.qbPosted),
+}));
+
+// System Integration Logs
+export const integrationLogs = pgTable("integration_logs", {
+  id: serial("id").primaryKey(),
+  system: varchar("system").notNull(), // quickbooks, clover, hsa, thrive
+  operation: varchar("operation").notNull(), // sync, create, update, delete
+  recordType: varchar("record_type"), // transaction, customer, item, etc.
+  recordId: varchar("record_id"),
+  status: varchar("status").notNull(), // success, error, warning
+  message: text("message"),
+  errorDetails: jsonb("error_details"),
+  processingTime: integer("processing_time_ms"),
+  timestamp: timestamp("timestamp").defaultNow(),
+}, (table) => ({
+  systemIdx: index("idx_il_system").on(table.system),
+  statusIdx: index("idx_il_status").on(table.status),
+  timestampIdx: index("idx_il_timestamp").on(table.timestamp),
+  recordTypeIdx: index("idx_il_record_type").on(table.recordType),
+}));
+
+// Financial Reports Configuration
+export const reportConfigs = pgTable("report_configs", {
+  id: serial("id").primaryKey(),
+  reportName: varchar("report_name").notNull(),
+  reportType: varchar("report_type").notNull(), // profit_loss, balance_sheet, cash_flow, custom
+  parameters: jsonb("parameters"), // Report configuration and filters
+  createdBy: varchar("created_by").references(() => users.id),
+  isPublic: boolean("is_public").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  reportTypeIdx: index("idx_rc_report_type").on(table.reportType),
+  createdByIdx: index("idx_rc_created_by").on(table.createdBy),
+}));
+
+// Dashboard Widgets Configuration
+export const dashboardWidgets = pgTable("dashboard_widgets", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").references(() => users.id),
+  widgetType: varchar("widget_type").notNull(), // financial_summary, sales_chart, inventory_alerts, etc.
+  widgetConfig: jsonb("widget_config"), // Widget-specific configuration
+  position: integer("position").default(1),
+  size: varchar("size").default("medium"), // small, medium, large
+  isVisible: boolean("is_visible").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  userIdIdx: index("idx_dw_user_id").on(table.userId),
+  widgetTypeIdx: index("idx_dw_widget_type").on(table.widgetType),
+}));
+
+// ============================================
+// ACCOUNTING RELATIONS
+// ============================================
+
+export const financialAccountsRelations = relations(financialAccounts, ({ one, many }) => ({
+  parentAccount: one(financialAccounts, { fields: [financialAccounts.parentAccountId], references: [financialAccounts.id], relationName: "parentAccount" }),
+  childAccounts: many(financialAccounts, { relationName: "parentAccount" }),
+  transactionLines: many(financialTransactionLines),
+}));
+
+export const financialTransactionsRelations = relations(financialTransactions, ({ one, many }) => ({
+  creator: one(users, { fields: [financialTransactions.createdBy], references: [users.id] }),
+  transactionLines: many(financialTransactionLines),
+}));
+
+export const financialTransactionLinesRelations = relations(financialTransactionLines, ({ one }) => ({
+  transaction: one(financialTransactions, { fields: [financialTransactionLines.transactionId], references: [financialTransactions.id] }),
+  account: one(financialAccounts, { fields: [financialTransactionLines.accountId], references: [financialAccounts.id] }),
+}));
+
+export const customersVendorsRelations = relations(customersVendors, ({ many }) => ({
+  transactions: many(financialTransactions),
+}));
+
+export const inventoryItemsRelations = relations(inventoryItems, ({ many }) => ({
+  saleItems: many(posSaleItems),
+}));
+
+export const posSalesRelations = relations(posSales, ({ one, many }) => ({
+  location: one(locations, { fields: [posSales.locationId], references: [locations.id] }),
+  employee: one(users, { fields: [posSales.employeeId], references: [users.id] }),
+  saleItems: many(posSaleItems),
+}));
+
+export const posSaleItemsRelations = relations(posSaleItems, ({ one }) => ({
+  sale: one(posSales, { fields: [posSaleItems.saleId], references: [posSales.id] }),
+  inventoryItem: one(inventoryItems, { fields: [posSaleItems.inventoryItemId], references: [inventoryItems.id] }),
+}));
+
+export const hsaExpensesRelations = relations(hsaExpenses, ({ one }) => ({
+  employee: one(users, { fields: [hsaExpenses.employeeId], references: [users.id], relationName: "hsaEmployee" }),
+  approver: one(users, { fields: [hsaExpenses.approvedBy], references: [users.id], relationName: "hsaApprover" }),
+}));
+
+export const reportConfigsRelations = relations(reportConfigs, ({ one }) => ({
+  creator: one(users, { fields: [reportConfigs.createdBy], references: [users.id] }),
+}));
+
+export const dashboardWidgetsRelations = relations(dashboardWidgets, ({ one }) => ({
+  user: one(users, { fields: [dashboardWidgets.userId], references: [users.id] }),
+}));
+
+// ============================================
+// ACCOUNTING INSERT SCHEMAS & TYPES
+// ============================================
+
+export const insertQuickbooksConfigSchema = createInsertSchema(quickbooksConfig).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertCloverConfigSchema = createInsertSchema(cloverConfig).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertHsaConfigSchema = createInsertSchema(hsaConfig).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertThriveConfigSchema = createInsertSchema(thriveConfig).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertFinancialAccountSchema = createInsertSchema(financialAccounts).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertFinancialTransactionSchema = createInsertSchema(financialTransactions).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertFinancialTransactionLineSchema = createInsertSchema(financialTransactionLines).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertCustomersVendorsSchema = createInsertSchema(customersVendors).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertInventoryItemSchema = createInsertSchema(inventoryItems).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertPosSaleSchema = createInsertSchema(posSales).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertPosSaleItemSchema = createInsertSchema(posSaleItems).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertHsaExpenseSchema = createInsertSchema(hsaExpenses).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertIntegrationLogSchema = createInsertSchema(integrationLogs).omit({
+  id: true,
+  timestamp: true,
+});
+
+export const insertReportConfigSchema = createInsertSchema(reportConfigs).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertDashboardWidgetSchema = createInsertSchema(dashboardWidgets).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+// ============================================
+// ACCOUNTING EXPORT TYPES
+// ============================================
+
+export type QuickbooksConfig = typeof quickbooksConfig.$inferSelect;
+export type InsertQuickbooksConfig = z.infer<typeof insertQuickbooksConfigSchema>;
+
+export type CloverConfig = typeof cloverConfig.$inferSelect;
+export type InsertCloverConfig = z.infer<typeof insertCloverConfigSchema>;
+
+export type HsaConfig = typeof hsaConfig.$inferSelect;
+export type InsertHsaConfig = z.infer<typeof insertHsaConfigSchema>;
+
+export type ThriveConfig = typeof thriveConfig.$inferSelect;
+export type InsertThriveConfig = z.infer<typeof insertThriveConfigSchema>;
+
+export type FinancialAccount = typeof financialAccounts.$inferSelect;
+export type InsertFinancialAccount = z.infer<typeof insertFinancialAccountSchema>;
+
+export type FinancialTransaction = typeof financialTransactions.$inferSelect;
+export type InsertFinancialTransaction = z.infer<typeof insertFinancialTransactionSchema>;
+
+export type FinancialTransactionLine = typeof financialTransactionLines.$inferSelect;
+export type InsertFinancialTransactionLine = z.infer<typeof insertFinancialTransactionLineSchema>;
+
+export type CustomersVendors = typeof customersVendors.$inferSelect;
+export type InsertCustomersVendors = z.infer<typeof insertCustomersVendorsSchema>;
+
+export type InventoryItem = typeof inventoryItems.$inferSelect;
+export type InsertInventoryItem = z.infer<typeof insertInventoryItemSchema>;
+
+export type PosSale = typeof posSales.$inferSelect;
+export type InsertPosSale = z.infer<typeof insertPosSaleSchema>;
+
+export type PosSaleItem = typeof posSaleItems.$inferSelect;
+export type InsertPosSaleItem = z.infer<typeof insertPosSaleItemSchema>;
+
+export type HsaExpense = typeof hsaExpenses.$inferSelect;
+export type InsertHsaExpense = z.infer<typeof insertHsaExpenseSchema>;
+
+export type IntegrationLog = typeof integrationLogs.$inferSelect;
+export type InsertIntegrationLog = z.infer<typeof insertIntegrationLogSchema>;
+
+export type ReportConfig = typeof reportConfigs.$inferSelect;
+export type InsertReportConfig = z.infer<typeof insertReportConfigSchema>;
+
+export type DashboardWidget = typeof dashboardWidgets.$inferSelect;
+export type InsertDashboardWidget = z.infer<typeof insertDashboardWidgetSchema>;

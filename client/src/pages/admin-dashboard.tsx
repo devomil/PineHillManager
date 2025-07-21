@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useQuery } from "@tanstack/react-query";
-import { Users, Clock, Calendar, MapPin, ChevronRight, FileText, MessageCircle, Bell, Settings, Eye } from "lucide-react";
+import { Users, Clock, Calendar, MapPin, ChevronRight, FileText, MessageCircle, Bell, Settings, Eye, DollarSign } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { formatTimeStringToCST } from "@/lib/time-utils";
 
@@ -172,6 +172,14 @@ export default function AdminDashboard() {
       href: "/reports",
       color: "text-red-600",
       bgColor: "bg-red-50"
+    },
+    {
+      title: "Accounting Tool",
+      description: "Manage financial data and integrations",
+      icon: DollarSign,
+      href: "/accounting",
+      color: "text-orange-600",
+      bgColor: "bg-orange-50"
     }
   ];
 
