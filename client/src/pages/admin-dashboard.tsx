@@ -387,95 +387,69 @@ export default function AdminDashboard() {
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Tabs value={getCurrentTab()} onValueChange={handleTabChange} className="w-full">
-          {/* Desktop Navigation - Primary Items */}
-          <div className="hidden xl:block">
-            <div className="flex items-center gap-8 mb-8 p-4 bg-white rounded-lg shadow-sm border">
-              <TabsTrigger value="dashboard" className="flex items-center gap-2 px-6 py-3 rounded-md hover:bg-gray-50 transition-colors whitespace-nowrap">
+          {/* Desktop Navigation */}
+          <div className="hidden lg:block">
+            <TabsList className="flex items-center gap-6 mb-8 p-4 bg-white rounded-lg shadow-sm border h-auto">
+              <TabsTrigger value="dashboard" className="flex items-center gap-2 px-6 py-3 rounded-md hover:bg-gray-50 transition-colors whitespace-nowrap mx-0">
                 <Settings className="h-4 w-4" />
-                Admin Dashboard
+                <span className="hidden xl:inline">Admin Dashboard</span>
+                <span className="xl:hidden">Dashboard</span>
               </TabsTrigger>
               <div className="h-6 w-px bg-gray-300"></div>
-              <TabsTrigger value="employees" className="flex items-center gap-2 px-6 py-3 rounded-md hover:bg-gray-50 transition-colors whitespace-nowrap">
+              <TabsTrigger value="employees" className="flex items-center gap-2 px-6 py-3 rounded-md hover:bg-gray-50 transition-colors whitespace-nowrap mx-0">
                 <Users className="h-4 w-4" />
-                Employee Management
+                <span className="hidden xl:inline">Employee Management</span>
+                <span className="xl:hidden">Employees</span>
               </TabsTrigger>
               <div className="h-6 w-px bg-gray-300"></div>
-              <TabsTrigger value="scheduling" className="flex items-center gap-2 px-6 py-3 rounded-md hover:bg-gray-50 transition-colors whitespace-nowrap">
+              <TabsTrigger value="scheduling" className="flex items-center gap-2 px-6 py-3 rounded-md hover:bg-gray-50 transition-colors whitespace-nowrap mx-0">
                 <Calendar className="h-4 w-4" />
-                Schedule Management
+                <span className="hidden xl:inline">Schedule Management</span>
+                <span className="xl:hidden">Schedule</span>
               </TabsTrigger>
               <div className="h-6 w-px bg-gray-300"></div>
-              <TabsTrigger value="accounting" className="flex items-center gap-2 px-6 py-3 rounded-md hover:bg-gray-50 transition-colors whitespace-nowrap">
-                <DollarSign className="h-4 w-4" />
-                Accounting
+              <TabsTrigger value="announcements" className="flex items-center gap-2 px-6 py-3 rounded-md hover:bg-gray-50 transition-colors whitespace-nowrap mx-0">
+                <Bell className="h-4 w-4" />
+                <span className="hidden xl:inline">Announcements</span>
+                <span className="xl:hidden">News</span>
               </TabsTrigger>
               <div className="h-6 w-px bg-gray-300"></div>
-              <TabsTrigger value="integrations" className="flex items-center gap-2 px-6 py-3 rounded-md hover:bg-gray-50 transition-colors whitespace-nowrap">
+              <TabsTrigger value="system-support" className="flex items-center gap-2 px-6 py-3 rounded-md hover:bg-gray-50 transition-colors whitespace-nowrap mx-0">
+                <FileText className="h-4 w-4" />
+                <span className="hidden xl:inline">System Support</span>
+                <span className="xl:hidden">Support</span>
+              </TabsTrigger>
+              <div className="h-6 w-px bg-gray-300"></div>
+              <TabsTrigger value="user-management" className="flex items-center gap-2 px-6 py-3 rounded-md hover:bg-gray-50 transition-colors whitespace-nowrap mx-0">
                 <Settings className="h-4 w-4" />
-                Integrations
+                <span className="hidden xl:inline">User Management</span>
+                <span className="xl:hidden">Users</span>
               </TabsTrigger>
-            </div>
-            
-            {/* Secondary Navigation */}
-            <div className="flex items-center gap-6 mb-8 p-3 bg-gray-50 rounded-lg">
-              <TabsTrigger value="announcements" className="flex items-center gap-2 px-4 py-2 rounded-md hover:bg-white transition-colors text-sm whitespace-nowrap">
-                <Bell className="h-3 w-3" />
-                Announcements
+              <div className="h-6 w-px bg-gray-300"></div>
+              <TabsTrigger value="employee-view" className="flex items-center gap-2 px-6 py-3 rounded-md hover:bg-gray-50 transition-colors whitespace-nowrap mx-0">
+                <Eye className="h-4 w-4" />
+                <span className="hidden xl:inline">Employee View</span>
+                <span className="xl:hidden">Employee</span>
               </TabsTrigger>
-              <TabsTrigger value="system-support" className="flex items-center gap-2 px-4 py-2 rounded-md hover:bg-white transition-colors text-sm whitespace-nowrap">
-                <FileText className="h-3 w-3" />
-                System Support
+              <div className="h-6 w-px bg-gray-300"></div>
+              <TabsTrigger value="reports" className="flex items-center gap-2 px-6 py-3 rounded-md hover:bg-gray-50 transition-colors whitespace-nowrap mx-0">
+                <Clock className="h-4 w-4" />
+                <span className="hidden xl:inline">Reports</span>
+                <span className="xl:hidden">Reports</span>
               </TabsTrigger>
-              <TabsTrigger value="user-management" className="flex items-center gap-2 px-4 py-2 rounded-md hover:bg-white transition-colors text-sm whitespace-nowrap">
-                <Settings className="h-3 w-3" />
-                User Management
+              <div className="h-6 w-px bg-gray-300"></div>
+              <TabsTrigger value="accounting" className="flex items-center gap-2 px-6 py-3 rounded-md hover:bg-gray-50 transition-colors whitespace-nowrap mx-0">
+                <DollarSign className="h-4 w-4" />
+                <span className="hidden xl:inline">Accounting</span>
+                <span className="xl:hidden">Finance</span>
               </TabsTrigger>
-              <TabsTrigger value="employee-view" className="flex items-center gap-2 px-4 py-2 rounded-md hover:bg-white transition-colors text-sm whitespace-nowrap">
-                <Eye className="h-3 w-3" />
-                Employee View
+              <div className="h-6 w-px bg-gray-300"></div>
+              <TabsTrigger value="integrations" className="flex items-center gap-2 px-6 py-3 rounded-md hover:bg-gray-50 transition-colors whitespace-nowrap mx-0">
+                <Settings className="h-4 w-4" />
+                <span className="hidden xl:inline">Integrations</span>
+                <span className="xl:hidden">Integrations</span>
               </TabsTrigger>
-              <TabsTrigger value="reports" className="flex items-center gap-2 px-4 py-2 rounded-md hover:bg-white transition-colors text-sm whitespace-nowrap">
-                <Clock className="h-3 w-3" />
-                Reports
-              </TabsTrigger>
-            </div>
-          </div>
-
-          {/* Large Screen Navigation - Compact */}
-          <div className="hidden lg:block xl:hidden">
-            <div className="flex items-center gap-4 mb-8 p-3 bg-white rounded-lg shadow-sm border flex-wrap">
-              <TabsTrigger value="dashboard" className="flex items-center gap-1 px-4 py-2 rounded-md hover:bg-gray-50 transition-colors text-sm whitespace-nowrap">
-                <Settings className="h-3 w-3" />
-                Dashboard
-              </TabsTrigger>
-              <TabsTrigger value="employees" className="flex items-center gap-1 px-4 py-2 rounded-md hover:bg-gray-50 transition-colors text-sm whitespace-nowrap">
-                <Users className="h-3 w-3" />
-                Employees
-              </TabsTrigger>
-              <TabsTrigger value="scheduling" className="flex items-center gap-1 px-4 py-2 rounded-md hover:bg-gray-50 transition-colors text-sm whitespace-nowrap">
-                <Calendar className="h-3 w-3" />
-                Schedule
-              </TabsTrigger>
-              <TabsTrigger value="accounting" className="flex items-center gap-1 px-4 py-2 rounded-md hover:bg-gray-50 transition-colors text-sm whitespace-nowrap">
-                <DollarSign className="h-3 w-3" />
-                Accounting
-              </TabsTrigger>
-              <TabsTrigger value="integrations" className="flex items-center gap-1 px-4 py-2 rounded-md hover:bg-gray-50 transition-colors text-sm whitespace-nowrap">
-                <Settings className="h-3 w-3" />
-                Integrations
-              </TabsTrigger>
-              
-              {/* More Options Button */}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="flex items-center gap-1 ml-4"
-              >
-                <Menu className="h-3 w-3" />
-                More
-              </Button>
-            </div>
+            </TabsList>
           </div>
 
           {/* Tablet Navigation - Priority Items */}
