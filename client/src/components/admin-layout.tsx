@@ -1,7 +1,7 @@
 import { ReactNode, useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+// Removed Tabs imports to prevent RovingFocusGroupItem conflicts
 import { Users, Clock, Calendar, Bell, Settings, Eye, FileText, DollarSign, Menu } from "lucide-react";
 import { useLocation } from "wouter";
 
@@ -77,93 +77,103 @@ export default function AdminLayout({ children, currentTab }: AdminLayoutProps) 
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <Tabs value={currentTab} onValueChange={handleTabChange} className="w-full">
+        <div className="w-full">
           {/* Desktop Navigation */}
           <div className="hidden lg:block">
-            <TabsList className="flex items-center gap-4 xl:gap-6 mb-8 p-3 xl:p-4 bg-white rounded-lg shadow-sm border h-auto flex-wrap">
+            <div className="flex items-center gap-4 xl:gap-6 mb-8 p-3 xl:p-4 bg-white rounded-lg shadow-sm border h-auto flex-wrap">
               {/* Core Operations */}
-              <TabsTrigger 
-                value="dashboard" 
-                className="nav-item-core flex items-center gap-2 px-4 xl:px-6 py-2 xl:py-3 rounded-md hover:bg-blue-50 hover:text-blue-700 hover:shadow-sm hover:-translate-y-0.5 transition-all duration-200 whitespace-nowrap mx-0 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-800 data-[state=active]:font-medium"
+              <Button
+                variant={currentTab === "dashboard" ? "default" : "ghost"}
+                onClick={() => handleTabChange("dashboard")}
+                className="nav-item-core flex items-center gap-2 px-4 xl:px-6 py-2 xl:py-3 rounded-md hover:bg-blue-50 hover:text-blue-700 hover:shadow-sm hover:-translate-y-0.5 transition-all duration-200 whitespace-nowrap mx-0"
               >
                 <Settings className="h-4 w-4" />
                 <span className="hidden xl:inline">Admin Dashboard</span>
                 <span className="xl:hidden">Dashboard</span>
-              </TabsTrigger>
+              </Button>
               <div className="h-6 w-px bg-gray-300 hidden lg:block"></div>
-              <TabsTrigger 
-                value="employees" 
-                className="nav-item-core flex items-center gap-2 px-4 xl:px-6 py-2 xl:py-3 rounded-md hover:bg-blue-50 hover:text-blue-700 hover:shadow-sm hover:-translate-y-0.5 transition-all duration-200 whitespace-nowrap mx-0 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-800 data-[state=active]:font-medium"
+              <Button
+                variant={currentTab === "employees" ? "default" : "ghost"}
+                onClick={() => handleTabChange("employees")}
+                className="nav-item-core flex items-center gap-2 px-4 xl:px-6 py-2 xl:py-3 rounded-md hover:bg-blue-50 hover:text-blue-700 hover:shadow-sm hover:-translate-y-0.5 transition-all duration-200 whitespace-nowrap mx-0"
               >
                 <Users className="h-4 w-4" />
                 <span className="hidden xl:inline">Employee Management</span>
                 <span className="xl:hidden">Employees</span>
-              </TabsTrigger>
+              </Button>
               <div className="h-6 w-px bg-gray-300 hidden lg:block"></div>
-              <TabsTrigger 
-                value="scheduling" 
-                className="nav-item-core flex items-center gap-2 px-4 xl:px-6 py-2 xl:py-3 rounded-md hover:bg-blue-50 hover:text-blue-700 hover:shadow-sm hover:-translate-y-0.5 transition-all duration-200 whitespace-nowrap mx-0 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-800 data-[state=active]:font-medium"
+              <Button
+                variant={currentTab === "scheduling" ? "default" : "ghost"}
+                onClick={() => handleTabChange("scheduling")}
+                className="nav-item-core flex items-center gap-2 px-4 xl:px-6 py-2 xl:py-3 rounded-md hover:bg-blue-50 hover:text-blue-700 hover:shadow-sm hover:-translate-y-0.5 transition-all duration-200 whitespace-nowrap mx-0"
               >
                 <Calendar className="h-4 w-4" />
                 <span className="hidden xl:inline">Schedule Management</span>
                 <span className="xl:hidden">Schedule</span>
-              </TabsTrigger>
+              </Button>
               <div className="h-6 w-px bg-gray-300 hidden lg:block"></div>
-              <TabsTrigger 
-                value="accounting" 
-                className="nav-item-core flex items-center gap-2 px-4 xl:px-6 py-2 xl:py-3 rounded-md hover:bg-blue-50 hover:text-blue-700 hover:shadow-sm hover:-translate-y-0.5 transition-all duration-200 whitespace-nowrap mx-0 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-800 data-[state=active]:font-medium"
+              <Button
+                variant={currentTab === "accounting" ? "default" : "ghost"}
+                onClick={() => handleTabChange("accounting")}
+                className="nav-item-core flex items-center gap-2 px-4 xl:px-6 py-2 xl:py-3 rounded-md hover:bg-blue-50 hover:text-blue-700 hover:shadow-sm hover:-translate-y-0.5 transition-all duration-200 whitespace-nowrap mx-0"
               >
                 <DollarSign className="h-4 w-4" />
                 <span className="hidden xl:inline">Accounting</span>
                 <span className="xl:hidden">Finance</span>
-              </TabsTrigger>
+              </Button>
               <div className="h-6 w-px bg-gray-300 hidden lg:block"></div>
-              <TabsTrigger 
-                value="integrations" 
-                className="nav-item-core flex items-center gap-2 px-4 xl:px-6 py-2 xl:py-3 rounded-md hover:bg-blue-50 hover:text-blue-700 hover:shadow-sm hover:-translate-y-0.5 transition-all duration-200 whitespace-nowrap mx-0 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-800 data-[state=active]:font-medium"
+              <Button
+                variant={currentTab === "integrations" ? "default" : "ghost"}
+                onClick={() => handleTabChange("integrations")}
+                className="nav-item-core flex items-center gap-2 px-4 xl:px-6 py-2 xl:py-3 rounded-md hover:bg-blue-50 hover:text-blue-700 hover:shadow-sm hover:-translate-y-0.5 transition-all duration-200 whitespace-nowrap mx-0"
               >
                 <Settings className="h-4 w-4" />
                 <span className="hidden xl:inline">Integrations</span>
                 <span className="xl:hidden">Integrations</span>
-              </TabsTrigger>
+              </Button>
 
               {/* Secondary Items - Hidden on smaller screens */}
               <div className="h-6 w-px bg-gray-300 hidden xl:block"></div>
-              <TabsTrigger 
-                value="announcements" 
-                className="nav-item-secondary hidden xl:flex items-center gap-2 px-3 py-2 rounded-md hover:bg-gray-50 hover:shadow-sm hover:-translate-y-0.5 transition-all duration-200 whitespace-nowrap mx-0 text-sm data-[state=active]:bg-gray-100 data-[state=active]:font-medium"
+              <Button
+                variant={currentTab === "announcements" ? "default" : "ghost"}
+                onClick={() => handleTabChange("announcements")}
+                className="nav-item-secondary hidden xl:flex items-center gap-2 px-3 py-2 rounded-md hover:bg-gray-50 hover:shadow-sm hover:-translate-y-0.5 transition-all duration-200 whitespace-nowrap mx-0 text-sm"
               >
                 <Bell className="h-3 w-3" />
                 Announcements
-              </TabsTrigger>
-              <TabsTrigger 
-                value="system-support" 
-                className="nav-item-secondary hidden xl:flex items-center gap-2 px-3 py-2 rounded-md hover:bg-gray-50 hover:shadow-sm hover:-translate-y-0.5 transition-all duration-200 whitespace-nowrap mx-0 text-sm data-[state=active]:bg-gray-100 data-[state=active]:font-medium"
+              </Button>
+              <Button
+                variant={currentTab === "system-support" ? "default" : "ghost"}
+                onClick={() => handleTabChange("system-support")}
+                className="nav-item-secondary hidden xl:flex items-center gap-2 px-3 py-2 rounded-md hover:bg-gray-50 hover:shadow-sm hover:-translate-y-0.5 transition-all duration-200 whitespace-nowrap mx-0 text-sm"
               >
                 <FileText className="h-3 w-3" />
                 Support
-              </TabsTrigger>
-              <TabsTrigger 
-                value="user-management" 
-                className="nav-item-secondary hidden xl:flex items-center gap-2 px-3 py-2 rounded-md hover:bg-gray-50 hover:shadow-sm hover:-translate-y-0.5 transition-all duration-200 whitespace-nowrap mx-0 text-sm data-[state=active]:bg-gray-100 data-[state=active]:font-medium"
+              </Button>
+              <Button
+                variant={currentTab === "user-management" ? "default" : "ghost"}
+                onClick={() => handleTabChange("user-management")}
+                className="nav-item-secondary hidden xl:flex items-center gap-2 px-3 py-2 rounded-md hover:bg-gray-50 hover:shadow-sm hover:-translate-y-0.5 transition-all duration-200 whitespace-nowrap mx-0 text-sm"
               >
                 <Settings className="h-3 w-3" />
                 Users
-              </TabsTrigger>
-              <TabsTrigger 
-                value="employee-view" 
-                className="nav-item-secondary hidden xl:flex items-center gap-2 px-3 py-2 rounded-md hover:bg-gray-50 hover:shadow-sm hover:-translate-y-0.5 transition-all duration-200 whitespace-nowrap mx-0 text-sm data-[state=active]:bg-gray-100 data-[state=active]:font-medium"
+              </Button>
+              <Button
+                variant={currentTab === "employee-view" ? "default" : "ghost"}
+                onClick={() => handleTabChange("employee-view")}
+                className="nav-item-secondary hidden xl:flex items-center gap-2 px-3 py-2 rounded-md hover:bg-gray-50 hover:shadow-sm hover:-translate-y-0.5 transition-all duration-200 whitespace-nowrap mx-0 text-sm"
               >
                 <Eye className="h-3 w-3" />
                 Employee View
-              </TabsTrigger>
-              <TabsTrigger 
-                value="reports" 
-                className="nav-item-secondary hidden xl:flex items-center gap-2 px-3 py-2 rounded-md hover:bg-gray-50 hover:shadow-sm hover:-translate-y-0.5 transition-all duration-200 whitespace-nowrap mx-0 text-sm data-[state=active]:bg-gray-100 data-[state=active]:font-medium"
+              </Button>
+              <Button
+                variant={currentTab === "reports" ? "default" : "ghost"}
+                onClick={() => handleTabChange("reports")}
+                className="nav-item-secondary hidden xl:flex items-center gap-2 px-3 py-2 rounded-md hover:bg-gray-50 hover:shadow-sm hover:-translate-y-0.5 transition-all duration-200 whitespace-nowrap mx-0 text-sm"
               >
                 <Clock className="h-3 w-3" />
                 Reports
-              </TabsTrigger>
+              </Button>
 
               {/* More Options Button for smaller screens */}
               <Button
@@ -175,33 +185,36 @@ export default function AdminLayout({ children, currentTab }: AdminLayoutProps) 
                 <Menu className="h-3 w-3" />
                 More
               </Button>
-            </TabsList>
+            </div>
           </div>
 
           {/* Mobile Navigation */}
           <div className="lg:hidden mb-8">
             <div className="flex items-center gap-2 p-3 bg-white rounded-lg shadow-sm border flex-wrap">
-              <TabsTrigger 
-                value="dashboard" 
+              <Button
+                variant={currentTab === "dashboard" ? "default" : "ghost"}
+                onClick={() => handleTabChange("dashboard")}
                 className="flex items-center gap-1 px-3 py-2 rounded-md hover:bg-blue-50 transition-colors text-sm"
               >
                 <Settings className="h-3 w-3" />
                 Dashboard
-              </TabsTrigger>
-              <TabsTrigger 
-                value="employees" 
+              </Button>
+              <Button
+                variant={currentTab === "employees" ? "default" : "ghost"}
+                onClick={() => handleTabChange("employees")}
                 className="flex items-center gap-1 px-3 py-2 rounded-md hover:bg-blue-50 transition-colors text-sm"
               >
                 <Users className="h-3 w-3" />
                 Employees
-              </TabsTrigger>
-              <TabsTrigger 
-                value="scheduling" 
+              </Button>
+              <Button
+                variant={currentTab === "scheduling" ? "default" : "ghost"}
+                onClick={() => handleTabChange("scheduling")}
                 className="flex items-center gap-1 px-3 py-2 rounded-md hover:bg-blue-50 transition-colors text-sm"
               >
                 <Calendar className="h-3 w-3" />
                 Schedule
-              </TabsTrigger>
+              </Button>
               <Button
                 variant="outline"
                 size="sm"
@@ -286,7 +299,7 @@ export default function AdminLayout({ children, currentTab }: AdminLayoutProps) 
           <div className="space-y-6">
             {children}
           </div>
-        </Tabs>
+        </div>
       </div>
     </div>
   );
