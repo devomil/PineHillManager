@@ -124,6 +124,13 @@ const IntegrationsPage = () => {
         description: data.message,
         variant: data.success ? 'default' : 'destructive'
       });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Connection Test Failed',
+        description: error.message,
+        variant: 'destructive'
+      });
     }
   });
 
@@ -138,6 +145,14 @@ const IntegrationsPage = () => {
         title: 'Sales Sync Successful',
         description: data.message,
         variant: 'default'
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/accounting/health'] });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Sales Sync Failed',
+        description: error.message,
+        variant: 'destructive'
       });
     }
   });
