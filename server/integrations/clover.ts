@@ -71,7 +71,9 @@ export class CloverIntegration {
   // Make authenticated API calls to Clover
   private async makeCloverAPICall(endpoint: string, method: 'GET' | 'POST' = 'GET'): Promise<any> {
     try {
-      const config = await storage.getCloverConfig();
+      // Get the active Clover configuration
+      const config = await storage.getActiveCloverConfig();
+      
       if (!config || !config.apiToken) {
         throw new Error('Clover not configured');
       }
