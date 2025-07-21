@@ -2,7 +2,7 @@ import { ReactNode } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Users, Clock, Calendar, Bell, Settings, Eye, FileText } from "lucide-react";
+import { Users, Clock, Calendar, Bell, Settings, Eye, FileText, DollarSign } from "lucide-react";
 import { useLocation } from "wouter";
 
 interface AdminLayoutProps {
@@ -37,6 +37,9 @@ export default function AdminLayout({ children, currentTab }: AdminLayoutProps) 
       case 'employee-view':
         setLocation('/dashboard');
         break;
+      case 'accounting':
+        setLocation('/accounting');
+        break;
     }
   };
 
@@ -68,7 +71,7 @@ export default function AdminLayout({ children, currentTab }: AdminLayoutProps) 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Tabs value={currentTab} onValueChange={handleTabChange} className="w-full">
-          <TabsList className="grid w-full grid-cols-7 mb-8">
+          <TabsList className="grid w-full grid-cols-8 mb-8">
             <TabsTrigger value="dashboard" className="flex items-center gap-2">
               <Settings className="h-4 w-4" />
               Admin Dashboard
@@ -96,6 +99,10 @@ export default function AdminLayout({ children, currentTab }: AdminLayoutProps) 
             <TabsTrigger value="reports" className="flex items-center gap-2">
               <Clock className="h-4 w-4" />
               Reports
+            </TabsTrigger>
+            <TabsTrigger value="accounting" className="flex items-center gap-2">
+              <DollarSign className="h-4 w-4" />
+              Accounting
             </TabsTrigger>
           </TabsList>
 

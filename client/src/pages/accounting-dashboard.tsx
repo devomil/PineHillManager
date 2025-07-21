@@ -19,6 +19,7 @@ import {
   Activity
 } from 'lucide-react';
 import { apiRequest } from '@/lib/queryClient';
+import AdminLayout from '@/components/admin-layout';
 
 type SystemHealth = {
   database: string;
@@ -80,15 +81,15 @@ export default function AccountingDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
-      <div className="container mx-auto px-4 py-8">
+    <AdminLayout currentTab="accounting">
+      <div className="space-y-8">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-2" style={{ fontFamily: 'Great Vibes, cursive' }}>
-            Pine Hill Farm Accounting
-          </h1>
-          <p className="text-gray-600 dark:text-gray-300">
-            Comprehensive business management and financial reporting
+          <h2 className="text-3xl font-bold text-gray-900 mb-2">
+            Accounting Dashboard
+          </h2>
+          <p className="text-gray-600">
+            Comprehensive financial management and reporting system
           </p>
         </div>
 
@@ -176,7 +177,7 @@ export default function AccountingDashboard() {
                   <TrendingUp className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">${profitLoss?.revenue || '0.00'}</div>
+                  <div className="text-2xl font-bold">${(profitLoss as any)?.revenue || '0.00'}</div>
                   <p className="text-xs text-muted-foreground">Year to date</p>
                 </CardContent>
               </Card>
@@ -187,7 +188,7 @@ export default function AccountingDashboard() {
                   <DollarSign className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">${profitLoss?.expenses || '0.00'}</div>
+                  <div className="text-2xl font-bold">${(profitLoss as any)?.expenses || '0.00'}</div>
                   <p className="text-xs text-muted-foreground">Year to date</p>
                 </CardContent>
               </Card>
@@ -198,7 +199,7 @@ export default function AccountingDashboard() {
                   <BarChart3 className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">${profitLoss?.netIncome || '0.00'}</div>
+                  <div className="text-2xl font-bold">${(profitLoss as any)?.netIncome || '0.00'}</div>
                   <p className="text-xs text-muted-foreground">Year to date</p>
                 </CardContent>
               </Card>
@@ -391,6 +392,6 @@ export default function AccountingDashboard() {
           </TabsContent>
         </Tabs>
       </div>
-    </div>
+    </AdminLayout>
   );
 }
