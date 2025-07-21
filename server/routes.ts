@@ -1409,6 +1409,173 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // External Integration Routes
+  
+  // QuickBooks Integration Routes
+  app.get('/api/integrations/quickbooks/auth-url', isAuthenticated, async (req, res) => {
+    try {
+      const { quickBooksIntegration } = await import('./integrations/quickbooks');
+      const authUrl = quickBooksIntegration.getAuthorizationUrl();
+      res.json({ authUrl });
+    } catch (error) {
+      console.error('Error generating QuickBooks auth URL:', error);
+      res.status(500).json({ error: 'Failed to generate authorization URL' });
+    }
+  });
+
+  app.get('/api/integrations/quickbooks/callback', async (req, res) => {
+    try {
+      const { code, realmId, state } = req.query as { code: string; realmId: string; state: string };
+      
+      if (!code || !realmId) {
+        return res.status(400).json({ error: 'Missing authorization code or realm ID' });
+      }
+
+      const { quickBooksIntegration } = await import('./integrations/quickbooks');
+      const success = await quickBooksIntegration.exchangeCodeForTokens(code, realmId);
+      
+      if (success) {
+        res.redirect('/accounting?integration=quickbooks&status=connected');
+      } else {
+        res.redirect('/accounting?integration=quickbooks&status=error');
+      }
+    } catch (error) {
+      console.error('Error handling QuickBooks callback:', error);
+      res.redirect('/accounting?integration=quickbooks&status=error');
+    }
+  });
+
+  app.post('/api/integrations/quickbooks/sync/accounts', isAuthenticated, async (req, res) => {
+    try {
+      const { quickBooksIntegration } = await import('./integrations/quickbooks');
+      await quickBooksIntegration.loadConfig();
+      await quickBooksIntegration.syncChartOfAccounts();
+      res.json({ success: true, message: 'Chart of accounts synced successfully' });
+    } catch (error) {
+      console.error('Error syncing QuickBooks accounts:', error);
+      res.status(500).json({ error: 'Failed to sync chart of accounts' });
+    }
+  });
+
+  app.get('/api/integrations/quickbooks/test', isAuthenticated, async (req, res) => {
+    try {
+      const { quickBooksIntegration } = await import('./integrations/quickbooks');
+      await quickBooksIntegration.loadConfig();
+      const result = await quickBooksIntegration.testConnection();
+      res.json(result);
+    } catch (error) {
+      console.error('Error testing QuickBooks connection:', error);
+      res.status(500).json({ success: false, message: 'Connection test failed' });
+    }
+  });
+
+  // Clover POS Integration Routes
+  app.post('/api/integrations/clover/sync/sales', isAuthenticated, async (req, res) => {
+    try {
+      const { date } = req.body;
+      const targetDate = date ? new Date(date) : new Date();
+      
+      const { cloverIntegration } = await import('./integrations/clover');
+      await cloverIntegration.loadConfig();
+      await cloverIntegration.syncDailySales(targetDate);
+      
+      res.json({ success: true, message: `Sales data synced for ${targetDate.toDateString()}` });
+    } catch (error) {
+      console.error('Error syncing Clover sales:', error);
+      res.status(500).json({ error: 'Failed to sync sales data' });
+    }
+  });
+
+  app.get('/api/integrations/clover/test', isAuthenticated, async (req, res) => {
+    try {
+      const { cloverIntegration } = await import('./integrations/clover');
+      await cloverIntegration.loadConfig();
+      const result = await cloverIntegration.testConnection();
+      res.json(result);
+    } catch (error) {
+      console.error('Error testing Clover connection:', error);
+      res.status(500).json({ success: false, message: 'Connection test failed' });
+    }
+  });
+
+  // HSA Integration Routes
+  app.post('/api/integrations/hsa/sync/expenses', isAuthenticated, async (req, res) => {
+    try {
+      const { startDate, endDate } = req.body;
+      const start = startDate ? new Date(startDate) : undefined;
+      const end = endDate ? new Date(endDate) : undefined;
+      
+      const { hsaIntegration } = await import('./integrations/hsa');
+      await hsaIntegration.loadConfig();
+      await hsaIntegration.syncHSAExpenses(start, end);
+      
+      res.json({ success: true, message: 'HSA expenses synced successfully' });
+    } catch (error) {
+      console.error('Error syncing HSA expenses:', error);
+      res.status(500).json({ error: 'Failed to sync HSA expenses' });
+    }
+  });
+
+  app.get('/api/integrations/hsa/eligible-categories', isAuthenticated, async (req, res) => {
+    try {
+      const { hsaIntegration } = await import('./integrations/hsa');
+      const categories = hsaIntegration.getEligibleCategories();
+      res.json({ categories });
+    } catch (error) {
+      console.error('Error getting HSA eligible categories:', error);
+      res.status(500).json({ error: 'Failed to get eligible categories' });
+    }
+  });
+
+  app.get('/api/integrations/hsa/test', isAuthenticated, async (req, res) => {
+    try {
+      const { hsaIntegration } = await import('./integrations/hsa');
+      await hsaIntegration.loadConfig();
+      const result = await hsaIntegration.testConnection();
+      res.json(result);
+    } catch (error) {
+      console.error('Error testing HSA connection:', error);
+      res.status(500).json({ success: false, message: 'Connection test failed' });
+    }
+  });
+
+  // Thrive Inventory Integration Routes
+  app.post('/api/integrations/thrive/sync/inventory', isAuthenticated, async (req, res) => {
+    try {
+      const { thriveIntegration } = await import('./integrations/thrive');
+      await thriveIntegration.loadConfig();
+      await thriveIntegration.syncInventory();
+      res.json({ success: true, message: 'Thrive inventory synced successfully' });
+    } catch (error) {
+      console.error('Error syncing Thrive inventory:', error);
+      res.status(500).json({ error: 'Failed to sync Thrive inventory' });
+    }
+  });
+
+  app.get('/api/integrations/thrive/stock-levels', isAuthenticated, async (req, res) => {
+    try {
+      const { thriveIntegration } = await import('./integrations/thrive');
+      await thriveIntegration.loadConfig();
+      const result = await thriveIntegration.checkStockLevels();
+      res.json(result);
+    } catch (error) {
+      console.error('Error checking Thrive stock levels:', error);
+      res.status(500).json({ error: 'Failed to check stock levels' });
+    }
+  });
+
+  app.get('/api/integrations/thrive/test', isAuthenticated, async (req, res) => {
+    try {
+      const { thriveIntegration } = await import('./integrations/thrive');
+      await thriveIntegration.loadConfig();
+      const result = await thriveIntegration.testConnection();
+      res.json(result);
+    } catch (error) {
+      console.error('Error testing Thrive connection:', error);
+      res.status(500).json({ success: false, message: 'Connection test failed' });
+    }
+  });
+
   // System Health Check Route for Accounting
   app.get('/api/accounting/health', isAuthenticated, async (req, res) => {
     try {

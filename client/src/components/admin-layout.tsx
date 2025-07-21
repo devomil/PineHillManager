@@ -40,6 +40,9 @@ export default function AdminLayout({ children, currentTab }: AdminLayoutProps) 
       case 'accounting':
         setLocation('/accounting');
         break;
+      case 'integrations':
+        setLocation('/integrations');
+        break;
     }
   };
 
@@ -71,7 +74,7 @@ export default function AdminLayout({ children, currentTab }: AdminLayoutProps) 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Tabs value={currentTab} onValueChange={handleTabChange} className="w-full">
-          <TabsList className="grid w-full grid-cols-8 mb-8">
+          <TabsList className="grid w-full grid-cols-9 mb-8">
             <TabsTrigger value="dashboard" className="flex items-center gap-2">
               <Settings className="h-4 w-4" />
               Admin Dashboard
@@ -103,6 +106,10 @@ export default function AdminLayout({ children, currentTab }: AdminLayoutProps) 
             <TabsTrigger value="accounting" className="flex items-center gap-2">
               <DollarSign className="h-4 w-4" />
               Accounting
+            </TabsTrigger>
+            <TabsTrigger value="integrations" className="flex items-center gap-2">
+              <Settings className="h-4 w-4" />
+              Integrations
             </TabsTrigger>
           </TabsList>
 
