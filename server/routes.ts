@@ -1476,7 +1476,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const targetDate = date ? new Date(date) : new Date();
       
       const { cloverIntegration } = await import('./integrations/clover');
-      await cloverIntegration.loadConfig();
       await cloverIntegration.syncDailySales(targetDate);
       
       res.json({ success: true, message: `Sales data synced for ${targetDate.toDateString()}` });
@@ -1489,7 +1488,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/integrations/clover/test', isAuthenticated, async (req, res) => {
     try {
       const { cloverIntegration } = await import('./integrations/clover');
-      await cloverIntegration.loadConfig();
       const result = await cloverIntegration.testConnection();
       res.json(result);
     } catch (error) {
