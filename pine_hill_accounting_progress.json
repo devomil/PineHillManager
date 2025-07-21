@@ -1,0 +1,859 @@
+{
+  "project": "Pine Hill Farm Accounting Tool",
+  "lastUpdated": "2025-07-21",
+  "overallProgress": "0%",
+  "projectStatus": "not_started",
+  "totalEstimatedDays": 77,
+  "totalEstimatedHours": 308,
+  "phases": [
+    {
+      "phaseId": "foundation",
+      "phaseName": "Project Setup & Foundation", 
+      "status": "not_started",
+      "progress": "0%",
+      "estimatedDays": 10,
+      "estimatedHours": 40,
+      "priority": "critical",
+      "dependencies": [],
+      "tasks": [
+        {
+          "id": "ENV-001",
+          "task": "Replit environment setup and configuration",
+          "status": "not_started",
+          "priority": "critical",
+          "dependencies": [],
+          "estimatedHours": 4,
+          "blockers": [],
+          "assignedTo": null,
+          "completedDate": null
+        },
+        {
+          "id": "DB-001",
+          "task": "PostgreSQL database schema design and creation",
+          "status": "not_started",
+          "priority": "critical",
+          "dependencies": ["ENV-001"],
+          "estimatedHours": 8,
+          "blockers": [],
+          "assignedTo": null,
+          "completedDate": null
+        },
+        {
+          "id": "AUTH-001",
+          "task": "Admin authentication system with role-based permissions",
+          "status": "not_started",
+          "priority": "high",
+          "dependencies": ["DB-001"],
+          "estimatedHours": 6,
+          "blockers": [],
+          "assignedTo": null,
+          "completedDate": null
+        },
+        {
+          "id": "API-001",
+          "task": "RESTful API architecture setup",
+          "status": "not_started",
+          "priority": "high",
+          "dependencies": ["DB-001"],
+          "estimatedHours": 6,
+          "blockers": [],
+          "assignedTo": null,
+          "completedDate": null
+        },
+        {
+          "id": "SEC-001",
+          "task": "Security framework implementation (encryption, MFA)",
+          "status": "not_started",
+          "priority": "high",
+          "dependencies": ["AUTH-001"],
+          "estimatedHours": 8,
+          "blockers": [],
+          "assignedTo": null,
+          "completedDate": null
+        },
+        {
+          "id": "UI-001",
+          "task": "Basic responsive dashboard structure",
+          "status": "not_started",
+          "priority": "medium",
+          "dependencies": ["API-001"],
+          "estimatedHours": 8,
+          "blockers": [],
+          "assignedTo": null,
+          "completedDate": null
+        }
+      ]
+    },
+    {
+      "phaseId": "quickbooks",
+      "phaseName": "QuickBooks Online Integration",
+      "status": "not_started",
+      "progress": "0%",
+      "estimatedDays": 15,
+      "estimatedHours": 60,
+      "priority": "critical",
+      "dependencies": ["foundation"],
+      "tasks": [
+        {
+          "id": "QB-001",
+          "task": "OAuth 2.0 authentication setup and credentials",
+          "status": "not_started",
+          "priority": "critical",
+          "dependencies": ["API-001"],
+          "estimatedHours": 8,
+          "blockers": ["Need QuickBooks Developer Account"],
+          "assignedTo": null,
+          "completedDate": null
+        },
+        {
+          "id": "QB-002",
+          "task": "Chart of accounts real-time sync",
+          "status": "not_started",
+          "priority": "critical",
+          "dependencies": ["QB-001"],
+          "estimatedHours": 8,
+          "blockers": [],
+          "assignedTo": null,
+          "completedDate": null
+        },
+        {
+          "id": "QB-003",
+          "task": "Customer/vendor data synchronization",
+          "status": "not_started",
+          "priority": "high",
+          "dependencies": ["QB-002"],
+          "estimatedHours": 8,
+          "blockers": [],
+          "assignedTo": null,
+          "completedDate": null
+        },
+        {
+          "id": "QB-004",
+          "task": "Transaction import and automated journal entries",
+          "status": "not_started",
+          "priority": "critical",
+          "dependencies": ["QB-003"],
+          "estimatedHours": 12,
+          "blockers": [],
+          "assignedTo": null,
+          "completedDate": null
+        },
+        {
+          "id": "QB-005",
+          "task": "Invoice and bill management features",
+          "status": "not_started",
+          "priority": "high",
+          "dependencies": ["QB-004"],
+          "estimatedHours": 8,
+          "blockers": [],
+          "assignedTo": null,
+          "completedDate": null
+        },
+        {
+          "id": "QB-006",
+          "task": "Financial reporting integration",
+          "status": "not_started",
+          "priority": "medium",
+          "dependencies": ["QB-005"],
+          "estimatedHours": 8,
+          "blockers": [],
+          "assignedTo": null,
+          "completedDate": null
+        },
+        {
+          "id": "QB-007",
+          "task": "Error handling and retry logic implementation",
+          "status": "not_started",
+          "priority": "high",
+          "dependencies": ["QB-001"],
+          "estimatedHours": 4,
+          "blockers": [],
+          "assignedTo": null,
+          "completedDate": null
+        },
+        {
+          "id": "QB-008",
+          "task": "Testing with sample QB data",
+          "status": "not_started",
+          "priority": "medium",
+          "dependencies": ["QB-006"],
+          "estimatedHours": 4,
+          "blockers": [],
+          "assignedTo": null,
+          "completedDate": null
+        }
+      ]
+    },
+    {
+      "phaseId": "clover",
+      "phaseName": "Clover POS Integration",
+      "status": "not_started",
+      "progress": "0%",
+      "estimatedDays": 10,
+      "estimatedHours": 40,
+      "priority": "high",
+      "dependencies": ["quickbooks"],
+      "tasks": [
+        {
+          "id": "CL-001",
+          "task": "Clover REST API credentials and connection setup",
+          "status": "not_started",
+          "priority": "critical",
+          "dependencies": ["QB-001"],
+          "estimatedHours": 6,
+          "blockers": ["Need Clover Developer Account"],
+          "assignedTo": null,
+          "completedDate": null
+        },
+        {
+          "id": "CL-002",
+          "task": "Daily sales data retrieval and processing",
+          "status": "not_started",
+          "priority": "critical",
+          "dependencies": ["CL-001"],
+          "estimatedHours": 8,
+          "blockers": [],
+          "assignedTo": null,
+          "completedDate": null
+        },
+        {
+          "id": "CL-003",
+          "task": "Transaction detail import and categorization",
+          "status": "not_started",
+          "priority": "high",
+          "dependencies": ["CL-002"],
+          "estimatedHours": 6,
+          "blockers": [],
+          "assignedTo": null,
+          "completedDate": null
+        },
+        {
+          "id": "CL-004",
+          "task": "Payment method breakdown (cash, card, mobile)",
+          "status": "not_started",
+          "priority": "medium",
+          "dependencies": ["CL-003"],
+          "estimatedHours": 4,
+          "blockers": [],
+          "assignedTo": null,
+          "completedDate": null
+        },
+        {
+          "id": "CL-005",
+          "task": "Product performance analytics",
+          "status": "not_started",
+          "priority": "medium",
+          "dependencies": ["CL-003"],
+          "estimatedHours": 6,
+          "blockers": [],
+          "assignedTo": null,
+          "completedDate": null
+        },
+        {
+          "id": "CL-006",
+          "task": "Automatic QB posting as daily sales entries",
+          "status": "not_started",
+          "priority": "critical",
+          "dependencies": ["CL-002", "QB-004"],
+          "estimatedHours": 8,
+          "blockers": [],
+          "assignedTo": null,
+          "completedDate": null
+        },
+        {
+          "id": "CL-007",
+          "task": "Real-time sync testing and validation",
+          "status": "not_started",
+          "priority": "medium",
+          "dependencies": ["CL-006"],
+          "estimatedHours": 2,
+          "blockers": [],
+          "assignedTo": null,
+          "completedDate": null
+        }
+      ]
+    },
+    {
+      "phaseId": "hsa",
+      "phaseName": "HSA Tools Integration",
+      "status": "not_started",
+      "progress": "0%",
+      "estimatedDays": 12,
+      "estimatedHours": 48,
+      "priority": "medium",
+      "dependencies": ["foundation"],
+      "tasks": [
+        {
+          "id": "HSA-001",
+          "task": "HSA system API research and connection setup",
+          "status": "not_started",
+          "priority": "critical",
+          "dependencies": ["API-001"],
+          "estimatedHours": 8,
+          "blockers": ["Need HSA System Details"],
+          "assignedTo": null,
+          "completedDate": null
+        },
+        {
+          "id": "HSA-002",
+          "task": "HSA-eligible expense categorization logic",
+          "status": "not_started",
+          "priority": "high",
+          "dependencies": ["HSA-001"],
+          "estimatedHours": 6,
+          "blockers": [],
+          "assignedTo": null,
+          "completedDate": null
+        },
+        {
+          "id": "HSA-003",
+          "task": "Receipt upload and document management",
+          "status": "not_started",
+          "priority": "high",
+          "dependencies": ["HSA-001"],
+          "estimatedHours": 8,
+          "blockers": [],
+          "assignedTo": null,
+          "completedDate": null
+        },
+        {
+          "id": "HSA-004",
+          "task": "Compliance reporting for tax purposes",
+          "status": "not_started",
+          "priority": "high",
+          "dependencies": ["HSA-002"],
+          "estimatedHours": 8,
+          "blockers": [],
+          "assignedTo": null,
+          "completedDate": null
+        },
+        {
+          "id": "HSA-005",
+          "task": "Automated expense approval workflows",
+          "status": "not_started",
+          "priority": "medium",
+          "dependencies": ["HSA-003"],
+          "estimatedHours": 8,
+          "blockers": [],
+          "assignedTo": null,
+          "completedDate": null
+        },
+        {
+          "id": "HSA-006",
+          "task": "HIPAA compliance review and implementation",
+          "status": "not_started",
+          "priority": "critical",
+          "dependencies": ["HSA-001"],
+          "estimatedHours": 6,
+          "blockers": [],
+          "assignedTo": null,
+          "completedDate": null
+        },
+        {
+          "id": "HSA-007",
+          "task": "Payroll system integration for contributions",
+          "status": "not_started",
+          "priority": "medium",
+          "dependencies": ["HSA-004"],
+          "estimatedHours": 4,
+          "blockers": [],
+          "assignedTo": null,
+          "completedDate": null
+        }
+      ]
+    },
+    {
+      "phaseId": "thrive",
+      "phaseName": "Thrive Inventory Integration",
+      "status": "not_started",
+      "progress": "0%",
+      "estimatedDays": 10,
+      "estimatedHours": 40,
+      "priority": "high",
+      "dependencies": ["quickbooks"],
+      "tasks": [
+        {
+          "id": "TH-001",
+          "task": "Thrive API credentials setup and testing",
+          "status": "not_started",
+          "priority": "critical",
+          "dependencies": ["QB-001"],
+          "estimatedHours": 4,
+          "blockers": ["Need Thrive API Access"],
+          "assignedTo": null,
+          "completedDate": null
+        },
+        {
+          "id": "TH-002",
+          "task": "Real-time inventory sync implementation",
+          "status": "not_started",
+          "priority": "critical",
+          "dependencies": ["TH-001"],
+          "estimatedHours": 8,
+          "blockers": [],
+          "assignedTo": null,
+          "completedDate": null
+        },
+        {
+          "id": "TH-003",
+          "task": "Stock level monitoring and alerts",
+          "status": "not_started",
+          "priority": "high",
+          "dependencies": ["TH-002"],
+          "estimatedHours": 6,
+          "blockers": [],
+          "assignedTo": null,
+          "completedDate": null
+        },
+        {
+          "id": "TH-004",
+          "task": "COGS calculation and cost tracking",
+          "status": "not_started",
+          "priority": "critical",
+          "dependencies": ["TH-002"],
+          "estimatedHours": 8,
+          "blockers": [],
+          "assignedTo": null,
+          "completedDate": null
+        },
+        {
+          "id": "TH-005",
+          "task": "Purchase order tracking and receiving",
+          "status": "not_started",
+          "priority": "high",
+          "dependencies": ["TH-002"],
+          "estimatedHours": 6,
+          "blockers": [],
+          "assignedTo": null,
+          "completedDate": null
+        },
+        {
+          "id": "TH-006",
+          "task": "Low stock alert system",
+          "status": "not_started",
+          "priority": "medium",
+          "dependencies": ["TH-003"],
+          "estimatedHours": 4,
+          "blockers": [],
+          "assignedTo": null,
+          "completedDate": null
+        },
+        {
+          "id": "TH-007",
+          "task": "QB inventory adjustment posting",
+          "status": "not_started",
+          "priority": "critical",
+          "dependencies": ["TH-004", "QB-004"],
+          "estimatedHours": 2,
+          "blockers": [],
+          "assignedTo": null,
+          "completedDate": null
+        },
+        {
+          "id": "TH-008",
+          "task": "Vendor performance analytics",
+          "status": "not_started",
+          "priority": "medium",
+          "dependencies": ["TH-005"],
+          "estimatedHours": 2,
+          "blockers": [],
+          "assignedTo": null,
+          "completedDate": null
+        }
+      ]
+    },
+    {
+      "phaseId": "dashboard",
+      "phaseName": "Dashboard & Analytics",
+      "status": "not_started",
+      "progress": "0%",
+      "estimatedDays": 8,
+      "estimatedHours": 32,
+      "priority": "high",
+      "dependencies": ["quickbooks", "clover", "thrive"],
+      "tasks": [
+        {
+          "id": "DASH-001",
+          "task": "Main dashboard layout and widgets",
+          "status": "not_started",
+          "priority": "critical",
+          "dependencies": ["UI-001"],
+          "estimatedHours": 6,
+          "blockers": [],
+          "assignedTo": null,
+          "completedDate": null
+        },
+        {
+          "id": "DASH-002",
+          "task": "Financial summary real-time display",
+          "status": "not_started",
+          "priority": "critical",
+          "dependencies": ["QB-006", "DASH-001"],
+          "estimatedHours": 4,
+          "blockers": [],
+          "assignedTo": null,
+          "completedDate": null
+        },
+        {
+          "id": "DASH-003",
+          "task": "System status indicators for all integrations",
+          "status": "not_started",
+          "priority": "high",
+          "dependencies": ["QB-001", "CL-001", "TH-001"],
+          "estimatedHours": 4,
+          "blockers": [],
+          "assignedTo": null,
+          "completedDate": null
+        },
+        {
+          "id": "DASH-004",
+          "task": "Alert center implementation",
+          "status": "not_started",
+          "priority": "high",
+          "dependencies": ["DASH-001"],
+          "estimatedHours": 4,
+          "blockers": [],
+          "assignedTo": null,
+          "completedDate": null
+        },
+        {
+          "id": "DASH-005",
+          "task": "Quick action buttons and workflows",
+          "status": "not_started",
+          "priority": "medium",
+          "dependencies": ["DASH-001"],
+          "estimatedHours": 4,
+          "blockers": [],
+          "assignedTo": null,
+          "completedDate": null
+        },
+        {
+          "id": "DASH-006",
+          "task": "Mobile responsive design optimization",
+          "status": "not_started",
+          "priority": "high",
+          "dependencies": ["DASH-001"],
+          "estimatedHours": 4,
+          "blockers": [],
+          "assignedTo": null,
+          "completedDate": null
+        },
+        {
+          "id": "DASH-007",
+          "task": "Custom report builder with drag-and-drop",
+          "status": "not_started",
+          "priority": "medium",
+          "dependencies": ["DASH-002"],
+          "estimatedHours": 4,
+          "blockers": [],
+          "assignedTo": null,
+          "completedDate": null
+        },
+        {
+          "id": "DASH-008",
+          "task": "Export functionality (PDF, Excel, CSV)",
+          "status": "not_started",
+          "priority": "medium",
+          "dependencies": ["DASH-007"],
+          "estimatedHours": 2,
+          "blockers": [],
+          "assignedTo": null,
+          "completedDate": null
+        }
+      ]
+    },
+    {
+      "phaseId": "security",
+      "phaseName": "Security & Compliance",
+      "status": "not_started",
+      "progress": "0%",
+      "estimatedDays": 5,
+      "estimatedHours": 20,
+      "priority": "critical",
+      "dependencies": ["dashboard"],
+      "tasks": [
+        {
+          "id": "SEC-002",
+          "task": "AES-256 data encryption implementation",
+          "status": "not_started",
+          "priority": "critical",
+          "dependencies": ["DB-001"],
+          "estimatedHours": 4,
+          "blockers": [],
+          "assignedTo": null,
+          "completedDate": null
+        },
+        {
+          "id": "SEC-003",
+          "task": "Multi-factor authentication for admins",
+          "status": "not_started",
+          "priority": "critical",
+          "dependencies": ["AUTH-001"],
+          "estimatedHours": 4,
+          "blockers": [],
+          "assignedTo": null,
+          "completedDate": null
+        },
+        {
+          "id": "SEC-004",
+          "task": "Comprehensive audit logging system",
+          "status": "not_started",
+          "priority": "high",
+          "dependencies": ["API-001"],
+          "estimatedHours": 4,
+          "blockers": [],
+          "assignedTo": null,
+          "completedDate": null
+        },
+        {
+          "id": "SEC-005",
+          "task": "API security and token management",
+          "status": "not_started",
+          "priority": "critical",
+          "dependencies": ["QB-001", "CL-001", "TH-001"],
+          "estimatedHours": 4,
+          "blockers": [],
+          "assignedTo": null,
+          "completedDate": null
+        },
+        {
+          "id": "SEC-006",
+          "task": "GAAP and tax compliance features",
+          "status": "not_started",
+          "priority": "high",
+          "dependencies": ["QB-006"],
+          "estimatedHours": 2,
+          "blockers": [],
+          "assignedTo": null,
+          "completedDate": null
+        },
+        {
+          "id": "SEC-007",
+          "task": "Data retention and privacy controls",
+          "status": "not_started",
+          "priority": "medium",
+          "dependencies": ["SEC-004"],
+          "estimatedHours": 2,
+          "blockers": [],
+          "assignedTo": null,
+          "completedDate": null
+        }
+      ]
+    },
+    {
+      "phaseId": "testing",
+      "phaseName": "Testing & Deployment",
+      "status": "not_started",
+      "progress": "0%",
+      "estimatedDays": 7,
+      "estimatedHours": 28,
+      "priority": "critical",
+      "dependencies": ["security"],
+      "tasks": [
+        {
+          "id": "TEST-001",
+          "task": "Unit testing for all modules",
+          "status": "not_started",
+          "priority": "critical",
+          "dependencies": ["dashboard"],
+          "estimatedHours": 8,
+          "blockers": [],
+          "assignedTo": null,
+          "completedDate": null
+        },
+        {
+          "id": "TEST-002",
+          "task": "Integration testing with live APIs",
+          "status": "not_started",
+          "priority": "critical",
+          "dependencies": ["QB-008", "CL-007", "TH-001"],
+          "estimatedHours": 6,
+          "blockers": [],
+          "assignedTo": null,
+          "completedDate": null
+        },
+        {
+          "id": "TEST-003",
+          "task": "User acceptance testing with farm staff",
+          "status": "not_started",
+          "priority": "high",
+          "dependencies": ["TEST-002"],
+          "estimatedHours": 4,
+          "blockers": [],
+          "assignedTo": null,
+          "completedDate": null
+        },
+        {
+          "id": "TEST-004",
+          "task": "Performance testing (3 second load time goal)",
+          "status": "not_started",
+          "priority": "high",
+          "dependencies": ["TEST-001"],
+          "estimatedHours": 4,
+          "blockers": [],
+          "assignedTo": null,
+          "completedDate": null
+        },
+        {
+          "id": "TEST-005",
+          "task": "Security penetration testing",
+          "status": "not_started",
+          "priority": "critical",
+          "dependencies": ["SEC-005"],
+          "estimatedHours": 2,
+          "blockers": [],
+          "assignedTo": null,
+          "completedDate": null
+        },
+        {
+          "id": "TEST-006",
+          "task": "Production deployment and monitoring setup",
+          "status": "not_started",
+          "priority": "critical",
+          "dependencies": ["TEST-004", "TEST-005"],
+          "estimatedHours": 2,
+          "blockers": [],
+          "assignedTo": null,
+          "completedDate": null
+        },
+        {
+          "id": "TEST-007",
+          "task": "User training materials and documentation",
+          "status": "not_started",
+          "priority": "medium",
+          "dependencies": ["TEST-003"],
+          "estimatedHours": 1,
+          "blockers": [],
+          "assignedTo": null,
+          "completedDate": null
+        },
+        {
+          "id": "TEST-008",
+          "task": "Go-live support and monitoring",
+          "status": "not_started",
+          "priority": "critical",
+          "dependencies": ["TEST-006"],
+          "estimatedHours": 1,
+          "blockers": [],
+          "assignedTo": null,
+          "completedDate": null
+        }
+      ]
+    }
+  ],
+  "integrations": {
+    "quickbooks": {
+      "status": "not_started",
+      "apiConnected": false,
+      "testDataSynced": false,
+      "productionReady": false,
+      "apiVersion": "v3",
+      "authMethod": "OAuth 2.0",
+      "priority": "critical",
+      "blockers": ["Need QuickBooks Developer Account"]
+    },
+    "clover": {
+      "status": "not_started",
+      "apiConnected": false,
+      "testDataSynced": false,
+      "productionReady": false,
+      "apiType": "REST API",
+      "priority": "high",
+      "blockers": ["Need Clover Developer Account"]
+    },
+    "hsa": {
+      "status": "not_started",
+      "apiConnected": false,
+      "testDataSynced": false,
+      "productionReady": false,
+      "apiType": "TBD",
+      "priority": "medium",
+      "blockers": ["Need HSA System Details"]
+    },
+    "thrive": {
+      "status": "not_started",
+      "apiConnected": false,
+      "testDataSynced": false,
+      "productionReady": false,
+      "apiType": "REST API",
+      "priority": "high",
+      "blockers": ["Need Thrive API Access"]
+    }
+  },
+  "successCriteria": {
+    "functional": [
+      "All four systems successfully integrated and syncing data",
+      "Real-time financial visibility across all business operations",
+      "Automated workflows reducing manual data entry by 80%",
+      "Complete audit trail for all financial transactions"
+    ],
+    "performance": [
+      "Dashboard loads in under 3 seconds",
+      "99.9% uptime during business hours",
+      "Zero data synchronization errors",
+      "Positive user adoption and satisfaction scores"
+    ],
+    "business": [
+      "Reduced month-end closing time by 50%",
+      "Improved inventory turnover through better visibility", 
+      "Enhanced financial decision-making through real-time data",
+      "Streamlined compliance and audit processes"
+    ]
+  },
+  "currentBlockers": [
+    {
+      "id": "BLOCK-001",
+      "description": "Need QuickBooks Developer Account and API credentials",
+      "impact": "Critical - Blocks QB integration phase",
+      "resolutionRequired": "Register for QB Developer account",
+      "assignedTo": null,
+      "targetResolution": null
+    },
+    {
+      "id": "BLOCK-002",
+      "description": "Need Clover Developer Account and API access",
+      "impact": "High - Blocks POS integration",
+      "resolutionRequired": "Contact Clover for API access",
+      "assignedTo": null,
+      "targetResolution": null
+    },
+    {
+      "id": "BLOCK-003",
+      "description": "Need HSA system details and API documentation",
+      "impact": "Medium - Affects HSA integration timeline",
+      "resolutionRequired": "Research HSA system capabilities",
+      "assignedTo": null,
+      "targetResolution": null
+    },
+    {
+      "id": "BLOCK-004",
+      "description": "Need Thrive inventory API access credentials",
+      "impact": "High - Blocks inventory integration",
+      "resolutionRequired": "Obtain Thrive API credentials",
+      "assignedTo": null,
+      "targetResolution": null
+    }
+  ],
+  "nextSteps": [
+    "Set up Replit development environment for accounting tool",
+    "Research and gather API credentials for QuickBooks, Clover, HSA, and Thrive systems",
+    "Design comprehensive database schema for integrated financial data model",
+    "Begin QuickBooks API documentation review and OAuth implementation planning",
+    "Create initial project structure and development guidelines"
+  ],
+  "riskAssessment": {
+    "high": [
+      "API access delays could push timeline significantly",
+      "Data synchronization complexity across four systems",
+      "Compliance requirements (GAAP, HIPAA) may require additional development"
+    ],
+    "medium": [
+      "Real-time performance requirements may need optimization",
+      "User training adoption curve for new integrated system"
+    ],
+    "low": [
+      "Mobile responsiveness implementation",
+      "Export functionality development"
+    ]
+  }
+}
