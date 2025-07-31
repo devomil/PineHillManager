@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -71,27 +71,31 @@ const IntegrationsPage = () => {
 
   // Fetch existing Clover configuration
   const { data: cloverConfig } = useQuery({
-    queryKey: ['/api/accounting/clover-config'],
-    onSuccess: (data) => {
-      if (data) {
-        setCloverCredentials({
-          merchantId: data.merchantId || '',
-          apiToken: data.apiToken || '',
-          environment: 'production'
-        });
-      }
-    }
+    queryKey: ['/api/accounting/clover-config']
   });
+
+  // Update form when data is loaded
+  useEffect(() => {
+    if (cloverConfig) {
+      setCloverCredentials({
+        merchantId: cloverConfig.merchantId || '',
+        apiToken: cloverConfig.apiToken || '',
+        environment: 'production'
+      });
+    }
+  }, [cloverConfig]);
 
   // Fetch all saved merchant configurations
   const { data: allMerchants } = useQuery({
-    queryKey: ['/api/accounting/config/clover/all'],
-    onSuccess: (data) => {
-      if (data) {
-        setSavedMerchants(data);
-      }
-    }
+    queryKey: ['/api/accounting/config/clover/all']
   });
+
+  // Update merchants when data is loaded
+  useEffect(() => {
+    if (allMerchants) {
+      setSavedMerchants(allMerchants);
+    }
+  }, [allMerchants]);
 
   // QuickBooks connection test
   const quickbooksTestMutation = useMutation({

@@ -1054,6 +1054,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json({ message: 'Authentication working', user: req.user?.id });
   });
 
+  // Simple test without auth
+  app.get('/api/test-simple', async (req, res) => {
+    console.log('Simple test endpoint reached');
+    res.json({ message: 'Simple test working' });
+  });
+
   // Integration Configuration Routes
   app.get('/api/accounting/quickbooks-config', isAuthenticated, async (req, res) => {
     try {
@@ -1085,12 +1091,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/accounting/clover-config', isAuthenticated, async (req, res) => {
+  // Direct database query for clover config
+  app.get('/api/accounting/clover-config', async (req, res) => {
     try {
+      console.log('=== Clover Config Endpoint Called ===');
+      console.log('User authenticated:', req.isAuthenticated());
+      console.log('User object:', req.user);
+      
+      if (!req.isAuthenticated() || !req.user) {
+        console.log('Authentication failed, returning 401');
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      
       console.log('Getting active Clover config...');
-      const config = await storage.getActiveCloverConfig();
+      // Direct query to bypass any storage issues
+      const { db } = await import('./db');
+      const { cloverConfig } = await import('@shared/schema');  
+      const { eq } = await import('drizzle-orm');
+      
+      const configs = await db.select().from(cloverConfig).where(eq(cloverConfig.isActive, true)).limit(1);
+      const config = configs[0] || null;
+      
       console.log('Clover config found:', config);
-      res.json(config || null);
+      res.json(config);
     } catch (error) {
       console.error('Error fetching Clover config:', error);
       res.status(500).json({ message: 'Failed to fetch Clover configuration' });
