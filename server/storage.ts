@@ -1876,7 +1876,11 @@ export class DatabaseStorage implements IStorage {
 
   // Clover Configuration Management  
   async createCloverConfig(config: InsertCloverConfig): Promise<CloverConfig> {
-    const [cloverConf] = await db.insert(cloverConfig).values(config).returning();
+    const [cloverConf] = await db.insert(cloverConfig).values({
+      ...config,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    }).returning();
     return cloverConf;
   }
 

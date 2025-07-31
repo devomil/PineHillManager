@@ -1089,16 +1089,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Clover Configuration Routes  
+  app.post('/api/accounting/config/clover', isAuthenticated, async (req, res) => {
+    try {
+      const { merchantId, apiToken, environment } = req.body;
+      
+      if (!merchantId || !apiToken) {
+        return res.status(400).json({ message: 'Merchant ID and API Token are required' });
+      }
+
+      // Set baseUrl based on environment
+      const baseUrl = environment === 'sandbox' ? 'https://apisandbox.dev.clover.com' : 'https://api.clover.com';
+      
+      // Check if configuration already exists for this merchant
+      const existingConfig = await storage.getCloverConfig(merchantId);
+      let config;
+      
+      if (existingConfig) {
+        // Update existing configuration
+        config = await storage.updateCloverConfig(existingConfig.id, {
+          apiToken,
+          baseUrl,
+          isActive: true,
+          updatedAt: new Date()
+        });
+      } else {
+        // Create new configuration
+        config = await storage.createCloverConfig({
+          merchantId,
+          apiToken,
+          baseUrl,
+          isActive: true
+        });
+      }
+      
+      res.json(config);
+    } catch (error) {
+      console.error('Error saving Clover config:', error);
+      res.status(500).json({ message: 'Failed to save Clover configuration' });
+    }
+  });
+
   app.post('/api/accounting/clover-config', isAuthenticated, async (req, res) => {
     try {
       const { merchantId, apiKey, baseUrl, isActive } = req.body;
       const config = await storage.createCloverConfig({
         merchantId: merchantId || '',
-        apiKey: apiKey || '',
+        apiToken: apiKey || '',
         baseUrl: baseUrl || 'https://api.clover.com',
-        isActive: isActive ?? true,
-        createdAt: new Date(),
-        updatedAt: new Date()
+        isActive: isActive ?? true
       });
       res.status(201).json(config);
     } catch (error) {
