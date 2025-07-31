@@ -52,10 +52,11 @@ function AccountingContent() {
     queryKey: ['/api/accounting/accounts'],
   });
 
-  // Analytics data (stub for now)
+  // Analytics data - today's data
+  const today = new Date().toISOString().split('T')[0];
   const { data: profitLoss } = useQuery({
-    queryKey: ['/api/accounting/analytics/profit-loss'],
-    queryFn: () => apiRequest('GET', '/api/accounting/analytics/profit-loss?startDate=2025-01-01&endDate=2025-12-31'),
+    queryKey: ['/api/accounting/analytics/profit-loss', today],
+    queryFn: () => apiRequest('GET', `/api/accounting/analytics/profit-loss?startDate=${today}&endDate=${today}`),
   });
 
   const getStatusIcon = (status: string) => {
@@ -228,7 +229,7 @@ function AccountingContent() {
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">${(profitLoss as any)?.revenue || '0.00'}</div>
-                  <p className="text-xs text-muted-foreground">Year to date</p>
+                  <p className="text-xs text-muted-foreground">Today</p>
                 </CardContent>
               </Card>
               
@@ -239,7 +240,7 @@ function AccountingContent() {
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">${(profitLoss as any)?.expenses || '0.00'}</div>
-                  <p className="text-xs text-muted-foreground">Year to date</p>
+                  <p className="text-xs text-muted-foreground">Today</p>
                 </CardContent>
               </Card>
 
@@ -250,7 +251,7 @@ function AccountingContent() {
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">${(profitLoss as any)?.netIncome || '0.00'}</div>
-                  <p className="text-xs text-muted-foreground">Year to date</p>
+                  <p className="text-xs text-muted-foreground">Today</p>
                 </CardContent>
               </Card>
 
