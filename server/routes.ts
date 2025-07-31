@@ -1098,7 +1098,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'Merchant ID and API Token are required' });
       }
 
-      // Set baseUrl based on environment
+      // Set baseUrl based on environment  
       const baseUrl = environment === 'sandbox' ? 'https://apisandbox.dev.clover.com' : 'https://api.clover.com';
       
       // Check if configuration already exists for this merchant
