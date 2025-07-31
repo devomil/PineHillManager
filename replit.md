@@ -110,11 +110,19 @@ Preferred communication style: Simple, everyday language.
 
 ### External Integrations Framework (Phase 2 Complete - January 2025)
 - **QuickBooks Integration**: OAuth 2.0 flow, chart of accounts sync, customer/vendor management, transaction processing
-- **Clover POS Integration**: Daily sales sync, transaction categorization, payment method breakdown, inventory integration
+- **Clover POS Integration**: Live production API integration with Lake Geneva Retail (2DWZED6B4ZVF1), daily sales sync, transaction categorization, payment method breakdown, inventory integration
 - **HSA Provider Integration**: Medical expense tracking, compliance reporting, receipt management, eligibility verification
 - **Thrive Inventory Integration**: Real-time stock monitoring, low stock alerts, purchase order tracking, COGS calculation
 - **Integration Dashboard**: Complete UI for managing all external connections with test capabilities and status monitoring
 - **API Infrastructure**: 50+ integration-specific API endpoints with OAuth handling and error logging
+
+### Clover POS Integration Details (July 31, 2025)
+- **Production Environment**: Successfully configured with https://api.clover.com
+- **Merchant Accounts**: 6 total locations (Lake Geneva Retail, Watertown Retail, Lake Geneva HSA, Watertown HSA, Pine Hill Farm Main, Online Store)
+- **Authentication**: Production API tokens with Read/Write permissions for Orders, Payments, Customers, Inventory, Merchant APIs
+- **Active Integration**: Lake Geneva Retail (2DWZED6B4ZVF1) fully operational
+- **Setup Guide**: Complete documentation in CLOVER_INTEGRATION_SETUP.md for additional merchant configuration
+- **Sales Sync**: Real-time transaction data retrieval and accounting system integration
 
 ## Deployment Strategy
 
