@@ -56,7 +56,10 @@ function AccountingContent() {
   const today = new Date().toISOString().split('T')[0];
   const { data: profitLoss } = useQuery({
     queryKey: ['/api/accounting/analytics/profit-loss', today],
-    queryFn: () => apiRequest('GET', `/api/accounting/analytics/profit-loss?startDate=${today}&endDate=${today}`),
+    queryFn: async () => {
+      const response = await apiRequest('GET', `/api/accounting/analytics/profit-loss?startDate=${today}&endDate=${today}`);
+      return await response.json();
+    },
   });
 
   const getStatusIcon = (status: string) => {

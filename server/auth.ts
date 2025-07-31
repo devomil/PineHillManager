@@ -347,17 +347,23 @@ export function setupAuth(app: Express) {
 
 // Authentication middleware for protected routes
 function isAuthenticated(req: any, res: any, next: any) {
-  console.log('Auth check - isAuthenticated():', req.isAuthenticated());
-  console.log('Auth check - session user:', req.user);
-  console.log('Auth check - session:', req.session);
-  
-  if (req.isAuthenticated() && req.user) {
-    console.log('Authentication successful for user:', req.user.id);
-    return next();
+  try {
+    console.log('Auth middleware called for:', req.method, req.path);
+    console.log('Auth check - isAuthenticated():', req.isAuthenticated());
+    console.log('Auth check - session user:', req.user);
+    console.log('Auth check - session:', req.session);
+    
+    if (req.isAuthenticated() && req.user) {
+      console.log('Authentication successful for user:', req.user.id);
+      return next();
+    }
+    
+    console.log('Authentication failed, returning 401');
+    res.status(401).json({ error: "Authentication required" });
+  } catch (error) {
+    console.error('Authentication middleware error:', error);
+    res.status(500).json({ error: "Authentication error" });
   }
-  
-  console.log('Authentication failed, returning 401');
-  res.status(401).json({ error: "Authentication required" });
 }
 
 // Role-based authorization middleware

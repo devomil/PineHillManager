@@ -1048,6 +1048,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ACCOUNTING TOOL API ROUTES
   // ============================================
 
+  // Test endpoint for debugging
+  app.get('/api/test-auth', isAuthenticated, async (req, res) => {
+    console.log('Test auth endpoint reached');
+    res.json({ message: 'Authentication working', user: req.user?.id });
+  });
+
   // Integration Configuration Routes
   app.get('/api/accounting/quickbooks-config', isAuthenticated, async (req, res) => {
     try {
@@ -1079,9 +1085,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/accounting/clover-config', isAuthenticated, async (req, res) => {
+  app.get('/api/accounting/clover-config', async (req, res) => {
     try {
+      // Check auth without middleware
+      if (!req.isAuthenticated() || !req.user) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      
+      console.log('Getting active Clover config...');
       const config = await storage.getActiveCloverConfig();
+      console.log('Clover config found:', config);
       res.json(config || null);
     } catch (error) {
       console.error('Error fetching Clover config:', error);
@@ -1412,15 +1425,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/accounting/analytics/profit-loss', isAuthenticated, async (req, res) => {
+  app.get('/api/accounting/analytics/profit-loss', async (req, res) => {
     try {
+      // Check auth without middleware
+      if (!req.isAuthenticated() || !req.user) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      
       const { startDate, endDate } = req.query;
+      console.log('Profit-loss request:', { startDate, endDate });
       
       if (!startDate || !endDate) {
+        console.log('Missing dates, returning 400');
         return res.status(400).json({ message: 'Start date and end date are required' });
       }
 
+      console.log('Getting profit-loss data...');
       const profitLoss = await storage.getProfitLoss(startDate as string, endDate as string);
+      console.log('Profit-loss result:', profitLoss);
       res.json(profitLoss);
     } catch (error) {
       console.error('Error fetching profit and loss:', error);

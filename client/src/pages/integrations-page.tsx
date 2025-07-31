@@ -71,7 +71,7 @@ const IntegrationsPage = () => {
 
   // Fetch existing Clover configuration
   const { data: cloverConfig } = useQuery({
-    queryKey: ['/api/accounting/config/clover'],
+    queryKey: ['/api/accounting/clover-config'],
     onSuccess: (data) => {
       if (data) {
         setCloverCredentials({
