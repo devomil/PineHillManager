@@ -1099,7 +1099,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Set baseUrl based on environment
-      const baseUrl = environment === 'sandbox' ? 'https://sandbox.dev.clover.com' : 'https://api.clover.com';
+      const baseUrl = environment === 'sandbox' ? 'https://apisandbox.dev.clover.com' : 'https://api.clover.com';
       
       // Check if configuration already exists for this merchant
       const existingConfig = await storage.getCloverConfig(merchantId);
