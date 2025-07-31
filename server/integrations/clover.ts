@@ -81,6 +81,10 @@ export class CloverIntegration {
       const baseUrl = config.baseUrl || 'https://api.clover.com';
       const url = `${baseUrl}/v3/merchants/${config.merchantId}/${endpoint}`;
       
+      console.log(`Making Clover API call to: ${url}`);
+      console.log(`Using merchant ID: ${config.merchantId}`);
+      console.log(`Using base URL: ${baseUrl}`);
+      
       const response = await fetch(url, {
         method,
         headers: {
@@ -91,7 +95,14 @@ export class CloverIntegration {
       });
 
       if (!response.ok) {
-        throw new Error(`Clover API error: ${response.status} ${response.statusText}`);
+        const errorBody = await response.text();
+        console.error(`Clover API error details:`, {
+          status: response.status,
+          statusText: response.statusText,
+          url,
+          body: errorBody
+        });
+        throw new Error(`Clover API error: ${response.status} ${response.statusText} - ${errorBody}`);
       }
 
       return await response.json();
