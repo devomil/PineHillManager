@@ -123,6 +123,8 @@ Preferred communication style: Simple, everyday language.
 - **Active Integration**: Lake Geneva Retail (2DWZED6B4ZVF1) fully operational
 - **Setup Guide**: Complete documentation in CLOVER_INTEGRATION_SETUP.md for additional merchant configuration
 - **Sales Sync**: Real-time transaction data retrieval and accounting system integration
+- **Database Schema**: Fixed all missing columns in pos_sales and pos_sale_items tables (employee_id, customer_count, status, qb_posted, qb_transaction_id, last_sync_at, inventory_item_id, line_total, discount_amount)
+- **Credential Persistence**: Enhanced UI to save and display multiple merchant configurations with visible API tokens
 
 ## Deployment Strategy
 

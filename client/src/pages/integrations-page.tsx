@@ -49,6 +49,8 @@ const IntegrationsPage = () => {
     environment: 'production'
   });
 
+  const [savedMerchants, setSavedMerchants] = useState([]);
+
   const [hsaCredentials, setHsaCredentials] = useState({
     providerId: '',
     apiKey: '',
@@ -65,6 +67,30 @@ const IntegrationsPage = () => {
   const { data: integrationStatus, isLoading } = useQuery({
     queryKey: ['/api/accounting/health'],
     refetchInterval: 30000 // Refresh every 30 seconds
+  });
+
+  // Fetch existing Clover configuration
+  const { data: cloverConfig } = useQuery({
+    queryKey: ['/api/accounting/config/clover'],
+    onSuccess: (data) => {
+      if (data) {
+        setCloverCredentials({
+          merchantId: data.merchantId || '',
+          apiToken: data.apiToken || '',
+          environment: 'production'
+        });
+      }
+    }
+  });
+
+  // Fetch all saved merchant configurations
+  const { data: allMerchants } = useQuery({
+    queryKey: ['/api/accounting/config/clover/all'],
+    onSuccess: (data) => {
+      if (data) {
+        setSavedMerchants(data);
+      }
+    }
   });
 
   // QuickBooks connection test
@@ -500,6 +526,37 @@ const IntegrationsPage = () => {
                   <CardTitle className="text-lg">API Credentials</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  {/* Saved Merchants Display */}
+                  {savedMerchants && savedMerchants.length > 0 && (
+                    <div className="mb-6">
+                      <h4 className="text-sm font-medium text-gray-700 mb-3">Saved Merchant Configurations</h4>
+                      <div className="space-y-2">
+                        {savedMerchants.map((merchant, index) => (
+                          <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                            <div className="flex-1">
+                              <div className="font-medium text-sm">{merchant.merchantName || `Merchant ${index + 1}`}</div>
+                              <div className="text-xs text-gray-500">ID: {merchant.merchantId}</div>
+                              <div className="text-xs text-gray-500">Token: {merchant.apiToken ? `${merchant.apiToken.slice(0, 8)}...` : 'Not set'}</div>
+                            </div>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setCloverCredentials({
+                                  merchantId: merchant.merchantId,
+                                  apiToken: merchant.apiToken,
+                                  environment: 'production'
+                                });
+                              }}
+                            >
+                              Use
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <Label htmlFor="clover-merchant-id">Merchant ID</Label>
@@ -508,17 +565,17 @@ const IntegrationsPage = () => {
                         type="text"
                         value={cloverCredentials.merchantId}
                         onChange={(e) => setCloverCredentials(prev => ({ ...prev, merchantId: e.target.value }))}
-                        placeholder="Enter Clover Merchant ID"
+                        placeholder="e.g., 2DWZED6B4ZVF1"
                       />
                     </div>
                     <div>
                       <Label htmlFor="clover-api-token">API Token</Label>
                       <Input
                         id="clover-api-token"
-                        type="password"
+                        type="text"
                         value={cloverCredentials.apiToken}
                         onChange={(e) => setCloverCredentials(prev => ({ ...prev, apiToken: e.target.value }))}
-                        placeholder="Enter Clover API Token"
+                        placeholder="e.g., 0536d75e-8fe8-b412-f483-8bfb08d7365f"
                       />
                     </div>
                   </div>
