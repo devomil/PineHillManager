@@ -46,7 +46,7 @@ const IntegrationsPage = () => {
   const [cloverCredentials, setCloverCredentials] = useState({
     merchantId: '',
     apiToken: '',
-    environment: 'sandbox'
+    environment: 'production'
   });
 
   const [hsaCredentials, setHsaCredentials] = useState({
@@ -524,15 +524,10 @@ const IntegrationsPage = () => {
                   </div>
                   <div>
                     <Label htmlFor="clover-environment">Environment</Label>
-                    <select
-                      id="clover-environment"
-                      value={cloverCredentials.environment}
-                      onChange={(e) => setCloverCredentials(prev => ({ ...prev, environment: e.target.value }))}
-                      className="w-full p-2 border rounded-md"
-                    >
-                      <option value="sandbox">Sandbox</option>
-                      <option value="production">Production</option>
-                    </select>
+                    <div className="w-full p-2 border rounded-md bg-gray-50 text-gray-700">
+                      Production
+                    </div>
+                    <input type="hidden" name="environment" value="production" />
                   </div>
                   <Button 
                     onClick={() => saveCloverMutation.mutate(cloverCredentials)}
