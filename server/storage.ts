@@ -2195,9 +2195,52 @@ export class DatabaseStorage implements IStorage {
   async updateWidgetPosition(id: number, position: number): Promise<DashboardWidget> { throw new Error("Not implemented yet"); }
   async getAccountBalance(accountId: number, asOfDate?: string): Promise<string> { return "0.00"; }
   async getTrialBalance(asOfDate?: string): Promise<{ accountName: string; balance: string; accountType: string }[]> { return []; }
-  async getProfitLoss(startDate: string, endDate: string): Promise<{ revenue: string; expenses: string; netIncome: string }> { return { revenue: "0.00", expenses: "0.00", netIncome: "0.00" }; }
+  async getProfitLoss(startDate: string, endDate: string): Promise<{ revenue: string; expenses: string; netIncome: string }> {
+    // Calculate revenue from POS sales
+    const salesResult = await db
+      .select({ totalRevenue: sql<string>`COALESCE(SUM(${posSales.totalAmount}), 0)::text` })
+      .from(posSales)
+      .where(and(
+        gte(posSales.saleDate, startDate), 
+        lte(posSales.saleDate, endDate)
+      ));
+    
+    const revenue = salesResult[0]?.totalRevenue || "0.00";
+    
+    // For now, expenses are 0 (will be implemented with other integrations)
+    const expenses = "0.00";
+    
+    // Net income = revenue - expenses
+    const netIncome = (parseFloat(revenue) - parseFloat(expenses)).toFixed(2);
+    
+    return { revenue, expenses, netIncome };
+  }
   async getCashFlow(startDate: string, endDate: string): Promise<{ cashIn: string; cashOut: string; netCash: string }> { return { cashIn: "0.00", cashOut: "0.00", netCash: "0.00" }; }
-  async getSalesSummary(startDate: string, endDate: string, locationId?: number): Promise<{ totalSales: string; totalTax: string; totalTips: string; transactionCount: number }> { return { totalSales: "0.00", totalTax: "0.00", totalTips: "0.00", transactionCount: 0 }; }
+  async getSalesSummary(startDate: string, endDate: string, locationId?: number): Promise<{ totalSales: string; totalTax: string; totalTips: string; transactionCount: number }> {
+    let query = db
+      .select({
+        totalSales: sql<string>`COALESCE(SUM(${posSales.totalAmount}), 0)::text`,
+        totalTax: sql<string>`COALESCE(SUM(${posSales.taxAmount}), 0)::text`,
+        totalTips: sql<string>`COALESCE(SUM(${posSales.tipAmount}), 0)::text`,
+        transactionCount: sql<number>`COUNT(*)::integer`
+      })
+      .from(posSales)
+      .where(and(
+        gte(posSales.saleDate, startDate), 
+        lte(posSales.saleDate, endDate)
+      ));
+    
+    if (locationId) {
+      query = query.where(and(
+        gte(posSales.saleDate, startDate), 
+        lte(posSales.saleDate, endDate),
+        eq(posSales.locationId, locationId)
+      ));
+    }
+    
+    const result = await query;
+    return result[0] || { totalSales: "0.00", totalTax: "0.00", totalTips: "0.00", transactionCount: 0 };
+  }
   async getInventoryValuation(): Promise<{ totalCost: string; totalRetail: string; itemCount: number }> { return { totalCost: "0.00", totalRetail: "0.00", itemCount: 0 }; }
 }
 
