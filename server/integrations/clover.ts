@@ -212,7 +212,7 @@ export class CloverIntegration {
         system: 'clover',
         operation: 'sync_daily_sales',
         status: 'error',
-        message: `Failed to sync daily sales: ${error.message}`
+        message: `Failed to sync daily sales: ${error instanceof Error ? error.message : 'Unknown error'}`
       });
 
       throw error;
