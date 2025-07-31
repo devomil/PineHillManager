@@ -1085,13 +1085,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/accounting/clover-config', async (req, res) => {
+  app.get('/api/accounting/clover-config', isAuthenticated, async (req, res) => {
     try {
-      // Check auth without middleware
-      if (!req.isAuthenticated() || !req.user) {
-        return res.status(401).json({ error: "Authentication required" });
-      }
-      
       console.log('Getting active Clover config...');
       const config = await storage.getActiveCloverConfig();
       console.log('Clover config found:', config);
