@@ -90,6 +90,10 @@ const IntegrationsPage = () => {
   useEffect(() => {
     console.log('Clover config from API:', cloverConfig);
     console.log('Current credentials state:', cloverCredentials);
+    
+    if (cloverConfig && cloverConfig.merchantId && !cloverCredentials.merchantId) {
+      console.log('Loading credentials from API response');
+    }
   }, [cloverConfig, cloverCredentials]);
 
   // Fetch all saved merchant configurations
