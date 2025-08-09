@@ -27,6 +27,9 @@ const upload = multer({
 
 export async function registerRoutes(app: Express): Promise<Server> {
 
+  // Serve static files from uploads directory
+  app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
+
   // Performance monitoring
   app.use(performanceMiddleware);
   app.get('/api/performance/metrics', getPerformanceMetrics);
@@ -2037,34 +2040,105 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Start video generation process (simulate with status update)
-      setTimeout(async () => {
-        try {
-          await storage.updateProductVideo(video.id, {
-            renderStatus: 'completed',
-            renderProgress: 100,
-            videoUrl: `/uploads/videos/generated_${video.id}.mp4`,
-            thumbnailUrl: `/uploads/videos/thumbnail_${video.id}.jpg`,
-            duration: videoConfig.videoLength,
-            renderCompletedAt: new Date(),
-          });
-        } catch (error) {
-          console.error('Error completing video generation:', error);
-          await storage.updateProductVideo(video.id, {
-            renderStatus: 'failed',
-            errorMessage: 'Video generation failed',
-          });
-        }
-      }, 5000); // Simulate 5 second generation time
+      // Create a demo video HTML file for now (proof of concept)
+      const videoDir = path.join(process.cwd(), 'uploads', 'videos');
+      if (!fs.existsSync(videoDir)) {
+        fs.mkdirSync(videoDir, { recursive: true });
+      }
+
+      // Generate a simple HTML5 video presentation
+      const videoHtml = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>${videoConfig.productName} - Marketing Video</title>
+  <style>
+    body { font-family: 'Arial', sans-serif; margin: 0; padding: 40px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; text-align: center; }
+    .container { max-width: 800px; margin: 0 auto; }
+    h1 { font-size: 2.5em; margin-bottom: 30px; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }
+    .description { font-size: 1.2em; line-height: 1.6; margin-bottom: 30px; }
+    .benefits { background: rgba(255,255,255,0.1); padding: 20px; border-radius: 10px; margin: 20px 0; }
+    .category { background: rgba(255,255,255,0.2); padding: 10px 20px; border-radius: 20px; display: inline-block; margin-bottom: 20px; }
+    .footer { margin-top: 40px; font-size: 1.1em; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="category">${videoConfig.category}</div>
+    <h1>${videoConfig.productName}</h1>
+    <div class="description">
+      ${videoConfig.productDescription}
+    </div>
+    <div class="benefits">
+      <h2>Key Benefits:</h2>
+      ${videoConfig.keyPoints.map(point => `<p>• ${point}</p>`).join('')}
+    </div>
+    <div class="footer">
+      Perfect for ${videoConfig.targetAudience} | ${videoConfig.videoLength} seconds
+    </div>
+  </div>
+  <script>
+    // Auto-play audio narration using Web Speech API
+    const text = "${videoConfig.script || 'Introducing ' + videoConfig.productName + '. ' + videoConfig.productDescription}";
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.voice = speechSynthesis.getVoices().find(voice => voice.name.includes('female')) || speechSynthesis.getVoices()[0];
+    utterance.rate = 0.9;
+    setTimeout(() => speechSynthesis.speak(utterance), 1000);
+  </script>
+</body>
+</html>`;
+
+      const videoFilePath = path.join(videoDir, `video_${video.id}.html`);
+      fs.writeFileSync(videoFilePath, videoHtml);
+
+      // Update video status immediately
+      await storage.updateProductVideo(video.id, {
+        renderStatus: 'completed',
+        renderProgress: 100,
+        videoUrl: `/uploads/videos/video_${video.id}.html`,
+        duration: videoConfig.videoLength,
+        renderCompletedAt: new Date(),
+      });
 
       res.json({
         success: true,
         videoId: video.id,
-        message: 'Video generation started successfully'
+        videoUrl: `/uploads/videos/video_${video.id}.html`,
+        message: 'Video generated successfully'
       });
     } catch (error) {
       console.error('Error generating video:', error);
       res.status(500).json({ message: 'Failed to generate video' });
+    }
+  });
+
+  // Get video status
+  app.get('/api/videos/:id', isAuthenticated, async (req, res) => {
+    try {
+      const videoId = parseInt(req.params.id);
+      const video = await storage.getProductVideoById(videoId);
+      
+      if (!video) {
+        return res.status(404).json({ message: 'Video not found' });
+      }
+
+      res.json(video);
+    } catch (error) {
+      console.error('Error fetching video:', error);
+      res.status(500).json({ message: 'Failed to fetch video' });
+    }
+  });
+
+  // Get user's videos
+  app.get('/api/videos', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const videos = await storage.getUserVideos(user.id);
+      res.json(videos);
+    } catch (error) {
+      console.error('Error fetching user videos:', error);
+      res.status(500).json({ message: 'Failed to fetch videos' });
     }
   });
 

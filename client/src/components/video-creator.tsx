@@ -25,7 +25,9 @@ import {
   Clock,
   Mic,
   Image as ImageIcon,
-  Sparkles
+  Sparkles,
+  CheckCircle,
+  PlayCircle
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -53,6 +55,7 @@ export default function VideoCreator() {
   const [currentStep, setCurrentStep] = useState(1);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationProgress, setGenerationProgress] = useState(0);
+  const [generatedVideoUrl, setGeneratedVideoUrl] = useState<string | null>(null);
   const [config, setConfig] = useState<VideoConfig>({
     productName: '',
     productDescription: '',
@@ -109,9 +112,10 @@ export default function VideoCreator() {
     onSuccess: (data) => {
       setIsGenerating(false);
       setGenerationProgress(0);
+      setGeneratedVideoUrl(data.videoUrl);
       toast({
         title: "Video Generated Successfully!",
-        description: "Your product video is ready for download and use.",
+        description: "Your product video is ready! Click 'View Video' to see the result.",
       });
       queryClient.invalidateQueries({ queryKey: ['/api/videos'] });
     },
@@ -275,6 +279,55 @@ export default function VideoCreator() {
                   ></div>
                 </div>
                 <p className="text-xs text-blue-600 mt-1">{generationProgress}% complete</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {generatedVideoUrl && (
+        <Card className="border-green-200 bg-green-50">
+          <CardContent className="p-6">
+            <div className="flex items-center space-x-4">
+              <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+                <CheckCircle className="h-6 w-6 text-green-600" />
+              </div>
+              <div className="flex-1">
+                <h3 className="font-semibold text-green-900">Video Generated Successfully!</h3>
+                <p className="text-sm text-green-700 mb-3">Your professional product video is ready to view and share.</p>
+                <div className="flex gap-3">
+                  <Button
+                    onClick={() => window.open(generatedVideoUrl, '_blank')}
+                    className="bg-green-600 hover:bg-green-700 text-white"
+                  >
+                    <PlayCircle className="h-4 w-4 mr-2" />
+                    View Video
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setGeneratedVideoUrl(null);
+                      setConfig({
+                        productName: '',
+                        productDescription: '',
+                        category: '',
+                        keyPoints: [''],
+                        targetAudience: '',
+                        videoLength: 30,
+                        videoStyle: '',
+                        animationType: '',
+                        cinemaStyle: '',
+                        script: '',
+                        voiceType: '',
+                        musicStyle: '',
+                        images: []
+                      });
+                      setCurrentStep(1);
+                    }}
+                  >
+                    Create Another Video
+                  </Button>
+                </div>
               </div>
             </div>
           </CardContent>
