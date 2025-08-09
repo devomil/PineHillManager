@@ -2000,18 +2000,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Generate product video
   app.post('/api/videos/generate', isAuthenticated, upload.array('images', 10), async (req, res) => {
     try {
-      const { config } = req.body;
       const user = req.user as any;
       const files = req.files as Express.Multer.File[];
       
       console.log('Video generation request body:', req.body);
-      console.log('Config parameter:', config);
+      console.log('Config parameter:', req.body.config);
+      console.log('All form fields:', Object.keys(req.body));
       
-      if (!config) {
+      if (!req.body.config) {
         return res.status(400).json({ message: 'Video configuration is required' });
       }
 
-      const videoConfig = JSON.parse(config);
+      const videoConfig = JSON.parse(req.body.config);
       
       // Create video record
       const video = await storage.createProductVideo({
