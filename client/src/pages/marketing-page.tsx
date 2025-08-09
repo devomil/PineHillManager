@@ -14,6 +14,7 @@ import { apiRequest } from '@/lib/queryClient';
 import AdminLayout from '@/components/admin-layout';
 import QrCodeHistory from '@/components/qr-code-history';
 import VideoCreator from '@/components/video-creator';
+import VideoHistory from '@/components/video-history';
 import { useLocation } from 'wouter';
 
 export default function MarketingPage() {
@@ -167,7 +168,7 @@ export default function MarketingPage() {
   };
 
   return (
-    <AdminLayout>
+    <AdminLayout currentTab="marketing">
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
@@ -189,7 +190,7 @@ export default function MarketingPage() {
         </div>
 
         <Tabs defaultValue="generator" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="generator" className="flex items-center gap-2">
               <Plus className="h-4 w-4" />
               QR Code Generator
@@ -201,6 +202,10 @@ export default function MarketingPage() {
             <TabsTrigger value="video-creator" className="flex items-center gap-2">
               <Video className="h-4 w-4" />
               Video Creator
+            </TabsTrigger>
+            <TabsTrigger value="video-history" className="flex items-center gap-2">
+              <Video className="h-4 w-4" />
+              Video History
             </TabsTrigger>
           </TabsList>
 
@@ -404,6 +409,10 @@ export default function MarketingPage() {
 
           <TabsContent value="video-creator" className="space-y-6">
             <VideoCreator />
+          </TabsContent>
+
+          <TabsContent value="video-history" className="space-y-6">
+            <VideoHistory />
           </TabsContent>
         </Tabs>
       </div>

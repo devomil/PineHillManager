@@ -1,0 +1,42 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Black Cohosh Extract Plus - Marketing Video</title>
+  <style>
+    body { font-family: 'Arial', sans-serif; margin: 0; padding: 40px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; text-align: center; }
+    .container { max-width: 800px; margin: 0 auto; }
+    h1 { font-size: 2.5em; margin-bottom: 30px; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }
+    .description { font-size: 1.2em; line-height: 1.6; margin-bottom: 30px; }
+    .benefits { background: rgba(255,255,255,0.1); padding: 20px; border-radius: 10px; margin: 20px 0; }
+    .category { background: rgba(255,255,255,0.2); padding: 10px 20px; border-radius: 20px; display: inline-block; margin-bottom: 20px; }
+    .footer { margin-top: 40px; font-size: 1.1em; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="category">supplements</div>
+    <h1>Black Cohosh Extract Plus</h1>
+    <div class="description">
+      Black Cohosh is an herb that provides a natural way to normalize hormonal changes and moderate the uncomfortable changes that accompany menopause. Numerous studies have been done using black cohosh. Studies have identified the isoflavone phytoestrogen formononetin as the most likely candidate for the effects of black cohosh on female health. This compound has been shown to help support normal, healthy levels of luteinizing hormone (LH).† Increased LH levels, which are often the result of declining estrogen levels, are typically responsible for the changes associated with menopause. Dong quai and chasteberry are included for their synergistic effects, which helps support a normal, healthy response to female hormone imbalance and support symptoms associated with menopause.
+
+    </div>
+    <div class="benefits">
+      <h2>Key Benefits:</h2>
+      <p>• Supports Menopause Symptoms </p>
+    </div>
+    <div class="footer">
+      Perfect for 42 year old women | 30 seconds
+    </div>
+  </div>
+  <script>
+    // Auto-play audio narration using Web Speech API
+    const text = "Introducing Black Cohosh Extract Plus! Black Cohosh is an herb that provides a natural way to normalize hormonal changes and moderate the uncomfortable changes that accompany menopause. Numerous studies have been done using black cohosh. Studies have identified the isoflavone phytoestrogen formononetin as the most likely candidate for th Key benefits include: Supports Menopause Symptoms . Experience the difference today!";
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.voice = speechSynthesis.getVoices().find(voice => voice.name.includes('female')) || speechSynthesis.getVoices()[0];
+    utterance.rate = 0.9;
+    setTimeout(() => speechSynthesis.speak(utterance), 1000);
+  </script>
+</body>
+</html>

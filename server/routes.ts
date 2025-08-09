@@ -2046,7 +2046,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         fs.mkdirSync(videoDir, { recursive: true });
       }
 
-      // Generate a simple HTML5 video presentation
+      // Generate an animated HTML5 video presentation with professional features
       const videoHtml = `
 <!DOCTYPE html>
 <html>
@@ -2054,37 +2054,328 @@ export async function registerRoutes(app: Express): Promise<Server> {
   <meta charset="UTF-8">
   <title>${videoConfig.productName} - Marketing Video</title>
   <style>
-    body { font-family: 'Arial', sans-serif; margin: 0; padding: 40px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; text-align: center; }
-    .container { max-width: 800px; margin: 0 auto; }
-    h1 { font-size: 2.5em; margin-bottom: 30px; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }
-    .description { font-size: 1.2em; line-height: 1.6; margin-bottom: 30px; }
-    .benefits { background: rgba(255,255,255,0.1); padding: 20px; border-radius: 10px; margin: 20px 0; }
-    .category { background: rgba(255,255,255,0.2); padding: 10px 20px; border-radius: 20px; display: inline-block; margin-bottom: 20px; }
-    .footer { margin-top: 40px; font-size: 1.1em; font-weight: bold; }
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+    
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    
+    body {
+      font-family: 'Inter', sans-serif;
+      overflow: hidden;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .video-container {
+      width: 100%;
+      height: 100%;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .content {
+      max-width: 900px;
+      text-align: center;
+      padding: 60px;
+      opacity: 0;
+      transform: translateY(50px);
+      animation: slideIn 1s ease-out 0.5s forwards;
+    }
+    
+    .category-badge {
+      background: rgba(255,255,255,0.2);
+      backdrop-filter: blur(10px);
+      padding: 12px 24px;
+      border-radius: 30px;
+      display: inline-block;
+      margin-bottom: 30px;
+      font-size: 0.9em;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      opacity: 0;
+      animation: fadeInUp 1s ease-out 1s forwards;
+    }
+    
+    .product-title {
+      font-size: 3.5em;
+      font-weight: 700;
+      margin-bottom: 40px;
+      text-shadow: 2px 2px 8px rgba(0,0,0,0.3);
+      background: linear-gradient(45deg, #fff 0%, #f0f0f0 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      opacity: 0;
+      transform: scale(0.8);
+      animation: titleZoom 1.2s ease-out 1.5s forwards;
+    }
+    
+    .description {
+      font-size: 1.3em;
+      line-height: 1.7;
+      margin-bottom: 50px;
+      font-weight: 300;
+      max-width: 800px;
+      margin-left: auto;
+      margin-right: auto;
+      opacity: 0;
+      animation: fadeInUp 1s ease-out 2.5s forwards;
+    }
+    
+    .benefits-container {
+      background: rgba(255,255,255,0.15);
+      backdrop-filter: blur(15px);
+      border: 1px solid rgba(255,255,255,0.2);
+      padding: 40px;
+      border-radius: 20px;
+      margin: 40px 0;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+      opacity: 0;
+      transform: translateY(30px);
+      animation: slideInUp 1s ease-out 3.5s forwards;
+    }
+    
+    .benefits-title {
+      font-size: 2em;
+      font-weight: 600;
+      margin-bottom: 30px;
+      color: #fff;
+    }
+    
+    .benefit-item {
+      font-size: 1.2em;
+      margin: 15px 0;
+      padding: 15px 0;
+      position: relative;
+      opacity: 0;
+      transform: translateX(-20px);
+    }
+    
+    .benefit-item:nth-child(2) { animation: slideInLeft 0.8s ease-out 4s forwards; }
+    .benefit-item:nth-child(3) { animation: slideInLeft 0.8s ease-out 4.3s forwards; }
+    .benefit-item:nth-child(4) { animation: slideInLeft 0.8s ease-out 4.6s forwards; }
+    
+    .benefit-item::before {
+      content: "✓";
+      position: absolute;
+      left: -30px;
+      top: 15px;
+      background: #4ade80;
+      color: white;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.8em;
+      font-weight: bold;
+    }
+    
+    .footer {
+      margin-top: 50px;
+      font-size: 1.3em;
+      font-weight: 600;
+      background: rgba(255,255,255,0.1);
+      padding: 20px 40px;
+      border-radius: 15px;
+      opacity: 0;
+      animation: fadeInUp 1s ease-out 5.5s forwards;
+    }
+    
+    .floating-particles {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      z-index: -1;
+    }
+    
+    .particle {
+      position: absolute;
+      background: rgba(255,255,255,0.1);
+      border-radius: 50%;
+      animation: float 6s ease-in-out infinite;
+    }
+    
+    .particle:nth-child(1) { width: 8px; height: 8px; left: 10%; animation-delay: 0s; }
+    .particle:nth-child(2) { width: 12px; height: 12px; left: 30%; animation-delay: 2s; }
+    .particle:nth-child(3) { width: 6px; height: 6px; left: 50%; animation-delay: 4s; }
+    .particle:nth-child(4) { width: 10px; height: 10px; left: 70%; animation-delay: 1s; }
+    .particle:nth-child(5) { width: 14px; height: 14px; left: 85%; animation-delay: 3s; }
+    
+    @keyframes slideIn {
+      to { opacity: 1; transform: translateY(0); }
+    }
+    
+    @keyframes fadeInUp {
+      to { opacity: 1; transform: translateY(0); }
+    }
+    
+    @keyframes titleZoom {
+      to { opacity: 1; transform: scale(1); }
+    }
+    
+    @keyframes slideInUp {
+      to { opacity: 1; transform: translateY(0); }
+    }
+    
+    @keyframes slideInLeft {
+      to { opacity: 1; transform: translateX(0); }
+    }
+    
+    @keyframes float {
+      0%, 100% { transform: translateY(0px) rotate(0deg); }
+      50% { transform: translateY(-20px) rotate(180deg); }
+    }
+    
+    .progress-bar {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      height: 4px;
+      background: linear-gradient(90deg, #4ade80, #22d3ee);
+      width: 0%;
+      animation: progress ${videoConfig.videoLength}s linear forwards;
+    }
+    
+    @keyframes progress {
+      to { width: 100%; }
+    }
+    
+    .audio-visualizer {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      opacity: 0;
+      animation: fadeInUp 1s ease-out 6s forwards;
+    }
+    
+    .bar {
+      width: 3px;
+      background: #4ade80;
+      border-radius: 2px;
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+    
+    .bar:nth-child(1) { height: 10px; animation-delay: 0.1s; }
+    .bar:nth-child(2) { height: 15px; animation-delay: 0.2s; }
+    .bar:nth-child(3) { height: 20px; animation-delay: 0.3s; }
+    .bar:nth-child(4) { height: 15px; animation-delay: 0.4s; }
+    .bar:nth-child(5) { height: 10px; animation-delay: 0.5s; }
+    
+    @keyframes pulse {
+      0%, 100% { transform: scaleY(0.3); }
+      50% { transform: scaleY(1); }
+    }
   </style>
 </head>
 <body>
-  <div class="container">
-    <div class="category">${videoConfig.category}</div>
-    <h1>${videoConfig.productName}</h1>
-    <div class="description">
-      ${videoConfig.productDescription}
-    </div>
-    <div class="benefits">
-      <h2>Key Benefits:</h2>
-      ${videoConfig.keyPoints.map(point => `<p>• ${point}</p>`).join('')}
-    </div>
-    <div class="footer">
-      Perfect for ${videoConfig.targetAudience} | ${videoConfig.videoLength} seconds
+  <div class="floating-particles">
+    <div class="particle"></div>
+    <div class="particle"></div>
+    <div class="particle"></div>
+    <div class="particle"></div>
+    <div class="particle"></div>
+  </div>
+  
+  <div class="video-container">
+    <div class="content">
+      <div class="category-badge">${videoConfig.category}</div>
+      <h1 class="product-title">${videoConfig.productName}</h1>
+      <div class="description">
+        ${videoConfig.productDescription.split('.').slice(0, 3).join('.') + '.'}
+      </div>
+      <div class="benefits-container">
+        <h2 class="benefits-title">Key Benefits</h2>
+        ${videoConfig.keyPoints.map(point => `<div class="benefit-item">${point}</div>`).join('')}
+      </div>
+      <div class="footer">
+        Perfect for ${videoConfig.targetAudience} | ${videoConfig.videoLength} seconds
+      </div>
     </div>
   </div>
+  
+  <div class="progress-bar"></div>
+  
+  <div class="audio-visualizer">
+    <div class="bar"></div>
+    <div class="bar"></div>
+    <div class="bar"></div>
+    <div class="bar"></div>
+    <div class="bar"></div>
+  </div>
+  
   <script>
-    // Auto-play audio narration using Web Speech API
-    const text = "${videoConfig.script || 'Introducing ' + videoConfig.productName + '. ' + videoConfig.productDescription}";
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.voice = speechSynthesis.getVoices().find(voice => voice.name.includes('female')) || speechSynthesis.getVoices()[0];
-    utterance.rate = 0.9;
-    setTimeout(() => speechSynthesis.speak(utterance), 1000);
+    // Enhanced speech synthesis with better voice selection
+    function initializeVoice() {
+      return new Promise((resolve) => {
+        const checkVoices = () => {
+          const voices = speechSynthesis.getVoices();
+          if (voices.length > 0) {
+            resolve(voices);
+          } else {
+            setTimeout(checkVoices, 100);
+          }
+        };
+        checkVoices();
+      });
+    }
+    
+    async function speakText() {
+      const voices = await initializeVoice();
+      const text = "${videoConfig.script || 'Introducing ' + videoConfig.productName + '. ' + videoConfig.productDescription.split('.').slice(0, 3).join('.') + '. Key benefits include: ' + videoConfig.keyPoints.join(', ') + '. Experience the difference today!'}";
+      
+      const utterance = new SpeechSynthesisUtterance(text);
+      
+      // Try to find a high-quality female voice
+      const preferredVoice = voices.find(voice => 
+        voice.name.toLowerCase().includes('female') || 
+        voice.name.toLowerCase().includes('zira') ||
+        voice.name.toLowerCase().includes('hazel') ||
+        voice.name.toLowerCase().includes('samantha')
+      ) || voices.find(voice => voice.lang.startsWith('en')) || voices[0];
+      
+      utterance.voice = preferredVoice;
+      utterance.rate = 0.85;
+      utterance.pitch = 1.1;
+      utterance.volume = 0.9;
+      
+      // Add pauses and emphasis
+      const enhancedText = text
+        .replace(/\\./g, '... ')
+        .replace(/Key benefits/g, 'Key... benefits')
+        .replace(/Experience/g, '... Experience');
+      
+      utterance.text = enhancedText;
+      speechSynthesis.speak(utterance);
+    }
+    
+    // Start narration after initial animation
+    setTimeout(speakText, 2000);
+    
+    // Add dynamic background color changes
+    let colorIndex = 0;
+    const colors = [
+      'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+      'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+      'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+      'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)'
+    ];
+    
+    setInterval(() => {
+      document.body.style.background = colors[colorIndex % colors.length];
+      colorIndex++;
+    }, ${Math.floor(videoConfig.videoLength * 1000 / 4)});
   </script>
 </body>
 </html>`;
@@ -2146,45 +2437,90 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/videos/generate-script', isAuthenticated, async (req, res) => {
     try {
       const { productName, productDescription, keyPoints, videoLength, videoStyle } = req.body;
-      
+
+      // Enhanced script generation logic using templates
+      const generateEnhancedScript = (productName, description, benefits, length, style) => {
+        const hooks = [
+          `Discover the power of ${productName}!`,
+          `Introducing ${productName} - your solution to better health!`,
+          `Transform your wellness journey with ${productName}!`,
+          `Experience the difference with ${productName}!`
+        ];
+        
+        const closings = [
+          `Experience the ${productName} difference today!`,
+          `Join thousands who trust ${productName} for their wellness needs!`,
+          `Don't wait - transform your health with ${productName} now!`,
+          `Take the first step towards better health with ${productName}!`
+        ];
+        
+        const hook = hooks[Math.floor(Math.random() * hooks.length)];
+        const closing = closings[Math.floor(Math.random() * closings.length)];
+        
+        // Extract key sentences from description
+        const sentences = description.split('.').filter(s => s.trim().length > 10);
+        const keyFacts = sentences.slice(0, 2).join('. ') + '.';
+        
+        // Create benefits section
+        const benefitsText = benefits.length > 0 ? 
+          `Key benefits include: ${benefits.join(', ')}.` : 
+          'Proven benefits for your health and wellness.';
+        
+        return `${hook} ${keyFacts} ${benefitsText} ${closing}`;
+      };
+
       if (!productName || !productDescription) {
         return res.status(400).json({ message: 'Product name and description are required' });
       }
 
-      // Generate script based on video length and style
-      const avgWordsPerSecond = 2.5;
-      const targetWords = Math.floor(videoLength * avgWordsPerSecond);
-      
-      // Create a template script (in real implementation, this would use OpenAI)
-      let script = `Introducing ${productName}! `;
-      
-      if (productDescription) {
-        script += `${productDescription.substring(0, Math.floor(targetWords * 4))} `;
-      }
-      
-      if (keyPoints && keyPoints.length > 0) {
-        const validPoints = keyPoints.filter((point: string) => point && point.trim());
-        if (validPoints.length > 0) {
-          script += `Key benefits include: ${validPoints.slice(0, 3).join(', ')}. `;
-        }
-      }
-      
-      script += `Experience the difference today!`;
-      
-      // Trim to approximate word count
-      const words = script.split(' ');
-      if (words.length > targetWords) {
-        script = words.slice(0, targetWords).join(' ') + '...';
-      }
+      const script = generateEnhancedScript(
+        productName, 
+        productDescription, 
+        keyPoints.filter(point => point.trim()), 
+        videoLength, 
+        videoStyle
+      );
 
       res.json({
         script,
         wordCount: script.split(' ').length,
-        estimatedDuration: Math.ceil(script.split(' ').length / avgWordsPerSecond)
+        estimatedDuration: Math.ceil(script.split(' ').length / 2.5)
       });
     } catch (error) {
       console.error('Error generating script:', error);
       res.status(500).json({ message: 'Failed to generate script' });
+    }
+  });
+
+  // Delete video
+  app.delete('/api/videos/:id', isAuthenticated, async (req, res) => {
+    try {
+      const videoId = parseInt(req.params.id);
+      const user = req.user as any;
+      
+      const video = await storage.getProductVideoById(videoId);
+      if (!video) {
+        return res.status(404).json({ message: 'Video not found' });
+      }
+
+      // Check if user owns this video (or is admin)
+      if (video.userId !== user.id && user.role !== 'admin') {
+        return res.status(403).json({ message: 'Not authorized to delete this video' });
+      }
+
+      // Delete the HTML file
+      const videoPath = path.join(process.cwd(), 'uploads', 'videos', `video_${video.id}.html`);
+      if (fs.existsSync(videoPath)) {
+        fs.unlinkSync(videoPath);
+      }
+
+      // Delete from database
+      await storage.deleteProductVideo(videoId);
+
+      res.json({ message: 'Video deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting video:', error);
+      res.status(500).json({ message: 'Failed to delete video' });
     }
   });
 
