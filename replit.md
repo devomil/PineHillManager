@@ -93,7 +93,7 @@ Preferred communication style: Simple, everyday language.
 - **Vite**: Fast development build tool with HMR
 - **React Query**: Server state management with caching and synchronization
 
-## Recent Changes (January 2025)
+## Recent Changes (August 2025)
 
 ### Navigation System Fix (July 21, 2025)
 - **Critical Bug Resolution**: Fixed persistent RovingFocusGroupItem React error caused by nested Tabs components
@@ -125,6 +125,13 @@ Preferred communication style: Simple, everyday language.
 - **Sales Sync**: Real-time transaction data retrieval and accounting system integration
 - **Database Schema**: Fixed all missing columns in pos_sales and pos_sale_items tables (employee_id, customer_count, status, qb_posted, qb_transaction_id, last_sync_at, inventory_item_id, line_total, discount_amount)
 - **Credential Persistence**: Enhanced UI to save and display multiple merchant configurations with visible API tokens
+
+### React Query Authentication Fix (August 9, 2025)
+- **Critical Issue Resolved**: Fixed React Query default configuration conflicting with session-based authentication for accounting endpoints
+- **Custom Query Solution**: Implemented custom queryFn for all accounting-related API calls to bypass global configuration and ensure proper credential handling
+- **Form Data Loading**: Clover POS credentials now load correctly in integrations form (merchantId: 2DWZED6B4ZVF1, apiToken: 0536d75e...)
+- **Authentication Restoration**: Restored isAuthenticated middleware to all accounting endpoints while maintaining functionality
+- **Integration Status**: All accounting integration queries now use consistent authentication approach
 
 ## Deployment Strategy
 
