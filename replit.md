@@ -141,6 +141,16 @@ Preferred communication style: Simple, everyday language.
 - **Route Fix Applied**: Added /admin/integrations route to resolve 404 navigation issue
 - **Performance Metrics**: Sales sync completed in 3.6 seconds for 28 orders with line items and payment details
 
+### Multi-Merchant Clover Integration Expansion (August 9, 2025)
+- **Database Schema Enhancement**: Added merchant_name field to clover_config table for location identification
+- **Multi-Location Support**: Extended system to support multiple concurrent Clover merchant configurations
+- **Merchant Locations Added**: 
+  - Lake Geneva Retail (2DWZED6B4ZVF1) - Restored and operational
+  - Watertown Retail (QGFXZQXYG8M31) - Added with production API credentials
+  - Pinehillfarm.co Online (5H4F64FPMCQF1) - Added with production API credentials
+- **Enhanced UI**: Quick Setup section for easy addition of Pine Hill Farm locations
+- **Location Management**: Improved merchant list display with human-readable location names
+
 ## Deployment Strategy
 
 ### Production Readiness (V1.2 + Accounting Phase 1)
