@@ -1,5 +1,6 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
+import * as QRCode from 'qrcode';
 // WebSocket functionality handled by Vite in development
 import { setupAuth, isAuthenticated } from "./auth";
 import { storage } from "./storage";
@@ -1823,8 +1824,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'Invalid URL format' });
       }
 
-      const QRCode = require('qrcode');
-      
       // Generate QR code as data URL
       const qrCodeDataUrl = await QRCode.toDataURL(url, {
         errorCorrectionLevel: 'M',
