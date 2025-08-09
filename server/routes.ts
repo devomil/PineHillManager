@@ -1130,28 +1130,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { startDate, endDate } = req.query;
       const { db } = await import('./db');
-      const { posSales } = await import('@shared/schema');
-      const { sql, between } = await import('drizzle-orm');
+      const { posSales, cloverConfig } = await import('@shared/schema');
+      const { sql, between, eq } = await import('drizzle-orm');
       
       const start = new Date(startDate as string);
       const end = new Date(endDate as string);
       
-      // Get sales data by location
+      // Get sales data by location with names from clover_config
       const locationSales = await db
         .select({
           locationId: posSales.locationId,
-          totalSales: sql`COALESCE(SUM(${posSales.totalAmount}), 0)`.as('totalSales'),
+          locationName: sql`COALESCE(${cloverConfig.merchantName}, 
+            CASE 
+              WHEN ${posSales.locationId} = 1 THEN 'Lake Geneva Retail'
+              WHEN ${posSales.locationId} = 2 THEN 'Watertown Retail' 
+              WHEN ${posSales.locationId} = 3 THEN 'Pinehillfarm.co Online'
+              ELSE 'Unknown Location'
+            END)`.as('locationName'),
+          totalSales: sql`COALESCE(SUM(${posSales.totalAmount}::decimal), 0)`.as('totalSales'),
           transactionCount: sql`COUNT(*)`.as('transactionCount'),
-          avgSale: sql`COALESCE(AVG(${posSales.totalAmount}), 0)`.as('avgSale')
+          avgSale: sql`COALESCE(AVG(${posSales.totalAmount}::decimal), 0)`.as('avgSale')
         })
         .from(posSales)
+        .leftJoin(cloverConfig, eq(posSales.locationId, cloverConfig.id))
         .where(between(posSales.saleDate, start, end))
-        .groupBy(posSales.locationId);
+        .groupBy(posSales.locationId, cloverConfig.merchantName);
 
       // Get total combined sales
       const totalSales = await db
         .select({
-          totalRevenue: sql`COALESCE(SUM(${posSales.totalAmount}), 0)`.as('totalRevenue'),
+          totalRevenue: sql`COALESCE(SUM(${posSales.totalAmount}::decimal), 0)`.as('totalRevenue'),
           totalTransactions: sql`COUNT(*)`.as('totalTransactions')
         })
         .from(posSales)
