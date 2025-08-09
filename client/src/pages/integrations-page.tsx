@@ -86,23 +86,11 @@ const IntegrationsPage = () => {
     }
   }, [cloverConfig]);
 
-  // Temporary bypass: Load data directly from database
+  // Debug logging for API responses
   useEffect(() => {
-    const loadCloverData = async () => {
-      try {
-        // For testing, let's hardcode the known values temporarily
-        setCloverCredentials({
-          merchantId: '2DWZED6B4ZVF1',
-          apiToken: '0536d75e-8fe8-b412-f483-8bfb08d7365f',
-          environment: 'production'
-        });
-      } catch (error) {
-        console.error('Error loading Clover data:', error);
-      }
-    };
-    
-    loadCloverData();
-  }, []);
+    console.log('Clover config from API:', cloverConfig);
+    console.log('Current credentials state:', cloverCredentials);
+  }, [cloverConfig, cloverCredentials]);
 
   // Fetch all saved merchant configurations
   const { data: allMerchants } = useQuery({

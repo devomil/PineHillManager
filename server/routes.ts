@@ -1091,19 +1091,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Direct database query for clover config
-  app.get('/api/accounting/clover-config', async (req, res) => {
+  app.get('/api/accounting/clover-config', isAuthenticated, async (req, res) => {
     try {
       console.log('=== Clover Config Endpoint Called ===');
-      console.log('User authenticated:', req.isAuthenticated());
-      console.log('User object:', req.user);
-      
-      if (!req.isAuthenticated() || !req.user) {
-        console.log('Authentication failed, returning 401');
-        return res.status(401).json({ error: "Authentication required" });
-      }
-      
       console.log('Getting active Clover config...');
+      
       // Direct query to bypass any storage issues
       const { db } = await import('./db');
       const { cloverConfig } = await import('@shared/schema');  
