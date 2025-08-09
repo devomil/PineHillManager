@@ -67,6 +67,7 @@ function AuthenticatedApp() {
       <Route path="/user-management" component={UserManagement} />
       <Route path="/accounting" component={AccountingDashboard} />
       <Route path="/integrations" component={IntegrationsPage} />
+      <Route path="/admin/integrations" component={IntegrationsPage} />
       <Route component={NotFound} />
     </Switch>
   );

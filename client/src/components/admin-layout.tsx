@@ -45,7 +45,7 @@ export default function AdminLayout({ children, currentTab }: AdminLayoutProps) 
         setLocation('/accounting');
         break;
       case 'integrations':
-        setLocation('/integrations');
+        setLocation('/admin/integrations');
         break;
     }
   };
