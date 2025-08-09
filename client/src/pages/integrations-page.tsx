@@ -45,6 +45,7 @@ const IntegrationsPage = () => {
 
   const [cloverCredentials, setCloverCredentials] = useState({
     merchantId: '',
+    merchantName: '',
     apiToken: '',
     environment: 'production'
   });
@@ -117,6 +118,7 @@ const IntegrationsPage = () => {
     if (cloverConfig && typeof cloverConfig === 'object') {
       setCloverCredentials({
         merchantId: cloverConfig.merchantId || '',
+        merchantName: cloverConfig.merchantName || '',
         apiToken: cloverConfig.apiToken || '',
         environment: 'production'
       });
@@ -588,6 +590,65 @@ const IntegrationsPage = () => {
                 {getStatusBadge((integrationStatus as any)?.clover || 'not_configured')}
               </div>
 
+              {/* Quick Setup for Known Locations */}
+              <Card className="border-blue-200 bg-blue-50">
+                <CardHeader>
+                  <CardTitle className="text-lg text-blue-800">Quick Setup - Additional Pine Hill Farm Locations</CardTitle>
+                  <p className="text-sm text-blue-600">Click to quickly set up your additional merchant locations</p>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <Button 
+                      variant="outline" 
+                      className="h-auto p-4 text-left bg-white hover:bg-blue-50"
+                      onClick={() => setCloverCredentials({
+                        merchantId: '',
+                        merchantName: 'Watertown Retail',
+                        apiToken: '',
+                        environment: 'production'
+                      })}
+                    >
+                      <div>
+                        <div className="font-medium">Watertown Retail</div>
+                        <div className="text-xs text-gray-500 mt-1">Click to setup this location</div>
+                      </div>
+                    </Button>
+                    
+                    <Button 
+                      variant="outline" 
+                      className="h-auto p-4 text-left bg-white hover:bg-blue-50"
+                      onClick={() => setCloverCredentials({
+                        merchantId: '',
+                        merchantName: 'Pinehillfarm.co Online',
+                        apiToken: '',
+                        environment: 'production'
+                      })}
+                    >
+                      <div>
+                        <div className="font-medium">Pinehillfarm.co Online</div>
+                        <div className="text-xs text-gray-500 mt-1">Click to setup this location</div>
+                      </div>
+                    </Button>
+                    
+                    <Button 
+                      variant="outline" 
+                      className="h-auto p-4 text-left bg-white hover:bg-blue-50"
+                      onClick={() => setCloverCredentials({
+                        merchantId: '',
+                        merchantName: '',
+                        apiToken: '',
+                        environment: 'production'
+                      })}
+                    >
+                      <div>
+                        <div className="font-medium">Custom Location</div>
+                        <div className="text-xs text-gray-500 mt-1">Setup a custom merchant</div>
+                      </div>
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+
               {/* Credentials Form */}
               <Card className="border-dashed">
                 <CardHeader>
@@ -612,6 +673,7 @@ const IntegrationsPage = () => {
                               onClick={() => {
                                 setCloverCredentials({
                                   merchantId: merchant.merchantId,
+                                  merchantName: merchant.merchantName || '',
                                   apiToken: merchant.apiToken,
                                   environment: 'production'
                                 });
@@ -625,26 +687,38 @@ const IntegrationsPage = () => {
                     </div>
                   )}
                   
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 gap-4">
                     <div>
-                      <Label htmlFor="clover-merchant-id">Merchant ID</Label>
+                      <Label htmlFor="clover-location-name">Location Name</Label>
                       <Input
-                        id="clover-merchant-id"
+                        id="clover-location-name"
                         type="text"
-                        value={cloverCredentials.merchantId}
-                        onChange={(e) => setCloverCredentials(prev => ({ ...prev, merchantId: e.target.value }))}
-                        placeholder="e.g., 2DWZED6B4ZVF1"
+                        value={cloverCredentials.merchantName}
+                        onChange={(e) => setCloverCredentials(prev => ({ ...prev, merchantName: e.target.value }))}
+                        placeholder="e.g., Lake Geneva Retail, Watertown Retail, Pinehillfarm.co Online"
                       />
                     </div>
-                    <div>
-                      <Label htmlFor="clover-api-token">API Token</Label>
-                      <Input
-                        id="clover-api-token"
-                        type="text"
-                        value={cloverCredentials.apiToken}
-                        onChange={(e) => setCloverCredentials(prev => ({ ...prev, apiToken: e.target.value }))}
-                        placeholder="e.g., 0536d75e-8fe8-b412-f483-8bfb08d7365f"
-                      />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="clover-merchant-id">Merchant ID</Label>
+                        <Input
+                          id="clover-merchant-id"
+                          type="text"
+                          value={cloverCredentials.merchantId}
+                          onChange={(e) => setCloverCredentials(prev => ({ ...prev, merchantId: e.target.value }))}
+                          placeholder="e.g., 2DWZED6B4ZVF1"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="clover-api-token">API Token</Label>
+                        <Input
+                          id="clover-api-token"
+                          type="text"
+                          value={cloverCredentials.apiToken}
+                          onChange={(e) => setCloverCredentials(prev => ({ ...prev, apiToken: e.target.value }))}
+                          placeholder="e.g., 0536d75e-8fe8-b412-f483-8bfb08d7365f"
+                        />
+                      </div>
                     </div>
                   </div>
                   <div>

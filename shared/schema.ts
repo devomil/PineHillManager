@@ -632,6 +632,7 @@ export const quickbooksConfig = pgTable("quickbooks_config", {
 export const cloverConfig = pgTable("clover_config", {
   id: serial("id").primaryKey(),
   merchantId: varchar("merchant_id").notNull().unique(),
+  merchantName: varchar("merchant_name"), // Human-readable location name
   apiToken: text("api_token"), // Encrypted API token
   baseUrl: varchar("base_url"), // Sandbox vs Production
   isActive: boolean("is_active").default(true),

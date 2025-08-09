@@ -1114,7 +1114,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Clover Configuration Routes  
   app.post('/api/accounting/config/clover', isAuthenticated, async (req, res) => {
     try {
-      const { merchantId, apiToken, environment } = req.body;
+      const { merchantId, merchantName, apiToken, environment } = req.body;
       
       if (!merchantId || !apiToken) {
         return res.status(400).json({ message: 'Merchant ID and API Token are required' });
@@ -1130,6 +1130,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (existingConfig) {
         // Update existing configuration
         config = await storage.updateCloverConfig(existingConfig.id, {
+          merchantName: merchantName || null,
           apiToken,
           baseUrl,
           isActive: true,
@@ -1139,6 +1140,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Create new configuration
         config = await storage.createCloverConfig({
           merchantId,
+          merchantName: merchantName || null,
           apiToken,
           baseUrl,
           isActive: true
