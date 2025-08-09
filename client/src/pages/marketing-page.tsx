@@ -4,21 +4,67 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { QrCode, Download, Copy, ExternalLink, Zap } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { QrCode, Download, Copy, ExternalLink, Zap, History, Plus } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { apiRequest } from '@/lib/queryClient';
 import AdminLayout from '@/components/admin-layout';
+import QrCodeHistory from '@/components/qr-code-history';
 
 export default function MarketingPage() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [url, setUrl] = useState('');
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState('');
-  const [isGenerating, setIsGenerating] = useState(false);
-  const { toast } = useToast();
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [category, setCategory] = useState('');
+  const [saveToHistory, setSaveToHistory] = useState(false);
+
+  // Generate QR code mutation
+  const generateQrCodeMutation = useMutation({
+    mutationFn: async (data: {
+      url: string;
+      title?: string;
+      description?: string;
+      category?: string;
+      saveToHistory?: boolean;
+    }) => {
+      const response = await apiRequest('POST', '/api/marketing/generate-qr', data);
+      return response.json();
+    },
+    onSuccess: (data) => {
+      setQrCodeDataUrl(data.qrCodeDataUrl);
+      if (data.savedQrCode) {
+        queryClient.invalidateQueries({ queryKey: ['/api/marketing/qr-codes'] });
+        toast({
+          title: "QR Code Generated & Saved",
+          description: "Your QR code has been created and saved to history!",
+        });
+      } else {
+        toast({
+          title: "QR Code Generated",
+          description: "Your QR code has been successfully created!",
+        });
+      }
+    },
+    onError: () => {
+      toast({
+        title: "Generation Failed",
+        description: "Failed to generate QR code. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
 
   const generateQRCode = async () => {
     if (!url.trim()) {
       toast({
         title: "URL Required",
-        description: "Please enter a URL to generate a QR code",
+        description: "Please enter a URL to generate a QR code.",
         variant: "destructive",
       });
       return;
@@ -36,38 +82,22 @@ export default function MarketingPage() {
       return;
     }
 
-    setIsGenerating(true);
-    
-    try {
-      const response = await fetch('/api/marketing/generate-qr', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ url }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to generate QR code');
-      }
-
-      const data = await response.json();
-      setQrCodeDataUrl(data.qrCodeDataUrl);
-      
+    if (saveToHistory && !title.trim()) {
       toast({
-        title: "QR Code Generated",
-        description: "Your QR code is ready for download",
-      });
-    } catch (error) {
-      console.error('Error generating QR code:', error);
-      toast({
-        title: "Generation Failed",
-        description: "Unable to generate QR code. Please try again.",
+        title: "Title Required",
+        description: "Please enter a title when saving to history.",
         variant: "destructive",
       });
-    } finally {
-      setIsGenerating(false);
+      return;
     }
+
+    generateQrCodeMutation.mutate({
+      url,
+      title: title.trim() || undefined,
+      description: description.trim() || undefined,
+      category: category.trim() || undefined,
+      saveToHistory,
+    });
   };
 
   const downloadQRCode = () => {
@@ -75,243 +105,286 @@ export default function MarketingPage() {
 
     const link = document.createElement('a');
     link.href = qrCodeDataUrl;
-    link.download = `qr-code-${Date.now()}.png`;
+    const filename = title.trim() 
+      ? `${title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_qr_code.png`
+      : `qr-code-${Date.now()}.png`;
+    link.download = filename;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
 
     toast({
       title: "Download Started",
-      description: "QR code has been downloaded to your device",
+      description: "Your QR code is being downloaded.",
     });
   };
 
-  const copyQRCode = async () => {
+  const copyToClipboard = async () => {
     if (!qrCodeDataUrl) return;
 
     try {
+      // Convert data URL to blob and copy to clipboard
       const response = await fetch(qrCodeDataUrl);
       const blob = await response.blob();
-      
       await navigator.clipboard.write([
-        new ClipboardItem({
-          'image/png': blob
-        })
+        new ClipboardItem({ 'image/png': blob })
       ]);
-
+      
       toast({
         title: "Copied to Clipboard",
-        description: "QR code image has been copied to your clipboard",
+        description: "QR code image has been copied to your clipboard.",
       });
     } catch (error) {
-      console.error('Error copying QR code:', error);
+      console.error('Failed to copy image, copying URL instead:', error);
+      // Fallback: copy the original URL
+      navigator.clipboard.writeText(url);
       toast({
-        title: "Copy Failed",
-        description: "Unable to copy QR code to clipboard",
-        variant: "destructive",
+        title: "URL Copied",
+        description: "QR code URL has been copied to your clipboard.",
       });
     }
   };
 
-  const clearQRCode = () => {
+  const clearForm = () => {
     setUrl('');
+    setTitle('');
+    setDescription('');
+    setCategory('');
+    setSaveToHistory(false);
     setQrCodeDataUrl('');
   };
 
+  const handleSelectQrCode = (qrCode: any) => {
+    setUrl(qrCode.url);
+    setTitle(qrCode.title);
+    setDescription(qrCode.description || '');
+    setCategory(qrCode.category || '');
+    setQrCodeDataUrl(qrCode.qrCodeData);
+    setSaveToHistory(false); // Don't auto-save when loading from history
+  };
+
   return (
-    <AdminLayout currentTab="marketing">
+    <AdminLayout>
       <div className="space-y-6">
-      {/* Header */}
-      <div className="border-b border-gray-200 pb-6">
-        <h1 className="text-2xl font-bold text-gray-900" style={{ fontFamily: 'Great Vibes, cursive' }}>
-          Marketing Tools
-        </h1>
-        <p className="text-gray-600 mt-2">
-          Create marketing materials and promotional content for Pine Hill Farm
-        </p>
-      </div>
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight text-gray-900" style={{ fontFamily: 'Great Vibes, cursive' }}>
+            Marketing Tools
+          </h1>
+          <p className="text-gray-600">
+            Generate QR codes for marketing campaigns and track their usage
+          </p>
+        </div>
 
-      {/* QR Code Generator */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Input Section */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <QrCode className="h-5 w-5" />
+        <Tabs defaultValue="generator" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="generator" className="flex items-center gap-2">
+              <Plus className="h-4 w-4" />
               QR Code Generator
-            </CardTitle>
-            <CardDescription>
-              Generate QR codes for websites, social media, or any URL
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="url">Website URL</Label>
-              <Input
-                id="url"
-                type="url"
-                placeholder="https://pinehillfarm.co"
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && generateQRCode()}
-              />
-              <p className="text-xs text-gray-500">
-                Enter any website URL, social media link, or web address
-              </p>
-            </div>
+            </TabsTrigger>
+            <TabsTrigger value="history" className="flex items-center gap-2">
+              <History className="h-4 w-4" />
+              QR Code History
+            </TabsTrigger>
+          </TabsList>
 
-            <Button 
-              onClick={generateQRCode} 
-              disabled={isGenerating || !url.trim()}
-              className="w-full"
-            >
-              {isGenerating ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
-                  Generating...
-                </>
-              ) : (
-                <>
-                  <Zap className="h-4 w-4 mr-2" />
-                  Generate QR Code
-                </>
-              )}
-            </Button>
-
-            {url && (
-              <div className="p-3 bg-gray-50 rounded-lg">
-                <div className="flex items-center gap-2 text-sm">
-                  <ExternalLink className="h-4 w-4 text-gray-500" />
-                  <span className="text-gray-600">Preview:</span>
-                  <a 
-                    href={url} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="text-blue-600 hover:underline truncate"
-                  >
-                    {url}
-                  </a>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* QR Code Display */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Generated QR Code</CardTitle>
-            <CardDescription>
-              Your QR code will appear here once generated
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {qrCodeDataUrl ? (
-              <div className="space-y-4">
-                <div className="flex justify-center">
-                  <div className="bg-white p-4 rounded-lg shadow-sm border">
-                    <img 
-                      src={qrCodeDataUrl} 
-                      alt="Generated QR Code" 
-                      className="w-48 h-48"
+          <TabsContent value="generator" className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* QR Code Generator Form */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <QrCode className="h-5 w-5" />
+                    Generate QR Code
+                  </CardTitle>
+                  <CardDescription>
+                    Create QR codes for websites, social media, or any URL
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="url">URL *</Label>
+                    <Input
+                      id="url"
+                      type="url"
+                      placeholder="https://pinehillfarm.co"
+                      value={url}
+                      onChange={(e) => setUrl(e.target.value)}
+                      className="w-full"
                     />
                   </div>
+
+                  {/* Save to History Section */}
+                  <div className="space-y-4 p-4 bg-gray-50 rounded-lg">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="saveToHistory"
+                        checked={saveToHistory}
+                        onCheckedChange={(checked) => setSaveToHistory(!!checked)}
+                      />
+                      <Label htmlFor="saveToHistory" className="text-sm font-medium">
+                        Save to history for future management
+                      </Label>
+                    </div>
+
+                    {saveToHistory && (
+                      <div className="space-y-3">
+                        <div className="space-y-2">
+                          <Label htmlFor="title">Title *</Label>
+                          <Input
+                            id="title"
+                            placeholder="Pine Hill Farm Website"
+                            value={title}
+                            onChange={(e) => setTitle(e.target.value)}
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="description">Description</Label>
+                          <Textarea
+                            id="description"
+                            placeholder="Main website QR code for marketing materials"
+                            value={description}
+                            onChange={(e) => setDescription(e.target.value)}
+                            rows={2}
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="category">Category</Label>
+                          <Input
+                            id="category"
+                            placeholder="Website, Social Media, Products, etc."
+                            value={category}
+                            onChange={(e) => setCategory(e.target.value)}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex gap-2">
+                    <Button 
+                      onClick={generateQRCode} 
+                      disabled={generateQrCodeMutation.isPending}
+                      className="flex-1"
+                    >
+                      {generateQrCodeMutation.isPending ? (
+                        <>
+                          <Zap className="h-4 w-4 mr-2 animate-pulse" />
+                          Generating...
+                        </>
+                      ) : (
+                        <>
+                          <Zap className="h-4 w-4 mr-2" />
+                          Generate QR Code
+                        </>
+                      )}
+                    </Button>
+                    
+                    <Button 
+                      variant="outline" 
+                      onClick={clearForm}
+                      disabled={generateQrCodeMutation.isPending}
+                    >
+                      Clear
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* QR Code Preview */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>QR Code Preview</CardTitle>
+                  <CardDescription>
+                    Your generated QR code will appear here
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {qrCodeDataUrl ? (
+                    <div className="space-y-4">
+                      <div className="flex justify-center p-4 bg-gray-50 rounded-lg">
+                        <img 
+                          src={qrCodeDataUrl} 
+                          alt="Generated QR Code" 
+                          className="w-48 h-48 border-2 border-gray-200 rounded"
+                        />
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <p className="text-sm text-gray-600">
+                          <strong>Target URL:</strong>
+                        </p>
+                        <div className="flex items-center gap-2 p-2 bg-gray-50 rounded text-sm">
+                          <ExternalLink className="h-4 w-4 text-blue-500" />
+                          <a 
+                            href={url} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-blue-600 hover:underline break-all"
+                          >
+                            {url}
+                          </a>
+                        </div>
+                      </div>
+
+                      <div className="flex gap-2">
+                        <Button onClick={downloadQRCode} className="flex-1">
+                          <Download className="h-4 w-4 mr-2" />
+                          Download
+                        </Button>
+                        <Button variant="outline" onClick={copyToClipboard} className="flex-1">
+                          <Copy className="h-4 w-4 mr-2" />
+                          Copy
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center h-64 text-gray-400">
+                      <QrCode className="h-16 w-16 mb-4" />
+                      <p className="text-lg font-medium">No QR Code Generated</p>
+                      <p className="text-sm">Enter a URL and click "Generate QR Code" to get started</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Marketing Tips */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Marketing Tips</CardTitle>
+                <CardDescription>Best practices for using QR codes in your marketing</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Badge variant="outline">Print Quality</Badge>
+                    <p className="text-sm text-gray-600">
+                      Use high-contrast colors and ensure QR codes are at least 1 inch (2.5cm) square when printed
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Badge variant="outline">Testing</Badge>
+                    <p className="text-sm text-gray-600">
+                      Always test your QR codes before printing by scanning them with multiple devices
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Badge variant="outline">Call to Action</Badge>
+                    <p className="text-sm text-gray-600">
+                      Include clear instructions like "Scan for menu" or "Scan to visit our website"
+                    </p>
+                  </div>
                 </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-                <div className="flex items-center justify-center gap-2">
-                  <Badge variant="secondary" className="text-xs">
-                    Ready to use
-                  </Badge>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <Button 
-                    variant="outline" 
-                    onClick={copyQRCode}
-                    className="w-full"
-                  >
-                    <Copy className="h-4 w-4 mr-2" />
-                    Copy
-                  </Button>
-                  <Button 
-                    onClick={downloadQRCode}
-                    className="w-full"
-                  >
-                    <Download className="h-4 w-4 mr-2" />
-                    Download
-                  </Button>
-                </div>
-
-                <Button 
-                  variant="ghost" 
-                  onClick={clearQRCode}
-                  className="w-full text-gray-500"
-                >
-                  Generate New QR Code
-                </Button>
-              </div>
-            ) : (
-              <div className="text-center py-12">
-                <QrCode className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                <p className="text-gray-500 mb-2">No QR code generated yet</p>
-                <p className="text-sm text-gray-400">
-                  Enter a URL and click "Generate QR Code" to get started
-                </p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Marketing Ideas Section */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Marketing Ideas</CardTitle>
-          <CardDescription>
-            Creative ways to use QR codes for Pine Hill Farm marketing
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            <div className="p-4 border rounded-lg">
-              <h3 className="font-medium mb-2">Product Labels</h3>
-              <p className="text-sm text-gray-600">
-                Add QR codes to product packaging that link to farm information, recipes, or nutritional details
-              </p>
-            </div>
-            <div className="p-4 border rounded-lg">
-              <h3 className="font-medium mb-2">Social Media</h3>
-              <p className="text-sm text-gray-600">
-                Generate codes for Instagram, Facebook, or TikTok profiles to increase followers
-              </p>
-            </div>
-            <div className="p-4 border rounded-lg">
-              <h3 className="font-medium mb-2">Event Promotions</h3>
-              <p className="text-sm text-gray-600">
-                Create codes for farmer's market events, farm tours, or seasonal activities
-              </p>
-            </div>
-            <div className="p-4 border rounded-lg">
-              <h3 className="font-medium mb-2">Online Store</h3>
-              <p className="text-sm text-gray-600">
-                Link directly to your online store or specific product pages for easy mobile shopping
-              </p>
-            </div>
-            <div className="p-4 border rounded-lg">
-              <h3 className="font-medium mb-2">Customer Reviews</h3>
-              <p className="text-sm text-gray-600">
-                Direct customers to review platforms or feedback forms to gather testimonials
-              </p>
-            </div>
-            <div className="p-4 border rounded-lg">
-              <h3 className="font-medium mb-2">Contact Information</h3>
-              <p className="text-sm text-gray-600">
-                Share farm contact details, location, or business hours quickly and easily
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          <TabsContent value="history" className="space-y-6">
+            <QrCodeHistory onSelectQrCode={handleSelectQrCode} />
+          </TabsContent>
+        </Tabs>
       </div>
     </AdminLayout>
   );

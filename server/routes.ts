@@ -1811,7 +1811,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Marketing Tools Routes
   app.post('/api/marketing/generate-qr', isAuthenticated, async (req, res) => {
     try {
-      const { url } = req.body;
+      const { url, title, description, category, saveToHistory } = req.body;
+      const user = req.user as any;
       
       if (!url) {
         return res.status(400).json({ message: 'URL is required' });
@@ -1837,10 +1838,160 @@ export async function registerRoutes(app: Express): Promise<Server> {
         width: 256
       });
 
-      res.json({ qrCodeDataUrl, originalUrl: url });
+      // Save to history if requested
+      let savedQrCode = null;
+      if (saveToHistory && title) {
+        savedQrCode = await storage.createQrCode({
+          title,
+          url,
+          description: description || null,
+          category: category || null,
+          createdBy: user.id,
+          qrCodeData: qrCodeDataUrl,
+        });
+      }
+
+      res.json({ 
+        qrCodeDataUrl, 
+        originalUrl: url,
+        savedQrCode 
+      });
     } catch (error) {
       console.error('Error generating QR code:', error);
       res.status(500).json({ message: 'Failed to generate QR code' });
+    }
+  });
+
+  // Get all QR codes
+  app.get('/api/marketing/qr-codes', isAuthenticated, async (req, res) => {
+    try {
+      const { category, userId } = req.query;
+      let qrCodes;
+
+      if (category) {
+        qrCodes = await storage.getQrCodesByCategory(category as string);
+      } else if (userId) {
+        qrCodes = await storage.getQrCodesByUser(userId as string);
+      } else {
+        qrCodes = await storage.getAllQrCodes();
+      }
+
+      res.json(qrCodes);
+    } catch (error) {
+      console.error('Error fetching QR codes:', error);
+      res.status(500).json({ message: 'Failed to fetch QR codes' });
+    }
+  });
+
+  // Get specific QR code
+  app.get('/api/marketing/qr-codes/:id', isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const qrCode = await storage.getQrCodeById(id);
+      
+      if (!qrCode) {
+        return res.status(404).json({ message: 'QR code not found' });
+      }
+
+      res.json(qrCode);
+    } catch (error) {
+      console.error('Error fetching QR code:', error);
+      res.status(500).json({ message: 'Failed to fetch QR code' });
+    }
+  });
+
+  // Update QR code
+  app.put('/api/marketing/qr-codes/:id', isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { title, url, description, category, regenerateQr } = req.body;
+      
+      let updateData: any = {
+        title,
+        description,
+        category,
+      };
+
+      // If URL changed or regeneration requested, create new QR code
+      if (url || regenerateQr) {
+        if (url) {
+          // Validate new URL
+          try {
+            new URL(url);
+            updateData.url = url;
+          } catch {
+            return res.status(400).json({ message: 'Invalid URL format' });
+          }
+        }
+
+        // Get current QR code to use existing URL if new one not provided
+        const currentQrCode = await storage.getQrCodeById(id);
+        if (!currentQrCode) {
+          return res.status(404).json({ message: 'QR code not found' });
+        }
+
+        const urlToUse = url || currentQrCode.url;
+        
+        // Generate new QR code
+        const qrCodeDataUrl = await QRCode.toDataURL(urlToUse, {
+          errorCorrectionLevel: 'M',
+          type: 'image/png',
+          quality: 0.92,
+          margin: 1,
+          color: {
+            dark: '#000000',
+            light: '#FFFFFF'
+          },
+          width: 256
+        });
+
+        updateData.qrCodeData = qrCodeDataUrl;
+      }
+
+      const updatedQrCode = await storage.updateQrCode(id, updateData);
+      
+      if (!updatedQrCode) {
+        return res.status(404).json({ message: 'QR code not found' });
+      }
+
+      res.json(updatedQrCode);
+    } catch (error) {
+      console.error('Error updating QR code:', error);
+      res.status(500).json({ message: 'Failed to update QR code' });
+    }
+  });
+
+  // Delete QR code
+  app.delete('/api/marketing/qr-codes/:id', isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const deleted = await storage.deleteQrCode(id);
+      
+      if (!deleted) {
+        return res.status(404).json({ message: 'QR code not found' });
+      }
+
+      res.json({ message: 'QR code deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting QR code:', error);
+      res.status(500).json({ message: 'Failed to delete QR code' });
+    }
+  });
+
+  // Track QR code download
+  app.post('/api/marketing/qr-codes/:id/download', isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const updatedQrCode = await storage.incrementQrCodeDownloadCount(id);
+      
+      if (!updatedQrCode) {
+        return res.status(404).json({ message: 'QR code not found' });
+      }
+
+      res.json({ message: 'Download tracked successfully' });
+    } catch (error) {
+      console.error('Error tracking download:', error);
+      res.status(500).json({ message: 'Failed to track download' });
     }
   });
 

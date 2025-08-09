@@ -104,6 +104,11 @@ import {
   type InsertReportConfig,
   type DashboardWidget,
   type InsertDashboardWidget,
+  // QR Code schema imports
+  qrCodes,
+  type QrCode,
+  type InsertQrCode,
+  type UpdateQrCode,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, asc, gte, lte, or, sql } from "drizzle-orm";
@@ -2242,6 +2247,67 @@ export class DatabaseStorage implements IStorage {
     return result[0] || { totalSales: "0.00", totalTax: "0.00", totalTips: "0.00", transactionCount: 0 };
   }
   async getInventoryValuation(): Promise<{ totalCost: string; totalRetail: string; itemCount: number }> { return { totalCost: "0.00", totalRetail: "0.00", itemCount: 0 }; }
+  // ============================================
+  // QR CODE MANAGEMENT METHODS
+  // ============================================
+
+  // QR Code operations
+  async createQrCode(qrCodeData: InsertQrCode & { qrCodeData: string }): Promise<QrCode> {
+    const [created] = await db.insert(qrCodes).values(qrCodeData).returning();
+    return created;
+  }
+
+  async getAllQrCodes(): Promise<QrCode[]> {
+    return await db.select().from(qrCodes)
+      .where(eq(qrCodes.isActive, true))
+      .orderBy(desc(qrCodes.createdAt));
+  }
+
+  async getQrCodesByUser(userId: string): Promise<QrCode[]> {
+    return await db.select().from(qrCodes)
+      .where(and(eq(qrCodes.createdBy, userId), eq(qrCodes.isActive, true)))
+      .orderBy(desc(qrCodes.createdAt));
+  }
+
+  async getQrCodesByCategory(category: string): Promise<QrCode[]> {
+    return await db.select().from(qrCodes)
+      .where(and(eq(qrCodes.category, category), eq(qrCodes.isActive, true)))
+      .orderBy(desc(qrCodes.createdAt));
+  }
+
+  async getQrCodeById(id: number): Promise<QrCode | undefined> {
+    const [qrCode] = await db.select().from(qrCodes)
+      .where(eq(qrCodes.id, id));
+    return qrCode;
+  }
+
+  async updateQrCode(id: number, updates: UpdateQrCode & { qrCodeData?: string }): Promise<QrCode | undefined> {
+    const [updated] = await db.update(qrCodes)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(qrCodes.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteQrCode(id: number): Promise<boolean> {
+    const [updated] = await db.update(qrCodes)
+      .set({ isActive: false, updatedAt: new Date() })
+      .where(eq(qrCodes.id, id))
+      .returning();
+    return !!updated;
+  }
+
+  async incrementQrCodeDownloadCount(id: number): Promise<QrCode | undefined> {
+    const [updated] = await db.update(qrCodes)
+      .set({ 
+        downloadCount: sql`${qrCodes.downloadCount} + 1`,
+        lastDownloaded: new Date(),
+        updatedAt: new Date()
+      })
+      .where(eq(qrCodes.id, id))
+      .returning();
+    return updated;
+  }
 }
 
 export const storage = new DatabaseStorage();

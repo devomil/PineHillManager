@@ -1090,3 +1090,58 @@ export type InsertReportConfig = z.infer<typeof insertReportConfigSchema>;
 
 export type DashboardWidget = typeof dashboardWidgets.$inferSelect;
 export type InsertDashboardWidget = z.infer<typeof insertDashboardWidgetSchema>;
+
+// ============================================
+// QR CODE MANAGEMENT SCHEMA
+// ============================================
+
+// QR Code Management
+export const qrCodes = pgTable("qr_codes", {
+  id: serial("id").primaryKey(),
+  title: varchar("title", { length: 255 }).notNull(),
+  url: text("url").notNull(),
+  description: text("description"),
+  category: varchar("category", { length: 100 }),
+  createdBy: varchar("created_by", { length: 255 }).notNull().references(() => users.id),
+  qrCodeData: text("qr_code_data").notNull(), // Base64 data URL
+  downloadCount: integer("download_count").default(0),
+  lastDownloaded: timestamp("last_downloaded"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  createdByIdx: index("idx_qr_created_by").on(table.createdBy),
+  categoryIdx: index("idx_qr_category").on(table.category),
+  createdAtIdx: index("idx_qr_created_at").on(table.createdAt),
+}));
+
+// QR Code Relations
+export const qrCodesRelations = relations(qrCodes, ({ one }) => ({
+  creator: one(users, { fields: [qrCodes.createdBy], references: [users.id] }),
+}));
+
+// QR Code Types and Schemas
+export const insertQrCodeSchema = createInsertSchema(qrCodes).omit({
+  id: true,
+  qrCodeData: true,
+  downloadCount: true,
+  lastDownloaded: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const updateQrCodeSchema = createInsertSchema(qrCodes)
+  .omit({
+    id: true,
+    createdBy: true,
+    qrCodeData: true,
+    downloadCount: true,
+    lastDownloaded: true,
+    createdAt: true,
+    updatedAt: true,
+  })
+  .partial();
+
+export type QrCode = typeof qrCodes.$inferSelect;
+export type InsertQrCode = z.infer<typeof insertQrCodeSchema>;
+export type UpdateQrCode = z.infer<typeof updateQrCodeSchema>;
