@@ -63,14 +63,25 @@ export async function apiRequest(method: string, url: string, data?: any) {
     credentials: 'include',
     mode: 'cors',
     cache: 'no-cache',
-    headers: {
-      "Content-Type": "application/json",
-      "Accept": "application/json",
-    },
   };
 
+  // Handle FormData differently - don't set Content-Type header, let browser handle it
   if (data && (method === 'POST' || method === 'PUT' || method === 'PATCH')) {
-    options.body = JSON.stringify(data);
+    if (data instanceof FormData) {
+      options.body = data;
+      // Don't set Content-Type for FormData - browser will set it with boundary
+    } else {
+      options.headers = {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+      };
+      options.body = JSON.stringify(data);
+    }
+  } else {
+    options.headers = {
+      "Content-Type": "application/json",
+      "Accept": "application/json",
+    };
   }
 
   const response = await fetch(url, options);
