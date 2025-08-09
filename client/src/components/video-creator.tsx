@@ -353,7 +353,7 @@ export default function VideoCreator() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-gray-400 transition-colors">
+                <div className="relative border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-gray-400 transition-colors">
                   <Upload className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                   <p className="text-sm text-gray-600 mb-2">Click to upload or drag and drop</p>
                   <p className="text-xs text-gray-500">PNG, JPG, WEBP up to 10MB each</p>
