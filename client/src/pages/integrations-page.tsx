@@ -69,9 +69,37 @@ const IntegrationsPage = () => {
     refetchInterval: 30000 // Refresh every 30 seconds
   });
 
-  // Fetch existing Clover configuration
+  // Fetch existing Clover configuration with custom queryFn
   const { data: cloverConfig, error: cloverError, isLoading: cloverLoading, refetch: refetchClover } = useQuery({
     queryKey: ['/api/accounting/clover-config'],
+    queryFn: async () => {
+      console.log('Making custom request to /api/accounting/clover-config');
+      const response = await fetch('/api/accounting/clover-config', {
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        }
+      });
+      
+      console.log('Custom fetch response status:', response.status);
+      
+      if (!response.ok) {
+        console.error('Request failed with status:', response.status);
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      const text = await response.text();
+      console.log('Raw response text:', text);
+      
+      if (!text) {
+        return null;
+      }
+      
+      const data = JSON.parse(text);
+      console.log('Parsed data:', data);
+      return data;
+    },
     retry: 1,
     staleTime: 0,
     cacheTime: 0,
@@ -114,6 +142,11 @@ const IntegrationsPage = () => {
       setCloverCredentials(newCredentials);
     } else if (cloverError) {
       console.error('Error loading Clover config:', cloverError);
+      console.error('Error details:', {
+        message: cloverError.message,
+        stack: cloverError.stack,
+        name: cloverError.name
+      });
     } else if (!cloverLoading && !cloverConfig) {
       console.log('No config loaded yet, but not loading...');
     }
