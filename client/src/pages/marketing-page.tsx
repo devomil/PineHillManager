@@ -7,12 +7,13 @@ import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { QrCode, Download, Copy, ExternalLink, Zap, History, Plus, ArrowLeft } from 'lucide-react';
+import { QrCode, Download, Copy, ExternalLink, Zap, History, Plus, ArrowLeft, Video } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import AdminLayout from '@/components/admin-layout';
 import QrCodeHistory from '@/components/qr-code-history';
+import VideoCreator from '@/components/video-creator';
 import { useLocation } from 'wouter';
 
 export default function MarketingPage() {
@@ -188,7 +189,7 @@ export default function MarketingPage() {
         </div>
 
         <Tabs defaultValue="generator" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="generator" className="flex items-center gap-2">
               <Plus className="h-4 w-4" />
               QR Code Generator
@@ -196,6 +197,10 @@ export default function MarketingPage() {
             <TabsTrigger value="history" className="flex items-center gap-2">
               <History className="h-4 w-4" />
               QR Code History
+            </TabsTrigger>
+            <TabsTrigger value="video-creator" className="flex items-center gap-2">
+              <Video className="h-4 w-4" />
+              Video Creator
             </TabsTrigger>
           </TabsList>
 
@@ -395,6 +400,10 @@ export default function MarketingPage() {
 
           <TabsContent value="history" className="space-y-6">
             <QrCodeHistory onSelectQrCode={handleSelectQrCode} />
+          </TabsContent>
+
+          <TabsContent value="video-creator" className="space-y-6">
+            <VideoCreator />
           </TabsContent>
         </Tabs>
       </div>

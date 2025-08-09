@@ -1145,3 +1145,131 @@ export const updateQrCodeSchema = createInsertSchema(qrCodes)
 export type QrCode = typeof qrCodes.$inferSelect;
 export type InsertQrCode = z.infer<typeof insertQrCodeSchema>;
 export type UpdateQrCode = z.infer<typeof updateQrCodeSchema>;
+
+// ============================================
+// VIDEO CREATION MANAGEMENT SCHEMA
+// ============================================
+
+// Video Templates
+export const videoTemplates = pgTable("video_templates", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  category: varchar("category", { length: 100 }).notNull(),
+  description: text("description"),
+  config: jsonb("config").notNull(), // Template configuration
+  previewUrl: text("preview_url"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  categoryIdx: index("idx_vt_category").on(table.category),
+  nameIdx: index("idx_vt_name").on(table.name),
+}));
+
+// Product Videos
+export const productVideos = pgTable("product_videos", {
+  id: serial("id").primaryKey(),
+  productName: varchar("product_name", { length: 255 }).notNull(),
+  productDescription: text("product_description"),
+  category: varchar("category", { length: 100 }),
+  createdBy: varchar("created_by", { length: 255 }).notNull().references(() => users.id),
+  videoConfig: jsonb("video_config").notNull(), // Complete video configuration
+  renderStatus: varchar("render_status", { length: 50 }).default("pending"), // pending, rendering, completed, failed
+  renderProgress: integer("render_progress").default(0), // 0-100
+  videoUrl: text("video_url"), // Final video URL
+  thumbnailUrl: text("thumbnail_url"), // Video thumbnail
+  duration: integer("duration"), // Video duration in seconds
+  fileSize: integer("file_size"), // File size in bytes
+  downloadCount: integer("download_count").default(0),
+  lastDownloaded: timestamp("last_downloaded"),
+  renderStartedAt: timestamp("render_started_at"),
+  renderCompletedAt: timestamp("render_completed_at"),
+  errorMessage: text("error_message"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  createdByIdx: index("idx_pv_created_by").on(table.createdBy),
+  categoryIdx: index("idx_pv_category").on(table.category),
+  renderStatusIdx: index("idx_pv_render_status").on(table.renderStatus),
+  createdAtIdx: index("idx_pv_created_at").on(table.createdAt),
+}));
+
+// Video Assets (uploaded images, audio files, etc.)
+export const videoAssets = pgTable("video_assets", {
+  id: serial("id").primaryKey(),
+  videoId: integer("video_id").notNull().references(() => productVideos.id, { onDelete: "cascade" }),
+  assetType: varchar("asset_type", { length: 50 }).notNull(), // image, audio, logo, etc.
+  fileName: varchar("file_name", { length: 255 }).notNull(),
+  filePath: text("file_path").notNull(),
+  fileSize: integer("file_size"),
+  mimeType: varchar("mime_type", { length: 100 }),
+  metadata: jsonb("metadata"), // Additional asset metadata
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  videoIdIdx: index("idx_va_video_id").on(table.videoId),
+  assetTypeIdx: index("idx_va_asset_type").on(table.assetType),
+}));
+
+// Video Relations
+export const productVideosRelations = relations(productVideos, ({ one, many }) => ({
+  creator: one(users, { fields: [productVideos.createdBy], references: [users.id] }),
+  assets: many(videoAssets),
+}));
+
+export const videoAssetsRelations = relations(videoAssets, ({ one }) => ({
+  video: one(productVideos, { fields: [videoAssets.videoId], references: [productVideos.id] }),
+}));
+
+export const videoTemplatesRelations = relations(videoTemplates, ({ one }) => ({
+  // Add any relations if needed
+}));
+
+// Video Creation Schemas
+export const insertVideoTemplateSchema = createInsertSchema(videoTemplates).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertProductVideoSchema = createInsertSchema(productVideos).omit({
+  id: true,
+  renderStatus: true,
+  renderProgress: true,
+  videoUrl: true,
+  thumbnailUrl: true,
+  duration: true,
+  fileSize: true,
+  downloadCount: true,
+  lastDownloaded: true,
+  renderStartedAt: true,
+  renderCompletedAt: true,
+  errorMessage: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const updateProductVideoSchema = createInsertSchema(productVideos)
+  .omit({
+    id: true,
+    createdBy: true,
+    createdAt: true,
+    updatedAt: true,
+  })
+  .partial();
+
+export const insertVideoAssetSchema = createInsertSchema(videoAssets).omit({
+  id: true,
+  createdAt: true,
+});
+
+// Video Types
+export type VideoTemplate = typeof videoTemplates.$inferSelect;
+export type InsertVideoTemplate = z.infer<typeof insertVideoTemplateSchema>;
+
+export type ProductVideo = typeof productVideos.$inferSelect;
+export type InsertProductVideo = z.infer<typeof insertProductVideoSchema>;
+export type UpdateProductVideo = z.infer<typeof updateProductVideoSchema>;
+
+export type VideoAsset = typeof videoAssets.$inferSelect;
+export type InsertVideoAsset = z.infer<typeof insertVideoAssetSchema>;

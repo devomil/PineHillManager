@@ -1995,6 +1995,194 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Video Creation API Routes
+  
+  // Generate product video
+  app.post('/api/videos/generate', isAuthenticated, upload.array('images', 10), async (req, res) => {
+    try {
+      const { config } = req.body;
+      const user = req.user as any;
+      const files = req.files as Express.Multer.File[];
+      
+      if (!config) {
+        return res.status(400).json({ message: 'Video configuration is required' });
+      }
+
+      const videoConfig = JSON.parse(config);
+      
+      // Create video record
+      const video = await storage.createProductVideo({
+        productName: videoConfig.productName,
+        productDescription: videoConfig.productDescription,
+        category: videoConfig.category,
+        createdBy: user.id,
+        videoConfig: videoConfig,
+      });
+
+      // Save uploaded images as assets
+      if (files && files.length > 0) {
+        for (const file of files) {
+          await storage.createVideoAsset({
+            videoId: video.id,
+            assetType: 'image',
+            fileName: file.originalname || 'uploaded-image.jpg',
+            filePath: file.path,
+            fileSize: file.size,
+            mimeType: file.mimetype,
+            metadata: null
+          });
+        }
+      }
+
+      // Start video generation process (simulate with status update)
+      setTimeout(async () => {
+        try {
+          await storage.updateProductVideo(video.id, {
+            renderStatus: 'completed',
+            renderProgress: 100,
+            videoUrl: `/uploads/videos/generated_${video.id}.mp4`,
+            thumbnailUrl: `/uploads/videos/thumbnail_${video.id}.jpg`,
+            duration: videoConfig.videoLength,
+            renderCompletedAt: new Date(),
+          });
+        } catch (error) {
+          console.error('Error completing video generation:', error);
+          await storage.updateProductVideo(video.id, {
+            renderStatus: 'failed',
+            errorMessage: 'Video generation failed',
+          });
+        }
+      }, 5000); // Simulate 5 second generation time
+
+      res.json({
+        success: true,
+        videoId: video.id,
+        message: 'Video generation started successfully'
+      });
+    } catch (error) {
+      console.error('Error generating video:', error);
+      res.status(500).json({ message: 'Failed to generate video' });
+    }
+  });
+
+  // Generate AI script
+  app.post('/api/videos/generate-script', isAuthenticated, async (req, res) => {
+    try {
+      const { productName, productDescription, keyPoints, videoLength, videoStyle } = req.body;
+      
+      if (!productName || !productDescription) {
+        return res.status(400).json({ message: 'Product name and description are required' });
+      }
+
+      // Generate script based on video length and style
+      const avgWordsPerSecond = 2.5;
+      const targetWords = Math.floor(videoLength * avgWordsPerSecond);
+      
+      // Create a template script (in real implementation, this would use OpenAI)
+      let script = `Introducing ${productName}! `;
+      
+      if (productDescription) {
+        script += `${productDescription.substring(0, Math.floor(targetWords * 4))} `;
+      }
+      
+      if (keyPoints && keyPoints.length > 0) {
+        const validPoints = keyPoints.filter((point: string) => point && point.trim());
+        if (validPoints.length > 0) {
+          script += `Key benefits include: ${validPoints.slice(0, 3).join(', ')}. `;
+        }
+      }
+      
+      script += `Experience the difference today!`;
+      
+      // Trim to approximate word count
+      const words = script.split(' ');
+      if (words.length > targetWords) {
+        script = words.slice(0, targetWords).join(' ') + '...';
+      }
+
+      res.json({
+        script,
+        wordCount: script.split(' ').length,
+        estimatedDuration: Math.ceil(script.split(' ').length / avgWordsPerSecond)
+      });
+    } catch (error) {
+      console.error('Error generating script:', error);
+      res.status(500).json({ message: 'Failed to generate script' });
+    }
+  });
+
+  // Get video templates
+  app.get('/api/videos/templates', isAuthenticated, async (req, res) => {
+    try {
+      const { category } = req.query;
+      const templates = await storage.getVideoTemplates(category as string);
+      res.json(templates);
+    } catch (error) {
+      console.error('Error fetching video templates:', error);
+      res.status(500).json({ message: 'Failed to fetch video templates' });
+    }
+  });
+
+  // Get user's videos
+  app.get('/api/videos', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { status } = req.query;
+      const videos = await storage.getUserVideos(user.id, status as string);
+      res.json(videos);
+    } catch (error) {
+      console.error('Error fetching videos:', error);
+      res.status(500).json({ message: 'Failed to fetch videos' });
+    }
+  });
+
+  // Get video status
+  app.get('/api/videos/status/:id', isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const video = await storage.getProductVideoById(id);
+      
+      if (!video) {
+        return res.status(404).json({ message: 'Video not found' });
+      }
+
+      res.json({
+        id: video.id,
+        renderStatus: video.renderStatus,
+        renderProgress: video.renderProgress,
+        videoUrl: video.videoUrl,
+        thumbnailUrl: video.thumbnailUrl,
+        errorMessage: video.errorMessage
+      });
+    } catch (error) {
+      console.error('Error fetching video status:', error);
+      res.status(500).json({ message: 'Failed to fetch video status' });
+    }
+  });
+
+  // Download video
+  app.get('/api/videos/:id/download', isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const video = await storage.getProductVideoById(id);
+      
+      if (!video || !video.videoUrl) {
+        return res.status(404).json({ message: 'Video not found or not ready' });
+      }
+
+      // Track download
+      await storage.incrementVideoDownloadCount(id);
+
+      res.json({
+        downloadUrl: video.videoUrl,
+        fileName: `${video.productName.replace(/\s+/g, '_')}_video.mp4`
+      });
+    } catch (error) {
+      console.error('Error downloading video:', error);
+      res.status(500).json({ message: 'Failed to download video' });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

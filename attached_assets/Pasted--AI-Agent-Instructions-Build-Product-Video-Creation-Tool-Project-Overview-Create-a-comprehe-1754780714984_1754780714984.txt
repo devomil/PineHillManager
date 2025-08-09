@@ -1,0 +1,284 @@
+# AI Agent Instructions: Build Product Video Creation Tool
+
+## Project Overview
+Create a comprehensive product video creation tool within the `/admin/marketing` page of our Replit application. This tool should autonomously generate professional marketing videos using product photos, scripts, and various cinematic styles.
+
+## Core Requirements
+
+### 1. Page Structure & Navigation
+- **Location**: `/admin/marketing` route
+- **Page Title**: "Product Video Creator"
+- **Navigation**: Add to admin sidebar with video camera icon
+- **Layout**: Clean, professional interface with step-by-step workflow
+
+### 2. Video Creation Workflow
+
+#### Step 1: Product Input
+```
+- Product photo upload (multiple images supported)
+- Product name and description fields
+- Category selection (supplements, electronics, fashion, etc.)
+- Key selling points (bullet list input)
+- Target audience selection
+```
+
+#### Step 2: Video Configuration
+```
+- Video length selector: 15s, 30s, 45s, 60s (max 1 minute)
+- Video style selection:
+  * Explainer Videos
+  * Product Demos
+  * How-to Videos
+  * Testimonial Videos
+  * Promotional Videos
+  * Brand Videos
+- Animation type:
+  * 2D Animation
+  * 3D Animation
+  * Realistic/Live-action style
+  * Mixed media
+- Cinema style:
+  * Professional/Corporate
+  * Modern/Trendy
+  * Minimalist
+  * Vibrant/Energetic
+  * Medical/Scientific (like Ortho Molecular)
+```
+
+#### Step 3: Script & Content
+```
+- Predefined script templates based on video type
+- Auto-generated scripts using AI (based on product info)
+- Custom script editor with character count
+- Voice-over options:
+  * AI-generated voices (male/female, different accents)
+  * Upload custom voice-over
+  * Text-only (captions)
+```
+
+### 3. Autonomous Video Generation
+
+#### AI-Powered Features
+```javascript
+// Implement these autonomous capabilities:
+
+1. Scene Generation:
+   - Automatically create scenes based on video length
+   - Intelligent pacing and transitions
+   - Product photo positioning and animation
+
+2. Script-to-Scene Mapping:
+   - Parse script and match to visual elements
+   - Auto-generate call-to-action placements
+   - Smart text overlay timing
+
+3. Music & Audio Sync:
+   - Generate background music based on style
+   - Auto-sync music to video length
+   - Adjust audio levels for voice-over
+   - Beat-matched transitions
+```
+
+### 4. Advanced Editing Features
+
+#### Visual Elements
+```
+- Logo placement tool (drag & drop positioning)
+- QR code generator and placement
+- Text overlay editor with typography options
+- Color scheme customization
+- Brand guideline templates
+```
+
+#### Audio Controls
+```
+- Background music library with genres
+- AI music generation (mood-based)
+- Audio ducking for voice-overs
+- Sound effects library
+- Audio timeline editor
+```
+
+### 5. Technical Implementation
+
+#### Frontend Components (React/Next.js)
+```jsx
+// Main component structure:
+<AdminLayout>
+  <VideoCreator>
+    <ProductInput />
+    <VideoConfiguration />
+    <ScriptEditor />
+    <PreviewPanel />
+    <RenderingQueue />
+    <AssetLibrary />
+  </VideoCreator>
+</AdminLayout>
+```
+
+#### Backend Services
+```javascript
+// Required API endpoints:
+POST /api/videos/create
+GET /api/videos/templates
+POST /api/videos/render
+GET /api/videos/status/:id
+POST /api/audio/generate
+POST /api/scripts/generate
+```
+
+#### Video Processing Libraries
+```
+Integrate these libraries:
+- FFmpeg for video processing
+- Canvas API for 2D graphics
+- Three.js for 3D animations
+- Fabric.js for interactive editing
+- Web Audio API for audio processing
+```
+
+### 6. File Structure
+
+```
+/admin/marketing/
+├── components/
+│   ├── VideoCreator/
+│   │   ├── ProductInput.jsx
+│   │   ├── VideoConfig.jsx
+│   │   ├── ScriptEditor.jsx
+│   │   ├── VisualEditor.jsx
+│   │   ├── AudioEditor.jsx
+│   │   └── PreviewPanel.jsx
+│   ├── Templates/
+│   └── AssetLibrary/
+├── lib/
+│   ├── videoProcessor.js
+│   ├── audioGenerator.js
+│   ├── scriptAI.js
+│   └── renderEngine.js
+├── styles/
+│   └── video-creator.css
+└── page.jsx
+```
+
+### 7. Key Features Implementation
+
+#### Auto-Generation Engine
+```javascript
+class VideoGenerator {
+  async generateVideo(config) {
+    // 1. Analyze product images
+    const imageAnalysis = await this.analyzeProductImages(config.images);
+    
+    // 2. Generate script if not provided
+    const script = config.script || await this.generateScript(config);
+    
+    // 3. Create scene timeline
+    const timeline = await this.createTimeline(script, config.duration);
+    
+    // 4. Generate music
+    const music = await this.generateMusic(config.style, config.duration);
+    
+    // 5. Render video
+    return await this.renderVideo(timeline, music, config);
+  }
+}
+```
+
+#### Style Templates
+```javascript
+const videoStyles = {
+  explainer: {
+    transitions: ['fade', 'slide'],
+    typography: 'clean-sans',
+    colors: ['#2563eb', '#ffffff'],
+    pacing: 'moderate'
+  },
+  productDemo: {
+    transitions: ['zoom', 'rotate'],
+    typography: 'modern-bold',
+    colors: ['#000000', '#ffffff'],
+    pacing: 'fast'
+  },
+  medical: { // Like Ortho Molecular style
+    transitions: ['fade', 'dissolve'],
+    typography: 'professional-serif',
+    colors: ['#1e40af', '#f8fafc'],
+    pacing: 'slow'
+  }
+};
+```
+
+### 8. Integration Points
+
+#### Database Schema
+```sql
+CREATE TABLE product_videos (
+  id UUID PRIMARY KEY,
+  product_id UUID,
+  video_config JSONB,
+  render_status VARCHAR(50),
+  video_url TEXT,
+  thumbnail_url TEXT,
+  created_at TIMESTAMP,
+  updated_at TIMESTAMP
+);
+
+CREATE TABLE video_templates (
+  id UUID PRIMARY KEY,
+  name VARCHAR(255),
+  category VARCHAR(100),
+  config JSONB,
+  preview_url TEXT
+);
+```
+
+#### External APIs
+```
+- OpenAI API for script generation
+- ElevenLabs for voice synthesis
+- Unsplash/Pexels for stock footage
+- YouTube API for publishing
+- AWS S3 for video storage
+```
+
+## Implementation Steps
+
+### Phase 1: Basic Framework (Week 1)
+1. Set up page routing and basic UI
+2. Create product input form
+3. Build video configuration interface
+4. Implement file upload handling
+
+### Phase 2: Core Video Engine (Week 2-3)
+1. Integrate FFmpeg for video processing
+2. Build scene timeline system
+3. Implement basic templates
+4. Create preview functionality
+
+### Phase 3: AI Features (Week 4-5)
+1. Add script generation AI
+2. Implement music generation
+3. Build autonomous video creation
+4. Add style transfer capabilities
+
+### Phase 4: Advanced Features (Week 6)
+1. Logo and QR code placement
+2. Advanced editing tools
+3. Export options and optimization
+4. Analytics and performance tracking
+
+## Success Metrics
+- Generate professional videos in under 5 minutes
+- Support all specified video styles and lengths
+- Achieve 90%+ user satisfaction with autonomous generation
+- Enable non-technical users to create marketing videos
+
+## Additional Considerations
+- Ensure mobile responsiveness
+- Implement proper error handling and retry logic
+- Add video compression and optimization
+- Include accessibility features (captions, alt text)
+- Build comprehensive documentation and tutorials
+
+Start with Phase 1 and create a solid foundation before moving to more complex features. Focus on user experience and make the tool intuitive for non-technical marketing team members.

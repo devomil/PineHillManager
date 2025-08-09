@@ -109,6 +109,17 @@ import {
   type QrCode,
   type InsertQrCode,
   type UpdateQrCode,
+  // Video schema imports
+  videoTemplates,
+  productVideos,
+  videoAssets,
+  type VideoTemplate,
+  type InsertVideoTemplate,
+  type ProductVideo,
+  type InsertProductVideo,
+  type UpdateProductVideo,
+  type VideoAsset,
+  type InsertVideoAsset,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, asc, gte, lte, or, sql } from "drizzle-orm";
@@ -407,6 +418,35 @@ export interface IStorage {
   getCashFlow(startDate: string, endDate: string): Promise<{ cashIn: string; cashOut: string; netCash: string }>;
   getSalesSummary(startDate: string, endDate: string, locationId?: number): Promise<{ totalSales: string; totalTax: string; totalTips: string; transactionCount: number }>;
   getInventoryValuation(): Promise<{ totalCost: string; totalRetail: string; itemCount: number }>;
+
+  // QR Code operations
+  createQrCode(qrCodeData: InsertQrCode & { qrCodeData: string }): Promise<QrCode>;
+  getAllQrCodes(): Promise<QrCode[]>;
+  getQrCodesByUser(userId: string): Promise<QrCode[]>;
+  getQrCodesByCategory(category: string): Promise<QrCode[]>;
+  getQrCodeById(id: number): Promise<QrCode | undefined>;
+  updateQrCode(id: number, updates: UpdateQrCode & { qrCodeData?: string }): Promise<QrCode | undefined>;
+  deleteQrCode(id: number): Promise<boolean>;
+  incrementQrCodeDownloadCount(id: number): Promise<QrCode | undefined>;
+
+  // Video Creation operations
+  createVideoTemplate(template: InsertVideoTemplate): Promise<VideoTemplate>;
+  getVideoTemplates(category?: string): Promise<VideoTemplate[]>;
+  getVideoTemplateById(id: number): Promise<VideoTemplate | undefined>;
+  updateVideoTemplate(id: number, updates: Partial<InsertVideoTemplate>): Promise<VideoTemplate | undefined>;
+  deleteVideoTemplate(id: number): Promise<boolean>;
+
+  createProductVideo(video: InsertProductVideo): Promise<ProductVideo>;
+  getProductVideoById(id: number): Promise<ProductVideo | undefined>;
+  getUserVideos(userId: string, status?: string): Promise<ProductVideo[]>;
+  getAllProductVideos(limit?: number, offset?: number): Promise<ProductVideo[]>;
+  updateProductVideo(id: number, updates: UpdateProductVideo): Promise<ProductVideo | undefined>;
+  deleteProductVideo(id: number): Promise<boolean>;
+  incrementVideoDownloadCount(id: number): Promise<ProductVideo | undefined>;
+
+  createVideoAsset(asset: InsertVideoAsset): Promise<VideoAsset>;
+  getVideoAssets(videoId: number): Promise<VideoAsset[]>;
+  deleteVideoAsset(id: number): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -2307,6 +2347,128 @@ export class DatabaseStorage implements IStorage {
       .where(eq(qrCodes.id, id))
       .returning();
     return updated;
+  }
+
+  // Video Creation operations
+  
+  // Video Templates
+  async createVideoTemplate(template: InsertVideoTemplate): Promise<VideoTemplate> {
+    const [created] = await db.insert(videoTemplates).values(template).returning();
+    return created;
+  }
+
+  async getVideoTemplates(category?: string): Promise<VideoTemplate[]> {
+    const query = db.select().from(videoTemplates).where(eq(videoTemplates.isActive, true));
+    
+    if (category) {
+      return await query.where(eq(videoTemplates.category, category)).orderBy(desc(videoTemplates.createdAt));
+    }
+    
+    return await query.orderBy(desc(videoTemplates.createdAt));
+  }
+
+  async getVideoTemplateById(id: number): Promise<VideoTemplate | undefined> {
+    const [template] = await db.select().from(videoTemplates).where(eq(videoTemplates.id, id));
+    return template;
+  }
+
+  async updateVideoTemplate(id: number, updates: Partial<InsertVideoTemplate>): Promise<VideoTemplate | undefined> {
+    const [updated] = await db.update(videoTemplates)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(videoTemplates.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteVideoTemplate(id: number): Promise<boolean> {
+    const [updated] = await db.update(videoTemplates)
+      .set({ isActive: false, updatedAt: new Date() })
+      .where(eq(videoTemplates.id, id))
+      .returning();
+    return !!updated;
+  }
+
+  // Product Videos
+  async createProductVideo(video: InsertProductVideo): Promise<ProductVideo> {
+    const [created] = await db.insert(productVideos).values(video).returning();
+    return created;
+  }
+
+  async getProductVideoById(id: number): Promise<ProductVideo | undefined> {
+    const [video] = await db.select().from(productVideos).where(eq(productVideos.id, id));
+    return video;
+  }
+
+  async getUserVideos(userId: string, status?: string): Promise<ProductVideo[]> {
+    let query = db.select().from(productVideos)
+      .where(and(eq(productVideos.createdBy, userId), eq(productVideos.isActive, true)));
+    
+    if (status) {
+      query = query.where(eq(productVideos.renderStatus, status));
+    }
+    
+    return await query.orderBy(desc(productVideos.createdAt));
+  }
+
+  async getAllProductVideos(limit?: number, offset?: number): Promise<ProductVideo[]> {
+    let query = db.select().from(productVideos)
+      .where(eq(productVideos.isActive, true))
+      .orderBy(desc(productVideos.createdAt));
+    
+    if (limit) {
+      query = query.limit(limit);
+    }
+    
+    if (offset) {
+      query = query.offset(offset);
+    }
+    
+    return await query;
+  }
+
+  async updateProductVideo(id: number, updates: UpdateProductVideo): Promise<ProductVideo | undefined> {
+    const [updated] = await db.update(productVideos)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(productVideos.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteProductVideo(id: number): Promise<boolean> {
+    const [updated] = await db.update(productVideos)
+      .set({ isActive: false, updatedAt: new Date() })
+      .where(eq(productVideos.id, id))
+      .returning();
+    return !!updated;
+  }
+
+  async incrementVideoDownloadCount(id: number): Promise<ProductVideo | undefined> {
+    const [updated] = await db.update(productVideos)
+      .set({ 
+        downloadCount: sql`${productVideos.downloadCount} + 1`,
+        lastDownloaded: new Date(),
+        updatedAt: new Date()
+      })
+      .where(eq(productVideos.id, id))
+      .returning();
+    return updated;
+  }
+
+  // Video Assets
+  async createVideoAsset(asset: InsertVideoAsset): Promise<VideoAsset> {
+    const [created] = await db.insert(videoAssets).values(asset).returning();
+    return created;
+  }
+
+  async getVideoAssets(videoId: number): Promise<VideoAsset[]> {
+    return await db.select().from(videoAssets)
+      .where(eq(videoAssets.videoId, videoId))
+      .orderBy(desc(videoAssets.createdAt));
+  }
+
+  async deleteVideoAsset(id: number): Promise<boolean> {
+    const result = await db.delete(videoAssets).where(eq(videoAssets.id, id));
+    return result.rowCount > 0;
   }
 }
 
