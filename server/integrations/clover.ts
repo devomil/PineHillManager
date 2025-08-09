@@ -60,19 +60,25 @@ interface CloverItem {
 export class CloverIntegration {
   private config: CloverConfig;
 
-  constructor() {
-    this.config = {
-      merchantId: process.env.CLOVER_MERCHANT_ID || '',
-      accessToken: process.env.CLOVER_ACCESS_TOKEN || '',
-      baseUrl: process.env.CLOVER_BASE_URL || 'https://api.clover.com'
-    };
+  constructor(dbConfig?: any) {
+    if (dbConfig) {
+      this.config = {
+        merchantId: dbConfig.merchantId,
+        accessToken: dbConfig.apiToken,
+        baseUrl: dbConfig.baseUrl || 'https://api.clover.com'
+      };
+    } else {
+      this.config = {
+        merchantId: process.env.CLOVER_MERCHANT_ID || '',
+        accessToken: process.env.CLOVER_ACCESS_TOKEN || '',
+        baseUrl: process.env.CLOVER_BASE_URL || 'https://api.clover.com'
+      };
+    }
   }
 
-  // Make authenticated API calls to Clover
-  private async makeCloverAPICall(endpoint: string, method: 'GET' | 'POST' = 'GET'): Promise<any> {
+  // Make authenticated API calls to Clover with specific config
+  private async makeCloverAPICallWithConfig(endpoint: string, config: any, method: 'GET' | 'POST' = 'GET'): Promise<any> {
     try {
-      // Get the active Clover configuration
-      const config = await storage.getActiveCloverConfig();
       
       if (!config || !config.apiToken) {
         throw new Error('Clover not configured');
@@ -213,6 +219,117 @@ export class CloverIntegration {
         operation: 'sync_daily_sales',
         status: 'error',
         message: `Failed to sync daily sales: ${error instanceof Error ? error.message : 'Unknown error'}`
+      });
+
+      throw error;
+    }
+  }
+
+  // Sync daily sales with specific merchant config
+  async syncDailySalesWithConfig(date: Date, config: any): Promise<void> {
+    try {
+      const targetDate = date || new Date();
+      const startTime = new Date(targetDate);
+      startTime.setHours(0, 0, 0, 0);
+      
+      const endTime = new Date(targetDate);
+      endTime.setHours(23, 59, 59, 999);
+
+      const startTimestamp = startTime.getTime();
+      const endTimestamp = endTime.getTime();
+
+      console.log(`Syncing sales for merchant: ${config.merchantName} (${config.merchantId})`);
+
+      await storage.createIntegrationLog({
+        system: 'clover',
+        operation: 'sync_daily_sales',
+        status: 'in_progress',
+        message: `Starting daily sales sync for ${config.merchantName} - ${targetDate.toDateString()}`
+      });
+
+      // Fetch orders for the specified date range using merchant-specific config
+      const ordersResponse = await this.makeCloverAPICallWithConfig(
+        `orders?filter=createdTime>=${startTimestamp}&createdTime<=${endTimestamp}&expand=lineItems,payments`,
+        config
+      );
+
+      if (!ordersResponse || !ordersResponse.elements) {
+        console.log(`No orders found for merchant ${config.merchantId}`);
+        return;
+      }
+
+      const orders = ordersResponse.elements;
+      let processedCount = 0;
+
+      for (const order of orders) {
+        // Check if this order is already synced
+        const existingSale = await storage.getPosSaleByCloverOrderId(order.id);
+        if (existingSale) {
+          console.log(`Order ${order.id} already synced, skipping...`);
+          continue;
+        }
+
+        // Process the order and create POS sale record
+        const totalAmount = parseFloat(order.total) / 100; // Clover amounts are in cents
+        const taxAmount = parseFloat(order.taxAmount || '0') / 100;
+        const tipAmount = parseFloat(order.tipAmount || '0') / 100;
+
+        const saleData = {
+          saleDate: targetDate.toISOString().split('T')[0],
+          saleTime: new Date(order.createdTime),
+          totalAmount: totalAmount.toString(),
+          taxAmount: taxAmount.toString(),
+          tipAmount: tipAmount.toString(),
+          paymentMethod: order.payType || 'unknown',
+          cloverOrderId: order.id,
+          locationId: config.id || 1 // Use config ID as location identifier
+        };
+
+        const createdSale = await storage.createPosSale(saleData);
+
+        // Process line items if they exist
+        if (order.lineItems && order.lineItems.elements) {
+          for (const lineItem of order.lineItems.elements) {
+            const itemAmount = parseFloat(lineItem.price) / 100;
+            const quantity = lineItem.quantity || 1;
+            const lineTotal = itemAmount * quantity;
+            
+            const itemData = {
+              saleId: createdSale.id,
+              itemName: lineItem.name,
+              quantity: quantity.toString(),
+              unitPrice: itemAmount.toString(),
+              lineTotal: lineTotal.toString(),
+              discountAmount: lineItem.discountAmount ? (parseFloat(lineItem.discountAmount) / 100).toString() : '0.00'
+            };
+
+            await storage.createPosSaleItem(itemData);
+          }
+        }
+
+        processedCount++;
+        console.log(`Successfully synced order ${order.id} for ${config.merchantName} with total ${totalAmount}`);
+      }
+
+      // Log successful completion
+      await storage.createIntegrationLog({
+        system: 'clover',
+        operation: 'sync_daily_sales',
+        status: 'success',
+        message: `Successfully synced ${processedCount} orders for ${config.merchantName} - ${targetDate.toDateString()}`
+      });
+
+      console.log(`Clover sync for ${config.merchantName} completed. Processed ${processedCount} orders.`);
+
+    } catch (error) {
+      console.error(`Error syncing Clover sales for ${config.merchantName}:`, error);
+      
+      // Log the error
+      await storage.createIntegrationLog({
+        system: 'clover',
+        operation: 'sync_daily_sales',
+        status: 'error',
+        message: `Failed to sync daily sales for ${config.merchantName}: ${error instanceof Error ? error.message : 'Unknown error'}`
       });
 
       throw error;

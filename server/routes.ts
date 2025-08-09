@@ -1613,6 +1613,62 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Sync all Clover locations
+  app.post('/api/integrations/clover/sync/all-locations', isAuthenticated, async (req, res) => {
+    try {
+      const { date } = req.body;
+      const targetDate = date ? new Date(date) : new Date();
+      
+      // Get all active Clover configurations
+      const cloverConfigs = await storage.getAllCloverConfigs();
+      const activeConfigs = cloverConfigs.filter(config => config.isActive);
+      
+      if (activeConfigs.length === 0) {
+        return res.status(400).json({ error: 'No active Clover configurations found' });
+      }
+
+      let syncResults = [];
+      
+      for (const config of activeConfigs) {
+        try {
+          console.log(`Syncing sales for merchant: ${config.merchantName || config.merchantId}`);
+          
+          // Import Clover integration for each merchant
+          const { CloverIntegration } = await import('./integrations/clover');
+          const merchantIntegration = new CloverIntegration(config);
+          
+          await merchantIntegration.syncDailySalesWithConfig(targetDate, config);
+          
+          syncResults.push({
+            merchantId: config.merchantId,
+            merchantName: config.merchantName,
+            success: true,
+            message: `Sales synced successfully`
+          });
+        } catch (error) {
+          console.error(`Error syncing merchant ${config.merchantId}:`, error);
+          syncResults.push({
+            merchantId: config.merchantId,
+            merchantName: config.merchantName,
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error'
+          });
+        }
+      }
+      
+      const successCount = syncResults.filter(r => r.success).length;
+      
+      res.json({ 
+        success: true, 
+        message: `Synced ${successCount}/${activeConfigs.length} locations for ${targetDate.toDateString()}`,
+        results: syncResults
+      });
+    } catch (error) {
+      console.error('Error syncing all Clover locations:', error);
+      res.status(500).json({ error: 'Failed to sync all locations' });
+    }
+  });
+
   app.get('/api/integrations/clover/test', isAuthenticated, async (req, res) => {
     try {
       const { cloverIntegration } = await import('./integrations/clover');
