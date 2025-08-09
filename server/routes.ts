@@ -1807,6 +1807,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
     next();
   });
 
+  // Marketing Tools Routes
+  app.post('/api/marketing/generate-qr', isAuthenticated, async (req, res) => {
+    try {
+      const { url } = req.body;
+      
+      if (!url) {
+        return res.status(400).json({ message: 'URL is required' });
+      }
+
+      // Validate URL format
+      try {
+        new URL(url);
+      } catch {
+        return res.status(400).json({ message: 'Invalid URL format' });
+      }
+
+      const QRCode = require('qrcode');
+      
+      // Generate QR code as data URL
+      const qrCodeDataUrl = await QRCode.toDataURL(url, {
+        errorCorrectionLevel: 'M',
+        type: 'image/png',
+        quality: 0.92,
+        margin: 1,
+        color: {
+          dark: '#000000',
+          light: '#FFFFFF'
+        },
+        width: 256
+      });
+
+      res.json({ qrCodeDataUrl, originalUrl: url });
+    } catch (error) {
+      console.error('Error generating QR code:', error);
+      res.status(500).json({ message: 'Failed to generate QR code' });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

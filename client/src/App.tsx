@@ -29,6 +29,7 @@ import EmployeeSupport from "@/pages/employee-support";
 import UserManagement from "@/pages/user-management";
 import AccountingDashboard from "@/pages/accounting-dashboard";
 import IntegrationsPage from "@/pages/integrations-page";
+import MarketingPage from "@/pages/marketing-page";
 import NotFound from "@/pages/not-found";
 import Landing from "@/pages/landing";
 
@@ -69,7 +70,7 @@ function AuthenticatedApp() {
       <Route path="/integrations" component={IntegrationsPage} />
       <Route path="/admin/accounting" component={AccountingDashboard} />
       <Route path="/admin/integrations" component={IntegrationsPage} />
-      <Route path="/admin/integrations" component={IntegrationsPage} />
+      <Route path="/admin/marketing" component={MarketingPage} />
       <Route component={NotFound} />
     </Switch>
   );
