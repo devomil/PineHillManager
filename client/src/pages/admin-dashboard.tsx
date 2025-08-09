@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useQuery } from "@tanstack/react-query";
-import { Users, Clock, Calendar, MapPin, ChevronRight, FileText, MessageCircle, Bell, Settings, Eye, DollarSign, Menu, X } from "lucide-react";
+import { Users, Clock, Calendar, MapPin, ChevronRight, FileText, MessageCircle, Bell, Settings, Eye, DollarSign, Menu, X, QrCode } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { formatTimeStringToCST } from "@/lib/time-utils";
 
@@ -72,6 +72,9 @@ export default function AdminDashboard() {
         break;
       case 'employee-view':
         setLocation('/dashboard');
+        break;
+      case 'marketing':
+        setLocation('/admin/marketing');
         break;
     }
   };
@@ -191,6 +194,14 @@ export default function AdminDashboard() {
       href: "/accounting",
       color: "text-orange-600",
       bgColor: "bg-orange-50"
+    },
+    {
+      title: "Marketing Tools",
+      description: "Generate QR codes for marketing campaigns",
+      icon: QrCode,
+      href: "/admin/marketing",
+      color: "text-pink-600",
+      bgColor: "bg-pink-50"
     }
   ];
 
@@ -279,7 +290,9 @@ export default function AdminDashboard() {
                   action.href.includes('/announcements') ? 'announcements' :
                   action.href.includes('/system-support') ? 'system-support' :
                   action.href.includes('/communication') ? 'communication' :
-                  action.href.includes('/reports') ? 'reports' : 'dashboard')}
+                  action.href.includes('/reports') ? 'reports' :
+                  action.href.includes('/accounting') ? 'accounting' :
+                  action.href.includes('/marketing') ? 'marketing' : 'dashboard')}
               >
                 <CardContent className="p-4">
                   <div className="flex items-center space-x-3">

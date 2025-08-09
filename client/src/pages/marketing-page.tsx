@@ -7,16 +7,18 @@ import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { QrCode, Download, Copy, ExternalLink, Zap, History, Plus } from 'lucide-react';
+import { QrCode, Download, Copy, ExternalLink, Zap, History, Plus, ArrowLeft } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import AdminLayout from '@/components/admin-layout';
 import QrCodeHistory from '@/components/qr-code-history';
+import { useLocation } from 'wouter';
 
 export default function MarketingPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [, setLocation] = useLocation();
   const [url, setUrl] = useState('');
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState('');
   const [title, setTitle] = useState('');
@@ -166,13 +168,23 @@ export default function MarketingPage() {
   return (
     <AdminLayout>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-gray-900" style={{ fontFamily: 'Great Vibes, cursive' }}>
-            Marketing Tools
-          </h1>
-          <p className="text-gray-600">
-            Generate QR codes for marketing campaigns and track their usage
-          </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight text-gray-900" style={{ fontFamily: 'Great Vibes, cursive' }}>
+              Marketing Tools
+            </h1>
+            <p className="text-gray-600">
+              Generate QR codes for marketing campaigns and track their usage
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            onClick={() => setLocation('/admin')}
+            className="flex items-center gap-2"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to Dashboard
+          </Button>
         </div>
 
         <Tabs defaultValue="generator" className="space-y-6">
