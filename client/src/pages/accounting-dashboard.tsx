@@ -208,7 +208,7 @@ function AccountingContent() {
               {multiLocationData?.locationBreakdown && multiLocationData.locationBreakdown.length > 0 ? (
                 <>
                   <div className="text-lg font-bold">
-                    {cloverLocations.find(l => l.merchantId === multiLocationData.locationBreakdown[0]?.locationId)?.merchantName || 'Unknown'}
+                    {multiLocationData.locationBreakdown[0]?.locationName || 'Unknown'}
                   </div>
                   <p className="text-sm text-gray-500">
                     ${multiLocationData.locationBreakdown[0]?.totalSales || '0.00'} revenue
@@ -241,11 +241,10 @@ function AccountingContent() {
             {multiLocationData?.locationBreakdown && multiLocationData.locationBreakdown.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {multiLocationData.locationBreakdown.map((location, index) => {
-                  const locationInfo = cloverLocations.find(l => l.merchantId === location.locationId);
                   return (
                     <div key={location.locationId} className="border rounded-lg p-4">
                       <div className="flex items-center justify-between mb-2">
-                        <h3 className="font-medium">{locationInfo?.merchantName || location.locationId}</h3>
+                        <h3 className="font-medium">{location.locationName || `Location ${location.locationId}`}</h3>
                         <Badge variant="outline">
                           <ShoppingCart className="h-3 w-3 mr-1" />
                           {location.transactionCount}
