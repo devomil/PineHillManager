@@ -16,7 +16,10 @@ import {
   XCircle,
   AlertCircle,
   Database,
-  Activity
+  Activity,
+  MapPin,
+  ShoppingCart,
+  CreditCard
 } from 'lucide-react';
 import { apiRequest } from '@/lib/queryClient';
 import AdminLayout from '@/components/admin-layout';
@@ -36,6 +39,33 @@ type FinancialAccount = {
   accountType: string;
   balance: string;
   isActive: boolean;
+};
+
+type CloverLocation = {
+  id: number;
+  merchantId: string;
+  merchantName: string;
+  apiToken: string;
+  baseUrl: string;
+  isActive: boolean;
+  lastSyncAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type LocationSalesData = {
+  locationId: string;
+  totalSales: string;
+  transactionCount: number;
+  avgSale: string;
+};
+
+type MultiLocationAnalytics = {
+  locationBreakdown: LocationSalesData[];
+  totalSummary: {
+    totalRevenue: string;
+    totalTransactions: number;
+  };
 };
 
 function AccountingContent() {
@@ -58,6 +88,31 @@ function AccountingContent() {
     queryKey: ['/api/accounting/analytics/profit-loss', today],
     queryFn: async () => {
       const response = await apiRequest('GET', `/api/accounting/analytics/profit-loss?startDate=${today}&endDate=${today}`);
+      return await response.json();
+    },
+  });
+
+  // Multi-location Clover data
+  const { data: cloverLocations = [] } = useQuery<CloverLocation[]>({
+    queryKey: ['/api/accounting/config/clover/all'],
+    queryFn: async () => {
+      const response = await fetch('/api/accounting/config/clover/all', {
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        }
+      });
+      if (!response.ok) throw new Error('Failed to fetch locations');
+      return await response.json();
+    },
+  });
+
+  // Multi-location analytics
+  const { data: multiLocationData } = useQuery<MultiLocationAnalytics>({
+    queryKey: ['/api/accounting/analytics/multi-location', today],
+    queryFn: async () => {
+      const response = await apiRequest('GET', `/api/accounting/analytics/multi-location?startDate=${today}&endDate=${today}`);
       return await response.json();
     },
   });
@@ -98,6 +153,131 @@ function AccountingContent() {
             Comprehensive financial management and reporting system
           </p>
         </div>
+
+        {/* Multi-Location Overview */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <MapPin className="h-4 w-4" />
+                Active Locations
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{cloverLocations.filter(l => l.isActive).length}</div>
+              <p className="text-sm text-gray-500">Clover POS locations</p>
+              <div className="mt-3 space-y-1">
+                {cloverLocations.filter(l => l.isActive).map(location => (
+                  <div key={location.id} className="flex items-center justify-between text-xs">
+                    <span>{location.merchantName}</span>
+                    <Badge variant="outline" className="text-xs">Active</Badge>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <DollarSign className="h-4 w-4" />
+                Combined Revenue
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                ${multiLocationData?.totalSummary?.totalRevenue || '0.00'}
+              </div>
+              <p className="text-sm text-gray-500">Today across all locations</p>
+              <div className="mt-3">
+                <div className="text-xs text-gray-500">
+                  {multiLocationData?.totalSummary?.totalTransactions || 0} transactions
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <TrendingUp className="h-4 w-4" />
+                Top Location
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {multiLocationData?.locationBreakdown && multiLocationData.locationBreakdown.length > 0 ? (
+                <>
+                  <div className="text-lg font-bold">
+                    {cloverLocations.find(l => l.merchantId === multiLocationData.locationBreakdown[0]?.locationId)?.merchantName || 'Unknown'}
+                  </div>
+                  <p className="text-sm text-gray-500">
+                    ${multiLocationData.locationBreakdown[0]?.totalSales || '0.00'} revenue
+                  </p>
+                  <div className="mt-3">
+                    <div className="text-xs text-gray-500">
+                      {multiLocationData.locationBreakdown[0]?.transactionCount || 0} transactions
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="text-lg font-bold text-gray-400">No data</div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Location Breakdown */}
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <BarChart3 className="h-5 w-5" />
+              Location Performance
+            </CardTitle>
+            <CardDescription>
+              Individual location sales data for today
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {multiLocationData?.locationBreakdown && multiLocationData.locationBreakdown.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {multiLocationData.locationBreakdown.map((location, index) => {
+                  const locationInfo = cloverLocations.find(l => l.merchantId === location.locationId);
+                  return (
+                    <div key={location.locationId} className="border rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <h3 className="font-medium">{locationInfo?.merchantName || location.locationId}</h3>
+                        <Badge variant="outline">
+                          <ShoppingCart className="h-3 w-3 mr-1" />
+                          {location.transactionCount}
+                        </Badge>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-500">Revenue</span>
+                          <span className="font-medium">${location.totalSales}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-500">Avg Sale</span>
+                          <span className="font-medium">${location.avgSale}</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div 
+                            className="bg-blue-600 h-2 rounded-full" 
+                            style={{ width: `${Math.min(100, (parseFloat(location.totalSales) / parseFloat(multiLocationData.totalSummary.totalRevenue)) * 100)}%` }}
+                          ></div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-gray-500">
+                No sales data available for today
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* System Health Overview */}
         <Card className="mb-8">

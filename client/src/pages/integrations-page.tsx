@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -20,7 +20,10 @@ import {
   ShoppingCart,
   Heart,
   Package,
-  ArrowLeft
+  ArrowLeft,
+  Database,
+  BarChart3,
+  MapPin
 } from 'lucide-react';
 
 interface IntegrationStatus {
@@ -35,6 +38,48 @@ const IntegrationsPage = () => {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState('overview');
   const [, setLocation] = useLocation();
+
+  // Integration status mapping
+  const getIntegrationStatuses = (healthData: any, cloverConfigs: any[]) => {
+    const statuses = [
+      {
+        name: 'Database',
+        status: healthData?.database === 'connected' ? 'connected' : 'error',
+        icon: <Database className="h-4 w-4" />,
+        color: healthData?.database === 'connected' ? 'green' : 'red'
+      },
+      {
+        name: 'QuickBooks',
+        status: healthData?.quickbooks === 'configured' ? 'connected' : 'not_configured',
+        icon: <BarChart3 className="h-4 w-4" />,
+        color: healthData?.quickbooks === 'configured' ? 'green' : 'yellow'
+      },
+      {
+        name: 'HSA Provider',
+        status: healthData?.hsa === 'configured' ? 'connected' : 'not_configured',
+        icon: <Heart className="h-4 w-4" />,
+        color: healthData?.hsa === 'configured' ? 'green' : 'yellow'
+      },
+      {
+        name: 'Thrive Inventory',
+        status: healthData?.thrive === 'configured' ? 'connected' : 'not_configured',
+        icon: <Package className="h-4 w-4" />,
+        color: healthData?.thrive === 'configured' ? 'green' : 'yellow'
+      }
+    ];
+
+    // Add Clover locations
+    cloverConfigs.forEach(config => {
+      statuses.push({
+        name: `Clover POS - ${config.merchantName}`,
+        status: config.isActive ? 'connected' : 'not_configured',
+        icon: <ShoppingCart className="h-4 w-4" />,
+        color: config.isActive ? 'green' : 'yellow'
+      });
+    });
+
+    return statuses;
+  };
 
   // Form states for credentials
   const [quickbooksCredentials, setQuickbooksCredentials] = useState({
@@ -86,11 +131,11 @@ const IntegrationsPage = () => {
     refetchInterval: 30000 // Refresh every 30 seconds
   });
 
-  // Fetch existing Clover configuration with custom queryFn
-  const { data: cloverConfig, error: cloverError, isLoading: cloverLoading, refetch: refetchClover } = useQuery({
-    queryKey: ['/api/accounting/clover-config'],
+  // Fetch all Clover configurations for multi-location support
+  const { data: allCloverConfigs = [], refetch: refetchClover } = useQuery({
+    queryKey: ['/api/accounting/config/clover/all'],
     queryFn: async () => {
-      const response = await fetch('/api/accounting/clover-config', {
+      const response = await fetch('/api/accounting/config/clover/all', {
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
@@ -103,7 +148,7 @@ const IntegrationsPage = () => {
       }
       
       const text = await response.text();
-      return text ? JSON.parse(text) : null;
+      return text ? JSON.parse(text) : [];
     },
     retry: 1,
     staleTime: 0,
@@ -113,9 +158,12 @@ const IntegrationsPage = () => {
     refetchOnWindowFocus: true
   });
 
+  // Get the first active config for form loading (backward compatibility)
+  const cloverConfig = allCloverConfigs.find(config => config.isActive) || allCloverConfigs[0] || null;
+
   // Update form when data is loaded
   useEffect(() => {
-    if (cloverConfig && typeof cloverConfig === 'object') {
+    if (cloverConfig && typeof cloverConfig === 'object' && !cloverCredentials.merchantId) {
       setCloverCredentials({
         merchantId: cloverConfig.merchantId || '',
         merchantName: cloverConfig.merchantName || '',
@@ -124,6 +172,13 @@ const IntegrationsPage = () => {
       });
     }
   }, [cloverConfig]);
+
+  // Update saved merchants list separately
+  useEffect(() => {
+    if (allCloverConfigs && allCloverConfigs.length > 0) {
+      setSavedMerchants(allCloverConfigs);
+    }
+  }, [allCloverConfigs]);
 
   // Debug logging for API responses
   useEffect(() => {
@@ -440,38 +495,119 @@ const IntegrationsPage = () => {
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {integrations.map((integration) => (
-              <Card key={integration.name} className="hover:shadow-md transition-shadow">
-                <CardHeader className="flex flex-row items-center space-y-0 pb-2">
-                  <div className={`p-2 rounded-lg text-white mr-3 ${integration.color}`}>
-                    {integration.icon}
+          {/* Multi-Location Integration Summary */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <MapPin className="h-4 w-4" />
+                  Active Integrations
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {getIntegrationStatuses(integrationStatus, allCloverConfigs).filter(i => i.status === 'connected').length}
+                </div>
+                <p className="text-sm text-gray-500">Connected systems</p>
+                <div className="mt-3 space-y-1">
+                  {getIntegrationStatuses(integrationStatus, allCloverConfigs).filter(i => i.status === 'connected').slice(0, 3).map((integration, index) => (
+                    <div key={index} className="flex items-center justify-between text-xs">
+                      <span>{integration.name}</span>
+                      <Badge variant="outline" className="text-xs bg-green-50 text-green-700">Active</Badge>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <ShoppingCart className="h-4 w-4" />
+                  Clover Locations
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{allCloverConfigs.filter(c => c.isActive).length}</div>
+                <p className="text-sm text-gray-500">POS locations connected</p>
+                <div className="mt-3 space-y-1">
+                  {allCloverConfigs.filter(c => c.isActive).map(config => (
+                    <div key={config.id} className="flex items-center justify-between text-xs">
+                      <span>{config.merchantName}</span>
+                      <Badge variant="outline" className="text-xs">Active</Badge>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Database className="h-4 w-4" />
+                  System Health
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {integrationStatus?.database === 'connected' ? '100%' : '0%'}
+                </div>
+                <p className="text-sm text-gray-500">Overall system health</p>
+                <div className="mt-3">
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div 
+                      className="bg-green-600 h-2 rounded-full" 
+                      style={{ width: integrationStatus?.database === 'connected' ? '100%' : '0%' }}
+                    ></div>
                   </div>
-                  <div className="flex-1">
-                    <CardTitle className="text-sm font-medium">
-                      {integration.name}
-                    </CardTitle>
-                    {getStatusBadge(integration.status)}
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-xs text-gray-500">
-                    {integration.status === 'configured' 
-                      ? 'Ready for data sync'
-                      : 'Configuration required'
-                    }
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                </div>
+              </CardContent>
+            </Card>
           </div>
+
+          {/* Integration Status Grid */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Settings className="h-5 w-5" />
+                All Integrations Status
+              </CardTitle>
+              <CardDescription>
+                Complete overview of all connected systems and locations
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {getIntegrationStatuses(integrationStatus, allCloverConfigs).map((integration, index) => (
+                  <div key={index} className="border rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        {integration.icon}
+                        <h3 className="font-medium text-sm">{integration.name}</h3>
+                      </div>
+                      <Badge 
+                        variant={integration.status === 'connected' ? 'default' : 'secondary'}
+                        className={integration.status === 'connected' ? 'bg-green-100 text-green-800' : ''}
+                      >
+                        {integration.status === 'connected' ? 'Connected' : 
+                         integration.status === 'not_configured' ? 'Setup Needed' : 'Error'}
+                      </Badge>
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      {integration.status === 'connected' ? 'Ready for data sync' : 'Configuration required'}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
 
           <Alert>
             <Settings className="h-4 w-4" />
-            <AlertTitle>Getting Started</AlertTitle>
+            <AlertTitle>Multi-Location Integration Management</AlertTitle>
             <AlertDescription>
-              To connect external systems, configure each integration using their respective tabs. 
-              You'll need API credentials from each provider.
+              All {allCloverConfigs.length} Clover POS locations are operational. Configure additional integrations using their respective tabs. 
+              QuickBooks, HSA, and Thrive inventory integrations will sync data across all locations.
             </AlertDescription>
           </Alert>
         </TabsContent>

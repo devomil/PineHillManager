@@ -1091,6 +1091,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get all active Clover configs for multi-location support
+  app.get('/api/accounting/config/clover/all', isAuthenticated, async (req, res) => {
+    try {
+      const { db } = await import('./db');
+      const { cloverConfig } = await import('@shared/schema');  
+      
+      const configs = await db.select().from(cloverConfig);
+      res.json(configs);
+    } catch (error) {
+      console.error('Error fetching all Clover configs:', error);
+      res.status(500).json({ message: 'Failed to fetch Clover configurations' });
+    }
+  });
+
   app.get('/api/accounting/clover-config', isAuthenticated, async (req, res) => {
     try {
       console.log('Getting active Clover config...');
@@ -1108,6 +1122,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error fetching Clover config:', error);
       res.status(500).json({ message: 'Failed to fetch Clover configuration' });
+    }
+  });
+
+  // Multi-location analytics endpoint
+  app.get('/api/accounting/analytics/multi-location', isAuthenticated, async (req, res) => {
+    try {
+      const { startDate, endDate } = req.query;
+      const { db } = await import('./db');
+      const { posSales } = await import('@shared/schema');
+      const { sql, between } = await import('drizzle-orm');
+      
+      const start = new Date(startDate as string);
+      const end = new Date(endDate as string);
+      
+      // Get sales data by location
+      const locationSales = await db
+        .select({
+          locationId: posSales.locationId,
+          totalSales: sql`COALESCE(SUM(${posSales.totalAmount}), 0)`.as('totalSales'),
+          transactionCount: sql`COUNT(*)`.as('transactionCount'),
+          avgSale: sql`COALESCE(AVG(${posSales.totalAmount}), 0)`.as('avgSale')
+        })
+        .from(posSales)
+        .where(between(posSales.saleDate, start, end))
+        .groupBy(posSales.locationId);
+
+      // Get total combined sales
+      const totalSales = await db
+        .select({
+          totalRevenue: sql`COALESCE(SUM(${posSales.totalAmount}), 0)`.as('totalRevenue'),
+          totalTransactions: sql`COUNT(*)`.as('totalTransactions')
+        })
+        .from(posSales)
+        .where(between(posSales.saleDate, start, end));
+
+      res.json({
+        locationBreakdown: locationSales,
+        totalSummary: totalSales[0] || { totalRevenue: 0, totalTransactions: 0 }
+      });
+    } catch (error) {
+      console.error('Error fetching multi-location analytics:', error);
+      res.status(500).json({ message: 'Failed to fetch multi-location analytics' });
     }
   });
 
