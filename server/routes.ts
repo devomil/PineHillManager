@@ -2004,6 +2004,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = req.user as any;
       const files = req.files as Express.Multer.File[];
       
+      console.log('Video generation request body:', req.body);
+      console.log('Config parameter:', config);
+      
       if (!config) {
         return res.status(400).json({ message: 'Video configuration is required' });
       }

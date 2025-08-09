@@ -86,10 +86,17 @@ export default function VideoCreator() {
         });
       }, 1000);
 
+      console.log('Generating video with config:', config);
+      
       const formData = new FormData();
       formData.append('config', JSON.stringify(config));
       config.images.forEach((image, index) => {
-        formData.append(`image_${index}`, image);
+        formData.append(`images`, image);
+      });
+
+      console.log('FormData being sent:', {
+        config: JSON.stringify(config),
+        imageCount: config.images.length
       });
 
       const response = await apiRequest('POST', '/api/videos/generate', formData);
@@ -738,7 +745,10 @@ export default function VideoCreator() {
                   Previous: Script & Audio
                 </Button>
                 <Button
-                  onClick={() => generateVideoMutation.mutate(config)}
+                  onClick={() => {
+                    console.log('Button clicked, current config:', config);
+                    generateVideoMutation.mutate(config);
+                  }}
                   disabled={isGenerating || !canProceedToStep(4)}
                   className="flex items-center gap-2 flex-1"
                 >
