@@ -74,33 +74,50 @@ const IntegrationsPage = () => {
     queryKey: ['/api/accounting/clover-config'],
     retry: 1,
     staleTime: 0,
-    cacheTime: 0
+    cacheTime: 0,
+    enabled: true,
+    refetchOnMount: true,
+    refetchOnWindowFocus: true
   });
 
   // Force refresh the config data
   useEffect(() => {
+    console.log('Component mounted, fetching clover config...');
     refetchClover();
   }, [refetchClover]);
+  
+  // Debug query state
+  useEffect(() => {
+    console.log('Query state:', {
+      data: cloverConfig,
+      error: cloverError,
+      isLoading: cloverLoading
+    });
+  }, [cloverConfig, cloverError, cloverLoading]);
 
   // Update form when data is loaded
   useEffect(() => {
-    if (cloverConfig) {
-      console.log('Loading Clover config:', cloverConfig);
-      console.log('Setting form with:', {
+    console.log('=== Form Update Effect ===');
+    console.log('cloverConfig:', cloverConfig);
+    console.log('cloverError:', cloverError);
+    console.log('cloverLoading:', cloverLoading);
+    
+    if (cloverConfig && typeof cloverConfig === 'object') {
+      console.log('Processing Clover config:', cloverConfig);
+      const newCredentials = {
         merchantId: cloverConfig.merchantId || cloverConfig.merchant_id || '',
         apiToken: cloverConfig.apiToken || cloverConfig.api_token || '',
         environment: 'production'
-      });
+      };
+      console.log('Setting form with:', newCredentials);
       
-      setCloverCredentials({
-        merchantId: cloverConfig.merchantId || cloverConfig.merchant_id || '',
-        apiToken: cloverConfig.apiToken || cloverConfig.api_token || '',
-        environment: 'production'
-      });
+      setCloverCredentials(newCredentials);
     } else if (cloverError) {
       console.error('Error loading Clover config:', cloverError);
+    } else if (!cloverLoading && !cloverConfig) {
+      console.log('No config loaded yet, but not loading...');
     }
-  }, [cloverConfig, cloverError]);
+  }, [cloverConfig, cloverError, cloverLoading]);
 
   // Debug logging for API responses
   useEffect(() => {

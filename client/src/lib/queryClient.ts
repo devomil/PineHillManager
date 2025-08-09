@@ -33,8 +33,18 @@ export const queryClient = new QueryClient({
             throw new Error(`${response.status}: ${response.statusText}`);
           }
           
-          const data = await response.json();
-          console.log('Response data for', url, ':', data);
+          const text = await response.text();
+          console.log('Raw response text for', url, ':', text);
+          
+          let data;
+          try {
+            data = JSON.parse(text);
+            console.log('Parsed response data for', url, ':', data);
+          } catch (e) {
+            console.error('Failed to parse JSON for', url, ':', text);
+            throw new Error('Invalid JSON response');
+          }
+          
           return data;
         } catch (error) {
           console.error('Fetch error for', url, ':', error);
