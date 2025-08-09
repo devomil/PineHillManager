@@ -70,21 +70,37 @@ const IntegrationsPage = () => {
   });
 
   // Fetch existing Clover configuration
-  const { data: cloverConfig } = useQuery({
-    queryKey: ['/api/accounting/clover-config']
+  const { data: cloverConfig, error: cloverError, isLoading: cloverLoading, refetch: refetchClover } = useQuery({
+    queryKey: ['/api/accounting/clover-config'],
+    retry: 1,
+    staleTime: 0,
+    cacheTime: 0
   });
+
+  // Force refresh the config data
+  useEffect(() => {
+    refetchClover();
+  }, [refetchClover]);
 
   // Update form when data is loaded
   useEffect(() => {
     if (cloverConfig) {
       console.log('Loading Clover config:', cloverConfig);
+      console.log('Setting form with:', {
+        merchantId: cloverConfig.merchantId || cloverConfig.merchant_id || '',
+        apiToken: cloverConfig.apiToken || cloverConfig.api_token || '',
+        environment: 'production'
+      });
+      
       setCloverCredentials({
         merchantId: cloverConfig.merchantId || cloverConfig.merchant_id || '',
         apiToken: cloverConfig.apiToken || cloverConfig.api_token || '',
         environment: 'production'
       });
+    } else if (cloverError) {
+      console.error('Error loading Clover config:', cloverError);
     }
-  }, [cloverConfig]);
+  }, [cloverConfig, cloverError]);
 
   // Debug logging for API responses
   useEffect(() => {
