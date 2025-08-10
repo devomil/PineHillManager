@@ -88,9 +88,20 @@ export default function VideoCreator() {
     try {
       const videoCreator = new ProductVideoCreator();
       
+      // Simulate progress updates during generation
+      const progressInterval = setInterval(() => {
+        setGenerationProgress(prev => {
+          if (prev < 90) return prev + 10;
+          return prev;
+        });
+      }, 500);
+      
       const result = await videoCreator.createVideo(config, (progress) => {
+        clearInterval(progressInterval);
         setGenerationProgress(progress);
       });
+      
+      clearInterval(progressInterval);
 
       setGeneratedVideo(result);
       
