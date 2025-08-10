@@ -21,7 +21,7 @@ import {
   X
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { ProductVideoCreator, VideoConfig } from '@/lib/video-generator';
+import { ProductVideoCreator, VideoConfig } from '@/lib/simple-video-generator';
 
 export default function VideoCreator() {
   const { toast } = useToast();
@@ -340,6 +340,9 @@ export default function VideoCreator() {
                 
                 <p className="text-sm text-gray-600">
                   File: {generatedVideo.fileName}
+                </p>
+                <p className="text-xs text-gray-500">
+                  Video format: WebM (compatible with most modern browsers and video players)
                 </p>
               </CardContent>
             </Card>
