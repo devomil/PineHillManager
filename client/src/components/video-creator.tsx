@@ -29,6 +29,8 @@ export default function VideoCreator() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationProgress, setGenerationProgress] = useState(0);
   const [contentGenerator] = useState(() => new ContentGenerator());
+  const [generatedContent, setGeneratedContent] = useState<any>(null);
+  const [showContentPreview, setShowContentPreview] = useState(false);
   const [generatedVideo, setGeneratedVideo] = useState<{
     videoBlob: Blob;
     downloadUrl: string;
@@ -88,19 +90,26 @@ export default function VideoCreator() {
     setGenerationProgress(0);
 
     try {
+      // Phase 2: Generate professional content first
+      setGenerationProgress(5);
+      const content = await contentGenerator.generateProfessionalContent(config);
+      setGeneratedContent(content);
+      
+      setGenerationProgress(15);
+      
       const videoCreator = new ProductVideoCreator();
       
       // Simulate progress updates during generation
       const progressInterval = setInterval(() => {
         setGenerationProgress(prev => {
-          if (prev < 90) return prev + 10;
+          if (prev < 90) return prev + 5;
           return prev;
         });
       }, 500);
       
       const result = await videoCreator.createVideo(config, (progress) => {
         clearInterval(progressInterval);
-        setGenerationProgress(progress);
+        setGenerationProgress(15 + (progress * 0.85)); // Adjust for content generation
       });
       
       clearInterval(progressInterval);
@@ -122,6 +131,21 @@ export default function VideoCreator() {
     } finally {
       setIsGenerating(false);
       setGenerationProgress(0);
+    }
+  };
+
+  // Preview generated content
+  const previewContent = async () => {
+    try {
+      const content = await contentGenerator.generateProfessionalContent(config);
+      setGeneratedContent(content);
+      setShowContentPreview(true);
+    } catch (error) {
+      toast({
+        title: "Content Preview Failed",
+        description: "Unable to generate content preview.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -348,24 +372,36 @@ export default function VideoCreator() {
             </div>
           )}
 
-          {/* Generate Button */}
-          <Button
-            onClick={handleGenerateVideo}
-            disabled={isGenerating || !config.productName.trim() || config.productImages.length === 0 || !config.healthConcern.trim() || config.benefits.length === 0}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 text-lg disabled:bg-gray-400 disabled:cursor-not-allowed"
-          >
-            {isGenerating ? (
-              <>
-                <Wand2 className="mr-2 h-5 w-5 animate-spin" />
-                Generating Video... {generationProgress}%
-              </>
-            ) : (
-              <>
-                <PlayCircle className="mr-2 h-5 w-5" />
-                Generate Professional Marketing Video
-              </>
-            )}
-          </Button>
+          {/* Content Preview and Generate Buttons */}
+          <div className="space-y-3">
+            <Button
+              onClick={previewContent}
+              disabled={!config.productName.trim() || !config.healthConcern.trim()}
+              variant="outline"
+              className="w-full py-2"
+            >
+              <FileText className="mr-2 h-4 w-4" />
+              Preview Professional Marketing Content {contentGenerator.hasAPIAccess() ? '(AI-Generated)' : '(Template)'}
+            </Button>
+            
+            <Button
+              onClick={handleGenerateVideo}
+              disabled={isGenerating || !config.productName.trim() || config.productImages.length === 0 || !config.healthConcern.trim() || config.benefits.length === 0}
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 text-lg disabled:bg-gray-400 disabled:cursor-not-allowed"
+            >
+              {isGenerating ? (
+                <>
+                  <Wand2 className="mr-2 h-5 w-5 animate-spin" />
+                  Generating Video... {generationProgress}%
+                </>
+              ) : (
+                <>
+                  <PlayCircle className="mr-2 h-5 w-5" />
+                  Generate Professional Marketing Video
+                </>
+              )}
+            </Button>
+          </div>
 
           {/* Generated Video Display */}
           {generatedVideo && (
@@ -415,6 +451,68 @@ export default function VideoCreator() {
                 <p className="text-xs text-gray-500">
                   Video format: WebM • Professional pharmaceutical marketing style • Ready for social media and websites
                 </p>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Content Preview Dialog */}
+          {showContentPreview && generatedContent && (
+            <Card className="border-purple-200 bg-purple-50">
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between text-purple-800">
+                  <span className="flex items-center gap-2">
+                    <Sparkles className="h-5 w-5" />
+                    Professional Marketing Content Preview
+                  </span>
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    onClick={() => setShowContentPreview(false)}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-4">
+                  <div>
+                    <h4 className="font-semibold text-purple-800">Problem Statement (Scene 1):</h4>
+                    <p className="text-sm bg-white p-3 rounded border">{generatedContent.problemStatement}</p>
+                  </div>
+                  
+                  <div>
+                    <h4 className="font-semibold text-purple-800">Product Introduction (Scene 2):</h4>
+                    <p className="text-sm bg-white p-3 rounded border">{generatedContent.productIntroduction}</p>
+                  </div>
+                  
+                  <div>
+                    <h4 className="font-semibold text-purple-800">Enhanced Benefits (Scene 3):</h4>
+                    <ul className="text-sm bg-white p-3 rounded border space-y-1">
+                      {generatedContent.enhancedBenefits?.map((benefit: string, index: number) => (
+                        <li key={index} className="flex items-start gap-2">
+                          <CheckCircle className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
+                          {benefit}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  
+                  <div>
+                    <h4 className="font-semibold text-purple-800">How It Works (Scene 4):</h4>
+                    <p className="text-sm bg-white p-3 rounded border">{generatedContent.howItWorks}</p>
+                  </div>
+                  
+                  <div>
+                    <h4 className="font-semibold text-purple-800">Call to Action (Scene 5):</h4>
+                    <p className="text-sm bg-white p-3 rounded border font-semibold">{generatedContent.callToAction}</p>
+                  </div>
+                </div>
+                
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                  <div className="text-xs text-blue-700">
+                    <strong>Content Generation Method:</strong> {contentGenerator.getGenerationMethod() === 'api' ? 'AI-powered via Hugging Face API' : 'Professional pharmaceutical templates'}
+                  </div>
+                </div>
               </CardContent>
             </Card>
           )}
