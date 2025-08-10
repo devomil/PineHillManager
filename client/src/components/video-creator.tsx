@@ -22,11 +22,13 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { ProductVideoCreator, VideoConfig } from '@/lib/simple-video-generator';
+import { ContentGenerator } from '@/lib/content-generator';
 
 export default function VideoCreator() {
   const { toast } = useToast();
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationProgress, setGenerationProgress] = useState(0);
+  const [contentGenerator] = useState(() => new ContentGenerator());
   const [generatedVideo, setGeneratedVideo] = useState<{
     videoBlob: Blob;
     downloadUrl: string;

@@ -1,3 +1,6 @@
+// Phase 2: Import content generation capabilities
+import { ContentGenerator, GeneratedContent } from './content-generator';
+
 // Professional Animated Marketing Video Generator
 export interface VideoConfig {
   productName: string;
@@ -40,12 +43,14 @@ export class SimpleVideoGenerator {
   private readonly fps = 30;
   private readonly width = 1920;  // HD resolution as per Phase 1 requirements
   private readonly height = 1080; // HD resolution as per Phase 1 requirements
+  private contentGenerator: ContentGenerator; // Phase 2: Content generation
 
   constructor() {
     this.canvas = document.createElement('canvas');
     this.canvas.width = this.width;
     this.canvas.height = this.height;
     this.ctx = this.canvas.getContext('2d')!;
+    this.contentGenerator = new ContentGenerator(); // Phase 2: Initialize content generator
   }
 
   private async loadImage(file: File): Promise<HTMLImageElement> {
@@ -57,7 +62,7 @@ export class SimpleVideoGenerator {
     });
   }
 
-  private createProfessionalScenes(config: VideoConfig, productImages: HTMLImageElement[]): VideoScene[] {
+  private async createProfessionalScenes(config: VideoConfig, productImages: HTMLImageElement[], generatedContent?: GeneratedContent): VideoScene[] {
     // PHASE 1: Force 30-second minimum duration (900 frames at 30fps)
     const MINIMUM_DURATION = 30; // Never less than 30 seconds
     const FRAME_COUNT = MINIMUM_DURATION * this.fps; // 900 frames minimum
@@ -75,7 +80,7 @@ export class SimpleVideoGenerator {
         elements: [
           {
             type: 'animated_text',
-            text: `Struggling with ${config.healthConcern}?`,
+            text: generatedContent?.problemStatement || `Struggling with ${config.healthConcern}?`,
             animation: 'fadeInUp',
             position: { x: 'center', y: 200 },
             fontSize: 48,
@@ -108,7 +113,7 @@ export class SimpleVideoGenerator {
           },
           {
             type: 'animated_text',
-            text: `Introducing ${config.productName}`,
+            text: generatedContent?.productIntroduction || `Introducing ${config.productName}`,
             animation: 'typewriter',
             position: { x: 800, y: 300 },
             fontSize: 42,
@@ -117,7 +122,7 @@ export class SimpleVideoGenerator {
           },
           {
             type: 'benefit_list',
-            items: config.benefits.slice(0, 3),
+            items: generatedContent?.enhancedBenefits?.slice(0, 3) || config.benefits.slice(0, 3),
             animation: 'cascadeIn',
             position: { x: 800, y: 400 },
             delay: 3000
@@ -144,7 +149,7 @@ export class SimpleVideoGenerator {
           },
           {
             type: 'benefit_list',
-            items: config.benefits,
+            items: generatedContent?.enhancedBenefits || config.benefits,
             animation: 'cascadeIn', 
             position: { x: 'center', y: 300 },
             delay: 1000
@@ -195,7 +200,7 @@ export class SimpleVideoGenerator {
           },
           {
             type: 'animated_text',
-            text: config.callToAction || 'Order Now - Limited Time Offer',
+            text: generatedContent?.callToAction || config.callToAction || 'Order Now - Limited Time Offer',
             animation: 'pulsingGlow',
             position: { x: 'center', y: 480 },
             fontSize: 40,
@@ -467,13 +472,15 @@ export class SimpleVideoGenerator {
   }
 
   public async generateProfessionalVideo(config: VideoConfig): Promise<Blob> {
+    // Phase 2: Generate professional marketing content
+    const generatedContent = await this.contentGenerator.generateProfessionalContent(config);
     // Load all product images
     const productImages = await Promise.all(
       config.productImages.map(file => this.loadImage(file))
     );
 
-    // Create professional animated scenes
-    const scenes = this.createProfessionalScenes(config, productImages);
+    // Create professional animated scenes with generated content
+    const scenes = await this.createProfessionalScenes(config, productImages, generatedContent);
 
     // PHASE 1: Set up MediaRecorder with HD quality (1920x1080)
     const stream = this.canvas.captureStream(this.fps);
