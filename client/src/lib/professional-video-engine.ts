@@ -298,7 +298,6 @@ export class ProfessionalVideoEngine {
         const sceneTimeMs = (frame / this.fps) * 1000;
         
         // Clear and render scene
-        this.fabricCanvas.clear();
         await this.renderProfessionalScene(scene, sceneProgress, sceneTimeMs);
         
         // Wait for next frame
