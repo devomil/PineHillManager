@@ -58,13 +58,14 @@ export class SimpleVideoGenerator {
   }
 
   private createProfessionalScenes(config: VideoConfig, productImages: HTMLImageElement[]): VideoScene[] {
-    const baseSceneDuration = config.duration / 6;
+    // Force 30-second professional video structure with 5 scenes
+    const totalDuration = 30;
     
     return [
-      // Scene 1: Problem Statement (8 seconds)
+      // Scene 1: Problem Hook (0-6 seconds) 
       {
         type: 'problem_statement',
-        duration: baseSceneDuration + 2,
+        duration: 6,
         background: {
           type: 'gradient',
           colors: ['#1e40af', '#3b82f6']
@@ -88,10 +89,10 @@ export class SimpleVideoGenerator {
         ]
       },
       
-      // Scene 2: Product Reveal (10 seconds)
+      // Scene 2: Product Introduction (6-12 seconds)
       {
-        type: 'product_reveal',
-        duration: baseSceneDuration + 4,
+        type: 'product_reveal', 
+        duration: 6,
         background: {
           type: 'solid',
           color: '#f8fafc'
@@ -122,10 +123,10 @@ export class SimpleVideoGenerator {
         ]
       },
       
-      // Scene 3: How It Works Infographic (8 seconds)
+      // Scene 3: Benefits Showcase (12-20 seconds)
       {
-        type: 'how_it_works',
-        duration: baseSceneDuration + 2,
+        type: 'benefits_showcase',
+        duration: 8,
         background: {
           type: 'solid',
           color: '#ffffff'
@@ -133,9 +134,36 @@ export class SimpleVideoGenerator {
         elements: [
           {
             type: 'animated_text',
-            text: 'How It Works',
+            text: 'Proven Benefits',
             animation: 'fadeIn',
             position: { x: 'center', y: 100 },
+            fontSize: 42,
+            color: '#166534'
+          },
+          {
+            type: 'benefit_list',
+            items: config.benefits,
+            animation: 'cascadeIn', 
+            position: { x: 'center', y: 300 },
+            delay: 1000
+          }
+        ]
+      },
+      
+      // Scene 4: How It Works (20-25 seconds)
+      {
+        type: 'how_it_works',
+        duration: 5,
+        background: {
+          type: 'solid', 
+          color: '#ffffff'
+        },
+        elements: [
+          {
+            type: 'animated_text',
+            text: 'How It Works',
+            animation: 'fadeIn',
+            position: { x: 'center', y: 120 },
             fontSize: 36,
             color: '#1e293b'
           },
@@ -143,68 +171,15 @@ export class SimpleVideoGenerator {
             type: 'infographic',
             animation: 'progressiveReveal',
             position: { x: 'center', y: 400 },
-            delay: 1000
+            delay: 800
           }
         ]
       },
       
-      // Scene 4: Benefits Showcase (7 seconds)
-      {
-        type: 'benefits_showcase',
-        duration: baseSceneDuration + 1,
-        background: {
-          type: 'gradient',
-          colors: ['#ecfdf5', '#ffffff']
-        },
-        elements: [
-          {
-            type: 'animated_text',
-            text: 'Proven Benefits',
-            animation: 'fadeIn',
-            position: { x: 'center', y: 150 },
-            fontSize: 40,
-            color: '#166534'
-          },
-          {
-            type: 'benefit_list',
-            items: config.benefits,
-            animation: 'cascadeIn',
-            position: { x: 'center', y: 350 },
-            delay: 500
-          }
-        ]
-      },
-      
-      // Scene 5: Ingredients (5 seconds)
-      {
-        type: 'ingredients',
-        duration: baseSceneDuration - 1,
-        background: {
-          type: 'solid',
-          color: '#f1f5f9'
-        },
-        elements: [
-          {
-            type: 'animated_text',
-            text: 'Premium Ingredients',
-            animation: 'fadeIn',
-            position: { x: 'center', y: 150 },
-            fontSize: 36,
-            color: '#334155'
-          },
-          {
-            type: 'ingredient_grid',
-            items: config.ingredients,
-            animation: 'morphingMolecules',
-            position: { x: 'center', y: 400 }
-          }
-        ]
-      },
-      
-      // Scene 6: Call to Action (8 seconds)
+      // Scene 5: Call to Action (25-30 seconds)
       {
         type: 'call_to_action',
-        duration: baseSceneDuration + 2,
+        duration: 5,
         background: {
           type: 'gradient',
           colors: ['#1e40af', '#1e293b']
@@ -214,14 +189,14 @@ export class SimpleVideoGenerator {
             type: 'product_image',
             image: productImages[productImages.length - 1] || productImages[0],
             animation: 'glowEffect',
-            position: { x: 'center', y: 300 }
+            position: { x: 'center', y: 280 }
           },
           {
             type: 'animated_text',
             text: config.callToAction || 'Order Now - Limited Time Offer',
             animation: 'pulsingGlow',
-            position: { x: 'center', y: 550 },
-            fontSize: 36,
+            position: { x: 'center', y: 480 },
+            fontSize: 40,
             color: '#ffffff',
             delay: 1000
           },
@@ -263,7 +238,8 @@ export class SimpleVideoGenerator {
   private calculateElementProgress(element: VideoElement, sceneProgress: number, totalTime: number): number {
     const delay = (element.delay || 0) / 1000; // Convert to seconds
     const adjustedProgress = Math.max(0, sceneProgress - delay);
-    return Math.min(adjustedProgress * 2, 1); // Speed up animations
+    // Professional slower animations (no speed multiplier)
+    return Math.min(adjustedProgress * 1.2, 1); // Slightly slower, more professional pacing
   }
 
   private async renderAnimatedElement(element: VideoElement, progress: number) {
@@ -306,8 +282,9 @@ export class SimpleVideoGenerator {
     const fontSize = element.fontSize || 32;
     const color = element.color || '#000000';
 
-    // Apply animation effects
-    let opacity = 1;
+    // Professional easing for text animations
+    const easedProgress = this.easeOutQuart(progress);
+    let opacity = easedProgress;
     let translateY = 0;
     let displayText = text;
 
@@ -550,10 +527,13 @@ export class SimpleVideoGenerator {
       }
 
       if (currentScene) {
-        // Add smooth transitions between scenes
-        if (sceneProgress > 0.9) {
-          // Fade out current scene
-          this.ctx.globalAlpha = (1 - sceneProgress) * 10;
+        // Professional slow transitions (1.5 seconds)
+        const transitionProgress = 0.75; // Start transition at 75% through scene
+        if (sceneProgress > transitionProgress) {
+          // Professional 1.5-second fade transition with easing
+          const fadeProgress = (sceneProgress - transitionProgress) / (1 - transitionProgress);
+          const easedFade = this.easeInOutCubic(fadeProgress);
+          this.ctx.globalAlpha = 1 - (easedFade * 0.3); // Subtle fade for professional look
         }
         
         await this.drawProfessionalScene(currentScene, sceneProgress, currentTime / 1000);
@@ -574,6 +554,23 @@ export class SimpleVideoGenerator {
     };
 
     animate();
+  }
+
+  // Professional easing function for smooth transitions
+  private easeInOutCubic(t: number): number {
+    return t < 0.5 ? 4 * t * t * t : (t - 1) * (2 * t - 2) * (2 * t - 2) + 1;
+  }
+
+  // Professional ease out for element animations
+  private easeOutQuart(t: number): number {
+    return 1 - (--t) * t * t * t;
+  }
+
+  // Professional bounce effect for slide animations
+  private easeOutBack(t: number): number {
+    const c1 = 1.70158;
+    const c3 = c1 + 1;
+    return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
   }
 
   private async renderAnimatedIcon(element: VideoElement, x: number, y: number, progress: number) {
