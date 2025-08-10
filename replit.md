@@ -102,6 +102,13 @@ Preferred communication style: Simple, everyday language.
 - **Navigation Stability**: Eliminated console errors during admin page navigation while maintaining all styling and functionality
 - **User Experience**: Smooth navigation between Dashboard, Employees, Accounting, Scheduling, and other admin sections confirmed working
 
+### Marketing Videos Navigation Integration (August 10, 2025)
+- **Navigation Position Fix**: Moved Marketing Videos button from hidden section to main navigation bar
+- **Proper Positioning**: Located between Accounting and Integrations in primary navigation (Dashboard → Employees → Schedule → Accounting → Marketing Videos → Integrations)
+- **Mobile Support**: Added Marketing button to mobile navigation for cross-device accessibility
+- **Video Icon**: Implemented Video icon from Lucide React for clear visual identification
+- **Route Detection**: Enhanced admin dashboard to properly recognize `/admin/marketing` path for active state highlighting
+
 ### Accounting Tool Implementation (Phase 1 Complete)
 - **Database Schema**: Extended PostgreSQL with comprehensive accounting tables (financial_accounts, financial_transactions, transaction_lines, quickbooks_config, clover_config, hsa_config, thrive_config, customers_vendors, inventory_items, pos_sales, pos_sale_items, hsa_expenses, integration_logs, report_configs, dashboard_widgets)
 - **Storage Layer**: Implemented 96+ accounting methods in DatabaseStorage class for complete financial data management
