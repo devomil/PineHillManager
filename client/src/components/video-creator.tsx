@@ -38,11 +38,11 @@ export default function VideoCreator() {
     productDescription: '',
     productImages: [],
     duration: 30,
-    style: 'professional',
-    backgroundColor: '#f0f9ff',
-    textColor: '#1e40af',
-    fontSize: 48,
-    voiceScript: ''
+    style: 'pharmaceutical',
+    healthConcern: '',
+    benefits: [],
+    ingredients: [],
+    callToAction: ''
   });
 
   // Handle file upload
@@ -141,10 +141,10 @@ export default function VideoCreator() {
         <CardHeader className="text-center">
           <CardTitle className="flex items-center justify-center gap-2 text-2xl font-bold" style={{fontFamily: 'Great Vibes, cursive'}}>
             <Video className="h-8 w-8 text-blue-600" />
-            Product Video Creator
+            Professional Animated Video Creator
           </CardTitle>
           <CardDescription className="text-lg">
-            Create professional marketing videos from your product images and descriptions
+            Create professional pharmaceutical-style marketing videos with multiple animated scenes, smooth transitions, and medical industry styling
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -227,60 +227,88 @@ export default function VideoCreator() {
             )}
           </div>
 
-          {/* Step 3: Video Settings */}
+          {/* Step 3: Professional Marketing Content */}
           <div className="grid gap-4">
             <h3 className="text-lg font-semibold flex items-center gap-2">
-              <Camera className="h-5 w-5" />
-              Video Settings
+              <Wand2 className="h-5 w-5" />
+              Professional Marketing Content
             </h3>
             
-            <div className="grid md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="duration">Video Duration</Label>
-                <Select value={config.duration.toString()} onValueChange={(value) => setConfig(prev => ({ ...prev, duration: parseInt(value) }))}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select duration" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="15">15 seconds</SelectItem>
-                    <SelectItem value="30">30 seconds</SelectItem>
-                    <SelectItem value="60">60 seconds</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="healthConcern">Health Concern/Problem</Label>
+              <Input
+                id="healthConcern"
+                placeholder="e.g., Joint Pain, Low Energy, Poor Sleep"
+                value={config.healthConcern}
+                onChange={(e) => setConfig(prev => ({ ...prev, healthConcern: e.target.value }))}
+              />
+              <p className="text-sm text-gray-500">The health issue your product addresses</p>
+            </div>
 
+            <div className="space-y-2">
+              <Label htmlFor="benefits">Product Benefits (one per line)</Label>
+              <Textarea
+                id="benefits"
+                placeholder="Natural ingredients&#10;Fast-acting formula&#10;Clinically tested&#10;No side effects"
+                value={config.benefits.join('\n')}
+                onChange={(e) => setConfig(prev => ({ ...prev, benefits: e.target.value.split('\n').filter(b => b.trim()) }))}
+                rows={4}
+              />
+              <p className="text-sm text-gray-500">Enter each benefit on a separate line</p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="ingredients">Key Ingredients (one per line)</Label>
+              <Textarea
+                id="ingredients"
+                placeholder="Turmeric Extract&#10;Vitamin D3&#10;Omega-3 Fatty Acids&#10;Magnesium"
+                value={config.ingredients.join('\n')}
+                onChange={(e) => setConfig(prev => ({ ...prev, ingredients: e.target.value.split('\n').filter(i => i.trim()) }))}
+                rows={3}
+              />
+              <p className="text-sm text-gray-500">Enter each ingredient on a separate line</p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="callToAction">Call to Action</Label>
+              <Input
+                id="callToAction"
+                placeholder="Order Now - Limited Time Offer"
+                value={config.callToAction}
+                onChange={(e) => setConfig(prev => ({ ...prev, callToAction: e.target.value }))}
+              />
+              <p className="text-sm text-gray-500">Your final call-to-action message</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="duration">Duration (seconds)</Label>
+                <Input
+                  id="duration"
+                  type="number"
+                  min="20"
+                  max="60"
+                  value={config.duration}
+                  onChange={(e) => setConfig(prev => ({ ...prev, duration: parseInt(e.target.value) || 30 }))}
+                />
+                <p className="text-sm text-gray-500">Recommended: 30 seconds</p>
+              </div>
+              
               <div className="space-y-2">
                 <Label htmlFor="style">Video Style</Label>
-                <Select value={config.style} onValueChange={(value) => setConfig(prev => ({ ...prev, style: value as 'professional' | 'modern' | 'elegant' }))}>
+                <Select 
+                  value={config.style} 
+                  onValueChange={(value) => setConfig(prev => ({ ...prev, style: value as 'pharmaceutical' | 'medical' | 'clinical' }))}
+                >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select style" />
+                    <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="professional">Professional</SelectItem>
-                    <SelectItem value="modern">Modern</SelectItem>
-                    <SelectItem value="elegant">Elegant</SelectItem>
+                    <SelectItem value="pharmaceutical">Pharmaceutical Agency Style</SelectItem>
+                    <SelectItem value="medical">Medical Professional</SelectItem>
+                    <SelectItem value="clinical">Clinical Research</SelectItem>
                   </SelectContent>
                 </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="backgroundColor">Background Color</Label>
-                <Input
-                  type="color"
-                  value={config.backgroundColor}
-                  onChange={(e) => setConfig(prev => ({ ...prev, backgroundColor: e.target.value }))}
-                  className="h-10"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="textColor">Text Color</Label>
-                <Input
-                  type="color"
-                  value={config.textColor}
-                  onChange={(e) => setConfig(prev => ({ ...prev, textColor: e.target.value }))}
-                  className="h-10"
-                />
               </div>
             </div>
           </div>
@@ -302,7 +330,7 @@ export default function VideoCreator() {
           {/* Generate Button */}
           <Button
             onClick={handleGenerateVideo}
-            disabled={isGenerating || !config.productName || config.productImages.length === 0}
+            disabled={isGenerating || !config.productName || config.productImages.length === 0 || !config.healthConcern || config.benefits.length === 0}
             className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 text-lg"
           >
             {isGenerating ? (
@@ -313,7 +341,7 @@ export default function VideoCreator() {
             ) : (
               <>
                 <PlayCircle className="mr-2 h-5 w-5" />
-                Generate Video
+                Generate Professional Marketing Video
               </>
             )}
           </Button>
@@ -324,7 +352,7 @@ export default function VideoCreator() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-green-800">
                   <CheckCircle className="h-6 w-6" />
-                  Video Generated Successfully!
+                  Professional Marketing Video Generated!
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -352,8 +380,19 @@ export default function VideoCreator() {
                 <p className="text-sm text-gray-600">
                   File: {generatedVideo.fileName}
                 </p>
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm">
+                  <div className="font-semibold text-blue-800 mb-1">Professional Features Included:</div>
+                  <ul className="text-blue-700 text-xs space-y-1">
+                    <li>• Animated problem statement with health concern icons</li>
+                    <li>• Product reveal with smooth slide-in animations</li>
+                    <li>• 3-step "How It Works" infographic with progressive reveal</li>
+                    <li>• Benefits showcase with animated checkmarks</li>
+                    <li>• Ingredient grid with molecular animations</li>
+                    <li>• Call-to-action with pulsing button effects</li>
+                  </ul>
+                </div>
                 <p className="text-xs text-gray-500">
-                  Video format: WebM (compatible with most modern browsers and video players)
+                  Video format: WebM • Professional pharmaceutical marketing style • Ready for social media and websites
                 </p>
               </CardContent>
             </Card>
