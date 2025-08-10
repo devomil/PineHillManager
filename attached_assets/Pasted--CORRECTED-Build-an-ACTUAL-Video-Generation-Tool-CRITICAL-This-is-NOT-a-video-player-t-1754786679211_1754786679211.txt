@@ -1,0 +1,372 @@
+# CORRECTED: Build an ACTUAL Video Generation Tool
+
+## ⚠️ CRITICAL: This is NOT a video player - this is a VIDEO GENERATOR
+
+You are building a tool that **CREATES NEW VIDEO FILES** from images, text, and audio. Think "Canva for videos" or "Loom screen recorder" - but for marketing videos.
+
+## 🎬 What We're Actually Building
+
+### NOT This (What you probably built):
+```jsx
+// ❌ WRONG - This is just a video player
+<div>
+  <video controls>
+    <source src="existing-video.mp4" />
+  </video>
+  <p>This is a product video</p>
+</div>
+```
+
+### YES This (What we need):
+```jsx
+// ✅ CORRECT - This generates new videos
+<VideoGenerator 
+  onGenerate={(config) => createNewVideoFile(config)}
+  onDownload={(videoBlob) => downloadGeneratedVideo(videoBlob)}
+/>
+```
+
+## 🛠️ Core Video Generation Implementation
+
+### 1. Video Canvas Setup (REQUIRED)
+```javascript
+// This creates a new video from scratch
+class VideoGenerator {
+  constructor(width = 1920, height = 1080, fps = 30) {
+    this.canvas = document.createElement('canvas');
+    this.canvas.width = width;
+    this.canvas.height = height;
+    this.ctx = this.canvas.getContext('2d');
+    this.frames = [];
+    this.fps = fps;
+  }
+
+  // This method CREATES video frames
+  async generateFrame(sceneConfig, frameNumber) {
+    // Clear canvas
+    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    
+    // Add background
+    this.ctx.fillStyle = sceneConfig.backgroundColor || '#ffffff';
+    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    
+    // Add product image
+    if (sceneConfig.productImage) {
+      const img = await this.loadImage(sceneConfig.productImage);
+      this.ctx.drawImage(img, sceneConfig.imageX, sceneConfig.imageY, sceneConfig.imageWidth, sceneConfig.imageHeight);
+    }
+    
+    // Add text overlay
+    if (sceneConfig.text) {
+      this.ctx.font = `${sceneConfig.fontSize}px ${sceneConfig.fontFamily}`;
+      this.ctx.fillStyle = sceneConfig.textColor;
+      this.ctx.fillText(sceneConfig.text, sceneConfig.textX, sceneConfig.textY);
+    }
+    
+    // Capture frame
+    return this.canvas.toDataURL();
+  }
+
+  // This method CREATES the actual video file
+  async renderVideo(scenes, duration) {
+    const totalFrames = duration * this.fps;
+    const framesPerScene = Math.floor(totalFrames / scenes.length);
+    
+    // Generate all frames
+    for (let sceneIndex = 0; sceneIndex < scenes.length; sceneIndex++) {
+      for (let frame = 0; frame < framesPerScene; frame++) {
+        const frameData = await this.generateFrame(scenes[sceneIndex], frame);
+        this.frames.push(frameData);
+      }
+    }
+    
+    // Convert frames to video using FFmpeg
+    return await this.framesToVideo(this.frames);
+  }
+}
+```
+
+### 2. FFmpeg Video Processing (REQUIRED)
+```javascript
+// This actually creates the MP4 file
+import { createFFmpeg, fetchFile } from '@ffmpeg/ffmpeg';
+
+class VideoProcessor {
+  constructor() {
+    this.ffmpeg = createFFmpeg({
+      log: true,
+      corePath: 'https://unpkg.com/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js',
+    });
+  }
+
+  async init() {
+    await this.ffmpeg.load();
+  }
+
+  // This method creates a real video file
+  async createVideoFromFrames(frames, fps = 30) {
+    // Write frames to FFmpeg
+    for (let i = 0; i < frames.length; i++) {
+      const frameBlob = await fetch(frames[i]).then(r => r.blob());
+      this.ffmpeg.FS('writeFile', `frame${i.toString().padStart(4, '0')}.png`, await fetchFile(frameBlob));
+    }
+
+    // Generate video from frames
+    await this.ffmpeg.run(
+      '-framerate', fps.toString(),
+      '-i', 'frame%04d.png',
+      '-c:v', 'libx264',
+      '-pix_fmt', 'yuv420p',
+      '-t', '30', // duration
+      'output.mp4'
+    );
+
+    // Get the generated video
+    const data = this.ffmpeg.FS('readFile', 'output.mp4');
+    return new Blob([data.buffer], { type: 'video/mp4' });
+  }
+
+  // Add audio to video
+  async addAudioToVideo(videoBlob, audioBlob) {
+    this.ffmpeg.FS('writeFile', 'input.mp4', await fetchFile(videoBlob));
+    this.ffmpeg.FS('writeFile', 'audio.mp3', await fetchFile(audioBlob));
+
+    await this.ffmpeg.run(
+      '-i', 'input.mp4',
+      '-i', 'audio.mp3',
+      '-c:v', 'copy',
+      '-c:a', 'aac',
+      '-shortest',
+      'final.mp4'
+    );
+
+    const data = this.ffmpeg.FS('readFile', 'final.mp4');
+    return new Blob([data.buffer], { type: 'video/mp4' });
+  }
+}
+```
+
+### 3. Complete Video Creation Workflow
+```javascript
+// This is the main function that CREATES videos
+class ProductVideoCreator {
+  async createVideo(config) {
+    const generator = new VideoGenerator();
+    const processor = new VideoProcessor();
+    await processor.init();
+
+    // 1. Generate scenes from config
+    const scenes = this.createScenes(config);
+    
+    // 2. Generate frames
+    const videoFrames = await generator.renderVideo(scenes, config.duration);
+    
+    // 3. Create video from frames
+    let videoBlob = await processor.createVideoFromFrames(videoFrames);
+    
+    // 4. Add audio if provided
+    if (config.audioFile || config.voiceScript) {
+      const audioBlob = await this.generateAudio(config);
+      videoBlob = await processor.addAudioToVideo(videoBlob, audioBlob);
+    }
+    
+    // 5. Return downloadable video file
+    return {
+      videoBlob,
+      downloadUrl: URL.createObjectURL(videoBlob),
+      fileName: `product-video-${Date.now()}.mp4`
+    };
+  }
+
+  createScenes(config) {
+    return [
+      {
+        backgroundColor: '#f0f9ff',
+        productImage: config.productImages[0],
+        imageX: 400, imageY: 200, imageWidth: 400, imageHeight: 400,
+        text: config.productName,
+        textX: 100, textY: 100, fontSize: 48, fontFamily: 'Arial', textColor: '#1e40af'
+      },
+      {
+        backgroundColor: '#ffffff',
+        productImage: config.productImages[1] || config.productImages[0],
+        imageX: 200, imageY: 150, imageWidth: 500, imageHeight: 500,
+        text: config.description,
+        textX: 800, textY: 300, fontSize: 32, fontFamily: 'Arial', textColor: '#374151'
+      },
+      // Add more scenes based on video length and style
+    ];
+  }
+
+  async generateAudio(config) {
+    if (config.voiceScript) {
+      // Generate speech from text
+      const utterance = new SpeechSynthesisUtterance(config.voiceScript);
+      // Note: Web Speech API doesn't directly give you audio files
+      // You'll need to use a service like Google TTS or record the audio
+      return await this.textToSpeechBlob(config.voiceScript);
+    }
+    return config.audioFile;
+  }
+}
+```
+
+### 4. React Component Implementation
+```jsx
+// The actual UI component that generates videos
+import React, { useState } from 'react';
+
+export default function VideoCreatorPage() {
+  const [generating, setGenerating] = useState(false);
+  const [generatedVideo, setGeneratedVideo] = useState(null);
+  const [config, setConfig] = useState({
+    productName: '',
+    productImages: [],
+    duration: 30,
+    style: 'explainer',
+    voiceScript: ''
+  });
+
+  const handleGenerateVideo = async () => {
+    setGenerating(true);
+    try {
+      const creator = new ProductVideoCreator();
+      const result = await creator.createVideo(config);
+      setGeneratedVideo(result);
+    } catch (error) {
+      console.error('Video generation failed:', error);
+    }
+    setGenerating(false);
+  };
+
+  return (
+    <div className="video-creator-page">
+      <h1>Product Video Generator</h1>
+      
+      {/* Configuration Form */}
+      <div className="config-form">
+        <input 
+          type="text" 
+          placeholder="Product Name"
+          value={config.productName}
+          onChange={(e) => setConfig({...config, productName: e.target.value})}
+        />
+        
+        <input 
+          type="file" 
+          multiple 
+          accept="image/*"
+          onChange={(e) => setConfig({...config, productImages: Array.from(e.target.files)})}
+        />
+        
+        <select 
+          value={config.duration} 
+          onChange={(e) => setConfig({...config, duration: parseInt(e.target.value)})}
+        >
+          <option value={15}>15 seconds</option>
+          <option value={30}>30 seconds</option>
+          <option value={60}>60 seconds</option>
+        </select>
+        
+        <textarea 
+          placeholder="Voice script (optional)"
+          value={config.voiceScript}
+          onChange={(e) => setConfig({...config, voiceScript: e.target.value})}
+        />
+        
+        <button onClick={handleGenerateVideo} disabled={generating}>
+          {generating ? 'Generating Video...' : 'Generate Video'}
+        </button>
+      </div>
+
+      {/* Generated Video Display */}
+      {generatedVideo && (
+        <div className="generated-video">
+          <h2>Your Generated Video:</h2>
+          <video controls width="800">
+            <source src={generatedVideo.downloadUrl} type="video/mp4" />
+          </video>
+          <br />
+          <a href={generatedVideo.downloadUrl} download={generatedVideo.fileName}>
+            Download Video
+          </a>
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+## 🎯 Key Requirements for the Agent
+
+### DO Build:
+1. ✅ Canvas-based frame generation
+2. ✅ FFmpeg video processing
+3. ✅ Real video file output (.mp4)
+4. ✅ Downloadable video results
+5. ✅ Dynamic scene creation
+6. ✅ Audio/video synchronization
+
+### DON'T Build:
+1. ❌ Static HTML pages
+2. ❌ Just video players
+3. ❌ Image galleries
+4. ❌ Text-only content
+5. ❌ Fake "video" divs
+
+## 📋 Testing Checklist
+
+The agent's implementation should:
+- [ ] Create actual .mp4 files
+- [ ] Allow users to download generated videos
+- [ ] Accept product images as input
+- [ ] Generate multiple scenes/frames
+- [ ] Produce videos of specified duration
+- [ ] Show progress during generation
+- [ ] Handle errors gracefully
+
+## 🚀 Starter Code Template
+
+```javascript
+// Give this exact code to your agent as a starting point
+const VideoGenerationApp = () => {
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [videoOutput, setVideoOutput] = useState(null);
+
+  const generateProductVideo = async (formData) => {
+    setIsGenerating(true);
+    
+    // This should create an actual video file
+    const videoCreator = new ProductVideoCreator();
+    const generatedVideo = await videoCreator.createVideo({
+      productName: formData.productName,
+      images: formData.uploadedImages,
+      duration: formData.selectedDuration,
+      script: formData.scriptText
+    });
+    
+    setVideoOutput(generatedVideo);
+    setIsGenerating(false);
+  };
+
+  return (
+    <div>
+      {/* Form to collect video requirements */}
+      <VideoConfigForm onSubmit={generateProductVideo} />
+      
+      {/* Show generation progress */}
+      {isGenerating && <ProgressIndicator />}
+      
+      {/* Show generated video with download */}
+      {videoOutput && (
+        <GeneratedVideoPlayer 
+          videoBlob={videoOutput.blob}
+          downloadUrl={videoOutput.downloadUrl}
+        />
+      )}
+    </div>
+  );
+};
+```
+
+Tell your agent: **"Build a tool that creates NEW video files, not a page that displays existing videos. Users should be able to download the generated .mp4 files."**
