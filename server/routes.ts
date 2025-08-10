@@ -2046,202 +2046,402 @@ export async function registerRoutes(app: Express): Promise<Server> {
         fs.mkdirSync(videoDir, { recursive: true });
       }
 
-      // Generate an animated HTML5 video presentation with professional features
-      const videoHtml = `
+      // Generate a professional product video that mimics Orthomolecular style
+      const videoHtml = generateProfessionalProductVideo(videoConfig);
+
+      const videoFilePath = path.join(videoDir, `video_${video.id}.html`);
+      fs.writeFileSync(videoFilePath, videoHtml);
+
+      // Update video status
+      await storage.updateProductVideo(video.id, {
+        renderStatus: 'completed',
+        renderProgress: 100,
+        videoUrl: `/uploads/videos/video_${video.id}.html`,
+        duration: videoConfig.videoLength,
+        renderCompletedAt: new Date(),
+      });
+
+      res.json({
+        success: true,
+        videoId: video.id,
+        videoUrl: `/uploads/videos/video_${video.id}.html`,
+        message: 'Professional product video generated successfully'
+      });
+    } catch (error) {
+      console.error('Error generating video:', error);
+      res.status(500).json({ message: 'Failed to generate video' });
+    }
+  });
+
+  // Professional video generation function
+  function generateProfessionalProductVideo(config) {
+    return `
 <!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>${videoConfig.productName} - Marketing Video</title>
+  <title>${config.productName} - Professional Product Video</title>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap');
     
     * { margin: 0; padding: 0; box-sizing: border-box; }
     
     body {
-      font-family: 'Inter', sans-serif;
+      font-family: 'Roboto', sans-serif;
+      background: #000;
+      color: #fff;
       overflow: hidden;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
       height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      position: relative;
     }
     
+    /* Professional product video container */
     .video-container {
       width: 100%;
-      height: 100%;
+      height: 100vh;
       position: relative;
+      background: linear-gradient(45deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
       display: flex;
       align-items: center;
       justify-content: center;
     }
     
-    .content {
-      max-width: 900px;
+    /* Floating pharmaceutical elements */
+    .floating-elements {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 1;
+    }
+    
+    .molecule {
+      position: absolute;
+      width: 40px;
+      height: 40px;
+      border: 2px solid rgba(76, 175, 80, 0.3);
+      border-radius: 50%;
+      animation: floatMolecule 8s infinite ease-in-out;
+    }
+    
+    .molecule:nth-child(1) { top: 20%; left: 10%; animation-delay: 0s; }
+    .molecule:nth-child(2) { top: 40%; right: 15%; animation-delay: 2s; }
+    .molecule:nth-child(3) { bottom: 30%; left: 20%; animation-delay: 4s; }
+    .molecule:nth-child(4) { bottom: 60%; right: 25%; animation-delay: 6s; }
+    
+    /* Product showcase container */
+    .product-showcase {
+      max-width: 1200px;
+      width: 100%;
+      padding: 0 40px;
       text-align: center;
-      padding: 60px;
-      opacity: 0;
-      transform: translateY(50px);
-      animation: slideIn 1s ease-out 0.5s forwards;
+      z-index: 10;
+      position: relative;
     }
     
-    .category-badge {
-      background: rgba(255,255,255,0.2);
-      backdrop-filter: blur(10px);
-      padding: 12px 24px;
-      border-radius: 30px;
-      display: inline-block;
-      margin-bottom: 30px;
-      font-size: 0.9em;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-      opacity: 0;
-      animation: fadeInUp 1s ease-out 1s forwards;
+    /* Product bottle simulation */
+    .product-bottle {
+      width: 200px;
+      height: 300px;
+      background: linear-gradient(145deg, #2c5282 0%, #3182ce 50%, #4299e1 100%);
+      border-radius: 20px 20px 30px 30px;
+      margin: 0 auto 40px;
+      position: relative;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+      animation: productRotate 12s infinite ease-in-out;
     }
     
-    .product-title {
-      font-size: 3.5em;
+    .bottle-cap {
+      width: 60px;
+      height: 30px;
+      background: #1a202c;
+      border-radius: 30px 30px 5px 5px;
+      position: absolute;
+      top: -15px;
+      left: 50%;
+      transform: translateX(-50%);
+    }
+    
+    .bottle-label {
+      background: rgba(255,255,255,0.95);
+      color: #2d3748;
+      padding: 20px 15px;
+      margin: 50px 20px;
+      border-radius: 10px;
+      font-size: 14px;
       font-weight: 700;
-      margin-bottom: 40px;
-      text-shadow: 2px 2px 8px rgba(0,0,0,0.3);
-      background: linear-gradient(45deg, #fff 0%, #f0f0f0 100%);
+      line-height: 1.3;
+    }
+    
+    /* Professional title styling */
+    .product-title {
+      font-size: 3.2em;
+      font-weight: 700;
+      margin-bottom: 20px;
+      background: linear-gradient(45deg, #4299e1 0%, #63b3ed 50%, #90cdf4 100%);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       background-clip: text;
+      text-align: center;
       opacity: 0;
-      transform: scale(0.8);
-      animation: titleZoom 1.2s ease-out 1.5s forwards;
+      animation: titleFadeIn 2s ease-out 1s forwards;
     }
     
-    .description {
-      font-size: 1.3em;
-      line-height: 1.7;
-      margin-bottom: 50px;
-      font-weight: 300;
+    /* Scientific description */
+    .product-description {
+      font-size: 1.1em;
+      line-height: 1.6;
+      color: #e2e8f0;
       max-width: 800px;
-      margin-left: auto;
-      margin-right: auto;
+      margin: 0 auto 30px;
       opacity: 0;
-      animation: fadeInUp 1s ease-out 2.5s forwards;
+      animation: fadeInSlide 2s ease-out 3s forwards;
     }
     
-    .benefits-container {
-      background: rgba(255,255,255,0.15);
-      backdrop-filter: blur(15px);
-      border: 1px solid rgba(255,255,255,0.2);
-      padding: 40px;
-      border-radius: 20px;
+    /* Key benefits with professional styling */
+    .benefits-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 20px;
       margin: 40px 0;
-      box-shadow: 0 8px 32px rgba(0,0,0,0.1);
       opacity: 0;
-      transform: translateY(30px);
-      animation: slideInUp 1s ease-out 3.5s forwards;
+      animation: benefitsSlideIn 2s ease-out 5s forwards;
     }
     
-    .benefits-title {
-      font-size: 2em;
-      font-weight: 600;
-      margin-bottom: 30px;
-      color: #fff;
+    .benefit-card {
+      background: rgba(255,255,255,0.1);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255,255,255,0.2);
+      padding: 25px;
+      border-radius: 15px;
+      text-align: left;
     }
     
-    .benefit-item {
-      font-size: 1.2em;
-      margin: 15px 0;
-      padding: 15px 0;
-      position: relative;
-      opacity: 0;
-      transform: translateX(-20px);
-    }
-    
-    .benefit-item:nth-child(2) { animation: slideInLeft 0.8s ease-out 4s forwards; }
-    .benefit-item:nth-child(3) { animation: slideInLeft 0.8s ease-out 4.3s forwards; }
-    .benefit-item:nth-child(4) { animation: slideInLeft 0.8s ease-out 4.6s forwards; }
-    
-    .benefit-item::before {
-      content: "✓";
-      position: absolute;
-      left: -30px;
-      top: 15px;
-      background: #4ade80;
-      color: white;
-      width: 20px;
-      height: 20px;
+    .benefit-icon {
+      width: 40px;
+      height: 40px;
+      background: #4299e1;
       border-radius: 50%;
+      margin-bottom: 15px;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 0.8em;
-      font-weight: bold;
+      font-size: 18px;
     }
     
-    .footer {
-      margin-top: 50px;
-      font-size: 1.3em;
+    .benefit-title {
+      font-size: 1.1em;
       font-weight: 600;
-      background: rgba(255,255,255,0.1);
-      padding: 20px 40px;
-      border-radius: 15px;
+      margin-bottom: 8px;
+      color: #4299e1;
+    }
+    
+    .benefit-text {
+      font-size: 0.9em;
+      color: #cbd5e0;
+      line-height: 1.4;
+    }
+    
+    /* Professional call-to-action */
+    .cta-section {
+      margin-top: 50px;
       opacity: 0;
-      animation: fadeInUp 1s ease-out 5.5s forwards;
+      animation: ctaFadeIn 2s ease-out 7s forwards;
     }
     
-    .floating-particles {
-      position: absolute;
-      width: 100%;
-      height: 100%;
-      overflow: hidden;
-      z-index: -1;
+    .cta-text {
+      font-size: 1.4em;
+      font-weight: 500;
+      color: #4299e1;
+      margin-bottom: 15px;
     }
     
-    .particle {
-      position: absolute;
-      background: rgba(255,255,255,0.1);
-      border-radius: 50%;
-      animation: float 6s ease-in-out infinite;
+    .company-badge {
+      background: rgba(66, 153, 225, 0.2);
+      color: #90cdf4;
+      padding: 8px 20px;
+      border-radius: 20px;
+      font-size: 0.9em;
+      font-weight: 600;
+      display: inline-block;
     }
     
-    .particle:nth-child(1) { width: 8px; height: 8px; left: 10%; animation-delay: 0s; }
-    .particle:nth-child(2) { width: 12px; height: 12px; left: 30%; animation-delay: 2s; }
-    .particle:nth-child(3) { width: 6px; height: 6px; left: 50%; animation-delay: 4s; }
-    .particle:nth-child(4) { width: 10px; height: 10px; left: 70%; animation-delay: 1s; }
-    .particle:nth-child(5) { width: 14px; height: 14px; left: 85%; animation-delay: 3s; }
-    
-    @keyframes slideIn {
-      to { opacity: 1; transform: translateY(0); }
-    }
-    
-    @keyframes fadeInUp {
-      to { opacity: 1; transform: translateY(0); }
-    }
-    
-    @keyframes titleZoom {
-      to { opacity: 1; transform: scale(1); }
-    }
-    
-    @keyframes slideInUp {
-      to { opacity: 1; transform: translateY(0); }
-    }
-    
-    @keyframes slideInLeft {
-      to { opacity: 1; transform: translateX(0); }
-    }
-    
-    @keyframes float {
+    /* Animations */
+    @keyframes floatMolecule {
       0%, 100% { transform: translateY(0px) rotate(0deg); }
       50% { transform: translateY(-20px) rotate(180deg); }
     }
     
-    .progress-bar {
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      height: 4px;
-      background: linear-gradient(90deg, #4ade80, #22d3ee);
-      width: 0%;
+    @keyframes productRotate {
+      0%, 100% { transform: perspective(1000px) rotateY(0deg); }
+      25% { transform: perspective(1000px) rotateY(15deg); }
+      50% { transform: perspective(1000px) rotateY(0deg); }
+      75% { transform: perspective(1000px) rotateY(-15deg); }
+    }
+    
+    @keyframes titleFadeIn {
+      from { opacity: 0; transform: translateY(30px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    
+    @keyframes fadeInSlide {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    
+    @keyframes benefitsSlideIn {
+      from { opacity: 0; transform: translateY(40px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    
+    @keyframes ctaFadeIn {
+      from { opacity: 0; transform: scale(0.9); }
+      to { opacity: 1; transform: scale(1); }
+    }
+    
+    /* Research validation styling */
+    .research-badge {
+      background: rgba(76, 175, 80, 0.2);
+      color: #81c784;
+      padding: 5px 12px;
+      border-radius: 15px;
+      font-size: 0.8em;
+      font-weight: 500;
+      margin: 10px 5px;
+      display: inline-block;
+    }
+  </style>
+</head>
+<body>
+  <div class="video-container">
+    <!-- Floating pharmaceutical elements -->
+    <div class="floating-elements">
+      <div class="molecule"></div>
+      <div class="molecule"></div>
+      <div class="molecule"></div>
+      <div class="molecule"></div>
+    </div>
+    
+    <!-- Main product showcase -->
+    <div class="product-showcase">
+      <!-- Product bottle visualization -->
+      <div class="product-bottle">
+        <div class="bottle-cap"></div>
+        <div class="bottle-label">
+          ${config.productName}
+        </div>
+      </div>
+      
+      <!-- Product information -->
+      <h1 class="product-title">${config.productName}</h1>
+      
+      <div class="product-description">
+        ${config.productDescription.substring(0, 200)}...
+      </div>
+      
+      <!-- Research validation badges -->
+      <div style="margin: 20px 0;">
+        <span class="research-badge">✓ Research Validated</span>
+        <span class="research-badge">✓ Quality Tested</span>
+        <span class="research-badge">✓ Professional Grade</span>
+      </div>
+      
+      <!-- Key benefits grid -->
+      <div class="benefits-grid">
+        <div class="benefit-card">
+          <div class="benefit-icon">⚗️</div>
+          <div class="benefit-title">Scientific Formula</div>
+          <div class="benefit-text">Clinically researched ingredients for optimal bioavailability</div>
+        </div>
+        
+        <div class="benefit-card">
+          <div class="benefit-icon">🔬</div>
+          <div class="benefit-title">Quality Assurance</div>
+          <div class="benefit-text">Third-party tested for purity and potency</div>
+        </div>
+        
+        <div class="benefit-card">
+          <div class="benefit-icon">🎯</div>
+          <div class="benefit-title">Targeted Support</div>
+          <div class="benefit-text">Designed for ${config.targetAudience || 'health-conscious individuals'}</div>
+        </div>
+      </div>
+      
+      <!-- Professional call-to-action -->
+      <div class="cta-section">
+        <div class="cta-text">Experience Professional-Grade Nutrition</div>
+        <div class="company-badge">Pine Hill Farm - Premium Supplements</div>
+      </div>
+    </div>
+  </div>
+  
+  <script>
+    // Professional narration system
+    function startProfessionalNarration() {
+      const script = \`${config.script || `Discover ${config.productName} - a scientifically formulated supplement designed to support your health and wellness goals. Our research-backed formula delivers targeted nutrition for optimal results.`}\`;
+      
+      // Use professional voice settings
+      const utterance = new SpeechSynthesisUtterance(script);
+      
+      // Get available voices and prefer female professional voices
+      const voices = speechSynthesis.getVoices();
+      const preferredVoice = voices.find(voice => 
+        voice.name.includes('Female') || 
+        voice.name.includes('Woman') || 
+        voice.name.includes('Samantha') ||
+        voice.lang.includes('en-US')
+      ) || voices[0];
+      
+      if (preferredVoice) {
+        utterance.voice = preferredVoice;
+      }
+      
+      // Professional narration settings
+      utterance.rate = 0.9;
+      utterance.pitch = 1.0;
+      utterance.volume = 0.8;
+      
+      // Start narration after initial animation
+      setTimeout(() => {
+        speechSynthesis.speak(utterance);
+      }, 2000);
+    }
+    
+    // Camera movement simulation
+    function simulateCameraMovement() {
+      const showcase = document.querySelector('.product-showcase');
+      let position = 0;
+      
+      setInterval(() => {
+        position += 0.5;
+        const translateX = Math.sin(position * 0.01) * 10;
+        const translateY = Math.cos(position * 0.01) * 5;
+        showcase.style.transform = \`translate(\${translateX}px, \${translateY}px)\`;
+      }, 50);
+    }
+    
+    // Professional lighting effects
+    function addProfessionalLighting() {
+      const container = document.querySelector('.video-container');
+      
+      setInterval(() => {
+        const lightness = 85 + Math.sin(Date.now() * 0.001) * 10;
+        container.style.filter = \`brightness(\${lightness}%)\`;
+      }, 100);
+    }
+    
+    // Initialize professional video features
+    document.addEventListener('DOMContentLoaded', () => {
+      setTimeout(startProfessionalNarration, 1000);
+      setTimeout(simulateCameraMovement, 3000);
+      setTimeout(addProfessionalLighting, 5000);
+    });
+  </script>
+</body>
+</html>\`;
+  }
+
+
       animation: progress ${videoConfig.videoLength}s linear forwards;
     }
     
@@ -2379,30 +2579,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   </script>
 </body>
 </html>`;
-
-      const videoFilePath = path.join(videoDir, `video_${video.id}.html`);
-      fs.writeFileSync(videoFilePath, videoHtml);
-
-      // Update video status immediately
-      await storage.updateProductVideo(video.id, {
-        renderStatus: 'completed',
-        renderProgress: 100,
-        videoUrl: `/uploads/videos/video_${video.id}.html`,
-        duration: videoConfig.videoLength,
-        renderCompletedAt: new Date(),
-      });
-
-      res.json({
-        success: true,
-        videoId: video.id,
-        videoUrl: `/uploads/videos/video_${video.id}.html`,
-        message: 'Video generated successfully'
-      });
-    } catch (error) {
-      console.error('Error generating video:', error);
-      res.status(500).json({ message: 'Failed to generate video' });
-    }
-  });
+  }
 
   // Get video status
   app.get('/api/videos/:id', isAuthenticated, async (req, res) => {
