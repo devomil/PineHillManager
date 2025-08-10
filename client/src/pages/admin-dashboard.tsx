@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useQuery } from "@tanstack/react-query";
-import { Users, Clock, Calendar, MapPin, ChevronRight, FileText, MessageCircle, Bell, Settings, Eye, DollarSign, Menu, X, QrCode } from "lucide-react";
+import { Users, Clock, Calendar, MapPin, ChevronRight, FileText, MessageCircle, Bell, Settings, Eye, DollarSign, Menu, X, QrCode, Video } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { formatTimeStringToCST } from "@/lib/time-utils";
 
@@ -18,6 +18,7 @@ import ReportsPage from "@/pages/reports";
 import HomeDashboard from "@/pages/home-dashboard";
 import AccountingDashboard from "@/pages/accounting-dashboard";
 import IntegrationsPage from "@/pages/integrations-page";
+import MarketingPage from "@/pages/marketing-page";
 
 export default function AdminDashboard() {
   const { user, logoutMutation } = useAuth();
@@ -34,8 +35,8 @@ export default function AdminDashboard() {
     if (path.includes('/reports')) return 'reports';
     if (path.includes('/dashboard') && !path.includes('/admin')) return 'employee-view';
     if (path.includes('/accounting')) return 'accounting';
-    if (path.includes('/integrations')) return 'integrations';
     if (path.includes('/marketing')) return 'marketing';
+    if (path.includes('/integrations')) return 'integrations';
     return 'dashboard';
   };
 
@@ -62,6 +63,9 @@ export default function AdminDashboard() {
       case 'accounting':
         setLocation('/accounting');
         break;
+      case 'marketing':
+        setLocation('/admin/marketing');
+        break;
       case 'integrations':
         setLocation('/integrations');
         break;
@@ -73,9 +77,6 @@ export default function AdminDashboard() {
         break;
       case 'employee-view':
         setLocation('/dashboard');
-        break;
-      case 'marketing':
-        setLocation('/admin/marketing');
         break;
     }
   };
@@ -442,6 +443,15 @@ export default function AdminDashboard() {
               </TabsTrigger>
               <div className="h-6 w-px bg-gray-300 hidden lg:block"></div>
               <TabsTrigger 
+                value="marketing" 
+                className="nav-item-core flex items-center gap-2 px-4 xl:px-6 py-2 xl:py-3 rounded-md hover:bg-blue-50 hover:text-blue-700 hover:shadow-sm hover:-translate-y-0.5 transition-all duration-200 whitespace-nowrap mx-0 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-800 data-[state=active]:font-medium"
+              >
+                <Video className="h-4 w-4" />
+                <span className="hidden xl:inline">Marketing Videos</span>
+                <span className="xl:hidden">Marketing</span>
+              </TabsTrigger>
+              <div className="h-6 w-px bg-gray-300 hidden lg:block"></div>
+              <TabsTrigger 
                 value="integrations" 
                 className="nav-item-core flex items-center gap-2 px-4 xl:px-6 py-2 xl:py-3 rounded-md hover:bg-blue-50 hover:text-blue-700 hover:shadow-sm hover:-translate-y-0.5 transition-all duration-200 whitespace-nowrap mx-0 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-800 data-[state=active]:font-medium"
               >
@@ -589,6 +599,14 @@ export default function AdminDashboard() {
                   Employee View
                 </Button>
                 <Button
+                  variant={getCurrentTab() === "marketing" ? "default" : "ghost"}
+                  onClick={() => { handleTabChange("marketing"); setMobileMenuOpen(false); }}
+                  className="w-full justify-start gap-2 h-10 hover:bg-blue-50 hover:text-blue-700"
+                >
+                  <Video className="h-4 w-4" />
+                  Marketing Videos
+                </Button>
+                <Button
                   variant={getCurrentTab() === "reports" ? "default" : "ghost"}
                   onClick={() => { handleTabChange("reports"); setMobileMenuOpen(false); }}
                   className="w-full justify-start gap-2 h-10 hover:bg-blue-50 hover:text-blue-700"
@@ -634,6 +652,10 @@ export default function AdminDashboard() {
 
           <TabsContent value="accounting" className="space-y-6">
             <AccountingDashboard />
+          </TabsContent>
+
+          <TabsContent value="marketing" className="space-y-6">
+            <MarketingPage />
           </TabsContent>
 
           <TabsContent value="integrations" className="space-y-6">
