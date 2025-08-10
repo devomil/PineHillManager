@@ -136,14 +136,31 @@ export default function VideoCreator() {
 
   // Preview generated content
   const previewContent = async () => {
+    if (!config.productName.trim() || !config.healthConcern.trim()) {
+      toast({
+        title: "Missing Information",
+        description: "Please enter a product name and health concern first.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
+      console.log("Generating content preview with config:", config);
       const content = await contentGenerator.generateProfessionalContent(config);
+      console.log("Generated content:", content);
       setGeneratedContent(content);
       setShowContentPreview(true);
+      
+      toast({
+        title: "Content Preview Ready!",
+        description: "Professional marketing content has been generated.",
+      });
     } catch (error) {
+      console.error("Content preview error:", error);
       toast({
         title: "Content Preview Failed",
-        description: "Unable to generate content preview.",
+        description: "Unable to generate content preview. Please try again.",
         variant: "destructive",
       });
     }

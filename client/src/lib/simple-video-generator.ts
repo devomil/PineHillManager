@@ -62,7 +62,7 @@ export class SimpleVideoGenerator {
     });
   }
 
-  private async createProfessionalScenes(config: VideoConfig, productImages: HTMLImageElement[], generatedContent?: GeneratedContent): VideoScene[] {
+  private async createProfessionalScenes(config: VideoConfig, productImages: HTMLImageElement[], generatedContent?: GeneratedContent): Promise<VideoScene[]> {
     // PHASE 1: Force 30-second minimum duration (900 frames at 30fps)
     const MINIMUM_DURATION = 30; // Never less than 30 seconds
     const FRAME_COUNT = MINIMUM_DURATION * this.fps; // 900 frames minimum
@@ -286,8 +286,8 @@ export class SimpleVideoGenerator {
     if (progress <= 0) return;
 
     const text = element.text || '';
-    const fontSize = element.fontSize || 32;
-    const color = element.color || '#000000';
+    const fontSize = element.fontSize || 42;
+    const color = element.color || '#ffffff';
 
     // Professional easing for text animations
     const easedProgress = this.easeOutQuart(progress);
@@ -298,7 +298,7 @@ export class SimpleVideoGenerator {
     switch (element.animation) {
       case 'fadeInUp':
         opacity = progress;
-        translateY = (1 - progress) * 30;
+        translateY = (1 - progress) * 50;
         break;
       case 'typewriter':
         const chars = Math.floor(progress * text.length);
@@ -308,26 +308,41 @@ export class SimpleVideoGenerator {
         opacity = progress;
         break;
       case 'pulsingGlow':
-        opacity = 0.7 + (Math.sin(progress * Math.PI * 8) * 0.3);
+        opacity = 0.9 + (Math.sin(progress * Math.PI * 6) * 0.1);
         this.ctx.shadowColor = color;
-        this.ctx.shadowBlur = 20 * progress;
+        this.ctx.shadowBlur = 30 * progress;
+        break;
+      case 'slideInRight':
+        const translateX = (1 - this.easeOutBack(progress)) * 200;
+        x = x - translateX;
         break;
     }
 
-    // Set text properties
+    // Set text properties with better visibility
     this.ctx.globalAlpha = opacity;
-    this.ctx.font = `bold ${fontSize}px 'Helvetica Neue', Arial, sans-serif`;
+    this.ctx.font = `bold ${fontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif`;
     this.ctx.fillStyle = color;
     this.ctx.textAlign = 'center';
     this.ctx.textBaseline = 'middle';
 
-    // Apply text shadow for depth
-    this.ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
-    this.ctx.shadowBlur = 4;
-    this.ctx.shadowOffsetY = 2;
+    // Enhanced text shadow for maximum visibility
+    this.ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+    this.ctx.shadowBlur = 6;
+    this.ctx.shadowOffsetX = 3;
+    this.ctx.shadowOffsetY = 3;
 
-    // Draw text with word wrapping
-    this.drawWrappedText(displayText, x, y - translateY, 800, fontSize * 1.2);
+    // Add text stroke for better contrast
+    this.ctx.strokeStyle = 'rgba(0, 0, 0, 0.7)';
+    this.ctx.lineWidth = 3;
+
+    // Draw text with stroke and fill for maximum visibility
+    this.ctx.strokeText(displayText, x, y - translateY);
+    this.ctx.fillText(displayText, x, y - translateY);
+
+    // Reset shadow
+    this.ctx.shadowBlur = 0;
+    this.ctx.shadowOffsetX = 0;
+    this.ctx.shadowOffsetY = 0;
   }
 
   private async renderAnimatedProductImage(element: VideoElement, x: number, y: number, progress: number) {
@@ -472,17 +487,24 @@ export class SimpleVideoGenerator {
   }
 
   public async generateProfessionalVideo(config: VideoConfig): Promise<Blob> {
+    console.log("Starting professional video generation...");
+    
     // Phase 2: Generate professional marketing content
     const generatedContent = await this.contentGenerator.generateProfessionalContent(config);
+    console.log("Generated content complete");
+    
     // Load all product images
     const productImages = await Promise.all(
       config.productImages.map(file => this.loadImage(file))
     );
+    console.log("Product images loaded:", productImages.length);
 
     // Create professional animated scenes with generated content
     const scenes = await this.createProfessionalScenes(config, productImages, generatedContent);
+    const totalDuration = scenes.reduce((acc, scene) => acc + scene.duration, 0);
+    console.log("Created scenes:", scenes.length, "total duration:", totalDuration, "seconds");
 
-    // PHASE 1: Set up MediaRecorder with HD quality (1920x1080)
+    // PHASE 1: Set up MediaRecorder with HD quality (1920x1080) 
     const stream = this.canvas.captureStream(this.fps);
     const mediaRecorder = new MediaRecorder(stream, {
       mimeType: 'video/webm;codecs=vp9',
@@ -499,25 +521,32 @@ export class SimpleVideoGenerator {
       };
 
       mediaRecorder.onstop = () => {
+        console.log("Recording stopped, creating blob from", chunks.length, "chunks");
         const blob = new Blob(chunks, { type: 'video/webm' });
+        console.log("Video blob created, size:", blob.size, "bytes");
         resolve(blob);
       };
 
       mediaRecorder.onerror = (event) => {
+        console.error("MediaRecorder error:", event);
         reject(new Error('Professional video generation error'));
       };
 
-      // Start recording
+      console.log("Starting MediaRecorder...");
+      // Start recording with frequent data collection
       mediaRecorder.start(100);
 
-      // Professional animation sequence
+      // Professional animation sequence with proper timing
       this.animateProfessionalScenes(scenes, mediaRecorder);
     });
   }
 
   private async animateProfessionalScenes(scenes: VideoScene[], mediaRecorder: MediaRecorder) {
     let currentTime = 0;
-    const frameTime = 1000 / this.fps;
+    const frameTime = 1000 / this.fps; // 33.33ms per frame at 30fps
+    const totalDurationMs = scenes.reduce((acc, scene) => acc + scene.duration * 1000, 0);
+    
+    console.log(`Starting animation sequence: ${totalDurationMs}ms total (${totalDurationMs/1000}s)`);
     
     const animate = async () => {
       // Calculate which scene we're in
@@ -548,20 +577,29 @@ export class SimpleVideoGenerator {
         await this.drawProfessionalScene(currentScene, sceneProgress, currentTime / 1000);
         
         this.ctx.globalAlpha = 1;
+      } else {
+        // Fill with default background if no scene (shouldn't happen)
+        this.ctx.fillStyle = '#f8fafc';
+        this.ctx.fillRect(0, 0, this.width, this.height);
       }
 
       currentTime += frameTime;
 
-      // Check if video is complete
-      const totalDuration = scenes.reduce((acc, scene) => acc + scene.duration * 1000, 0);
-      if (currentTime >= totalDuration) {
-        mediaRecorder.stop();
+      // Check if video is complete - add a small buffer to ensure we capture the full duration
+      if (currentTime >= totalDurationMs + 100) {
+        console.log(`Animation complete at ${currentTime}ms, stopping recorder`);
+        // Add a small delay before stopping to ensure all frames are captured
+        setTimeout(() => {
+          mediaRecorder.stop();
+        }, 200);
         return;
       }
 
+      // Continue animation
       requestAnimationFrame(animate);
     };
 
+    // Start the animation
     animate();
   }
 
