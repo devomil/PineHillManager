@@ -2,7 +2,7 @@ import { ReactNode, useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 // Removed Tabs imports to prevent RovingFocusGroupItem conflicts
-import { Users, Clock, Calendar, Bell, Settings, Eye, FileText, DollarSign, Menu, QrCode } from "lucide-react";
+import { Users, Clock, Calendar, Bell, Settings, Eye, FileText, DollarSign, Menu, QrCode, Video } from "lucide-react";
 import { useLocation } from "wouter";
 
 interface AdminLayoutProps {
@@ -140,8 +140,8 @@ export default function AdminLayout({ children, currentTab }: AdminLayoutProps) 
                 onClick={() => handleTabChange("marketing")}
                 className="nav-item-core flex items-center gap-2 px-4 xl:px-6 py-2 xl:py-3 rounded-md hover:bg-blue-50 hover:text-blue-700 hover:shadow-sm hover:-translate-y-0.5 transition-all duration-200 whitespace-nowrap mx-0"
               >
-                <QrCode className="h-4 w-4" />
-                <span className="hidden xl:inline">Marketing</span>
+                <Video className="h-4 w-4" />
+                <span className="hidden xl:inline">Marketing Videos</span>
                 <span className="xl:hidden">Marketing</span>
               </Button>
 

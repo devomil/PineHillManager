@@ -35,6 +35,7 @@ export default function AdminDashboard() {
     if (path.includes('/dashboard') && !path.includes('/admin')) return 'employee-view';
     if (path.includes('/accounting')) return 'accounting';
     if (path.includes('/integrations')) return 'integrations';
+    if (path.includes('/marketing')) return 'marketing';
     return 'dashboard';
   };
 
