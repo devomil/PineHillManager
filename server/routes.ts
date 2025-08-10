@@ -2046,8 +2046,243 @@ export async function registerRoutes(app: Express): Promise<Server> {
         fs.mkdirSync(videoDir, { recursive: true });
       }
 
-      // Generate a professional product video that mimics Orthomolecular style
-      const videoHtml = generateProfessionalProductVideo(videoConfig);
+      // Generate video HTML content
+      const keyBenefits = videoConfig.keyBenefits || [
+        "Premium scientific formulation",
+        "Quality assured for professional use", 
+        "Targeted nutritional support"
+      ];
+      
+      const script = videoConfig.script || `Discover ${videoConfig.productName} - a scientifically formulated supplement designed to support your health and wellness goals.`;
+
+      const videoHtml = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${videoConfig.productName} - Professional Product Video</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      overflow: hidden;
+      transition: all 3s ease-in-out;
+    }
+    
+    .video-container {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      padding: 40px;
+      box-sizing: border-box;
+    }
+    
+    .product-showcase {
+      animation: fadeInScale 2s ease-out;
+      max-width: 800px;
+      width: 100%;
+    }
+    
+    .product-title {
+      font-size: 3.5rem;
+      font-weight: 700;
+      margin: 0 0 20px 0;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+      letter-spacing: -0.02em;
+      animation: slideInDown 1.5s ease-out;
+    }
+    
+    .product-subtitle {
+      font-size: 1.4rem;
+      margin: 0 0 40px 0;
+      opacity: 0.9;
+      font-weight: 300;
+      line-height: 1.6;
+      animation: slideInUp 1.8s ease-out;
+    }
+    
+    .product-description {
+      font-size: 1.2rem;
+      line-height: 1.8;
+      margin: 0 0 50px 0;
+      opacity: 0.95;
+      animation: fadeIn 2.2s ease-out;
+      max-width: 600px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    
+    .benefits-showcase {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 30px;
+      margin: 40px 0;
+      animation: fadeInScale 2.5s ease-out;
+    }
+    
+    .benefit-card {
+      background: rgba(255, 255, 255, 0.1);
+      padding: 25px;
+      border-radius: 15px;
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      transition: transform 0.3s ease;
+      animation: slideInLeft 2.8s ease-out;
+    }
+    
+    .benefit-card:hover {
+      transform: translateY(-5px);
+    }
+    
+    .benefit-icon {
+      font-size: 2.5rem;
+      margin-bottom: 15px;
+      display: block;
+    }
+    
+    .benefit-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-bottom: 10px;
+      color: #fff;
+    }
+    
+    .benefit-description {
+      font-size: 0.95rem;
+      opacity: 0.9;
+      line-height: 1.5;
+    }
+    
+    .cta-section {
+      margin-top: 50px;
+      animation: fadeInUp 3s ease-out;
+    }
+    
+    .cta-headline {
+      font-size: 2.2rem;
+      font-weight: 600;
+      margin-bottom: 20px;
+      text-shadow: 1px 1px 3px rgba(0,0,0,0.3);
+    }
+    
+    .company-branding {
+      font-size: 1.3rem;
+      font-weight: 400;
+      opacity: 0.85;
+      font-style: italic;
+    }
+    
+    @keyframes fadeInScale {
+      0% { opacity: 0; transform: scale(0.8); }
+      100% { opacity: 1; transform: scale(1); }
+    }
+    
+    @keyframes slideInDown {
+      0% { opacity: 0; transform: translateY(-50px); }
+      100% { opacity: 1; transform: translateY(0); }
+    }
+    
+    @keyframes slideInUp {
+      0% { opacity: 0; transform: translateY(50px); }
+      100% { opacity: 1; transform: translateY(0); }
+    }
+    
+    @keyframes slideInLeft {
+      0% { opacity: 0; transform: translateX(-50px); }
+      100% { opacity: 1; transform: translateX(0); }
+    }
+    
+    @keyframes fadeIn {
+      0% { opacity: 0; }
+      100% { opacity: 1; }
+    }
+    
+    @keyframes fadeInUp {
+      0% { opacity: 0; transform: translateY(30px); }
+      100% { opacity: 1; transform: translateY(0); }
+    }
+    
+    @media (max-width: 768px) {
+      .product-title { font-size: 2.5rem; }
+      .product-subtitle { font-size: 1.2rem; }
+      .product-description { font-size: 1.1rem; }
+      .cta-headline { font-size: 1.8rem; }
+      .video-container { padding: 20px; }
+      .benefits-showcase { grid-template-columns: 1fr; gap: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="video-container">
+    <div class="product-showcase">
+      <h1 class="product-title">${videoConfig.productName}</h1>
+      <p class="product-subtitle">${videoConfig.category || 'Premium Supplement'}</p>
+      <p class="product-description">${videoConfig.productDescription}</p>
+      
+      <div class="benefits-showcase">
+        ${keyBenefits.slice(0, 3).map((benefit, index) => {
+          const icons = ['⚗️', '🔬', '🎯'];
+          const titles = ['Scientific Formula', 'Quality Assurance', 'Targeted Results'];
+          return `
+        <div class="benefit-card">
+          <div class="benefit-icon">${icons[index] || '✓'}</div>
+          <div class="benefit-title">${titles[index] || 'Premium Quality'}</div>
+          <div class="benefit-description">${benefit}</div>
+        </div>`;
+        }).join('')}
+      </div>
+      
+      <div class="cta-section">
+        <div class="cta-headline">Experience Professional-Grade Nutrition</div>
+        <div class="company-branding">Pine Hill Farm - Premium Supplements</div>
+      </div>
+    </div>
+  </div>
+  
+  <script>
+    const narrative = "${script.replace(/"/g, '\\"')}";
+    
+    function speakText() {
+      const utterance = new SpeechSynthesisUtterance(narrative);
+      const voices = speechSynthesis.getVoices();
+      const preferredVoice = voices.find(voice => voice.lang.includes('en-US')) || voices[0];
+      
+      if (preferredVoice) {
+        utterance.voice = preferredVoice;
+      }
+      
+      utterance.rate = 0.8;
+      utterance.pitch = 1.0;
+      utterance.volume = 0.9;
+      
+      speechSynthesis.speak(utterance);
+    }
+    
+    setTimeout(speakText, 2000);
+    
+    let colorIndex = 0;
+    const colors = [
+      'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+      'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+      'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+      'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)'
+    ];
+    
+    setInterval(() => {
+      document.body.style.background = colors[colorIndex % colors.length];
+      colorIndex++;
+    }, ${Math.floor((videoConfig.videoLength || 30) * 1000 / 4)});
+  </script>
+</body>
+</html>`;
 
       const videoFilePath = path.join(videoDir, `video_${video.id}.html`);
       fs.writeFileSync(videoFilePath, videoHtml);
@@ -2072,514 +2307,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: 'Failed to generate video' });
     }
   });
-
-  // Professional video generation function
-  function generateProfessionalProductVideo(config) {
-    return `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <title>${config.productName} - Professional Product Video</title>
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap');
-    
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    
-    body {
-      font-family: 'Roboto', sans-serif;
-      background: #000;
-      color: #fff;
-      overflow: hidden;
-      height: 100vh;
-      position: relative;
-    }
-    
-    /* Professional product video container */
-    .video-container {
-      width: 100%;
-      height: 100vh;
-      position: relative;
-      background: linear-gradient(45deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    
-    /* Floating pharmaceutical elements */
-    .floating-elements {
-      position: absolute;
-      width: 100%;
-      height: 100%;
-      pointer-events: none;
-      z-index: 1;
-    }
-    
-    .molecule {
-      position: absolute;
-      width: 40px;
-      height: 40px;
-      border: 2px solid rgba(76, 175, 80, 0.3);
-      border-radius: 50%;
-      animation: floatMolecule 8s infinite ease-in-out;
-    }
-    
-    .molecule:nth-child(1) { top: 20%; left: 10%; animation-delay: 0s; }
-    .molecule:nth-child(2) { top: 40%; right: 15%; animation-delay: 2s; }
-    .molecule:nth-child(3) { bottom: 30%; left: 20%; animation-delay: 4s; }
-    .molecule:nth-child(4) { bottom: 60%; right: 25%; animation-delay: 6s; }
-    
-    /* Product showcase container */
-    .product-showcase {
-      max-width: 1200px;
-      width: 100%;
-      padding: 0 40px;
-      text-align: center;
-      z-index: 10;
-      position: relative;
-    }
-    
-    /* Product bottle simulation */
-    .product-bottle {
-      width: 200px;
-      height: 300px;
-      background: linear-gradient(145deg, #2c5282 0%, #3182ce 50%, #4299e1 100%);
-      border-radius: 20px 20px 30px 30px;
-      margin: 0 auto 40px;
-      position: relative;
-      box-shadow: 0 20px 40px rgba(0,0,0,0.3);
-      animation: productRotate 12s infinite ease-in-out;
-    }
-    
-    .bottle-cap {
-      width: 60px;
-      height: 30px;
-      background: #1a202c;
-      border-radius: 30px 30px 5px 5px;
-      position: absolute;
-      top: -15px;
-      left: 50%;
-      transform: translateX(-50%);
-    }
-    
-    .bottle-label {
-      background: rgba(255,255,255,0.95);
-      color: #2d3748;
-      padding: 20px 15px;
-      margin: 50px 20px;
-      border-radius: 10px;
-      font-size: 14px;
-      font-weight: 700;
-      line-height: 1.3;
-    }
-    
-    /* Professional title styling */
-    .product-title {
-      font-size: 3.2em;
-      font-weight: 700;
-      margin-bottom: 20px;
-      background: linear-gradient(45deg, #4299e1 0%, #63b3ed 50%, #90cdf4 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-      text-align: center;
-      opacity: 0;
-      animation: titleFadeIn 2s ease-out 1s forwards;
-    }
-    
-    /* Scientific description */
-    .product-description {
-      font-size: 1.1em;
-      line-height: 1.6;
-      color: #e2e8f0;
-      max-width: 800px;
-      margin: 0 auto 30px;
-      opacity: 0;
-      animation: fadeInSlide 2s ease-out 3s forwards;
-    }
-    
-    /* Key benefits with professional styling */
-    .benefits-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-      gap: 20px;
-      margin: 40px 0;
-      opacity: 0;
-      animation: benefitsSlideIn 2s ease-out 5s forwards;
-    }
-    
-    .benefit-card {
-      background: rgba(255,255,255,0.1);
-      backdrop-filter: blur(10px);
-      border: 1px solid rgba(255,255,255,0.2);
-      padding: 25px;
-      border-radius: 15px;
-      text-align: left;
-    }
-    
-    .benefit-icon {
-      width: 40px;
-      height: 40px;
-      background: #4299e1;
-      border-radius: 50%;
-      margin-bottom: 15px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 18px;
-    }
-    
-    .benefit-title {
-      font-size: 1.1em;
-      font-weight: 600;
-      margin-bottom: 8px;
-      color: #4299e1;
-    }
-    
-    .benefit-text {
-      font-size: 0.9em;
-      color: #cbd5e0;
-      line-height: 1.4;
-    }
-    
-    /* Professional call-to-action */
-    .cta-section {
-      margin-top: 50px;
-      opacity: 0;
-      animation: ctaFadeIn 2s ease-out 7s forwards;
-    }
-    
-    .cta-text {
-      font-size: 1.4em;
-      font-weight: 500;
-      color: #4299e1;
-      margin-bottom: 15px;
-    }
-    
-    .company-badge {
-      background: rgba(66, 153, 225, 0.2);
-      color: #90cdf4;
-      padding: 8px 20px;
-      border-radius: 20px;
-      font-size: 0.9em;
-      font-weight: 600;
-      display: inline-block;
-    }
-    
-    /* Animations */
-    @keyframes floatMolecule {
-      0%, 100% { transform: translateY(0px) rotate(0deg); }
-      50% { transform: translateY(-20px) rotate(180deg); }
-    }
-    
-    @keyframes productRotate {
-      0%, 100% { transform: perspective(1000px) rotateY(0deg); }
-      25% { transform: perspective(1000px) rotateY(15deg); }
-      50% { transform: perspective(1000px) rotateY(0deg); }
-      75% { transform: perspective(1000px) rotateY(-15deg); }
-    }
-    
-    @keyframes titleFadeIn {
-      from { opacity: 0; transform: translateY(30px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-    
-    @keyframes fadeInSlide {
-      from { opacity: 0; transform: translateY(20px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-    
-    @keyframes benefitsSlideIn {
-      from { opacity: 0; transform: translateY(40px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-    
-    @keyframes ctaFadeIn {
-      from { opacity: 0; transform: scale(0.9); }
-      to { opacity: 1; transform: scale(1); }
-    }
-    
-    /* Research validation styling */
-    .research-badge {
-      background: rgba(76, 175, 80, 0.2);
-      color: #81c784;
-      padding: 5px 12px;
-      border-radius: 15px;
-      font-size: 0.8em;
-      font-weight: 500;
-      margin: 10px 5px;
-      display: inline-block;
-    }
-  </style>
-</head>
-<body>
-  <div class="video-container">
-    <!-- Floating pharmaceutical elements -->
-    <div class="floating-elements">
-      <div class="molecule"></div>
-      <div class="molecule"></div>
-      <div class="molecule"></div>
-      <div class="molecule"></div>
-    </div>
-    
-    <!-- Main product showcase -->
-    <div class="product-showcase">
-      <!-- Product bottle visualization -->
-      <div class="product-bottle">
-        <div class="bottle-cap"></div>
-        <div class="bottle-label">
-          ${config.productName}
-        </div>
-      </div>
-      
-      <!-- Product information -->
-      <h1 class="product-title">${config.productName}</h1>
-      
-      <div class="product-description">
-        ${config.productDescription.substring(0, 200)}...
-      </div>
-      
-      <!-- Research validation badges -->
-      <div style="margin: 20px 0;">
-        <span class="research-badge">✓ Research Validated</span>
-        <span class="research-badge">✓ Quality Tested</span>
-        <span class="research-badge">✓ Professional Grade</span>
-      </div>
-      
-      <!-- Key benefits grid -->
-      <div class="benefits-grid">
-        <div class="benefit-card">
-          <div class="benefit-icon">⚗️</div>
-          <div class="benefit-title">Scientific Formula</div>
-          <div class="benefit-text">Clinically researched ingredients for optimal bioavailability</div>
-        </div>
-        
-        <div class="benefit-card">
-          <div class="benefit-icon">🔬</div>
-          <div class="benefit-title">Quality Assurance</div>
-          <div class="benefit-text">Third-party tested for purity and potency</div>
-        </div>
-        
-        <div class="benefit-card">
-          <div class="benefit-icon">🎯</div>
-          <div class="benefit-title">Targeted Support</div>
-          <div class="benefit-text">Designed for ${config.targetAudience || 'health-conscious individuals'}</div>
-        </div>
-      </div>
-      
-      <!-- Professional call-to-action -->
-      <div class="cta-section">
-        <div class="cta-text">Experience Professional-Grade Nutrition</div>
-        <div class="company-badge">Pine Hill Farm - Premium Supplements</div>
-      </div>
-    </div>
-  </div>
-  
-  <script>
-    // Professional narration system
-    function startProfessionalNarration() {
-      const script = \`${config.script || `Discover ${config.productName} - a scientifically formulated supplement designed to support your health and wellness goals. Our research-backed formula delivers targeted nutrition for optimal results.`}\`;
-      
-      // Use professional voice settings
-      const utterance = new SpeechSynthesisUtterance(script);
-      
-      // Get available voices and prefer female professional voices
-      const voices = speechSynthesis.getVoices();
-      const preferredVoice = voices.find(voice => 
-        voice.name.includes('Female') || 
-        voice.name.includes('Woman') || 
-        voice.name.includes('Samantha') ||
-        voice.lang.includes('en-US')
-      ) || voices[0];
-      
-      if (preferredVoice) {
-        utterance.voice = preferredVoice;
-      }
-      
-      // Professional narration settings
-      utterance.rate = 0.9;
-      utterance.pitch = 1.0;
-      utterance.volume = 0.8;
-      
-      // Start narration after initial animation
-      setTimeout(() => {
-        speechSynthesis.speak(utterance);
-      }, 2000);
-    }
-    
-    // Camera movement simulation
-    function simulateCameraMovement() {
-      const showcase = document.querySelector('.product-showcase');
-      let position = 0;
-      
-      setInterval(() => {
-        position += 0.5;
-        const translateX = Math.sin(position * 0.01) * 10;
-        const translateY = Math.cos(position * 0.01) * 5;
-        showcase.style.transform = \`translate(\${translateX}px, \${translateY}px)\`;
-      }, 50);
-    }
-    
-    // Professional lighting effects
-    function addProfessionalLighting() {
-      const container = document.querySelector('.video-container');
-      
-      setInterval(() => {
-        const lightness = 85 + Math.sin(Date.now() * 0.001) * 10;
-        container.style.filter = \`brightness(\${lightness}%)\`;
-      }, 100);
-    }
-    
-    // Initialize professional video features
-    document.addEventListener('DOMContentLoaded', () => {
-      setTimeout(startProfessionalNarration, 1000);
-      setTimeout(simulateCameraMovement, 3000);
-      setTimeout(addProfessionalLighting, 5000);
-    });
-  </script>
-</body>
-</html>\`;
-  }
-
-
-      animation: progress ${videoConfig.videoLength}s linear forwards;
-    }
-    
-    @keyframes progress {
-      to { width: 100%; }
-    }
-    
-    .audio-visualizer {
-      position: fixed;
-      bottom: 20px;
-      right: 20px;
-      display: flex;
-      align-items: center;
-      gap: 3px;
-      opacity: 0;
-      animation: fadeInUp 1s ease-out 6s forwards;
-    }
-    
-    .bar {
-      width: 3px;
-      background: #4ade80;
-      border-radius: 2px;
-      animation: pulse 1.5s ease-in-out infinite;
-    }
-    
-    .bar:nth-child(1) { height: 10px; animation-delay: 0.1s; }
-    .bar:nth-child(2) { height: 15px; animation-delay: 0.2s; }
-    .bar:nth-child(3) { height: 20px; animation-delay: 0.3s; }
-    .bar:nth-child(4) { height: 15px; animation-delay: 0.4s; }
-    .bar:nth-child(5) { height: 10px; animation-delay: 0.5s; }
-    
-    @keyframes pulse {
-      0%, 100% { transform: scaleY(0.3); }
-      50% { transform: scaleY(1); }
-    }
-  </style>
-</head>
-<body>
-  <div class="floating-particles">
-    <div class="particle"></div>
-    <div class="particle"></div>
-    <div class="particle"></div>
-    <div class="particle"></div>
-    <div class="particle"></div>
-  </div>
-  
-  <div class="video-container">
-    <div class="content">
-      <div class="category-badge">${videoConfig.category}</div>
-      <h1 class="product-title">${videoConfig.productName}</h1>
-      <div class="description">
-        ${videoConfig.productDescription.split('.').slice(0, 3).join('.') + '.'}
-      </div>
-      <div class="benefits-container">
-        <h2 class="benefits-title">Key Benefits</h2>
-        ${videoConfig.keyPoints.map(point => `<div class="benefit-item">${point}</div>`).join('')}
-      </div>
-      <div class="footer">
-        Perfect for ${videoConfig.targetAudience} | ${videoConfig.videoLength} seconds
-      </div>
-    </div>
-  </div>
-  
-  <div class="progress-bar"></div>
-  
-  <div class="audio-visualizer">
-    <div class="bar"></div>
-    <div class="bar"></div>
-    <div class="bar"></div>
-    <div class="bar"></div>
-    <div class="bar"></div>
-  </div>
-  
-  <script>
-    // Enhanced speech synthesis with better voice selection
-    function initializeVoice() {
-      return new Promise((resolve) => {
-        const checkVoices = () => {
-          const voices = speechSynthesis.getVoices();
-          if (voices.length > 0) {
-            resolve(voices);
-          } else {
-            setTimeout(checkVoices, 100);
-          }
-        };
-        checkVoices();
-      });
-    }
-    
-    async function speakText() {
-      const voices = await initializeVoice();
-      const text = "${videoConfig.script || 'Introducing ' + videoConfig.productName + '. ' + videoConfig.productDescription.split('.').slice(0, 3).join('.') + '. Key benefits include: ' + videoConfig.keyPoints.join(', ') + '. Experience the difference today!'}";
-      
-      const utterance = new SpeechSynthesisUtterance(text);
-      
-      // Try to find a high-quality female voice
-      const preferredVoice = voices.find(voice => 
-        voice.name.toLowerCase().includes('female') || 
-        voice.name.toLowerCase().includes('zira') ||
-        voice.name.toLowerCase().includes('hazel') ||
-        voice.name.toLowerCase().includes('samantha')
-      ) || voices.find(voice => voice.lang.startsWith('en')) || voices[0];
-      
-      utterance.voice = preferredVoice;
-      utterance.rate = 0.85;
-      utterance.pitch = 1.1;
-      utterance.volume = 0.9;
-      
-      // Add pauses and emphasis
-      const enhancedText = text
-        .replace(/\\./g, '... ')
-        .replace(/Key benefits/g, 'Key... benefits')
-        .replace(/Experience/g, '... Experience');
-      
-      utterance.text = enhancedText;
-      speechSynthesis.speak(utterance);
-    }
-    
-    // Start narration after initial animation
-    setTimeout(speakText, 2000);
-    
-    // Add dynamic background color changes
-    let colorIndex = 0;
-    const colors = [
-      'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-      'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-      'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
-      'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)'
-    ];
-    
-    setInterval(() => {
-      document.body.style.background = colors[colorIndex % colors.length];
-      colorIndex++;
-    }, ${Math.floor(videoConfig.videoLength * 1000 / 4)});
-  </script>
-</body>
-</html>`;
-  }
 
   // Get video status
   app.get('/api/videos/:id', isAuthenticated, async (req, res) => {
@@ -2634,34 +2361,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const hook = hooks[Math.floor(Math.random() * hooks.length)];
         const closing = closings[Math.floor(Math.random() * closings.length)];
         
-        // Extract key sentences from description
-        const sentences = description.split('.').filter(s => s.trim().length > 10);
-        const keyFacts = sentences.slice(0, 2).join('. ') + '.';
+        let script = `${hook}\n\n${description}\n\n`;
         
-        // Create benefits section
-        const benefitsText = benefits.length > 0 ? 
-          `Key benefits include: ${benefits.join(', ')}.` : 
-          'Proven benefits for your health and wellness.';
+        if (benefits && benefits.length > 0) {
+          script += `Key benefits include: ${benefits.join(', ')}\n\n`;
+        }
         
-        return `${hook} ${keyFacts} ${benefitsText} ${closing}`;
+        script += closing;
+        
+        return script;
       };
 
-      if (!productName || !productDescription) {
-        return res.status(400).json({ message: 'Product name and description are required' });
-      }
-
       const script = generateEnhancedScript(
-        productName, 
-        productDescription, 
-        keyPoints.filter(point => point.trim()), 
-        videoLength, 
+        productName,
+        productDescription,
+        keyPoints || [],
+        videoLength,
         videoStyle
       );
 
-      res.json({
+      res.json({ 
+        success: true, 
         script,
-        wordCount: script.split(' ').length,
-        estimatedDuration: Math.ceil(script.split(' ').length / 2.5)
+        suggestions: {
+          hooks: [
+            `Discover the power of ${productName}!`,
+            `Introducing ${productName} - your solution to better health!`,
+            `Transform your wellness journey with ${productName}!`
+          ]
+        }
       });
     } catch (error) {
       console.error('Error generating script:', error);
@@ -2675,101 +2403,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const videoId = parseInt(req.params.id);
       const user = req.user as any;
       
+      // Verify video belongs to user (if applicable)
       const video = await storage.getProductVideoById(videoId);
       if (!video) {
         return res.status(404).json({ message: 'Video not found' });
       }
 
-      // Check if user owns this video (or is admin)
-      if (video.userId !== user.id && user.role !== 'admin') {
-        return res.status(403).json({ message: 'Not authorized to delete this video' });
-      }
-
-      // Delete the HTML file
-      const videoPath = path.join(process.cwd(), 'uploads', 'videos', `video_${video.id}.html`);
-      if (fs.existsSync(videoPath)) {
-        fs.unlinkSync(videoPath);
-      }
-
-      // Delete from database
       await storage.deleteProductVideo(videoId);
-
-      res.json({ message: 'Video deleted successfully' });
+      res.json({ success: true, message: 'Video deleted successfully' });
     } catch (error) {
       console.error('Error deleting video:', error);
       res.status(500).json({ message: 'Failed to delete video' });
-    }
-  });
-
-  // Get video templates
-  app.get('/api/videos/templates', isAuthenticated, async (req, res) => {
-    try {
-      const { category } = req.query;
-      const templates = await storage.getVideoTemplates(category as string);
-      res.json(templates);
-    } catch (error) {
-      console.error('Error fetching video templates:', error);
-      res.status(500).json({ message: 'Failed to fetch video templates' });
-    }
-  });
-
-  // Get user's videos
-  app.get('/api/videos', isAuthenticated, async (req, res) => {
-    try {
-      const user = req.user as any;
-      const { status } = req.query;
-      const videos = await storage.getUserVideos(user.id, status as string);
-      res.json(videos);
-    } catch (error) {
-      console.error('Error fetching videos:', error);
-      res.status(500).json({ message: 'Failed to fetch videos' });
-    }
-  });
-
-  // Get video status
-  app.get('/api/videos/status/:id', isAuthenticated, async (req, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      const video = await storage.getProductVideoById(id);
-      
-      if (!video) {
-        return res.status(404).json({ message: 'Video not found' });
-      }
-
-      res.json({
-        id: video.id,
-        renderStatus: video.renderStatus,
-        renderProgress: video.renderProgress,
-        videoUrl: video.videoUrl,
-        thumbnailUrl: video.thumbnailUrl,
-        errorMessage: video.errorMessage
-      });
-    } catch (error) {
-      console.error('Error fetching video status:', error);
-      res.status(500).json({ message: 'Failed to fetch video status' });
-    }
-  });
-
-  // Download video
-  app.get('/api/videos/:id/download', isAuthenticated, async (req, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      const video = await storage.getProductVideoById(id);
-      
-      if (!video || !video.videoUrl) {
-        return res.status(404).json({ message: 'Video not found or not ready' });
-      }
-
-      // Track download
-      await storage.incrementVideoDownloadCount(id);
-
-      res.json({
-        downloadUrl: video.videoUrl,
-        fileName: `${video.productName.replace(/\s+/g, '_')}_video.mp4`
-      });
-    } catch (error) {
-      console.error('Error downloading video:', error);
-      res.status(500).json({ message: 'Failed to download video' });
     }
   });
 
