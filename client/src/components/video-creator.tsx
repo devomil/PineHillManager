@@ -23,6 +23,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { ProductVideoCreator, VideoConfig } from '@/lib/simple-video-generator';
 import { ContentGenerator } from '@/lib/content-generator';
+import { ProfessionalVideoEngine } from '@/lib/professional-video-engine';
 
 export default function VideoCreator() {
   const { toast } = useToast();
@@ -66,7 +67,7 @@ export default function VideoCreator() {
     }));
   };
 
-  // Generate video using client-side processing
+  // Generate professional explainer video using new engine
   const handleGenerateVideo = async () => {
     if (!config.productName.trim()) {
       toast({
@@ -90,42 +91,51 @@ export default function VideoCreator() {
     setGenerationProgress(0);
 
     try {
-      // Phase 2: Generate professional content first
+      // Phase 1: Generate professional content first
       setGenerationProgress(5);
       const content = await contentGenerator.generateProfessionalContent(config);
       setGeneratedContent(content);
       
       setGenerationProgress(15);
       
-      const videoCreator = new ProductVideoCreator();
+      // Phase 2: Use Professional Video Engine for animated explainer videos
+      const canvas = document.createElement('canvas');
+      const professionalEngine = new ProfessionalVideoEngine(canvas);
       
-      // Simulate progress updates during generation
+      // Show progress updates during animation rendering
       const progressInterval = setInterval(() => {
         setGenerationProgress(prev => {
-          if (prev < 90) return prev + 5;
+          if (prev < 85) return prev + 8;
           return prev;
         });
-      }, 500);
+      }, 800);
       
-      const result = await videoCreator.createVideo(config, (progress) => {
-        clearInterval(progressInterval);
-        setGenerationProgress(15 + (progress * 0.85)); // Adjust for content generation
-      });
+      console.log("Generating professional animated explainer video...");
+      const videoBlob = await professionalEngine.generateProfessionalExplainerVideo(config);
       
       clearInterval(progressInterval);
+      setGenerationProgress(100);
 
-      setGeneratedVideo(result);
+      // Create download URL
+      const downloadUrl = URL.createObjectURL(videoBlob);
+      const fileName = `${config.productName.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_explainer_video.webm`;
+
+      setGeneratedVideo({
+        videoBlob,
+        downloadUrl,
+        fileName
+      });
       
       toast({
-        title: "Video Generated Successfully!",
-        description: "Your product video has been created and is ready for download.",
+        title: "Professional Explainer Video Generated!",
+        description: "Your animated pharmaceutical-style video with dynamic graphics and animations is ready for download.",
       });
       
     } catch (error) {
-      console.error('Video generation failed:', error);
+      console.error('Professional video generation failed:', error);
       toast({
         title: "Generation Failed",
-        description: "Failed to generate video. Please try again.",
+        description: "Failed to generate animated explainer video. Please try again.",
         variant: "destructive",
       });
     } finally {

@@ -1,0 +1,406 @@
+creating static slides (blue background + text) instead of animated explainer videos. You need to integrate APIs for content generation, graphics, and animations.
+🎯 WHAT YOU NEED: Professional explainer videos with:
+•	Dynamic animations and movement
+•	Professional graphics and illustrations
+•	Rich, engaging content
+•	Multiple visual elements per scene
+•	Smooth transitions and effects
+STEP 1: Install Required APIs in Replit
+{
+  "dependencies": {
+    "@huggingface/inference": "^2.6.1",
+    "fabric": "^5.3.0",
+    "konva": "^9.2.0",
+    "lottie-web": "^5.12.2",
+    "canvas": "^2.11.2",
+    "@ffmpeg/ffmpeg": "^0.12.7",
+    "openai": "^4.0.0"
+  }
+}
+
+Environment Variables in Replit:
+HUGGINGFACE_API_KEY=your_free_hf_token
+OPENAI_API_KEY=your_api_key (optional)
+UNSPLASH_ACCESS_KEY=your_free_unsplash_key
+
+STEP 2: Content Generation with Hugging Face
+Replace basic text with AI-generated content:
+// Install: npm install @huggingface/inference
+import { HfInference } from '@huggingface/inference';
+
+class ContentGenerator {
+  constructor() {
+    this.hf = new HfInference(process.env.HUGGINGFACE_API_KEY);
+  }
+
+  // Generate professional marketing script
+  async generateMarketingScript(productData) {
+    const prompt = `Create a 30-second professional marketing script for ${productData.name}, a ${productData.category} supplement that helps with ${productData.problem}. Include:
+    1. Problem statement (compelling hook)
+    2. Solution introduction  
+    3. Key benefits (3-4 specific benefits)
+    4. How it works (simple explanation)
+    5. Call to action with urgency
+    
+    Make it sound like a pharmaceutical commercial.`;
+
+    const result = await this.hf.textGeneration({
+      model: 'microsoft/DialoGPT-large',
+      inputs: prompt,
+      parameters: { max_new_tokens: 200, temperature: 0.7 }
+    });
+
+    return this.parseScript(result.generated_text);
+  }
+
+  // Generate specific content for each scene
+  async generateSceneContent(sceneType, productData) {
+    const prompts = {
+      problem: `Write a compelling problem statement for people struggling with ${productData.problem}. Make it empathetic and relatable.`,
+      benefits: `List 4 specific health benefits of ${productData.name} for ${productData.problem}. Make each benefit clear and compelling.`,
+      mechanism: `Explain in simple terms how ${productData.name} works in the body to help with ${productData.problem}.`,
+      cta: `Write an urgent call-to-action for ${productData.name} including price, offer, and contact information.`
+    };
+
+    const result = await this.hf.textGeneration({
+      model: 'gpt2',
+      inputs: prompts[sceneType],
+      parameters: { max_new_tokens: 100 }
+    });
+
+    return result.generated_text;
+  }
+
+  parseScript(script) {
+    // Parse AI response into structured scenes
+    return {
+      problem: this.extractSection(script, 'problem'),
+      solution: this.extractSection(script, 'solution'), 
+      benefits: this.extractBenefits(script),
+      mechanism: this.extractSection(script, 'works'),
+      cta: this.extractSection(script, 'action')
+    };
+  }
+}
+STEP 3: Graphics Generation with Canvas/Fabric
+import { fabric } from 'fabric';
+
+class GraphicsGenerator {
+  constructor() {
+    this.canvas = new fabric.Canvas();
+  }
+
+  // Create professional medical background
+  createMedicalBackground(style = 'gradient') {
+    const backgrounds = {
+      gradient: this.createGradientBackground(['#1e40af', '#3b82f6']),
+      medical: this.createMedicalPattern(),
+      corporate: this.createCorporateBackground(),
+      clean: this.createCleanBackground()
+    };
+    
+    return backgrounds[style];
+  }
+
+  createGradientBackground(colors) {
+    const gradient = new fabric.Gradient({
+      type: 'linear',
+      coords: { x1: 0, y1: 0, x2: 0, y2: this.canvas.height },
+      colorStops: [
+        { offset: 0, color: colors[0] },
+        { offset: 1, color: colors[1] }
+      ]
+    });
+    
+    return new fabric.Rect({
+      width: this.canvas.width,
+      height: this.canvas.height,
+      fill: gradient
+    });
+  }
+
+  // Create animated infographics
+  createBenefitsList(benefits) {
+    const elements = [];
+    
+    benefits.forEach((benefit, index) => {
+      // Checkmark icon
+      const checkmark = new fabric.Circle({
+        left: 100,
+        top: 200 + (index * 80),
+        radius: 20,
+        fill: '#22c55e',
+        animationDelay: index * 0.5
+      });
+      
+      // Benefit text
+      const text = new fabric.Text(benefit, {
+        left: 150,
+        top: 185 + (index * 80),
+        fontSize: 24,
+        fill: '#1e293b',
+        fontFamily: 'Arial',
+        animationDelay: index * 0.5 + 0.2
+      });
+      
+      elements.push(checkmark, text);
+    });
+    
+    return elements;
+  }
+
+  // Create process flow diagram
+  createProcessFlow(steps) {
+    const elements = [];
+    const stepWidth = 300;
+    const startX = 200;
+    
+    steps.forEach((step, index) => {
+      const x = startX + (index * stepWidth);
+      
+      // Step circle
+      const circle = new fabric.Circle({
+        left: x,
+        top: 300,
+        radius: 50,
+        fill: '#1e40af',
+        stroke: '#ffffff',
+        strokeWidth: 3
+      });
+      
+      // Step number
+      const number = new fabric.Text((index + 1).toString(), {
+        left: x + 35,
+        top: 340,
+        fontSize: 32,
+        fill: '#ffffff',
+        fontWeight: 'bold'
+      });
+      
+      // Step title
+      const title = new fabric.Text(step.title, {
+        left: x - 50,
+        top: 400,
+        fontSize: 20,
+        fill: '#1e293b',
+        textAlign: 'center',
+        width: 150
+      });
+      
+      // Arrow (if not last step)
+      if (index < steps.length - 1) {
+        const arrow = this.createArrow(x + 100, 325, x + 200, 325);
+        elements.push(arrow);
+      }
+      
+      elements.push(circle, number, title);
+    });
+    
+    return elements;
+  }
+
+  createArrow(x1, y1, x2, y2) {
+    return new fabric.Line([x1, y1, x2, y2], {
+      stroke: '#64748b',
+      strokeWidth: 3,
+      selectable: false
+    });
+  }
+}
+
+
+STEP 4: Animation System
+class AnimationEngine {
+  constructor(canvas) {
+    this.canvas = canvas;
+    this.timeline = [];
+  }
+
+  // Animate element entrance
+  animateElementIn(element, animationType, duration = 1000) {
+    switch(animationType) {
+      case 'slideInLeft':
+        return this.slideInLeft(element, duration);
+      case 'fadeIn':
+        return this.fadeIn(element, duration);
+      case 'scaleIn':
+        return this.scaleIn(element, duration);
+      case 'typewriter':
+        return this.typewriterEffect(element, duration);
+    }
+  }
+
+  slideInLeft(element, duration) {
+    const startX = element.left - 200;
+    element.set({ left: startX, opacity: 0 });
+    
+    element.animate('left', element.left + 200, {
+      duration: duration,
+      easing: fabric.util.ease.easeOutCubic,
+      onChange: this.canvas.renderAll.bind(this.canvas)
+    });
+    
+    element.animate('opacity', 1, {
+      duration: duration / 2,
+      onChange: this.canvas.renderAll.bind(this.canvas)
+    });
+  }
+
+  fadeIn(element, duration) {
+    element.set({ opacity: 0 });
+    
+    element.animate('opacity', 1, {
+      duration: duration,
+      easing: fabric.util.ease.easeInOut,
+      onChange: this.canvas.renderAll.bind(this.canvas)
+    });
+  }
+
+  typewriterEffect(textElement, duration) {
+    const fullText = textElement.text;
+    const charDuration = duration / fullText.length;
+    
+    textElement.set({ text: '' });
+    
+    for (let i = 0; i <= fullText.length; i++) {
+      setTimeout(() => {
+        textElement.set({ text: fullText.substring(0, i) });
+        this.canvas.renderAll();
+      }, i * charDuration);
+    }
+  }
+
+  // Create smooth scene transitions
+  transitionToScene(fromScene, toScene, duration = 1500) {
+    // Fade out current scene
+    fromScene.forEach(element => {
+      element.animate('opacity', 0, {
+        duration: duration / 2,
+        onChange: this.canvas.renderAll.bind(this.canvas),
+        onComplete: () => this.canvas.remove(element)
+      });
+    });
+    
+    // Fade in new scene
+    setTimeout(() => {
+      toScene.forEach((element, index) => {
+        this.canvas.add(element);
+        this.animateElementIn(element, element.animationType || 'fadeIn', 800);
+      });
+    }, duration / 2);
+  }
+}
+
+STEP 5: Complete Video Generator
+class ProfessionalVideoGenerator {
+  constructor() {
+    this.contentGen = new ContentGenerator();
+    this.graphics = new GraphicsGenerator();
+    this.animator = new AnimationEngine();
+    this.canvas = this.graphics.canvas;
+  }
+
+  async generateExplainerVideo(productData) {
+    // 1. Generate rich content with AI
+    const content = await this.contentGen.generateMarketingScript(productData);
+    
+    // 2. Create 5 professional scenes
+    const scenes = await this.createProfessionalScenes(content, productData);
+    
+    // 3. Render with animations
+    return await this.renderVideoWithAnimations(scenes);
+  }
+
+  async createProfessionalScenes(content, productData) {
+    return [
+      {
+        name: 'problem_hook',
+        duration: 6,
+        elements: [
+          this.graphics.createMedicalBackground('gradient'),
+          ...this.createProblemElements(content.problem),
+          ...this.createEmotionalIcons()
+        ]
+      },
+      {
+        name: 'solution_intro',
+        duration: 8, 
+        elements: [
+          this.graphics.createMedicalBackground('clean'),
+          ...this.createProductReveal(productData),
+          ...this.createSolutionText(content.solution)
+        ]
+      },
+      {
+        name: 'benefits_showcase',
+        duration: 8,
+        elements: [
+          this.graphics.createMedicalBackground('medical'),
+          ...this.graphics.createBenefitsList(content.benefits),
+          ...this.createBenefitIcons()
+        ]
+      },
+      {
+        name: 'how_it_works',
+        duration: 6,
+        elements: [
+          this.graphics.createMedicalBackground('corporate'),
+          ...this.graphics.createProcessFlow([
+            { title: 'Take Daily' },
+            { title: 'Absorbs Fast' }, 
+            { title: 'Feel Results' }
+          ])
+        ]
+      },
+      {
+        name: 'call_to_action',
+        duration: 2,
+        elements: [
+          this.graphics.createMedicalBackground('gradient'),
+          ...this.createCTAElements(content.cta),
+          ...this.createUrgencyElements()
+        ]
+      }
+    ];
+  }
+
+  async renderVideoWithAnimations(scenes) {
+    const frames = [];
+    
+    for (const scene of scenes) {
+      const sceneFrames = scene.duration * 30; // 30 fps
+      
+      for (let frame = 0; frame < sceneFrames; frame++) {
+        const progress = frame / sceneFrames;
+        
+        // Clear canvas
+        this.canvas.clear();
+        
+        // Add animated elements
+        scene.elements.forEach(element => {
+          if (element.animationType) {
+            this.animator.animateElementIn(element, element.animationType);
+          }
+          this.canvas.add(element);
+        });
+        
+        // Capture frame
+        frames.push(this.canvas.toDataURL());
+      }
+    }
+    
+    return frames;
+  }
+}
+
+STEP 6: Implementation Instructions for Replit Agent
+STOP creating static slides. Build a professional explainer video generator using these APIs:
+
+1. **Install packages**: @huggingface/inference, fabric, canvas, lottie-web
+2. **Generate content**: Use Hugging Face to create marketing scripts, not generic text
+3. **Create graphics**: Use Fabric.js to create professional medical backgrounds, infographics, diagrams
+4. **Add animations**: Real frame-by-frame animations - elements slide, fade, scale, type
+5. **Multiple elements per scene**: Each scene needs 5-10 visual elements, not just text
+6. **30-second duration**: 5 scenes × 6 seconds each with smooth transitions
+
+Use the code examples above. Create ANIMATED explainer videos that look like pharmaceutical commercials, not PowerPoint slides.
