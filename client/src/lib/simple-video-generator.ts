@@ -326,23 +326,28 @@ export class SimpleVideoGenerator {
     this.ctx.textBaseline = 'middle';
 
     // Enhanced text shadow for maximum visibility
-    this.ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
-    this.ctx.shadowBlur = 6;
-    this.ctx.shadowOffsetX = 3;
-    this.ctx.shadowOffsetY = 3;
+    this.ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
+    this.ctx.shadowBlur = 8;
+    this.ctx.shadowOffsetX = 4;
+    this.ctx.shadowOffsetY = 4;
 
-    // Add text stroke for better contrast
-    this.ctx.strokeStyle = 'rgba(0, 0, 0, 0.7)';
-    this.ctx.lineWidth = 3;
-
-    // Draw text with stroke and fill for maximum visibility
+    // Add multiple text stroke layers for better visibility
+    this.ctx.strokeStyle = 'rgba(0, 0, 0, 0.9)';
+    this.ctx.lineWidth = 6;
     this.ctx.strokeText(displayText, x, y - translateY);
+
+    this.ctx.strokeStyle = 'rgba(0, 0, 0, 0.7)';
+    this.ctx.lineWidth = 4;
+    this.ctx.strokeText(displayText, x, y - translateY);
+
+    // Draw the main text
     this.ctx.fillText(displayText, x, y - translateY);
 
-    // Reset shadow
+    // Reset all shadow and stroke settings
     this.ctx.shadowBlur = 0;
     this.ctx.shadowOffsetX = 0;
     this.ctx.shadowOffsetY = 0;
+    this.ctx.lineWidth = 1;
   }
 
   private async renderAnimatedProductImage(element: VideoElement, x: number, y: number, progress: number) {
@@ -506,10 +511,26 @@ export class SimpleVideoGenerator {
 
     // PHASE 1: Set up MediaRecorder with HD quality (1920x1080) 
     const stream = this.canvas.captureStream(this.fps);
-    const mediaRecorder = new MediaRecorder(stream, {
-      mimeType: 'video/webm;codecs=vp9',
-      videoBitsPerSecond: 8000000 // Higher bitrate for HD quality
-    });
+    
+    // Try different codec options for better compatibility and duration
+    let mediaRecorder: MediaRecorder;
+    try {
+      if (MediaRecorder.isTypeSupported('video/webm;codecs=vp8')) {
+        mediaRecorder = new MediaRecorder(stream, {
+          mimeType: 'video/webm;codecs=vp8',
+          videoBitsPerSecond: 3000000 // 3Mbps for stable recording
+        });
+        console.log("Using VP8 codec for recording");
+      } else {
+        mediaRecorder = new MediaRecorder(stream, {
+          videoBitsPerSecond: 3000000
+        });
+        console.log("Using default codec for recording");
+      }
+    } catch (e) {
+      console.error("MediaRecorder setup error:", e);
+      mediaRecorder = new MediaRecorder(stream);
+    }
 
     const chunks: Blob[] = [];
     
@@ -533,8 +554,8 @@ export class SimpleVideoGenerator {
       };
 
       console.log("Starting MediaRecorder...");
-      // Start recording with frequent data collection
-      mediaRecorder.start(100);
+      // Start recording with less frequent data collection for stability
+      mediaRecorder.start(1000); // Collect data every second
 
       // Professional animation sequence with proper timing
       this.animateProfessionalScenes(scenes, mediaRecorder);
@@ -542,64 +563,59 @@ export class SimpleVideoGenerator {
   }
 
   private async animateProfessionalScenes(scenes: VideoScene[], mediaRecorder: MediaRecorder) {
-    let currentTime = 0;
-    const frameTime = 1000 / this.fps; // 33.33ms per frame at 30fps
-    const totalDurationMs = scenes.reduce((acc, scene) => acc + scene.duration * 1000, 0);
+    let frameCount = 0;
+    const totalFrames = scenes.reduce((acc, scene) => acc + (scene.duration * this.fps), 0);
     
-    console.log(`Starting animation sequence: ${totalDurationMs}ms total (${totalDurationMs/1000}s)`);
+    console.log(`Starting animation sequence: ${totalFrames} frames at ${this.fps}fps (${totalFrames/this.fps}s)`);
     
     const animate = async () => {
-      // Calculate which scene we're in
+      // Calculate current time and scene
+      const currentTimeSeconds = frameCount / this.fps;
       let sceneStartTime = 0;
       let currentScene: VideoScene | null = null;
       let sceneProgress = 0;
 
       for (const scene of scenes) {
-        const sceneEndTime = sceneStartTime + (scene.duration * 1000);
-        if (currentTime >= sceneStartTime && currentTime < sceneEndTime) {
+        const sceneEndTime = sceneStartTime + scene.duration;
+        if (currentTimeSeconds >= sceneStartTime && currentTimeSeconds < sceneEndTime) {
           currentScene = scene;
-          sceneProgress = (currentTime - sceneStartTime) / (scene.duration * 1000);
+          sceneProgress = (currentTimeSeconds - sceneStartTime) / scene.duration;
           break;
         }
         sceneStartTime = sceneEndTime;
       }
 
       if (currentScene) {
-        // Professional slow transitions (1.5 seconds)
-        const transitionProgress = 0.75; // Start transition at 75% through scene
-        if (sceneProgress > transitionProgress) {
-          // Professional 1.5-second fade transition with easing
-          const fadeProgress = (sceneProgress - transitionProgress) / (1 - transitionProgress);
-          const easedFade = this.easeInOutCubic(fadeProgress);
-          this.ctx.globalAlpha = 1 - (easedFade * 0.3); // Subtle fade for professional look
-        }
-        
-        await this.drawProfessionalScene(currentScene, sceneProgress, currentTime / 1000);
-        
-        this.ctx.globalAlpha = 1;
+        // Draw the current scene
+        await this.drawProfessionalScene(currentScene, sceneProgress, currentTimeSeconds);
       } else {
-        // Fill with default background if no scene (shouldn't happen)
+        // Fill with default background if no scene
         this.ctx.fillStyle = '#f8fafc';
         this.ctx.fillRect(0, 0, this.width, this.height);
       }
 
-      currentTime += frameTime;
+      frameCount++;
 
-      // Check if video is complete - add a small buffer to ensure we capture the full duration
-      if (currentTime >= totalDurationMs + 100) {
-        console.log(`Animation complete at ${currentTime}ms, stopping recorder`);
-        // Add a small delay before stopping to ensure all frames are captured
+      // Check if video is complete
+      if (frameCount >= totalFrames + 30) { // Add 30 frame buffer (1 second at 30fps)
+        console.log(`Animation complete at frame ${frameCount} (${frameCount/this.fps}s), stopping recorder`);
+        // Small delay to ensure MediaRecorder captures the last frames
         setTimeout(() => {
-          mediaRecorder.stop();
-        }, 200);
+          if (mediaRecorder.state === 'recording') {
+            console.log("Stopping MediaRecorder...");
+            mediaRecorder.stop();
+          }
+        }, 500);
         return;
       }
 
-      // Continue animation
-      requestAnimationFrame(animate);
+      // Continue animation at exactly 30fps
+      setTimeout(() => {
+        requestAnimationFrame(animate);
+      }, 1000 / this.fps);
     };
 
-    // Start the animation
+    // Start the animation immediately
     animate();
   }
 
