@@ -327,11 +327,30 @@ export default function VideoCreator() {
             </div>
           )}
 
+          {/* Validation Status for Debugging */}
+          {!isGenerating && (
+            <div className="text-sm text-gray-600 space-y-1">
+              <div className="font-medium">Form Validation:</div>
+              <div className={config.productName.trim() ? "text-green-600" : "text-red-600"}>
+                ✓ Product Name: {config.productName.trim() ? "Complete" : "Required"}
+              </div>
+              <div className={config.productImages.length > 0 ? "text-green-600" : "text-red-600"}>
+                ✓ Product Images: {config.productImages.length > 0 ? `${config.productImages.length} uploaded` : "Required"}
+              </div>
+              <div className={config.healthConcern.trim() ? "text-green-600" : "text-red-600"}>
+                ✓ Health Concern: {config.healthConcern.trim() ? "Complete" : "Required"}
+              </div>
+              <div className={config.benefits.length > 0 ? "text-green-600" : "text-red-600"}>
+                ✓ Benefits: {config.benefits.length > 0 ? `${config.benefits.length} benefits` : "Required"}
+              </div>
+            </div>
+          )}
+
           {/* Generate Button */}
           <Button
             onClick={handleGenerateVideo}
-            disabled={isGenerating || !config.productName || config.productImages.length === 0 || !config.healthConcern || config.benefits.length === 0}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 text-lg"
+            disabled={isGenerating || !config.productName.trim() || config.productImages.length === 0 || !config.healthConcern.trim() || config.benefits.length === 0}
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 text-lg disabled:bg-gray-400 disabled:cursor-not-allowed"
           >
             {isGenerating ? (
               <>
