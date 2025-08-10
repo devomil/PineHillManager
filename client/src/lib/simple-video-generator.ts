@@ -38,8 +38,8 @@ export class SimpleVideoGenerator {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
   private readonly fps = 30;
-  private readonly width = 1280;
-  private readonly height = 720;
+  private readonly width = 1920;  // HD resolution as per Phase 1 requirements
+  private readonly height = 1080; // HD resolution as per Phase 1 requirements
 
   constructor() {
     this.canvas = document.createElement('canvas');
@@ -58,8 +58,10 @@ export class SimpleVideoGenerator {
   }
 
   private createProfessionalScenes(config: VideoConfig, productImages: HTMLImageElement[]): VideoScene[] {
-    // Force 30-second professional video structure with 5 scenes
-    const totalDuration = 30;
+    // PHASE 1: Force 30-second minimum duration (900 frames at 30fps)
+    const MINIMUM_DURATION = 30; // Never less than 30 seconds
+    const FRAME_COUNT = MINIMUM_DURATION * this.fps; // 900 frames minimum
+    const totalDuration = MINIMUM_DURATION;
     
     return [
       // Scene 1: Problem Hook (0-6 seconds) 
@@ -89,10 +91,10 @@ export class SimpleVideoGenerator {
         ]
       },
       
-      // Scene 2: Product Introduction (6-12 seconds)
+      // Scene 2: Product Introduction (6-14 seconds) - Extended for more professional pacing
       {
         type: 'product_reveal', 
-        duration: 6,
+        duration: 8,
         background: {
           type: 'solid',
           color: '#f8fafc'
@@ -116,14 +118,14 @@ export class SimpleVideoGenerator {
           {
             type: 'benefit_list',
             items: config.benefits.slice(0, 3),
-            animation: 'staggeredFadeIn',
+            animation: 'cascadeIn',
             position: { x: 800, y: 400 },
             delay: 3000
           }
         ]
       },
       
-      // Scene 3: Benefits Showcase (12-20 seconds)
+      // Scene 3: Benefits Showcase (14-22 seconds) 
       {
         type: 'benefits_showcase',
         duration: 8,
@@ -150,10 +152,10 @@ export class SimpleVideoGenerator {
         ]
       },
       
-      // Scene 4: How It Works (20-25 seconds)
+      // Scene 4: How It Works (22-26 seconds)
       {
         type: 'how_it_works',
-        duration: 5,
+        duration: 4,
         background: {
           type: 'solid', 
           color: '#ffffff'
@@ -169,17 +171,17 @@ export class SimpleVideoGenerator {
           },
           {
             type: 'infographic',
-            animation: 'progressiveReveal',
+            animation: 'slideInUp',
             position: { x: 'center', y: 400 },
             delay: 800
           }
         ]
       },
       
-      // Scene 5: Call to Action (25-30 seconds)
+      // Scene 5: Call to Action (26-30 seconds)
       {
         type: 'call_to_action',
-        duration: 5,
+        duration: 4,
         background: {
           type: 'gradient',
           colors: ['#1e40af', '#1e293b']
@@ -203,7 +205,7 @@ export class SimpleVideoGenerator {
           {
             type: 'cta_button',
             text: 'Get Yours Today',
-            animation: 'buttonPulse',
+            animation: 'pulse',
             position: { x: 'center', y: 620 },
             delay: 2000
           }
@@ -473,11 +475,11 @@ export class SimpleVideoGenerator {
     // Create professional animated scenes
     const scenes = this.createProfessionalScenes(config, productImages);
 
-    // Set up MediaRecorder with higher quality
+    // PHASE 1: Set up MediaRecorder with HD quality (1920x1080)
     const stream = this.canvas.captureStream(this.fps);
     const mediaRecorder = new MediaRecorder(stream, {
       mimeType: 'video/webm;codecs=vp9',
-      videoBitsPerSecond: 5000000 // Higher bitrate for better quality
+      videoBitsPerSecond: 8000000 // Higher bitrate for HD quality
     });
 
     const chunks: Blob[] = [];
