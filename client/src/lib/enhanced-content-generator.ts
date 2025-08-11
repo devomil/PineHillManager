@@ -113,13 +113,18 @@ Style: Professional pharmaceutical commercial, authoritative yet accessible, FDA
     }
     
     try {
+      console.log('Generating enhanced content with Hugging Face API...');
+      
+      // Use a more reliable text generation model
       const response = await this.hf.textGeneration({
-        model: 'microsoft/DialoGPT-large',
+        model: 'meta-llama/Llama-2-7b-chat-hf',
         inputs: prompt,
         parameters: {
-          max_new_tokens: 500,
+          max_new_tokens: 400,
           temperature: 0.7,
           top_p: 0.9,
+          do_sample: true,
+          return_full_text: false
         }
       });
       

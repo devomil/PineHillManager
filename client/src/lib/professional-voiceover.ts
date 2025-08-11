@@ -139,6 +139,10 @@ export class ProfessionalVoiceoverService {
     options: Partial<VoiceoverOptions> = {}
   ): Promise<VoiceoverResult> {
     
+    // Debug logging to capture what's being passed
+    console.log('generateProfessionalVoiceover called with script type:', typeof script);
+    console.log('generateProfessionalVoiceover script value:', script);
+    
     // Ensure config is loaded before API calls
     await this.loadConfig();
     
@@ -150,6 +154,25 @@ export class ProfessionalVoiceoverService {
     try {
       console.log('Generating professional voiceover with ElevenLabs...');
       
+      const cleanScript = this.optimizeScriptForVoiceover(script);
+      
+      if (!cleanScript || cleanScript.trim().length === 0) {
+        throw new Error('Empty or invalid script provided');
+      }
+
+      const requestBody = {
+        text: cleanScript,
+        model_id: options.model || "eleven_monolingual_v1",
+        voice_settings: {
+          stability: options.stability || 0.71,
+          similarity_boost: options.similarityBoost || 0.5,
+          style: options.style || 0.0,
+          use_speaker_boost: true
+        }
+      };
+
+      console.log('Sending ElevenLabs request with:', { voiceId, textLength: cleanScript.length });
+      
       const response = await fetch(`${this.baseUrl}/text-to-speech/${voiceId}`, {
         method: 'POST',
         headers: {
@@ -157,30 +180,28 @@ export class ProfessionalVoiceoverService {
           'Content-Type': 'application/json',
           'xi-api-key': this.apiKey!
         },
-        body: JSON.stringify({
-          text: this.optimizeScriptForVoiceover(script),
-          model_id: options.model || "eleven_monolingual_v1",
-          voice_settings: {
-            stability: options.stability || 0.71,
-            similarity_boost: options.similarityBoost || 0.5,
-            style: options.style || 0.0,
-            use_speaker_boost: true
-          }
-        })
+        body: JSON.stringify(requestBody)
       });
 
       if (!response.ok) {
-        throw new Error(`ElevenLabs API error: ${response.status} ${response.statusText}`);
+        const errorText = await response.text();
+        console.error('ElevenLabs API error response:', errorText);
+        throw new Error(`ElevenLabs API error: ${response.status} - ${errorText}`);
       }
 
       const audioBlob = await response.blob();
+      
+      if (!audioBlob || audioBlob.size === 0) {
+        throw new Error('Received empty audio response from ElevenLabs');
+      }
+      
       const audioUrl = URL.createObjectURL(audioBlob);
 
       console.log('Professional voiceover generated successfully');
       return {
         blob: audioBlob,
         url: audioUrl,
-        duration: this.estimateAudioDuration(script)
+        duration: this.estimateAudioDuration(cleanScript)
       };
 
     } catch (error) {
@@ -192,7 +213,10 @@ export class ProfessionalVoiceoverService {
   // Fallback to Web Speech API when ElevenLabs fails
   private generateWebSpeechFallback(text: string): Promise<VoiceoverResult> {
     return new Promise((resolve) => {
-      const utterance = new SpeechSynthesisUtterance(text);
+      // Ensure text is valid
+      const cleanText = typeof text === 'string' ? text : 'Content ready for your review';
+      
+      const utterance = new SpeechSynthesisUtterance(cleanText);
       utterance.rate = 0.9;
       utterance.pitch = 1.0;
       utterance.volume = 1.0;
@@ -213,7 +237,17 @@ export class ProfessionalVoiceoverService {
         resolve({
           blob: null,
           url: null,
-          duration: this.estimateAudioDuration(text),
+          duration: this.estimateAudioDuration(cleanText),
+          isWebSpeech: true
+        });
+      };
+
+      utterance.onerror = (error) => {
+        console.error('Web Speech API error:', error);
+        resolve({
+          blob: null,
+          url: null,
+          duration: 5,
           isWebSpeech: true
         });
       };
@@ -223,13 +257,35 @@ export class ProfessionalVoiceoverService {
   }
 
   private estimateAudioDuration(text: string): number {
+    // Ensure text is a string and handle edge cases
+    if (!text || typeof text !== 'string') {
+      return 5; // Default 5 seconds for invalid input
+    }
+    
     // Estimate ~150 words per minute for professional speech
     const wordsPerMinute = 150;
-    const wordCount = text.split(' ').length;
+    const wordCount = text.split(' ').filter(word => word.length > 0).length;
     return Math.ceil((wordCount / wordsPerMinute) * 60);
   }
 
   private optimizeScriptForVoiceover(script: string): string {
+    // Debug logging to identify when objects are passed
+    console.log('optimizeScriptForVoiceover called with:', typeof script, script);
+    
+    if (typeof script !== 'string') {
+      console.error('ERROR: Non-string passed to optimizeScriptForVoiceover:', script);
+      // Convert object to string if possible
+      if (script && typeof script === 'object') {
+        if (script.toString && typeof script.toString === 'function') {
+          script = script.toString();
+        } else {
+          script = JSON.stringify(script);
+        }
+      } else {
+        script = String(script || 'Content ready for your review');
+      }
+    }
+    
     return script
       // Remove scene markers
       .replace(/\[Scene \d+[^\]]*\]/g, '')
