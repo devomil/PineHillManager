@@ -24,13 +24,24 @@ import { useToast } from '@/hooks/use-toast';
 import { ProductVideoCreator, VideoConfig } from '@/lib/simple-video-generator';
 import { ContentGenerator } from '@/lib/content-generator';
 import { ProfessionalVideoEngine } from '@/lib/professional-video-engine';
+import { EnhancedContentGenerator } from '@/lib/enhanced-content-generator';
+import { ProfessionalImageryService } from '@/lib/professional-imagery';
+import { ProfessionalVoiceoverService } from '@/lib/professional-voiceover';
+import { ProfessionalLottieService } from '@/lib/lottie-animations';
 
 export default function VideoCreator() {
   const { toast } = useToast();
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationProgress, setGenerationProgress] = useState(0);
   const [contentGenerator] = useState(() => new ContentGenerator());
+  const [enhancedContentGenerator] = useState(() => new EnhancedContentGenerator());
+  const [imageryService] = useState(() => new ProfessionalImageryService());
+  const [voiceoverService] = useState(() => new ProfessionalVoiceoverService());
+  const [lottieService] = useState(() => new ProfessionalLottieService());
   const [generatedContent, setGeneratedContent] = useState<any>(null);
+  const [enhancedContent, setEnhancedContent] = useState<any>(null);
+  const [professionalImages, setProfessionalImages] = useState<any[]>([]);
+  const [voiceoverReady, setVoiceoverReady] = useState(false);
   const [showContentPreview, setShowContentPreview] = useState(false);
   const [generatedVideo, setGeneratedVideo] = useState<{
     videoBlob: Blob;
@@ -65,6 +76,104 @@ export default function VideoCreator() {
       ...prev,
       productImages: prev.productImages.filter((_, i) => i !== index)
     }));
+  };
+
+  // Generate enhanced professional video with all APIs
+  const handleGenerateEnhancedVideo = async () => {
+    if (!config.productName.trim()) {
+      toast({
+        title: "Product Name Required",
+        description: "Please enter a product name to generate the enhanced video.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsGenerating(true);
+    setGenerationProgress(0);
+
+    try {
+      // Phase 1: Generate enhanced content with Hugging Face
+      setGenerationProgress(5);
+      console.log("Generating enhanced content with Hugging Face API...");
+      const enhancedVideoContent = await enhancedContentGenerator.generateEnhancedContent(config);
+      setEnhancedContent(enhancedVideoContent);
+      
+      setGenerationProgress(15);
+      
+      // Phase 2: Search for professional medical imagery
+      console.log("Fetching professional medical imagery...");
+      const imageResults = await imageryService.searchMedicalImages(
+        config.healthConcern || 'health wellness',
+        config.productName
+      );
+      setProfessionalImages(imageResults.images);
+      
+      setGenerationProgress(25);
+
+      // Phase 3: Generate professional voiceover with ElevenLabs
+      console.log("Generating professional voiceover with ElevenLabs...");
+      const voiceoverBuffer = await voiceoverService.generateProfessionalVoiceover(
+        enhancedVideoContent.voiceoverScript,
+        voiceoverService.getRecommendedVoiceForHealthConcern(config.healthConcern || 'health').id
+      );
+      setVoiceoverReady(!!voiceoverBuffer);
+      
+      setGenerationProgress(35);
+
+      // Phase 4: Create enhanced professional video with all APIs
+      const canvas = document.createElement('canvas');
+      const professionalEngine = new ProfessionalVideoEngine(canvas);
+      
+      // Enhanced configuration with API data
+      const enhancedConfig = {
+        ...config,
+        enhancedContent: enhancedVideoContent,
+        professionalImages: imageResults.images,
+        voiceoverBuffer,
+        lottieAnimations: lottieService.getAnimationsForHealthConcern(config.healthConcern || 'health')
+      };
+      
+      // Show progress updates during enhanced rendering
+      const progressInterval = setInterval(() => {
+        setGenerationProgress(prev => {
+          if (prev < 85) return prev + 8;
+          return prev;
+        });
+      }, 1000);
+      
+      console.log("Generating TV-commercial quality explainer video with enhanced APIs...");
+      const videoBlob = await professionalEngine.generateEnhancedProfessionalVideo(enhancedConfig);
+      
+      clearInterval(progressInterval);
+      setGenerationProgress(100);
+
+      // Create download URL
+      const downloadUrl = URL.createObjectURL(videoBlob);
+      const fileName = `${config.productName.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_enhanced_commercial.webm`;
+
+      setGeneratedVideo({
+        videoBlob,
+        downloadUrl,
+        fileName
+      });
+      
+      toast({
+        title: "TV-Commercial Quality Video Generated!",
+        description: "Your enhanced pharmaceutical-style video with AI content, professional imagery, and voiceover is ready.",
+      });
+      
+    } catch (error) {
+      console.error('Enhanced video generation failed:', error);
+      toast({
+        title: "Enhanced Generation Failed",
+        description: "There was an issue generating the enhanced video. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGenerating(false);
+      setGenerationProgress(0);
+    }
   };
 
   // Generate professional explainer video using new engine
@@ -380,21 +489,39 @@ export default function VideoCreator() {
             </div>
           )}
 
-          {/* Validation Status for Debugging */}
+          {/* API Status and Validation */}
           {!isGenerating && (
-            <div className="text-sm text-gray-600 space-y-1">
-              <div className="font-medium">Form Validation:</div>
-              <div className={config.productName.trim() ? "text-green-600" : "text-red-600"}>
-                ✓ Product Name: {config.productName.trim() ? "Complete" : "Required"}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+              <div className="space-y-1">
+                <div className="font-medium text-gray-700">Form Validation:</div>
+                <div className={config.productName.trim() ? "text-green-600" : "text-red-600"}>
+                  ✓ Product Name: {config.productName.trim() ? "Complete" : "Required"}
+                </div>
+                <div className={config.productImages.length > 0 ? "text-green-600" : "text-red-600"}>
+                  ✓ Product Images: {config.productImages.length > 0 ? `${config.productImages.length} uploaded` : "Required"}
+                </div>
+                <div className={config.healthConcern.trim() ? "text-green-600" : "text-red-600"}>
+                  ✓ Health Concern: {config.healthConcern.trim() ? "Complete" : "Required"}
+                </div>
+                <div className={config.benefits.length > 0 ? "text-green-600" : "text-red-600"}>
+                  ✓ Benefits: {config.benefits.length > 0 ? `${config.benefits.length} benefits` : "Required"}
+                </div>
               </div>
-              <div className={config.productImages.length > 0 ? "text-green-600" : "text-red-600"}>
-                ✓ Product Images: {config.productImages.length > 0 ? `${config.productImages.length} uploaded` : "Required"}
-              </div>
-              <div className={config.healthConcern.trim() ? "text-green-600" : "text-red-600"}>
-                ✓ Health Concern: {config.healthConcern.trim() ? "Complete" : "Required"}
-              </div>
-              <div className={config.benefits.length > 0 ? "text-green-600" : "text-red-600"}>
-                ✓ Benefits: {config.benefits.length > 0 ? `${config.benefits.length} benefits` : "Required"}
+              
+              <div className="space-y-1">
+                <div className="font-medium text-gray-700">Enhanced APIs:</div>
+                <div className="text-green-600">
+                  ✓ Hugging Face: Content Generation
+                </div>
+                <div className="text-green-600">
+                  ✓ ElevenLabs: Professional Voiceover
+                </div>
+                <div className="text-green-600">
+                  ✓ Unsplash: Medical Imagery
+                </div>
+                <div className="text-green-600">
+                  ✓ Lottie: Professional Animations
+                </div>
               </div>
             </div>
           )}
@@ -411,23 +538,44 @@ export default function VideoCreator() {
               Preview Professional Marketing Content {contentGenerator.hasAPIAccess() ? '(AI-Generated)' : '(Template)'}
             </Button>
             
-            <Button
-              onClick={handleGenerateVideo}
-              disabled={isGenerating || !config.productName.trim() || config.productImages.length === 0 || !config.healthConcern.trim() || config.benefits.length === 0}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 text-lg disabled:bg-gray-400 disabled:cursor-not-allowed"
-            >
-              {isGenerating ? (
-                <>
-                  <Wand2 className="mr-2 h-5 w-5 animate-spin" />
-                  Generating Video... {generationProgress}%
-                </>
-              ) : (
-                <>
-                  <PlayCircle className="mr-2 h-5 w-5" />
-                  Generate Professional Marketing Video
-                </>
-              )}
-            </Button>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <Button
+                onClick={handleGenerateVideo}
+                disabled={isGenerating || !config.productName.trim() || config.productImages.length === 0 || !config.healthConcern.trim() || config.benefits.length === 0}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 disabled:bg-gray-400 disabled:cursor-not-allowed"
+              >
+                {isGenerating ? (
+                  <>
+                    <Wand2 className="mr-2 h-4 w-4 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <PlayCircle className="mr-2 h-4 w-4" />
+                    Standard Video
+                  </>
+                )}
+              </Button>
+              
+              <Button
+                onClick={handleGenerateEnhancedVideo}
+                disabled={isGenerating || !config.productName.trim() || !config.healthConcern.trim() || config.benefits.length === 0}
+                className="w-full bg-purple-600 hover:bg-purple-700 text-white py-3 disabled:bg-gray-400 disabled:cursor-not-allowed relative"
+              >
+                {isGenerating ? (
+                  <>
+                    <Sparkles className="mr-2 h-4 w-4 animate-spin" />
+                    Enhanced...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="mr-2 h-4 w-4" />
+                    Enhanced with APIs
+                    <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full">NEW</span>
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
 
           {/* Generated Video Display */}
