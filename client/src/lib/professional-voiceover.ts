@@ -35,13 +35,19 @@ export class ProfessionalVoiceoverService {
       const response = await fetch('/api/config');
       if (response.ok) {
         const config = await response.json();
+        console.log('API config received:', { hasElevenLabs: !!config.elevenlabs, hasApiKey: !!config.elevenlabs?.apiKey });
         this.apiKey = config.elevenlabs?.apiKey || null;
         
         if (this.apiKey) {
-          this.client = new ElevenLabsApi({
-            apiKey: this.apiKey
-          });
-          console.log('ElevenLabs API initialized successfully');
+          try {
+            this.client = new ElevenLabsApi({
+              apiKey: this.apiKey
+            });
+            console.log('ElevenLabs API initialized successfully');
+          } catch (initError) {
+            console.error('ElevenLabs API initialization failed:', initError);
+            this.client = null;
+          }
         } else {
           console.warn('ElevenLabs API key not found in config - voiceover will use text fallback');
         }
