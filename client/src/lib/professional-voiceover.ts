@@ -1,5 +1,3 @@
-import { ElevenLabs } from 'elevenlabs';
-
 interface VoiceoverOptions {
   text: string;
   voice: string;
@@ -19,10 +17,18 @@ interface VoiceOption {
   useCases: string[];
 }
 
+interface VoiceoverResult {
+  blob: Blob | null;
+  url: string | null;
+  duration: number;
+  isWebSpeech?: boolean;
+}
+
 export class ProfessionalVoiceoverService {
-  private client: ElevenLabs | null = null;
   private apiKey: string | null = null;
   private configLoaded = false;
+  private baseUrl = 'https://api.elevenlabs.io/v1';
+  private isAvailable = false;
 
   constructor() {
     this.loadConfig();
@@ -40,16 +46,17 @@ export class ProfessionalVoiceoverService {
         
         if (this.apiKey) {
           try {
-            this.client = new ElevenLabs({
-              apiKey: this.apiKey
-            });
+            // Test API connection instead of using constructor
+            await this.testConnection();
+            this.isAvailable = true;
             console.log('ElevenLabs API initialized successfully');
           } catch (initError) {
             console.error('ElevenLabs API initialization failed:', initError);
-            this.client = null;
+            this.isAvailable = false;
           }
         } else {
-          console.warn('ElevenLabs API key not found in config - voiceover will use text fallback');
+          console.warn('ElevenLabs API key not found in config - voiceover will use Web Speech fallback');
+          this.isAvailable = false;
         }
         this.configLoaded = true;
       } else {
@@ -57,6 +64,21 @@ export class ProfessionalVoiceoverService {
       }
     } catch (error) {
       console.warn('Failed to load ElevenLabs API configuration:', error);
+    }
+  }
+
+  // Test API connection by fetching voices
+  private async testConnection(): Promise<void> {
+    if (!this.apiKey) throw new Error('No API key available');
+    
+    const response = await fetch(`${this.baseUrl}/voices`, {
+      headers: {
+        'xi-api-key': this.apiKey
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`ElevenLabs API test failed: ${response.status}`);
     }
   }
 
@@ -115,101 +137,134 @@ export class ProfessionalVoiceoverService {
     script: string, 
     voiceId: string = '21m00Tcm4TlvDq8ikWAM', // Default to Rachel
     options: Partial<VoiceoverOptions> = {}
-  ): Promise<ArrayBuffer | null> {
+  ): Promise<VoiceoverResult> {
     
     // Ensure config is loaded before API calls
     await this.loadConfig();
     
-    if (!this.client || !this.apiKey) {
-      console.warn('ElevenLabs API not available - voiceover disabled');
-      return null;
+    if (!this.isAvailable) {
+      console.warn('ElevenLabs API not available - using Web Speech fallback');
+      return this.generateWebSpeechFallback(script);
     }
 
     try {
       console.log('Generating professional voiceover with ElevenLabs...');
       
-      const voiceSettings = {
-        stability: options.stability || 0.75,  // Higher stability for professional tone
-        similarity_boost: options.similarityBoost || 0.85, // Higher similarity for consistency
-        style: options.style || 0.2,  // Lower style variation for professional content
-        use_speaker_boost: true
-      };
-
-      const audioStream = await this.client.generate({
-        voice: voiceId,
-        text: this.optimizeScriptForVoiceover(script),
-        model_id: options.model || "eleven_multilingual_v2",
-        voice_settings: voiceSettings
+      const response = await fetch(`${this.baseUrl}/text-to-speech/${voiceId}`, {
+        method: 'POST',
+        headers: {
+          'Accept': 'audio/mpeg',
+          'Content-Type': 'application/json',
+          'xi-api-key': this.apiKey!
+        },
+        body: JSON.stringify({
+          text: this.optimizeScriptForVoiceover(script),
+          model_id: options.model || "eleven_monolingual_v1",
+          voice_settings: {
+            stability: options.stability || 0.71,
+            similarity_boost: options.similarityBoost || 0.5,
+            style: options.style || 0.0,
+            use_speaker_boost: true
+          }
+        })
       });
 
-      // Convert stream to ArrayBuffer
-      const chunks: Uint8Array[] = [];
-      const reader = audioStream.getReader();
-      
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        chunks.push(value);
+      if (!response.ok) {
+        throw new Error(`ElevenLabs API error: ${response.status} ${response.statusText}`);
       }
 
-      // Combine chunks into single ArrayBuffer
-      const totalLength = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
-      const result = new Uint8Array(totalLength);
-      let offset = 0;
-      
-      for (const chunk of chunks) {
-        result.set(chunk, offset);
-        offset += chunk.length;
-      }
+      const audioBlob = await response.blob();
+      const audioUrl = URL.createObjectURL(audioBlob);
 
       console.log('Professional voiceover generated successfully');
-      return result.buffer;
+      return {
+        blob: audioBlob,
+        url: audioUrl,
+        duration: this.estimateAudioDuration(script)
+      };
 
     } catch (error) {
       console.error('ElevenLabs voiceover generation failed:', error);
-      return null;
+      return this.generateWebSpeechFallback(script);
     }
+  }
+
+  // Fallback to Web Speech API when ElevenLabs fails
+  private generateWebSpeechFallback(text: string): Promise<VoiceoverResult> {
+    return new Promise((resolve) => {
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.rate = 0.9;
+      utterance.pitch = 1.0;
+      utterance.volume = 1.0;
+      
+      // Find a professional-sounding voice
+      const voices = speechSynthesis.getVoices();
+      const professionalVoice = voices.find(voice => 
+        voice.name.includes('Google') || 
+        voice.name.includes('Microsoft') ||
+        voice.lang === 'en-US'
+      );
+      
+      if (professionalVoice) {
+        utterance.voice = professionalVoice;
+      }
+
+      utterance.onend = () => {
+        resolve({
+          blob: null,
+          url: null,
+          duration: this.estimateAudioDuration(text),
+          isWebSpeech: true
+        });
+      };
+
+      speechSynthesis.speak(utterance);
+    });
+  }
+
+  private estimateAudioDuration(text: string): number {
+    // Estimate ~150 words per minute for professional speech
+    const wordsPerMinute = 150;
+    const wordCount = text.split(' ').length;
+    return Math.ceil((wordCount / wordsPerMinute) * 60);
   }
 
   private optimizeScriptForVoiceover(script: string): string {
     return script
-      // Add natural pauses for scene transitions
+      // Remove scene markers
       .replace(/\[Scene \d+[^\]]*\]/g, '')
-      // Add breathing pauses after key phrases
-      .replace(/\. /g, '. <break time="0.5s"/> ')
-      // Emphasize product names
-      .replace(/\b([A-Z][a-z]+ Extract|[A-Z][a-z]+ Plus)\b/g, '<emphasis level="moderate">$1</emphasis>')
-      // Add slight pause before call-to-action
-      .replace(/Order|Call|Get|Visit/g, '<break time="0.3s"/>$&')
-      // Clean up extra spaces
+      // Clean up special characters that might cause issues
+      .replace(/[^\w\s.,!?-]/g, '')
+      // Normalize whitespace
       .replace(/\s+/g, ' ')
       .trim();
   }
 
   async testVoiceGeneration(voiceId: string): Promise<boolean> {
-    if (!this.client) return false;
+    if (!this.isAvailable) return false;
     
     try {
       const testText = "This is a test of professional medical voiceover quality.";
-      const audioBuffer = await this.generateProfessionalVoiceover(testText, voiceId);
-      return audioBuffer !== null;
+      const result = await this.generateProfessionalVoiceover(testText, voiceId);
+      return result.blob !== null;
     } catch (error) {
       console.error('Voice test failed:', error);
       return false;
     }
   }
 
-  createAudioElement(audioBuffer: ArrayBuffer): HTMLAudioElement {
-    const blob = new Blob([audioBuffer], { type: 'audio/mpeg' });
-    const audioUrl = URL.createObjectURL(blob);
+  createAudioElement(voiceoverResult: VoiceoverResult): HTMLAudioElement | null {
+    if (!voiceoverResult.url) return null;
     
     const audio = new Audio();
-    audio.src = audioUrl;
+    audio.src = voiceoverResult.url;
     audio.preload = 'auto';
     
     // Clean up URL when audio ends
     audio.addEventListener('ended', () => {
-      URL.revokeObjectURL(audioUrl);
+      if (voiceoverResult.url) {
+        URL.revokeObjectURL(voiceoverResult.url);
+      }
     });
     
     return audio;
@@ -234,10 +289,10 @@ export class ProfessionalVoiceoverService {
   }
 
   async getUsageInfo(): Promise<{ charactersUsed: number; charactersLimit: number } | null> {
-    if (!this.client) return null;
+    if (!this.isAvailable) return null;
     
     try {
-      // Note: ElevenLabs API subscription info would be retrieved here
+      // Note: ElevenLabs API subscription info would be retrieved here via direct API call
       // For now, return basic free tier info
       return {
         charactersUsed: 0,

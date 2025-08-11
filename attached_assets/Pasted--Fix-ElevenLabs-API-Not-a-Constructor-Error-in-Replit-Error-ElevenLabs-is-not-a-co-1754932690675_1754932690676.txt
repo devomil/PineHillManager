@@ -1,0 +1,358 @@
+# Fix ElevenLabs API "Not a Constructor" Error in Replit
+
+## 🚨 **Error:** `ElevenLabs is not a constructor`
+
+**Cause:** Wrong import method or missing package installation
+
+## ✅ **STEP 1: Install Correct ElevenLabs Package**
+
+### In your Replit console, run:
+```bash
+npm uninstall elevenlabs
+npm install elevenlabs-node
+```
+
+OR use the official SDK:
+```bash
+npm install elevenlabs
+```
+
+## ✅ **STEP 2: Fix Import Statement**
+
+### ❌ WRONG (what's causing the error):
+```javascript
+import { ElevenLabs } from 'elevenlabs';
+const client = new ElevenLabs(apiKey); // This fails
+```
+
+### ✅ CORRECT - Option A (Official SDK):
+```javascript
+import { ElevenLabsAPI } from 'elevenlabs';
+
+class ProfessionalVoiceoverService {
+  constructor() {
+    this.client = new ElevenLabsAPI({
+      apiKey: process.env.ELEVENLABS_API_KEY
+    });
+  }
+
+  async generateVoiceover(text) {
+    try {
+      const response = await this.client.textToSpeech({
+        text: text,
+        voiceId: "21m00Tcm4TlvDq8ikWAM", // Rachel voice
+        model: "eleven_monolingual_v1"
+      });
+      
+      return response;
+    } catch (error) {
+      console.error('ElevenLabs error:', error);
+      return null;
+    }
+  }
+}
+```
+
+### ✅ CORRECT - Option B (Direct Fetch API):
+```javascript
+class ProfessionalVoiceoverService {
+  constructor() {
+    this.apiKey = process.env.ELEVENLABS_API_KEY;
+    this.baseUrl = 'https://api.elevenlabs.io/v1';
+  }
+
+  async generateVoiceover(text, voiceId = "21m00Tcm4TlvDq8ikWAM") {
+    try {
+      const response = await fetch(`${this.baseUrl}/text-to-speech/${voiceId}`, {
+        method: 'POST',
+        headers: {
+          'Accept': 'audio/mpeg',
+          'Content-Type': 'application/json',
+          'xi-api-key': this.apiKey
+        },
+        body: JSON.stringify({
+          text: text,
+          model_id: "eleven_monolingual_v1",
+          voice_settings: {
+            stability: 0.5,
+            similarity_boost: 0.75,
+            style: 0.0,
+            use_speaker_boost: true
+          }
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`ElevenLabs API error: ${response.status}`);
+      }
+
+      const audioBlob = await response.blob();
+      return audioBlob;
+    } catch (error) {
+      console.error('ElevenLabs error:', error);
+      return null;
+    }
+  }
+
+  async getVoices() {
+    try {
+      const response = await fetch(`${this.baseUrl}/voices`, {
+        headers: {
+          'xi-api-key': this.apiKey
+        }
+      });
+
+      const data = await response.json();
+      return data.voices;
+    } catch (error) {
+      console.error('Error fetching voices:', error);
+      return [];
+    }
+  }
+}
+```
+
+## ✅ **STEP 3: Update Package.json**
+
+### Make sure your `package.json` has:
+```json
+{
+  "dependencies": {
+    "elevenlabs": "^0.4.0",
+    "@huggingface/inference": "^2.6.1",
+    "fabric": "^5.3.0",
+    "canvas": "^2.11.2"
+  },
+  "type": "module"
+}
+```
+
+## ✅ **STEP 4: Environment Variables in Replit**
+
+### In Replit Secrets (🔒 icon in sidebar):
+```
+ELEVENLABS_API_KEY=your_api_key_here
+HUGGINGFACE_API_KEY=your_hf_token_here
+UNSPLASH_ACCESS_KEY=your_unsplash_key_here
+```
+
+## ✅ **STEP 5: Complete Working Implementation**
+
+### Replace your current voiceover service with this:
+```javascript
+class ProfessionalVoiceoverService {
+  constructor() {
+    this.apiKey = process.env.ELEVENLABS_API_KEY;
+    this.isAvailable = !!this.apiKey;
+    this.baseUrl = 'https://api.elevenlabs.io/v1';
+    
+    // Professional voices for different styles
+    this.voices = {
+      professional: "21m00Tcm4TlvDq8ikWAM", // Rachel - professional female
+      authoritative: "29vD33N1CtxCmqQRPOHJ", // Drew - authoritative male  
+      warm: "EXAVITQu4vr4xnSDxMaL", // Bella - warm female
+      clinical: "2EiwWnXFnvU5JabPnv8n"  // Clyde - clinical male
+    };
+  }
+
+  async loadConfig() {
+    if (!this.apiKey) {
+      console.warn('ElevenLabs API key not found. Using fallback voice.');
+      return false;
+    }
+    
+    try {
+      // Test API connection
+      await this.getVoices();
+      console.log('ElevenLabs API initialized successfully');
+      return true;
+    } catch (error) {
+      console.error('ElevenLabs API initialization failed:', error);
+      return false;
+    }
+  }
+
+  async generateVoiceover(text, style = 'professional') {
+    if (!this.isAvailable) {
+      return this.generateWebSpeechFallback(text);
+    }
+
+    try {
+      const voiceId = this.voices[style] || this.voices.professional;
+      
+      const response = await fetch(`${this.baseUrl}/text-to-speech/${voiceId}`, {
+        method: 'POST',
+        headers: {
+          'Accept': 'audio/mpeg',
+          'Content-Type': 'application/json',
+          'xi-api-key': this.apiKey
+        },
+        body: JSON.stringify({
+          text: this.optimizeTextForVoice(text),
+          model_id: "eleven_monolingual_v1",
+          voice_settings: {
+            stability: 0.71,
+            similarity_boost: 0.5,
+            style: 0.0,
+            use_speaker_boost: true
+          }
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const audioBlob = await response.blob();
+      return {
+        blob: audioBlob,
+        url: URL.createObjectURL(audioBlob),
+        duration: this.estimateAudioDuration(text)
+      };
+      
+    } catch (error) {
+      console.error('ElevenLabs generation failed:', error);
+      return this.generateWebSpeechFallback(text);
+    }
+  }
+
+  async getVoices() {
+    const response = await fetch(`${this.baseUrl}/voices`, {
+      headers: { 'xi-api-key': this.apiKey }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch voices: ${response.status}`);
+    }
+    
+    return response.json();
+  }
+
+  // Fallback to Web Speech API if ElevenLabs fails
+  generateWebSpeechFallback(text) {
+    return new Promise((resolve) => {
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.rate = 0.9;
+      utterance.pitch = 1.0;
+      utterance.volume = 1.0;
+      
+      // Find a professional-sounding voice
+      const voices = speechSynthesis.getVoices();
+      const professionalVoice = voices.find(voice => 
+        voice.name.includes('Google') || 
+        voice.name.includes('Microsoft') ||
+        voice.lang === 'en-US'
+      );
+      
+      if (professionalVoice) {
+        utterance.voice = professionalVoice;
+      }
+
+      utterance.onend = () => {
+        resolve({
+          blob: null,
+          url: null,
+          duration: this.estimateAudioDuration(text),
+          isWebSpeech: true
+        });
+      };
+
+      speechSynthesis.speak(utterance);
+    });
+  }
+
+  optimizeTextForVoice(text) {
+    return text
+      .replace(/\n/g, '. ') // Replace newlines with pauses
+      .replace(/[^\w\s.,!?-]/g, '') // Remove special characters
+      .replace(/\s+/g, ' ') // Normalize whitespace
+      .trim();
+  }
+
+  estimateAudioDuration(text) {
+    // Estimate ~150 words per minute for professional speech
+    const wordsPerMinute = 150;
+    const wordCount = text.split(' ').length;
+    return Math.ceil((wordCount / wordsPerMinute) * 60);
+  }
+}
+
+export default ProfessionalVoiceoverService;
+```
+
+## ✅ **STEP 6: Usage in Your Video Generator**
+
+```javascript
+import ProfessionalVoiceoverService from './professional-voiceover.js';
+
+class VideoGenerator {
+  constructor() {
+    this.voiceService = new ProfessionalVoiceoverService();
+  }
+
+  async initialize() {
+    await this.voiceService.loadConfig();
+  }
+
+  async generateVideo(productData) {
+    // Generate script
+    const script = await this.generateScript(productData);
+    
+    // Generate voiceover
+    const voiceover = await this.voiceService.generateVoiceover(
+      script, 
+      'professional' // or 'authoritative', 'warm', 'clinical'
+    );
+
+    // Continue with video generation...
+    return this.createVideoWithAudio(frames, voiceover);
+  }
+}
+```
+
+## 🔧 **STEP 7: Debug Commands for Replit**
+
+### Run these in Replit console to debug:
+```bash
+# Check if package is installed
+npm list elevenlabs
+
+# Reinstall if needed
+npm cache clean --force
+rm -rf node_modules package-lock.json
+npm install
+
+# Check environment variables
+echo $ELEVENLABS_API_KEY
+```
+
+## 📋 **STEP 8: Test Implementation**
+
+### Add this test function:
+```javascript
+async function testElevenLabs() {
+  const service = new ProfessionalVoiceoverService();
+  const success = await service.loadConfig();
+  
+  if (success) {
+    const audio = await service.generateVoiceover("This is a test of the ElevenLabs API integration.");
+    console.log('Test successful:', audio);
+  } else {
+    console.log('Using Web Speech fallback');
+  }
+}
+
+testElevenLabs();
+```
+
+## 🎯 **Tell Your Replit Agent:**
+
+> **"Fix the ElevenLabs API error by:**
+> 1. **Installing the correct package: `npm install elevenlabs`**
+> 2. **Using direct fetch API instead of constructor**
+> 3. **Adding Web Speech fallback for when API fails**
+> 4. **Testing with the provided code examples above**
+> 
+> **Use the complete working implementation in Step 5. This will fix the 'not a constructor' error and provide reliable voiceover generation."**
+
+This should completely resolve the ElevenLabs API issue!
