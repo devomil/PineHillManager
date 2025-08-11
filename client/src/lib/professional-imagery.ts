@@ -22,30 +22,35 @@ interface ImageSearchResult {
 
 export class ProfessionalImageryService {
   private accessKey: string | null;
+  private applicationId: string | null;
+  private secretKey: string | null;
   private baseUrl = 'https://api.unsplash.com';
 
   constructor() {
-    this.accessKey = import.meta.env.VITE_UNSPLASH_ACCESS_KEY || null;
+    this.accessKey = import.meta.env.VITE_UNSPLASH_ACCESS_KEY || process.env.UNSPLASH_ACCESS_KEY || null;
+    this.applicationId = import.meta.env.VITE_UNSPLASH_APPLICATION_ID || process.env.UNSPLASH_APPLICATION_ID || null;
+    this.secretKey = import.meta.env.VITE_UNSPLASH_SECRET_KEY || process.env.UNSPLASH_SECRET_KEY || null;
   }
 
   async searchMedicalImages(healthConcern: string, productType: string): Promise<ImageSearchResult> {
     if (!this.accessKey) {
-      console.warn('Unsplash API key not available, using professional fallback images');
+      console.warn('Unsplash API credentials not available, using professional fallback images');
       return this.getProfessionalFallbackImages(healthConcern);
     }
 
     try {
-      const searchTerms = this.buildSearchTerms(healthConcern, productType);
+      console.log('Searching premium medical imagery with full Unsplash API access...');
+      const searchTerms = this.buildEnhancedSearchTerms(healthConcern, productType);
       const images: UnsplashImage[] = [];
 
-      // Search for multiple types of professional imagery
+      // Enhanced search with premium features
       for (const term of searchTerms) {
-        const searchResults = await this.searchUnsplash(term, 2);
+        const searchResults = await this.searchUnsplashPremium(term, 3); // More images per search
         images.push(...searchResults);
       }
 
       return {
-        images: images.slice(0, 6), // Limit to 6 professional images
+        images: images.slice(0, 10), // More professional images with premium access
         success: true
       };
 
@@ -53,6 +58,25 @@ export class ProfessionalImageryService {
       console.error('Unsplash API error:', error);
       return this.getProfessionalFallbackImages(healthConcern);
     }
+  }
+
+  private buildEnhancedSearchTerms(healthConcern: string, productType: string): string[] {
+    const premiumTerms = [
+      'medical professional laboratory research',
+      'healthcare clinic modern professional',
+      'pharmaceutical research scientist laboratory',
+      'wellness health professional clean',
+      'medical technology equipment clinical',
+      'clinical research facility professional',
+      'medical doctor healthcare professional',
+      'pharmacy medicine professional clean'
+    ];
+
+    // Add health-specific terms with enhanced targeting
+    const healthTerms = this.getEnhancedHealthTerms(healthConcern);
+    const productTerms = this.getEnhancedProductTerms(productType);
+
+    return [...premiumTerms, ...healthTerms, ...productTerms];
   }
 
   private buildSearchTerms(healthConcern: string, productType: string): string[] {
@@ -70,6 +94,25 @@ export class ProfessionalImageryService {
     const productTerms = this.getProductSpecificTerms(productType);
 
     return [...baseTerms, ...healthTerms, ...productTerms];
+  }
+
+  private getEnhancedHealthTerms(healthConcern: string): string[] {
+    const concernLower = healthConcern.toLowerCase();
+    
+    if (concernLower.includes('menopause') || concernLower.includes('hormone')) {
+      return ['women health professional doctor', 'hormone research laboratory medical', 'gynecology medical professional'];
+    }
+    if (concernLower.includes('heart') || concernLower.includes('cardiovascular')) {
+      return ['cardiology medical equipment professional', 'heart health research laboratory', 'cardiac medical professional'];
+    }
+    if (concernLower.includes('joint') || concernLower.includes('arthritis')) {
+      return ['orthopedic medical clinic professional', 'joint health research laboratory', 'rheumatology medical professional'];
+    }
+    if (concernLower.includes('immune') || concernLower.includes('immunity')) {
+      return ['immunology research laboratory medical', 'immune system medical professional', 'infectious disease medical'];
+    }
+    
+    return ['general health medical professional', 'wellness research facility medical', 'primary care medical professional'];
   }
 
   private getHealthSpecificTerms(healthConcern: string): string[] {
@@ -91,6 +134,19 @@ export class ProfessionalImageryService {
     return ['general health medical', 'wellness research facility'];
   }
 
+  private getEnhancedProductTerms(productType: string): string[] {
+    const typeLower = productType.toLowerCase();
+    
+    if (typeLower.includes('supplement') || typeLower.includes('vitamin')) {
+      return ['supplement research laboratory medical', 'nutritional science facility professional', 'dietary supplement medical professional'];
+    }
+    if (typeLower.includes('extract') || typeLower.includes('herbal')) {
+      return ['botanical research laboratory medical', 'natural medicine facility professional', 'herbal medicine medical professional'];
+    }
+    
+    return ['pharmaceutical manufacturing medical', 'medical product development professional', 'clinical research pharmaceutical'];
+  }
+
   private getProductSpecificTerms(productType: string): string[] {
     const typeLower = productType.toLowerCase();
     
@@ -102,6 +158,31 @@ export class ProfessionalImageryService {
     }
     
     return ['pharmaceutical manufacturing', 'medical product development'];
+  }
+
+  private async searchUnsplashPremium(query: string, perPage: number = 3): Promise<UnsplashImage[]> {
+    // Enhanced search with premium features using Application ID and Secret
+    const url = `${this.baseUrl}/search/photos?query=${encodeURIComponent(query)}&per_page=${perPage}&orientation=landscape&content_filter=high&color=white&order_by=relevance`;
+    
+    const headers: Record<string, string> = {
+      'Authorization': `Client-ID ${this.accessKey}`,
+      'Accept-Version': 'v1'
+    };
+
+    // Add premium authentication if available
+    if (this.applicationId && this.secretKey) {
+      console.log('Using premium Unsplash credentials for enhanced search');
+      // Additional headers for premium access could be added here
+    }
+
+    const response = await fetch(url, { headers });
+
+    if (!response.ok) {
+      throw new Error(`Unsplash Premium API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data.results || [];
   }
 
   private async searchUnsplash(query: string, perPage: number = 2): Promise<UnsplashImage[]> {

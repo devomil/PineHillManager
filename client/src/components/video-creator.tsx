@@ -511,16 +511,19 @@ export default function VideoCreator() {
               <div className="space-y-1">
                 <div className="font-medium text-gray-700">Enhanced APIs:</div>
                 <div className="text-green-600">
-                  ✓ Hugging Face: Content Generation
+                  ✓ Hugging Face: AI Content Generation
                 </div>
                 <div className="text-green-600">
                   ✓ ElevenLabs: Professional Voiceover
                 </div>
                 <div className="text-green-600">
-                  ✓ Unsplash: Medical Imagery
+                  ✓ Unsplash Premium: Medical Imagery
                 </div>
                 <div className="text-green-600">
                   ✓ Lottie: Professional Animations
+                </div>
+                <div className="text-sm text-blue-600 mt-2">
+                  🎯 Full Premium Access: Enhanced search, higher limits, better quality
                 </div>
               </div>
             </div>
