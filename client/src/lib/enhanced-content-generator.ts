@@ -46,11 +46,15 @@ export class EnhancedContentGenerator {
         if (apiToken) {
           this.hf = new HfInference(apiToken);
           console.log('Hugging Face API credentials loaded successfully');
+        } else {
+          console.warn('Hugging Face API token not found in config - using templates');
         }
         this.configLoaded = true;
+      } else {
+        console.warn(`API config request failed: ${response.status} ${response.statusText}`);
       }
     } catch (error) {
-      console.warn('Failed to load API configuration:', error);
+      console.warn('Failed to load Hugging Face API configuration:', error);
     }
   }
 

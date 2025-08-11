@@ -43,12 +43,14 @@ export class ProfessionalVoiceoverService {
           });
           console.log('ElevenLabs API initialized successfully');
         } else {
-          console.warn('ElevenLabs API key not found - voiceover will use text fallback');
+          console.warn('ElevenLabs API key not found in config - voiceover will use text fallback');
         }
         this.configLoaded = true;
+      } else {
+        console.warn(`API config request failed: ${response.status} ${response.statusText}`);
       }
     } catch (error) {
-      console.warn('Failed to load API configuration:', error);
+      console.warn('Failed to load ElevenLabs API configuration:', error);
     }
   }
 

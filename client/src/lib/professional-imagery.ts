@@ -41,9 +41,11 @@ export class ProfessionalImageryService {
         this.applicationId = config.unsplash?.applicationId || null;
         this.configLoaded = true;
         console.log('Unsplash API credentials loaded successfully');
+      } else {
+        console.warn(`API config request failed: ${response.status} ${response.statusText}`);
       }
     } catch (error) {
-      console.warn('Failed to load API configuration:', error);
+      console.warn('Failed to load Unsplash API configuration:', error);
     }
   }
 
