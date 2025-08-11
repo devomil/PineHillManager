@@ -21,18 +21,36 @@ interface ImageSearchResult {
 }
 
 export class ProfessionalImageryService {
-  private accessKey: string | null;
-  private applicationId: string | null;
-  private secretKey: string | null;
+  private accessKey: string | null = null;
+  private applicationId: string | null = null;
   private baseUrl = 'https://api.unsplash.com';
+  private configLoaded = false;
 
   constructor() {
-    this.accessKey = import.meta.env.VITE_UNSPLASH_ACCESS_KEY || process.env.UNSPLASH_ACCESS_KEY || null;
-    this.applicationId = import.meta.env.VITE_UNSPLASH_APPLICATION_ID || process.env.UNSPLASH_APPLICATION_ID || null;
-    this.secretKey = import.meta.env.VITE_UNSPLASH_SECRET_KEY || process.env.UNSPLASH_SECRET_KEY || null;
+    this.loadConfig();
+  }
+
+  private async loadConfig(): Promise<void> {
+    if (this.configLoaded) return;
+    
+    try {
+      const response = await fetch('/api/config');
+      if (response.ok) {
+        const config = await response.json();
+        this.accessKey = config.unsplash?.accessKey || null;
+        this.applicationId = config.unsplash?.applicationId || null;
+        this.configLoaded = true;
+        console.log('Unsplash API credentials loaded successfully');
+      }
+    } catch (error) {
+      console.warn('Failed to load API configuration:', error);
+    }
   }
 
   async searchMedicalImages(healthConcern: string, productType: string): Promise<ImageSearchResult> {
+    // Ensure config is loaded before API calls
+    await this.loadConfig();
+    
     if (!this.accessKey) {
       console.warn('Unsplash API credentials not available, using professional fallback images');
       return this.getProfessionalFallbackImages(healthConcern);

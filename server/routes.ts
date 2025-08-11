@@ -38,6 +38,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Setup authentication
   setupAuth(app);
 
+  // API configuration endpoint for frontend
+  app.get('/api/config', isAuthenticated, async (req, res) => {
+    try {
+      res.json({
+        unsplash: {
+          accessKey: process.env.UNSPLASH_ACCESS_KEY || null,
+          applicationId: process.env.UNSPLASH_APPLICATION_ID || null,
+          // Don't expose secret key to frontend for security
+        },
+        huggingface: {
+          apiToken: process.env.HUGGINGFACE_API_TOKEN || null
+        },
+        elevenlabs: {
+          apiKey: process.env.ELEVENLABS_API_KEY || null
+        }
+      });
+    } catch (error) {
+      console.error('Error fetching API config:', error);
+      res.status(500).json({ message: 'Failed to fetch API configuration' });
+    }
+  });
+
   // Admin stats route
   app.get('/api/admin/stats', isAuthenticated, async (req, res) => {
     try {
