@@ -3,6 +3,15 @@
 ## Overview
 The Pine Hill Farm Employee Management System is a comprehensive business management platform designed to streamline operations for employees, managers, and administrators. Built with React (Vite), Express.js, and PostgreSQL, its core purpose is to provide role-based access for time tracking, scheduling, communication, support ticket management, and robust accounting. The system aims to integrate essential business tools like QuickBooks, Clover POS, HSA providers, and Thrive inventory to offer an all-in-one solution for farm management, enhancing efficiency and oversight across all departments.
 
+## Recent Changes (August 11, 2025)
+**Marketing Video Generation - API Integration Improvements**
+- Successfully resolved Hugging Face API compatibility issues by switching to meta-llama/Llama-2-7b-chat-hf model
+- Fixed ElevenLabs API integration with comprehensive error handling and fallback mechanisms
+- Implemented robust debugging system to track parameter passing issues between video engine and voiceover service
+- Enhanced script validation with automatic type conversion for object-to-string edge cases
+- Professional video generation now successfully produces TV-commercial quality content with 5 animated scenes
+- All API services (Hugging Face, ElevenLabs, Unsplash) are now working with proper server-side credential management
+
 ## User Preferences
 Preferred communication style: Simple, everyday language.
 
@@ -24,7 +33,11 @@ The frontend utilizes React 18 with TypeScript and Vite for rapid development. R
 - **Communication & Support**: Team messaging, company announcements, support ticket system with intelligent routing (HR issues to Jackie, Technical issues to Ryan) and email notifications.
 - **Document Management**: Role-based file sharing.
 - **Accounting**: Comprehensive financial management with integrations for QuickBooks, Clover POS, HSA, and Thrive inventory. This includes extensive database schema for financial data, API routes, and a dedicated accounting dashboard.
-- **Video Generation**: A professional video engine built with native Canvas API for creating animated explainer videos, integrating Hugging Face API for content generation.
+- **Video Generation**: A professional video engine built with native Canvas API for creating animated explainer videos, integrating multiple APIs:
+  - Hugging Face API (meta-llama/Llama-2-7b-chat-hf) for enhanced content generation
+  - ElevenLabs API for professional voiceover synthesis with pharmaceutical-quality voices
+  - Unsplash API for premium medical imagery
+  - Canvas-based animation engine producing 30fps, 900-frame professional marketing videos
 
 ### System Design Choices
 The system follows a clear separation of concerns between frontend and backend. Authentication is session-based with robust password hashing. Data flow is designed for clarity, from user authentication to time tracking and support ticket processes. Error handling is comprehensive, and performance is considered through optimized database queries and consistent timezone handling (CST). The architecture supports multi-merchant configurations for integrations like Clover POS.
