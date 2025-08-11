@@ -1,4 +1,4 @@
-import { ElevenLabsApi } from '@elevenlabs/elevenlabs-js';
+import { ElevenLabs } from 'elevenlabs';
 
 interface VoiceoverOptions {
   text: string;
@@ -20,7 +20,7 @@ interface VoiceOption {
 }
 
 export class ProfessionalVoiceoverService {
-  private client: ElevenLabsApi | null = null;
+  private client: ElevenLabs | null = null;
   private apiKey: string | null = null;
   private configLoaded = false;
 
@@ -40,7 +40,7 @@ export class ProfessionalVoiceoverService {
         
         if (this.apiKey) {
           try {
-            this.client = new ElevenLabsApi({
+            this.client = new ElevenLabs({
               apiKey: this.apiKey
             });
             console.log('ElevenLabs API initialized successfully');
