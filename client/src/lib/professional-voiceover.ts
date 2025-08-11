@@ -22,14 +22,33 @@ interface VoiceOption {
 export class ProfessionalVoiceoverService {
   private client: ElevenLabsApi | null = null;
   private apiKey: string | null = null;
+  private configLoaded = false;
 
   constructor() {
-    this.apiKey = import.meta.env.VITE_ELEVENLABS_API_KEY || process.env.ELEVENLABS_API_KEY || null;
+    this.loadConfig();
+  }
+
+  private async loadConfig(): Promise<void> {
+    if (this.configLoaded) return;
     
-    if (this.apiKey) {
-      this.client = new ElevenLabsApi({
-        apiKey: this.apiKey
-      });
+    try {
+      const response = await fetch('/api/config');
+      if (response.ok) {
+        const config = await response.json();
+        this.apiKey = config.elevenlabs?.apiKey || null;
+        
+        if (this.apiKey) {
+          this.client = new ElevenLabsApi({
+            apiKey: this.apiKey
+          });
+          console.log('ElevenLabs API initialized successfully');
+        } else {
+          console.warn('ElevenLabs API key not found - voiceover will use text fallback');
+        }
+        this.configLoaded = true;
+      }
+    } catch (error) {
+      console.warn('Failed to load API configuration:', error);
     }
   }
 
@@ -89,6 +108,9 @@ export class ProfessionalVoiceoverService {
     voiceId: string = '21m00Tcm4TlvDq8ikWAM', // Default to Rachel
     options: Partial<VoiceoverOptions> = {}
   ): Promise<ArrayBuffer | null> {
+    
+    // Ensure config is loaded before API calls
+    await this.loadConfig();
     
     if (!this.client || !this.apiKey) {
       console.warn('ElevenLabs API not available - voiceover disabled');

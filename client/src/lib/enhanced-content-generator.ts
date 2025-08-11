@@ -28,18 +28,37 @@ interface EnhancedVideoContent {
 }
 
 export class EnhancedContentGenerator {
-  private hf: HfInference;
+  private hf: HfInference | null = null;
+  private configLoaded = false;
 
   constructor() {
-    // Check if Hugging Face API is available
-    const apiToken = import.meta.env.VITE_HUGGINGFACE_API_TOKEN || process.env.HUGGINGFACE_API_TOKEN;
-    if (apiToken) {
-      this.hf = new HfInference(apiToken);
+    this.loadConfig();
+  }
+
+  private async loadConfig(): Promise<void> {
+    if (this.configLoaded) return;
+    
+    try {
+      const response = await fetch('/api/config');
+      if (response.ok) {
+        const config = await response.json();
+        const apiToken = config.huggingface?.apiToken;
+        if (apiToken) {
+          this.hf = new HfInference(apiToken);
+          console.log('Hugging Face API credentials loaded successfully');
+        }
+        this.configLoaded = true;
+      }
+    } catch (error) {
+      console.warn('Failed to load API configuration:', error);
     }
   }
 
   async generateEnhancedContent(config: VideoConfig): Promise<EnhancedVideoContent> {
     console.log('Generating enhanced professional content with APIs...');
+    
+    // Ensure config is loaded before API calls
+    await this.loadConfig();
     
     try {
       // Generate rich professional content using Hugging Face
@@ -85,6 +104,10 @@ Style: Professional pharmaceutical commercial, authoritative yet accessible, FDA
   }
 
   private async generateWithHuggingFace(prompt: string): Promise<string> {
+    if (!this.hf) {
+      throw new Error('Hugging Face API not available');
+    }
+    
     try {
       const response = await this.hf.textGeneration({
         model: 'microsoft/DialoGPT-large',

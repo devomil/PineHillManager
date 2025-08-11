@@ -81,7 +81,7 @@ export class NotificationService {
       const subscription = await this.registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: this.urlBase64ToUint8Array(
-          process.env.VAPID_PUBLIC_KEY || 'BDefault-VAPID-Key-For-Development'
+          import.meta.env.VITE_VAPID_PUBLIC_KEY || 'BDefault-VAPID-Key-For-Development'
         )
       });
 
