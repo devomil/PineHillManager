@@ -1822,6 +1822,101 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Comprehensive Sync Route for All Accounting Data
+  app.post('/api/accounting/sync', isAuthenticated, async (req, res) => {
+    try {
+      const syncResults = {
+        quickbooks: { success: false, message: 'Not configured' },
+        clover: { success: false, message: 'Not configured' },
+        hsa: { success: false, message: 'Not configured' },
+        thrive: { success: false, message: 'Not configured' },
+        timestamp: new Date().toISOString()
+      };
+
+      // Check configurations and sync data for each integration
+      const qbConfig = await storage.getActiveQuickbooksConfig();
+      const cloverConfigs = await storage.getAllCloverConfigs();
+      const activeCloverConfigs = cloverConfigs.filter(config => config.isActive);
+      const hsaConfig = await storage.getHsaConfig();
+      const thriveConfig = await storage.getActiveThriveConfig();
+
+      // Sync QuickBooks accounts if configured
+      if (qbConfig) {
+        try {
+          const { quickbooksIntegration } = await import('./integrations/quickbooks');
+          await quickbooksIntegration.loadConfig();
+          await quickbooksIntegration.syncAccounts();
+          syncResults.quickbooks = { success: true, message: 'Accounts synced successfully' };
+        } catch (error) {
+          console.error('Error syncing QuickBooks:', error);
+          syncResults.quickbooks = { success: false, message: 'Sync failed' };
+        }
+      }
+
+      // Sync Clover sales data for all active locations if configured
+      if (activeCloverConfigs.length > 0) {
+        try {
+          const today = new Date();
+          let successCount = 0;
+          
+          for (const config of activeCloverConfigs) {
+            try {
+              const { CloverIntegration } = await import('./integrations/clover');
+              const merchantIntegration = new CloverIntegration(config);
+              await merchantIntegration.syncDailySalesWithConfig(today, config);
+              successCount++;
+            } catch (error) {
+              console.error(`Error syncing Clover merchant ${config.merchantId}:`, error);
+            }
+          }
+          
+          syncResults.clover = { 
+            success: successCount > 0, 
+            message: `${successCount}/${activeCloverConfigs.length} locations synced` 
+          };
+        } catch (error) {
+          console.error('Error syncing Clover:', error);
+          syncResults.clover = { success: false, message: 'Sync failed' };
+        }
+      }
+
+      // Sync HSA expenses if configured
+      if (hsaConfig) {
+        try {
+          const { hsaIntegration } = await import('./integrations/hsa');
+          await hsaIntegration.loadConfig();
+          await hsaIntegration.syncHSAExpenses();
+          syncResults.hsa = { success: true, message: 'Expenses synced successfully' };
+        } catch (error) {
+          console.error('Error syncing HSA:', error);
+          syncResults.hsa = { success: false, message: 'Sync failed' };
+        }
+      }
+
+      // Sync Thrive inventory if configured
+      if (thriveConfig) {
+        try {
+          const { thriveIntegration } = await import('./integrations/thrive');
+          await thriveIntegration.loadConfig();
+          await thriveIntegration.syncInventory();
+          syncResults.thrive = { success: true, message: 'Inventory synced successfully' };
+        } catch (error) {
+          console.error('Error syncing Thrive:', error);
+          syncResults.thrive = { success: false, message: 'Sync failed' };
+        }
+      }
+
+      res.json({ 
+        success: true, 
+        message: 'Sync operation completed',
+        results: syncResults
+      });
+    } catch (error) {
+      console.error('Error in comprehensive sync:', error);
+      res.status(500).json({ message: 'Failed to sync accounting data' });
+    }
+  });
+
   // Catch-all route for non-API requests - serve React app
   app.get('*', (req, res, next) => {
     // Skip API routes and let them be handled by the API handlers

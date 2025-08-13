@@ -19,10 +19,12 @@ import {
   Activity,
   MapPin,
   ShoppingCart,
-  CreditCard
+  CreditCard,
+  RefreshCw
 } from 'lucide-react';
 import { apiRequest } from '@/lib/queryClient';
 import AdminLayout from '@/components/admin-layout';
+import { useToast } from '@/hooks/use-toast';
 
 type SystemHealth = {
   database: string;
@@ -55,6 +57,7 @@ type CloverLocation = {
 
 type LocationSalesData = {
   locationId: string;
+  locationName: string;
   totalSales: string;
   transactionCount: number;
   avgSale: string;
@@ -70,11 +73,49 @@ type MultiLocationAnalytics = {
 
 function AccountingContent() {
   const [activeSection, setActiveSection] = useState('overview');
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
   
   // System health check
   const { data: systemHealth, isLoading: healthLoading } = useQuery<SystemHealth>({
     queryKey: ['/api/accounting/health'],
     refetchInterval: 30000, // Check every 30 seconds
+  });
+
+  // Sync mutation to refresh all accounting data
+  const syncMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest('POST', '/api/accounting/sync');
+      return await response.json();
+    },
+    onSuccess: (data) => {
+      // Invalidate all accounting-related queries to refresh data
+      queryClient.invalidateQueries({ queryKey: ['/api/accounting'] });
+      // Also invalidate specific query keys
+      const today = new Date().toISOString().split('T')[0];
+      queryClient.invalidateQueries({ queryKey: ['/api/accounting/analytics/profit-loss', today] });
+      queryClient.invalidateQueries({ queryKey: ['/api/accounting/analytics/multi-location', today] });
+      queryClient.invalidateQueries({ queryKey: ['/api/accounting/config/clover/all'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/accounting/accounts'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/accounting/health'] });
+      
+      // Show success toast with sync results
+      const results = data.results || {};
+      const successfulSyncs = Object.entries(results).filter(([, result]: [string, any]) => result.success);
+      
+      toast({
+        title: "Data Sync Complete",
+        description: `Successfully synced ${successfulSyncs.length} out of ${Object.keys(results).length} integrations`,
+        variant: "default",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Sync Failed",
+        description: "Failed to sync accounting data. Please try again.",
+        variant: "destructive",
+      });
+    },
   });
 
   // Financial accounts
@@ -145,13 +186,24 @@ function AccountingContent() {
     <AdminLayout currentTab="accounting">
       <div className="space-y-8">
         {/* Header */}
-        <div className="mb-8">
-          <h2 className="text-3xl font-bold text-gray-900 mb-2">
-            Accounting Dashboard
-          </h2>
-          <p className="text-gray-600">
-            Comprehensive financial management and reporting system
-          </p>
+        <div className="mb-8 flex justify-between items-start">
+          <div>
+            <h2 className="text-3xl font-bold text-gray-900 mb-2">
+              Accounting Dashboard
+            </h2>
+            <p className="text-gray-600">
+              Comprehensive financial management and reporting system
+            </p>
+          </div>
+          <Button 
+            onClick={() => syncMutation.mutate()}
+            disabled={syncMutation.isPending}
+            className="flex items-center gap-2"
+            variant="outline"
+          >
+            <RefreshCw className={`h-4 w-4 ${syncMutation.isPending ? 'animate-spin' : ''}`} />
+            {syncMutation.isPending ? 'Syncing...' : 'Sync Now'}
+          </Button>
         </div>
 
         {/* Multi-Location Overview */}
