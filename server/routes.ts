@@ -1647,58 +1647,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Sync active Clover location
+  // Sync all Clover locations
   app.post('/api/integrations/clover/sync/all-locations', isAuthenticated, async (req, res) => {
     try {
       const { date } = req.body;
       const targetDate = date ? new Date(date) : new Date();
       
-      // Get active Clover configuration
-      const cloverConfig = await storage.getActiveCloverConfig();
+      // Get all active Clover configurations
+      const cloverConfigs = await storage.getAllCloverConfigs();
+      const activeConfigs = cloverConfigs.filter(config => config.isActive);
       
-      if (!cloverConfig) {
-        return res.status(400).json({ error: 'No active Clover configuration found' });
+      if (activeConfigs.length === 0) {
+        return res.status(400).json({ error: 'No active Clover configurations found' });
       }
 
-      try {
-        console.log(`Syncing sales for merchant: ${cloverConfig.merchantName || cloverConfig.merchantId}`);
-        
-        // Import Clover integration
-        const { CloverIntegration } = await import('./integrations/clover');
-        const merchantIntegration = new CloverIntegration(cloverConfig);
-        
-        await merchantIntegration.syncDailySalesWithConfig(targetDate, cloverConfig);
-        
-        const syncResults = [{
-          merchantId: cloverConfig.merchantId,
-          merchantName: cloverConfig.merchantName,
-          success: true,
-          message: `Sales synced successfully`
-        }];
+      let syncResults = [];
       
-        const successCount = 1;
-      
-        res.json({ 
-          success: true, 
-          message: `Synced ${successCount}/1 location for ${targetDate.toDateString()}`,
-          results: syncResults
-        });
-      } catch (error) {
-        console.error(`Error syncing merchant ${cloverConfig.merchantId}:`, error);
-        res.json({
-          success: false,
-          message: 'Failed to sync location',
-          results: [{
-            merchantId: cloverConfig.merchantId,
-            merchantName: cloverConfig.merchantName,
+      for (const config of activeConfigs) {
+        try {
+          console.log(`Syncing sales for merchant: ${config.merchantName || config.merchantId}`);
+          
+          // Import Clover integration for each merchant
+          const { CloverIntegration } = await import('./integrations/clover');
+          const merchantIntegration = new CloverIntegration(config);
+          
+          await merchantIntegration.syncDailySalesWithConfig(targetDate, config);
+          
+          syncResults.push({
+            merchantId: config.merchantId,
+            merchantName: config.merchantName,
+            success: true,
+            message: `Sales synced successfully`
+          });
+        } catch (error) {
+          console.error(`Error syncing merchant ${config.merchantId}:`, error);
+          syncResults.push({
+            merchantId: config.merchantId,
+            merchantName: config.merchantName,
             success: false,
             error: error instanceof Error ? error.message : 'Unknown error'
-          }]
-        });
+          });
+        }
       }
+      
+      const successCount = syncResults.filter(r => r.success).length;
+      
+      res.json({ 
+        success: true, 
+        message: `Synced ${successCount}/${activeConfigs.length} locations for ${targetDate.toDateString()}`,
+        results: syncResults
+      });
     } catch (error) {
-      console.error('Error syncing Clover location:', error);
-      res.status(500).json({ error: 'Failed to sync location' });
+      console.error('Error syncing all Clover locations:', error);
+      res.status(500).json({ error: 'Failed to sync all locations' });
     }
   });
 
@@ -1834,7 +1835,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Check configurations and sync data for each integration
       const qbConfig = await storage.getActiveQuickbooksConfig();
-      const cloverConfig = await storage.getActiveCloverConfig();
+      const cloverConfigs = await storage.getAllCloverConfigs();
+      const activeCloverConfigs = cloverConfigs.filter(config => config.isActive);
       const hsaConfig = await storage.getHsaConfig();
       const thriveConfig = await storage.getActiveThriveConfig();
 
@@ -1852,14 +1854,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Sync Clover sales data if configured
-      if (cloverConfig) {
+      // Sync Clover sales data for all active locations if configured
+      if (activeCloverConfigs.length > 0) {
         try {
           const today = new Date();
-          const { CloverIntegration } = await import('./integrations/clover');
-          const merchantIntegration = new CloverIntegration(cloverConfig);
-          await merchantIntegration.syncDailySalesWithConfig(today, cloverConfig);
-          syncResults.clover = { success: true, message: 'Sales data synced successfully' };
+          let successCount = 0;
+          
+          for (const config of activeCloverConfigs) {
+            try {
+              const { CloverIntegration } = await import('./integrations/clover');
+              const merchantIntegration = new CloverIntegration(config);
+              await merchantIntegration.syncDailySalesWithConfig(today, config);
+              successCount++;
+            } catch (error) {
+              console.error(`Error syncing Clover merchant ${config.merchantId}:`, error);
+            }
+          }
+          
+          syncResults.clover = { 
+            success: successCount > 0, 
+            message: `${successCount}/${activeCloverConfigs.length} locations synced` 
+          };
         } catch (error) {
           console.error('Error syncing Clover:', error);
           syncResults.clover = { success: false, message: 'Sync failed' };

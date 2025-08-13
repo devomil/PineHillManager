@@ -302,6 +302,7 @@ export interface IStorage {
   
   createCloverConfig(config: InsertCloverConfig): Promise<CloverConfig>;
   getCloverConfig(merchantId: string): Promise<CloverConfig | undefined>;
+  getAllCloverConfigs(): Promise<CloverConfig[]>;
   updateCloverConfig(id: number, config: Partial<InsertCloverConfig>): Promise<CloverConfig>;
   getActiveCloverConfig(): Promise<CloverConfig | undefined>;
   
@@ -1932,6 +1933,11 @@ export class DatabaseStorage implements IStorage {
   async getCloverConfig(merchantId: string): Promise<CloverConfig | undefined> {
     const [config] = await db.select().from(cloverConfig).where(eq(cloverConfig.merchantId, merchantId));
     return config;
+  }
+
+  async getAllCloverConfigs(): Promise<CloverConfig[]> {
+    const configs = await db.select().from(cloverConfig).orderBy(asc(cloverConfig.merchantName));
+    return configs;
   }
 
   async updateCloverConfig(id: number, config: Partial<InsertCloverConfig>): Promise<CloverConfig> {
