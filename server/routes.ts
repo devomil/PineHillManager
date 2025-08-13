@@ -1647,59 +1647,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Sync all Clover locations
+  // Sync active Clover location
   app.post('/api/integrations/clover/sync/all-locations', isAuthenticated, async (req, res) => {
     try {
       const { date } = req.body;
       const targetDate = date ? new Date(date) : new Date();
       
-      // Get all active Clover configurations
-      const cloverConfigs = await storage.getAllCloverConfigs();
-      const activeConfigs = cloverConfigs.filter(config => config.isActive);
+      // Get active Clover configuration
+      const cloverConfig = await storage.getActiveCloverConfig();
       
-      if (activeConfigs.length === 0) {
-        return res.status(400).json({ error: 'No active Clover configurations found' });
+      if (!cloverConfig) {
+        return res.status(400).json({ error: 'No active Clover configuration found' });
       }
 
-      let syncResults = [];
+      try {
+        console.log(`Syncing sales for merchant: ${cloverConfig.merchantName || cloverConfig.merchantId}`);
+        
+        // Import Clover integration
+        const { CloverIntegration } = await import('./integrations/clover');
+        const merchantIntegration = new CloverIntegration(cloverConfig);
+        
+        await merchantIntegration.syncDailySalesWithConfig(targetDate, cloverConfig);
+        
+        const syncResults = [{
+          merchantId: cloverConfig.merchantId,
+          merchantName: cloverConfig.merchantName,
+          success: true,
+          message: `Sales synced successfully`
+        }];
       
-      for (const config of activeConfigs) {
-        try {
-          console.log(`Syncing sales for merchant: ${config.merchantName || config.merchantId}`);
-          
-          // Import Clover integration for each merchant
-          const { CloverIntegration } = await import('./integrations/clover');
-          const merchantIntegration = new CloverIntegration(config);
-          
-          await merchantIntegration.syncDailySalesWithConfig(targetDate, config);
-          
-          syncResults.push({
-            merchantId: config.merchantId,
-            merchantName: config.merchantName,
-            success: true,
-            message: `Sales synced successfully`
-          });
-        } catch (error) {
-          console.error(`Error syncing merchant ${config.merchantId}:`, error);
-          syncResults.push({
-            merchantId: config.merchantId,
-            merchantName: config.merchantName,
+        const successCount = 1;
+      
+        res.json({ 
+          success: true, 
+          message: `Synced ${successCount}/1 location for ${targetDate.toDateString()}`,
+          results: syncResults
+        });
+      } catch (error) {
+        console.error(`Error syncing merchant ${cloverConfig.merchantId}:`, error);
+        res.json({
+          success: false,
+          message: 'Failed to sync location',
+          results: [{
+            merchantId: cloverConfig.merchantId,
+            merchantName: cloverConfig.merchantName,
             success: false,
             error: error instanceof Error ? error.message : 'Unknown error'
-          });
-        }
+          }]
+        });
       }
-      
-      const successCount = syncResults.filter(r => r.success).length;
-      
-      res.json({ 
-        success: true, 
-        message: `Synced ${successCount}/${activeConfigs.length} locations for ${targetDate.toDateString()}`,
-        results: syncResults
-      });
     } catch (error) {
-      console.error('Error syncing all Clover locations:', error);
-      res.status(500).json({ error: 'Failed to sync all locations' });
+      console.error('Error syncing Clover location:', error);
+      res.status(500).json({ error: 'Failed to sync location' });
     }
   });
 
@@ -1835,17 +1834,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Check configurations and sync data for each integration
       const qbConfig = await storage.getActiveQuickbooksConfig();
-      const cloverConfigs = await storage.getAllCloverConfigs();
-      const activeCloverConfigs = cloverConfigs.filter(config => config.isActive);
+      const cloverConfig = await storage.getActiveCloverConfig();
       const hsaConfig = await storage.getHsaConfig();
       const thriveConfig = await storage.getActiveThriveConfig();
 
       // Sync QuickBooks accounts if configured
       if (qbConfig) {
         try {
-          const { quickbooksIntegration } = await import('./integrations/quickbooks');
-          await quickbooksIntegration.loadConfig();
-          await quickbooksIntegration.syncAccounts();
+          const { QuickBooksIntegration } = await import('./integrations/quickbooks');
+          const qbIntegration = new QuickBooksIntegration();
+          await qbIntegration.loadConfig();
+          await qbIntegration.syncAccounts();
           syncResults.quickbooks = { success: true, message: 'Accounts synced successfully' };
         } catch (error) {
           console.error('Error syncing QuickBooks:', error);
@@ -1853,27 +1852,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Sync Clover sales data for all active locations if configured
-      if (activeCloverConfigs.length > 0) {
+      // Sync Clover sales data if configured
+      if (cloverConfig) {
         try {
           const today = new Date();
-          let successCount = 0;
-          
-          for (const config of activeCloverConfigs) {
-            try {
-              const { CloverIntegration } = await import('./integrations/clover');
-              const merchantIntegration = new CloverIntegration(config);
-              await merchantIntegration.syncDailySalesWithConfig(today, config);
-              successCount++;
-            } catch (error) {
-              console.error(`Error syncing Clover merchant ${config.merchantId}:`, error);
-            }
-          }
-          
-          syncResults.clover = { 
-            success: successCount > 0, 
-            message: `${successCount}/${activeCloverConfigs.length} locations synced` 
-          };
+          const { CloverIntegration } = await import('./integrations/clover');
+          const merchantIntegration = new CloverIntegration(cloverConfig);
+          await merchantIntegration.syncDailySalesWithConfig(today, cloverConfig);
+          syncResults.clover = { success: true, message: 'Sales data synced successfully' };
         } catch (error) {
           console.error('Error syncing Clover:', error);
           syncResults.clover = { success: false, message: 'Sync failed' };
