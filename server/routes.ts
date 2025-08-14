@@ -1162,25 +1162,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const start = new Date(startDate as string);
       const end = new Date(endDate as string);
       
-      // Get sales data by location with names from clover_config
-      const locationSales = await db
+      // First get all active Clover configurations
+      const allActiveLocations = await storage.getAllCloverConfigs();
+      const activeConfigs = allActiveLocations.filter(config => config.isActive);
+      
+      // Get sales data by location for the date range
+      const salesData = await db
         .select({
           locationId: posSales.locationId,
-          locationName: sql`COALESCE(${cloverConfig.merchantName}, 
-            CASE 
-              WHEN ${posSales.locationId} = 1 THEN 'Lake Geneva Retail'
-              WHEN ${posSales.locationId} = 2 THEN 'Watertown Retail' 
-              WHEN ${posSales.locationId} = 3 THEN 'Pinehillfarm.co Online'
-              ELSE 'Unknown Location'
-            END)`.as('locationName'),
           totalSales: sql`COALESCE(SUM(${posSales.totalAmount}::decimal), 0)`.as('totalSales'),
           transactionCount: sql`COUNT(*)`.as('transactionCount'),
           avgSale: sql`COALESCE(AVG(${posSales.totalAmount}::decimal), 0)`.as('avgSale')
         })
         .from(posSales)
-        .leftJoin(cloverConfig, eq(posSales.locationId, cloverConfig.id))
         .where(between(posSales.saleDate, start, end))
-        .groupBy(posSales.locationId, cloverConfig.merchantName);
+        .groupBy(posSales.locationId);
+
+      // Create a map of sales data by location ID
+      const salesMap = new Map();
+      salesData.forEach(sale => {
+        salesMap.set(sale.locationId, sale);
+      });
+      
+      // Build location breakdown including all active locations
+      const locationBreakdown = activeConfigs.map(config => {
+        const sales = salesMap.get(config.id) || {
+          totalSales: '0.00',
+          transactionCount: 0,
+          avgSale: '0.00'
+        };
+        
+        return {
+          locationId: config.id,
+          locationName: config.merchantName,
+          totalSales: parseFloat(sales.totalSales).toFixed(2),
+          transactionCount: parseInt(sales.transactionCount) || 0,
+          avgSale: parseFloat(sales.avgSale).toFixed(2)
+        };
+      });
 
       // Get total combined sales
       const totalSales = await db
@@ -1192,8 +1211,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .where(between(posSales.saleDate, start, end));
 
       res.json({
-        locationBreakdown: locationSales,
-        totalSummary: totalSales[0] || { totalRevenue: 0, totalTransactions: 0 }
+        locationBreakdown: locationBreakdown,
+        totalSummary: {
+          totalRevenue: parseFloat(totalSales[0]?.totalRevenue || '0').toFixed(2),
+          totalTransactions: parseInt(totalSales[0]?.totalTransactions || '0')
+        }
       });
     } catch (error) {
       console.error('Error fetching multi-location analytics:', error);
