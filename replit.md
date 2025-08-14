@@ -3,14 +3,16 @@
 ## Overview
 The Pine Hill Farm Employee Management System is a comprehensive business management platform designed to streamline operations for employees, managers, and administrators. Built with React (Vite), Express.js, and PostgreSQL, its core purpose is to provide role-based access for time tracking, scheduling, communication, support ticket management, and robust accounting. The system aims to integrate essential business tools like QuickBooks, Clover POS, HSA providers, and Thrive inventory to offer an all-in-one solution for farm management, enhancing efficiency and oversight across all departments.
 
-## Recent Changes (August 11, 2025)
-**Marketing Video Generation - API Integration Improvements**
-- Successfully resolved Hugging Face API compatibility issues by switching to meta-llama/Llama-2-7b-chat-hf model
-- Fixed ElevenLabs API integration with comprehensive error handling and fallback mechanisms
-- Implemented robust debugging system to track parameter passing issues between video engine and voiceover service
-- Enhanced script validation with automatic type conversion for object-to-string edge cases
-- Professional video generation now successfully produces TV-commercial quality content with 5 animated scenes
-- All API services (Hugging Face, ElevenLabs, Unsplash) are now working with proper server-side credential management
+## Recent Changes (August 14, 2025)
+**Multi-Location Clover API Integration - CRITICAL FIX COMPLETED**
+- RESOLVED: Multi-location sync API token issue where all locations were using same Lake Geneva token
+- Updated database with unique API tokens for each location:
+  * Lake Geneva Retail (MID: 2DWZED6B4ZVF1): Token ending in 365f
+  * Watertown Retail (MID: QGFXZQXYG8M31): Token ending in 43d8  
+  * Pinehillfarm.co Online (MID: 5H4F64FPMCQF1): Token ending in 0cb7
+- Verified sync now pulls real sales data: Revenue increased from $16.60 to $423.76 after Watertown's $362.70 integrated
+- Enhanced API connection testing with detailed logging and diagnostic capabilities
+- Multi-location analytics now properly display all active locations with authentic sales data
 
 ## User Preferences
 Preferred communication style: Simple, everyday language.
