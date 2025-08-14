@@ -207,20 +207,16 @@ function AccountingContent() {
             </Button>
             <Button 
               onClick={async () => {
-                const response = await fetch('/api/accounting/test-data', {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json'
-                  }
-                });
-                if (response.ok) {
-                  window.location.reload();
-                }
+                const response = await fetch('/api/accounting/test-clover-connections');
+                const data = await response.json();
+                alert(`Connection Test Results:\n\n${data.connectionTests.map((test: any) => 
+                  `${test.location}: ${test.status}\nMerchant ID: ${test.merchantId}\nToken: ...${test.tokenSuffix}\n${test.error ? `Error: ${test.error}` : ''}`
+                ).join('\n\n')}`);
               }}
               variant="secondary"
               className="text-xs"
             >
-              Add Test Data
+              Test API Connections
             </Button>
           </div>
         </div>

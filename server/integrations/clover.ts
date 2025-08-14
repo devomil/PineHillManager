@@ -60,6 +60,19 @@ interface CloverItem {
 export class CloverIntegration {
   private config: CloverConfig;
 
+  // Test API connection
+  async testConnection(): Promise<{ success: boolean; error?: string }> {
+    try {
+      const response = await this.makeCloverAPICallWithConfig('orders?limit=1', this.config);
+      return { success: true };
+    } catch (error) {
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Unknown error' 
+      };
+    }
+  }
+
   constructor(dbConfig?: any) {
     if (dbConfig) {
       this.config = {
@@ -90,6 +103,7 @@ export class CloverIntegration {
       console.log(`Making Clover API call to: ${url}`);
       console.log(`Using merchant ID: ${config.merchantId}`);
       console.log(`Using base URL: ${baseUrl}`);
+      console.log(`Using API token: ${config.apiToken?.substring(0, 8)}...${config.apiToken?.slice(-4)}`);
       
       const response = await fetch(url, {
         method,

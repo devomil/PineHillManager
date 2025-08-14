@@ -1844,6 +1844,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Test Clover API connections for all locations
+  app.get('/api/accounting/test-clover-connections', isAuthenticated, async (req, res) => {
+    try {
+      const allConfigs = await storage.getAllCloverConfigs();
+      const activeConfigs = allConfigs.filter(config => config.isActive);
+      
+      const connectionTests = [];
+      
+      for (const config of activeConfigs) {
+        try {
+          const clover = new (await import('./integrations/clover')).CloverIntegration(config);
+          const testResult = await clover.testConnection();
+          
+          connectionTests.push({
+            location: config.merchantName,
+            merchantId: config.merchantId,
+            tokenSuffix: config.apiToken?.slice(-4) || 'none',
+            status: testResult.success ? 'connected' : 'failed',
+            error: testResult.error || null
+          });
+        } catch (error) {
+          connectionTests.push({
+            location: config.merchantName,
+            merchantId: config.merchantId,
+            tokenSuffix: config.apiToken?.slice(-4) || 'none',
+            status: 'error',
+            error: error instanceof Error ? error.message : 'Unknown error'
+          });
+        }
+      }
+      
+      res.json({ connectionTests });
+    } catch (error) {
+      console.error('Error testing Clover connections:', error);
+      res.status(500).json({ error: 'Failed to test connections' });
+    }
+  });
+
   // Test endpoint to create sample data for demonstration
   app.post('/api/accounting/test-data', isAuthenticated, async (req, res) => {
     try {
