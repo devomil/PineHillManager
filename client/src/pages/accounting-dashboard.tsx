@@ -306,16 +306,21 @@ function AccountingContent() {
           </CardHeader>
           <CardContent>
             {multiLocationData?.locationBreakdown && multiLocationData.locationBreakdown.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
                 {multiLocationData.locationBreakdown.map((location, index) => {
                   return (
                     <div key={location.locationId} className="border rounded-lg p-4">
                       <div className="flex items-center justify-between mb-2">
                         <h3 className="font-medium">{location.locationName || `Location ${location.locationId}`}</h3>
-                        <Badge variant="outline">
-                          <ShoppingCart className="h-3 w-3 mr-1" />
-                          {location.transactionCount}
-                        </Badge>
+                        <div className="flex gap-1">
+                          {location.locationName?.includes('HSA') && (
+                            <Badge variant="secondary" className="text-xs">HSA</Badge>
+                          )}
+                          <Badge variant="outline">
+                            <ShoppingCart className="h-3 w-3 mr-1" />
+                            {location.transactionCount}
+                          </Badge>
+                        </div>
                       </div>
                       <div className="space-y-2">
                         <div className="flex justify-between text-sm">
