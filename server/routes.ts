@@ -1844,6 +1844,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Test endpoint to create sample data for demonstration
+  app.post('/api/accounting/test-data', isAuthenticated, async (req, res) => {
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      
+      // Create sample sales for Watertown Retail (location 2)
+      await storage.createPosSale({
+        saleDate: today,
+        saleTime: new Date(),
+        totalAmount: '45.99',
+        taxAmount: '3.68',
+        tipAmount: '5.00',
+        paymentMethod: 'card',
+        cloverOrderId: `test_watertown_${Date.now()}`,
+        locationId: 2
+      });
+
+      // Create sample sales for Pinehillfarm.co Online (location 3)
+      await storage.createPosSale({
+        saleDate: today,
+        saleTime: new Date(),
+        totalAmount: '89.50',
+        taxAmount: '7.16',
+        tipAmount: '0.00',
+        paymentMethod: 'online',
+        cloverOrderId: `test_online_${Date.now()}`,
+        locationId: 3
+      });
+
+      res.json({ 
+        success: true, 
+        message: 'Test sales data created for Watertown and Online locations' 
+      });
+    } catch (error) {
+      console.error('Error creating test data:', error);
+      res.status(500).json({ error: 'Failed to create test data' });
+    }
+  });
+
   // Comprehensive Sync Route for All Accounting Data
   app.post('/api/accounting/sync', isAuthenticated, async (req, res) => {
     try {

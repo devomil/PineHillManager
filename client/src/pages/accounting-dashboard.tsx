@@ -195,15 +195,34 @@ function AccountingContent() {
               Comprehensive financial management and reporting system
             </p>
           </div>
-          <Button 
-            onClick={() => syncMutation.mutate()}
-            disabled={syncMutation.isPending}
-            className="flex items-center gap-2"
-            variant="outline"
-          >
-            <RefreshCw className={`h-4 w-4 ${syncMutation.isPending ? 'animate-spin' : ''}`} />
-            {syncMutation.isPending ? 'Syncing...' : 'Sync Now'}
-          </Button>
+          <div className="flex gap-2">
+            <Button 
+              onClick={() => syncMutation.mutate()}
+              disabled={syncMutation.isPending}
+              className="flex items-center gap-2"
+              variant="outline"
+            >
+              <RefreshCw className={`h-4 w-4 ${syncMutation.isPending ? 'animate-spin' : ''}`} />
+              {syncMutation.isPending ? 'Syncing...' : 'Sync Now'}
+            </Button>
+            <Button 
+              onClick={async () => {
+                const response = await fetch('/api/accounting/test-data', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json'
+                  }
+                });
+                if (response.ok) {
+                  window.location.reload();
+                }
+              }}
+              variant="secondary"
+              className="text-xs"
+            >
+              Add Test Data
+            </Button>
+          </div>
         </div>
 
         {/* Multi-Location Overview */}

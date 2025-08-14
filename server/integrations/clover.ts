@@ -239,6 +239,8 @@ export class CloverIntegration {
       const endTimestamp = endTime.getTime();
 
       console.log(`Syncing sales for merchant: ${config.merchantName} (${config.merchantId})`);
+      console.log(`Date range: ${startTime.toISOString()} to ${endTime.toISOString()}`);
+      console.log(`Timestamp range: ${startTimestamp} to ${endTimestamp}`);
 
       await storage.createIntegrationLog({
         system: 'clover',
@@ -253,8 +255,21 @@ export class CloverIntegration {
         config
       );
 
+      console.log(`Orders response for ${config.merchantName}:`, {
+        hasResponse: !!ordersResponse,
+        hasElements: !!(ordersResponse && ordersResponse.elements),
+        elementCount: ordersResponse?.elements?.length || 0,
+        href: ordersResponse?.href
+      });
+
       if (!ordersResponse || !ordersResponse.elements) {
-        console.log(`No orders found for merchant ${config.merchantId}`);
+        console.log(`No orders found for merchant ${config.merchantId} on ${targetDate.toDateString()}`);
+        await storage.createIntegrationLog({
+          system: 'clover',
+          operation: 'sync_daily_sales',
+          status: 'success',
+          message: `No orders found for ${config.merchantName} on ${targetDate.toDateString()}`
+        });
         return;
       }
 
