@@ -10,6 +10,8 @@ The Pine Hill Farm Employee Management System is a comprehensive business manage
   * Lake Geneva Retail (MID: 2DWZED6B4ZVF1): Token ending in 365f
   * Watertown Retail (MID: QGFXZQXYG8M31): Token ending in 43d8  
   * Pinehillfarm.co Online (MID: 5H4F64FPMCQF1): Token ending in 0cb7
+  * Lake Geneva - HSA (MID: WXJ9BYH2QT1S1): Token ending in 19cf
+  * Watertown HSA (MID: SM917VYCVDZH1): Token ending in ed0f
 - Verified sync now pulls real sales data: Revenue increased from $16.60 to $423.76 after Watertown's $362.70 integrated
 - Enhanced API connection testing with detailed logging and diagnostic capabilities
 - Multi-location analytics now properly display all active locations with authentic sales data
