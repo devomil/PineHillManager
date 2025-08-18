@@ -101,9 +101,11 @@ interface OrderAnalyticsResponse {
 }
 
 export function ComprehensiveOrderManagement() {
+  // Track both the picker value and actual date range
+  const [dateRangeValue, setDateRangeValue] = useState("last-30-days");
   const [dateRange, setDateRange] = useState(() => {
     const end = new Date();
-    const start = addDays(end, -30);
+    const start = addDays(end, -29); // Last 30 days includes today
     return { from: start, to: end };
   });
   
@@ -331,12 +333,16 @@ export function ComprehensiveOrderManagement() {
         <CardContent className="space-y-4">
           <div className="flex flex-col lg:flex-row gap-4">
             <DateRangePicker
-              value="last30days"
+              value={dateRangeValue}
               onValueChange={(value: string, startDate: string, endDate: string) => {
+                console.log('Date range changed:', { value, startDate, endDate });
+                setDateRangeValue(value);
                 setDateRange({
                   from: new Date(startDate),
                   to: new Date(endDate)
                 });
+                // Reset pagination when date changes
+                setFilters(prev => ({ ...prev, page: 1 }));
               }}
             />
             <div className="flex flex-1 gap-2">
