@@ -109,8 +109,8 @@ export function ComprehensiveOrderManagement() {
   
   const [filters, setFilters] = useState({
     search: "",
-    locationId: "",
-    state: "",
+    locationId: "all",
+    state: "all", 
     page: 1,
     limit: 20
   });
@@ -299,7 +299,7 @@ export function ComprehensiveOrderManagement() {
                   <SelectValue placeholder="All Locations" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Locations</SelectItem>
+                  <SelectItem value="all">All Locations</SelectItem>
                   {locations?.map((location: any) => (
                     <SelectItem key={location.id} value={location.id.toString()}>
                       {location.merchantName}
@@ -315,7 +315,7 @@ export function ComprehensiveOrderManagement() {
                   <SelectValue placeholder="All States" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All States</SelectItem>
+                  <SelectItem value="all">All States</SelectItem>
                   <SelectItem value="locked">Locked</SelectItem>
                   <SelectItem value="open">Open</SelectItem>
                   <SelectItem value="paid">Paid</SelectItem>

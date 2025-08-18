@@ -2601,7 +2601,7 @@ export class DatabaseStorage implements IStorage {
   async getOrdersWithFiltering(filters: {
     startDate?: string;
     endDate?: string;
-    locationId?: number;
+    locationId?: number | string;
     search?: string;
     state?: string;
     limit: number;
@@ -2658,12 +2658,17 @@ export class DatabaseStorage implements IStorage {
         conditions.push(lte(posSales.saleDate, filters.endDate));
       }
 
-      if (filters.locationId) {
-        conditions.push(eq(posSales.locationId, filters.locationId));
+      if (filters.locationId && filters.locationId !== 'all') {
+        const locationIdNum = typeof filters.locationId === 'string' ? parseInt(filters.locationId) : filters.locationId;
+        conditions.push(eq(posSales.locationId, locationIdNum));
       }
 
       if (filters.search) {
         conditions.push(sql`LOWER(${posSales.cloverOrderId}) LIKE LOWER('%${filters.search}%')`);
+      }
+
+      if (filters.state && filters.state !== 'all') {
+        conditions.push(sql`CASE WHEN ${posSales.totalAmount}::decimal > 0 THEN 'paid' ELSE 'open' END = ${filters.state}`);
       }
 
       if (conditions.length > 0) {
