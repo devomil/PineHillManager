@@ -2695,7 +2695,33 @@ export class DatabaseStorage implements IStorage {
               locationName: config.merchantName,
               merchantId: config.merchantId
             }));
-            allOrders.push(...ordersWithLocation);
+            
+            // Apply server-side date filtering since Clover API doesn't respect modifiedTime.min/max properly
+            let filteredOrders = ordersWithLocation;
+            if (options.modifiedTimeMin || options.modifiedTimeMax) {
+              filteredOrders = ordersWithLocation.filter(order => {
+                const orderModifiedTime = order.modifiedTime;
+                if (!orderModifiedTime) return false;
+                
+                const orderTime = parseInt(orderModifiedTime.toString());
+                
+                // Check minimum time
+                if (options.modifiedTimeMin && orderTime < options.modifiedTimeMin) {
+                  return false;
+                }
+                
+                // Check maximum time  
+                if (options.modifiedTimeMax && orderTime > options.modifiedTimeMax) {
+                  return false;
+                }
+                
+                return true;
+              });
+              
+              console.log(`After server-side date filtering: ${filteredOrders.length} orders from ${config.merchantName}`);
+            }
+            
+            allOrders.push(...filteredOrders);
           }
         } catch (error) {
           console.error(`Error fetching orders from location ${config.merchantName}:`, error);
