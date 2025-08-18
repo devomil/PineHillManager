@@ -131,6 +131,16 @@ export function ComprehensiveOrderManagement() {
     refetchInterval: 30000, // Refresh every 30 seconds for real-time updates
   });
 
+  // Log API errors and success for debugging
+  React.useEffect(() => {
+    if (ordersError) {
+      console.error('Orders API error:', ordersError);
+    }
+    if (ordersData) {
+      console.log('Orders API success:', ordersData);
+    }
+  }, [ordersError, ordersData]);
+
   // Fetch order analytics
   const { data: analyticsData, isLoading: analyticsLoading } = useQuery<OrderAnalyticsResponse>({
     queryKey: ['/api/orders/analytics', {
