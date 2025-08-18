@@ -1614,20 +1614,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const allLocations = await storage.getAllCloverConfigs();
         const activeLocations = allLocations.filter(config => config.isActive);
         
-        // Aggregate revenue from all active locations using real Clover data
+        console.log(`Revenue Analytics: Fetching live data for ${start.toISOString()} to ${end.toISOString()}`);
+        
+        // Aggregate revenue from all active locations using LIVE Clover API data (same as Order Management)
         for (const locationConfig of activeLocations) {
           try {
-            const salesData = await storage.getLocationSalesData(locationConfig.id, start, end);
+            // Use the same live API approach as Order Management
+            const cloverIntegration = new CloverIntegration(locationConfig);
+            const liveOrders = await cloverIntegration.getOrders({
+              filter: `modifiedTime>=${Math.floor(start.getTime())}&modifiedTime<=${Math.floor(end.getTime())}`,
+              limit: 1000,
+              offset: 0
+            });
             
-            if (salesData && salesData.length > 0) {
-              const locationRevenue = salesData.reduce((sum, sale) => sum + parseFloat(sale.totalAmount), 0);
-              const locationTransactions = salesData.length;
+            if (liveOrders && liveOrders.elements && liveOrders.elements.length > 0) {
+              // Filter orders by date on server-side (same as Order Management fix)
+              const filteredOrders = liveOrders.elements.filter((order: any) => {
+                const orderDate = new Date(order.modifiedTime);
+                return orderDate >= start && orderDate <= end;
+              });
+              
+              const locationRevenue = filteredOrders.reduce((sum: number, order: any) => {
+                const orderTotal = parseFloat(order.total || '0') / 100; // Convert cents to dollars
+                return sum + orderTotal;
+              }, 0);
+              const locationTransactions = filteredOrders.length;
               
               totalRevenue += locationRevenue;
               totalTransactions += locationTransactions;
+              
+              console.log(`Live Revenue - ${locationConfig.merchantName}: $${locationRevenue.toFixed(2)} from ${locationTransactions} orders`);
             }
           } catch (error) {
-            console.log(`No sales data for ${locationConfig.merchantName} in date range`);
+            console.log(`No live sales data for ${locationConfig.merchantName} in date range:`, error);
           }
         }
         
@@ -1806,14 +1825,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
           let transactions = 0;
           
           try {
-            const salesData = await storage.getLocationSalesData(locationConfig.id, start, end);
+            // Use the same live API approach as Order Management
+            const { CloverIntegration } = await import('./integrations/clover');
+            const cloverIntegration = new CloverIntegration(locationConfig);
+            const liveOrders = await cloverIntegration.getOrders({
+              filter: `modifiedTime>=${Math.floor(start.getTime())}&modifiedTime<=${Math.floor(end.getTime())}`,
+              limit: 1000,
+              offset: 0
+            });
             
-            if (salesData && salesData.length > 0) {
-              revenue = salesData.reduce((sum, sale) => sum + parseFloat(sale.totalAmount), 0);
-              transactions = salesData.length;
+            if (liveOrders && liveOrders.elements && liveOrders.elements.length > 0) {
+              // Filter orders by date on server-side (same as Order Management fix)
+              const filteredOrders = liveOrders.elements.filter((order: any) => {
+                const orderDate = new Date(order.modifiedTime);
+                return orderDate >= start && orderDate <= end;
+              });
+              
+              revenue = filteredOrders.reduce((sum: number, order: any) => {
+                const orderTotal = parseFloat(order.total || '0') / 100; // Convert cents to dollars
+                return sum + orderTotal;
+              }, 0);
+              transactions = filteredOrders.length;
+              
+              console.log(`Live Location Revenue - ${locationConfig.merchantName}: $${revenue.toFixed(2)} from ${transactions} orders`);
             }
           } catch (error) {
-            console.log(`No sales data for ${locationConfig.merchantName} in date range`);
+            console.log(`No live sales data for ${locationConfig.merchantName} in date range:`, error);
           }
           
           locationData.push({
