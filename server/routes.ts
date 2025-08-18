@@ -1593,6 +1593,173 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Enhanced Revenue Analytics Endpoints
+  app.get('/api/accounting/analytics/revenue-trends', isAuthenticated, async (req, res) => {
+    try {
+      const { period = 'monthly', year = new Date().getFullYear() } = req.query;
+      const { db } = await import('./db');
+      const { posSales, cloverConfig } = await import('@shared/schema');
+      const { sql, between, eq, gte, lte } = await import('drizzle-orm');
+      
+      const currentYear = parseInt(year as string);
+      let data = [];
+      
+      if (period === 'monthly') {
+        // Get monthly data for the current year
+        for (let month = 1; month <= 12; month++) {
+          const startDate = new Date(currentYear, month - 1, 1);
+          const endDate = new Date(currentYear, month, 0); // Last day of month
+          
+          const monthlyData = await db
+            .select({
+              totalRevenue: sql`COALESCE(SUM(${posSales.totalAmount}::decimal), 0)`.as('totalRevenue'),
+              totalTransactions: sql`COUNT(*)`.as('totalTransactions'),
+              avgSale: sql`COALESCE(AVG(${posSales.totalAmount}::decimal), 0)`.as('avgSale')
+            })
+            .from(posSales)
+            .where(between(posSales.saleDate, startDate, endDate));
+            
+          data.push({
+            period: startDate.toLocaleString('default', { month: 'long', year: 'numeric' }),
+            month: month,
+            revenue: parseFloat(monthlyData[0]?.totalRevenue || '0').toFixed(2),
+            transactions: parseInt(monthlyData[0]?.totalTransactions || '0'),
+            avgSale: parseFloat(monthlyData[0]?.avgSale || '0').toFixed(2)
+          });
+        }
+      } else if (period === 'quarterly') {
+        // Get quarterly data for the current year
+        const quarters = [
+          { name: 'Q1', months: [1, 2, 3] },
+          { name: 'Q2', months: [4, 5, 6] },
+          { name: 'Q3', months: [7, 8, 9] },
+          { name: 'Q4', months: [10, 11, 12] }
+        ];
+        
+        for (const quarter of quarters) {
+          const startDate = new Date(currentYear, quarter.months[0] - 1, 1);
+          const endDate = new Date(currentYear, quarter.months[2], 0);
+          
+          const quarterlyData = await db
+            .select({
+              totalRevenue: sql`COALESCE(SUM(${posSales.totalAmount}::decimal), 0)`.as('totalRevenue'),
+              totalTransactions: sql`COUNT(*)`.as('totalTransactions'),
+              avgSale: sql`COALESCE(AVG(${posSales.totalAmount}::decimal), 0)`.as('avgSale')
+            })
+            .from(posSales)
+            .where(between(posSales.saleDate, startDate, endDate));
+            
+          data.push({
+            period: `${quarter.name} ${currentYear}`,
+            quarter: quarter.name,
+            revenue: parseFloat(quarterlyData[0]?.totalRevenue || '0').toFixed(2),
+            transactions: parseInt(quarterlyData[0]?.totalTransactions || '0'),
+            avgSale: parseFloat(quarterlyData[0]?.avgSale || '0').toFixed(2)
+          });
+        }
+      } else if (period === 'annual') {
+        // Get annual data for the last 5 years
+        for (let yearOffset = 4; yearOffset >= 0; yearOffset--) {
+          const targetYear = currentYear - yearOffset;
+          const startDate = new Date(targetYear, 0, 1);
+          const endDate = new Date(targetYear, 11, 31);
+          
+          const annualData = await db
+            .select({
+              totalRevenue: sql`COALESCE(SUM(${posSales.totalAmount}::decimal), 0)`.as('totalRevenue'),
+              totalTransactions: sql`COUNT(*)`.as('totalTransactions'),
+              avgSale: sql`COALESCE(AVG(${posSales.totalAmount}::decimal), 0)`.as('avgSale')
+            })
+            .from(posSales)
+            .where(between(posSales.saleDate, startDate, endDate));
+            
+          data.push({
+            period: targetYear.toString(),
+            year: targetYear,
+            revenue: parseFloat(annualData[0]?.totalRevenue || '0').toFixed(2),
+            transactions: parseInt(annualData[0]?.totalTransactions || '0'),
+            avgSale: parseFloat(annualData[0]?.avgSale || '0').toFixed(2)
+          });
+        }
+      }
+      
+      res.json({ period, data });
+    } catch (error) {
+      console.error('Error fetching revenue trends:', error);
+      res.status(500).json({ message: 'Failed to fetch revenue trends' });
+    }
+  });
+
+  // Location-specific revenue trends
+  app.get('/api/accounting/analytics/location-revenue-trends', isAuthenticated, async (req, res) => {
+    try {
+      const { period = 'monthly', year = new Date().getFullYear() } = req.query;
+      const { db } = await import('./db');
+      const { posSales, cloverConfig } = await import('@shared/schema');
+      const { sql, between, eq } = await import('drizzle-orm');
+      
+      // Get all active locations
+      const allActiveLocations = await storage.getAllCloverConfigs();
+      const activeConfigs = allActiveLocations.filter(config => config.isActive);
+      
+      const currentYear = parseInt(year as string);
+      let periods = [];
+      
+      if (period === 'monthly') {
+        for (let month = 1; month <= 12; month++) {
+          periods.push({
+            name: new Date(currentYear, month - 1, 1).toLocaleString('default', { month: 'short' }),
+            startDate: new Date(currentYear, month - 1, 1),
+            endDate: new Date(currentYear, month, 0)
+          });
+        }
+      } else if (period === 'quarterly') {
+        periods = [
+          { name: 'Q1', startDate: new Date(currentYear, 0, 1), endDate: new Date(currentYear, 2, 31) },
+          { name: 'Q2', startDate: new Date(currentYear, 3, 1), endDate: new Date(currentYear, 5, 30) },
+          { name: 'Q3', startDate: new Date(currentYear, 6, 1), endDate: new Date(currentYear, 8, 30) },
+          { name: 'Q4', startDate: new Date(currentYear, 9, 1), endDate: new Date(currentYear, 11, 31) }
+        ];
+      }
+      
+      const locationData = [];
+      
+      for (const config of activeConfigs) {
+        const periodData = [];
+        
+        for (const periodInfo of periods) {
+          const salesData = await db
+            .select({
+              totalRevenue: sql`COALESCE(SUM(${posSales.totalAmount}::decimal), 0)`.as('totalRevenue'),
+              totalTransactions: sql`COUNT(*)`.as('totalTransactions')
+            })
+            .from(posSales)
+            .where(
+              sql`${posSales.locationId} = ${config.id} AND ${posSales.saleDate} BETWEEN ${periodInfo.startDate} AND ${periodInfo.endDate}`
+            );
+            
+          periodData.push({
+            period: periodInfo.name,
+            revenue: parseFloat(salesData[0]?.totalRevenue || '0').toFixed(2),
+            transactions: parseInt(salesData[0]?.totalTransactions || '0')
+          });
+        }
+        
+        locationData.push({
+          locationId: config.id,
+          locationName: config.merchantName,
+          isHSA: config.merchantName.includes('HSA'),
+          data: periodData
+        });
+      }
+      
+      res.json({ period, locations: locationData });
+    } catch (error) {
+      console.error('Error fetching location revenue trends:', error);
+      res.status(500).json({ message: 'Failed to fetch location revenue trends' });
+    }
+  });
+
   // External Integration Routes
   
   // QuickBooks Integration Routes
