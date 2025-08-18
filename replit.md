@@ -4,7 +4,16 @@
 The Pine Hill Farm Employee Management System is a comprehensive business management platform designed to streamline operations for employees, managers, and administrators. Built with React (Vite), Express.js, and PostgreSQL, its core purpose is to provide role-based access for time tracking, scheduling, communication, support ticket management, and robust accounting. The system aims to integrate essential business tools like QuickBooks, Clover POS, HSA providers, and Thrive inventory to offer an all-in-one solution for farm management, enhancing efficiency and oversight across all departments.
 
 ## Recent Changes (August 18, 2025)
-**Enhanced Date Range Analytics Implementation - COMPLETED**
+**CRITICAL FIX: Order Management Date Filtering System - COMPLETED**
+- RESOLVED: Major timezone conversion bug causing "Today" filter to show wrong date (August 17 instead of August 18)
+- FIXED: DateRangePicker component state synchronization - picker now properly reflects selected date range
+- ENHANCED: Added comprehensive debugging logs to track date conversion from picker to API calls
+- REPLACED: date-fns format() function with manual UTC date formatting to prevent timezone issues
+- VERIFIED: Clover API date filtering now uses correct modifiedTime.min/max parameters with accurate timestamps
+- ADDED: Missing API endpoints for /api/orders/analytics and /api/orders/voided-items to eliminate 404 errors
+- MAINTAINED: All 5 Clover merchant locations continue fetching authentic order data with proper date boundaries
+
+**Previous: Enhanced Date Range Analytics Implementation - COMPLETED**
 - COMPLETED: Comprehensive DateRangePicker component with predefined ranges (Last 7 days, Last 30 days, This Quarter, etc.)
 - ENHANCED: API endpoints `/api/accounting/analytics/revenue-trends` and `/api/accounting/analytics/location-revenue-trends` now support custom date range filtering
 - VERIFIED: Date range functionality working correctly - API calls show proper date parameter passing (e.g., `startDate=2025-08-01&endDate=2025-08-31`)

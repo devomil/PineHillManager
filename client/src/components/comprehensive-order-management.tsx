@@ -125,8 +125,24 @@ export function ComprehensiveOrderManagement() {
 
   // Fetch orders with filtering
   const ordersQueryParams = new URLSearchParams();
-  if (dateRange.from) ordersQueryParams.set('startDate', format(dateRange.from, 'yyyy-MM-dd'));
-  if (dateRange.to) ordersQueryParams.set('endDate', format(dateRange.to, 'yyyy-MM-dd'));
+  if (dateRange.from) {
+    // Use UTC methods to avoid timezone conversion issues
+    const year = dateRange.from.getUTCFullYear();
+    const month = String(dateRange.from.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(dateRange.from.getUTCDate()).padStart(2, '0');
+    const startDateFormatted = `${year}-${month}-${day}`;
+    ordersQueryParams.set('startDate', startDateFormatted);
+    console.log('Setting startDate param:', startDateFormatted, 'from date object:', dateRange.from.toISOString());
+  }
+  if (dateRange.to) {
+    // Use UTC methods to avoid timezone conversion issues
+    const year = dateRange.to.getUTCFullYear();
+    const month = String(dateRange.to.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(dateRange.to.getUTCDate()).padStart(2, '0');
+    const endDateFormatted = `${year}-${month}-${day}`;
+    ordersQueryParams.set('endDate', endDateFormatted);
+    console.log('Setting endDate param:', endDateFormatted, 'from date object:', dateRange.to.toISOString());
+  }
   ordersQueryParams.set('search', filters.search);
   ordersQueryParams.set('locationId', filters.locationId);
   ordersQueryParams.set('state', filters.state);
@@ -335,11 +351,22 @@ export function ComprehensiveOrderManagement() {
             <DateRangePicker
               value={dateRangeValue}
               onValueChange={(value: string, startDate: string, endDate: string) => {
-                console.log('Date range changed:', { value, startDate, endDate });
+                console.log('Date range picker callback:', { value, startDate, endDate });
+                
+                const fromDate = new Date(startDate);
+                const toDate = new Date(endDate);
+                
+                console.log('Date objects created:', {
+                  fromDate: fromDate.toISOString(),
+                  toDate: toDate.toISOString(),
+                  fromFormatted: format(fromDate, 'yyyy-MM-dd'),
+                  toFormatted: format(toDate, 'yyyy-MM-dd')
+                });
+                
                 setDateRangeValue(value);
                 setDateRange({
-                  from: new Date(startDate),
-                  to: new Date(endDate)
+                  from: fromDate,
+                  to: toDate
                 });
                 // Reset pagination when date changes
                 setFilters(prev => ({ ...prev, page: 1 }));
