@@ -1595,11 +1595,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Enhanced Revenue Analytics Endpoints with Real Clover Data
   app.get('/api/accounting/analytics/revenue-trends', isAuthenticated, async (req, res) => {
+    console.log('🚀 REVENUE TRENDS ENDPOINT HIT - START OF FUNCTION');
     // Prevent caching
     res.set('Cache-Control', 'no-store');
     
     try {
       const { period = 'monthly', year = new Date().getFullYear(), startDate, endDate } = req.query;
+      console.log('🚀 REVENUE TRENDS - Query params extracted:', { period, year, startDate, endDate });
       const { CloverIntegration } = await import('./integrations/clover');
       
       console.log(`=== REVENUE TRENDS API CALLED ===`, { period, year, startDate, endDate });
@@ -1811,11 +1813,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Location-specific revenue trends with Real Clover Data
   app.get('/api/accounting/analytics/location-revenue-trends', isAuthenticated, async (req, res) => {
+    console.log('🚀 LOCATION REVENUE TRENDS ENDPOINT HIT - START OF FUNCTION');
     // Prevent caching
     res.set('Cache-Control', 'no-store');
     
     try {
       const { period = 'monthly', year = new Date().getFullYear(), startDate, endDate } = req.query;
+      console.log('🚀 LOCATION REVENUE TRENDS - Query params:', { period, year, startDate, endDate });
       
       console.log(`=== LOCATION REVENUE TRENDS API CALLED ===`, { period, year, startDate, endDate });
       
