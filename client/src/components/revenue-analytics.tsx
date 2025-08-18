@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -30,9 +30,11 @@ import {
   BarChart3, 
   Calendar,
   MapPin,
-  Activity
+  Activity,
+  Loader2
 } from 'lucide-react';
-import { apiRequest } from '@/lib/queryClient';
+import { apiRequest, queryClient } from '@/lib/queryClient';
+import { useToast } from '@/hooks/use-toast';
 
 type RevenueTrendData = {
   period: string;
@@ -76,6 +78,8 @@ export function RevenueAnalytics() {
   const [dateRange, setDateRange] = useState('this-year');
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
+  
+  const { toast } = useToast();
 
   // Get date range parameters
   const getQueryParams = () => {
@@ -119,6 +123,34 @@ export function RevenueAnalytics() {
       const params = getQueryParams();
       const response = await apiRequest('GET', `/api/accounting/analytics/location-revenue-trends?${params}`);
       return await response.json();
+    },
+  });
+
+  // Sync mutation with proper loading and feedback
+  const syncMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest('POST', '/api/integrations/clover/sync/historical-all', {
+        startDate: '2025-01-01',
+        endDate: '2025-08-18'
+      });
+      return await response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Sales Data Sync Complete",
+        description: "All Clover sales data has been successfully synced across all locations",
+        variant: "default",
+      });
+      // Invalidate all analytics queries to refresh data
+      queryClient.invalidateQueries({ queryKey: ['/api/accounting/analytics'] });
+    },
+    onError: (error) => {
+      toast({
+        title: "Sync Failed",
+        description: "Failed to sync sales data. Please try again.",
+        variant: "destructive",
+      });
+      console.error('Sync failed:', error);
     },
   });
 
@@ -183,22 +215,18 @@ export function RevenueAnalytics() {
         <div className="flex gap-4 items-center">
           <Button 
             variant="outline" 
-            onClick={async () => {
-              try {
-                const response = await apiRequest('POST', '/api/integrations/clover/sync/historical-all', {
-                  startDate: '2025-01-01',
-                  endDate: '2025-08-18'
-                });
-                console.log('Comprehensive sync completed:', response);
-                // Refresh the analytics data
-                window.location.reload();
-              } catch (error) {
-                console.error('Sync failed:', error);
-              }
-            }}
-            className="bg-blue-600 hover:bg-blue-700 text-white"
+            onClick={() => syncMutation.mutate()}
+            disabled={syncMutation.isPending}
+            className="bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
           >
-            Pull All Sales Data
+            {syncMutation.isPending ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Syncing Sales Data...
+              </>
+            ) : (
+              'Pull All Sales Data'
+            )}
           </Button>
           
           {/* Date Range Controls */}
