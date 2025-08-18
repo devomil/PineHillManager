@@ -1636,7 +1636,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             // Use the same live API approach as Order Management
             const cloverIntegration = new CloverIntegration(locationConfig);
             const liveOrders = await cloverIntegration.fetchOrders({
-              filter: `modifiedTime>=${Math.floor(start.getTime())}&modifiedTime<=${Math.floor(end.getTime())}`,
+              filter: `modifiedTime>=${Math.floor(start.getTime())}`,
               limit: 1000,
               offset: 0
             });
