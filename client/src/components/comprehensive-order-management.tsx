@@ -132,7 +132,7 @@ export function ComprehensiveOrderManagement() {
   });
 
   // Log API errors and success for debugging
-  React.useEffect(() => {
+  useEffect(() => {
     if (ordersError) {
       console.error('Orders API error:', ordersError);
     }
