@@ -288,207 +288,12 @@ function AccountingContent() {
           </nav>
         </div>
 
-        {/* Multi-Location Overview */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <MapPin className="h-4 w-4" />
-                Active Locations
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{cloverLocations.filter(l => l.isActive).length}</div>
-              <p className="text-sm text-gray-500">Clover POS locations</p>
-              <div className="mt-3 space-y-1">
-                {cloverLocations.filter(l => l.isActive).map(location => (
-                  <div key={location.id} className="flex items-center justify-between text-xs">
-                    <span>{location.merchantName}</span>
-                    <Badge variant="outline" className="text-xs">Active</Badge>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <DollarSign className="h-4 w-4" />
-                Combined Revenue
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                ${multiLocationData?.totalSummary?.totalRevenue || '0.00'}
-              </div>
-              <p className="text-sm text-gray-500">Today across all locations</p>
-              <div className="mt-3">
-                <div className="text-xs text-gray-500">
-                  {multiLocationData?.totalSummary?.totalTransactions || 0} transactions
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <TrendingUp className="h-4 w-4" />
-                Top Location
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {multiLocationData?.locationBreakdown && multiLocationData.locationBreakdown.length > 0 ? (
-                <>
-                  <div className="text-lg font-bold">
-                    {multiLocationData.locationBreakdown[0]?.locationName || 'Unknown'}
-                  </div>
-                  <p className="text-sm text-gray-500">
-                    ${multiLocationData.locationBreakdown[0]?.totalSales || '0.00'} revenue
-                  </p>
-                  <div className="mt-3">
-                    <div className="text-xs text-gray-500">
-                      {multiLocationData.locationBreakdown[0]?.transactionCount || 0} transactions
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <div className="text-lg font-bold text-gray-400">No data</div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Location Breakdown */}
-        <Card className="mb-8">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <BarChart3 className="h-5 w-5" />
-              Location Performance
-            </CardTitle>
-            <CardDescription>
-              Individual location sales data for today
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {multiLocationData?.locationBreakdown && multiLocationData.locationBreakdown.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
-                {multiLocationData.locationBreakdown.map((location, index) => {
-                  return (
-                    <div key={location.locationId} className="border rounded-lg p-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <h3 className="font-medium">{location.locationName || `Location ${location.locationId}`}</h3>
-                        <div className="flex gap-1">
-                          {location.locationName?.includes('HSA') && (
-                            <Badge variant="secondary" className="text-xs">HSA</Badge>
-                          )}
-                          <Badge variant="outline">
-                            <ShoppingCart className="h-3 w-3 mr-1" />
-                            {location.transactionCount}
-                          </Badge>
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-500">Revenue</span>
-                          <span className="font-medium">${location.totalSales}</span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-500">Avg Sale</span>
-                          <span className="font-medium">${location.avgSale}</span>
-                        </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2">
-                          <div 
-                            className="bg-blue-600 h-2 rounded-full" 
-                            style={{ width: `${Math.min(100, (parseFloat(location.totalSales) / parseFloat(multiLocationData.totalSummary.totalRevenue)) * 100)}%` }}
-                          ></div>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="text-center py-8 text-gray-500">
-                No sales data available for today
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* System Health Overview */}
-        <Card className="mb-8">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Activity className="h-5 w-5" />
-              System Health
-            </CardTitle>
-            <CardDescription>
-              Real-time status of all integrations and connections
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {healthLoading ? (
-              <div className="flex items-center justify-center h-20">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-              </div>
-            ) : systemHealth ? (
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                <div className="flex items-center gap-2">
-                  <Database className="h-4 w-4 text-gray-500" />
-                  <span className="text-sm font-medium">Database</span>
-                  {getStatusIcon(systemHealth.database)}
-                  <Badge className={getStatusColor(systemHealth.database)}>
-                    {systemHealth.database}
-                  </Badge>
-                </div>
-                <div className="flex items-center gap-2">
-                  <BarChart3 className="h-4 w-4 text-gray-500" />
-                  <span className="text-sm font-medium">QuickBooks</span>
-                  {getStatusIcon(systemHealth.quickbooks)}
-                  <Badge className={getStatusColor(systemHealth.quickbooks)}>
-                    {systemHealth.quickbooks === 'not_configured' ? 'Setup Needed' : systemHealth.quickbooks}
-                  </Badge>
-                </div>
-                <div className="flex items-center gap-2">
-                  <DollarSign className="h-4 w-4 text-gray-500" />
-                  <span className="text-sm font-medium">Clover POS</span>
-                  {getStatusIcon(systemHealth.clover)}
-                  <Badge className={getStatusColor(systemHealth.clover)}>
-                    {systemHealth.clover === 'not_configured' ? 'Setup Needed' : systemHealth.clover}
-                  </Badge>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Users className="h-4 w-4 text-gray-500" />
-                  <span className="text-sm font-medium">HSA</span>
-                  {getStatusIcon(systemHealth.hsa)}
-                  <Badge className={getStatusColor(systemHealth.hsa)}>
-                    {systemHealth.hsa === 'not_configured' ? 'Setup Needed' : systemHealth.hsa}
-                  </Badge>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Package className="h-4 w-4 text-gray-500" />
-                  <span className="text-sm font-medium">Thrive</span>
-                  {getStatusIcon(systemHealth.thrive)}
-                  <Badge className={getStatusColor(systemHealth.thrive)}>
-                    {systemHealth.thrive === 'not_configured' ? 'Setup Needed' : systemHealth.thrive}
-                  </Badge>
-                </div>
-              </div>
-            ) : (
-              <p className="text-gray-500">Unable to fetch system status</p>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Dashboard Content Sections */}
-        <div className="space-y-6">
-
+        {/* Dashboard Content Sections - Only show selected section */}
+        <div className="mt-6">
           {/* Overview Section */}
-          {activeSection === 'overview' && (
-            <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {activeSection === 'overview' && (
+              <div className="space-y-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-medium">Revenue</CardTitle>
@@ -562,11 +367,11 @@ function AccountingContent() {
                   </Button>
                 </div>
               </CardContent>
-            </Card>
-            </div>
-          )}
+              </Card>
+              </div>
+            )}
 
-          {/* Chart of Accounts Section */}
+            {/* Chart of Accounts Section */}
           {activeSection === 'accounts' && (
             <div className="space-y-6">
               <Card>
@@ -652,7 +457,7 @@ function AccountingContent() {
           {/* Integrations Section */}
           {activeSection === 'integrations' && (
             <div className="space-y-6">
-            <Card>
+              <Card>
               <CardHeader>
                 <CardTitle>System Integrations</CardTitle>
                 <CardDescription>
