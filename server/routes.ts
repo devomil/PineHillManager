@@ -1599,13 +1599,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { period = 'monthly', year = new Date().getFullYear(), startDate, endDate } = req.query;
       const { CloverIntegration } = await import('./integrations/clover');
       
-      console.log(`Revenue Trends API called with:`, { period, year, startDate, endDate });
+      console.log(`=== REVENUE TRENDS API CALLED ===`, { period, year, startDate, endDate });
       
       const currentYear = parseInt(year as string);
       let data = [];
       
       // If custom date range is provided, use it instead of period-based filtering
       if (startDate && endDate) {
+        console.log(`=== USING LIVE API DATA FOR CUSTOM DATE RANGE ===`);
         const start = new Date(startDate as string);
         const end = new Date(endDate as string);
         
@@ -1810,7 +1811,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { period = 'monthly', year = new Date().getFullYear(), startDate, endDate } = req.query;
       
-      console.log(`Location Revenue Trends API called with:`, { period, year, startDate, endDate });
+      console.log(`=== LOCATION REVENUE TRENDS API CALLED ===`, { period, year, startDate, endDate });
       
       const currentYear = parseInt(year as string);
       
