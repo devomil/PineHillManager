@@ -201,42 +201,12 @@ export function RevenueAnalytics() {
             Pull All Sales Data
           </Button>
           
-          {/* Enhanced Date Range Controls */}
-          <div className="flex gap-2 items-center">
-            <DateRangePicker
-              value={dateRange}
-              onValueChange={handleDateRangeChange}
-              className="w-48"
-            />
-            
-            {/* Fallback controls for non-date range selection */}
-            {dateRange === 'this-year' && (
-              <>
-                <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
-                  <SelectTrigger className="w-32">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="monthly">Monthly</SelectItem>
-                    <SelectItem value="quarterly">Quarterly</SelectItem>
-                    <SelectItem value="annual">Annual</SelectItem>
-                  </SelectContent>
-                </Select>
-                {selectedPeriod !== 'annual' && (
-                  <Select value={selectedYear} onValueChange={setSelectedYear}>
-                    <SelectTrigger className="w-20">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {generateYearOptions().map(year => (
-                        <SelectItem key={year} value={year}>{year}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              </>
-            )}
-          </div>
+          {/* Date Range Controls */}
+          <DateRangePicker
+            value={dateRange}
+            onValueChange={handleDateRangeChange}
+            className="w-48"
+          />
         </div>
       </div>
 
