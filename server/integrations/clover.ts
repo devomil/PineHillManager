@@ -2,6 +2,7 @@ import { storage } from '../storage';
 
 // Clover API Configuration
 interface CloverConfig {
+  id?: number;
   merchantId: string;
   accessToken: string;
   baseUrl: string;
@@ -130,6 +131,11 @@ export class CloverIntegration {
       console.error('Clover API call error:', error);
       throw error;
     }
+  }
+
+  // Helper method for API calls with current config
+  private async makeCloverAPICall(endpoint: string): Promise<any> {
+    return this.makeCloverAPICallWithConfig(endpoint, this.config);
   }
 
   // Sync daily sales data from Clover POS
@@ -521,6 +527,173 @@ export class CloverIntegration {
         success: false,
         message: error instanceof Error ? error.message : 'Connection failed'
       };
+    }
+  }
+
+  // Comprehensive order sync with line items, payments, and discounts
+  async syncOrdersComprehensive(options: {
+    startDate?: string;
+    endDate?: string;
+  }): Promise<{
+    newOrders: number;
+    updatedOrders: number;
+    totalProcessed: number;
+  }> {
+    try {
+      const startDate = options.startDate ? new Date(options.startDate) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000); // Default 30 days ago
+      const endDate = options.endDate ? new Date(options.endDate) : new Date();
+      
+      console.log(`Starting comprehensive order sync for ${this.config.merchantId} from ${startDate.toISOString()} to ${endDate.toISOString()}`);
+
+      const startTimestamp = startDate.getTime();
+      const endTimestamp = endDate.getTime();
+
+      // Fetch all orders in the date range with pagination
+      let allOrders = [];
+      let offset = 0;
+      const limit = 1000; // Maximum allowed by Clover API
+      let hasMoreData = true;
+
+      while (hasMoreData) {
+        console.log(`Fetching orders batch: offset=${offset}, limit=${limit}`);
+        
+        const ordersResponse = await this.makeCloverAPICallWithConfig(
+          `orders?filter=createdTime>=${startTimestamp}&createdTime<=${endTimestamp}&expand=lineItems,payments,discounts&limit=${limit}&offset=${offset}`,
+          this.config
+        );
+
+        if (!ordersResponse || !ordersResponse.elements || ordersResponse.elements.length === 0) {
+          hasMoreData = false;
+          break;
+        }
+
+        allOrders.push(...ordersResponse.elements);
+        console.log(`Fetched ${ordersResponse.elements.length} orders, total so far: ${allOrders.length}`);
+
+        // Check if we have more data to fetch
+        if (ordersResponse.elements.length < limit) {
+          hasMoreData = false;
+        } else {
+          offset += limit;
+        }
+
+        // Add a small delay to avoid rate limiting
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+
+      console.log(`Total orders fetched: ${allOrders.length}`);
+
+      let newOrders = 0;
+      let updatedOrders = 0;
+      let totalProcessed = 0;
+
+      for (const order of allOrders) {
+        try {
+          // Check if this order is already synced
+          const existingSale = await storage.getPosSaleByCloverOrderId(order.id);
+          
+          if (existingSale) {
+            // Update existing order if needed
+            const modifiedTime = new Date(order.modifiedTime);
+            const existingModifiedTime = new Date(existingSale.saleTime);
+            
+            if (modifiedTime > existingModifiedTime) {
+              // Update existing order
+              const totalAmount = parseFloat(order.total) / 100;
+              const taxAmount = parseFloat(order.taxAmount || '0') / 100;
+              const tipAmount = parseFloat(order.tipAmount || '0') / 100;
+
+              await storage.updatePosSale(existingSale.id, {
+                totalAmount: totalAmount.toString(),
+                taxAmount: taxAmount.toString(),
+                tipAmount: tipAmount.toString(),
+                paymentMethod: order.payType || 'unknown',
+                saleTime: new Date(order.modifiedTime)
+              });
+
+              updatedOrders++;
+            }
+          } else {
+            // Create new order
+            const totalAmount = parseFloat(order.total) / 100;
+            const taxAmount = parseFloat(order.taxAmount || '0') / 100;
+            const tipAmount = parseFloat(order.tipAmount || '0') / 100;
+            const orderDate = new Date(order.createdTime);
+
+            const saleData = {
+              saleDate: orderDate.toISOString().split('T')[0],
+              saleTime: orderDate,
+              totalAmount: totalAmount.toString(),
+              taxAmount: taxAmount.toString(),
+              tipAmount: tipAmount.toString(),
+              paymentMethod: order.payType || 'unknown',
+              cloverOrderId: order.id,
+              locationId: this.config.id || 1
+            };
+
+            const createdSale = await storage.createPosSale(saleData);
+
+            // Process line items if they exist
+            if (order.lineItems && order.lineItems.elements) {
+              for (const lineItem of order.lineItems.elements) {
+                const itemAmount = parseFloat(lineItem.price) / 100;
+                const quantity = lineItem.quantity || 1;
+                const lineTotal = itemAmount * quantity;
+                
+                const itemData = {
+                  saleId: createdSale.id,
+                  itemName: lineItem.name,
+                  quantity: quantity.toString(),
+                  unitPrice: itemAmount.toString(),
+                  lineTotal: lineTotal.toString(),
+                  discountAmount: lineItem.discountAmount ? (parseFloat(lineItem.discountAmount) / 100).toString() : '0.00'
+                };
+
+                await storage.createPosSaleItem(itemData);
+              }
+            }
+
+            newOrders++;
+          }
+
+          totalProcessed++;
+          
+          if (totalProcessed % 100 === 0) {
+            console.log(`Order sync progress: ${totalProcessed} orders processed`);
+          }
+        } catch (orderError) {
+          console.error(`Error processing order ${order.id}:`, orderError);
+          // Continue with next order instead of failing the entire sync
+        }
+      }
+
+      // Log successful completion
+      await storage.createIntegrationLog({
+        system: 'clover',
+        operation: 'sync_orders_comprehensive',
+        status: 'success',
+        message: `Comprehensive order sync completed: ${newOrders} new orders, ${updatedOrders} updated orders, ${totalProcessed} total processed`
+      });
+
+      console.log(`Comprehensive order sync completed: ${newOrders} new orders, ${updatedOrders} updated orders, ${totalProcessed} total processed`);
+
+      return {
+        newOrders,
+        updatedOrders,
+        totalProcessed
+      };
+
+    } catch (error) {
+      console.error('Error in comprehensive order sync:', error);
+      
+      await storage.createIntegrationLog({
+        system: 'clover',
+        operation: 'sync_orders_comprehensive',
+        status: 'error',
+        message: `Comprehensive order sync failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+      });
+
+      throw error;
     }
   }
 }

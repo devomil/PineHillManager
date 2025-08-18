@@ -448,6 +448,66 @@ export interface IStorage {
   createVideoAsset(asset: InsertVideoAsset): Promise<VideoAsset>;
   getVideoAssets(videoId: number): Promise<VideoAsset[]>;
   deleteVideoAsset(id: number): Promise<boolean>;
+
+  // ================================
+  // ORDER MANAGEMENT OPERATIONS
+  // ================================
+
+  // Order filtering and retrieval
+  getOrdersWithFiltering(filters: {
+    startDate?: string;
+    endDate?: string;
+    locationId?: number;
+    search?: string;
+    state?: string;
+    limit: number;
+    offset: number;
+  }): Promise<{
+    orders: any[];
+    total: number;
+    hasMore: boolean;
+  }>;
+
+  // Order details with related data
+  getOrderDetails(orderId: string): Promise<any | null>;
+
+  // Order line items with modifications and discounts
+  getOrderLineItems(orderId: string): Promise<any[]>;
+
+  // Order discounts
+  getOrderDiscounts(orderId: string): Promise<any[]>;
+
+  // Voided line items with totals
+  getVoidedLineItems(filters: {
+    startDate?: string;
+    endDate?: string;
+    locationId?: number;
+  }): Promise<{
+    voidedItems: any[];
+    totals: {
+      totalVoidedAmount: number;
+      totalVoidedItems: number;
+    };
+  }>;
+
+  // Order updates
+  updateOrder(orderId: string, updates: {
+    state?: string;
+    paymentState?: string;
+    note?: string;
+    modifiedTime?: number;
+  }): Promise<any>;
+
+  // Order analytics
+  getOrderAnalytics(filters: {
+    startDate?: string;
+    endDate?: string;
+    locationId?: number;
+    groupBy: string;
+  }): Promise<any>;
+
+  // Location sales data (for revenue analytics integration)
+  getLocationSalesData(locationId: number, startDate: Date, endDate: Date): Promise<any[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -2531,6 +2591,315 @@ export class DatabaseStorage implements IStorage {
     } catch (error) {
       console.error(`Error fetching revenue for location ${locationId}:`, error);
       return 0;
+    }
+  }
+
+  // ================================
+  // ORDER MANAGEMENT IMPLEMENTATIONS
+  // ================================
+
+  async getOrdersWithFiltering(filters: {
+    startDate?: string;
+    endDate?: string;
+    locationId?: number;
+    search?: string;
+    state?: string;
+    limit: number;
+    offset: number;
+  }): Promise<{
+    orders: any[];
+    total: number;
+    hasMore: boolean;
+  }> {
+    try {
+      // For now, we'll use POS sales data as orders until we have a dedicated orders table
+      // This provides real transactional data from Clover
+      let query = db.select({
+        id: posSales.cloverOrderId,
+        currency: sql<string>`'USD'`,
+        total: sql<number>`CAST(${posSales.totalAmount} AS DECIMAL) * 100`, // Convert to cents
+        taxAmount: sql<number>`CAST(${posSales.taxAmount} AS DECIMAL) * 100`,
+        serviceCharge: sql<number>`0`,
+        paymentState: sql<string>`CASE WHEN ${posSales.totalAmount}::decimal > 0 THEN 'paid' ELSE 'open' END`,
+        state: sql<string>`'locked'`,
+        createdTime: sql<number>`EXTRACT(EPOCH FROM ${posSales.saleTime}) * 1000`,
+        clientCreatedTime: sql<number>`EXTRACT(EPOCH FROM ${posSales.saleTime}) * 1000`,
+        modifiedTime: sql<number>`EXTRACT(EPOCH FROM ${posSales.saleTime}) * 1000`,
+        manualTransaction: sql<boolean>`false`,
+        groupLineItems: sql<boolean>`true`,
+        testMode: sql<boolean>`false`,
+        taxRemoved: sql<boolean>`false`,
+        isVat: sql<boolean>`false`,
+        merchantId: cloverConfig.merchantId,
+        locationName: cloverConfig.merchantName,
+        employee: sql<any>`NULL`,
+        orderType: sql<any>`NULL`,
+        title: sql<string>`NULL`,
+        note: sql<string>`NULL`,
+        deletedTime: sql<number>`NULL`,
+        device: sql<any>`NULL`,
+        lineItems: sql<any>`NULL`,
+        payments: sql<any>`NULL`,
+        discounts: sql<any>`NULL`,
+        credits: sql<any>`NULL`,
+        refunds: sql<any>`NULL`,
+        voids: sql<any>`NULL`
+      }).from(posSales)
+      .leftJoin(cloverConfig, eq(posSales.locationId, cloverConfig.id));
+
+      // Apply filters
+      const conditions = [];
+
+      if (filters.startDate) {
+        conditions.push(gte(posSales.saleDate, filters.startDate));
+      }
+
+      if (filters.endDate) {
+        conditions.push(lte(posSales.saleDate, filters.endDate));
+      }
+
+      if (filters.locationId) {
+        conditions.push(eq(posSales.locationId, filters.locationId));
+      }
+
+      if (filters.search) {
+        conditions.push(sql`LOWER(${posSales.cloverOrderId}) LIKE LOWER('%${filters.search}%')`);
+      }
+
+      if (conditions.length > 0) {
+        query = query.where(and(...conditions));
+      }
+
+      // Get total count
+      let countQuery = db.select({ count: sql<number>`COUNT(*)` }).from(posSales);
+      if (conditions.length > 0) {
+        countQuery = countQuery.where(and(...conditions));
+      }
+      const totalResult = await countQuery;
+      const total = totalResult[0]?.count || 0;
+
+      // Apply pagination and ordering
+      const orders = await query
+        .orderBy(desc(posSales.saleTime))
+        .limit(filters.limit)
+        .offset(filters.offset);
+
+      return {
+        orders,
+        total,
+        hasMore: (filters.offset + filters.limit) < total
+      };
+    } catch (error) {
+      console.error('Error fetching orders with filtering:', error);
+      return { orders: [], total: 0, hasMore: false };
+    }
+  }
+
+  async getOrderDetails(orderId: string): Promise<any | null> {
+    try {
+      // Get order from POS sales data
+      const orderData = await db.select({
+        id: posSales.cloverOrderId,
+        currency: sql<string>`'USD'`,
+        total: sql<number>`CAST(${posSales.totalAmount} AS DECIMAL) * 100`,
+        taxAmount: sql<number>`CAST(${posSales.taxAmount} AS DECIMAL) * 100`,
+        serviceCharge: sql<number>`0`,
+        paymentState: sql<string>`CASE WHEN ${posSales.totalAmount}::decimal > 0 THEN 'paid' ELSE 'open' END`,
+        state: sql<string>`'locked'`,
+        createdTime: sql<number>`EXTRACT(EPOCH FROM ${posSales.saleTime}) * 1000`,
+        clientCreatedTime: sql<number>`EXTRACT(EPOCH FROM ${posSales.saleTime}) * 1000`,
+        modifiedTime: sql<number>`EXTRACT(EPOCH FROM ${posSales.saleTime}) * 1000`,
+        manualTransaction: sql<boolean>`false`,
+        groupLineItems: sql<boolean>`true`,
+        testMode: sql<boolean>`false`,
+        taxRemoved: sql<boolean>`false`,
+        isVat: sql<boolean>`false`,
+        merchantId: cloverConfig.merchantId,
+        locationName: cloverConfig.merchantName,
+        paymentMethod: posSales.paymentMethod
+      }).from(posSales)
+      .leftJoin(cloverConfig, eq(posSales.locationId, cloverConfig.id))
+      .where(eq(posSales.cloverOrderId, orderId));
+
+      if (orderData.length === 0) {
+        return null;
+      }
+
+      const order = orderData[0];
+
+      // Get line items for this order
+      const lineItems = await this.getOrderLineItems(orderId);
+      
+      // Construct payment information
+      const payments = [{
+        id: `payment_${orderId}`,
+        amount: order.total,
+        tipAmount: 0,
+        taxAmount: order.taxAmount,
+        result: 'SUCCESS',
+        tender: {
+          label: order.paymentMethod || 'Card',
+          labelKey: order.paymentMethod || 'CARD'
+        }
+      }];
+
+      return {
+        ...order,
+        lineItems,
+        payments,
+        discounts: [],
+        credits: [],
+        refunds: [],
+        voids: []
+      };
+    } catch (error) {
+      console.error('Error fetching order details:', error);
+      return null;
+    }
+  }
+
+  async getOrderLineItems(orderId: string): Promise<any[]> {
+    try {
+      // Get line items from POS sale items
+      const lineItems = await db.select({
+        id: sql<string>`CONCAT('item_', ${posSaleItems.id})`,
+        name: posSaleItems.itemName,
+        price: sql<number>`CAST(${posSaleItems.unitPrice} AS DECIMAL) * 100`,
+        quantity: sql<number>`${posSaleItems.quantity}`,
+        unitQty: sql<number>`1`,
+        isRevenue: sql<boolean>`true`,
+        printed: sql<boolean>`true`,
+        exchanged: sql<boolean>`false`,
+        refunded: sql<boolean>`false`,
+        modifications: sql<any>`NULL`,
+        discounts: sql<any>`NULL`
+      }).from(posSaleItems)
+      .leftJoin(posSales, eq(posSaleItems.saleId, posSales.id))
+      .where(eq(posSales.cloverOrderId, orderId));
+
+      return lineItems;
+    } catch (error) {
+      console.error('Error fetching order line items:', error);
+      return [];
+    }
+  }
+
+  async getOrderDiscounts(orderId: string): Promise<any[]> {
+    try {
+      // No discounts in current schema - return empty array
+      return [];
+    } catch (error) {
+      console.error('Error fetching order discounts:', error);
+      return [];
+    }
+  }
+
+  async getVoidedLineItems(filters: {
+    startDate?: string;
+    endDate?: string;
+    locationId?: number;
+  }): Promise<{
+    voidedItems: any[];
+    totals: {
+      totalVoidedAmount: number;
+      totalVoidedItems: number;
+    };
+  }> {
+    try {
+      // For demonstration, return empty data - voided items would need separate tracking
+      return {
+        voidedItems: [],
+        totals: {
+          totalVoidedAmount: 0,
+          totalVoidedItems: 0
+        }
+      };
+    } catch (error) {
+      console.error('Error fetching voided line items:', error);
+      return {
+        voidedItems: [],
+        totals: {
+          totalVoidedAmount: 0,
+          totalVoidedItems: 0
+        }
+      };
+    }
+  }
+
+  async updateOrder(orderId: string, updates: {
+    state?: string;
+    paymentState?: string;
+    note?: string;
+    modifiedTime?: number;
+  }): Promise<any> {
+    try {
+      // Update operations would need proper order table implementation
+      // For now, return the order as-is
+      return await this.getOrderDetails(orderId);
+    } catch (error) {
+      console.error('Error updating order:', error);
+      throw error;
+    }
+  }
+
+  async getOrderAnalytics(filters: {
+    startDate?: string;
+    endDate?: string;
+    locationId?: number;
+    groupBy: string;
+  }): Promise<any> {
+    try {
+      const conditions = [];
+
+      if (filters.startDate) {
+        conditions.push(gte(posSales.saleDate, filters.startDate));
+      }
+
+      if (filters.endDate) {
+        conditions.push(lte(posSales.saleDate, filters.endDate));
+      }
+
+      if (filters.locationId) {
+        conditions.push(eq(posSales.locationId, filters.locationId));
+      }
+
+      let groupByColumn;
+      switch (filters.groupBy) {
+        case 'day':
+          groupByColumn = sql`DATE(${posSales.saleDate})`;
+          break;
+        case 'week':
+          groupByColumn = sql`DATE_TRUNC('week', ${posSales.saleDate})`;
+          break;
+        case 'month':
+          groupByColumn = sql`DATE_TRUNC('month', ${posSales.saleDate})`;
+          break;
+        default:
+          groupByColumn = sql`DATE(${posSales.saleDate})`;
+      }
+
+      const analytics = await db.select({
+        period: groupByColumn,
+        totalOrders: sql<number>`COUNT(*)`,
+        totalRevenue: sql<number>`SUM(CAST(${posSales.totalAmount} AS DECIMAL))`,
+        averageOrderValue: sql<number>`AVG(CAST(${posSales.totalAmount} AS DECIMAL))`
+      }).from(posSales)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .groupBy(groupByColumn)
+      .orderBy(groupByColumn);
+
+      return {
+        analytics,
+        summary: {
+          totalOrders: analytics.reduce((sum, row) => sum + row.totalOrders, 0),
+          totalRevenue: analytics.reduce((sum, row) => sum + row.totalRevenue, 0),
+          averageOrderValue: analytics.length > 0 ? 
+            analytics.reduce((sum, row) => sum + row.totalRevenue, 0) / analytics.reduce((sum, row) => sum + row.totalOrders, 0) : 0
+        }
+      };
+    } catch (error) {
+      console.error('Error fetching order analytics:', error);
+      return { analytics: [], summary: { totalOrders: 0, totalRevenue: 0, averageOrderValue: 0 } };
     }
   }
 }

@@ -26,6 +26,7 @@ import { apiRequest } from '@/lib/queryClient';
 import AdminLayout from '@/components/admin-layout';
 import { useToast } from '@/hooks/use-toast';
 import { RevenueAnalytics } from '@/components/revenue-analytics';
+import { ComprehensiveOrderManagement } from '@/components/comprehensive-order-management';
 
 type SystemHealth = {
   database: string;
@@ -276,6 +277,16 @@ function AccountingContent() {
               Revenue Analytics
             </button>
             <button
+              onClick={() => setActiveSection('orders')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                activeSection === 'orders'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Order Management
+            </button>
+            <button
               onClick={() => setActiveSection('integrations')}
               className={`py-2 px-1 border-b-2 font-medium text-sm ${
                 activeSection === 'integrations'
@@ -520,6 +531,13 @@ function AccountingContent() {
                 </div>
               </CardContent>
             </Card>
+            </div>
+          )}
+
+          {/* Order Management Section */}
+          {activeSection === 'orders' && (
+            <div className="space-y-6">
+              <ComprehensiveOrderManagement />
             </div>
           )}
 

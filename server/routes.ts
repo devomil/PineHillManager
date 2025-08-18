@@ -2121,6 +2121,205 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ================================
+  // ORDER MANAGEMENT API ENDPOINTS
+  // ================================
+
+  // Get orders with comprehensive filtering
+  app.get('/api/orders', isAuthenticated, async (req, res) => {
+    try {
+      const {
+        startDate,
+        endDate,
+        locationId,
+        search,
+        state,
+        page = '1',
+        limit = '20'
+      } = req.query as Record<string, string>;
+
+      const offset = (parseInt(page) - 1) * parseInt(limit);
+
+      const result = await storage.getOrdersWithFiltering({
+        startDate,
+        endDate,
+        locationId: locationId ? parseInt(locationId) : undefined,
+        search,
+        state,
+        limit: parseInt(limit),
+        offset
+      });
+
+      res.json({
+        orders: result.orders,
+        pagination: {
+          currentPage: parseInt(page),
+          totalPages: Math.ceil(result.total / parseInt(limit)),
+          totalItems: result.total,
+          hasMore: result.hasMore,
+          limit: parseInt(limit)
+        }
+      });
+    } catch (error) {
+      console.error('Error fetching orders:', error);
+      res.status(500).json({ error: 'Failed to fetch orders' });
+    }
+  });
+
+  // Get detailed order information
+  app.get('/api/orders/:orderId', isAuthenticated, async (req, res) => {
+    try {
+      const { orderId } = req.params;
+      const order = await storage.getOrderDetails(orderId);
+
+      if (!order) {
+        return res.status(404).json({ error: 'Order not found' });
+      }
+
+      res.json(order);
+    } catch (error) {
+      console.error('Error fetching order details:', error);
+      res.status(500).json({ error: 'Failed to fetch order details' });
+    }
+  });
+
+  // Get order line items with modifications and discounts
+  app.get('/api/orders/:orderId/line-items', isAuthenticated, async (req, res) => {
+    try {
+      const { orderId } = req.params;
+      const lineItems = await storage.getOrderLineItems(orderId);
+      res.json({ lineItems });
+    } catch (error) {
+      console.error('Error fetching order line items:', error);
+      res.status(500).json({ error: 'Failed to fetch order line items' });
+    }
+  });
+
+  // Get order discounts
+  app.get('/api/orders/:orderId/discounts', isAuthenticated, async (req, res) => {
+    try {
+      const { orderId } = req.params;
+      const discounts = await storage.getOrderDiscounts(orderId);
+      res.json({ discounts });
+    } catch (error) {
+      console.error('Error fetching order discounts:', error);
+      res.status(500).json({ error: 'Failed to fetch order discounts' });
+    }
+  });
+
+  // Get voided line items with totals
+  app.get('/api/orders/voided-items', isAuthenticated, async (req, res) => {
+    try {
+      const { startDate, endDate, locationId } = req.query as Record<string, string>;
+
+      const result = await storage.getVoidedLineItems({
+        startDate,
+        endDate,
+        locationId: locationId ? parseInt(locationId) : undefined
+      });
+
+      res.json(result);
+    } catch (error) {
+      console.error('Error fetching voided items:', error);
+      res.status(500).json({ error: 'Failed to fetch voided items' });
+    }
+  });
+
+  // Update order information
+  app.put('/api/orders/:orderId', isAuthenticated, async (req, res) => {
+    try {
+      const { orderId } = req.params;
+      const updates = req.body;
+
+      const updatedOrder = await storage.updateOrder(orderId, updates);
+      res.json(updatedOrder);
+    } catch (error) {
+      console.error('Error updating order:', error);
+      res.status(500).json({ error: 'Failed to update order' });
+    }
+  });
+
+  // Get order analytics
+  app.get('/api/orders/analytics', isAuthenticated, async (req, res) => {
+    try {
+      const { startDate, endDate, locationId, groupBy = 'day' } = req.query as Record<string, string>;
+
+      const analytics = await storage.getOrderAnalytics({
+        startDate,
+        endDate,
+        locationId: locationId ? parseInt(locationId) : undefined,
+        groupBy
+      });
+
+      res.json(analytics);
+    } catch (error) {
+      console.error('Error fetching order analytics:', error);
+      res.status(500).json({ error: 'Failed to fetch order analytics' });
+    }
+  });
+
+  // Comprehensive order sync from Clover
+  app.post('/api/orders/sync', isAuthenticated, async (req, res) => {
+    try {
+      const { startDate, endDate } = req.body;
+      
+      // Get all active Clover configurations
+      const cloverConfigs = await storage.getAllCloverConfigs();
+      const activeConfigs = cloverConfigs.filter(config => config.isActive);
+      
+      if (activeConfigs.length === 0) {
+        return res.status(400).json({ error: 'No active Clover configurations found' });
+      }
+
+      const syncResults = [];
+      
+      for (const config of activeConfigs) {
+        try {
+          const { CloverIntegration } = await import('./integrations/clover');
+          const cloverIntegration = new CloverIntegration(config);
+          
+          const result = await cloverIntegration.syncOrdersComprehensive({
+            startDate,
+            endDate
+          });
+          
+          syncResults.push({
+            merchantId: config.merchantId,
+            merchantName: config.merchantName,
+            success: true,
+            ...result
+          });
+        } catch (error) {
+          syncResults.push({
+            merchantId: config.merchantId,
+            merchantName: config.merchantName,
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error'
+          });
+        }
+      }
+
+      const successCount = syncResults.filter(r => r.success).length;
+      const totalNew = syncResults.reduce((sum, r) => sum + (r.newOrders || 0), 0);
+      const totalUpdated = syncResults.reduce((sum, r) => sum + (r.updatedOrders || 0), 0);
+      
+      res.json({
+        success: true,
+        message: `Order sync completed: ${totalNew} new orders, ${totalUpdated} updated orders from ${successCount}/${activeConfigs.length} locations`,
+        results: syncResults,
+        summary: {
+          totalLocations: activeConfigs.length,
+          successfulLocations: successCount,
+          newOrders: totalNew,
+          updatedOrders: totalUpdated
+        }
+      });
+    } catch (error) {
+      console.error('Error syncing orders:', error);
+      res.status(500).json({ error: 'Failed to sync orders' });
+    }
+  });
+
   app.get('/api/integrations/clover/test', isAuthenticated, async (req, res) => {
     try {
       const { cloverIntegration } = await import('./integrations/clover');
@@ -2316,6 +2515,202 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: 'Failed to create test data' });
     }
   });
+
+  // ================================
+  // ORDER MANAGEMENT API ENDPOINTS
+  // ================================
+
+  // Get orders with filtering and pagination
+  app.get('/api/accounting/orders', isAuthenticated, async (req, res) => {
+    try {
+      const { 
+        startDate, 
+        endDate, 
+        locationId, 
+        search, 
+        state, 
+        page = '1', 
+        limit = '50' 
+      } = req.query;
+      
+      const pageNum = parseInt(page as string);
+      const limitNum = parseInt(limit as string);
+      const offset = (pageNum - 1) * limitNum;
+      
+      // Get orders from storage with filtering
+      const ordersResult = await storage.getOrdersWithFiltering({
+        startDate: startDate as string,
+        endDate: endDate as string,
+        locationId: locationId ? parseInt(locationId as string) : undefined,
+        search: search as string,
+        state: state as string,
+        limit: limitNum,
+        offset
+      });
+      
+      res.json(ordersResult);
+    } catch (error) {
+      console.error('Error fetching orders:', error);
+      res.status(500).json({ message: 'Failed to fetch orders' });
+    }
+  });
+
+  // Get order details with line items, payments, discounts
+  app.get('/api/accounting/orders/:orderId', isAuthenticated, async (req, res) => {
+    try {
+      const { orderId } = req.params;
+      
+      const orderDetails = await storage.getOrderDetails(orderId);
+      
+      if (!orderDetails) {
+        return res.status(404).json({ message: 'Order not found' });
+      }
+      
+      res.json(orderDetails);
+    } catch (error) {
+      console.error('Error fetching order details:', error);
+      res.status(500).json({ message: 'Failed to fetch order details' });
+    }
+  });
+
+  // Get order line items with modifications and discounts
+  app.get('/api/accounting/orders/:orderId/lineitems', isAuthenticated, async (req, res) => {
+    try {
+      const { orderId } = req.params;
+      
+      const lineItems = await storage.getOrderLineItems(orderId);
+      res.json(lineItems);
+    } catch (error) {
+      console.error('Error fetching order line items:', error);
+      res.status(500).json({ message: 'Failed to fetch order line items' });
+    }
+  });
+
+  // Get order discounts
+  app.get('/api/accounting/orders/:orderId/discounts', isAuthenticated, async (req, res) => {
+    try {
+      const { orderId } = req.params;
+      
+      const discounts = await storage.getOrderDiscounts(orderId);
+      res.json(discounts);
+    } catch (error) {
+      console.error('Error fetching order discounts:', error);
+      res.status(500).json({ message: 'Failed to fetch order discounts' });
+    }
+  });
+
+  // Get voided line items with totals
+  app.get('/api/accounting/orders/voided', isAuthenticated, async (req, res) => {
+    try {
+      const { startDate, endDate, locationId } = req.query;
+      
+      const voidedItems = await storage.getVoidedLineItems({
+        startDate: startDate as string,
+        endDate: endDate as string,
+        locationId: locationId ? parseInt(locationId as string) : undefined
+      });
+      
+      res.json(voidedItems);
+    } catch (error) {
+      console.error('Error fetching voided line items:', error);
+      res.status(500).json({ message: 'Failed to fetch voided line items' });
+    }
+  });
+
+  // Sync orders from Clover API
+  app.post('/api/accounting/orders/sync', isAuthenticated, async (req, res) => {
+    try {
+      const { locationId, startDate, endDate } = req.body;
+      
+      const allLocations = await storage.getAllCloverConfigs();
+      const locationsToSync = locationId ? 
+        allLocations.filter(config => config.id === locationId) : 
+        allLocations.filter(config => config.isActive);
+      
+      let totalSynced = 0;
+      const syncResults = [];
+      
+      for (const locationConfig of locationsToSync) {
+        try {
+          const { CloverIntegration } = await import('./integrations/clover');
+          const clover = new CloverIntegration(locationConfig);
+          
+          // Sync orders with line items, payments, and discounts
+          const syncResult = await clover.syncOrdersComprehensive({
+            startDate: startDate || '2025-01-01',
+            endDate: endDate || new Date().toISOString().split('T')[0]
+          });
+          
+          totalSynced += syncResult.newOrders;
+          syncResults.push({
+            location: locationConfig.merchantName,
+            newOrders: syncResult.newOrders,
+            updatedOrders: syncResult.updatedOrders,
+            totalProcessed: syncResult.totalProcessed
+          });
+        } catch (error) {
+          console.error(`Error syncing orders for ${locationConfig.merchantName}:`, error);
+          syncResults.push({
+            location: locationConfig.merchantName,
+            error: error instanceof Error ? error.message : 'Unknown error'
+          });
+        }
+      }
+      
+      res.json({
+        success: true,
+        totalSynced,
+        locationResults: syncResults,
+        message: `Synced ${totalSynced} new orders across ${locationsToSync.length} locations`
+      });
+    } catch (error) {
+      console.error('Error syncing orders:', error);
+      res.status(500).json({ message: 'Failed to sync orders' });
+    }
+  });
+
+  // Update order state (for manual order management)
+  app.put('/api/accounting/orders/:orderId', isAuthenticated, async (req, res) => {
+    try {
+      const { orderId } = req.params;
+      const { state, paymentState, note } = req.body;
+      
+      const updatedOrder = await storage.updateOrder(orderId, {
+        state,
+        paymentState,
+        note,
+        modifiedTime: Date.now()
+      });
+      
+      res.json(updatedOrder);
+    } catch (error) {
+      console.error('Error updating order:', error);
+      res.status(500).json({ message: 'Failed to update order' });
+    }
+  });
+
+  // Get order analytics and summaries
+  app.get('/api/accounting/orders/analytics', isAuthenticated, async (req, res) => {
+    try {
+      const { startDate, endDate, locationId, groupBy = 'day' } = req.query;
+      
+      const analytics = await storage.getOrderAnalytics({
+        startDate: startDate as string,
+        endDate: endDate as string,
+        locationId: locationId ? parseInt(locationId as string) : undefined,
+        groupBy: groupBy as string
+      });
+      
+      res.json(analytics);
+    } catch (error) {
+      console.error('Error fetching order analytics:', error);
+      res.status(500).json({ message: 'Failed to fetch order analytics' });
+    }
+  });
+
+  // ================================
+  // END ORDER MANAGEMENT ENDPOINTS
+  // ================================
 
   // Comprehensive Sync Route for All Accounting Data
   app.post('/api/accounting/sync', isAuthenticated, async (req, res) => {
