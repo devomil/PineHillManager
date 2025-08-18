@@ -141,12 +141,18 @@ export function ComprehensiveOrderManagement() {
   // Log API errors and success for debugging
   useEffect(() => {
     if (ordersError) {
-      console.error('Orders API error:', ordersError);
+      console.error('Orders API error - Full details:', {
+        message: ordersError.message,
+        stack: ordersError.stack,
+        name: ordersError.name,
+        cause: ordersError.cause
+      });
+      console.error('Orders URL attempted:', ordersUrl);
     }
     if (ordersData) {
       console.log('Orders API success:', ordersData);
     }
-  }, [ordersError, ordersData]);
+  }, [ordersError, ordersData, ordersUrl]);
 
   // Fetch order analytics
   const analyticsQueryParams = new URLSearchParams();
