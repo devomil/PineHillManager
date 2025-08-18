@@ -281,8 +281,8 @@ export function ComprehensiveOrderManagement() {
         <CardContent className="space-y-4">
           <div className="flex flex-col lg:flex-row gap-4">
             <DateRangePicker
-              date={dateRange}
-              onDateChange={setDateRange}
+              value={dateRange}
+              onChange={setDateRange}
             />
             <div className="flex flex-1 gap-2">
               <Input
@@ -300,7 +300,7 @@ export function ComprehensiveOrderManagement() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Locations</SelectItem>
-                  {locations?.map((location: any) => (
+                  {(locations || []).map((location: any) => (
                     <SelectItem key={location.id} value={location.id.toString()}>
                       {location.merchantName}
                     </SelectItem>

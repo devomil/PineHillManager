@@ -2630,8 +2630,8 @@ export class DatabaseStorage implements IStorage {
         testMode: sql<boolean>`false`,
         taxRemoved: sql<boolean>`false`,
         isVat: sql<boolean>`false`,
-        merchantId: cloverConfig.merchantId,
-        locationName: cloverConfig.merchantName,
+        merchantId: sql<string>`COALESCE(${cloverConfig.merchantId}, '')`,
+        locationName: sql<string>`COALESCE(${cloverConfig.merchantName}, 'Unknown Location')`,
         employee: sql<any>`NULL`,
         orderType: sql<any>`NULL`,
         title: sql<string>`NULL`,
@@ -2719,8 +2719,8 @@ export class DatabaseStorage implements IStorage {
         testMode: sql<boolean>`false`,
         taxRemoved: sql<boolean>`false`,
         isVat: sql<boolean>`false`,
-        merchantId: cloverConfig.merchantId,
-        locationName: cloverConfig.merchantName,
+        merchantId: sql<string>`COALESCE(${cloverConfig.merchantId}, '')`,
+        locationName: sql<string>`COALESCE(${cloverConfig.merchantName}, 'Unknown Location')`,
         paymentMethod: posSales.paymentMethod
       }).from(posSales)
       .leftJoin(cloverConfig, eq(posSales.locationId, cloverConfig.id))
