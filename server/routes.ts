@@ -1595,6 +1595,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Enhanced Revenue Analytics Endpoints with Real Clover Data
   app.get('/api/accounting/analytics/revenue-trends', isAuthenticated, async (req, res) => {
+    // Prevent caching
+    res.set('Cache-Control', 'no-store');
+    
     try {
       const { period = 'monthly', year = new Date().getFullYear(), startDate, endDate } = req.query;
       const { CloverIntegration } = await import('./integrations/clover');
@@ -1808,6 +1811,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Location-specific revenue trends with Real Clover Data
   app.get('/api/accounting/analytics/location-revenue-trends', isAuthenticated, async (req, res) => {
+    // Prevent caching
+    res.set('Cache-Control', 'no-store');
+    
     try {
       const { period = 'monthly', year = new Date().getFullYear(), startDate, endDate } = req.query;
       
