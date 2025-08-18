@@ -1599,6 +1599,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { period = 'monthly', year = new Date().getFullYear(), startDate, endDate } = req.query;
       const { CloverIntegration } = await import('./integrations/clover');
       
+      console.log(`Revenue Trends API called with:`, { period, year, startDate, endDate });
+      
       const currentYear = parseInt(year as string);
       let data = [];
       
@@ -1807,6 +1809,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/accounting/analytics/location-revenue-trends', isAuthenticated, async (req, res) => {
     try {
       const { period = 'monthly', year = new Date().getFullYear(), startDate, endDate } = req.query;
+      
+      console.log(`Location Revenue Trends API called with:`, { period, year, startDate, endDate });
+      
       const currentYear = parseInt(year as string);
       
       // Get all active Clover configurations
