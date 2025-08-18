@@ -1153,6 +1153,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Multi-location analytics endpoint
   app.get('/api/accounting/analytics/multi-location', isAuthenticated, async (req, res) => {
+    console.log('🔥 MULTI-LOCATION ENDPOINT HIT - DEBUG TEST');
     try {
       const { startDate, endDate } = req.query;
       const { db } = await import('./db');
@@ -1595,9 +1596,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Enhanced Revenue Analytics Endpoints with Real Clover Data
   app.get('/api/accounting/analytics/revenue-trends', isAuthenticated, async (req, res) => {
-    console.log('🚀 REVENUE TRENDS ENDPOINT HIT - START OF FUNCTION');
-    // Prevent caching
-    res.set('Cache-Control', 'no-store');
+    console.log('🚀 REVENUE TRENDS ENDPOINT HIT - START OF FUNCTION - TIMESTAMP:', new Date().toISOString());
+    // Prevent caching aggressively
+    res.set({
+      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0',
+      'Surrogate-Control': 'no-store'
+    });
     
     try {
       const { period = 'monthly', year = new Date().getFullYear(), startDate, endDate } = req.query;
