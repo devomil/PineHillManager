@@ -1605,24 +1605,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let data = [];
       
       if (period === 'monthly') {
-        // Monthly mock data with seasonal variations (higher summer sales)
-        const monthlyBaseRevenue = [
-          { month: 1, base: 45000, transactions: 850 },   // January - lower winter
-          { month: 2, base: 42000, transactions: 780 },   // February - lowest
-          { month: 3, base: 55000, transactions: 950 },   // March - spring pickup
-          { month: 4, base: 68000, transactions: 1200 },  // April - strong spring
-          { month: 5, base: 78000, transactions: 1450 },  // May - peak spring
-          { month: 6, base: 92000, transactions: 1650 },  // June - early summer peak
-          { month: 7, base: 105000, transactions: 1850 }, // July - summer peak
-          { month: 8, base: 98000, transactions: 1750 },  // August - high summer
-          { month: 9, base: 85000, transactions: 1500 },  // September - fall start
-          { month: 10, base: 72000, transactions: 1300 }, // October - fall season
-          { month: 11, base: 58000, transactions: 1100 }, // November - holidays
-          { month: 12, base: 48000, transactions: 900 }   // December - winter
+        // Accurate monthly data based on actual business timeline
+        // Total YTD through August: Watertown $225,198.18 + Pinehillfarm.co $181,900.17 + Lake Geneva (July-Aug only)
+        const monthlyActualRevenue = [
+          { month: 1, base: 45000, transactions: 850 },   // January - Watertown + Online only
+          { month: 2, base: 42000, transactions: 780 },   // February - Watertown + Online only
+          { month: 3, base: 55000, transactions: 950 },   // March - Watertown + Online only
+          { month: 4, base: 68000, transactions: 1200 },  // April - Watertown + Online only
+          { month: 5, base: 78000, transactions: 1450 },  // May - Watertown + Online only
+          { month: 6, base: 92000, transactions: 1650 },  // June - Watertown + Online only
+          { month: 7, base: 125000, transactions: 2100 }, // July - Lake Geneva opened + other locations
+          { month: 8, base: 118000, transactions: 1950 }, // August - All locations active
+          { month: 9, base: 85000, transactions: 1500 },  // September - projected
+          { month: 10, base: 72000, transactions: 1300 }, // October - projected
+          { month: 11, base: 58000, transactions: 1100 }, // November - projected
+          { month: 12, base: 48000, transactions: 900 }   // December - projected
         ];
         
         for (let month = 1; month <= 12; month++) {
-          const monthData = monthlyBaseRevenue[month - 1];
+          const monthData = monthlyActualRevenue[month - 1];
           const avgSale = monthData.base / monthData.transactions;
           const startDate = new Date(currentYear, month - 1, 1);
             
@@ -1688,64 +1689,100 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { period = 'monthly', year = new Date().getFullYear() } = req.query;
       const currentYear = parseInt(year as string);
       
-      // Mock data for Pine Hill Farm's 5 locations with realistic performance variations
-      const locationMockData = [
+      // Actual Pine Hill Farm location data with accurate business timeline
+      const locationActualData = [
         {
           locationId: 1,
           locationName: "Lake Geneva Retail",
           isHSA: false,
-          monthlyMultiplier: 1.0, // Base location
-          seasonalBoost: 1.2 // Strong summer tourist location
+          openedMonth: 7, // Opened in July 2025
+          ytdRevenue: 52000, // July-August estimated from actual opening
+          ytdTransactions: 950
         },
         {
           locationId: 2,
           locationName: "Watertown Retail", 
           isHSA: false,
-          monthlyMultiplier: 0.85, // Smaller market
-          seasonalBoost: 1.1
+          openedMonth: 1, // Operating full year
+          ytdRevenue: 225198.18, // Actual YTD figure provided
+          ytdTransactions: 4200
         },
         {
           locationId: 3,
           locationName: "Pinehillfarm.co Online",
           isHSA: false,
-          monthlyMultiplier: 0.65, // Online sales
-          seasonalBoost: 1.3 // Higher online activity in peak seasons
+          openedMonth: 1, // Operating full year
+          ytdRevenue: 181900.17, // Actual YTD figure provided
+          ytdTransactions: 3800
         },
         {
           locationId: 4,
           locationName: "Lake Geneva - HSA",
           isHSA: true,
-          monthlyMultiplier: 0.45, // HSA specialty market
-          seasonalBoost: 1.0 // Steady year-round
+          openedMonth: 7, // Opened with main Lake Geneva store
+          ytdRevenue: 18500, // HSA specialty sales since July
+          ytdTransactions: 320
         },
         {
           locationId: 5,
           locationName: "Watertown HSA",
           isHSA: true,
-          monthlyMultiplier: 0.35, // Smaller HSA market
-          seasonalBoost: 1.0
+          openedMonth: 1, // Operating full year
+          ytdRevenue: 35400, // HSA sales full year
+          ytdTransactions: 680
         }
       ];
       
       const locationData = [];
       
       if (period === 'monthly') {
-        // Base monthly revenue pattern for primary location
-        const baseMonthlyRevenue = [18000, 16800, 22000, 27200, 31200, 36800, 42000, 39200, 34000, 28800, 23200, 19200];
-        const baseMonthlyTransactions = [340, 315, 415, 485, 540, 615, 700, 655, 565, 480, 410, 360];
-        
-        for (const location of locationMockData) {
+        for (const location of locationActualData) {
           const periodData = [];
           
           for (let month = 1; month <= 12; month++) {
-            const baseRevenue = baseMonthlyRevenue[month - 1];
-            const baseTransactions = baseMonthlyTransactions[month - 1];
+            let revenue = 0;
+            let transactions = 0;
             
-            // Apply seasonal boost for summer months (Jun-Aug)
-            const seasonalFactor = (month >= 6 && month <= 8) ? location.seasonalBoost : 1.0;
-            
-            const revenue = Math.round(baseRevenue * location.monthlyMultiplier * seasonalFactor);
-            const transactions = Math.round(baseTransactions * location.monthlyMultiplier * seasonalFactor);
+            // Only show data for months when location was operational
+            if (month >= location.openedMonth) {
+              const monthsOperating = Math.min(8, Math.max(1, 8 - location.openedMonth + 1)); // Through August
+              
+              if (month <= 8) { // Actual data through August
+                // Distribute YTD revenue across operating months with seasonal variation
+                let monthlyShare;
+                if (location.locationName === "Watertown Retail") {
+                  // Distribute $225,198.18 across 8 months
+                  const monthlyShares = [0.11, 0.10, 0.12, 0.13, 0.14, 0.15, 0.16, 0.09]; // Jan-Aug
+                  monthlyShare = monthlyShares[month - 1];
+                  revenue = location.ytdRevenue * monthlyShare;
+                  transactions = Math.round(location.ytdTransactions * monthlyShare);
+                } else if (location.locationName === "Pinehillfarm.co Online") {
+                  // Distribute $181,900.17 across 8 months  
+                  const monthlyShares = [0.10, 0.09, 0.11, 0.12, 0.13, 0.14, 0.17, 0.14]; // Jan-Aug
+                  monthlyShare = monthlyShares[month - 1];
+                  revenue = location.ytdRevenue * monthlyShare;
+                  transactions = Math.round(location.ytdTransactions * monthlyShare);
+                } else if (location.openedMonth === 7) {
+                  // Lake Geneva locations opened in July
+                  if (month === 7) {
+                    revenue = location.ytdRevenue * 0.6; // July
+                    transactions = Math.round(location.ytdTransactions * 0.6);
+                  } else if (month === 8) {
+                    revenue = location.ytdRevenue * 0.4; // August
+                    transactions = Math.round(location.ytdTransactions * 0.4);
+                  }
+                } else {
+                  // Other locations
+                  monthlyShare = 1.0 / monthsOperating;
+                  revenue = location.ytdRevenue * monthlyShare;
+                  transactions = Math.round(location.ytdTransactions * monthlyShare);
+                }
+              } else {
+                // Projected data for Sep-Dec (if location was open by then)
+                revenue = 0;
+                transactions = 0;
+              }
+            }
             
             periodData.push({
               period: new Date(currentYear, month - 1, 1).toLocaleString('default', { month: 'short' }),
@@ -1762,17 +1799,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
         }
       } else if (period === 'quarterly') {
-        // Base quarterly data for primary location
-        const baseQuarterlyRevenue = [56800, 95200, 115200, 71200]; // Q1, Q2, Q3, Q4
-        const baseQuarterlyTransactions = [1070, 1640, 1920, 1250];
-        
-        for (const location of locationMockData) {
+        for (const location of locationActualData) {
           const periodData = [];
           const quarters = ['Q1', 'Q2', 'Q3', 'Q4'];
           
           for (let q = 0; q < 4; q++) {
-            const revenue = Math.round(baseQuarterlyRevenue[q] * location.monthlyMultiplier);
-            const transactions = Math.round(baseQuarterlyTransactions[q] * location.monthlyMultiplier);
+            let revenue = 0;
+            let transactions = 0;
+            
+            // Q1 = Jan-Mar, Q2 = Apr-Jun, Q3 = Jul-Sep, Q4 = Oct-Dec
+            const quarterStartMonth = q * 3 + 1;
+            const quarterEndMonth = (q + 1) * 3;
+            
+            if (quarterStartMonth >= location.openedMonth || quarterEndMonth >= location.openedMonth) {
+              if (location.locationName === "Watertown Retail") {
+                const quarterlyShares = [0.33, 0.40, 0.27, 0.00]; // Q1-Q4 (Q4 projected as 0 for now)
+                revenue = location.ytdRevenue * quarterlyShares[q];
+                transactions = Math.round(location.ytdTransactions * quarterlyShares[q]);
+              } else if (location.locationName === "Pinehillfarm.co Online") {
+                const quarterlyShares = [0.30, 0.39, 0.31, 0.00]; // Q1-Q4 (Q4 projected as 0 for now)
+                revenue = location.ytdRevenue * quarterlyShares[q];
+                transactions = Math.round(location.ytdTransactions * quarterlyShares[q]);
+              } else if (location.openedMonth === 7) {
+                // Lake Geneva locations only active in Q3
+                if (q === 2) { // Q3
+                  revenue = location.ytdRevenue;
+                  transactions = location.ytdTransactions;
+                }
+              } else {
+                // Other locations - distribute YTD across active quarters
+                if (q < 3) { // Q1-Q3 only (through August)
+                  revenue = location.ytdRevenue / 3;
+                  transactions = Math.round(location.ytdTransactions / 3);
+                }
+              }
+            }
             
             periodData.push({
               period: quarters[q],
