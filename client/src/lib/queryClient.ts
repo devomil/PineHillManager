@@ -9,7 +9,7 @@ export const queryClient = new QueryClient({
       staleTime: 0,
       queryFn: async ({ queryKey }) => {
         const url = queryKey[0] as string;
-        console.log('Making request to:', url);
+        console.log('QueryClient: Making request to:', url);
         
         try {
           const response = await fetch(url, {
