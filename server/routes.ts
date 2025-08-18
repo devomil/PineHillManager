@@ -1596,11 +1596,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Enhanced Revenue Analytics Endpoints with Real Clover Data
   app.get('/api/accounting/analytics/revenue-trends', isAuthenticated, async (req, res) => {
     try {
-      const { period = 'monthly', year = new Date().getFullYear() } = req.query;
+      const { period = 'monthly', year = new Date().getFullYear(), startDate, endDate } = req.query;
       const { CloverIntegration } = await import('./integrations/clover');
       
       const currentYear = parseInt(year as string);
       let data = [];
+      
+      // If custom date range is provided, use it instead of period-based filtering
+      if (startDate && endDate) {
+        const start = new Date(startDate as string);
+        const end = new Date(endDate as string);
+        
+        let totalRevenue = 0;
+        let totalTransactions = 0;
+        
+        // Get all active Clover locations
+        const allLocations = await storage.getAllCloverConfigs();
+        const activeLocations = allLocations.filter(config => config.isActive);
+        
+        // Aggregate revenue from all active locations using real Clover data
+        for (const locationConfig of activeLocations) {
+          try {
+            const salesData = await storage.getLocationSalesData(locationConfig.id, start, end);
+            
+            if (salesData && salesData.length > 0) {
+              const locationRevenue = salesData.reduce((sum, sale) => sum + parseFloat(sale.totalAmount), 0);
+              const locationTransactions = salesData.length;
+              
+              totalRevenue += locationRevenue;
+              totalTransactions += locationTransactions;
+            }
+          } catch (error) {
+            console.log(`No sales data for ${locationConfig.merchantName} in date range`);
+          }
+        }
+        
+        const avgSale = totalTransactions > 0 ? totalRevenue / totalTransactions : 0;
+        
+        data.push({
+          period: `${start.toLocaleDateString()} - ${end.toLocaleDateString()}`,
+          revenue: totalRevenue.toFixed(2),
+          transactions: totalTransactions,
+          avgSale: avgSale.toFixed(2)
+        });
+        
+        return res.json({ period: 'custom', data });
+      }
       
       // Get all active Clover locations
       const allLocations = await storage.getAllCloverConfigs();
@@ -1746,7 +1787,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Location-specific revenue trends with Real Clover Data
   app.get('/api/accounting/analytics/location-revenue-trends', isAuthenticated, async (req, res) => {
     try {
-      const { period = 'monthly', year = new Date().getFullYear() } = req.query;
+      const { period = 'monthly', year = new Date().getFullYear(), startDate, endDate } = req.query;
       const currentYear = parseInt(year as string);
       
       // Get all active Clover configurations
@@ -1754,6 +1795,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const activeLocations = allLocations.filter(config => config.isActive);
       
       const locationData = [];
+      
+      // If custom date range is provided, use it instead of period-based filtering
+      if (startDate && endDate) {
+        const start = new Date(startDate as string);
+        const end = new Date(endDate as string);
+        
+        for (const locationConfig of activeLocations) {
+          let revenue = 0;
+          let transactions = 0;
+          
+          try {
+            const salesData = await storage.getLocationSalesData(locationConfig.id, start, end);
+            
+            if (salesData && salesData.length > 0) {
+              revenue = salesData.reduce((sum, sale) => sum + parseFloat(sale.totalAmount), 0);
+              transactions = salesData.length;
+            }
+          } catch (error) {
+            console.log(`No sales data for ${locationConfig.merchantName} in date range`);
+          }
+          
+          locationData.push({
+            locationId: locationConfig.id,
+            locationName: locationConfig.merchantName,
+            isHSA: locationConfig.merchantName.includes('HSA'),
+            data: [{
+              period: `${start.toLocaleDateString()} - ${end.toLocaleDateString()}`,
+              revenue: revenue.toFixed(2),
+              transactions: transactions
+            }]
+          });
+        }
+        
+        return res.json({ period: 'custom', locations: locationData });
+      }
       
       if (period === 'monthly') {
         for (const locationConfig of activeLocations) {

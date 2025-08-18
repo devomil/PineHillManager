@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { DateRangePicker } from '@/components/ui/date-range-picker';
+import { getDateRangeByValue, formatDateForAPI } from '@/lib/date-ranges';
 import { 
   LineChart, 
   Line, 
@@ -71,24 +73,53 @@ export function RevenueAnalytics() {
   const [selectedPeriod, setSelectedPeriod] = useState('monthly');
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
   const [activeTab, setActiveTab] = useState('overview');
+  const [dateRange, setDateRange] = useState('this-year');
+  const [customStartDate, setCustomStartDate] = useState('');
+  const [customEndDate, setCustomEndDate] = useState('');
+
+  // Get date range parameters
+  const getQueryParams = () => {
+    if (dateRange === 'custom' && customStartDate && customEndDate) {
+      return `startDate=${customStartDate}&endDate=${customEndDate}`;
+    }
+    
+    const selectedRange = getDateRangeByValue(dateRange);
+    if (selectedRange) {
+      const startDate = formatDateForAPI(selectedRange.startDate);
+      const endDate = formatDateForAPI(selectedRange.endDate);
+      return `startDate=${startDate}&endDate=${endDate}`;
+    }
+    
+    return `period=${selectedPeriod}&year=${selectedYear}`;
+  };
+
+  // Handle date range changes
+  const handleDateRangeChange = (value: string, startDate: string, endDate: string) => {
+    setDateRange(value);
+    if (value === 'custom') {
+      setCustomStartDate(startDate);
+      setCustomEndDate(endDate);
+    }
+  };
 
   // Overall revenue trends
   const { data: revenueTrends, isLoading: trendsLoading } = useQuery<RevenueTrendsResponse>({
-    queryKey: ['/api/accounting/analytics/revenue-trends', selectedPeriod, selectedYear],
+    queryKey: ['/api/accounting/analytics/revenue-trends', dateRange, customStartDate, customEndDate, selectedPeriod, selectedYear],
     queryFn: async () => {
-      const response = await apiRequest('GET', `/api/accounting/analytics/revenue-trends?period=${selectedPeriod}&year=${selectedYear}`);
+      const params = getQueryParams();
+      const response = await apiRequest('GET', `/api/accounting/analytics/revenue-trends?${params}`);
       return await response.json();
     },
   });
 
   // Location-specific trends
   const { data: locationTrends, isLoading: locationLoading } = useQuery<LocationRevenueTrendsResponse>({
-    queryKey: ['/api/accounting/analytics/location-revenue-trends', selectedPeriod, selectedYear],
+    queryKey: ['/api/accounting/analytics/location-revenue-trends', dateRange, customStartDate, customEndDate, selectedPeriod, selectedYear],
     queryFn: async () => {
-      const response = await apiRequest('GET', `/api/accounting/analytics/location-revenue-trends?period=${selectedPeriod}&year=${selectedYear}`);
+      const params = getQueryParams();
+      const response = await apiRequest('GET', `/api/accounting/analytics/location-revenue-trends?${params}`);
       return await response.json();
     },
-    enabled: selectedPeriod !== 'annual', // Only for monthly/quarterly
   });
 
   const formatCurrency = (value: string | number) => {
@@ -149,7 +180,7 @@ export function RevenueAnalytics() {
           <h3 className="text-2xl font-bold">Revenue Analytics</h3>
           <p className="text-gray-600">Comprehensive revenue tracking across all locations</p>
         </div>
-        <div className="flex gap-4">
+        <div className="flex gap-4 items-center">
           <Button 
             variant="outline" 
             onClick={async () => {
@@ -169,28 +200,43 @@ export function RevenueAnalytics() {
           >
             Pull All Sales Data
           </Button>
-          <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
-            <SelectTrigger className="w-32">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="monthly">Monthly</SelectItem>
-              <SelectItem value="quarterly">Quarterly</SelectItem>
-              <SelectItem value="annual">Annual</SelectItem>
-            </SelectContent>
-          </Select>
-          {selectedPeriod !== 'annual' && (
-            <Select value={selectedYear} onValueChange={setSelectedYear}>
-              <SelectTrigger className="w-20">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {generateYearOptions().map(year => (
-                  <SelectItem key={year} value={year}>{year}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
+          
+          {/* Enhanced Date Range Controls */}
+          <div className="flex gap-2 items-center">
+            <DateRangePicker
+              value={dateRange}
+              onValueChange={handleDateRangeChange}
+              className="w-48"
+            />
+            
+            {/* Fallback controls for non-date range selection */}
+            {dateRange === 'this-year' && (
+              <>
+                <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
+                  <SelectTrigger className="w-32">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="monthly">Monthly</SelectItem>
+                    <SelectItem value="quarterly">Quarterly</SelectItem>
+                    <SelectItem value="annual">Annual</SelectItem>
+                  </SelectContent>
+                </Select>
+                {selectedPeriod !== 'annual' && (
+                  <Select value={selectedYear} onValueChange={setSelectedYear}>
+                    <SelectTrigger className="w-20">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {generateYearOptions().map(year => (
+                        <SelectItem key={year} value={year}>{year}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </>
+            )}
+          </div>
         </div>
       </div>
 
