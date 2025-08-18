@@ -331,8 +331,13 @@ export function ComprehensiveOrderManagement() {
         <CardContent className="space-y-4">
           <div className="flex flex-col lg:flex-row gap-4">
             <DateRangePicker
-              value={dateRange as any}
-              onChange={(range: any) => setDateRange(range)}
+              value="last30days"
+              onValueChange={(value: string, startDate: string, endDate: string) => {
+                setDateRange({
+                  from: new Date(startDate),
+                  to: new Date(endDate)
+                });
+              }}
             />
             <div className="flex flex-1 gap-2">
               <Input

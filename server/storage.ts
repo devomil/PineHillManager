@@ -2660,20 +2660,12 @@ export class DatabaseStorage implements IStorage {
             orderBy: 'modifiedTime DESC'
           };
           
-          // Add date filter if provided
-          if (filters.startDate || filters.endDate) {
-            const dateFilters: string[] = [];
-            if (filters.startDate) {
-              const startTime = Math.floor(new Date(filters.startDate + 'T00:00:00.000Z').getTime());
-              dateFilters.push(`modifiedTime>=${startTime}`);
-            }
-            if (filters.endDate) {
-              const endTime = Math.floor(new Date(filters.endDate + 'T23:59:59.999Z').getTime());
-              dateFilters.push(`modifiedTime<=${endTime}`);
-            }
-            if (dateFilters.length > 0) {
-              options.filter = dateFilters.join(' AND ');
-            }
+          // Add date filter if provided - Use separate range parameters instead of filter
+          if (filters.startDate) {
+            options.modifiedTimeMin = Math.floor(new Date(filters.startDate + 'T00:00:00.000Z').getTime());
+          }
+          if (filters.endDate) {
+            options.modifiedTimeMax = Math.floor(new Date(filters.endDate + 'T23:59:59.999Z').getTime());
           }
           
           // Add state filter
