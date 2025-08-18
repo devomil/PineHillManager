@@ -108,10 +108,10 @@ export function RevenueAnalytics() {
 
   // Overall revenue trends
   const { data: revenueTrends, isLoading: trendsLoading } = useQuery<RevenueTrendsResponse>({
-    queryKey: ['/api/accounting/analytics/revenue-trends', dateRange, customStartDate, customEndDate, selectedPeriod, selectedYear],
+    queryKey: ['/api/accounting/analytics/revenue-trends-live', dateRange, customStartDate, customEndDate, selectedPeriod, selectedYear],
     queryFn: async () => {
       const params = getQueryParams();
-      const response = await apiRequest('GET', `/api/accounting/analytics/revenue-trends?${params}`);
+      const response = await apiRequest('GET', `/api/accounting/analytics/revenue-trends-live?${params}`);
       return await response.json();
     },
   });

@@ -1594,6 +1594,96 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // TEST: Create a new route with different name to bypass any caching issues
+  app.get('/api/accounting/analytics/revenue-trends-live', isAuthenticated, async (req, res) => {
+    console.log('🚀 NEW LIVE REVENUE TRENDS ENDPOINT HIT - START OF FUNCTION - TIMESTAMP:', new Date().toISOString());
+    // Prevent caching aggressively
+    res.set({
+      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0',
+      'Surrogate-Control': 'no-store'
+    });
+    
+    try {
+      const { period = 'monthly', year = new Date().getFullYear(), startDate, endDate } = req.query;
+      console.log('🚀 NEW LIVE REVENUE TRENDS - Query params extracted:', { period, year, startDate, endDate });
+      const { CloverIntegration } = await import('./integrations/clover');
+      
+      console.log(`=== NEW LIVE REVENUE TRENDS API CALLED ===`, { period, year, startDate, endDate });
+      
+      const currentYear = parseInt(year as string);
+      let data = [];
+      
+      // If custom date range is provided, use it instead of period-based filtering
+      if (startDate && endDate) {
+        console.log(`=== NEW LIVE: USING LIVE API DATA FOR CUSTOM DATE RANGE ===`);
+        const start = new Date(startDate as string);
+        const end = new Date(endDate as string);
+        
+        let totalRevenue = 0;
+        let totalTransactions = 0;
+        
+        // Get all active Clover locations
+        const allLocations = await storage.getAllCloverConfigs();
+        const activeLocations = allLocations.filter(config => config.isActive);
+        
+        console.log(`NEW LIVE Revenue Analytics: Fetching live data for ${start.toISOString()} to ${end.toISOString()}`);
+        
+        // Aggregate revenue from all active locations using LIVE Clover API data (same as Order Management)
+        for (const locationConfig of activeLocations) {
+          try {
+            // Use the same live API approach as Order Management
+            const cloverIntegration = new CloverIntegration(locationConfig);
+            const liveOrders = await cloverIntegration.fetchOrders({
+              filter: `modifiedTime>=${Math.floor(start.getTime())}&modifiedTime<=${Math.floor(end.getTime())}`,
+              limit: 1000,
+              offset: 0
+            });
+            
+            if (liveOrders && liveOrders.elements && liveOrders.elements.length > 0) {
+              // Filter orders by date on server-side (same as Order Management fix)
+              const filteredOrders = liveOrders.elements.filter((order: any) => {
+                const orderDate = new Date(order.modifiedTime);
+                return orderDate >= start && orderDate <= end;
+              });
+              
+              const locationRevenue = filteredOrders.reduce((sum: number, order: any) => {
+                const orderTotal = parseFloat(order.total || '0') / 100; // Convert cents to dollars
+                return sum + orderTotal;
+              }, 0);
+              const locationTransactions = filteredOrders.length;
+              
+              totalRevenue += locationRevenue;
+              totalTransactions += locationTransactions;
+              
+              console.log(`NEW LIVE Revenue - ${locationConfig.merchantName}: $${locationRevenue.toFixed(2)} from ${locationTransactions} orders`);
+            }
+          } catch (error) {
+            console.log(`No live sales data for ${locationConfig.merchantName} in date range:`, error);
+          }
+        }
+        
+        const avgSale = totalTransactions > 0 ? totalRevenue / totalTransactions : 0;
+        
+        data.push({
+          period: `${start.toLocaleDateString()} - ${end.toLocaleDateString()}`,
+          revenue: totalRevenue.toFixed(2),
+          transactions: totalTransactions,
+          avgSale: avgSale.toFixed(2)
+        });
+        
+        console.log('NEW LIVE REVENUE TRENDS RETURNING:', { period: 'custom', data });
+        return res.json({ period: 'custom', data });
+      }
+      
+      res.json({ period: 'custom', data: [] });
+    } catch (error) {
+      console.error('NEW LIVE Revenue trends error:', error);
+      res.status(500).json({ error: 'Failed to fetch revenue trends' });
+    }
+  });
+
   // Enhanced Revenue Analytics Endpoints with Real Clover Data
   app.get('/api/accounting/analytics/revenue-trends', isAuthenticated, async (req, res) => {
     console.log('🚀 REVENUE TRENDS ENDPOINT HIT - START OF FUNCTION - TIMESTAMP:', new Date().toISOString());
