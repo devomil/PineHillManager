@@ -2125,7 +2125,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ORDER MANAGEMENT API ENDPOINTS
   // ================================
 
-  // Get orders with comprehensive filtering
+  // Get orders with comprehensive filtering using Clover API
   app.get('/api/orders', isAuthenticated, async (req, res) => {
     try {
       const {
@@ -2140,10 +2140,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const offset = (parseInt(page) - 1) * parseInt(limit);
 
-      const result = await storage.getOrdersWithFiltering({
+      console.log('Fetching orders with filters:', {
+        startDate, endDate, locationId, search, state, page, limit
+      });
+
+      // Use new Clover API method for direct order fetching
+      const result = await storage.getOrdersFromCloverAPI({
         startDate,
         endDate,
-        locationId: locationId && locationId !== 'all' ? parseInt(locationId) : locationId,
+        locationId: locationId && locationId !== 'all' ? locationId : undefined,
         search,
         state,
         limit: parseInt(limit),
@@ -2161,7 +2166,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       });
     } catch (error) {
-      console.error('Error fetching orders:', error);
+      console.error('Error fetching orders from Clover API:', error);
       res.status(500).json({ error: 'Failed to fetch orders' });
     }
   });

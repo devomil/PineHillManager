@@ -453,7 +453,22 @@ export interface IStorage {
   // ORDER MANAGEMENT OPERATIONS
   // ================================
 
-  // Order filtering and retrieval
+  // Order filtering and retrieval using Clover API
+  getOrdersFromCloverAPI(filters: {
+    startDate?: string;
+    endDate?: string;
+    locationId?: number | string;
+    search?: string;
+    state?: string;
+    limit: number;
+    offset: number;
+  }): Promise<{
+    orders: any[];
+    total: number;
+    hasMore: boolean;
+  }>;
+
+  // Order filtering and retrieval (legacy - uses POS sales data)
   getOrdersWithFiltering(filters: {
     startDate?: string;
     endDate?: string;
@@ -2597,6 +2612,119 @@ export class DatabaseStorage implements IStorage {
   // ================================
   // ORDER MANAGEMENT IMPLEMENTATIONS
   // ================================
+
+  // NEW: Fetch orders directly from Clover API
+  async getOrdersFromCloverAPI(filters: {
+    startDate?: string;
+    endDate?: string;
+    locationId?: number | string;
+    search?: string;
+    state?: string;
+    limit: number;
+    offset: number;
+  }): Promise<{
+    orders: any[];
+    total: number;
+    hasMore: boolean;
+  }> {
+    try {
+      const { CloverIntegration } = await import('./integrations/clover');
+      const allOrders: any[] = [];
+      
+      // Get all Clover configurations
+      const cloverConfigs = await this.getAllCloverConfigs();
+      
+      for (const config of cloverConfigs) {
+        // Skip if locationId filter doesn't match
+        if (filters.locationId && filters.locationId !== 'all' && config.id?.toString() !== filters.locationId.toString()) {
+          continue;
+        }
+        
+        const cloverIntegration = new CloverIntegration();
+        cloverIntegration.setConfig(config);
+        
+        try {
+          // Build Clover API options
+          const options: any = {
+            limit: Math.min(filters.limit || 50, 100), // Clover limit
+            offset: filters.offset || 0,
+            expand: 'lineItems,payments',
+            orderBy: 'modifiedTime DESC'
+          };
+          
+          // Add date filter if provided
+          if (filters.startDate || filters.endDate) {
+            const dateFilters: string[] = [];
+            if (filters.startDate) {
+              const startTime = Math.floor(new Date(filters.startDate + 'T00:00:00.000Z').getTime());
+              dateFilters.push(`modifiedTime>=${startTime}`);
+            }
+            if (filters.endDate) {
+              const endTime = Math.floor(new Date(filters.endDate + 'T23:59:59.999Z').getTime());
+              dateFilters.push(`modifiedTime<=${endTime}`);
+            }
+            if (dateFilters.length > 0) {
+              options.filter = dateFilters.join(' AND ');
+            }
+          }
+          
+          // Add state filter
+          if (filters.state && filters.state !== 'all') {
+            const stateFilter = `state='${filters.state}'`;
+            options.filter = options.filter ? `${options.filter} AND ${stateFilter}` : stateFilter;
+          }
+          
+          console.log(`Fetching orders from ${config.merchantName} with options:`, options);
+          const response = await cloverIntegration.fetchOrders(options);
+          
+          if (response?.elements && Array.isArray(response.elements)) {
+            console.log(`Found ${response.elements.length} orders from ${config.merchantName}`);
+            const ordersWithLocation = response.elements.map(order => ({
+              ...order,
+              locationId: config.id,
+              locationName: config.merchantName,
+              merchantId: config.merchantId
+            }));
+            allOrders.push(...ordersWithLocation);
+          }
+        } catch (error) {
+          console.error(`Error fetching orders from location ${config.merchantName}:`, error);
+          // Continue with other locations even if one fails
+        }
+      }
+      
+      // Apply search filter if provided
+      let filteredOrders = allOrders;
+      if (filters.search && filters.search.trim()) {
+        const searchTerm = filters.search.toLowerCase();
+        filteredOrders = allOrders.filter(order => 
+          order.id?.toLowerCase().includes(searchTerm) ||
+          order.lineItems?.some((item: any) => 
+            item.name?.toLowerCase().includes(searchTerm) ||
+            item.item?.name?.toLowerCase().includes(searchTerm)
+          )
+        );
+      }
+      
+      // Sort by modified time (newest first)
+      filteredOrders.sort((a, b) => (b.modifiedTime || 0) - (a.modifiedTime || 0));
+      
+      console.log(`Total orders after filtering: ${filteredOrders.length}`);
+      
+      return {
+        orders: filteredOrders,
+        total: filteredOrders.length,
+        hasMore: filteredOrders.length >= filters.limit
+      };
+    } catch (error) {
+      console.error('Error fetching orders from Clover API:', error);
+      return {
+        orders: [],
+        total: 0,
+        hasMore: false
+      };
+    }
+  }
 
   async getOrdersWithFiltering(filters: {
     startDate?: string;

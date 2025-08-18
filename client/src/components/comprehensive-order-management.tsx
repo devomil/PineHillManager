@@ -151,7 +151,7 @@ export function ComprehensiveOrderManagement() {
   });
 
   // Fetch available locations for filtering
-  const { data: locations } = useQuery({
+  const { data: locations } = useQuery<any[]>({
     queryKey: ['/api/accounting/config/clover/all']
   });
 
@@ -281,8 +281,8 @@ export function ComprehensiveOrderManagement() {
         <CardContent className="space-y-4">
           <div className="flex flex-col lg:flex-row gap-4">
             <DateRangePicker
-              value={dateRange}
-              onChange={setDateRange}
+              value={dateRange as any}
+              onChange={(range: any) => setDateRange(range)}
             />
             <div className="flex flex-1 gap-2">
               <Input

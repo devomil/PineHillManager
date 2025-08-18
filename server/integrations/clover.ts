@@ -74,6 +74,41 @@ export class CloverIntegration {
     }
   }
 
+  // Fetch orders from Clover API
+  async fetchOrders(options: {
+    limit?: number;
+    offset?: number;
+    filter?: string;
+    expand?: string;
+    orderBy?: string;
+    modifiedTime?: string;
+  } = {}): Promise<{ elements: CloverOrder[]; href: string }> {
+    const params = new URLSearchParams();
+    
+    if (options.limit) params.append('limit', options.limit.toString());
+    if (options.offset) params.append('offset', options.offset.toString());
+    if (options.filter) params.append('filter', options.filter);
+    if (options.expand) params.append('expand', options.expand);
+    if (options.orderBy) params.append('orderBy', options.orderBy);
+    if (options.modifiedTime) params.append('modifiedTime', options.modifiedTime);
+
+    const queryString = params.toString();
+    const endpoint = queryString ? `orders?${queryString}` : 'orders';
+    
+    return await this.makeCloverAPICallWithConfig(endpoint, this.config);
+  }
+
+  // Get single order details
+  async getOrderDetails(orderId: string, expand?: string): Promise<CloverOrder> {
+    const params = expand ? `?expand=${expand}` : '';
+    return await this.makeCloverAPICallWithConfig(`orders/${orderId}${params}`, this.config);
+  }
+
+  // Set config for the integration
+  setConfig(config: CloverConfig): void {
+    this.config = config;
+  }
+
   constructor(dbConfig?: any) {
     if (dbConfig) {
       this.config = {
