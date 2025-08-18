@@ -2476,6 +2476,63 @@ export class DatabaseStorage implements IStorage {
     const result = await db.delete(videoAssets).where(eq(videoAssets.id, id));
     return result.rowCount > 0;
   }
+
+  // Revenue Analytics Methods for Real Clover Data
+  async getLocationSalesData(locationId: number, startDate: Date, endDate: Date): Promise<any[]> {
+    try {
+      return await db.select().from(posSales)
+        .where(
+          and(
+            eq(posSales.locationId, locationId),
+            gte(posSales.saleTime, startDate),
+            lte(posSales.saleTime, endDate)
+          )
+        )
+        .orderBy(desc(posSales.saleTime));
+    } catch (error) {
+      console.error(`Error fetching sales data for location ${locationId}:`, error);
+      return [];
+    }
+  }
+
+  async getTotalRevenueBetweenDates(startDate: Date, endDate: Date): Promise<number> {
+    try {
+      const result = await db.select({
+        totalRevenue: sql<number>`COALESCE(SUM(${posSales.totalAmount}::decimal), 0)`
+      }).from(posSales)
+        .where(
+          and(
+            gte(posSales.saleTime, startDate),
+            lte(posSales.saleTime, endDate)
+          )
+        );
+      
+      return parseFloat(result[0]?.totalRevenue?.toString() || '0');
+    } catch (error) {
+      console.error('Error fetching total revenue:', error);
+      return 0;
+    }
+  }
+
+  async getLocationRevenueBetweenDates(locationId: number, startDate: Date, endDate: Date): Promise<number> {
+    try {
+      const result = await db.select({
+        totalRevenue: sql<number>`COALESCE(SUM(${posSales.totalAmount}::decimal), 0)`
+      }).from(posSales)
+        .where(
+          and(
+            eq(posSales.locationId, locationId),
+            gte(posSales.saleTime, startDate),
+            lte(posSales.saleTime, endDate)
+          )
+        );
+      
+      return parseFloat(result[0]?.totalRevenue?.toString() || '0');
+    } catch (error) {
+      console.error(`Error fetching revenue for location ${locationId}:`, error);
+      return 0;
+    }
+  }
 }
 
 export const storage = new DatabaseStorage();

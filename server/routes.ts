@@ -1593,84 +1593,144 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Enhanced Revenue Analytics Endpoints
+  // Enhanced Revenue Analytics Endpoints with Real Clover Data
   app.get('/api/accounting/analytics/revenue-trends', isAuthenticated, async (req, res) => {
     try {
       const { period = 'monthly', year = new Date().getFullYear() } = req.query;
-      const { db } = await import('./db');
-      const { posSales, cloverConfig } = await import('@shared/schema');
-      const { sql, between, eq, gte, lte } = await import('drizzle-orm');
+      const { CloverIntegration } = await import('./integrations/clover');
       
       const currentYear = parseInt(year as string);
       let data = [];
       
+      // Get all active Clover locations
+      const allLocations = await storage.getAllCloverConfigs();
+      const activeLocations = allLocations.filter(config => config.isActive);
+      
       if (period === 'monthly') {
-        // Accurate monthly data based on actual business timeline
-        // Total YTD through August: Watertown $225,198.18 + Pinehillfarm.co $181,900.17 + Lake Geneva (July-Aug only)
-        const monthlyActualRevenue = [
-          { month: 1, base: 45000, transactions: 850 },   // January - Watertown + Online only
-          { month: 2, base: 42000, transactions: 780 },   // February - Watertown + Online only
-          { month: 3, base: 55000, transactions: 950 },   // March - Watertown + Online only
-          { month: 4, base: 68000, transactions: 1200 },  // April - Watertown + Online only
-          { month: 5, base: 78000, transactions: 1450 },  // May - Watertown + Online only
-          { month: 6, base: 92000, transactions: 1650 },  // June - Watertown + Online only
-          { month: 7, base: 125000, transactions: 2100 }, // July - Lake Geneva opened + other locations
-          { month: 8, base: 118000, transactions: 1950 }, // August - All locations active
-          { month: 9, base: 85000, transactions: 1500 },  // September - projected
-          { month: 10, base: 72000, transactions: 1300 }, // October - projected
-          { month: 11, base: 58000, transactions: 1100 }, // November - projected
-          { month: 12, base: 48000, transactions: 900 }   // December - projected
-        ];
-        
         for (let month = 1; month <= 12; month++) {
-          const monthData = monthlyActualRevenue[month - 1];
-          const avgSale = monthData.base / monthData.transactions;
           const startDate = new Date(currentYear, month - 1, 1);
-            
+          const endDate = new Date(currentYear, month, 0); // Last day of month
+          
+          let totalRevenue = 0;
+          let totalTransactions = 0;
+          
+          // Aggregate revenue from all active locations using real Clover data
+          for (const locationConfig of activeLocations) {
+            try {
+              // Skip Lake Geneva locations before July
+              if (locationConfig.merchantName.includes('Lake Geneva') && month < 7) {
+                continue;
+              }
+              
+              const cloverIntegration = new CloverIntegration(locationConfig);
+              const salesData = await storage.getLocationSalesData(locationConfig.id, startDate, endDate);
+              
+              if (salesData && salesData.length > 0) {
+                const locationRevenue = salesData.reduce((sum, sale) => sum + parseFloat(sale.totalAmount), 0);
+                const locationTransactions = salesData.length;
+                
+                totalRevenue += locationRevenue;
+                totalTransactions += locationTransactions;
+              }
+            } catch (error) {
+              console.log(`No sales data for ${locationConfig.merchantName} in ${startDate.toLocaleString('default', { month: 'long' })}`);
+            }
+          }
+          
+          const avgSale = totalTransactions > 0 ? totalRevenue / totalTransactions : 0;
+          
           data.push({
             period: startDate.toLocaleString('default', { month: 'long', year: 'numeric' }),
             month: month,
-            revenue: monthData.base.toFixed(2),
-            transactions: monthData.transactions,
+            revenue: totalRevenue.toFixed(2),
+            transactions: totalTransactions,
             avgSale: avgSale.toFixed(2)
           });
         }
       } else if (period === 'quarterly') {
-        // Quarterly mock data
-        const quarterlyData = [
-          { name: 'Q1', revenue: 142000, transactions: 2580 }, // Jan-Mar
-          { name: 'Q2', revenue: 238000, transactions: 4300 }, // Apr-Jun  
-          { name: 'Q3', revenue: 288000, transactions: 5100 }, // Jul-Sep
-          { name: 'Q4', revenue: 178000, transactions: 3300 }  // Oct-Dec
+        const quarters = [
+          { name: 'Q1', startMonth: 1, endMonth: 3 },
+          { name: 'Q2', startMonth: 4, endMonth: 6 },
+          { name: 'Q3', startMonth: 7, endMonth: 9 },
+          { name: 'Q4', startMonth: 10, endMonth: 12 }
         ];
         
-        for (const quarter of quarterlyData) {
-          const avgSale = quarter.revenue / quarter.transactions;
+        for (const quarter of quarters) {
+          const startDate = new Date(currentYear, quarter.startMonth - 1, 1);
+          const endDate = new Date(currentYear, quarter.endMonth, 0);
+          
+          let totalRevenue = 0;
+          let totalTransactions = 0;
+          
+          for (const locationConfig of activeLocations) {
+            try {
+              // Skip Lake Geneva locations before Q3
+              if (locationConfig.merchantName.includes('Lake Geneva') && quarter.name !== 'Q3' && quarter.name !== 'Q4') {
+                continue;
+              }
+              
+              const salesData = await storage.getLocationSalesData(locationConfig.id, startDate, endDate);
+              
+              if (salesData && salesData.length > 0) {
+                const locationRevenue = salesData.reduce((sum, sale) => sum + parseFloat(sale.totalAmount), 0);
+                const locationTransactions = salesData.length;
+                
+                totalRevenue += locationRevenue;
+                totalTransactions += locationTransactions;
+              }
+            } catch (error) {
+              console.log(`No sales data for ${locationConfig.merchantName} in ${quarter.name}`);
+            }
+          }
+          
+          const avgSale = totalTransactions > 0 ? totalRevenue / totalTransactions : 0;
+          
           data.push({
             period: `${quarter.name} ${currentYear}`,
             quarter: quarter.name,
-            revenue: quarter.revenue.toFixed(2),
-            transactions: quarter.transactions,
+            revenue: totalRevenue.toFixed(2),
+            transactions: totalTransactions,
             avgSale: avgSale.toFixed(2)
           });
         }
       } else if (period === 'annual') {
-        // Annual mock data with growth trend
-        const annualGrowth = [
-          { year: currentYear - 4, revenue: 680000, transactions: 12500 },
-          { year: currentYear - 3, revenue: 720000, transactions: 13200 },
-          { year: currentYear - 2, revenue: 785000, transactions: 14100 },
-          { year: currentYear - 1, revenue: 825000, transactions: 14800 },
-          { year: currentYear, revenue: 846000, transactions: 15280 }
-        ];
-        
-        for (const yearData of annualGrowth) {
-          const avgSale = yearData.revenue / yearData.transactions;
+        // Get annual data for the last 5 years using real data
+        for (let yearOffset = 4; yearOffset >= 0; yearOffset--) {
+          const targetYear = currentYear - yearOffset;
+          const startDate = new Date(targetYear, 0, 1);
+          const endDate = new Date(targetYear, 11, 31);
+          
+          let totalRevenue = 0;
+          let totalTransactions = 0;
+          
+          for (const locationConfig of activeLocations) {
+            try {
+              // Skip Lake Geneva locations before 2025
+              if (locationConfig.merchantName.includes('Lake Geneva') && targetYear < 2025) {
+                continue;
+              }
+              
+              const salesData = await storage.getLocationSalesData(locationConfig.id, startDate, endDate);
+              
+              if (salesData && salesData.length > 0) {
+                const locationRevenue = salesData.reduce((sum, sale) => sum + parseFloat(sale.totalAmount), 0);
+                const locationTransactions = salesData.length;
+                
+                totalRevenue += locationRevenue;
+                totalTransactions += locationTransactions;
+              }
+            } catch (error) {
+              console.log(`No sales data for ${locationConfig.merchantName} in ${targetYear}`);
+            }
+          }
+          
+          const avgSale = totalTransactions > 0 ? totalRevenue / totalTransactions : 0;
+          
           data.push({
-            period: yearData.year.toString(),
-            year: yearData.year,
-            revenue: yearData.revenue.toFixed(2),
-            transactions: yearData.transactions,
+            period: targetYear.toString(),
+            year: targetYear,
+            revenue: totalRevenue.toFixed(2),
+            transactions: totalTransactions,
             avgSale: avgSale.toFixed(2)
           });
         }
@@ -1683,105 +1743,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Location-specific revenue trends
+  // Location-specific revenue trends with Real Clover Data
   app.get('/api/accounting/analytics/location-revenue-trends', isAuthenticated, async (req, res) => {
     try {
       const { period = 'monthly', year = new Date().getFullYear() } = req.query;
       const currentYear = parseInt(year as string);
       
-      // Actual Pine Hill Farm location data with accurate business timeline
-      const locationActualData = [
-        {
-          locationId: 1,
-          locationName: "Lake Geneva Retail",
-          isHSA: false,
-          openedMonth: 7, // Opened in July 2025
-          ytdRevenue: 52000, // July-August estimated from actual opening
-          ytdTransactions: 950
-        },
-        {
-          locationId: 2,
-          locationName: "Watertown Retail", 
-          isHSA: false,
-          openedMonth: 1, // Operating full year
-          ytdRevenue: 225198.18, // Actual YTD figure provided
-          ytdTransactions: 4200
-        },
-        {
-          locationId: 3,
-          locationName: "Pinehillfarm.co Online",
-          isHSA: false,
-          openedMonth: 1, // Operating full year
-          ytdRevenue: 181900.17, // Actual YTD figure provided
-          ytdTransactions: 3800
-        },
-        {
-          locationId: 4,
-          locationName: "Lake Geneva - HSA",
-          isHSA: true,
-          openedMonth: 7, // Opened with main Lake Geneva store
-          ytdRevenue: 18500, // HSA specialty sales since July
-          ytdTransactions: 320
-        },
-        {
-          locationId: 5,
-          locationName: "Watertown HSA",
-          isHSA: true,
-          openedMonth: 1, // Operating full year
-          ytdRevenue: 35400, // HSA sales full year
-          ytdTransactions: 680
-        }
-      ];
+      // Get all active Clover configurations
+      const allLocations = await storage.getAllCloverConfigs();
+      const activeLocations = allLocations.filter(config => config.isActive);
       
       const locationData = [];
       
       if (period === 'monthly') {
-        for (const location of locationActualData) {
+        for (const locationConfig of activeLocations) {
           const periodData = [];
           
           for (let month = 1; month <= 12; month++) {
+            const startDate = new Date(currentYear, month - 1, 1);
+            const endDate = new Date(currentYear, month, 0); // Last day of month
+            
             let revenue = 0;
             let transactions = 0;
             
-            // Only show data for months when location was operational
-            if (month >= location.openedMonth) {
-              const monthsOperating = Math.min(8, Math.max(1, 8 - location.openedMonth + 1)); // Through August
-              
-              if (month <= 8) { // Actual data through August
-                // Distribute YTD revenue across operating months with seasonal variation
-                let monthlyShare;
-                if (location.locationName === "Watertown Retail") {
-                  // Distribute $225,198.18 across 8 months
-                  const monthlyShares = [0.11, 0.10, 0.12, 0.13, 0.14, 0.15, 0.16, 0.09]; // Jan-Aug
-                  monthlyShare = monthlyShares[month - 1];
-                  revenue = location.ytdRevenue * monthlyShare;
-                  transactions = Math.round(location.ytdTransactions * monthlyShare);
-                } else if (location.locationName === "Pinehillfarm.co Online") {
-                  // Distribute $181,900.17 across 8 months  
-                  const monthlyShares = [0.10, 0.09, 0.11, 0.12, 0.13, 0.14, 0.17, 0.14]; // Jan-Aug
-                  monthlyShare = monthlyShares[month - 1];
-                  revenue = location.ytdRevenue * monthlyShare;
-                  transactions = Math.round(location.ytdTransactions * monthlyShare);
-                } else if (location.openedMonth === 7) {
-                  // Lake Geneva locations opened in July
-                  if (month === 7) {
-                    revenue = location.ytdRevenue * 0.6; // July
-                    transactions = Math.round(location.ytdTransactions * 0.6);
-                  } else if (month === 8) {
-                    revenue = location.ytdRevenue * 0.4; // August
-                    transactions = Math.round(location.ytdTransactions * 0.4);
-                  }
-                } else {
-                  // Other locations
-                  monthlyShare = 1.0 / monthsOperating;
-                  revenue = location.ytdRevenue * monthlyShare;
-                  transactions = Math.round(location.ytdTransactions * monthlyShare);
-                }
+            try {
+              // Skip Lake Geneva locations before July 2025
+              if (locationConfig.merchantName.includes('Lake Geneva') && month < 7) {
+                // Leave as 0 for months before opening
               } else {
-                // Projected data for Sep-Dec (if location was open by then)
-                revenue = 0;
-                transactions = 0;
+                // Get real sales data from database (synced from Clover)
+                const salesData = await storage.getLocationSalesData(locationConfig.id, startDate, endDate);
+                
+                if (salesData && salesData.length > 0) {
+                  revenue = salesData.reduce((sum, sale) => sum + parseFloat(sale.totalAmount), 0);
+                  transactions = salesData.length;
+                }
               }
+            } catch (error) {
+              console.log(`No sales data for ${locationConfig.merchantName} in ${startDate.toLocaleString('default', { month: 'long' })}`);
+              // Revenue and transactions remain 0
             }
             
             periodData.push({
@@ -1792,60 +1792,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
           
           locationData.push({
-            locationId: location.locationId,
-            locationName: location.locationName,
-            isHSA: location.isHSA,
+            locationId: locationConfig.id,
+            locationName: locationConfig.merchantName,
+            isHSA: locationConfig.merchantName.includes('HSA'),
             data: periodData
           });
         }
       } else if (period === 'quarterly') {
-        for (const location of locationActualData) {
+        const quarters = [
+          { name: 'Q1', startMonth: 1, endMonth: 3 },
+          { name: 'Q2', startMonth: 4, endMonth: 6 },
+          { name: 'Q3', startMonth: 7, endMonth: 9 },
+          { name: 'Q4', startMonth: 10, endMonth: 12 }
+        ];
+        
+        for (const locationConfig of activeLocations) {
           const periodData = [];
-          const quarters = ['Q1', 'Q2', 'Q3', 'Q4'];
           
-          for (let q = 0; q < 4; q++) {
+          for (const quarter of quarters) {
+            const startDate = new Date(currentYear, quarter.startMonth - 1, 1);
+            const endDate = new Date(currentYear, quarter.endMonth, 0);
+            
             let revenue = 0;
             let transactions = 0;
             
-            // Q1 = Jan-Mar, Q2 = Apr-Jun, Q3 = Jul-Sep, Q4 = Oct-Dec
-            const quarterStartMonth = q * 3 + 1;
-            const quarterEndMonth = (q + 1) * 3;
-            
-            if (quarterStartMonth >= location.openedMonth || quarterEndMonth >= location.openedMonth) {
-              if (location.locationName === "Watertown Retail") {
-                const quarterlyShares = [0.33, 0.40, 0.27, 0.00]; // Q1-Q4 (Q4 projected as 0 for now)
-                revenue = location.ytdRevenue * quarterlyShares[q];
-                transactions = Math.round(location.ytdTransactions * quarterlyShares[q]);
-              } else if (location.locationName === "Pinehillfarm.co Online") {
-                const quarterlyShares = [0.30, 0.39, 0.31, 0.00]; // Q1-Q4 (Q4 projected as 0 for now)
-                revenue = location.ytdRevenue * quarterlyShares[q];
-                transactions = Math.round(location.ytdTransactions * quarterlyShares[q]);
-              } else if (location.openedMonth === 7) {
-                // Lake Geneva locations only active in Q3
-                if (q === 2) { // Q3
-                  revenue = location.ytdRevenue;
-                  transactions = location.ytdTransactions;
-                }
+            try {
+              // Skip Lake Geneva locations before Q3 2025
+              if (locationConfig.merchantName.includes('Lake Geneva') && quarter.name !== 'Q3' && quarter.name !== 'Q4') {
+                // Leave as 0 for quarters before opening
               } else {
-                // Other locations - distribute YTD across active quarters
-                if (q < 3) { // Q1-Q3 only (through August)
-                  revenue = location.ytdRevenue / 3;
-                  transactions = Math.round(location.ytdTransactions / 3);
+                // Get real sales data from database (synced from Clover)
+                const salesData = await storage.getLocationSalesData(locationConfig.id, startDate, endDate);
+                
+                if (salesData && salesData.length > 0) {
+                  revenue = salesData.reduce((sum, sale) => sum + parseFloat(sale.totalAmount), 0);
+                  transactions = salesData.length;
                 }
               }
+            } catch (error) {
+              console.log(`No sales data for ${locationConfig.merchantName} in ${quarter.name}`);
+              // Revenue and transactions remain 0
             }
             
             periodData.push({
-              period: quarters[q],
+              period: quarter.name,
               revenue: revenue.toFixed(2),
               transactions: transactions
             });
           }
           
           locationData.push({
-            locationId: location.locationId,
-            locationName: location.locationName,
-            isHSA: location.isHSA,
+            locationId: locationConfig.id,
+            locationName: locationConfig.merchantName,
+            isHSA: locationConfig.merchantName.includes('HSA'),
             data: periodData
           });
         }
