@@ -122,12 +122,19 @@ export function ComprehensiveOrderManagement() {
   const queryClient = useQueryClient();
 
   // Fetch orders with filtering
+  const ordersQueryParams = new URLSearchParams();
+  if (dateRange.from) ordersQueryParams.set('startDate', format(dateRange.from, 'yyyy-MM-dd'));
+  if (dateRange.to) ordersQueryParams.set('endDate', format(dateRange.to, 'yyyy-MM-dd'));
+  ordersQueryParams.set('search', filters.search);
+  ordersQueryParams.set('locationId', filters.locationId);
+  ordersQueryParams.set('state', filters.state);
+  ordersQueryParams.set('page', filters.page.toString());
+  ordersQueryParams.set('limit', filters.limit.toString());
+
+  const ordersUrl = `/api/orders?${ordersQueryParams.toString()}`;
+  
   const { data: ordersData, isLoading: ordersLoading, error: ordersError } = useQuery<OrdersResponse>({
-    queryKey: ['/api/orders', {
-      startDate: dateRange.from ? format(dateRange.from, 'yyyy-MM-dd') : undefined,
-      endDate: dateRange.to ? format(dateRange.to, 'yyyy-MM-dd') : undefined,
-      ...filters
-    }],
+    queryKey: [ordersUrl],
     refetchInterval: 30000, // Refresh every 30 seconds for real-time updates
   });
 
@@ -142,22 +149,28 @@ export function ComprehensiveOrderManagement() {
   }, [ordersError, ordersData]);
 
   // Fetch order analytics
+  const analyticsQueryParams = new URLSearchParams();
+  if (dateRange.from) analyticsQueryParams.set('startDate', format(dateRange.from, 'yyyy-MM-dd'));
+  if (dateRange.to) analyticsQueryParams.set('endDate', format(dateRange.to, 'yyyy-MM-dd'));
+  analyticsQueryParams.set('locationId', filters.locationId);
+  analyticsQueryParams.set('groupBy', 'day');
+
+  const analyticsUrl = `/api/orders/analytics?${analyticsQueryParams.toString()}`;
+
   const { data: analyticsData, isLoading: analyticsLoading } = useQuery<OrderAnalyticsResponse>({
-    queryKey: ['/api/orders/analytics', {
-      startDate: dateRange.from ? format(dateRange.from, 'yyyy-MM-dd') : undefined,
-      endDate: dateRange.to ? format(dateRange.to, 'yyyy-MM-dd') : undefined,
-      locationId: filters.locationId,
-      groupBy: 'day'
-    }]
+    queryKey: [analyticsUrl]
   });
 
   // Fetch voided items
+  const voidedQueryParams = new URLSearchParams();
+  if (dateRange.from) voidedQueryParams.set('startDate', format(dateRange.from, 'yyyy-MM-dd'));
+  if (dateRange.to) voidedQueryParams.set('endDate', format(dateRange.to, 'yyyy-MM-dd'));
+  voidedQueryParams.set('locationId', filters.locationId);
+
+  const voidedUrl = `/api/orders/voided-items?${voidedQueryParams.toString()}`;
+
   const { data: voidedData, isLoading: voidedLoading } = useQuery<VoidedItemsResponse>({
-    queryKey: ['/api/orders/voided-items', {
-      startDate: dateRange.from ? format(dateRange.from, 'yyyy-MM-dd') : undefined,
-      endDate: dateRange.to ? format(dateRange.to, 'yyyy-MM-dd') : undefined,
-      locationId: filters.locationId
-    }]
+    queryKey: [voidedUrl]
   });
 
   // Fetch available locations for filtering

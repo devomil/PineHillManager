@@ -1,0 +1,24 @@
+Orders API error: 
+Error {}
+
+at t.value (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:17465)
+at new t (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:12630)
+at t.value (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:32766)
+at https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:34400
+Orders API error: 
+Error {}
+
+at t.value (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:17465)
+at new t (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:12630)
+at t.value (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:32766)
+at https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:34400
+Orders API error: 
+Error {}
+message: "Missing queryFn: '["/api/orders",{"endDate":"2025-08-18","limit":20,"locationId":"all","page":1,"search":"","startDate":"2025-07-19","state":"all"}]'"
+stack: "Error: Missing queryFn: '["/api/orders",{"endDate":"2025-08-18","limit":20,"locationId":"all","page":1,"search":"","startDate":"2025-07-19","state":"all"}]'↵ at https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@tanstack_react-query.js?v=e782062e:255:33↵ at Object.fetchFn [as fn] (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@tanstack_react-query.js?v=e782062e:840:14)↵ at run (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@tanstack_react-query.js?v=e782062e:494:49)↵ at Object.start (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@tanstack_react-query.js?v=e782062e:536:9)↵ at _a4.fetch (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@tanstack_react-query.js?v=e782062e:926:41)↵ at _a9.executeFetch_fn (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@tanstack_react-query.js?v=e782062e:2211:51)↵ at https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@tanstack_react-query.js?v=e782062e:2245:72"
+get stack: ƒ ()
+set stack: ƒ ()
+length: 1
+name: ""
+[[Prototype]]: ƒ ()
+[[Prototype]]: Object
