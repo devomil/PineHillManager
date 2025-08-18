@@ -135,6 +135,13 @@ export function ComprehensiveOrderManagement() {
   
   const { data: ordersData, isLoading: ordersLoading, error: ordersError } = useQuery<OrdersResponse>({
     queryKey: [ordersUrl],
+    queryFn: async () => {
+      const response = await fetch(ordersUrl);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch orders: ${response.status} ${response.statusText}`);
+      }
+      return response.json();
+    },
     refetchInterval: 30000, // Refresh every 30 seconds for real-time updates
   });
 
@@ -164,7 +171,14 @@ export function ComprehensiveOrderManagement() {
   const analyticsUrl = `/api/orders/analytics?${analyticsQueryParams.toString()}`;
 
   const { data: analyticsData, isLoading: analyticsLoading } = useQuery<OrderAnalyticsResponse>({
-    queryKey: [analyticsUrl]
+    queryKey: [analyticsUrl],
+    queryFn: async () => {
+      const response = await fetch(analyticsUrl);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch order analytics: ${response.status} ${response.statusText}`);
+      }
+      return response.json();
+    }
   });
 
   // Fetch voided items
@@ -176,7 +190,14 @@ export function ComprehensiveOrderManagement() {
   const voidedUrl = `/api/orders/voided-items?${voidedQueryParams.toString()}`;
 
   const { data: voidedData, isLoading: voidedLoading } = useQuery<VoidedItemsResponse>({
-    queryKey: [voidedUrl]
+    queryKey: [voidedUrl],
+    queryFn: async () => {
+      const response = await fetch(voidedUrl);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch voided items: ${response.status} ${response.statusText}`);
+      }
+      return response.json();
+    }
   });
 
   // Fetch available locations for filtering

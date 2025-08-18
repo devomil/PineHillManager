@@ -112,9 +112,9 @@ export class CloverIntegration {
   constructor(dbConfig?: any) {
     if (dbConfig) {
       this.config = {
-        merchantId: dbConfig.merchantId,
-        accessToken: dbConfig.apiToken,
-        baseUrl: dbConfig.baseUrl || 'https://api.clover.com'
+        merchantId: dbConfig.merchantId || dbConfig.merchant_id,
+        accessToken: dbConfig.apiToken || dbConfig.api_token,
+        baseUrl: dbConfig.baseUrl || dbConfig.base_url || 'https://api.clover.com'
       };
     } else {
       this.config = {
@@ -129,7 +129,7 @@ export class CloverIntegration {
   private async makeCloverAPICallWithConfig(endpoint: string, config: any, method: 'GET' | 'POST' = 'GET'): Promise<any> {
     try {
       
-      if (!config || !config.apiToken) {
+      if (!config || !config.accessToken) {
         throw new Error('Clover not configured');
       }
 
@@ -139,12 +139,12 @@ export class CloverIntegration {
       console.log(`Making Clover API call to: ${url}`);
       console.log(`Using merchant ID: ${config.merchantId}`);
       console.log(`Using base URL: ${baseUrl}`);
-      console.log(`Using API token: ${config.apiToken?.substring(0, 8)}...${config.apiToken?.slice(-4)}`);
+      console.log(`Using API token: ${config.accessToken?.substring(0, 8)}...${config.accessToken?.slice(-4)}`);
       
       const response = await fetch(url, {
         method,
         headers: {
-          'Authorization': `Bearer ${config.apiToken}`,
+          'Authorization': `Bearer ${config.accessToken}`,
           'Accept': 'application/json',
           'Content-Type': 'application/json'
         }
