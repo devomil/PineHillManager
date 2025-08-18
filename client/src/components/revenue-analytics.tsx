@@ -150,6 +150,25 @@ export function RevenueAnalytics() {
           <p className="text-gray-600">Comprehensive revenue tracking across all locations</p>
         </div>
         <div className="flex gap-4">
+          <Button 
+            variant="outline" 
+            onClick={async () => {
+              try {
+                const response = await apiRequest('POST', '/api/integrations/clover/sync/historical-all', {
+                  startDate: '2025-01-01',
+                  endDate: '2025-08-18'
+                });
+                console.log('Comprehensive sync completed:', response);
+                // Refresh the analytics data
+                window.location.reload();
+              } catch (error) {
+                console.error('Sync failed:', error);
+              }
+            }}
+            className="bg-blue-600 hover:bg-blue-700 text-white"
+          >
+            Pull All Sales Data
+          </Button>
           <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
             <SelectTrigger className="w-32">
               <SelectValue />

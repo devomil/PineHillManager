@@ -1933,6 +1933,62 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Comprehensive historical sync for all Clover locations
+  app.post('/api/integrations/clover/sync/historical-all', isAuthenticated, async (req, res) => {
+    try {
+      const { startDate, endDate } = req.body;
+      
+      const allConfigs = await storage.getAllCloverConfigs();
+      const activeConfigs = allConfigs.filter(config => config.isActive);
+      
+      if (activeConfigs.length === 0) {
+        return res.status(400).json({ message: 'No active Clover configurations found' });
+      }
+
+      const syncResults = [];
+      
+      for (const config of activeConfigs) {
+        try {
+          console.log(`Starting comprehensive historical sync for ${config.merchantName}`);
+          
+          const { CloverIntegration } = await import('./integrations/clover');
+          const cloverIntegration = new CloverIntegration(config);
+          
+          await cloverIntegration.syncHistoricalSales(
+            config,
+            startDate ? new Date(startDate) : new Date('2025-01-01'),
+            endDate ? new Date(endDate) : new Date()
+          );
+          
+          syncResults.push({
+            merchantId: config.merchantId,
+            merchantName: config.merchantName,
+            success: true,
+            message: 'Historical sync completed successfully'
+          });
+        } catch (error) {
+          console.error(`Historical sync failed for ${config.merchantName}:`, error);
+          syncResults.push({
+            merchantId: config.merchantId,
+            merchantName: config.merchantName,
+            success: false,
+            message: `Sync failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+          });
+        }
+      }
+
+      res.json({
+        message: 'Comprehensive historical sync completed',
+        results: syncResults,
+        totalConfigs: activeConfigs.length,
+        successCount: syncResults.filter(r => r.success).length
+      });
+    } catch (error) {
+      console.error('Error in comprehensive historical sync:', error);
+      res.status(500).json({ message: 'Failed to run comprehensive historical sync' });
+    }
+  });
+
   // Sync all Clover locations
   app.post('/api/integrations/clover/sync/all-locations', isAuthenticated, async (req, res) => {
     try {
