@@ -222,6 +222,72 @@ function AccountingContent() {
           </div>
         </div>
 
+        {/* Main Dashboard Navigation */}
+        <div className="border-b border-gray-200">
+          <nav className="-mb-px flex space-x-8">
+            <button
+              onClick={() => setActiveSection('overview')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                activeSection === 'overview'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Overview
+            </button>
+            <button
+              onClick={() => setActiveSection('accounts')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                activeSection === 'accounts'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Chart of Accounts
+            </button>
+            <button
+              onClick={() => setActiveSection('transactions')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                activeSection === 'transactions'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Transactions
+            </button>
+            <button
+              onClick={() => setActiveSection('reports')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                activeSection === 'reports'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Reports
+            </button>
+            <button
+              onClick={() => setActiveSection('analytics')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                activeSection === 'analytics'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Revenue Analytics
+            </button>
+            <button
+              onClick={() => setActiveSection('integrations')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                activeSection === 'integrations'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Integrations
+            </button>
+          </nav>
+        </div>
+
         {/* Multi-Location Overview */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
           <Card>
@@ -416,72 +482,8 @@ function AccountingContent() {
           </CardContent>
         </Card>
 
-        {/* Main Dashboard Navigation */}
+        {/* Dashboard Content Sections */}
         <div className="space-y-6">
-          <div className="border-b border-gray-200">
-            <nav className="-mb-px flex space-x-8">
-              <button
-                onClick={() => setActiveSection('overview')}
-                className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                  activeSection === 'overview'
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                Overview
-              </button>
-              <button
-                onClick={() => setActiveSection('accounts')}
-                className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                  activeSection === 'accounts'
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                Chart of Accounts
-              </button>
-              <button
-                onClick={() => setActiveSection('transactions')}
-                className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                  activeSection === 'transactions'
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                Transactions
-              </button>
-              <button
-                onClick={() => setActiveSection('reports')}
-                className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                  activeSection === 'reports'
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                Reports
-              </button>
-              <button
-                onClick={() => setActiveSection('analytics')}
-                className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                  activeSection === 'analytics'
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                Revenue Analytics
-              </button>
-              <button
-                onClick={() => setActiveSection('integrations')}
-                className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                  activeSection === 'integrations'
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                Integrations
-              </button>
-            </nav>
-          </div>
 
           {/* Overview Section */}
           {activeSection === 'overview' && (

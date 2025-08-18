@@ -3,8 +3,16 @@
 ## Overview
 The Pine Hill Farm Employee Management System is a comprehensive business management platform designed to streamline operations for employees, managers, and administrators. Built with React (Vite), Express.js, and PostgreSQL, its core purpose is to provide role-based access for time tracking, scheduling, communication, support ticket management, and robust accounting. The system aims to integrate essential business tools like QuickBooks, Clover POS, HSA providers, and Thrive inventory to offer an all-in-one solution for farm management, enhancing efficiency and oversight across all departments.
 
-## Recent Changes (August 14, 2025)
-**Multi-Location Clover API Integration - CRITICAL FIX COMPLETED**
+## Recent Changes (August 18, 2025)
+**Revenue Analytics Dashboard & Navigation Enhancement - COMPLETED**
+- COMPLETED: Enhanced Revenue Analytics with comprehensive visual charts for monthly, quarterly, and annual tracking
+- ADDED: /api/accounting/analytics/revenue-trends endpoint for historical data analysis across all periods
+- ADDED: /api/accounting/analytics/location-revenue-trends for detailed multi-location comparison analytics
+- BUILT: Interactive Revenue Analytics tab with Recharts visualizations displaying real revenue data
+- INTEGRATED: HSA badge indicators and location-specific performance metrics throughout analytics
+- REPOSITIONED: Navigation tabs (Overview, Chart of Accounts, Transactions, Reports, Revenue Analytics, Integrations) moved to top of accounting dashboard for improved UX
+
+**Previous Multi-Location Clover API Integration (August 14, 2025)**
 - RESOLVED: Multi-location sync API token issue where all locations were using same Lake Geneva token
 - Updated database with unique API tokens for each location:
   * Lake Geneva Retail (MID: 2DWZED6B4ZVF1): Token ending in 365f
