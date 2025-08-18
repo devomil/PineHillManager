@@ -2640,8 +2640,16 @@ export class DatabaseStorage implements IStorage {
           continue;
         }
         
+        // Map database fields to CloverConfig interface
+        const cloverConfig = {
+          id: config.id,
+          merchantId: config.merchantId,
+          accessToken: config.apiToken, // Map apiToken to accessToken
+          baseUrl: config.baseUrl || 'https://api.clover.com'
+        };
+        
         const cloverIntegration = new CloverIntegration();
-        cloverIntegration.setConfig(config);
+        cloverIntegration.setConfig(cloverConfig);
         
         try {
           // Build Clover API options
