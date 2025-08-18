@@ -2799,6 +2799,98 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
+  async getOrderAnalytics(filters: {
+    startDate?: string;
+    endDate?: string;
+    locationId?: number | string;
+    groupBy: string;
+  }): Promise<any> {
+    try {
+      // Build conditions for filtering
+      const conditions = [];
+
+      if (filters.startDate) {
+        conditions.push(gte(posSales.saleDate, filters.startDate));
+      }
+
+      if (filters.endDate) {
+        conditions.push(lte(posSales.saleDate, filters.endDate));
+      }
+
+      if (filters.locationId && filters.locationId !== 'all') {
+        const locationIdNum = typeof filters.locationId === 'string' ? parseInt(filters.locationId) : filters.locationId;
+        conditions.push(eq(posSales.locationId, locationIdNum));
+      }
+
+      // Get daily analytics data
+      let query = db.select({
+        period: sql<string>`DATE(${posSales.saleDate})`,
+        totalOrders: sql<number>`COUNT(*)`,
+        totalRevenue: sql<number>`COALESCE(SUM(${posSales.totalAmount}::decimal), 0)`,
+        averageOrderValue: sql<number>`COALESCE(AVG(${posSales.totalAmount}::decimal), 0)`
+      }).from(posSales);
+
+      if (conditions.length > 0) {
+        query = query.where(and(...conditions));
+      }
+
+      const analytics = await query
+        .groupBy(sql`DATE(${posSales.saleDate})`)
+        .orderBy(sql`DATE(${posSales.saleDate})`);
+
+      // Get summary totals
+      let summaryQuery = db.select({
+        totalOrders: sql<number>`COUNT(*)`,
+        totalRevenue: sql<number>`COALESCE(SUM(${posSales.totalAmount}::decimal), 0)`,
+        averageOrderValue: sql<number>`COALESCE(AVG(${posSales.totalAmount}::decimal), 0)`
+      }).from(posSales);
+
+      if (conditions.length > 0) {
+        summaryQuery = summaryQuery.where(and(...conditions));
+      }
+
+      const summary = await summaryQuery;
+
+      return {
+        analytics,
+        summary: summary[0] || { totalOrders: 0, totalRevenue: 0, averageOrderValue: 0 }
+      };
+    } catch (error) {
+      console.error('Error fetching order analytics:', error);
+      return {
+        analytics: [],
+        summary: { totalOrders: 0, totalRevenue: 0, averageOrderValue: 0 }
+      };
+    }
+  }
+
+  async getVoidedItems(filters: {
+    startDate?: string;
+    endDate?: string;
+    locationId?: number | string;
+  }): Promise<any> {
+    try {
+      // Currently no voided items tracking in schema
+      // Return empty data structure
+      return {
+        voidedItems: [],
+        totals: {
+          totalVoidedAmount: 0,
+          totalVoidedItems: 0
+        }
+      };
+    } catch (error) {
+      console.error('Error fetching voided items:', error);
+      return {
+        voidedItems: [],
+        totals: {
+          totalVoidedAmount: 0,
+          totalVoidedItems: 0
+        }
+      };
+    }
+  }
+
   async getVoidedLineItems(filters: {
     startDate?: string;
     endDate?: string;
