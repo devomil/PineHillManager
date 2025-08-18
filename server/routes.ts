@@ -1594,7 +1594,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // TEST: Create a new route with different name to bypass any caching issues
+  // TEMPORARY WORKING SOLUTION: Simple revenue trends endpoint without complex TypeScript issues
   app.get('/api/accounting/analytics/revenue-trends-live', isAuthenticated, async (req, res) => {
     console.log('🚀 NEW LIVE REVENUE TRENDS ENDPOINT HIT - START OF FUNCTION - TIMESTAMP:', new Date().toISOString());
     // Prevent caching aggressively
@@ -1657,7 +1657,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               totalRevenue += locationRevenue;
               totalTransactions += locationTransactions;
               
-              console.log(`NEW LIVE Revenue - ${locationConfig.merchantName}: $${locationRevenue.toFixed(2)} from ${locationTransactions} orders`);
+              console.log(`NEW LIVE Revenue - ${locationConfig.merchantName || 'Unknown'}: $${locationRevenue.toFixed(2)} from ${locationTransactions} orders`);
             }
           } catch (error) {
             console.log(`No live sales data for ${locationConfig.merchantName} in date range:`, error);

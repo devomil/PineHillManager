@@ -111,8 +111,11 @@ export function RevenueAnalytics() {
     queryKey: ['/api/accounting/analytics/revenue-trends-live', dateRange, customStartDate, customEndDate, selectedPeriod, selectedYear],
     queryFn: async () => {
       const params = getQueryParams();
+      console.log('🔍 DEBUG: About to call revenue-trends-live with params:', params.toString());
       const response = await apiRequest('GET', `/api/accounting/analytics/revenue-trends-live?${params}`);
-      return await response.json();
+      const result = await response.json();
+      console.log('🔍 DEBUG: Revenue trends live response:', result);
+      return result;
     },
   });
 
