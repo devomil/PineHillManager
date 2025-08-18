@@ -2679,6 +2679,16 @@ export class DatabaseStorage implements IStorage {
           
           if (response?.elements && Array.isArray(response.elements)) {
             console.log(`Found ${response.elements.length} orders from ${config.merchantName}`);
+            
+            // Debug: Check the dates of returned orders to verify filtering is working
+            if (response.elements.length > 0) {
+              const firstOrder = response.elements[0];
+              const lastOrder = response.elements[response.elements.length - 1];
+              console.log(`First order modified: ${new Date(firstOrder.modifiedTime).toISOString()}`);
+              console.log(`Last order modified: ${new Date(lastOrder.modifiedTime).toISOString()}`);
+              console.log(`Expected range: ${new Date(options.modifiedTimeMin).toISOString()} to ${new Date(options.modifiedTimeMax).toISOString()}`);
+            }
+            
             const ordersWithLocation = response.elements.map(order => ({
               ...order,
               locationId: config.id,
