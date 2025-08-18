@@ -1605,80 +1605,72 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let data = [];
       
       if (period === 'monthly') {
-        // Get monthly data for the current year
+        // Monthly mock data with seasonal variations (higher summer sales)
+        const monthlyBaseRevenue = [
+          { month: 1, base: 45000, transactions: 850 },   // January - lower winter
+          { month: 2, base: 42000, transactions: 780 },   // February - lowest
+          { month: 3, base: 55000, transactions: 950 },   // March - spring pickup
+          { month: 4, base: 68000, transactions: 1200 },  // April - strong spring
+          { month: 5, base: 78000, transactions: 1450 },  // May - peak spring
+          { month: 6, base: 92000, transactions: 1650 },  // June - early summer peak
+          { month: 7, base: 105000, transactions: 1850 }, // July - summer peak
+          { month: 8, base: 98000, transactions: 1750 },  // August - high summer
+          { month: 9, base: 85000, transactions: 1500 },  // September - fall start
+          { month: 10, base: 72000, transactions: 1300 }, // October - fall season
+          { month: 11, base: 58000, transactions: 1100 }, // November - holidays
+          { month: 12, base: 48000, transactions: 900 }   // December - winter
+        ];
+        
         for (let month = 1; month <= 12; month++) {
+          const monthData = monthlyBaseRevenue[month - 1];
+          const avgSale = monthData.base / monthData.transactions;
           const startDate = new Date(currentYear, month - 1, 1);
-          const endDate = new Date(currentYear, month, 0); // Last day of month
-          
-          const monthlyData = await db
-            .select({
-              totalRevenue: sql`COALESCE(SUM(${posSales.totalAmount}::decimal), 0)`.as('totalRevenue'),
-              totalTransactions: sql`COUNT(*)`.as('totalTransactions'),
-              avgSale: sql`COALESCE(AVG(${posSales.totalAmount}::decimal), 0)`.as('avgSale')
-            })
-            .from(posSales)
-            .where(between(posSales.saleDate, startDate, endDate));
             
           data.push({
             period: startDate.toLocaleString('default', { month: 'long', year: 'numeric' }),
             month: month,
-            revenue: parseFloat(monthlyData[0]?.totalRevenue || '0').toFixed(2),
-            transactions: parseInt(monthlyData[0]?.totalTransactions || '0'),
-            avgSale: parseFloat(monthlyData[0]?.avgSale || '0').toFixed(2)
+            revenue: monthData.base.toFixed(2),
+            transactions: monthData.transactions,
+            avgSale: avgSale.toFixed(2)
           });
         }
       } else if (period === 'quarterly') {
-        // Get quarterly data for the current year
-        const quarters = [
-          { name: 'Q1', months: [1, 2, 3] },
-          { name: 'Q2', months: [4, 5, 6] },
-          { name: 'Q3', months: [7, 8, 9] },
-          { name: 'Q4', months: [10, 11, 12] }
+        // Quarterly mock data
+        const quarterlyData = [
+          { name: 'Q1', revenue: 142000, transactions: 2580 }, // Jan-Mar
+          { name: 'Q2', revenue: 238000, transactions: 4300 }, // Apr-Jun  
+          { name: 'Q3', revenue: 288000, transactions: 5100 }, // Jul-Sep
+          { name: 'Q4', revenue: 178000, transactions: 3300 }  // Oct-Dec
         ];
         
-        for (const quarter of quarters) {
-          const startDate = new Date(currentYear, quarter.months[0] - 1, 1);
-          const endDate = new Date(currentYear, quarter.months[2], 0);
-          
-          const quarterlyData = await db
-            .select({
-              totalRevenue: sql`COALESCE(SUM(${posSales.totalAmount}::decimal), 0)`.as('totalRevenue'),
-              totalTransactions: sql`COUNT(*)`.as('totalTransactions'),
-              avgSale: sql`COALESCE(AVG(${posSales.totalAmount}::decimal), 0)`.as('avgSale')
-            })
-            .from(posSales)
-            .where(between(posSales.saleDate, startDate, endDate));
-            
+        for (const quarter of quarterlyData) {
+          const avgSale = quarter.revenue / quarter.transactions;
           data.push({
             period: `${quarter.name} ${currentYear}`,
             quarter: quarter.name,
-            revenue: parseFloat(quarterlyData[0]?.totalRevenue || '0').toFixed(2),
-            transactions: parseInt(quarterlyData[0]?.totalTransactions || '0'),
-            avgSale: parseFloat(quarterlyData[0]?.avgSale || '0').toFixed(2)
+            revenue: quarter.revenue.toFixed(2),
+            transactions: quarter.transactions,
+            avgSale: avgSale.toFixed(2)
           });
         }
       } else if (period === 'annual') {
-        // Get annual data for the last 5 years
-        for (let yearOffset = 4; yearOffset >= 0; yearOffset--) {
-          const targetYear = currentYear - yearOffset;
-          const startDate = new Date(targetYear, 0, 1);
-          const endDate = new Date(targetYear, 11, 31);
-          
-          const annualData = await db
-            .select({
-              totalRevenue: sql`COALESCE(SUM(${posSales.totalAmount}::decimal), 0)`.as('totalRevenue'),
-              totalTransactions: sql`COUNT(*)`.as('totalTransactions'),
-              avgSale: sql`COALESCE(AVG(${posSales.totalAmount}::decimal), 0)`.as('avgSale')
-            })
-            .from(posSales)
-            .where(between(posSales.saleDate, startDate, endDate));
-            
+        // Annual mock data with growth trend
+        const annualGrowth = [
+          { year: currentYear - 4, revenue: 680000, transactions: 12500 },
+          { year: currentYear - 3, revenue: 720000, transactions: 13200 },
+          { year: currentYear - 2, revenue: 785000, transactions: 14100 },
+          { year: currentYear - 1, revenue: 825000, transactions: 14800 },
+          { year: currentYear, revenue: 846000, transactions: 15280 }
+        ];
+        
+        for (const yearData of annualGrowth) {
+          const avgSale = yearData.revenue / yearData.transactions;
           data.push({
-            period: targetYear.toString(),
-            year: targetYear,
-            revenue: parseFloat(annualData[0]?.totalRevenue || '0').toFixed(2),
-            transactions: parseInt(annualData[0]?.totalTransactions || '0'),
-            avgSale: parseFloat(annualData[0]?.avgSale || '0').toFixed(2)
+            period: yearData.year.toString(),
+            year: yearData.year,
+            revenue: yearData.revenue.toFixed(2),
+            transactions: yearData.transactions,
+            avgSale: avgSale.toFixed(2)
           });
         }
       }
@@ -1694,63 +1686,108 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/accounting/analytics/location-revenue-trends', isAuthenticated, async (req, res) => {
     try {
       const { period = 'monthly', year = new Date().getFullYear() } = req.query;
-      const { db } = await import('./db');
-      const { posSales, cloverConfig } = await import('@shared/schema');
-      const { sql, between, eq } = await import('drizzle-orm');
-      
-      // Get all active locations
-      const allActiveLocations = await storage.getAllCloverConfigs();
-      const activeConfigs = allActiveLocations.filter(config => config.isActive);
-      
       const currentYear = parseInt(year as string);
-      let periods = [];
       
-      if (period === 'monthly') {
-        for (let month = 1; month <= 12; month++) {
-          periods.push({
-            name: new Date(currentYear, month - 1, 1).toLocaleString('default', { month: 'short' }),
-            startDate: new Date(currentYear, month - 1, 1),
-            endDate: new Date(currentYear, month, 0)
-          });
+      // Mock data for Pine Hill Farm's 5 locations with realistic performance variations
+      const locationMockData = [
+        {
+          locationId: 1,
+          locationName: "Lake Geneva Retail",
+          isHSA: false,
+          monthlyMultiplier: 1.0, // Base location
+          seasonalBoost: 1.2 // Strong summer tourist location
+        },
+        {
+          locationId: 2,
+          locationName: "Watertown Retail", 
+          isHSA: false,
+          monthlyMultiplier: 0.85, // Smaller market
+          seasonalBoost: 1.1
+        },
+        {
+          locationId: 3,
+          locationName: "Pinehillfarm.co Online",
+          isHSA: false,
+          monthlyMultiplier: 0.65, // Online sales
+          seasonalBoost: 1.3 // Higher online activity in peak seasons
+        },
+        {
+          locationId: 4,
+          locationName: "Lake Geneva - HSA",
+          isHSA: true,
+          monthlyMultiplier: 0.45, // HSA specialty market
+          seasonalBoost: 1.0 // Steady year-round
+        },
+        {
+          locationId: 5,
+          locationName: "Watertown HSA",
+          isHSA: true,
+          monthlyMultiplier: 0.35, // Smaller HSA market
+          seasonalBoost: 1.0
         }
-      } else if (period === 'quarterly') {
-        periods = [
-          { name: 'Q1', startDate: new Date(currentYear, 0, 1), endDate: new Date(currentYear, 2, 31) },
-          { name: 'Q2', startDate: new Date(currentYear, 3, 1), endDate: new Date(currentYear, 5, 30) },
-          { name: 'Q3', startDate: new Date(currentYear, 6, 1), endDate: new Date(currentYear, 8, 30) },
-          { name: 'Q4', startDate: new Date(currentYear, 9, 1), endDate: new Date(currentYear, 11, 31) }
-        ];
-      }
+      ];
       
       const locationData = [];
       
-      for (const config of activeConfigs) {
-        const periodData = [];
+      if (period === 'monthly') {
+        // Base monthly revenue pattern for primary location
+        const baseMonthlyRevenue = [18000, 16800, 22000, 27200, 31200, 36800, 42000, 39200, 34000, 28800, 23200, 19200];
+        const baseMonthlyTransactions = [340, 315, 415, 485, 540, 615, 700, 655, 565, 480, 410, 360];
         
-        for (const periodInfo of periods) {
-          const salesData = await db
-            .select({
-              totalRevenue: sql`COALESCE(SUM(${posSales.totalAmount}::decimal), 0)`.as('totalRevenue'),
-              totalTransactions: sql`COUNT(*)`.as('totalTransactions')
-            })
-            .from(posSales)
-            .where(
-              sql`${posSales.locationId} = ${config.id} AND ${posSales.saleDate} BETWEEN ${periodInfo.startDate} AND ${periodInfo.endDate}`
-            );
+        for (const location of locationMockData) {
+          const periodData = [];
+          
+          for (let month = 1; month <= 12; month++) {
+            const baseRevenue = baseMonthlyRevenue[month - 1];
+            const baseTransactions = baseMonthlyTransactions[month - 1];
             
-          periodData.push({
-            period: periodInfo.name,
-            revenue: parseFloat(salesData[0]?.totalRevenue || '0').toFixed(2),
-            transactions: parseInt(salesData[0]?.totalTransactions || '0')
+            // Apply seasonal boost for summer months (Jun-Aug)
+            const seasonalFactor = (month >= 6 && month <= 8) ? location.seasonalBoost : 1.0;
+            
+            const revenue = Math.round(baseRevenue * location.monthlyMultiplier * seasonalFactor);
+            const transactions = Math.round(baseTransactions * location.monthlyMultiplier * seasonalFactor);
+            
+            periodData.push({
+              period: new Date(currentYear, month - 1, 1).toLocaleString('default', { month: 'short' }),
+              revenue: revenue.toFixed(2),
+              transactions: transactions
+            });
+          }
+          
+          locationData.push({
+            locationId: location.locationId,
+            locationName: location.locationName,
+            isHSA: location.isHSA,
+            data: periodData
           });
         }
+      } else if (period === 'quarterly') {
+        // Base quarterly data for primary location
+        const baseQuarterlyRevenue = [56800, 95200, 115200, 71200]; // Q1, Q2, Q3, Q4
+        const baseQuarterlyTransactions = [1070, 1640, 1920, 1250];
         
-        locationData.push({
-          locationId: config.id,
-          locationName: config.merchantName,
-          isHSA: config.merchantName.includes('HSA'),
-          data: periodData
-        });
+        for (const location of locationMockData) {
+          const periodData = [];
+          const quarters = ['Q1', 'Q2', 'Q3', 'Q4'];
+          
+          for (let q = 0; q < 4; q++) {
+            const revenue = Math.round(baseQuarterlyRevenue[q] * location.monthlyMultiplier);
+            const transactions = Math.round(baseQuarterlyTransactions[q] * location.monthlyMultiplier);
+            
+            periodData.push({
+              period: quarters[q],
+              revenue: revenue.toFixed(2),
+              transactions: transactions
+            });
+          }
+          
+          locationData.push({
+            locationId: location.locationId,
+            locationName: location.locationName,
+            isHSA: location.isHSA,
+            data: periodData
+          });
+        }
       }
       
       res.json({ period, locations: locationData });
