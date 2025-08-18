@@ -75,7 +75,7 @@ export function RevenueAnalytics() {
   const [selectedPeriod, setSelectedPeriod] = useState('monthly');
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
   const [activeTab, setActiveTab] = useState('overview');
-  const [dateRange, setDateRange] = useState('this-year');
+  const [dateRange, setDateRange] = useState('last-30-days');
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
   
@@ -108,14 +108,11 @@ export function RevenueAnalytics() {
 
   // Overall revenue trends
   const { data: revenueTrends, isLoading: trendsLoading } = useQuery<RevenueTrendsResponse>({
-    queryKey: ['/api/accounting/analytics/revenue-trends-live', dateRange, customStartDate, customEndDate, selectedPeriod, selectedYear],
+    queryKey: ['/api/accounting/analytics/revenue-trends', dateRange, customStartDate, customEndDate, selectedPeriod, selectedYear],
     queryFn: async () => {
       const params = getQueryParams();
-      console.log('🔍 DEBUG: About to call revenue-trends-live with params:', params.toString());
-      const response = await apiRequest('GET', `/api/accounting/analytics/revenue-trends-live?${params}`);
-      const result = await response.json();
-      console.log('🔍 DEBUG: Revenue trends live response:', result);
-      return result;
+      const response = await apiRequest('GET', `/api/accounting/analytics/revenue-trends?${params}`);
+      return await response.json();
     },
   });
 
