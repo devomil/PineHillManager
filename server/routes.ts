@@ -1732,11 +1732,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
             });
             
             if (liveOrders && liveOrders.elements && liveOrders.elements.length > 0) {
-              // Filter orders by date on server-side (same as Order Management fix)
+              console.log(`Raw orders fetched for ${locationConfig.merchantName}: ${liveOrders.elements.length} orders`);
+              
+              // Filter orders by date on server-side (same as Order Management fix)  
               const filteredOrders = liveOrders.elements.filter((order: any) => {
                 const orderDate = new Date(order.modifiedTime);
-                return orderDate >= start && orderDate <= end;
+                const withinRange = orderDate >= start && orderDate <= end;
+                if (!withinRange) {
+                  console.log(`Order ${order.id} filtered out: ${orderDate.toISOString()} not in range ${start.toISOString()} - ${end.toISOString()}`);
+                }
+                return withinRange;
               });
+              
+              console.log(`Filtered orders for ${locationConfig.merchantName}: ${filteredOrders.length} orders`);
               
               const locationRevenue = filteredOrders.reduce((sum: number, order: any) => {
                 const orderTotal = parseFloat(order.total || '0') / 100; // Convert cents to dollars
@@ -1748,6 +1756,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
               totalTransactions += locationTransactions;
               
               console.log(`Live Revenue - ${locationConfig.merchantName}: $${locationRevenue.toFixed(2)} from ${locationTransactions} orders`);
+            } else {
+              console.log(`No orders returned for ${locationConfig.merchantName}`);
             }
           } catch (error) {
             console.log(`No live sales data for ${locationConfig.merchantName} in date range:`, error);
@@ -1947,11 +1957,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
             });
             
             if (liveOrders && liveOrders.elements && liveOrders.elements.length > 0) {
+              console.log(`Location Raw orders fetched for ${locationConfig.merchantName}: ${liveOrders.elements.length} orders`);
+              
               // Filter orders by date on server-side (same as Order Management fix)
               const filteredOrders = liveOrders.elements.filter((order: any) => {
                 const orderDate = new Date(order.modifiedTime);
-                return orderDate >= start && orderDate <= end;
+                const withinRange = orderDate >= start && orderDate <= end;
+                if (!withinRange) {
+                  console.log(`Location Order ${order.id} filtered out: ${orderDate.toISOString()} not in range ${start.toISOString()} - ${end.toISOString()}`);
+                }
+                return withinRange;
               });
+              
+              console.log(`Location Filtered orders for ${locationConfig.merchantName}: ${filteredOrders.length} orders`);
               
               revenue = filteredOrders.reduce((sum: number, order: any) => {
                 const orderTotal = parseFloat(order.total || '0') / 100; // Convert cents to dollars
@@ -1960,6 +1978,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
               transactions = filteredOrders.length;
               
               console.log(`Live Location Revenue - ${locationConfig.merchantName}: $${revenue.toFixed(2)} from ${transactions} orders`);
+            } else {
+              console.log(`Location No orders returned for ${locationConfig.merchantName}`);
             }
           } catch (error) {
             console.log(`No live sales data for ${locationConfig.merchantName} in date range:`, error);
