@@ -3821,21 +3821,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
             offset: offset ? parseInt(offset as string) : 0
           });
 
+          console.log(`📋 Retrieved ${items?.elements?.length || 0} items and ${stocks?.elements?.length || 0} stocks for ${locationConfig.merchantName}`);
+
           // Create a lookup map for item details
           const itemsMap = new Map();
           if (items && items.elements) {
             items.elements.forEach((item: any) => {
               itemsMap.set(item.id, item);
+              console.log(`📦 Item mapped: ${item.id} -> ${item.name}`);
             });
           }
 
           if (stocks && stocks.elements) {
             const stocksWithLocation = stocks.elements.map((stock: any) => {
               // Enhance stock with full item details
-              const fullItem = itemsMap.get(stock.item?.id);
+              const itemId = stock.item?.id;
+              const fullItem = itemsMap.get(itemId);
+              
+              console.log(`🔍 Processing stock for item ${itemId}: found full item = ${!!fullItem}, name = ${fullItem?.name || 'NOT FOUND'}`);
+              
               return {
                 ...stock,
-                item: fullItem || stock.item || { id: stock.item?.id || `unknown-${Date.now()}`, name: 'Unknown Item' },
+                item: {
+                  id: itemId,
+                  name: fullItem?.name || `Item ${itemId}`,
+                  code: fullItem?.code || null,
+                  sku: fullItem?.sku || null,
+                  ...fullItem
+                },
                 locationId: locationConfig.id,
                 locationName: locationConfig.merchantName,
                 merchantId: locationConfig.merchantId
