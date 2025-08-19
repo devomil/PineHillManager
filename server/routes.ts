@@ -1709,7 +1709,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (startDate && endDate) {
         console.log(`=== USING LIVE API DATA FOR CUSTOM DATE RANGE ===`);
         const start = new Date(startDate as string);
+        // Fix timezone issue: ensure end date includes full day (23:59:59.999)
         const end = new Date(endDate as string);
+        end.setHours(23, 59, 59, 999);
+        
+        console.log(`🚀 REVENUE TRENDS FIXED DATE RANGE: ${start.toISOString()} - ${end.toISOString()}`);
         
         let totalRevenue = 0;
         let totalTransactions = 0;
@@ -1940,7 +1944,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // If custom date range is provided, use it instead of period-based filtering
       if (startDate && endDate) {
         const start = new Date(startDate as string);
+        // Fix timezone issue: ensure end date includes full day (23:59:59.999)
         const end = new Date(endDate as string);
+        end.setHours(23, 59, 59, 999);
+        
+        console.log(`🚀 FIXED DATE RANGE: ${start.toISOString()} - ${end.toISOString()}`);
         
         for (const locationConfig of activeLocations) {
           let revenue = 0;
