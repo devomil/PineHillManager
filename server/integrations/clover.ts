@@ -115,11 +115,26 @@ export class CloverIntegration {
 
   constructor(dbConfig?: any) {
     if (dbConfig) {
+      // Debug configuration mapping
+      console.log(`🔧 CloverIntegration constructor received config:`, {
+        merchantId: dbConfig.merchantId,
+        merchant_id: dbConfig.merchant_id,
+        apiToken: dbConfig.apiToken,
+        api_token: dbConfig.api_token,
+        merchantName: dbConfig.merchantName
+      });
+      
       this.config = {
         merchantId: dbConfig.merchantId || dbConfig.merchant_id,
         accessToken: dbConfig.apiToken || dbConfig.api_token,
         baseUrl: dbConfig.baseUrl || dbConfig.base_url || 'https://api.clover.com'
       };
+      
+      console.log(`🔧 Final config created:`, {
+        merchantId: this.config.merchantId,
+        accessToken: this.config.accessToken ? `${this.config.accessToken.substring(0, 8)}...${this.config.accessToken.slice(-4)}` : 'MISSING',
+        baseUrl: this.config.baseUrl
+      });
     } else {
       this.config = {
         merchantId: process.env.CLOVER_MERCHANT_ID || '',

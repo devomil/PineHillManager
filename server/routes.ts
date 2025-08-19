@@ -1950,6 +1950,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             // Use the same live API approach as Order Management
             const { CloverIntegration } = await import('./integrations/clover');
             const cloverIntegration = new CloverIntegration(locationConfig);
+            console.log(`🚀 Creating CloverIntegration for ${locationConfig.merchantName} with MID: ${locationConfig.merchantId}`);
             const liveOrders = await cloverIntegration.fetchOrders({
               filter: `modifiedTime>=${Math.floor(start.getTime())}`,
               limit: 1000,
