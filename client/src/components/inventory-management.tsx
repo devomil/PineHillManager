@@ -306,10 +306,11 @@ export function InventoryManagement() {
             </Card>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredItems.map((item: InventoryItem) => {
+              {filteredItems.map((item: InventoryItem, index: number) => {
                 const stockInfo = getStockStatus(item.stockCount);
+                const uniqueKey = `item-${item.id}-${item.locationId}-${index}`;
                 return (
-                  <Card key={`${item.id}-${item.locationId}`}>
+                  <Card key={uniqueKey}>
                     <CardHeader>
                       <div className="flex justify-between items-start">
                         <div>
@@ -378,11 +379,13 @@ export function InventoryManagement() {
                       </tr>
                     </thead>
                     <tbody>
-                      {stocksData?.elements?.map((stock: ItemStock) => {
+                      {stocksData?.elements?.map((stock: ItemStock, index: number) => {
                         const stockInfo = getStockStatus(stock.quantity);
+                        // Create a truly unique key using multiple identifiers
+                        const uniqueKey = `stock-${stock.item?.id || `unknown-${index}`}-${stock.locationId}-${index}-${stock.quantity}`;
                         return (
-                          <tr key={`${stock.id}-${stock.locationId}`} className="border-b">
-                            <td className="py-2 font-medium">{stock.item.name}</td>
+                          <tr key={uniqueKey} className="border-b">
+                            <td className="py-2 font-medium">{stock.item?.name || 'Unknown Item'}</td>
                             <td className="py-2 text-gray-600">{stock.locationName}</td>
                             <td className="py-2 text-right font-medium">{stock.quantity}</td>
                             <td className="py-2 text-center">
@@ -408,8 +411,8 @@ export function InventoryManagement() {
             <div className="text-center py-8">Loading categories...</div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {categoriesData?.elements?.map((category: Category) => (
-                <Card key={`${category.id}-${category.locationId}`}>
+              {categoriesData?.elements?.map((category: Category, index: number) => (
+                <Card key={`category-${category.id}-${category.locationId}-${index}`}>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <Tag className="h-4 w-4" />

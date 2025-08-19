@@ -3811,18 +3811,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const { CloverIntegration } = await import('./integrations/clover');
           const cloverIntegration = new CloverIntegration(locationConfig);
           
+          // First fetch all items to get the full item details
+          const items = await cloverIntegration.fetchItems({
+            limit: 1000 // Get all items to match with stocks
+          });
+
           const stocks = await cloverIntegration.fetchItemStocks({
             limit: limit ? parseInt(limit as string) : 100,
             offset: offset ? parseInt(offset as string) : 0
           });
 
+          // Create a lookup map for item details
+          const itemsMap = new Map();
+          if (items && items.elements) {
+            items.elements.forEach((item: any) => {
+              itemsMap.set(item.id, item);
+            });
+          }
+
           if (stocks && stocks.elements) {
-            const stocksWithLocation = stocks.elements.map((stock: any) => ({
-              ...stock,
-              locationId: locationConfig.id,
-              locationName: locationConfig.merchantName,
-              merchantId: locationConfig.merchantId
-            }));
+            const stocksWithLocation = stocks.elements.map((stock: any) => {
+              // Enhance stock with full item details
+              const fullItem = itemsMap.get(stock.item?.id);
+              return {
+                ...stock,
+                item: fullItem || stock.item || { id: stock.item?.id || `unknown-${Date.now()}`, name: 'Unknown Item' },
+                locationId: locationConfig.id,
+                locationName: locationConfig.merchantName,
+                merchantId: locationConfig.merchantId
+              };
+            });
             
             allStocks.push(...stocksWithLocation);
           }
