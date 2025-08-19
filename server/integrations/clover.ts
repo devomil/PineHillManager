@@ -192,6 +192,78 @@ export class CloverIntegration {
     return this.makeCloverAPICallWithConfig(endpoint, this.config);
   }
 
+  // Inventory Management Methods
+  async fetchItems(params: {
+    limit?: number;
+    offset?: number;
+    filter?: string;
+  } = {}) {
+    const queryParams = new URLSearchParams();
+    
+    if (params.limit) queryParams.append('limit', params.limit.toString());
+    if (params.offset) queryParams.append('offset', params.offset.toString());
+    if (params.filter) queryParams.append('filter', params.filter);
+
+    const queryString = queryParams.toString();
+    const endpoint = queryString ? `items?${queryString}` : 'items';
+    
+    console.log(`📦 Fetching inventory items for merchant ${this.config.merchantId}`);
+    return await this.makeCloverAPICall(endpoint);
+  }
+
+  async fetchItemStocks(params: {
+    limit?: number;
+    offset?: number;
+  } = {}) {
+    const queryParams = new URLSearchParams();
+    
+    if (params.limit) queryParams.append('limit', params.limit.toString());
+    if (params.offset) queryParams.append('offset', params.offset.toString());
+
+    const queryString = queryParams.toString();
+    const endpoint = queryString ? `item_stocks?${queryString}` : 'item_stocks';
+    
+    console.log(`📊 Fetching item stocks for merchant ${this.config.merchantId}`);
+    return await this.makeCloverAPICall(endpoint);
+  }
+
+  async fetchItemStock(itemId: string) {
+    console.log(`🔍 Fetching stock for item ${itemId} in merchant ${this.config.merchantId}`);
+    return await this.makeCloverAPICall(`items/${itemId}/stock`);
+  }
+
+  async fetchCategories(params: {
+    limit?: number;
+    offset?: number;
+  } = {}) {
+    const queryParams = new URLSearchParams();
+    
+    if (params.limit) queryParams.append('limit', params.limit.toString());
+    if (params.offset) queryParams.append('offset', params.offset.toString());
+
+    const queryString = queryParams.toString();
+    const endpoint = queryString ? `categories?${queryString}` : 'categories';
+    
+    console.log(`🏷️ Fetching categories for merchant ${this.config.merchantId}`);
+    return await this.makeCloverAPICall(endpoint);
+  }
+
+  async fetchOptions(params: {
+    limit?: number;
+    offset?: number;
+  } = {}) {
+    const queryParams = new URLSearchParams();
+    
+    if (params.limit) queryParams.append('limit', params.limit.toString());
+    if (params.offset) queryParams.append('offset', params.offset.toString());
+
+    const queryString = queryParams.toString();
+    const endpoint = queryString ? `options?${queryString}` : 'options';
+    
+    console.log(`⚙️ Fetching options for merchant ${this.config.merchantId}`);
+    return await this.makeCloverAPICall(endpoint);
+  }
+
   // Sync daily sales data from Clover POS
   async syncDailySales(date?: Date): Promise<void> {
     try {

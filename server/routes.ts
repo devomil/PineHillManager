@@ -3724,6 +3724,241 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Inventory Management Routes
+  app.get('/api/accounting/inventory/items', async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !req.user) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const { locationId, limit, offset, filter } = req.query;
+      
+      // Get all or specific location configurations
+      let locations;
+      if (locationId) {
+        const location = await storage.getCloverConfigById(parseInt(locationId as string));
+        locations = location ? [location] : [];
+      } else {
+        locations = await storage.getAllCloverConfigs();
+      }
+
+      const activeLocations = locations.filter(config => config.isActive);
+      const allItems: any[] = [];
+
+      for (const locationConfig of activeLocations) {
+        try {
+          const { CloverIntegration } = await import('./integrations/clover');
+          const cloverIntegration = new CloverIntegration(locationConfig);
+          
+          const items = await cloverIntegration.fetchItems({
+            limit: limit ? parseInt(limit as string) : 100,
+            offset: offset ? parseInt(offset as string) : 0,
+            filter: filter as string
+          });
+
+          if (items && items.elements) {
+            // Add location info to each item
+            const itemsWithLocation = items.elements.map((item: any) => ({
+              ...item,
+              locationId: locationConfig.id,
+              locationName: locationConfig.merchantName,
+              merchantId: locationConfig.merchantId
+            }));
+            
+            allItems.push(...itemsWithLocation);
+          }
+        } catch (error) {
+          console.log(`No inventory data for ${locationConfig.merchantName}:`, error);
+        }
+      }
+
+      res.json({
+        elements: allItems,
+        totalItems: allItems.length,
+        locations: activeLocations.map(loc => ({
+          id: loc.id,
+          name: loc.merchantName,
+          merchantId: loc.merchantId
+        }))
+      });
+    } catch (error) {
+      console.error('Error fetching inventory items:', error);
+      res.status(500).json({ message: 'Failed to fetch inventory items' });
+    }
+  });
+
+  app.get('/api/accounting/inventory/stocks', async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !req.user) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const { locationId, limit, offset } = req.query;
+      
+      let locations;
+      if (locationId) {
+        const location = await storage.getCloverConfigById(parseInt(locationId as string));
+        locations = location ? [location] : [];
+      } else {
+        locations = await storage.getAllCloverConfigs();
+      }
+
+      const activeLocations = locations.filter(config => config.isActive);
+      const allStocks: any[] = [];
+
+      for (const locationConfig of activeLocations) {
+        try {
+          const { CloverIntegration } = await import('./integrations/clover');
+          const cloverIntegration = new CloverIntegration(locationConfig);
+          
+          const stocks = await cloverIntegration.fetchItemStocks({
+            limit: limit ? parseInt(limit as string) : 100,
+            offset: offset ? parseInt(offset as string) : 0
+          });
+
+          if (stocks && stocks.elements) {
+            const stocksWithLocation = stocks.elements.map((stock: any) => ({
+              ...stock,
+              locationId: locationConfig.id,
+              locationName: locationConfig.merchantName,
+              merchantId: locationConfig.merchantId
+            }));
+            
+            allStocks.push(...stocksWithLocation);
+          }
+        } catch (error) {
+          console.log(`No stock data for ${locationConfig.merchantName}:`, error);
+        }
+      }
+
+      res.json({
+        elements: allStocks,
+        totalStocks: allStocks.length,
+        locations: activeLocations.map(loc => ({
+          id: loc.id,
+          name: loc.merchantName,
+          merchantId: loc.merchantId
+        }))
+      });
+    } catch (error) {
+      console.error('Error fetching item stocks:', error);
+      res.status(500).json({ message: 'Failed to fetch item stocks' });
+    }
+  });
+
+  app.get('/api/accounting/inventory/categories', async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !req.user) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const { locationId, limit, offset } = req.query;
+      
+      let locations;
+      if (locationId) {
+        const location = await storage.getCloverConfigById(parseInt(locationId as string));
+        locations = location ? [location] : [];
+      } else {
+        locations = await storage.getAllCloverConfigs();
+      }
+
+      const activeLocations = locations.filter(config => config.isActive);
+      const allCategories: any[] = [];
+
+      for (const locationConfig of activeLocations) {
+        try {
+          const { CloverIntegration } = await import('./integrations/clover');
+          const cloverIntegration = new CloverIntegration(locationConfig);
+          
+          const categories = await cloverIntegration.fetchCategories({
+            limit: limit ? parseInt(limit as string) : 100,
+            offset: offset ? parseInt(offset as string) : 0
+          });
+
+          if (categories && categories.elements) {
+            const categoriesWithLocation = categories.elements.map((category: any) => ({
+              ...category,
+              locationId: locationConfig.id,
+              locationName: locationConfig.merchantName,
+              merchantId: locationConfig.merchantId
+            }));
+            
+            allCategories.push(...categoriesWithLocation);
+          }
+        } catch (error) {
+          console.log(`No categories data for ${locationConfig.merchantName}:`, error);
+        }
+      }
+
+      res.json({
+        elements: allCategories,
+        totalCategories: allCategories.length,
+        locations: activeLocations.map(loc => ({
+          id: loc.id,
+          name: loc.merchantName,
+          merchantId: loc.merchantId
+        }))
+      });
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+      res.status(500).json({ message: 'Failed to fetch categories' });
+    }
+  });
+
+  app.get('/api/accounting/inventory/items/:itemId/stock', async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !req.user) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const { itemId } = req.params;
+      const { locationId } = req.query;
+      
+      let locations;
+      if (locationId) {
+        const location = await storage.getCloverConfigById(parseInt(locationId as string));
+        locations = location ? [location] : [];
+      } else {
+        locations = await storage.getAllCloverConfigs();
+      }
+
+      const activeLocations = locations.filter(config => config.isActive);
+      const stockResults: any[] = [];
+
+      for (const locationConfig of activeLocations) {
+        try {
+          const { CloverIntegration } = await import('./integrations/clover');
+          const cloverIntegration = new CloverIntegration(locationConfig);
+          
+          const stock = await cloverIntegration.fetchItemStock(itemId);
+          
+          if (stock) {
+            stockResults.push({
+              ...stock,
+              locationId: locationConfig.id,
+              locationName: locationConfig.merchantName,
+              merchantId: locationConfig.merchantId
+            });
+          }
+        } catch (error) {
+          console.log(`No stock data for item ${itemId} at ${locationConfig.merchantName}:`, error);
+        }
+      }
+
+      if (stockResults.length === 0) {
+        return res.status(404).json({ message: 'Stock not found for this item' });
+      }
+
+      res.json({
+        itemId,
+        stocks: stockResults
+      });
+    } catch (error) {
+      console.error('Error fetching item stock:', error);
+      res.status(500).json({ message: 'Failed to fetch item stock' });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

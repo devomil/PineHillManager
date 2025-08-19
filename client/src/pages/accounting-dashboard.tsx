@@ -27,6 +27,7 @@ import AdminLayout from '@/components/admin-layout';
 import { useToast } from '@/hooks/use-toast';
 import { RevenueAnalytics } from '@/components/revenue-analytics';
 import { ComprehensiveOrderManagement } from '@/components/comprehensive-order-management';
+import { InventoryManagement } from '@/components/inventory-management';
 
 type SystemHealth = {
   database: string;
@@ -287,6 +288,16 @@ function AccountingContent() {
               Order Management
             </button>
             <button
+              onClick={() => setActiveSection('inventory')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                activeSection === 'inventory'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Inventory
+            </button>
+            <button
               onClick={() => setActiveSection('integrations')}
               className={`py-2 px-1 border-b-2 font-medium text-sm ${
                 activeSection === 'integrations'
@@ -538,6 +549,13 @@ function AccountingContent() {
           {activeSection === 'orders' && (
             <div className="space-y-6">
               <ComprehensiveOrderManagement />
+            </div>
+          )}
+
+          {/* Inventory Management Section */}
+          {activeSection === 'inventory' && (
+            <div className="space-y-6">
+              <InventoryManagement />
             </div>
           )}
 
