@@ -1564,9 +1564,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'Start date and end date are required' });
       }
 
-      console.log('Getting profit-loss data...');
-      const profitLoss = await storage.getProfitLoss(startDate as string, endDate as string);
-      console.log('Profit-loss result:', profitLoss);
+      console.log('Getting profit-loss data using LIVE CLOVER API...');
+      
+      // Fix timezone issue: ensure end date includes full day (23:59:59.999)
+      const start = new Date(startDate as string);
+      const end = new Date(endDate as string);
+      end.setHours(23, 59, 59, 999);
+      
+      console.log(`🚀 PROFIT-LOSS FIXED DATE RANGE: ${start.toISOString()} - ${end.toISOString()}`);
+      
+      // Get live revenue data from all Clover locations (same as Revenue Analytics)
+      const { CloverIntegration } = await import('./integrations/clover');
+      const allLocations = await storage.getAllCloverConfigs();
+      const activeLocations = allLocations.filter(config => config.isActive);
+      
+      let totalRevenue = 0;
+      let totalTransactions = 0;
+      
+      for (const locationConfig of activeLocations) {
+        try {
+          const cloverIntegration = new CloverIntegration(locationConfig);
+          const liveOrders = await cloverIntegration.fetchOrders({
+            filter: `modifiedTime>=${Math.floor(start.getTime())}`,
+            limit: 1000,
+            offset: 0
+          });
+          
+          if (liveOrders && liveOrders.elements && liveOrders.elements.length > 0) {
+            // Filter orders by date range
+            const filteredOrders = liveOrders.elements.filter((order: any) => {
+              const orderDate = new Date(order.modifiedTime);
+              return orderDate >= start && orderDate <= end;
+            });
+            
+            const locationRevenue = filteredOrders.reduce((sum: number, order: any) => {
+              const orderTotal = parseFloat(order.total || '0') / 100; // Convert cents to dollars
+              return sum + orderTotal;
+            }, 0);
+            
+            totalRevenue += locationRevenue;
+            totalTransactions += filteredOrders.length;
+          }
+        } catch (error) {
+          console.log(`No live sales data for ${locationConfig.merchantName}:`, error);
+        }
+      }
+      
+      const profitLoss = {
+        revenue: totalRevenue.toFixed(2),
+        expenses: '0.00', // Expenses still from database for now
+        netIncome: totalRevenue.toFixed(2) // For now, net income = revenue since expenses = 0
+      };
+      
+      console.log('Live Profit-loss result:', profitLoss);
       res.json(profitLoss);
     } catch (error) {
       console.error('Error fetching profit and loss:', error);

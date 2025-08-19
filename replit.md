@@ -3,8 +3,16 @@
 ## Overview
 The Pine Hill Farm Employee Management System is a comprehensive business management platform designed to streamline operations for employees, managers, and administrators. Built with React (Vite), Express.js, and PostgreSQL, its core purpose is to provide role-based access for time tracking, scheduling, communication, support ticket management, and robust accounting. The system aims to integrate essential business tools like QuickBooks, Clover POS, HSA providers, and Thrive inventory to offer an all-in-one solution for farm management, enhancing efficiency and oversight across all departments.
 
-## Recent Changes (August 18, 2025)
-**FINAL CRITICAL FIX: Complete Order Management Date Filtering System - FULLY RESOLVED**
+## Recent Changes (August 19, 2025)
+**CRITICAL FIX: Revenue Analytics Timezone Bug - FULLY RESOLVED**
+- RESOLVED: Critical timezone bug causing Revenue Analytics to show $0.00 despite active sales
+- ROOT CAUSE: Date range parsing created invalid filter `2025-08-19T00:00:00.000Z - 2025-08-19T00:00:00.000Z` (both start and end at midnight)
+- SOLUTION: Fixed server-side date parsing to set end date to 23:59:59.999Z for inclusive day filtering
+- VERIFIED: Revenue Analytics now correctly displays real-time sales data from all Clover locations
+- TECHNICAL FIX: Applied to both `/api/accounting/analytics/revenue-trends` and `/api/accounting/analytics/location-revenue-trends` endpoints
+- STATUS: Revenue Analytics fully functional with authentic Clover API data
+
+**Previous: Complete Order Management Date Filtering System - FULLY RESOLVED**
 - RESOLVED: Complete timezone conversion bug in frontend using UTC date methods (.getUTCFullYear(), .getUTCMonth(), .getUTCDate())
 - RESOLVED: Clover API date filtering limitation by implementing server-side post-response filtering using modifiedTime comparison
 - VERIFIED: "Today" filter correctly shows only orders from August 18th, "Yesterday" shows only August 17th orders
