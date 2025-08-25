@@ -64,8 +64,6 @@ export default function UserProfile() {
     },
   });
 
-  // Temporary debug logging
-  console.log('UserProfile component - user:', user, 'isLoading:', isLoading);
 
   const form = useForm<ProfileFormData>({
     resolver: zodResolver(profileSchema),
@@ -90,13 +88,7 @@ export default function UserProfile() {
 
   // Update form values when user data loads
   useEffect(() => {
-    console.log('useEffect triggered - user:', user);
     if (user) {
-      console.log('Resetting form with user data:', {
-        department: user.department,
-        position: user.position,
-        firstName: user.firstName
-      });
       form.reset({
         firstName: user.firstName || "",
         lastName: user.lastName || "",
@@ -119,8 +111,6 @@ export default function UserProfile() {
       setSmsConsent(user.smsConsent || false);
       setSmsEnabled(user.smsEnabled || true);
       setSmsNotificationTypes(user.smsNotificationTypes || ['emergency']);
-    } else {
-      console.log('No user data in useEffect');
     }
   }, [user, form]);
 
