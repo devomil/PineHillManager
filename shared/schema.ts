@@ -350,7 +350,57 @@ export const channelMembers = pgTable("channel_members", {
   userId: varchar("user_id").notNull().references(() => users.id),
   role: varchar("role").default("member"), // 'admin', 'member'
   joinedAt: timestamp("joined_at").defaultNow(),
-});
+}, (table) => ({
+  // Ensure unique channel-user combinations
+  uniqueChannelUser: unique("unique_channel_user").on(table.channelId, table.userId),
+  channelIdx: index("idx_channel_members_channel").on(table.channelId),
+  userIdx: index("idx_channel_members_user").on(table.userId),
+}));
+
+// Channel messages for team communication
+export const channelMessages = pgTable("channel_messages", {
+  id: serial("id").primaryKey(),
+  channelId: integer("channel_id").notNull().references(() => chatChannels.id, { onDelete: 'cascade' }),
+  senderId: varchar("sender_id").notNull().references(() => users.id),
+  content: text("content").notNull(),
+  messageType: varchar("message_type").default("message"), // 'message', 'system', 'announcement'
+  priority: varchar("priority").default("normal"), // 'emergency', 'high', 'normal', 'low'
+  smsEnabled: boolean("sms_enabled").default(false),
+  parentMessageId: integer("parent_message_id"), // For replies/threads
+  isEdited: boolean("is_edited").default(false),
+  editedAt: timestamp("edited_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  channelIdx: index("idx_channel_messages_channel").on(table.channelId),
+  senderIdx: index("idx_channel_messages_sender").on(table.senderId),
+  createdAtIdx: index("idx_channel_messages_created").on(table.createdAt),
+  priorityIdx: index("idx_channel_messages_priority").on(table.priority),
+}));
+
+// Channel message reactions
+export const channelMessageReactions = pgTable("channel_message_reactions", {
+  id: serial("id").primaryKey(),
+  messageId: integer("message_id").notNull().references(() => channelMessages.id, { onDelete: 'cascade' }),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  reactionType: varchar("reaction_type").notNull(), // 'check', 'thumbs_up', 'x', 'question'
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  messageUserIdx: index("idx_channel_reactions_message_user").on(table.messageId, table.userId),
+  messageTypeIdx: index("idx_channel_reactions_message_type").on(table.messageId, table.reactionType),
+  uniqueReactionPerUser: unique("unique_channel_reaction_per_user").on(table.messageId, table.userId, table.reactionType),
+}));
+
+// Channel message read receipts
+export const channelMessageReadReceipts = pgTable("channel_message_read_receipts", {
+  id: serial("id").primaryKey(),
+  messageId: integer("message_id").notNull().references(() => channelMessages.id, { onDelete: 'cascade' }),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  readAt: timestamp("read_at").defaultNow(),
+}, (table) => ({
+  messageUserIdx: index("idx_channel_read_receipts_message_user").on(table.messageId, table.userId),
+  uniqueReceiptPerUser: unique("unique_channel_receipt_per_user").on(table.messageId, table.userId),
+}));
 
 // Push subscriptions for mobile notifications
 export const pushSubscriptions = pgTable("push_subscriptions", {

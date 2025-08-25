@@ -4604,20 +4604,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: 'Subject and content are required' });
       }
 
-      // Role-based permission checks
+      // Role-based permission checks (relaxed to allow all employees broader access)
       const isAdminOrManager = senderUser.role === 'admin' || senderUser.role === 'manager';
 
-      // Validate permissions based on target audience
+      // Validate permissions based on target audience (much more permissive)
       if (recipientMode === 'audience') {
-        if (!isAdminOrManager && (targetAudience.startsWith('role:') && targetAudience !== 'role:employee')) {
-          return res.status(403).json({ error: 'Only admins and managers can send to admin/manager groups' });
+        // Only restrict admin-only functions for non-admins
+        if (!isAdminOrManager && targetAudience === 'admin_only') {
+          return res.status(403).json({ error: 'Only admins can send to admin-only groups' });
         }
-        if (targetAudience === 'admin_manager' && !isAdminOrManager) {
-          return res.status(403).json({ error: 'Only admins and managers can send to admin/manager groups' });
-        }
-      } else if (recipientMode === 'individual' && !isAdminOrManager) {
-        return res.status(403).json({ error: 'Only admins and managers can select individual recipients' });
+        // Allow employees to send to admin_manager groups (for urgent communications)
       }
+      // Allow all employees to select individual recipients and channels
 
       let targetUsers: any[] = [];
       const allUsers = await storage.getAllUsers();
@@ -4789,6 +4787,145 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error marking message as read:', error);
       res.status(500).json({ error: 'Failed to mark message as read' });
+    }
+  });
+
+  // ================================
+  // CHANNEL COMMUNICATION ENDPOINTS
+  // ================================
+
+  // Get all channels for the user
+  app.get('/api/channels', isAuthenticated, async (req, res) => {
+    try {
+      const channels = await storage.getChannelsForUser(req.user!.id);
+      res.json(channels);
+    } catch (error) {
+      console.error('Error fetching channels:', error);
+      res.status(500).json({ error: 'Failed to fetch channels' });
+    }
+  });
+
+  // Send message to channel
+  app.post('/api/channels/:channelId/messages', isAuthenticated, async (req, res) => {
+    try {
+      const { channelId } = req.params;
+      const { content, priority = 'normal', smsEnabled = false, messageType = 'message' } = req.body;
+      const senderId = req.user!.id;
+
+      if (!content?.trim()) {
+        return res.status(400).json({ error: 'Message content is required' });
+      }
+
+      // Verify user is member of the channel
+      const isMember = await storage.isChannelMember(parseInt(channelId), senderId);
+      if (!isMember) {
+        return res.status(403).json({ error: 'You are not a member of this channel' });
+      }
+
+      // Create channel message
+      const message = await storage.createChannelMessage({
+        channelId: parseInt(channelId),
+        senderId,
+        content,
+        messageType,
+        priority,
+        smsEnabled,
+      });
+
+      // Get channel members for notifications
+      const channelMembers = await storage.getChannelMembers(parseInt(channelId));
+      const memberIds = channelMembers
+        .filter(member => member.userId !== senderId)
+        .map(member => member.userId);
+
+      // Send notifications to channel members
+      if (memberIds.length > 0) {
+        const channel = await storage.getChannel(parseInt(channelId));
+        const senderUser = req.user as any;
+        
+        await smartNotificationService.sendBulkSmartNotifications(
+          memberIds,
+          {
+            messageType: 'announcement',
+            priority: priority as any,
+            content: {
+              title: `New message in #${channel?.name}`,
+              message: content,
+              metadata: {
+                channelId: parseInt(channelId),
+                channelName: channel?.name,
+                messageId: message.id,
+                senderName: `${senderUser.firstName} ${senderUser.lastName}`,
+                senderRole: senderUser.role
+              }
+            },
+            targetAudience: `channel:${channelId}`,
+            bypassClockStatus: priority === 'emergency'
+          }
+        );
+      }
+
+      res.json({ success: true, message });
+
+    } catch (error) {
+      console.error('Error sending channel message:', error);
+      res.status(500).json({ error: 'Failed to send message' });
+    }
+  });
+
+  // Get channel messages
+  app.get('/api/channels/:channelId/messages', isAuthenticated, async (req, res) => {
+    try {
+      const { channelId } = req.params;
+      const { limit = 50, offset = 0 } = req.query;
+      const userId = req.user!.id;
+
+      // Verify user is member of the channel
+      const isMember = await storage.isChannelMember(parseInt(channelId), userId);
+      if (!isMember) {
+        return res.status(403).json({ error: 'You are not a member of this channel' });
+      }
+
+      const messages = await storage.getChannelMessages(parseInt(channelId), {
+        limit: parseInt(limit as string),
+        offset: parseInt(offset as string)
+      });
+
+      res.json(messages);
+
+    } catch (error) {
+      console.error('Error fetching channel messages:', error);
+      res.status(500).json({ error: 'Failed to fetch messages' });
+    }
+  });
+
+  // Join a channel
+  app.post('/api/channels/:channelId/join', isAuthenticated, async (req, res) => {
+    try {
+      const { channelId } = req.params;
+      const userId = req.user!.id;
+
+      await storage.joinChannel(parseInt(channelId), userId);
+      res.json({ success: true });
+
+    } catch (error) {
+      console.error('Error joining channel:', error);
+      res.status(500).json({ error: 'Failed to join channel' });
+    }
+  });
+
+  // Leave a channel
+  app.post('/api/channels/:channelId/leave', isAuthenticated, async (req, res) => {
+    try {
+      const { channelId } = req.params;
+      const userId = req.user!.id;
+
+      await storage.leaveChannel(parseInt(channelId), userId);
+      res.json({ success: true });
+
+    } catch (error) {
+      console.error('Error leaving channel:', error);
+      res.status(500).json({ error: 'Failed to leave channel' });
     }
   });
 

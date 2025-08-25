@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -12,8 +12,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { queryClient } from "@/lib/queryClient";
-import { Megaphone, MessageSquare, Plus, Send, Users, AlertTriangle, Smartphone, History, CheckCircle, X, ThumbsUp, HelpCircle } from "lucide-react";
+import { queryClient, apiRequest } from "@/lib/queryClient";
+import { Megaphone, MessageSquare, Plus, Send, Users, AlertTriangle, Smartphone, History, CheckCircle, Check, X, ThumbsUp, HelpCircle, Hash } from "lucide-react";
 import { format } from "date-fns";
 import { MessageReactions } from "@/components/ui/message-reactions";
 
@@ -30,8 +30,9 @@ export default function Communication() {
   const [priority, setPriority] = useState<'emergency' | 'high' | 'normal' | 'low'>('normal');
   const [sendSMS, setSendSMS] = useState(false);
   const [selectedRecipients, setSelectedRecipients] = useState<string[]>([]);
+  const [selectedChannels, setSelectedChannels] = useState<number[]>([]);
   const [targetAudience, setTargetAudience] = useState<string>('all');
-  const [recipientMode, setRecipientMode] = useState<'audience' | 'individual'>('audience');
+  const [recipientMode, setRecipientMode] = useState<'audience' | 'individual' | 'channel'>('audience');
 
   // Data queries
   const { data: announcements, isLoading: announcementsLoading } = useQuery({
@@ -44,9 +45,16 @@ export default function Communication() {
     enabled: isAuthenticated,
   });
   
+  // All employees can now see team members for communication
   const { data: employees = [] } = useQuery({
     queryKey: ["/api/employees"],
-    enabled: isAuthenticated && (user?.role === 'admin' || user?.role === 'manager'),
+    enabled: isAuthenticated,
+  });
+
+  // Fetch available channels for team communication
+  const { data: channels = [] } = useQuery({
+    queryKey: ["/api/channels"],
+    enabled: isAuthenticated,
   });
   
   const { data: locations = [] } = useQuery({
@@ -133,7 +141,9 @@ export default function Communication() {
       messageType: communicationType === 'announcement' ? 'announcement' : 'broadcast',
       smsEnabled: sendSMS,
       recipientMode,
-      ...(recipientMode === 'audience' ? { targetAudience } : { recipients: selectedRecipients }),
+      ...(recipientMode === 'audience' && { targetAudience }),
+      ...(recipientMode === 'individual' && { recipients: selectedRecipients }),
+      ...(recipientMode === 'channel' && { selectedChannels }),
     };
 
     sendCommunicationMutation.mutate(data);
@@ -150,8 +160,8 @@ export default function Communication() {
   };
 
   const canSelectMultipleRecipients = () => {
-    // Only admins and managers can select multiple individual recipients
-    return user?.role === 'admin' || user?.role === 'manager';
+    // ALL employees can now select multiple individual recipients and channels
+    return true; // Removed role restriction - all employees can select multiple recipients
   };
 
   const getAudienceOptions = () => {
@@ -306,17 +316,30 @@ export default function Communication() {
                     <Label htmlFor="audience">Group/Audience</Label>
                   </div>
                   {canSelectMultipleRecipients() && (
-                    <div className="flex items-center space-x-2">
-                      <input
-                        type="radio"
-                        id="individual"
-                        name="recipientMode"
-                        checked={recipientMode === 'individual'}
-                        onChange={() => setRecipientMode('individual')}
-                        className="radio"
-                      />
-                      <Label htmlFor="individual">Individual Recipients</Label>
-                    </div>
+                    <>
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="radio"
+                          id="individual"
+                          name="recipientMode"
+                          checked={recipientMode === 'individual'}
+                          onChange={() => setRecipientMode('individual')}
+                          className="radio"
+                        />
+                        <Label htmlFor="individual">Team Members</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="radio"
+                          id="channel"
+                          name="recipientMode"
+                          checked={recipientMode === 'channel'}
+                          onChange={() => setRecipientMode('channel')}
+                          className="radio"
+                        />
+                        <Label htmlFor="channel">Channels</Label>
+                      </div>
+                    </>
                   )}
                 </div>
               </div>
@@ -346,9 +369,9 @@ export default function Communication() {
               {/* Individual Recipients Selection */}
               {recipientMode === 'individual' && canSelectMultipleRecipients() && (
                 <div className="space-y-2">
-                  <Label>Select Recipients</Label>
+                  <Label>Select Team Members</Label>
                   <div className="max-h-40 overflow-y-auto border rounded-md p-2">
-                    {employees.map((employee: any) => (
+                    {Array.isArray(employees) && employees.length > 0 ? employees.map((employee: any) => (
                       <div key={employee.id} className="flex items-center space-x-2 py-1">
                         <Checkbox
                           checked={selectedRecipients.includes(employee.id)}
@@ -365,7 +388,44 @@ export default function Communication() {
                           <span className="text-gray-500 ml-2">({employee.role})</span>
                         </span>
                       </div>
-                    ))}
+                    )) : (
+                      <p className="text-sm text-gray-500 py-2">Loading team members...</p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Channel Selection */}
+              {recipientMode === 'channel' && canSelectMultipleRecipients() && (
+                <div className="space-y-2">
+                  <Label>Select Channels</Label>
+                  <div className="max-h-40 overflow-y-auto border rounded-md p-2">
+                    {Array.isArray(channels) && channels.length > 0 ? channels.map((channel: any) => (
+                      <div key={channel.id} className="flex items-center space-x-2 py-1">
+                        <Checkbox
+                          checked={selectedChannels.includes(channel.id)}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              setSelectedChannels([...selectedChannels, channel.id]);
+                            } else {
+                              setSelectedChannels(selectedChannels.filter(id => id !== channel.id));
+                            }
+                          }}
+                        />
+                        <span className="text-sm flex items-center">
+                          <Hash className="w-3 h-3 mr-1" />
+                          {channel.name}
+                          {channel.description && (
+                            <span className="text-gray-500 ml-2">- {channel.description}</span>
+                          )}
+                        </span>
+                      </div>
+                    )) : (
+                      <div className="text-sm text-gray-500 py-2">
+                        <p>No channels available yet.</p>
+                        <p className="text-xs mt-1">Channels like General, Lake Geneva Retail, Watertown Retail, and Watertown Spa will appear here once they're set up.</p>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}

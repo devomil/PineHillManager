@@ -3391,6 +3391,198 @@ export class DatabaseStorage implements IStorage {
       throw error;
     }
   }
+  // ===================================
+  // ENHANCED MESSAGING SYSTEM METHODS
+  // ===================================
+
+  async getMessagesForUser(userId: string, options?: { limit?: number; offset?: number; type?: string }): Promise<any[]> {
+    const limit = options?.limit || 50;
+    const offset = options?.offset || 0;
+
+    // Get both regular messages and announcements the user should see
+    const messageQuery = db
+      .select({
+        id: messages.id,
+        subject: messages.subject,
+        content: messages.content,
+        priority: messages.priority,
+        messageType: messages.messageType,
+        targetAudience: messages.targetAudience,
+        smsEnabled: messages.smsEnabled,
+        senderId: messages.senderId,
+        sentAt: messages.sentAt,
+        createdAt: messages.createdAt,
+      })
+      .from(messages)
+      .where(
+        or(
+          eq(messages.senderId, userId), // Messages sent by user
+          // Messages targeted at user (will need to expand this logic)
+          sql`${messages.targetAudience} = 'all'`
+        )
+      )
+      .orderBy(desc(messages.createdAt))
+      .limit(limit)
+      .offset(offset);
+
+    return await messageQuery;
+  }
+
+  async createReadReceipt(receipt: { messageId: number; userId: string; deliveredAt?: Date }): Promise<void> {
+    await db
+      .insert(messageReadReceipts)
+      .values({
+        messageId: receipt.messageId,
+        userId: receipt.userId,
+        deliveredAt: receipt.deliveredAt || new Date(),
+      })
+      .onConflictDoUpdate({
+        target: messageReadReceipts.messageId,
+        set: {
+          readAt: new Date(),
+        },
+      });
+  }
+
+  async getReadReceipt(messageId: number, userId: string): Promise<any> {
+    const [receipt] = await db
+      .select()
+      .from(messageReadReceipts)
+      .where(
+        and(
+          eq(messageReadReceipts.messageId, messageId),
+          eq(messageReadReceipts.userId, userId)
+        )
+      );
+    return receipt;
+  }
+
+  async markMessageAsRead(messageId: number, userId: string): Promise<void> {
+    await db
+      .update(messageReadReceipts)
+      .set({ readAt: new Date() })
+      .where(
+        and(
+          eq(messageReadReceipts.messageId, messageId),
+          eq(messageReadReceipts.userId, userId)
+        )
+      );
+  }
+
+  // ===================================
+  // CHANNEL COMMUNICATION METHODS
+  // ===================================
+
+  async getChannelsForUser(userId: string): Promise<any[]> {
+    // Get channels where user is a member
+    const userChannels = await db
+      .select({
+        id: chatChannels.id,
+        name: chatChannels.name,
+        description: chatChannels.description,
+        type: chatChannels.type,
+        isPrivate: chatChannels.isPrivate,
+        isActive: chatChannels.isActive,
+        createdBy: chatChannels.createdBy,
+        createdAt: chatChannels.createdAt,
+        memberRole: channelMembers.role,
+        joinedAt: channelMembers.joinedAt,
+      })
+      .from(chatChannels)
+      .leftJoin(channelMembers, eq(chatChannels.id, channelMembers.channelId))
+      .where(
+        and(
+          eq(chatChannels.isActive, true),
+          or(
+            eq(channelMembers.userId, userId), // User is a member
+            eq(chatChannels.isPrivate, false) // Or channel is public
+          )
+        )
+      )
+      .orderBy(chatChannels.name);
+
+    return userChannels;
+  }
+
+  async getChannel(channelId: number): Promise<any> {
+    const [channel] = await db
+      .select()
+      .from(chatChannels)
+      .where(eq(chatChannels.id, channelId));
+    return channel;
+  }
+
+  async isChannelMember(channelId: number, userId: string): Promise<boolean> {
+    // Check if user is a member or if channel is public
+    const [membership] = await db
+      .select()
+      .from(channelMembers)
+      .where(
+        and(
+          eq(channelMembers.channelId, channelId),
+          eq(channelMembers.userId, userId)
+        )
+      );
+
+    if (membership) return true;
+
+    // Check if channel is public
+    const [channel] = await db
+      .select()
+      .from(chatChannels)
+      .where(
+        and(
+          eq(chatChannels.id, channelId),
+          eq(chatChannels.isPrivate, false)
+        )
+      );
+
+    return !!channel;
+  }
+
+  async joinChannel(channelId: number, userId: string): Promise<void> {
+    await db
+      .insert(channelMembers)
+      .values({
+        channelId,
+        userId,
+        role: 'member',
+      })
+      .onConflictDoNothing();
+  }
+
+  async leaveChannel(channelId: number, userId: string): Promise<void> {
+    await db
+      .delete(channelMembers)
+      .where(
+        and(
+          eq(channelMembers.channelId, channelId),
+          eq(channelMembers.userId, userId)
+        )
+      );
+  }
+
+  async createChannelMessage(message: { 
+    channelId: number; 
+    senderId: string; 
+    content: string; 
+    messageType?: string; 
+    priority?: string; 
+    smsEnabled?: boolean;
+  }): Promise<any> {
+    const [newMessage] = await db
+      .insert(channelMessages)
+      .values({
+        channelId: message.channelId,
+        senderId: message.senderId,
+        content: message.content,
+        messageType: message.messageType || 'message',
+        priority: message.priority || 'normal',
+        smsEnabled: message.smsEnabled || false,
+      })
+      .returning();
+    return newMessage;
+  }
 }
 
 export const storage = new DatabaseStorage();
