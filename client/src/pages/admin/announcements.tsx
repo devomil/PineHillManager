@@ -12,14 +12,13 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { MessageReactions } from "@/components/ui/message-reactions";
+import { useQuery } from "@tanstack/react-query";
 import { Plus, Send, Save, Calendar, Users, AlertTriangle, MessageSquare, Smartphone } from "lucide-react";
 
 function AnnouncementsContent() {
   const { toast } = useToast();
   const { isAuthenticated, isLoading, user } = useAuth();
   const [showForm, setShowForm] = useState(false);
-  const [announcements, setAnnouncements] = useState([]);
-  const [loading, setLoading] = useState(true);
 
   // Emergency broadcast state
   const [showEmergencyDialog, setShowEmergencyDialog] = useState(false);
@@ -57,37 +56,22 @@ function AnnouncementsContent() {
     }
   }, [isAuthenticated, isLoading, user, toast]);
 
-  // Fetch announcements
-  useEffect(() => {
-    if (isAuthenticated && user) {
-      fetchAnnouncements();
-    }
-  }, [isAuthenticated, user]);
+  // Fetch announcements using React Query
+  const { data: announcements = [], isLoading: loading, error } = useQuery({
+    queryKey: ['/api/announcements'],
+    enabled: isAuthenticated && !!user,
+  });
 
-  const fetchAnnouncements = async () => {
-    try {
-      setLoading(true);
-      const response = await fetch('/api/announcements');
-      if (response.ok) {
-        const data = await response.json();
-        setAnnouncements(data);
-      } else {
-        toast({
-          title: "Error",
-          description: "Failed to load announcements",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
+  // Handle query errors
+  useEffect(() => {
+    if (error) {
       toast({
         title: "Error",
         description: "Failed to load announcements",
         variant: "destructive",
       });
-    } finally {
-      setLoading(false);
     }
-  };
+  }, [error, toast]);
 
   // Handle URL params for success/error messages
   useEffect(() => {
@@ -465,7 +449,7 @@ function AnnouncementsContent() {
                       <div className="mt-3 pt-2 border-t border-gray-200 dark:border-gray-700">
                         <MessageReactions 
                           messageId={announcement.id} 
-                          initialReactions={[]} 
+                          existingReactions={announcement.reactions || []} 
                         />
                       </div>
                     </div>

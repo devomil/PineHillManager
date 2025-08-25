@@ -47,9 +47,9 @@ export function MessageReactions({ messageId, existingReactions = [], className 
       }
     },
     onSuccess: () => {
-      // Invalidate message queries to refresh reactions
+      // Invalidate queries to refresh reactions
+      queryClient.invalidateQueries({ queryKey: ['/api/announcements'] });
       queryClient.invalidateQueries({ queryKey: ['/api/messages'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/admin/announcements'] });
     },
   });
 
