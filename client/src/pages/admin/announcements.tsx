@@ -57,7 +57,7 @@ function AnnouncementsContent() {
   }, [isAuthenticated, isLoading, user, toast]);
 
   // Fetch announcements using React Query
-  const { data: announcements = [], isLoading: loading, error } = useQuery({
+  const { data: announcements = [], isLoading: loading, error } = useQuery<any[]>({
     queryKey: ['/api/announcements'],
     enabled: isAuthenticated && !!user,
   });
