@@ -381,6 +381,26 @@ function AnnouncementsContent() {
               </div>
 
               <Separator />
+              
+              <div className="space-y-4">
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="smsEnabled"
+                    name="smsEnabled"
+                    value="true"
+                    className="rounded border-gray-300 text-primary focus:ring-primary"
+                  />
+                  <Label htmlFor="smsEnabled" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                    📱 Send SMS notifications to all eligible employees
+                  </Label>
+                </div>
+                <p className="text-xs text-muted-foreground ml-6">
+                  SMS will be sent to employees who have SMS notifications enabled and consent given.
+                </p>
+              </div>
+
+              <Separator />
 
               <div className="flex gap-4 justify-end">
                 <Button 

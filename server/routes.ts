@@ -396,6 +396,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const authorId = req.user!.id;
       
+      console.log('📢 Creating announcement with data:', {
+        title,
+        priority,
+        targetAudience,
+        isPublished,
+        smsEnabled,
+        smsEnabledType: typeof smsEnabled,
+        reqBodyKeys: Object.keys(req.body)
+      });
+      
       // Validate required fields
       if (!title?.trim() || !content?.trim()) {
         return res.status(400).json({ error: 'Title and content are required' });
@@ -423,12 +433,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         priority,
         targetAudience: processedAudience,
         isPublished: isPublished === 'true' || isPublished === true,
-        publishedAt: isPublished ? new Date() : null,
         expiresAt: expirationDate,
       });
 
       // If SMS is enabled and announcement is published, send notifications
-      if ((smsEnabled === 'true' || smsEnabled === true) && announcement.isPublished) {
+      const shouldSendSMS = (smsEnabled === 'true' || smsEnabled === true || smsEnabled === 'on');
+      console.log('📱 SMS notification check:', {
+        smsEnabled,
+        shouldSendSMS,
+        isPublished: announcement.isPublished,
+        willSendSMS: shouldSendSMS && announcement.isPublished
+      });
+      
+      if (shouldSendSMS && announcement.isPublished) {
+        console.log('🔔 Preparing to send SMS notifications...');
         try {
           // Send smart notifications using existing system
           const allUsers = await storage.getAllUsers();
@@ -440,9 +458,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
             user.smsNotificationTypes?.includes('announcements')
           );
 
+          console.log('👥 SMS recipient analysis:', {
+            totalUsers: allUsers.length,
+            eligibleUsers: eligibleUsers.length,
+            eligibleUserIds: eligibleUsers.map(u => ({ id: u.id, phone: u.phone, firstName: u.firstName }))
+          });
+
           if (eligibleUsers.length > 0) {
             const userIds = eligibleUsers.map(user => user.id);
-            await smartNotificationService.sendBulkSmartNotifications(
+            console.log('📤 Sending notifications to user IDs:', userIds);
+            
+            const notificationResult = await smartNotificationService.sendBulkSmartNotifications(
               userIds,
               {
                 messageType: 'announcement',
@@ -454,11 +480,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 targetAudience: processedAudience
               }
             );
+            
+            console.log('✅ Notification result:', notificationResult);
+          } else {
+            console.log('⚠️ No eligible users found for SMS notifications');
           }
         } catch (notificationError) {
-          console.error('Error sending announcement notifications:', notificationError);
+          console.error('❌ Error sending announcement notifications:', notificationError);
           // Don't fail the whole request if notifications fail
         }
+      } else {
+        console.log('🚫 SMS notifications not sent - either not enabled or announcement not published');
       }
 
       res.status(201).json({ success: true, announcement });
