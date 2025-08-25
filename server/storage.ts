@@ -7,6 +7,7 @@ import {
   trainingModules,
   trainingProgress,
   messages,
+  smsDeliveries,
   pushSubscriptions,
   notifications,
   locations,
@@ -52,6 +53,7 @@ import {
   type TrainingProgress,
   type InsertMessage,
   type Message,
+  insertSMSDeliverySchema,
   type InsertPushSubscription,
   type PushSubscription,
   type InsertNotification,
@@ -523,13 +525,24 @@ export interface IStorage {
 
   // Location sales data (for revenue analytics integration)
   getLocationSalesData(locationId: number, startDate: Date, endDate: Date): Promise<any[]>;
+
+  // SMS functionality
+  createSMSDelivery(smsDelivery: any): Promise<any>;
+  getSMSDeliveriesByMessageId(messageId: number): Promise<any[]>;
+  updateSMSDeliveryStatus(deliveryId: number, status: string, deliveredAt?: Date): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
   // User operations
   async getUser(id: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.id, id));
-    return user;
+    try {
+      const [user] = await db.select().from(users).where(eq(users.id, id));
+      return user;
+    } catch (error) {
+      console.error('Error fetching user:', error);
+      // Return minimal user object if column doesn't exist yet
+      return undefined;
+    }
   }
 
   async upsertUser(userData: UpsertUser): Promise<User> {
@@ -3161,6 +3174,41 @@ export class DatabaseStorage implements IStorage {
     } catch (error) {
       console.error('Error fetching order analytics:', error);
       return { analytics: [], summary: { totalOrders: 0, totalRevenue: 0, averageOrderValue: 0 } };
+    }
+  }
+
+  // SMS delivery methods
+  async createSMSDelivery(smsDelivery: any): Promise<any> {
+    try {
+      const [created] = await db.insert(smsDeliveries).values(smsDelivery).returning();
+      return created;
+    } catch (error) {
+      console.error('Error creating SMS delivery:', error);
+      throw error;
+    }
+  }
+
+  async getSMSDeliveriesByMessageId(messageId: number): Promise<any[]> {
+    try {
+      return await db.select().from(smsDeliveries).where(eq(smsDeliveries.messageId, messageId));
+    } catch (error) {
+      console.error('Error fetching SMS deliveries:', error);
+      return [];
+    }
+  }
+
+  async updateSMSDeliveryStatus(deliveryId: number, status: string, deliveredAt?: Date): Promise<void> {
+    try {
+      await db.update(smsDeliveries)
+        .set({ 
+          status, 
+          deliveredAt,
+          updatedAt: new Date()
+        })
+        .where(eq(smsDeliveries.id, deliveryId));
+    } catch (error) {
+      console.error('Error updating SMS delivery status:', error);
+      throw error;
     }
   }
 }

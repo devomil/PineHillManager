@@ -8,9 +8,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
-import { Plus, Send, Save, Calendar, Users, AlertTriangle } from "lucide-react";
+import { Plus, Send, Save, Calendar, Users, AlertTriangle, MessageSquare, Smartphone } from "lucide-react";
 
 function AnnouncementsContent() {
   const { toast } = useToast();
@@ -18,6 +19,12 @@ function AnnouncementsContent() {
   const [showForm, setShowForm] = useState(false);
   const [announcements, setAnnouncements] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Emergency broadcast state
+  const [showEmergencyDialog, setShowEmergencyDialog] = useState(false);
+  const [emergencyMessage, setEmergencyMessage] = useState("");
+  const [targetAudience, setTargetAudience] = useState("all");
+  const [sendingEmergency, setSendingEmergency] = useState(false);
 
   // Check authentication and access
   useEffect(() => {
@@ -117,6 +124,60 @@ function AnnouncementsContent() {
     }
   }, [toast]);
 
+  // Emergency broadcast handler
+  const handleEmergencyBroadcast = async () => {
+    if (!emergencyMessage.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter an emergency message",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setSendingEmergency(true);
+    try {
+      const response = await fetch('/api/sms/emergency-broadcast', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          message: emergencyMessage,
+          targetAudience
+        }),
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        toast({
+          title: "Emergency Broadcast Sent",
+          description: `Message sent to ${result.sent} employees (${result.failed} failed)`,
+          variant: "default",
+        });
+        setEmergencyMessage("");
+        setShowEmergencyDialog(false);
+        setTargetAudience("all");
+      } else {
+        toast({
+          title: "Broadcast Failed",
+          description: result.error || "Failed to send emergency broadcast",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Network Error", 
+        description: "Failed to send emergency broadcast. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setSendingEmergency(false);
+    }
+  };
+
   const getPriorityColor = (priority: string) => {
     switch (priority) {
       case 'urgent': return 'bg-red-500 hover:bg-red-600';
@@ -171,13 +232,84 @@ function AnnouncementsContent() {
             Create and manage company announcements for your team
           </p>
         </div>
-        <Button 
-          onClick={() => setShowForm(!showForm)}
-          className="bg-green-600 hover:bg-green-700"
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          New Announcement
-        </Button>
+        <div className="flex gap-3">
+          <Dialog open={showEmergencyDialog} onOpenChange={setShowEmergencyDialog}>
+            <DialogTrigger asChild>
+              <Button variant="destructive" className="bg-red-600 hover:bg-red-700">
+                <AlertTriangle className="h-4 w-4 mr-2" />
+                Emergency Broadcast
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2 text-red-600">
+                  <Smartphone className="h-5 w-5" />
+                  Emergency SMS Broadcast
+                </DialogTitle>
+                <DialogDescription>
+                  Send an urgent SMS message to all employees immediately. This will be marked as an emergency.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="emergency-message">Emergency Message</Label>
+                  <Textarea
+                    id="emergency-message"
+                    placeholder="Enter emergency message..."
+                    value={emergencyMessage}
+                    onChange={(e) => setEmergencyMessage(e.target.value)}
+                    className="mt-1"
+                    rows={3}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="target-audience">Target Audience</Label>
+                  <Select value={targetAudience} onValueChange={setTargetAudience}>
+                    <SelectTrigger className="mt-1">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Employees</SelectItem>
+                      <SelectItem value="role:employee">Employees Only</SelectItem>
+                      <SelectItem value="role:manager">Managers Only</SelectItem>
+                      <SelectItem value="store:Lake Geneva">Lake Geneva Store</SelectItem>
+                      <SelectItem value="store:Watertown">Watertown Store</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setShowEmergencyDialog(false)}>
+                  Cancel
+                </Button>
+                <Button 
+                  variant="destructive" 
+                  onClick={handleEmergencyBroadcast}
+                  disabled={sendingEmergency || !emergencyMessage.trim()}
+                >
+                  {sendingEmergency ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Sending...
+                    </>
+                  ) : (
+                    <>
+                      <MessageSquare className="h-4 w-4 mr-2" />
+                      Send Emergency SMS
+                    </>
+                  )}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+          <Button 
+            onClick={() => setShowForm(!showForm)}
+            className="bg-green-600 hover:bg-green-700"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            New Announcement
+          </Button>
+        </div>
       </div>
 
       {showForm && (

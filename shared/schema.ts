@@ -51,6 +51,17 @@ export const users = pgTable("users", {
   emergencyPhone: varchar("emergency_phone"),
   notes: text("notes"),
   permissions: text("permissions").array(), // Array of permission strings
+  
+  // Store/Location assignments for multi-location targeting
+  primaryStore: varchar("primary_store"), // 'lake_geneva', 'watertown', 'online'
+  assignedStores: text("assigned_stores").array(), // Array of store IDs user works at
+  
+  // SMS preferences and compliance
+  smsConsent: boolean("sms_consent").default(false), // Whether user consented to SMS
+  smsConsentDate: timestamp("sms_consent_date"), // When consent was given
+  smsEnabled: boolean("sms_enabled").default(true), // User preference for SMS notifications
+  smsNotificationTypes: text("sms_notification_types").array().default(['emergency']), // Types of notifications to send via SMS
+  
   lastLogin: timestamp("last_login"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -58,6 +69,8 @@ export const users = pgTable("users", {
   emailIdx: index("idx_users_email").on(table.email),
   employeeIdIdx: index("idx_users_employee_id").on(table.employeeId),
   roleIdx: index("idx_users_role").on(table.role),
+  primaryStoreIdx: index("idx_users_primary_store").on(table.primaryStore),
+  smsConsentIdx: index("idx_users_sms_consent").on(table.smsConsent),
 }));
 
 // Time clock entries for punch in/out system
@@ -214,16 +227,43 @@ export const messages = pgTable("messages", {
   recipientId: varchar("recipient_id").references(() => users.id),
   subject: varchar("subject"),
   content: text("content").notNull(),
+  priority: varchar("priority").default("normal"), // 'emergency', 'high', 'normal', 'low'
   isRead: boolean("is_read").default(false),
   sentAt: timestamp("sent_at").defaultNow(),
   readAt: timestamp("read_at"),
-  messageType: varchar("message_type").default("direct"), // 'direct', 'channel', 'announcement'
+  messageType: varchar("message_type").default("direct"), // 'direct', 'channel', 'announcement', 'broadcast'
   channelId: varchar("channel_id"), // for team/group messages
+  targetAudience: varchar("target_audience"), // 'all', 'store:lake_geneva', 'store:watertown', 'role:admin', 'role:manager', 'role:employee'
+  smsEnabled: boolean("sms_enabled").default(false), // Whether to send via SMS
+  smsDelivered: boolean("sms_delivered").default(false), // Whether SMS was successfully delivered
 }, (table) => ({
   recipientReadIdx: index("idx_messages_recipient_read").on(table.recipientId, table.isRead),
   channelIdx: index("idx_messages_channel").on(table.channelId),
   sentAtIdx: index("idx_messages_sent_at").on(table.sentAt),
   senderIdx: index("idx_messages_sender").on(table.senderId),
+  priorityIdx: index("idx_messages_priority").on(table.priority),
+  targetAudienceIdx: index("idx_messages_target_audience").on(table.targetAudience),
+}));
+
+// SMS delivery tracking for compliance and monitoring
+export const smsDeliveries = pgTable("sms_deliveries", {
+  id: serial("id").primaryKey(),
+  messageId: integer("message_id").references(() => messages.id),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  twilioMessageId: varchar("twilio_message_id").notNull(), // Twilio's SID
+  phoneNumber: varchar("phone_number").notNull(),
+  status: varchar("status").notNull().default("queued"), // 'queued', 'sending', 'sent', 'delivered', 'failed', 'undelivered'
+  errorCode: varchar("error_code"),
+  errorMessage: text("error_message"),
+  sentAt: timestamp("sent_at").defaultNow(),
+  deliveredAt: timestamp("delivered_at"),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  messageUserIdx: index("idx_sms_message_user").on(table.messageId, table.userId),
+  twilioMessageIdx: index("idx_sms_twilio_message").on(table.twilioMessageId),
+  statusIdx: index("idx_sms_status").on(table.status),
+  phoneIdx: index("idx_sms_phone").on(table.phoneNumber),
+  sentAtIdx: index("idx_sms_sent_at").on(table.sentAt),
 }));
 
 // Chat channels for team communication
@@ -364,6 +404,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   trainingProgress: many(trainingProgress),
   sentMessages: many(messages, { relationName: "sender" }),
   receivedMessages: many(messages, { relationName: "recipient" }),
+  smsDeliveries: many(smsDeliveries),
   pushSubscriptions: many(pushSubscriptions),
   notifications: many(notifications),
   createdChannels: many(chatChannels),
@@ -404,10 +445,16 @@ export const trainingProgressRelations = relations(trainingProgress, ({ one }) =
   module: one(trainingModules, { fields: [trainingProgress.moduleId], references: [trainingModules.id] }),
 }));
 
-export const messagesRelations = relations(messages, ({ one }) => ({
+export const messagesRelations = relations(messages, ({ one, many }) => ({
   sender: one(users, { fields: [messages.senderId], references: [users.id], relationName: "sender" }),
   recipient: one(users, { fields: [messages.recipientId], references: [users.id], relationName: "recipient" }),
   channel: one(chatChannels, { fields: [messages.channelId], references: [chatChannels.id] }),
+  smsDeliveries: many(smsDeliveries),
+}));
+
+export const smsDeliveriesRelations = relations(smsDeliveries, ({ one }) => ({
+  message: one(messages, { fields: [smsDeliveries.messageId], references: [messages.id] }),
+  user: one(users, { fields: [smsDeliveries.userId], references: [users.id] }),
 }));
 
 export const chatChannelsRelations = relations(chatChannels, ({ one, many }) => ({
@@ -491,6 +538,13 @@ export const insertMessageSchema = createInsertSchema(messages).omit({
   id: true,
   sentAt: true,
   readAt: true,
+});
+
+export const insertSMSDeliverySchema = createInsertSchema(smsDeliveries).omit({
+  id: true,
+  sentAt: true,
+  deliveredAt: true,
+  updatedAt: true,
 });
 
 export const insertPushSubscriptionSchema = createInsertSchema(pushSubscriptions).omit({
