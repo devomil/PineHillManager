@@ -54,20 +54,48 @@ function AnnouncementsContent() {
   const getTargetAudienceIcon = (audience: string) => {
     switch (audience) {
       case 'all': return <Users className="h-4 w-4" />;
+      case 'employees-only': return <Users className="h-4 w-4" />;
+      case 'admins-managers':
+      case 'managers-only': 
+      case 'admins-only': return <Users className="h-4 w-4" />;
+      case 'lake-geneva':
+      case 'watertown':
+      case 'watertown-retail':
+      case 'watertown-spa':
+      case 'online-team': return <Users className="h-4 w-4" />;
+      // Legacy support
       case 'managers': return <Users className="h-4 w-4" />;
       case 'employees': return <Users className="h-4 w-4" />;
       case 'admins': return <Users className="h-4 w-4" />;
-      default: return <Users className="h-4 w-4" />;
+      default: 
+        if (audience.startsWith('user:')) {
+          return <Users className="h-4 w-4" />;
+        }
+        return <Users className="h-4 w-4" />;
     }
   };
 
   const formatAudience = (audience: string) => {
     switch (audience) {
       case 'all': return 'All Staff';
+      case 'employees-only': return 'Employees Only';
+      case 'admins-managers': return 'Admins & Managers';
+      case 'managers-only': return 'Managers Only';
+      case 'admins-only': return 'Admins Only';
+      case 'lake-geneva': return 'Lake Geneva Team';
+      case 'watertown': return 'Watertown Team';
+      case 'watertown-retail': return 'Watertown Retail';
+      case 'watertown-spa': return 'Watertown Spa';
+      case 'online-team': return 'Online Team';
+      // Legacy support
       case 'managers': return 'Managers';
-      case 'employees': return 'Employees';
+      case 'employees': return 'Employees Only';
       case 'admins': return 'Management';
-      default: return audience;
+      default: 
+        if (audience.startsWith('user:')) {
+          return 'Selected Individuals';
+        }
+        return audience.charAt(0).toUpperCase() + audience.slice(1);
     }
   };
 
@@ -230,10 +258,15 @@ function AnnouncementsContent() {
                             <Calendar className="h-4 w-4" />
                             Published {announcement.publishedAt ? format(new Date(announcement.publishedAt), "MMM d, yyyy 'at' h:mm a") : 'Unknown'}
                           </span>
-                          <span className="flex items-center gap-1">
+                          <div className="flex items-center gap-1">
                             {getTargetAudienceIcon(announcement.targetAudience)}
-                            {formatAudience(announcement.targetAudience)}
-                          </span>
+                            <span>{formatAudience(announcement.targetAudience)}</span>
+                            {announcement.targetAudience && announcement.targetAudience !== 'all' && (
+                              <Badge variant="outline" className="text-xs ml-1">
+                                Targeted
+                              </Badge>
+                            )}
+                          </div>
                         </div>
                         {announcement.expiresAt && (
                           <span className="flex items-center gap-1 text-orange-600">
@@ -294,10 +327,15 @@ function AnnouncementsContent() {
                               <Calendar className="h-4 w-4" />
                               Published {announcement.publishedAt ? format(new Date(announcement.publishedAt), "MMM d, yyyy 'at' h:mm a") : 'Unknown'}
                             </span>
-                            <span className="flex items-center gap-1">
+                            <div className="flex items-center gap-1">
                               {getTargetAudienceIcon(announcement.targetAudience)}
-                              {formatAudience(announcement.targetAudience)}
-                            </span>
+                              <span>{formatAudience(announcement.targetAudience)}</span>
+                              {announcement.targetAudience && announcement.targetAudience !== 'all' && (
+                                <Badge variant="outline" className="text-xs ml-1">
+                                  Targeted
+                                </Badge>
+                              )}
+                            </div>
                           </div>
                           {announcement.expiresAt && (
                             <span className="flex items-center gap-1 text-red-600">

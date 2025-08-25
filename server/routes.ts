@@ -381,6 +381,94 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Create announcement route (handles form submission)
+  app.post('/api/announcements', isAuthenticated, async (req, res) => {
+    try {
+      const {
+        title,
+        content,
+        priority = 'normal',
+        targetAudience,
+        expiresAt,
+        isPublished = true,
+        smsEnabled = false
+      } = req.body;
+      
+      const authorId = req.user!.id;
+      
+      // Validate required fields
+      if (!title?.trim() || !content?.trim()) {
+        return res.status(400).json({ error: 'Title and content are required' });
+      }
+
+      // Handle multi-value audience format from form array
+      let processedAudience = 'all';
+      
+      if (Array.isArray(targetAudience)) {
+        // Multi-value array from enhanced selector
+        processedAudience = targetAudience.length > 0 ? targetAudience[0] : 'all';
+      } else if (targetAudience && typeof targetAudience === 'string') {
+        // Single value from basic selector
+        processedAudience = targetAudience;
+      }
+
+      // Process expiration date
+      const expirationDate = expiresAt ? new Date(expiresAt) : null;
+      
+      // Create announcement in database
+      const announcement = await storage.createAnnouncement({
+        title: title.trim(),
+        content: content.trim(),
+        authorId,
+        priority,
+        targetAudience: processedAudience,
+        isPublished: isPublished === 'true' || isPublished === true,
+        publishedAt: isPublished ? new Date() : null,
+        expiresAt: expirationDate,
+      });
+
+      // If SMS is enabled and announcement is published, send notifications
+      if ((smsEnabled === 'true' || smsEnabled === true) && announcement.isPublished) {
+        try {
+          // Send smart notifications using existing system
+          const allUsers = await storage.getAllUsers();
+          const eligibleUsers = allUsers.filter(user => 
+            user.isActive && 
+            user.phone && 
+            user.smsConsent &&
+            user.smsEnabled &&
+            user.smsNotificationTypes?.includes('announcements')
+          );
+
+          if (eligibleUsers.length > 0) {
+            const userIds = eligibleUsers.map(user => user.id);
+            await smartNotificationService.sendBulkSmartNotifications(
+              userIds,
+              {
+                messageType: 'announcement',
+                priority: priority as any,
+                content: {
+                  title: title,
+                  message: content
+                },
+                targetAudience: processedAudience
+              }
+            );
+          }
+        } catch (notificationError) {
+          console.error('Error sending announcement notifications:', notificationError);
+          // Don't fail the whole request if notifications fail
+        }
+      }
+
+      res.status(201).json({ success: true, announcement });
+      
+    } catch (error) {
+      console.error('Error creating announcement:', error);
+      res.status(500).json({ error: 'Failed to create announcement' });
+    }
+  });
+
   // Users routes
   app.get('/api/users', isAuthenticated, async (req, res) => {
     try {
@@ -4185,18 +4273,77 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: 'No employees found with SMS enabled and consent given' });
       }
 
-      // Filter by target audience if specified
+      // Process multi-value audience format
+      let processedTargetAudience = 'all';
+      if (Array.isArray(targetAudience)) {
+        processedTargetAudience = targetAudience.length > 0 ? targetAudience[0] : 'all';
+      } else if (targetAudience && typeof targetAudience === 'string') {
+        processedTargetAudience = targetAudience;
+      }
+
+      // Filter by target audience using enhanced granular options
       let targetUsers = eligibleUsers;
-      if (targetAudience && targetAudience !== 'all') {
-        if (targetAudience.startsWith('role:')) {
-          const targetRole = targetAudience.replace('role:', '');
-          targetUsers = eligibleUsers.filter(user => user.role === targetRole);
-        } else if (targetAudience.startsWith('store:')) {
-          const targetStore = targetAudience.replace('store:', '');
-          targetUsers = eligibleUsers.filter(user => 
-            user.primaryStore === targetStore || 
-            user.assignedStores?.includes(targetStore)
-          );
+      if (processedTargetAudience && processedTargetAudience !== 'all') {
+        switch (processedTargetAudience) {
+          case 'employees-only':
+            targetUsers = eligibleUsers.filter(user => user.role === 'employee');
+            break;
+          case 'admins-managers':
+            targetUsers = eligibleUsers.filter(user => user.role === 'admin' || user.role === 'manager');
+            break;
+          case 'managers-only':
+            targetUsers = eligibleUsers.filter(user => user.role === 'manager');
+            break;
+          case 'admins-only':
+            targetUsers = eligibleUsers.filter(user => user.role === 'admin');
+            break;
+          case 'lake-geneva':
+            targetUsers = eligibleUsers.filter(user => 
+              user.primaryStore === 'lake_geneva' || 
+              user.assignedStores?.includes('lake_geneva')
+            );
+            break;
+          case 'watertown':
+            targetUsers = eligibleUsers.filter(user => 
+              user.primaryStore === 'watertown' || 
+              user.assignedStores?.includes('watertown')
+            );
+            break;
+          case 'watertown-retail':
+            targetUsers = eligibleUsers.filter(user => 
+              user.primaryStore === 'watertown_retail' || 
+              user.assignedStores?.includes('watertown_retail')
+            );
+            break;
+          case 'watertown-spa':
+            targetUsers = eligibleUsers.filter(user => 
+              user.primaryStore === 'watertown_spa' || 
+              user.assignedStores?.includes('watertown_spa')
+            );
+            break;
+          case 'online-team':
+            targetUsers = eligibleUsers.filter(user => 
+              user.primaryStore === 'online' || 
+              user.assignedStores?.includes('online')
+            );
+            break;
+          // Legacy support for old format
+          default:
+            if (processedTargetAudience.startsWith('role:')) {
+              const targetRole = processedTargetAudience.replace('role:', '');
+              targetUsers = eligibleUsers.filter(user => user.role === targetRole);
+            } else if (processedTargetAudience.startsWith('store:')) {
+              const targetStore = processedTargetAudience.replace('store:', '');
+              targetUsers = eligibleUsers.filter(user => 
+                user.primaryStore === targetStore || 
+                user.assignedStores?.includes(targetStore)
+              );
+            } else if (processedTargetAudience.startsWith('user:')) {
+              // Handle individual user selection
+              const userId = processedTargetAudience.replace('user:', '');
+              targetUsers = eligibleUsers.filter(user => user.id === userId);
+            }
+            break;
         }
       }
 
@@ -4210,7 +4357,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         content: message,
         priority: 'emergency',
         messageType: 'broadcast',
-        targetAudience: targetAudience || 'all',
+        targetAudience: processedTargetAudience,
         smsEnabled: true,
       });
 

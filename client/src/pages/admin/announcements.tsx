@@ -15,16 +15,20 @@ import { MessageReactions } from "@/components/ui/message-reactions";
 import { useQuery } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { Plus, Send, Save, Calendar, Users, AlertTriangle, MessageSquare, Smartphone } from "lucide-react";
+import { AudienceSelector } from "@/components/ui/audience-selector";
 
 function AnnouncementsContent() {
   const { toast } = useToast();
   const { isAuthenticated, isLoading, user } = useAuth();
   const [showForm, setShowForm] = useState(false);
 
+  // Form state
+  const [formAudience, setFormAudience] = useState<string[]>(["all"]);
+
   // Emergency broadcast state
   const [showEmergencyDialog, setShowEmergencyDialog] = useState(false);
   const [emergencyMessage, setEmergencyMessage] = useState("");
-  const [targetAudience, setTargetAudience] = useState("all");
+  const [emergencyAudience, setEmergencyAudience] = useState<string[]>(["all"]);
   const [sendingEmergency, setSendingEmergency] = useState(false);
 
   // Check authentication and access
@@ -153,7 +157,7 @@ function AnnouncementsContent() {
         credentials: 'include',
         body: JSON.stringify({
           message: emergencyMessage,
-          targetAudience
+          targetAudience: emergencyAudience
         }),
       });
 
@@ -167,7 +171,7 @@ function AnnouncementsContent() {
         });
         setEmergencyMessage("");
         setShowEmergencyDialog(false);
-        setTargetAudience("all");
+        setEmergencyAudience(["all"]);
       } else {
         toast({
           title: "Broadcast Failed",
@@ -271,19 +275,12 @@ function AnnouncementsContent() {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="target-audience">Target Audience</Label>
-                  <Select value={targetAudience} onValueChange={setTargetAudience}>
-                    <SelectTrigger className="mt-1">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Employees</SelectItem>
-                      <SelectItem value="role:employee">Employees Only</SelectItem>
-                      <SelectItem value="role:manager">Managers Only</SelectItem>
-                      <SelectItem value="store:Lake Geneva">Lake Geneva Store</SelectItem>
-                      <SelectItem value="store:Watertown">Watertown Store</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <AudienceSelector
+                    selectedAudience={emergencyAudience}
+                    onAudienceChange={setEmergencyAudience}
+                    name="emergencyTargetAudience"
+                    showSMSInfo={true}
+                  />
                 </div>
               </div>
               <DialogFooter>
@@ -353,18 +350,13 @@ function AnnouncementsContent() {
                   </Select>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="targetAudience">Target Audience</Label>
-                  <Select name="targetAudience" defaultValue="all">
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select audience" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Employees</SelectItem>
-                      <SelectItem value="employees">Employees Only</SelectItem>
-                      <SelectItem value="admins">Admins & Managers</SelectItem>
-                    </SelectContent>
-                  </Select>
+                <div className="col-span-2">
+                  <AudienceSelector
+                    selectedAudience={formAudience}
+                    onAudienceChange={setFormAudience}
+                    name="targetAudience"
+                    showSMSInfo={true}
+                  />
                 </div>
 
                 <div className="space-y-2">
