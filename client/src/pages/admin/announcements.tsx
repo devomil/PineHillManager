@@ -13,6 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { MessageReactions } from "@/components/ui/message-reactions";
 import { useQuery } from "@tanstack/react-query";
+import { queryClient } from "@/lib/queryClient";
 import { Plus, Send, Save, Calendar, Users, AlertTriangle, MessageSquare, Smartphone } from "lucide-react";
 
 function AnnouncementsContent() {
@@ -59,19 +60,31 @@ function AnnouncementsContent() {
   // Fetch announcements using React Query
   const { data: announcements = [], isLoading: loading, error } = useQuery<any[]>({
     queryKey: ['/api/announcements'],
-    enabled: isAuthenticated && !!user,
+    enabled: isAuthenticated && !!user && !isLoading,
+    retry: false, // Don't retry failed requests
+    staleTime: 5 * 60 * 1000, // 5 minutes
   });
 
-  // Handle query errors
+  // Clear any cached error states when user becomes authenticated
   useEffect(() => {
-    if (error) {
+    if (isAuthenticated && user && !isLoading) {
+      // Clear any stale query cache
+      queryClient.removeQueries({ queryKey: ['/api/announcements'] });
+    }
+  }, [isAuthenticated, user, isLoading]);
+
+  // Handle query errors - only show error if query actually ran and failed
+  useEffect(() => {
+    // Only show error if it's a real error with meaningful content
+    if (error && isAuthenticated && !!user && !isLoading && error instanceof Error && error.message) {
+      console.error('Announcements query error:', error);
       toast({
-        title: "Error",
+        title: "Error", 
         description: "Failed to load announcements",
         variant: "destructive",
       });
     }
-  }, [error, toast]);
+  }, [error, isAuthenticated, user, isLoading, toast]);
 
   // Handle URL params for success/error messages
   useEffect(() => {
