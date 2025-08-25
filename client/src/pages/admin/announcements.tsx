@@ -83,14 +83,6 @@ function AnnouncementsContent() {
     refetchOnWindowFocus: false,
   });
 
-  // Debug logging
-  console.log('Announcements query state:', { 
-    isLoading: loading, 
-    error: error, 
-    announcements: announcements,
-    userExists: !!user,
-    isAuthenticated: isAuthenticated 
-  });
 
   // Only log meaningful errors and avoid showing toast for empty error objects
   useEffect(() => {

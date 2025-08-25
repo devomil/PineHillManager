@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Bell, Calendar, Users, AlertTriangle, Clock } from "lucide-react";
 import { format, isAfter, parseISO } from "date-fns";
 import AdminLayout from "@/components/admin-layout";
+import { MessageReactions } from "@/components/ui/message-reactions";
+import { useAuth } from "@/hooks/use-auth";
 
 interface Announcement {
   id: number;
@@ -23,6 +25,7 @@ interface Announcement {
 function AnnouncementsContent() {
   console.log("AnnouncementsPage component rendered");
   const [selectedFilter, setSelectedFilter] = useState<string>("all");
+  const { user } = useAuth(); // Get current user for reactions
   
   const { data: announcements = [], isLoading, error } = useQuery<Announcement[]>({
     queryKey: ["/api/announcements/published"],
@@ -227,6 +230,15 @@ function AnnouncementsContent() {
                           {announcement.content}
                         </p>
                       </div>
+
+                      {/* Reactions Section - Available to ALL employees */}
+                      {user && (
+                        <div className="mb-4">
+                          <MessageReactions 
+                            messageId={announcement.id}
+                          />
+                        </div>
+                      )}
                       
                       <div className="flex items-center justify-between text-sm text-gray-500">
                         <div className="flex items-center gap-4">
@@ -281,6 +293,15 @@ function AnnouncementsContent() {
                             {announcement.content}
                           </p>
                         </div>
+
+                        {/* Reactions Section - Available to ALL employees (even for expired announcements) */}
+                        {user && (
+                          <div className="mb-4">
+                            <MessageReactions 
+                              messageId={announcement.id}
+                            />
+                          </div>
+                        )}
                         
                         <div className="flex items-center justify-between text-sm text-gray-500">
                           <div className="flex items-center gap-4">
