@@ -43,8 +43,10 @@ export default function UserProfile() {
   const [smsNotificationTypes, setSmsNotificationTypes] = useState<string[]>(['emergency']);
   const { toast } = useToast();
 
-  const { data: user, isLoading } = useQuery<UserType>({
+  const { data: user, isLoading, refetch } = useQuery<UserType>({
     queryKey: ["/api/profile"],
+    staleTime: 0, // Always refetch when component mounts
+    refetchOnMount: true,
   });
 
   const form = useForm<ProfileFormData>({
@@ -109,6 +111,7 @@ export default function UserProfile() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
+      refetch(); // Force a refetch to get the latest data
       setIsEditing(false);
       toast({
         title: "Profile Updated",
@@ -129,7 +132,31 @@ export default function UserProfile() {
   };
 
   const handleCancel = () => {
-    form.reset();
+    // Reset form to current user data instead of empty defaults
+    if (user) {
+      form.reset({
+        firstName: user.firstName || "",
+        lastName: user.lastName || "",
+        phone: user.phone || "",
+        address: user.address || "",
+        city: user.city || "",
+        state: user.state || "",
+        zipCode: user.zipCode || "",
+        department: user.department || "",
+        position: user.position || "",
+        emergencyContact: user.emergencyContact || "",
+        emergencyPhone: user.emergencyPhone || "",
+        notes: user.notes || "",
+        smsConsent: user.smsConsent || false,
+        smsEnabled: user.smsEnabled || true,
+        smsNotificationTypes: user.smsNotificationTypes || ['emergency'],
+      });
+      
+      // Reset SMS state to current user values
+      setSmsConsent(user.smsConsent || false);
+      setSmsEnabled(user.smsEnabled || true);
+      setSmsNotificationTypes(user.smsNotificationTypes || ['emergency']);
+    }
     setIsEditing(false);
   };
 
