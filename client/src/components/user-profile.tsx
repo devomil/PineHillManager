@@ -47,6 +47,21 @@ export default function UserProfile() {
     queryKey: ["/api/profile"],
     staleTime: 0, // Always refetch when component mounts  
     refetchOnMount: true,
+    queryFn: async () => {
+      const response = await fetch('/api/profile', {
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      return data;
+    },
   });
 
   // Temporary debug logging
