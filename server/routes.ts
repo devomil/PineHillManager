@@ -4578,6 +4578,328 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ================================
+  // ENHANCED COMMUNICATION ENDPOINTS
+  // ================================
+
+  // Send communication (messages/announcements) with SMS + app notifications
+  app.post('/api/communications/send', isAuthenticated, async (req, res) => {
+    try {
+      const {
+        subject,
+        content,
+        priority = 'normal',
+        messageType = 'broadcast',
+        smsEnabled = false,
+        recipientMode = 'audience',
+        targetAudience = 'all',
+        recipients = []
+      } = req.body;
+      
+      const senderId = req.user!.id;
+      const senderUser = req.user as any;
+
+      // Validate required fields
+      if (!subject?.trim() || !content?.trim()) {
+        return res.status(400).json({ error: 'Subject and content are required' });
+      }
+
+      // Role-based permission checks
+      const isAdminOrManager = senderUser.role === 'admin' || senderUser.role === 'manager';
+
+      // Validate permissions based on target audience
+      if (recipientMode === 'audience') {
+        if (!isAdminOrManager && (targetAudience.startsWith('role:') && targetAudience !== 'role:employee')) {
+          return res.status(403).json({ error: 'Only admins and managers can send to admin/manager groups' });
+        }
+        if (targetAudience === 'admin_manager' && !isAdminOrManager) {
+          return res.status(403).json({ error: 'Only admins and managers can send to admin/manager groups' });
+        }
+      } else if (recipientMode === 'individual' && !isAdminOrManager) {
+        return res.status(403).json({ error: 'Only admins and managers can select individual recipients' });
+      }
+
+      let targetUsers: any[] = [];
+      const allUsers = await storage.getAllUsers();
+
+      // Get target users based on recipient mode
+      if (recipientMode === 'individual' && recipients.length > 0) {
+        // Individual recipients selected (admin/manager only)
+        targetUsers = allUsers.filter(user => 
+          recipients.includes(user.id) && 
+          user.isActive && 
+          user.id !== senderId
+        );
+      } else if (recipientMode === 'audience') {
+        // Audience targeting
+        let eligibleUsers = allUsers.filter(user => 
+          user.isActive && 
+          user.id !== senderId
+        );
+
+        if (targetAudience === 'all') {
+          targetUsers = eligibleUsers;
+        } else if (targetAudience === 'admin_manager') {
+          targetUsers = eligibleUsers.filter(user => 
+            user.role === 'admin' || user.role === 'manager'
+          );
+        } else if (targetAudience.startsWith('role:')) {
+          const targetRole = targetAudience.replace('role:', '');
+          targetUsers = eligibleUsers.filter(user => user.role === targetRole);
+        } else if (targetAudience.startsWith('store:')) {
+          const targetStore = targetAudience.replace('store:', '');
+          targetUsers = eligibleUsers.filter(user => 
+            user.primaryStore === targetStore || 
+            user.assignedStores?.includes(targetStore)
+          );
+        }
+      }
+
+      if (targetUsers.length === 0) {
+        return res.status(400).json({ error: 'No eligible recipients found' });
+      }
+
+      // Create message record in database
+      const messageRecord = await storage.createMessage({
+        senderId,
+        subject,
+        content,
+        priority,
+        messageType,
+        targetAudience: recipientMode === 'individual' ? 'custom' : targetAudience,
+        smsEnabled,
+      });
+
+      // Send notifications via smart notification service
+      const userIds = targetUsers.map(user => user.id);
+      const notificationResult = await smartNotificationService.sendBulkSmartNotifications(
+        userIds,
+        {
+          messageType: messageType === 'announcement' ? 'announcement' : 'announcement',
+          priority: priority as any,
+          content: {
+            title: subject,
+            message: content,
+            metadata: {
+              messageId: messageRecord.id,
+              senderName: `${senderUser.firstName} ${senderUser.lastName}`,
+              senderRole: senderUser.role
+            }
+          },
+          targetAudience,
+          bypassClockStatus: priority === 'emergency'
+        }
+      );
+
+      // Create read receipts for tracking
+      const readReceiptPromises = targetUsers.map(user => 
+        storage.createReadReceipt({
+          messageId: messageRecord.id,
+          userId: user.id,
+          deliveredAt: new Date(),
+        })
+      );
+      await Promise.all(readReceiptPromises);
+
+      const response = {
+        success: true,
+        messageId: messageRecord.id,
+        subject,
+        recipients: {
+          total: targetUsers.length,
+          appNotifications: notificationResult.appNotifications,
+          smsNotifications: notificationResult.smsNotifications,
+          errors: notificationResult.errors.length
+        },
+        smsEnabled,
+        priority,
+        sentAt: messageRecord.sentAt,
+        details: {
+          sent: notificationResult.sent,
+          errors: notificationResult.errors,
+          targetUsers: targetUsers.map(user => ({
+            id: user.id,
+            name: `${user.firstName} ${user.lastName}`,
+            role: user.role,
+            smsConsent: user.smsConsent && user.smsEnabled
+          }))
+        }
+      };
+
+      res.json(response);
+
+    } catch (error) {
+      console.error('Error sending communication:', error);
+      res.status(500).json({ error: 'Failed to send communication' });
+    }
+  });
+
+  // Get communication history
+  app.get('/api/communications/history', isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user!.id;
+      const { limit = 50, offset = 0, type = 'all' } = req.query;
+
+      // Get messages based on user's role and involvement
+      const messages = await storage.getMessagesForUser(userId, {
+        limit: parseInt(limit as string),
+        offset: parseInt(offset as string),
+        type: type as string
+      });
+
+      // Enrich messages with reaction counts and read status
+      const enrichedMessages = await Promise.all(
+        messages.map(async (message) => {
+          const [reactions, readReceipt] = await Promise.all([
+            storage.getMessageReactions(message.id),
+            storage.getReadReceipt(message.id, userId)
+          ]);
+
+          return {
+            ...message,
+            reactions: reactions.reduce((acc: any, reaction) => {
+              acc[reaction.reactionType] = (acc[reaction.reactionType] || 0) + 1;
+              return acc;
+            }, {}),
+            userReaction: reactions.find(r => r.userId === userId)?.reactionType || null,
+            isRead: !!readReceipt?.readAt,
+            deliveredAt: readReceipt?.deliveredAt
+          };
+        })
+      );
+
+      res.json(enrichedMessages);
+
+    } catch (error) {
+      console.error('Error fetching communication history:', error);
+      res.status(500).json({ error: 'Failed to fetch communication history' });
+    }
+  });
+
+  // Mark communication as read
+  app.post('/api/communications/:messageId/read', isAuthenticated, async (req, res) => {
+    try {
+      const { messageId } = req.params;
+      const userId = req.user!.id;
+
+      await storage.markMessageAsRead(parseInt(messageId), userId);
+
+      res.json({ success: true, readAt: new Date() });
+
+    } catch (error) {
+      console.error('Error marking message as read:', error);
+      res.status(500).json({ error: 'Failed to mark message as read' });
+    }
+  });
+
+  // SMS Response Webhook (for handling replies to SMS)
+  app.post('/api/sms/webhook', async (req, res) => {
+    try {
+      const { From, Body, MessageSid } = req.body;
+      
+      console.log('SMS webhook received:', { From, Body, MessageSid });
+
+      // Find user by phone number
+      const users = await storage.getAllUsers();
+      const user = users.find(u => u.phone === From);
+
+      if (!user) {
+        console.log('SMS webhook: User not found for phone number:', From);
+        res.status(200).send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
+        return;
+      }
+
+      // Process SMS commands
+      const message = Body.trim().toLowerCase();
+      
+      if (message === 'stop') {
+        // Handle opt-out
+        await storage.updateUserProfile(user.id, {
+          smsEnabled: false,
+          smsConsent: false,
+          smsConsentDate: null
+        });
+
+        // Send confirmation
+        const confirmationMessage = 'You have been unsubscribed from Pine Hill Farm SMS notifications. Reply START to opt back in.';
+        await smsService.sendSMS(From, confirmationMessage);
+
+      } else if (message === 'start') {
+        // Handle opt-in
+        await storage.updateUserProfile(user.id, {
+          smsEnabled: true,
+          smsConsent: true,
+          smsConsentDate: new Date()
+        });
+
+        // Send confirmation
+        const confirmationMessage = 'You have been subscribed to Pine Hill Farm SMS notifications. Reply STOP to opt out.';
+        await smsService.sendSMS(From, confirmationMessage);
+
+      } else if (message === 'help') {
+        // Send help message
+        const helpMessage = 'Pine Hill Farm SMS: Reply STOP to opt out, START to opt in. For support, contact your manager.';
+        await smsService.sendSMS(From, helpMessage);
+
+      } else {
+        // Handle message reactions or responses
+        const reactionMap: { [key: string]: string } = {
+          '✓': 'check', 'check': 'check', 'ok': 'check', 'yes': 'check', 'y': 'check',
+          '👍': 'thumbs_up', 'thumbs up': 'thumbs_up', 'good': 'thumbs_up', 'like': 'thumbs_up',
+          '❌': 'x', 'x': 'x', 'no': 'x', 'n': 'x',
+          '❓': 'question', '?': 'question', 'question': 'question', 'help': 'question'
+        };
+
+        const reactionType = reactionMap[message];
+        
+        if (reactionType) {
+          // Try to find the most recent message to react to
+          const recentMessages = await storage.getMessagesForUser(user.id, { limit: 1, offset: 0 });
+          
+          if (recentMessages.length > 0) {
+            const messageId = recentMessages[0].id;
+            
+            // Remove existing reaction of same type, then add new one
+            await storage.removeMessageReaction(messageId, user.id, reactionType);
+            await storage.addMessageReaction({
+              messageId,
+              userId: user.id,
+              reactionType,
+            });
+
+            // Send confirmation
+            const confirmationMessage = `Your reaction (${reactionType.replace('_', ' ')}) has been recorded for the latest message.`;
+            await smsService.sendSMS(From, confirmationMessage);
+          } else {
+            // No recent messages to react to
+            const noMessageResponse = 'No recent messages found to react to. Your reaction could not be processed.';
+            await smsService.sendSMS(From, noMessageResponse);
+          }
+        } else {
+          // Log general SMS response for review
+          console.log(`SMS response from ${user.firstName} ${user.lastName} (${From}): ${Body}`);
+          
+          // Create a message record of the response
+          await storage.createMessage({
+            senderId: user.id,
+            content: `SMS Response: ${Body}`,
+            messageType: 'direct',
+            targetAudience: 'admin',
+            priority: 'normal',
+            smsEnabled: false,
+          });
+        }
+      }
+
+      // Always respond with valid TwiML
+      res.status(200).send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
+
+    } catch (error) {
+      console.error('SMS webhook error:', error);
+      res.status(200).send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
