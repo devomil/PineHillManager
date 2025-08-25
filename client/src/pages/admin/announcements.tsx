@@ -198,14 +198,31 @@ function AnnouncementsContent() {
     try {
       const formData = new FormData(e.currentTarget);
       
+      // Debug: Log form data contents
+      console.log('Form data entries:');
+      for (let [key, value] of formData.entries()) {
+        console.log(key, value);
+      }
+      
       // Add the audience selection to form data
       formAudience.forEach((audience, index) => {
         formData.append(`targetAudience[${index}]`, audience);
       });
       
+      // Convert FormData to JSON for easier debugging
+      const formObject: any = {};
+      for (let [key, value] of formData.entries()) {
+        formObject[key] = value;
+      }
+      
+      console.log('Sending form object:', formObject);
+      
       const response = await fetch('/api/announcements', {
         method: 'POST',
-        body: formData,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formObject),
       });
       
       if (response.ok) {
