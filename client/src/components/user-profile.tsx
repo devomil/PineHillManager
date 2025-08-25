@@ -47,6 +47,27 @@ export default function UserProfile() {
     queryKey: ["/api/profile"],
     staleTime: 0, // Always refetch when component mounts
     refetchOnMount: true,
+    retry: false, // Disable retries for debugging
+    queryFn: async () => {
+      console.log('Custom queryFn: Making GET request to /api/profile');
+      const response = await fetch('/api/profile', {
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      console.log('Custom queryFn: Response status:', response.status);
+      
+      if (!response.ok) {
+        console.error('Custom queryFn: Request failed:', response.status, response.statusText);
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      console.log('Custom queryFn: Retrieved profile data:', data);
+      return data;
+    },
   });
 
   // Debug logging
