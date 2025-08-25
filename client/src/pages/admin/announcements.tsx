@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
+import { MessageReactions } from "@/components/ui/message-reactions";
 import { Plus, Send, Save, Calendar, Users, AlertTriangle, MessageSquare, Smartphone } from "lucide-react";
 
 function AnnouncementsContent() {
@@ -458,6 +459,14 @@ function AnnouncementsContent() {
                         {announcement.expiresAt && (
                           <span>Expires: {new Date(announcement.expiresAt).toLocaleDateString()}</span>
                         )}
+                      </div>
+                      
+                      {/* Phase 3: Message Reactions */}
+                      <div className="mt-3 pt-2 border-t border-gray-200 dark:border-gray-700">
+                        <MessageReactions 
+                          messageId={announcement.id} 
+                          initialReactions={[]} 
+                        />
                       </div>
                     </div>
                   </div>

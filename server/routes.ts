@@ -1110,6 +1110,108 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ================================
+  // PHASE 3: ENHANCED MESSAGING ROUTES
+  // ================================
+
+  // Message reactions
+  app.post("/api/messages/reactions", isAuthenticated, async (req: any, res) => {
+    try {
+      const { messageId, reactionType } = req.body;
+      const userId = req.user.id;
+
+      // Validate reaction type
+      const validReactions = ['check', 'thumbs_up', 'x', 'question'];
+      if (!validReactions.includes(reactionType)) {
+        return res.status(400).json({ error: "Invalid reaction type" });
+      }
+
+      // Remove existing reaction of same type from same user, then add new one
+      await storage.removeMessageReaction(messageId, userId, reactionType);
+      const reaction = await storage.addMessageReaction({
+        messageId,
+        userId,
+        reactionType,
+      });
+
+      res.json(reaction);
+    } catch (error) {
+      console.error("Error adding message reaction:", error);
+      res.status(500).json({ error: "Failed to add reaction" });
+    }
+  });
+
+  app.delete("/api/messages/reactions/:messageId/:reactionType", isAuthenticated, async (req: any, res) => {
+    try {
+      const { messageId, reactionType } = req.params;
+      const userId = req.user.id;
+
+      await storage.removeMessageReaction(parseInt(messageId), userId, reactionType);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error removing message reaction:", error);
+      res.status(500).json({ error: "Failed to remove reaction" });
+    }
+  });
+
+  app.get("/api/messages/:messageId/reactions", isAuthenticated, async (req: any, res) => {
+    try {
+      const { messageId } = req.params;
+      const reactions = await storage.getMessageReactions(parseInt(messageId));
+      res.json(reactions);
+    } catch (error) {
+      console.error("Error fetching message reactions:", error);
+      res.status(500).json({ error: "Failed to fetch reactions" });
+    }
+  });
+
+  // Read receipts
+  app.post("/api/messages/:messageId/read", isAuthenticated, async (req: any, res) => {
+    try {
+      const { messageId } = req.params;
+      const userId = req.user.id;
+
+      const receipt = await storage.markMessageAsRead(parseInt(messageId), userId);
+      res.json(receipt);
+    } catch (error) {
+      console.error("Error marking message as read:", error);
+      res.status(500).json({ error: "Failed to mark as read" });
+    }
+  });
+
+  // Message templates
+  app.get("/api/message-templates", isAuthenticated, async (req: any, res) => {
+    try {
+      const templates = await storage.getAllMessageTemplates();
+      res.json(templates);
+    } catch (error) {
+      console.error("Error fetching message templates:", error);
+      res.status(500).json({ error: "Failed to fetch templates" });
+    }
+  });
+
+  app.post("/api/message-templates", isAuthenticated, async (req: any, res) => {
+    try {
+      const { name, category, subject, content, priority, targetAudience } = req.body;
+      const userId = req.user.id;
+
+      const template = await storage.createMessageTemplate({
+        name,
+        category,
+        subject,
+        content,
+        priority: priority || 'normal',
+        targetAudience,
+        createdBy: userId,
+      });
+
+      res.status(201).json(template);
+    } catch (error) {
+      console.error("Error creating message template:", error);
+      res.status(500).json({ error: "Failed to create template" });
+    }
+  });
+
   // ============================================
   // ACCOUNTING TOOL API ROUTES
   // ============================================

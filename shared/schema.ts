@@ -10,6 +10,7 @@ import {
   integer,
   date,
   decimal,
+  unique,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
@@ -243,6 +244,70 @@ export const messages = pgTable("messages", {
   senderIdx: index("idx_messages_sender").on(table.senderId),
   priorityIdx: index("idx_messages_priority").on(table.priority),
   targetAudienceIdx: index("idx_messages_target_audience").on(table.targetAudience),
+}));
+
+// Phase 3: Message Reactions
+export const messageReactions = pgTable("message_reactions", {
+  id: serial("id").primaryKey(),
+  messageId: integer("message_id").notNull().references(() => messages.id, { onDelete: 'cascade' }),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  reactionType: varchar("reaction_type").notNull(), // 'check', 'thumbs_up', 'x', 'question'
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  messageUserIdx: index("idx_reactions_message_user").on(table.messageId, table.userId),
+  messageTypeIdx: index("idx_reactions_message_type").on(table.messageId, table.reactionType),
+  uniqueReactionPerUser: unique("unique_reaction_per_user").on(table.messageId, table.userId, table.reactionType),
+}));
+
+// Phase 3: Read Receipts
+export const readReceipts = pgTable("read_receipts", {
+  id: serial("id").primaryKey(),
+  messageId: integer("message_id").notNull().references(() => messages.id, { onDelete: 'cascade' }),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  readAt: timestamp("read_at").defaultNow(),
+  deliveredAt: timestamp("delivered_at"),
+  smsDeliveryStatus: varchar("sms_delivery_status"), // 'sent', 'delivered', 'failed', 'undelivered'
+  smsDeliveryId: varchar("sms_delivery_id"), // Twilio SID for tracking
+}, (table) => ({
+  messageUserIdx: index("idx_receipts_message_user").on(table.messageId, table.userId),
+  userReadIdx: index("idx_receipts_user_read").on(table.userId, table.readAt),
+  uniqueReceiptPerUser: unique("unique_receipt_per_user").on(table.messageId, table.userId),
+}));
+
+// Phase 3: Voice Messages
+export const voiceMessages = pgTable("voice_messages", {
+  id: serial("id").primaryKey(),
+  messageId: integer("message_id").notNull().references(() => messages.id, { onDelete: 'cascade' }),
+  filePath: varchar("file_path").notNull(),
+  fileName: varchar("file_name").notNull(),
+  fileSize: integer("file_size").notNull(),
+  duration: integer("duration"), // Duration in seconds
+  transcription: text("transcription"), // Optional AI transcription
+  mimeType: varchar("mime_type").default("audio/webm"),
+  uploadedAt: timestamp("uploaded_at").defaultNow(),
+}, (table) => ({
+  messageIdx: index("idx_voice_messages_message").on(table.messageId),
+  uploadedAtIdx: index("idx_voice_messages_uploaded").on(table.uploadedAt),
+}));
+
+// Phase 3: Message Templates
+export const messageTemplates = pgTable("message_templates", {
+  id: serial("id").primaryKey(),
+  name: varchar("name").notNull(),
+  category: varchar("category").notNull(), // 'schedule', 'emergency', 'general', 'announcements'
+  subject: varchar("subject"),
+  content: text("content").notNull(),
+  priority: varchar("priority").default("normal"), // 'emergency', 'high', 'normal', 'low'
+  targetAudience: varchar("target_audience"), // 'all', 'managers', 'employees', 'location_specific'
+  isActive: boolean("is_active").default(true),
+  createdBy: varchar("created_by").notNull().references(() => users.id),
+  useCount: integer("use_count").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  categoryIdx: index("idx_templates_category").on(table.category),
+  createdByIdx: index("idx_templates_created_by").on(table.createdBy),
+  activeIdx: index("idx_templates_active").on(table.isActive),
 }));
 
 // SMS delivery tracking for compliance and monitoring
@@ -605,6 +670,34 @@ export const notificationsRelations = relations(notifications, ({ one }) => ({
   user: one(users, { fields: [notifications.userId], references: [users.id] }),
 }));
 
+// Phase 3: Enhanced Messaging Relations
+export const messageReactionsRelations = relations(messageReactions, ({ one }) => ({
+  message: one(messages, { fields: [messageReactions.messageId], references: [messages.id] }),
+  user: one(users, { fields: [messageReactions.userId], references: [users.id] }),
+}));
+
+export const readReceiptsRelations = relations(readReceipts, ({ one }) => ({
+  message: one(messages, { fields: [readReceipts.messageId], references: [messages.id] }),
+  user: one(users, { fields: [readReceipts.userId], references: [users.id] }),
+}));
+
+export const voiceMessagesRelations = relations(voiceMessages, ({ one }) => ({
+  message: one(messages, { fields: [voiceMessages.messageId], references: [messages.id] }),
+}));
+
+export const messageTemplatesRelations = relations(messageTemplates, ({ one }) => ({
+  creator: one(users, { fields: [messageTemplates.createdBy], references: [users.id] }),
+}));
+
+// Enhanced messages relations with Phase 3 features
+export const enhancedMessagesRelations = relations(messages, ({ one, many }) => ({
+  sender: one(users, { fields: [messages.senderId], references: [users.id], relationName: "messageSender" }),
+  recipient: one(users, { fields: [messages.recipientId], references: [users.id], relationName: "messageRecipient" }),
+  reactions: many(messageReactions),
+  readReceipts: many(readReceipts),
+  voiceMessage: one(voiceMessages),
+}));
+
 // Export types
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
@@ -644,6 +737,39 @@ export type DocumentLog = typeof documentLogs.$inferSelect;
 // Employee invitation types
 export type EmployeeInvitation = typeof employeeInvitations.$inferSelect;
 export type InsertEmployeeInvitation = typeof employeeInvitations.$inferInsert;
+
+// Phase 3: Enhanced Messaging Insert Schemas
+export const insertMessageReactionSchema = createInsertSchema(messageReactions).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertReadReceiptSchema = createInsertSchema(readReceipts).omit({
+  id: true,
+  readAt: true,
+  deliveredAt: true,
+});
+
+export const insertVoiceMessageSchema = createInsertSchema(voiceMessages).omit({
+  id: true,
+  uploadedAt: true,
+});
+
+export const insertMessageTemplateSchema = createInsertSchema(messageTemplates).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+// Phase 3: Enhanced Messaging Types
+export type MessageReaction = typeof messageReactions.$inferSelect;
+export type InsertMessageReaction = typeof messageReactions.$inferInsert;
+export type ReadReceipt = typeof readReceipts.$inferSelect;
+export type InsertReadReceipt = typeof readReceipts.$inferInsert;
+export type VoiceMessage = typeof voiceMessages.$inferSelect;
+export type InsertVoiceMessage = typeof voiceMessages.$inferInsert;
+export type MessageTemplate = typeof messageTemplates.$inferSelect;
+export type InsertMessageTemplate = typeof messageTemplates.$inferInsert;
 
 
 

@@ -30,7 +30,7 @@ import UserManagement from "@/pages/user-management";
 import AccountingDashboard from "@/pages/accounting-dashboard";
 import IntegrationsPage from "@/pages/integrations-page";
 import MarketingPage from "@/pages/marketing-page";
-import Phase2Testing from "@/pages/admin/phase2-testing";
+import MessagingDashboard from "@/pages/messaging-dashboard";
 import NotFound from "@/pages/not-found";
 import Landing from "@/pages/landing";
 
@@ -72,7 +72,6 @@ function AuthenticatedApp() {
       <Route path="/admin/accounting" component={AccountingDashboard} />
       <Route path="/admin/integrations" component={IntegrationsPage} />
       <Route path="/admin/marketing" component={MarketingPage} />
-      <Route path="/admin/phase2-testing" component={Phase2Testing} />
       <Route component={NotFound} />
     </Switch>
   );

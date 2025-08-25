@@ -122,6 +122,19 @@ import {
   type UpdateProductVideo,
   type VideoAsset,
   type InsertVideoAsset,
+  // Phase 3: Enhanced Messaging
+  messageReactions,
+  readReceipts,
+  voiceMessages,
+  messageTemplates,
+  type MessageReaction,
+  type InsertMessageReaction,
+  type ReadReceipt,
+  type InsertReadReceipt,
+  type VoiceMessage,
+  type InsertVoiceMessage,
+  type MessageTemplate,
+  type InsertMessageTemplate,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, asc, gte, lte, or, sql } from "drizzle-orm";
@@ -3208,6 +3221,173 @@ export class DatabaseStorage implements IStorage {
         .where(eq(smsDeliveries.id, deliveryId));
     } catch (error) {
       console.error('Error updating SMS delivery status:', error);
+      throw error;
+    }
+  }
+
+  // Phase 3: Enhanced Messaging Features Implementation
+
+  // Message reactions
+  async addMessageReaction(reaction: InsertMessageReaction): Promise<MessageReaction> {
+    try {
+      const [created] = await db.insert(messageReactions).values(reaction).returning();
+      return created;
+    } catch (error) {
+      console.error('Error adding message reaction:', error);
+      throw error;
+    }
+  }
+
+  async removeMessageReaction(messageId: number, userId: string, reactionType: string): Promise<void> {
+    try {
+      await db.delete(messageReactions)
+        .where(
+          and(
+            eq(messageReactions.messageId, messageId),
+            eq(messageReactions.userId, userId),
+            eq(messageReactions.reactionType, reactionType)
+          )
+        );
+    } catch (error) {
+      console.error('Error removing message reaction:', error);
+      throw error;
+    }
+  }
+
+  async getMessageReactions(messageId: number): Promise<MessageReaction[]> {
+    try {
+      return await db.select()
+        .from(messageReactions)
+        .where(eq(messageReactions.messageId, messageId))
+        .orderBy(asc(messageReactions.createdAt));
+    } catch (error) {
+      console.error('Error fetching message reactions:', error);
+      return [];
+    }
+  }
+
+  // Read receipts
+  async markMessageAsRead(messageId: number, userId: string): Promise<ReadReceipt> {
+    try {
+      // Check if read receipt already exists
+      const existing = await db.select()
+        .from(readReceipts)
+        .where(
+          and(
+            eq(readReceipts.messageId, messageId),
+            eq(readReceipts.userId, userId)
+          )
+        );
+
+      if (existing.length > 0) {
+        return existing[0];
+      }
+
+      const [created] = await db.insert(readReceipts)
+        .values({ messageId, userId })
+        .returning();
+      return created;
+    } catch (error) {
+      console.error('Error marking message as read:', error);
+      throw error;
+    }
+  }
+
+  async getMessageReadReceipts(messageId: number): Promise<ReadReceipt[]> {
+    try {
+      return await db.select()
+        .from(readReceipts)
+        .where(eq(readReceipts.messageId, messageId))
+        .orderBy(asc(readReceipts.readAt));
+    } catch (error) {
+      console.error('Error fetching message read receipts:', error);
+      return [];
+    }
+  }
+
+  // Voice messages
+  async createVoiceMessage(voiceMessage: InsertVoiceMessage): Promise<VoiceMessage> {
+    try {
+      const [created] = await db.insert(voiceMessages).values(voiceMessage).returning();
+      return created;
+    } catch (error) {
+      console.error('Error creating voice message:', error);
+      throw error;
+    }
+  }
+
+  async getVoiceMessage(messageId: number): Promise<VoiceMessage | undefined> {
+    try {
+      const [voiceMessage] = await db.select()
+        .from(voiceMessages)
+        .where(eq(voiceMessages.messageId, messageId));
+      return voiceMessage;
+    } catch (error) {
+      console.error('Error fetching voice message:', error);
+      return undefined;
+    }
+  }
+
+  // Message templates
+  async createMessageTemplate(template: InsertMessageTemplate): Promise<MessageTemplate> {
+    try {
+      const [created] = await db.insert(messageTemplates).values(template).returning();
+      return created;
+    } catch (error) {
+      console.error('Error creating message template:', error);
+      throw error;
+    }
+  }
+
+  async getAllMessageTemplates(): Promise<MessageTemplate[]> {
+    try {
+      return await db.select()
+        .from(messageTemplates)
+        .where(eq(messageTemplates.isActive, true))
+        .orderBy(asc(messageTemplates.category), asc(messageTemplates.name));
+    } catch (error) {
+      console.error('Error fetching message templates:', error);
+      return [];
+    }
+  }
+
+  async getUserMessageTemplates(userId: string): Promise<MessageTemplate[]> {
+    try {
+      return await db.select()
+        .from(messageTemplates)
+        .where(
+          and(
+            eq(messageTemplates.createdBy, userId),
+            eq(messageTemplates.isActive, true)
+          )
+        )
+        .orderBy(asc(messageTemplates.category), asc(messageTemplates.name));
+    } catch (error) {
+      console.error('Error fetching user message templates:', error);
+      return [];
+    }
+  }
+
+  async updateMessageTemplate(id: number, template: Partial<InsertMessageTemplate>): Promise<MessageTemplate> {
+    try {
+      const [updated] = await db.update(messageTemplates)
+        .set({ ...template, updatedAt: new Date() })
+        .where(eq(messageTemplates.id, id))
+        .returning();
+      return updated;
+    } catch (error) {
+      console.error('Error updating message template:', error);
+      throw error;
+    }
+  }
+
+  async deleteMessageTemplate(id: number): Promise<void> {
+    try {
+      await db.update(messageTemplates)
+        .set({ isActive: false, updatedAt: new Date() })
+        .where(eq(messageTemplates.id, id));
+    } catch (error) {
+      console.error('Error deleting message template:', error);
       throw error;
     }
   }
