@@ -8,6 +8,7 @@ import { performanceMiddleware, getPerformanceMetrics, resetPerformanceMetrics }
 import { notificationService } from "./notificationService";
 import { sendSupportTicketNotification } from "./emailService";
 import { smsService } from "./sms-service";
+import { smartNotificationService } from './smart-notifications';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -251,6 +252,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
 
       const updatedSchedule = await storage.updateWorkSchedule(scheduleId, updates);
+      
+      // Send smart notification for schedule change
+      try {
+        await smartNotificationService.handleScheduleChange(
+          scheduleId, 
+          { 
+            ...updates, 
+            userId: updatedSchedule.userId,
+            date: updatedSchedule.date,
+            shiftType: updatedSchedule.shiftType,
+            originalSchedule: updatedSchedule
+          }, 
+          req.user.id
+        );
+      } catch (notificationError) {
+        console.error('Failed to send schedule change notification:', notificationError);
+        // Don't fail the schedule update if notification fails
+      }
+      
       res.json(updatedSchedule);
     } catch (error) {
       console.error('Error updating work schedule:', error);
@@ -290,6 +310,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
 
       const updatedSchedule = await storage.updateWorkSchedule(scheduleId, updates);
+      
+      // Send smart notification for status change
+      try {
+        await smartNotificationService.handleScheduleChange(
+          scheduleId, 
+          { 
+            ...updates, 
+            userId: updatedSchedule.userId,
+            date: updatedSchedule.date,
+            shiftType: updatedSchedule.shiftType,
+            originalSchedule: updatedSchedule
+          }, 
+          req.user.id
+        );
+      } catch (notificationError) {
+        console.error('Failed to send schedule status change notification:', notificationError);
+        // Don't fail the schedule update if notification fails
+      }
+      
       res.json(updatedSchedule);
     } catch (error) {
       console.error('Error updating schedule status:', error);
@@ -4049,40 +4088,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
         smsEnabled: true,
       });
 
-      // Send SMS to all target users
-      const phoneNumbers = targetUsers.map(user => user.phone!);
-      const broadcastResult = await smsService.sendEmergencyBroadcast(message, phoneNumbers);
+      // Send smart notifications to all target users (emergency bypass clock status)
+      const userIds = targetUsers.map(user => user.id);
+      const notificationResult = await smartNotificationService.sendBulkSmartNotifications(
+        userIds,
+        {
+          messageType: 'emergency',
+          priority: 'emergency',
+          content: {
+            title: 'Emergency Alert',
+            message: message
+          },
+          targetAudience,
+          bypassClockStatus: true // Emergency messages always send SMS
+        }
+      );
 
-      // Record SMS deliveries
-      for (let i = 0; i < targetUsers.length; i++) {
-        const user = targetUsers[i];
-        const success = broadcastResult.details.successful.find(s => s.phone === user.phone);
-        const failure = broadcastResult.details.failed.find(f => f.phone === user.phone);
-
-        await storage.createSMSDelivery({
-          messageId: messageRecord.id,
-          userId: user.id,
-          twilioMessageId: success?.messageId || 'failed',
-          phoneNumber: user.phone!,
-          status: success ? 'sent' : 'failed',
-          errorMessage: failure?.error,
-        });
-      }
-
-      res.json({
+      // Update response to include smart notification results
+      const response = {
         success: true,
         messageId: messageRecord.id,
-        sent: broadcastResult.sent,
-        failed: broadcastResult.failed,
-        totalRecipients: targetUsers.length,
-        recipients: targetUsers.map(user => ({
-          id: user.id,
-          name: `${user.firstName} ${user.lastName}`,
-          phone: user.phone,
-          role: user.role,
-          primaryStore: user.primaryStore,
-        }))
-      });
+        recipients: {
+          total: targetUsers.length,
+          appNotifications: notificationResult.appNotifications,
+          smsNotifications: notificationResult.smsNotifications,
+          errors: notificationResult.errors.length
+        },
+        details: {
+          sent: notificationResult.sent,
+          errors: notificationResult.errors
+        }
+      };
+
+      res.json(response);
 
     } catch (error) {
       console.error('Error sending emergency broadcast:', error);
@@ -4090,7 +4128,126 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Send targeted SMS message endpoint
+  // PHASE 2: Employee Notification Preferences API
+  app.get('/api/user/notification-preferences', isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user!.id;
+      const user = await storage.getUser(userId);
+      
+      if (!user) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+
+      res.json({
+        smsConsent: user.smsConsent,
+        smsEnabled: user.smsEnabled,
+        smsNotificationTypes: user.smsNotificationTypes || ['emergency'],
+        phone: user.phone || '',
+        canModifyPreferences: true
+      });
+    } catch (error) {
+      console.error('Error fetching notification preferences:', error);
+      res.status(500).json({ error: 'Failed to fetch notification preferences' });
+    }
+  });
+
+  app.put('/api/user/notification-preferences', isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user!.id;
+      const { smsEnabled, smsNotificationTypes, phone } = req.body;
+
+      // Validate notification types
+      const validTypes = ['emergency', 'schedule', 'announcements', 'all'];
+      const invalidTypes = smsNotificationTypes?.filter((type: string) => !validTypes.includes(type));
+      
+      if (invalidTypes && invalidTypes.length > 0) {
+        return res.status(400).json({ 
+          error: `Invalid notification types: ${invalidTypes.join(', ')}. Valid types: ${validTypes.join(', ')}` 
+        });
+      }
+
+      // Update user preferences
+      const updates: any = { updatedAt: new Date() };
+      
+      if (typeof smsEnabled === 'boolean') {
+        updates.smsEnabled = smsEnabled;
+      }
+      
+      if (Array.isArray(smsNotificationTypes)) {
+        updates.smsNotificationTypes = smsNotificationTypes;
+      }
+      
+      if (phone !== undefined) {
+        updates.phone = phone;
+      }
+
+      const updatedUser = await storage.updateUserProfile(userId, updates);
+      
+      res.json({
+        success: true,
+        preferences: {
+          smsConsent: updatedUser.smsConsent,
+          smsEnabled: updatedUser.smsEnabled,
+          smsNotificationTypes: updatedUser.smsNotificationTypes,
+          phone: updatedUser.phone
+        }
+      });
+    } catch (error) {
+      console.error('Error updating notification preferences:', error);
+      res.status(500).json({ error: 'Failed to update notification preferences' });
+    }
+  });
+
+  // PHASE 2: Smart Notification Status API
+  app.get('/api/user/work-status', isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user!.id;
+      const workStatus = await smartNotificationService.getUserWorkStatus(userId);
+      
+      res.json({
+        isClocked: workStatus.isClocked,
+        status: workStatus.status,
+        location: workStatus.location,
+        lastActivity: workStatus.lastActivity,
+        notificationRouting: workStatus.isClocked ? 'app_only' : 'smart_routing'
+      });
+    } catch (error) {
+      console.error('Error fetching work status:', error);
+      res.status(500).json({ error: 'Failed to fetch work status' });
+    }
+  });
+
+  // PHASE 2: Test Smart Notification Endpoint
+  app.post('/api/smart-notifications/test', isAuthenticated, async (req, res) => {
+    try {
+      const { targetUserId, messageType = 'announcement', priority = 'normal', title, message } = req.body;
+      
+      if (!targetUserId || !title) {
+        return res.status(400).json({ error: 'targetUserId and title are required' });
+      }
+
+      const result = await smartNotificationService.sendSmartNotification({
+        userId: targetUserId,
+        messageType,
+        priority,
+        content: { title, message: message || title }
+      });
+
+      res.json({
+        success: true,
+        result: {
+          appNotification: result.appNotification,
+          smsNotification: result.smsNotification,
+          reason: result.reason
+        }
+      });
+    } catch (error) {
+      console.error('Error testing smart notification:', error);
+      res.status(500).json({ error: 'Failed to test smart notification' });
+    }
+  });
+
+  // Send targeted SMS message endpoint (Enhanced with Smart Routing)
   app.post('/api/sms/send-message', isAuthenticated, async (req, res) => {
     try {
       const { message, recipients, priority = 'normal', targetAudience } = req.body;
@@ -4152,33 +4309,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
         smsEnabled: true,
       });
 
-      // Send SMS messages
-      const phoneNumbers = targetUsers.map(user => user.phone!);
-      const results = await smsService.sendBulkSMS(phoneNumbers, message, priority as any);
+      // Send smart notifications to all target users
+      const userIds = targetUsers.map(user => user.id);
+      const notificationResult = await smartNotificationService.sendBulkSmartNotifications(
+        userIds,
+        {
+          messageType: 'announcement',
+          priority: priority as any,
+          content: {
+            title: 'New Message',
+            message: message
+          },
+          targetAudience
+        }
+      );
 
-      // Record SMS deliveries
-      for (let i = 0; i < targetUsers.length; i++) {
-        const user = targetUsers[i];
-        const success = results.successful.find(s => s.phone === user.phone);
-        const failure = results.failed.find(f => f.phone === user.phone);
-
-        await storage.createSMSDelivery({
-          messageId: messageRecord.id,
-          userId: user.id,
-          twilioMessageId: success?.messageId || 'failed',
-          phoneNumber: user.phone!,
-          status: success ? 'sent' : 'failed',
-          errorMessage: failure?.error,
-        });
-      }
-
-      res.json({
+      // Update response to include smart notification results
+      const response = {
         success: true,
         messageId: messageRecord.id,
-        sent: results.successful.length,
-        failed: results.failed.length,
-        totalRecipients: targetUsers.length,
-      });
+        recipients: {
+          total: targetUsers.length,
+          appNotifications: notificationResult.appNotifications,
+          smsNotifications: notificationResult.smsNotifications,
+          errors: notificationResult.errors.length
+        },
+        details: {
+          sent: notificationResult.sent,
+          errors: notificationResult.errors,
+          targetUsers: targetUsers.map(user => ({
+            id: user.id,
+            name: `${user.firstName} ${user.lastName}`,
+            phone: user.phone,
+            role: user.role,
+            primaryStore: user.primaryStore
+          }))
+        }
+      };
+
+      res.json(response);
 
     } catch (error) {
       console.error('Error sending SMS message:', error);
