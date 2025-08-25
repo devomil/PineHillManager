@@ -1,7 +1,9 @@
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Clock, Calendar, FileText, Users, MessageCircle, Bell, ChevronRight, HelpCircle } from "lucide-react";
+import { Clock, Calendar, FileText, Users, MessageCircle, Bell, ChevronRight, HelpCircle, User, LogOut, ChevronDown } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Link } from "wouter";
 
 export default function HomeDashboard() {
@@ -109,9 +111,39 @@ export default function HomeDashboard() {
                   </Button>
                 </Link>
               )}
-              <Button variant="ghost" onClick={() => logoutMutation.mutate()}>
-                Sign Out
-              </Button>
+              {/* User Profile Dropdown */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" className="flex items-center space-x-2 hover:bg-gray-50">
+                    <Avatar className="h-8 w-8">
+                      <AvatarImage src={user?.profileImageUrl || undefined} alt={user?.firstName || 'User'} />
+                      <AvatarFallback className="bg-green-100 text-green-600">
+                        {user?.firstName?.[0]}{user?.lastName?.[0]}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="hidden sm:block text-left">
+                      <p className="text-sm font-medium text-gray-900">
+                        {user?.firstName} {user?.lastName}
+                      </p>
+                      <p className="text-xs text-gray-500 capitalize">
+                        {user?.role || 'Employee'}
+                      </p>
+                    </div>
+                    <ChevronDown className="h-4 w-4 text-gray-500" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuItem onClick={() => window.location.href = '/profile'} className="cursor-pointer">
+                    <User className="mr-2 h-4 w-4" />
+                    Profile & Settings
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => logoutMutation.mutate()} className="cursor-pointer text-red-600 hover:text-red-700 hover:bg-red-50">
+                    <LogOut className="mr-2 h-4 w-4" />
+                    Sign Out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </nav>
           </div>
         </div>

@@ -1,8 +1,10 @@
 import { ReactNode, useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 // Removed Tabs imports to prevent RovingFocusGroupItem conflicts
-import { Users, Clock, Calendar, Bell, Settings, Eye, FileText, DollarSign, Menu, QrCode, Video } from "lucide-react";
+import { Users, Clock, Calendar, Bell, Settings, Eye, FileText, DollarSign, Menu, QrCode, Video, User, LogOut, ChevronDown } from "lucide-react";
 import { useLocation } from "wouter";
 
 interface AdminLayoutProps {
@@ -70,9 +72,39 @@ export default function AdminLayout({ children, currentTab }: AdminLayoutProps) 
             </div>
             
             <div className="flex items-center space-x-4">
-              <Button variant="ghost" onClick={() => logoutMutation.mutate()} className="text-gray-700 hover:text-red-600">
-                Sign Out
-              </Button>
+              {/* User Profile Dropdown */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" className="flex items-center space-x-2 hover:bg-gray-50">
+                    <Avatar className="h-8 w-8">
+                      <AvatarImage src={user?.profileImageUrl || undefined} alt={user?.firstName || 'User'} />
+                      <AvatarFallback className="bg-blue-100 text-blue-600">
+                        {user?.firstName?.[0]}{user?.lastName?.[0]}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="hidden sm:block text-left">
+                      <p className="text-sm font-medium text-gray-900">
+                        {user?.firstName} {user?.lastName}
+                      </p>
+                      <p className="text-xs text-gray-500 capitalize">
+                        {user?.role || 'Admin'}
+                      </p>
+                    </div>
+                    <ChevronDown className="h-4 w-4 text-gray-500" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuItem onClick={() => setLocation('/profile')} className="cursor-pointer">
+                    <User className="mr-2 h-4 w-4" />
+                    Profile & Settings
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => logoutMutation.mutate()} className="cursor-pointer text-red-600 hover:text-red-700 hover:bg-red-50">
+                    <LogOut className="mr-2 h-4 w-4" />
+                    Sign Out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
         </div>
