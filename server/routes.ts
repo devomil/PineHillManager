@@ -362,7 +362,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/announcements/published', isAuthenticated, async (req, res) => {
     try {
       const announcements = await storage.getPublishedAnnouncements();
-      res.json(announcements);
+      
+      // Fetch reactions for each announcement (same as admin endpoint)
+      const announcementsWithReactions = await Promise.all(
+        announcements.map(async (announcement) => {
+          const reactions = await storage.getMessageReactions(announcement.id);
+          return {
+            ...announcement,
+            reactions: reactions || []
+          };
+        })
+      );
+      
+      res.json(announcementsWithReactions);
     } catch (error) {
       console.error('Error fetching published announcements:', error);
       res.status(500).json({ message: 'Failed to fetch published announcements' });

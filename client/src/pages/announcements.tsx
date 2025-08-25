@@ -20,6 +20,7 @@ interface Announcement {
   expiresAt?: string;
   authorId: string;
   createdAt?: string;
+  reactions?: any[]; // Add reactions field
 }
 
 function AnnouncementsContent() {
@@ -236,6 +237,7 @@ function AnnouncementsContent() {
                         <div className="mb-4">
                           <MessageReactions 
                             messageId={announcement.id}
+                            existingReactions={announcement.reactions || []}
                           />
                         </div>
                       )}
@@ -299,6 +301,7 @@ function AnnouncementsContent() {
                           <div className="mb-4">
                             <MessageReactions 
                               messageId={announcement.id}
+                              existingReactions={announcement.reactions || []}
                             />
                           </div>
                         )}
