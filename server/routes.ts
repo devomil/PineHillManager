@@ -4541,11 +4541,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Profile routes
   app.get('/api/profile', isAuthenticated, async (req, res) => {
     try {
+      console.log('GET /api/profile called for user:', req.user?.id);
       const userId = req.user!.id;
       const user = await storage.getUser(userId);
+      console.log('Retrieved user from storage:', user ? 'Found user' : 'User not found');
       if (!user) {
+        console.log('User not found in storage for ID:', userId);
         return res.status(404).json({ message: 'User not found' });
       }
+      console.log('Returning user profile data');
       res.json(user);
     } catch (error) {
       console.error("Error fetching profile:", error);
