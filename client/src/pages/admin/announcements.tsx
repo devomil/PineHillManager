@@ -57,34 +57,52 @@ function AnnouncementsContent() {
     }
   }, [isAuthenticated, isLoading, user, toast]);
 
-  // Fetch announcements using React Query
+  // Fetch announcements using React Query - with explicit queryFn
   const { data: announcements = [], isLoading: loading, error } = useQuery<any[]>({
     queryKey: ['/api/announcements'],
-    enabled: isAuthenticated && !!user && !isLoading,
-    retry: false, // Don't retry failed requests
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    queryFn: async () => {
+      console.log('Fetching announcements...');
+      const response = await fetch('/api/announcements', {
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        console.error('Announcements fetch failed:', response.status, response.statusText);
+        throw new Error(`Failed to fetch announcements: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      console.log('Announcements fetched successfully:', data);
+      return data;
+    },
+    enabled: !!user && isAuthenticated, // Simplified condition
+    retry: 1, // Allow one retry
+    refetchOnWindowFocus: false,
   });
 
-  // Clear any cached error states when user becomes authenticated
-  useEffect(() => {
-    if (isAuthenticated && user && !isLoading) {
-      // Clear any stale query cache
-      queryClient.removeQueries({ queryKey: ['/api/announcements'] });
-    }
-  }, [isAuthenticated, user, isLoading]);
+  // Debug logging
+  console.log('Announcements query state:', { 
+    isLoading: loading, 
+    error: error, 
+    announcements: announcements,
+    userExists: !!user,
+    isAuthenticated: isAuthenticated 
+  });
 
-  // Handle query errors - only show error if query actually ran and failed
+  // Only log meaningful errors and avoid showing toast for empty error objects
   useEffect(() => {
-    // Only show error if it's a real error with meaningful content
-    if (error && isAuthenticated && !!user && !isLoading && error instanceof Error && error.message) {
-      console.error('Announcements query error:', error);
+    if (error && error instanceof Error && error.message && error.message !== "{}") {
+      console.error('Real announcements error:', error.message);
       toast({
         title: "Error", 
         description: "Failed to load announcements",
         variant: "destructive",
       });
     }
-  }, [error, isAuthenticated, user, isLoading, toast]);
+  }, [error, toast]);
 
   // Handle URL params for success/error messages
   useEffect(() => {
