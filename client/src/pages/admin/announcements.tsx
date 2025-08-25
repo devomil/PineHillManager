@@ -205,7 +205,8 @@ function AnnouncementsContent() {
       
       // Convert FormData to JSON
       const formObject: any = {};
-      for (let [key, value] of formData.entries()) {
+      const entries = Array.from(formData.entries());
+      for (const [key, value] of entries) {
         formObject[key] = value;
       }
       
@@ -219,7 +220,7 @@ function AnnouncementsContent() {
       
       if (response.ok) {
         const result = await response.json();
-        console.log('Announcement created successfully:', result);
+        // Announcement created successfully
         
         // Reset form and close it
         (e.target as HTMLFormElement).reset();
@@ -227,7 +228,7 @@ function AnnouncementsContent() {
         setShowForm(false);
         
         // Refetch announcements
-        await refetch();
+        window.location.reload();
         
         const isDraft = formData.get('action') === 'draft';
         toast({
