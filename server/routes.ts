@@ -4538,6 +4538,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Profile routes
+  app.get('/api/profile', isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user!.id;
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+      res.json(user);
+    } catch (error) {
+      console.error("Error fetching profile:", error);
+      res.status(500).json({ message: "Failed to fetch profile" });
+    }
+  });
+
+  app.patch('/api/profile', isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user!.id;
+      const updateData = { ...req.body };
+      
+      // Handle SMS consent date automatically
+      if (updateData.smsConsent === true && req.body.smsConsent !== undefined) {
+        const currentUser = await storage.getUser(userId);
+        if (currentUser && !currentUser.smsConsent) {
+          // User is giving consent for the first time
+          updateData.smsConsentDate = new Date();
+        }
+      } else if (updateData.smsConsent === false) {
+        // User is withdrawing consent
+        updateData.smsConsentDate = null;
+      }
+      
+      const updatedUser = await storage.updateUserProfile(userId, updateData);
+      res.json(updatedUser);
+    } catch (error) {
+      console.error("Error updating profile:", error);
+      res.status(500).json({ message: "Failed to update profile" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

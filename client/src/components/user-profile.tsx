@@ -10,7 +10,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { User, Edit, Save, X, Phone, MapPin, Building, Calendar, User2, AlertTriangle } from "lucide-react";
+import { User, Edit, Save, X, Phone, MapPin, Building, Calendar, User2, AlertTriangle, MessageSquare } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import { format } from "date-fns";
 import type { User as UserType } from "@shared/schema";
 
@@ -27,12 +29,18 @@ const profileSchema = z.object({
   emergencyContact: z.string().optional(),
   emergencyPhone: z.string().optional(),
   notes: z.string().optional(),
+  smsConsent: z.boolean().optional(),
+  smsEnabled: z.boolean().optional(),
+  smsNotificationTypes: z.array(z.string()).optional(),
 });
 
 type ProfileFormData = z.infer<typeof profileSchema>;
 
 export default function UserProfile() {
   const [isEditing, setIsEditing] = useState(false);
+  const [smsConsent, setSmsConsent] = useState(false);
+  const [smsEnabled, setSmsEnabled] = useState(true);
+  const [smsNotificationTypes, setSmsNotificationTypes] = useState<string[]>(['emergency']);
   const { toast } = useToast();
 
   const { data: user, isLoading } = useQuery<UserType>({
@@ -54,6 +62,9 @@ export default function UserProfile() {
       emergencyContact: "",
       emergencyPhone: "",
       notes: "",
+      smsConsent: false,
+      smsEnabled: true,
+      smsNotificationTypes: ['emergency'],
     },
   });
 
@@ -73,13 +84,28 @@ export default function UserProfile() {
         emergencyContact: user.emergencyContact || "",
         emergencyPhone: user.emergencyPhone || "",
         notes: user.notes || "",
+        smsConsent: user.smsConsent || false,
+        smsEnabled: user.smsEnabled || true,
+        smsNotificationTypes: user.smsNotificationTypes || ['emergency'],
       });
+      
+      // Update SMS state
+      setSmsConsent(user.smsConsent || false);
+      setSmsEnabled(user.smsEnabled || true);
+      setSmsNotificationTypes(user.smsNotificationTypes || ['emergency']);
     }
   }, [user, form]);
 
   const updateProfileMutation = useMutation({
     mutationFn: async (data: ProfileFormData) => {
-      return await apiRequest("PATCH", "/api/profile", data);
+      // Include SMS preferences in the update
+      const updateData = {
+        ...data,
+        smsConsent,
+        smsEnabled,
+        smsNotificationTypes,
+      };
+      return await apiRequest("PATCH", "/api/profile", updateData);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
@@ -378,6 +404,116 @@ export default function UserProfile() {
                   placeholder="(555) 123-4567"
                 />
               </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* SMS Preferences */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <MessageSquare className="w-5 h-5 mr-2" />
+              SMS Communication Preferences
+            </CardTitle>
+            <CardDescription>
+              Manage your SMS notification settings and compliance
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* SMS Consent Section */}
+            <div className="p-4 border rounded-lg bg-blue-50 border-blue-200">
+              <div className="flex items-start space-x-3">
+                <div className="flex-1">
+                  <h4 className="font-medium text-blue-900 mb-2">SMS Consent</h4>
+                  <p className="text-sm text-blue-800 mb-4">
+                    By enabling SMS notifications, you consent to receive text messages from Pine Hill Farm. 
+                    Standard message and data rates may apply. You can opt out at any time by replying STOP.
+                  </p>
+                  
+                  <div className="flex items-center space-x-2">
+                    <Switch
+                      checked={smsConsent}
+                      onCheckedChange={(checked) => {
+                        setSmsConsent(checked);
+                        if (!checked) {
+                          setSmsEnabled(false);
+                        }
+                      }}
+                      disabled={!isEditing}
+                    />
+                    <Label className={`text-sm ${smsConsent ? 'text-green-700' : 'text-gray-600'}`}>
+                      {smsConsent ? "I consent to receiving SMS notifications" : "SMS consent not given"}
+                    </Label>
+                  </div>
+                  
+                  {user?.smsConsentDate && smsConsent && (
+                    <p className="text-xs text-blue-600 mt-2">
+                      Consent given on: {format(new Date(user.smsConsentDate), "MMM d, yyyy 'at' h:mm a")}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* SMS Enabled Toggle */}
+            {smsConsent && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label className="text-sm font-medium">SMS Notifications</Label>
+                    <p className="text-xs text-gray-600">Receive notifications via text message</p>
+                  </div>
+                  <Switch
+                    checked={smsEnabled}
+                    onCheckedChange={setSmsEnabled}
+                    disabled={!isEditing || !smsConsent}
+                  />
+                </div>
+
+                {/* Notification Types */}
+                {smsEnabled && (
+                  <div className="space-y-3">
+                    <Label className="text-sm font-medium">Notification Types</Label>
+                    <div className="space-y-2">
+                      {[
+                        { id: 'emergency', label: 'Emergency Alerts', description: 'Critical workplace emergencies' },
+                        { id: 'schedule', label: 'Schedule Changes', description: 'Shift changes and updates' },
+                        { id: 'announcements', label: 'Company Announcements', description: 'Important company news' },
+                        { id: 'reminders', label: 'Shift Reminders', description: 'Upcoming shift notifications' }
+                      ].map((type) => (
+                        <div key={type.id} className="flex items-center space-x-2">
+                          <Checkbox
+                            checked={smsNotificationTypes.includes(type.id)}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                setSmsNotificationTypes([...smsNotificationTypes, type.id]);
+                              } else {
+                                setSmsNotificationTypes(smsNotificationTypes.filter(t => t !== type.id));
+                              }
+                            }}
+                            disabled={!isEditing}
+                          />
+                          <div className="flex-1">
+                            <Label className="text-sm">{type.label}</Label>
+                            <p className="text-xs text-gray-500">{type.description}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Compliance Information */}
+            <div className="text-xs text-gray-500 border-t pt-4">
+              <p className="mb-2">
+                <strong>Compliance:</strong> Reply STOP to opt out, START to opt back in, or HELP for assistance.
+              </p>
+              <p>
+                Message frequency varies. Standard message and data rates may apply. 
+                Contact support for technical issues.
+              </p>
             </div>
           </CardContent>
         </Card>
