@@ -24,7 +24,6 @@ interface Announcement {
 }
 
 function AnnouncementsContent() {
-  console.log("AnnouncementsPage component rendered");
   const [selectedFilter, setSelectedFilter] = useState<string>("all");
   const { user } = useAuth(); // Get current user for reactions
   
@@ -41,23 +40,6 @@ function AnnouncementsContent() {
     }
   });
 
-  console.log("Announcements query state:", { isLoading, error, announcements });
-  console.log("Raw announcements data:", announcements);
-
-  if (isLoading) {
-    console.log("Showing loading state");
-  }
-
-  if (error) {
-    console.log("Error in announcements query:", error);
-  }
-
-  if (announcements) {
-    queryClient.setQueryData(["/api/announcements/published"], announcements);
-    console.log("Fresh API response:", announcements);
-  }
-
-  console.log("Announcements query state:", { isLoading, error, announcements });
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
