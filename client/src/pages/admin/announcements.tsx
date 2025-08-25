@@ -24,6 +24,7 @@ function AnnouncementsContent() {
 
   // Form state
   const [formAudience, setFormAudience] = useState<string[]>(["all"]);
+  const [submitting, setSubmitting] = useState(false);
 
   // Emergency broadcast state
   const [showEmergencyDialog, setShowEmergencyDialog] = useState(false);
@@ -190,6 +191,61 @@ function AnnouncementsContent() {
     }
   };
 
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setSubmitting(true);
+    
+    try {
+      const formData = new FormData(e.currentTarget);
+      
+      // Add the audience selection to form data
+      formAudience.forEach((audience, index) => {
+        formData.append(`targetAudience[${index}]`, audience);
+      });
+      
+      const response = await fetch('/api/announcements', {
+        method: 'POST',
+        body: formData,
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        console.log('Announcement created successfully:', result);
+        
+        // Reset form and close it
+        (e.target as HTMLFormElement).reset();
+        setFormAudience(['all']);
+        setShowForm(false);
+        
+        // Refetch announcements
+        await refetch();
+        
+        const isDraft = formData.get('action') === 'draft';
+        toast({
+          title: "Success!",
+          description: isDraft ? "Announcement saved as draft" : "Announcement published successfully" + (formData.get('smsEnabled') ? " with SMS notifications" : ""),
+          variant: "default",
+        });
+      } else {
+        const error = await response.json();
+        toast({
+          title: "Error",
+          description: error.error || "Failed to create announcement",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Error submitting form:', error);
+      toast({
+        title: "Error", 
+        description: "Failed to create announcement",
+        variant: "destructive",
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const getPriorityColor = (priority: string) => {
     switch (priority) {
       case 'urgent': return 'bg-red-500 hover:bg-red-600';
@@ -323,7 +379,7 @@ function AnnouncementsContent() {
             <CardTitle>Create New Announcement</CardTitle>
           </CardHeader>
           <CardContent>
-            <form action="/api/announcements" method="POST" className="space-y-6">
+            <form onSubmit={handleSubmit} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <Label htmlFor="title">Title *</Label>
@@ -415,6 +471,7 @@ function AnnouncementsContent() {
                   name="action" 
                   value="draft"
                   variant="outline"
+                  disabled={submitting}
                 >
                   <Save className="h-4 w-4 mr-2" />
                   Save as Draft
@@ -424,9 +481,19 @@ function AnnouncementsContent() {
                   name="action" 
                   value="publish"
                   className="bg-green-600 hover:bg-green-700"
+                  disabled={submitting}
                 >
-                  <Send className="h-4 w-4 mr-2" />
-                  Publish Now
+                  {submitting ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Publishing...
+                    </>
+                  ) : (
+                    <>
+                      <Send className="h-4 w-4 mr-2" />
+                      Publish Now
+                    </>
+                  )}
                 </Button>
               </div>
             </form>

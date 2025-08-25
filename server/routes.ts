@@ -390,9 +390,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         priority = 'normal',
         targetAudience,
         expiresAt,
-        isPublished = true,
+        action = 'publish',
         smsEnabled = false
       } = req.body;
+      
+      const isPublished = action === 'publish';
       
       const authorId = req.user!.id;
       
