@@ -45,34 +45,10 @@ export default function UserProfile() {
 
   const { data: user, isLoading, refetch, error } = useQuery<UserType>({
     queryKey: ["/api/profile"],
-    staleTime: 0, // Always refetch when component mounts
+    staleTime: 0, // Always refetch when component mounts  
     refetchOnMount: true,
-    retry: false, // Disable retries for debugging
-    queryFn: async () => {
-      console.log('Custom queryFn: Making GET request to /api/profile');
-      const response = await fetch('/api/profile', {
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-      
-      console.log('Custom queryFn: Response status:', response.status);
-      
-      if (!response.ok) {
-        console.error('Custom queryFn: Request failed:', response.status, response.statusText);
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-      
-      const data = await response.json();
-      console.log('Custom queryFn: Retrieved profile data:', data);
-      return data;
-    },
   });
 
-  // Debug logging
-  console.log('Profile query state:', { user, isLoading, error });
-  console.log('Raw user data from API:', user);
 
   const form = useForm<ProfileFormData>({
     resolver: zodResolver(profileSchema),
@@ -98,7 +74,6 @@ export default function UserProfile() {
   // Update form values when user data loads
   useEffect(() => {
     if (user) {
-      console.log('Updating form with user data:', user);
       form.reset({
         firstName: user.firstName || "",
         lastName: user.lastName || "",
@@ -121,8 +96,6 @@ export default function UserProfile() {
       setSmsConsent(user.smsConsent || false);
       setSmsEnabled(user.smsEnabled || true);
       setSmsNotificationTypes(user.smsNotificationTypes || ['emergency']);
-    } else {
-      console.log('No user data available for form update');
     }
   }, [user, form]);
 
