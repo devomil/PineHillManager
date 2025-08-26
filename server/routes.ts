@@ -436,7 +436,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         authorId,
         priority,
         targetAudience: processedAudience,
-        isPublished: isPublished === 'true' || isPublished === true,
+        isPublished: String(isPublished) === 'true',
         expiresAt: expirationDate,
       });
 
@@ -1429,9 +1429,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         refreshToken: refreshToken || '',
         realmId: realmId || '',
         baseUrl: baseUrl || 'https://sandbox-quickbooks.api.intuit.com',
-        isActive: isActive ?? true,
-        createdAt: new Date(),
-        updatedAt: new Date()
+        isActive: isActive ?? true
       });
       res.status(201).json(config);
     } catch (error) {
@@ -1593,8 +1591,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({
         locationBreakdown: allLocationBreakdown,
         totalSummary: {
-          totalRevenue: parseFloat(totalSales[0]?.totalRevenue || '0').toFixed(2),
-          totalTransactions: parseInt(totalSales[0]?.totalTransactions || '0'),
+          totalRevenue: parseFloat(totalSales[0]?.totalRevenue?.toString() || '0').toFixed(2),
+          totalTransactions: parseInt(totalSales[0]?.totalTransactions?.toString() || '0'),
           integrations: {
             cloverLocations: cloverLocationBreakdown.length,
             amazonStores: amazonLocationBreakdown.length,
@@ -1630,8 +1628,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           merchantName: merchantName || null,
           apiToken,
           baseUrl,
-          isActive: true,
-          updatedAt: new Date()
+          isActive: true
         });
       } else {
         // Create new configuration
@@ -1702,9 +1699,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         parentAccountId: parentAccountId || null,
         qbAccountId: qbAccountId || null,
         balance: '0.00',
-        isActive: true,
-        createdAt: new Date(),
-        updatedAt: new Date()
+        isActive: true
       });
       
       res.status(201).json(account);
@@ -1786,14 +1781,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Create the transaction
       const transaction = await storage.createFinancialTransaction({
         transactionDate,
+        transactionType: 'sale',
         description,
         totalAmount,
         sourceSystem,
-        externalId: externalId || null,
-        reference: reference || null,
-        isReconciled: false,
-        createdAt: new Date(),
-        updatedAt: new Date()
+        status: 'pending'
       });
 
       // Create transaction lines if provided
@@ -1850,9 +1842,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         phone: phone || null,
         address: address || null,
         qbId: qbId || null,
-        isActive: true,
-        createdAt: new Date(),
-        updatedAt: new Date()
+        isActive: true
       });
 
       res.status(201).json(customerVendor);

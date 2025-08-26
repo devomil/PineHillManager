@@ -191,7 +191,7 @@ export function RevenueAnalytics() {
   })) || [];
 
   // Prepare data for multi-location line chart
-  const multiLocationData = () => {
+  const getMultiLocationChartData = () => {
     if (!locationTrends?.locations.length) return [];
     
     const periods = locationTrends.locations[0]?.data.map(d => d.period) || [];
@@ -449,7 +449,7 @@ export function RevenueAnalytics() {
                 </div>
               ) : (
                 <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={multiLocationData()}>
+                  <LineChart data={getMultiLocationChartData()}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="period" tick={{ fontSize: 12 }} />
                     <YAxis 
