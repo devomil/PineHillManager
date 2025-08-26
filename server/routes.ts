@@ -1500,9 +1500,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Multi-location analytics endpoint (supports Clover POS + Amazon Store)
-  app.get('/api/accounting/analytics/multi-location', isAuthenticated, async (req, res) => {
-    console.log('🔥 MULTI-LOCATION ENDPOINT HIT - DEBUG TEST');
+  app.get('/api/accounting/analytics/multi-location', async (req, res) => {
+    console.log('🔥 MULTI-LOCATION ENDPOINT HIT - DEBUG TEST (NO AUTH CHECK)');
     console.log('Request query params:', req.query);
+    
+    // Manual auth check to debug
+    if (!req.isAuthenticated()) {
+      console.log('Manual auth check failed');
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+    
+    console.log('Manual auth check passed');
     try {
       const { startDate, endDate } = req.query;
       const { db } = await import('./db');
