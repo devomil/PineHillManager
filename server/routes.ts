@@ -1502,6 +1502,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Multi-location analytics endpoint (supports Clover POS + Amazon Store)
   app.get('/api/accounting/analytics/multi-location', isAuthenticated, async (req, res) => {
     console.log('🔥 MULTI-LOCATION ENDPOINT HIT - DEBUG TEST');
+    console.log('Request query params:', req.query);
     try {
       const { startDate, endDate } = req.query;
       const { db } = await import('./db');
@@ -1579,7 +1580,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           totalTransactions: sql`COUNT(*)`.as('totalTransactions')
         })
         .from(posSales)
-        .where(between(posSales.saleDate, start, end));
+        .where(between(posSales.saleDate, startDateStr, endDateStr));
 
       res.json({
         locationBreakdown: allLocationBreakdown,
