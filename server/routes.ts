@@ -386,13 +386,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create announcement route (handles form submission)
   app.post('/api/announcements', isAuthenticated, async (req, res) => {
     try {
-      console.log('🔍 POST /api/announcements received:', {
-        bodyKeys: Object.keys(req.body),
-        smsEnabled: req.body.smsEnabled,
-        smsEnabledType: typeof req.body.smsEnabled,
-        fullBody: req.body
-      });
-      
       const {
         title,
         content,
@@ -509,6 +502,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error creating announcement:', error);
       res.status(500).json({ error: 'Failed to create announcement' });
+    }
+  });
+
+  // Delete announcement route (Admin and Manager only)
+  app.delete('/api/announcements/:id', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user!;
+      const announcementId = parseInt(req.params.id);
+
+      // Check if user has permission to delete (Admin or Manager only)
+      if (user.role !== 'admin' && user.role !== 'manager') {
+        return res.status(403).json({ error: 'Only administrators and managers can delete announcements' });
+      }
+
+      // Validate announcement ID
+      if (isNaN(announcementId)) {
+        return res.status(400).json({ error: 'Invalid announcement ID' });
+      }
+
+      console.log(`🗑️ ${user.role} ${user.firstName} ${user.lastName} deleting announcement ${announcementId}`);
+
+      // Delete the announcement
+      await storage.deleteAnnouncement(announcementId);
+
+      res.json({ 
+        message: 'Announcement deleted successfully',
+        deletedBy: `${user.firstName} ${user.lastName}`,
+        deletedAt: new Date().toISOString()
+      });
+
+    } catch (error) {
+      console.error('❌ Error deleting announcement:', error);
+      res.status(500).json({ error: 'Failed to delete announcement' });
     }
   });
 

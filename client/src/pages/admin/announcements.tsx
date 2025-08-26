@@ -14,7 +14,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { MessageReactions } from "@/components/ui/message-reactions";
 import { useQuery } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
-import { Plus, Send, Save, Calendar, Users, AlertTriangle, MessageSquare, Smartphone } from "lucide-react";
+import { Plus, Send, Save, Calendar, Users, AlertTriangle, MessageSquare, Smartphone, Trash2 } from "lucide-react";
 import { AudienceSelector } from "@/components/ui/audience-selector";
 
 function AnnouncementsContent() {
@@ -31,6 +31,9 @@ function AnnouncementsContent() {
   const [emergencyMessage, setEmergencyMessage] = useState("");
   const [emergencyAudience, setEmergencyAudience] = useState<string[]>(["all"]);
   const [sendingEmergency, setSendingEmergency] = useState(false);
+
+  // Delete state
+  const [deletingId, setDeletingId] = useState<number | null>(null);
 
   // Check authentication and access
   useEffect(() => {
@@ -210,14 +213,6 @@ function AnnouncementsContent() {
         formObject[key] = value;
       }
       
-      // Debug log to see form data being sent
-      console.log('📋 Form submission data:', {
-        formObject,
-        smsEnabled: formObject.smsEnabled,
-        smsEnabledType: typeof formObject.smsEnabled,
-        allKeys: Object.keys(formObject)
-      });
-      
       const response = await fetch('/api/announcements', {
         method: 'POST',
         headers: {
@@ -261,6 +256,48 @@ function AnnouncementsContent() {
       });
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  // Delete announcement handler
+  const handleDeleteAnnouncement = async (announcementId: number, title: string) => {
+    if (!confirm(`Are you sure you want to delete the announcement "${title}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    setDeletingId(announcementId);
+    try {
+      const response = await fetch(`/api/announcements/${announcementId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+
+      if (response.ok) {
+        toast({
+          title: "Announcement deleted",
+          description: `"${title}" has been permanently deleted.`,
+          variant: "default",
+        });
+
+        // Refresh announcements
+        window.location.reload();
+      } else {
+        const error = await response.json();
+        toast({
+          title: "Failed to delete announcement",
+          description: error.error || "Unable to delete announcement. Please try again.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Error deleting announcement:', error);
+      toast({
+        title: "Network error",
+        description: "Unable to delete announcement. Check your connection and try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -573,6 +610,25 @@ function AnnouncementsContent() {
                         />
                       </div>
                     </div>
+
+                    {/* Delete Button - Admin/Manager Only */}
+                    {user && (user as any)?.role && ['admin', 'manager'].includes((user as any).role) && (
+                      <div className="flex-shrink-0 ml-4">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDeleteAnnouncement(announcement.id, announcement.title)}
+                          disabled={deletingId === announcement.id}
+                          className="text-red-600 hover:text-red-800 hover:bg-red-50 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-900/20"
+                        >
+                          {deletingId === announcement.id ? (
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current" />
+                          ) : (
+                            <Trash2 className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
