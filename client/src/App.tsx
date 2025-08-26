@@ -30,7 +30,6 @@ import UserManagement from "@/pages/user-management";
 import AccountingDashboard from "@/pages/accounting-dashboard";
 import IntegrationsPage from "@/pages/integrations-page";
 import MarketingPage from "@/pages/marketing-page";
-import MessagingDashboard from "@/pages/messaging-dashboard";
 import NotFound from "@/pages/not-found";
 import Landing from "@/pages/landing";
 import EmergencyContactPage from "@/pages/emergency-contact";
