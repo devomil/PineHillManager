@@ -210,6 +210,14 @@ function AnnouncementsContent() {
         formObject[key] = value;
       }
       
+      // Debug log to see form data being sent
+      console.log('📋 Form submission data:', {
+        formObject,
+        smsEnabled: formObject.smsEnabled,
+        smsEnabledType: typeof formObject.smsEnabled,
+        allKeys: Object.keys(formObject)
+      });
+      
       const response = await fetch('/api/announcements', {
         method: 'POST',
         headers: {

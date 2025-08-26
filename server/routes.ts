@@ -386,6 +386,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create announcement route (handles form submission)
   app.post('/api/announcements', isAuthenticated, async (req, res) => {
     try {
+      console.log('🔍 POST /api/announcements received:', {
+        bodyKeys: Object.keys(req.body),
+        smsEnabled: req.body.smsEnabled,
+        smsEnabledType: typeof req.body.smsEnabled,
+        fullBody: req.body
+      });
+      
       const {
         title,
         content,
