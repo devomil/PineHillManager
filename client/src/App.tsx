@@ -33,6 +33,7 @@ import MarketingPage from "@/pages/marketing-page";
 import MessagingDashboard from "@/pages/messaging-dashboard";
 import NotFound from "@/pages/not-found";
 import Landing from "@/pages/landing";
+import EmergencyContactPage from "@/pages/emergency-contact";
 
 function AuthenticatedApp() {
   const { user } = useAuth();
@@ -72,6 +73,7 @@ function AuthenticatedApp() {
       <Route path="/admin/accounting" component={AccountingDashboard} />
       <Route path="/admin/integrations" component={IntegrationsPage} />
       <Route path="/admin/marketing" component={MarketingPage} />
+      <Route path="/emergency-contact" component={EmergencyContactPage} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -81,6 +83,7 @@ function UnauthenticatedApp() {
   return (
     <Switch>
       <Route path="/auth" component={AuthPage} />
+      <Route path="/emergency-contact" component={EmergencyContactPage} />
       <Route component={Landing} />
     </Switch>
   );
