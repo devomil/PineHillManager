@@ -13,6 +13,7 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import express from 'express';
+import twilio from 'twilio';
 
 // Configure multer for file uploads
 const uploadsDir = path.join(process.cwd(), 'uploads');
@@ -39,6 +40,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Setup authentication
   setupAuth(app);
+
 
   // API configuration endpoint for frontend
   app.get('/api/config', isAuthenticated, async (req, res) => {
@@ -5138,9 +5140,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           smsConsentDate: null
         });
 
-        // Send confirmation
-        const confirmationMessage = 'You have been unsubscribed from Pine Hill Farm SMS notifications. Reply START to opt back in.';
-        await smsService.sendSMS(From, confirmationMessage);
+        // Send confirmation via TwiML
+        const twiml = new twilio.twiml.MessagingResponse();
+        twiml.message('You have been unsubscribed from Pine Hill Farm SMS notifications. Reply START to opt back in.');
+        
+        res.type('text/xml');
+        res.send(twiml.toString());
+        return;
 
       } else if (message === 'start') {
         // Handle opt-in
@@ -5150,14 +5156,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
           smsConsentDate: new Date()
         });
 
-        // Send confirmation
-        const confirmationMessage = 'You have been subscribed to Pine Hill Farm SMS notifications. Reply STOP to opt out.';
-        await smsService.sendSMS(From, confirmationMessage);
+        // Send confirmation via TwiML
+        const twiml = new twilio.twiml.MessagingResponse();
+        twiml.message('You have been subscribed to Pine Hill Farm SMS notifications. Reply STOP to opt out.');
+        
+        res.type('text/xml');
+        res.send(twiml.toString());
+        return;
 
       } else if (message === 'help') {
-        // Send help message
-        const helpMessage = 'Pine Hill Farm SMS: Reply STOP to opt out, START to opt in. For support, contact your manager.';
-        await smsService.sendSMS(From, helpMessage);
+        // Send help message via TwiML
+        const twiml = new twilio.twiml.MessagingResponse();
+        twiml.message('Pine Hill Farm SMS: Reply STOP to opt out, START to opt in. Msg & data rates may apply. For support, call (414) 737-4100.');
+        
+        res.type('text/xml');
+        res.send(twiml.toString());
+        return;
 
       } else {
         // Handle message reactions or responses
@@ -5185,13 +5199,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
               reactionType,
             });
 
-            // Send confirmation
-            const confirmationMessage = `Your reaction (${reactionType.replace('_', ' ')}) has been recorded for the latest message.`;
-            await smsService.sendSMS(From, confirmationMessage);
+            // Send confirmation via TwiML
+            const twiml = new twilio.twiml.MessagingResponse();
+            twiml.message(`Your reaction (${reactionType.replace('_', ' ')}) has been recorded for the latest message.`);
+            
+            res.type('text/xml');
+            res.send(twiml.toString());
+            return;
           } else {
-            // No recent messages to react to
-            const noMessageResponse = 'No recent messages found to react to. Your reaction could not be processed.';
-            await smsService.sendSMS(From, noMessageResponse);
+            // No recent messages to react to - send TwiML response
+            const twiml = new twilio.twiml.MessagingResponse();
+            twiml.message('No recent messages found to react to. Your reaction could not be processed.');
+            
+            res.type('text/xml');
+            res.send(twiml.toString());
+            return;
           }
         } else {
           // Log general SMS response for review
@@ -5210,11 +5232,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Always respond with valid TwiML
-      res.status(200).send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
+      const twiml = new twilio.twiml.MessagingResponse();
+      res.type('text/xml');
+      res.send(twiml.toString());
 
     } catch (error) {
       console.error('SMS webhook error:', error);
-      res.status(200).send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
+      
+      // Send error TwiML response
+      const twiml = new twilio.twiml.MessagingResponse();
+      res.type('text/xml');
+      res.send(twiml.toString());
+    }
+  });
+
+  // SMS Fallback Webhook (backup handler for when primary fails)
+  app.post('/api/sms/fallback', async (req, res) => {
+    try {
+      console.log('SMS fallback webhook activated:', req.body);
+      
+      const { From, Body } = req.body;
+      console.log(`Fallback SMS handler - From: ${From}, Message: "${Body}"`);
+      
+      // Simple fallback response
+      const twiml = new twilio.twiml.MessagingResponse();
+      twiml.message('Your message was received but could not be processed at this time. Please contact Pine Hill Farm directly at (414) 737-4100 for urgent matters.');
+      
+      res.type('text/xml');
+      res.send(twiml.toString());
+      
+    } catch (error) {
+      console.error('Error in SMS fallback handler:', error);
+      
+      const twiml = new twilio.twiml.MessagingResponse();
+      res.type('text/xml');
+      res.send(twiml.toString());
     }
   });
 
