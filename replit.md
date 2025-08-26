@@ -3,7 +3,17 @@
 ## Overview
 The Pine Hill Farm Employee Management System is a comprehensive business management platform designed to streamline operations for employees, managers, and administrators. Built with React (Vite), Express.js, and PostgreSQL, its core purpose is to provide role-based access for time tracking, scheduling, communication, support ticket management, and robust accounting. The system aims to integrate essential business tools like QuickBooks, Clover POS, HSA providers, and Thrive inventory to offer an all-in-one solution for farm management, enhancing efficiency and oversight across all departments.
 
-## Recent Changes (August 25, 2025)
+## Recent Changes (August 26, 2025)
+**COMPLETED: Amazon Store Multi-Location Revenue Analytics Integration - FULLY RESOLVED**
+- DEBUGGED: Fixed critical database schema issue where amazon_config table was missing required last_sync_at column causing API failures
+- RESOLVED: Frontend data source problem where Revenue Analytics was using Clover-only locationTrends instead of multi-location data
+- FIXED: API response parsing bug where multiLocationData was returning raw Response object instead of parsed JSON
+- ENHANCED: Updated Location Revenue Share pie chart to include Amazon Store with distinctive orange color (#FF9900)
+- IMPLEMENTED: Amazon Store now displays in Location Performance list with orange "Amazon" badge for clear identification
+- VERIFIED: Multi-location analytics dashboard now successfully shows Amazon Store alongside all 5 Clover locations
+- STATUS: Amazon Store integration complete - shows $0.00 as expected with placeholder API credentials, ready for real Amazon API tokens
+
+**Previous: Mobile-First SMS-Integrated Communication System (August 25, 2025)**
 **NEW FEATURE: Mobile-First SMS-Integrated Communication System - FULLY IMPLEMENTED**
 - COMPLETED: Transform communication system into mobile-first SMS-integrated platform where ALL employees can send messages to multiple team members and channels
 - ENHANCED: Granular audience selection on announcements including "all employees", "employees only", "Admins & Managers", and individual/multiple selection options
@@ -111,7 +121,7 @@ The frontend utilizes React 18 with TypeScript and Vite for rapid development. R
 - **Time Management**: Clock in/out with break tracking, multi-location work scheduling (Lake Geneva, Watertown), and time off request management.
 - **Communication & Support**: Mobile-first SMS-integrated team messaging, company announcements with granular audience selection, support ticket system with intelligent routing (HR issues to Jackie, Technical issues to Ryan), SMS and email notifications with user preference management.
 - **Document Management**: Role-based file sharing.
-- **Accounting**: Comprehensive financial management with integrations for QuickBooks, Clover POS, HSA, and Thrive inventory. This includes extensive database schema for financial data, API routes, and a dedicated accounting dashboard.
+- **Accounting**: Comprehensive financial management with integrations for QuickBooks, Clover POS, Amazon Store, HSA, and Thrive inventory. Multi-location revenue analytics with real-time data from 5 Clover merchant locations plus Amazon Store integration. This includes extensive database schema for financial data, API routes, and a dedicated accounting dashboard.
 - **Video Generation**: A professional video engine built with native Canvas API for creating animated explainer videos, integrating multiple APIs:
   - Hugging Face API (meta-llama/Llama-2-7b-chat-hf) for enhanced content generation
   - ElevenLabs API for professional voiceover synthesis with pharmaceutical-quality voices
@@ -130,6 +140,6 @@ The system follows a clear separation of concerns between frontend and backend. 
 -   **Styling**: Tailwind CSS.
 -   **Fonts**: Great Vibes (from Google Fonts).
 -   **Development Tools**: TypeScript, Vite, React Query.
--   **Accounting Integrations**: QuickBooks, Clover POS (production API with multiple merchant support, e.g., Lake Geneva Retail, Watertown Retail, Pinehillfarm.co Online), HSA Providers, Thrive Inventory.
+-   **Accounting Integrations**: QuickBooks, Clover POS (production API with multiple merchant support, e.g., Lake Geneva Retail, Watertown Retail, Pinehillfarm.co Online), Amazon Store API integration, HSA Providers, Thrive Inventory.
 -   **Content Generation**: Hugging Face API (for video content generation).
 -   **SMS Service**: Twilio API (for SMS notifications and mobile-first communication).
