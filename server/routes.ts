@@ -5270,6 +5270,117 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Voice Webhook endpoints for Twilio
+  // Main incoming voice call webhook
+  app.post('/api/voice/incoming', async (req, res) => {
+    try {
+      console.log('Incoming voice call webhook received:', req.body);
+      
+      const { From, To, CallSid } = req.body;
+      console.log(`Voice call received from ${From} to ${To}, CallSid: ${CallSid}`);
+      
+      // Create TwiML voice response
+      const twiml = new twilio.twiml.VoiceResponse();
+      
+      // Business hours greeting
+      const currentHour = new Date().getHours();
+      const isBusinessHours = currentHour >= 9 && currentHour < 17; // 9 AM - 5 PM
+      
+      if (isBusinessHours) {
+        twiml.say({
+          voice: 'alice',
+          language: 'en-US'
+        }, 'Hello, thank you for calling Pine Hill Farm. Please hold while we connect you to our team.');
+        
+        // Forward to main business line during business hours
+        twiml.dial('(414) 737-4100');
+        
+      } else {
+        // After hours message
+        twiml.say({
+          voice: 'alice',
+          language: 'en-US'
+        }, 'Thank you for calling Pine Hill Farm. Our business hours are Monday through Saturday 9 AM to 5 PM, and Sunday 10 AM to 4 PM. For emergencies, please call our emergency line at 4 1 4, 7 3 7, 4 1 0 0. You may also leave a message after the tone.');
+        
+        // Record voicemail
+        twiml.record({
+          timeout: 10,
+          transcribe: true,
+          recordingStatusCallback: '/api/voice/recording'
+        });
+        
+        twiml.say('Thank you for your message. We will return your call during business hours.');
+      }
+      
+      res.type('text/xml');
+      res.send(twiml.toString());
+      
+    } catch (error) {
+      console.error('Error processing incoming voice call:', error);
+      
+      // Send error response via TwiML
+      const twiml = new twilio.twiml.VoiceResponse();
+      twiml.say({
+        voice: 'alice',
+        language: 'en-US'
+      }, 'Sorry, there was an error processing your call. Please try calling again or contact us directly at 4 1 4, 7 3 7, 4 1 0 0.');
+      
+      res.type('text/xml');
+      res.send(twiml.toString());
+    }
+  });
+
+  // Voice Fallback Webhook (backup handler for when primary fails)
+  app.post('/api/voice/fallback', async (req, res) => {
+    try {
+      console.log('Voice fallback webhook activated:', req.body);
+      
+      const { From, To } = req.body;
+      console.log(`Voice fallback handler - From: ${From}, To: ${To}`);
+      
+      // Emergency fallback response
+      const twiml = new twilio.twiml.VoiceResponse();
+      twiml.say({
+        voice: 'alice',
+        language: 'en-US'
+      }, 'Thank you for calling Pine Hill Farm. Our system is currently experiencing technical difficulties. Please call our emergency line directly at 4 1 4, 7 3 7, 4 1 0 0, or visit our Lake Geneva location at 704 West Main Street.');
+      
+      res.type('text/xml');
+      res.send(twiml.toString());
+      
+    } catch (error) {
+      console.error('Error in voice fallback handler:', error);
+      
+      const twiml = new twilio.twiml.VoiceResponse();
+      twiml.say('Please call 4 1 4, 7 3 7, 4 1 0 0 for assistance.');
+      
+      res.type('text/xml');
+      res.send(twiml.toString());
+    }
+  });
+
+  // Voice recording status callback (for voicemail handling)
+  app.post('/api/voice/recording', async (req, res) => {
+    try {
+      console.log('Voice recording callback received:', req.body);
+      
+      const { RecordingUrl, RecordingSid, From, TranscriptionText } = req.body;
+      
+      // Log the voicemail for admin review
+      console.log(`Voicemail received from ${From}:`);
+      console.log(`Recording URL: ${RecordingUrl}`);
+      console.log(`Transcription: ${TranscriptionText || 'No transcription available'}`);
+      
+      // TODO: Store voicemail in database and notify staff
+      // For now, just acknowledge receipt
+      res.sendStatus(200);
+      
+    } catch (error) {
+      console.error('Error processing voice recording:', error);
+      res.sendStatus(500);
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
