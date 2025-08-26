@@ -1508,8 +1508,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { posSales, cloverConfig } = await import('@shared/schema');
       const { sql, between, eq } = await import('drizzle-orm');
       
-      const start = new Date(startDate as string);
-      const end = new Date(endDate as string);
+      const startDateStr = startDate as string;
+      const endDateStr = endDate as string;
       
       // Get all active Clover configurations
       const allActiveCloverLocations = await storage.getAllCloverConfigs();
@@ -1528,7 +1528,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           avgSale: sql`COALESCE(AVG(${posSales.totalAmount}::decimal), 0)`.as('avgSale')
         })
         .from(posSales)
-        .where(between(posSales.saleDate, start, end))
+        .where(between(posSales.saleDate, startDateStr, endDateStr))
         .groupBy(posSales.locationId);
 
       // Create a map of sales data by location ID
