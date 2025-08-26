@@ -116,7 +116,18 @@ export function RevenueAnalytics() {
     },
   });
 
-  // Location-specific trends
+  // Multi-location analytics (includes Clover POS + Amazon Store)
+  const { data: multiLocationData, isLoading: multiLocationLoading } = useQuery({
+    queryKey: ['/api/accounting/analytics/multi-location', dateRange, customStartDate, customEndDate],
+    queryFn: async () => {
+      const params = getQueryParams();
+      const response = await apiRequest('GET', `/api/accounting/analytics/multi-location?${params}`);
+      return response;
+    },
+    retry: 1
+  });
+
+  // Location-specific trends (fallback for legacy charts)
   const { data: locationTrends, isLoading: locationLoading } = useQuery<LocationRevenueTrendsResponse>({
     queryKey: ['/api/accounting/analytics/location-revenue-trends', dateRange, customStartDate, customEndDate, selectedPeriod, selectedYear],
     queryFn: async () => {
