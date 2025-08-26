@@ -910,7 +910,6 @@ export const amazonConfig = pgTable("amazon_config", {
   clientId: text("client_id"), // Encrypted client identifier
   clientSecret: text("client_secret"), // Encrypted client secret
   accessToken: text("access_token"), // Current access token
-  tokenExpiry: timestamp("token_expires_at"),
   baseUrl: varchar("base_url").default("https://sellingpartnerapi-na.amazon.com"), // SP API endpoint
   isActive: boolean("is_active").default(true),
   lastSyncAt: timestamp("last_sync_at"),
