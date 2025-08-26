@@ -122,7 +122,7 @@ export function RevenueAnalytics() {
     queryFn: async () => {
       const params = getQueryParams();
       const response = await apiRequest('GET', `/api/accounting/analytics/multi-location?${params}`);
-      return response;
+      return await response.json();
     },
     retry: 1
   });
