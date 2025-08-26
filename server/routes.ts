@@ -1454,6 +1454,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Amazon configuration management
+  app.get('/api/accounting/config/amazon/all', isAuthenticated, async (req, res) => {
+    try {
+      const configs = await storage.getAllAmazonConfigs();
+      res.json(configs);
+    } catch (error) {
+      console.error('Error fetching Amazon configs:', error);
+      res.status(500).json({ error: 'Failed to fetch Amazon configurations' });
+    }
+  });
+
+  app.get('/api/accounting/config/amazon/:sellerId', isAuthenticated, async (req, res) => {
+    try {
+      const { sellerId } = req.params;
+      const config = await storage.getAmazonConfig(sellerId);
+      if (!config) {
+        return res.status(404).json({ error: 'Amazon config not found' });
+      }
+      res.json(config);
+    } catch (error) {
+      console.error('Error fetching Amazon config:', error);
+      res.status(500).json({ error: 'Failed to fetch Amazon configuration' });
+    }
+  });
+
   app.get('/api/accounting/clover-config', isAuthenticated, async (req, res) => {
     try {
       console.log('Getting active Clover config...');
@@ -1474,7 +1499,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Multi-location analytics endpoint
+  // Multi-location analytics endpoint (supports Clover POS + Amazon Store)
   app.get('/api/accounting/analytics/multi-location', isAuthenticated, async (req, res) => {
     console.log('🔥 MULTI-LOCATION ENDPOINT HIT - DEBUG TEST');
     try {
@@ -1486,9 +1511,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const start = new Date(startDate as string);
       const end = new Date(endDate as string);
       
-      // First get all active Clover configurations
-      const allActiveLocations = await storage.getAllCloverConfigs();
-      const activeConfigs = allActiveLocations.filter(config => config.isActive);
+      // Get all active Clover configurations
+      const allActiveCloverLocations = await storage.getAllCloverConfigs();
+      const activeCloverConfigs = allActiveCloverLocations.filter(config => config.isActive);
+      
+      // Get all active Amazon configurations
+      const allActiveAmazonLocations = await storage.getAllAmazonConfigs();
+      const activeAmazonConfigs = allActiveAmazonLocations.filter(config => config.isActive);
       
       // Get sales data by location for the date range
       const salesData = await db
@@ -1508,8 +1537,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         salesMap.set(sale.locationId, sale);
       });
       
-      // Build location breakdown including all active locations
-      const locationBreakdown = activeConfigs.map(config => {
+      // Build location breakdown for Clover POS locations
+      const cloverLocationBreakdown = activeCloverConfigs.map(config => {
         const sales = salesMap.get(config.id) || {
           totalSales: '0.00',
           transactionCount: 0,
@@ -1519,11 +1548,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return {
           locationId: config.id,
           locationName: config.merchantName,
+          platform: 'Clover POS',
           totalSales: parseFloat(sales.totalSales).toFixed(2),
           transactionCount: parseInt(sales.transactionCount) || 0,
           avgSale: parseFloat(sales.avgSale).toFixed(2)
         };
       });
+
+      // Build location breakdown for Amazon Store locations
+      const amazonLocationBreakdown = activeAmazonConfigs.map(config => {
+        // For now, Amazon sales data comes from Amazon API (placeholder with $0)
+        // TODO: Implement Amazon Seller API integration to fetch real sales data
+        return {
+          locationId: `amazon_${config.id}`,
+          locationName: config.merchantName,
+          platform: 'Amazon Store',
+          totalSales: '0.00', // Will be populated when Amazon Sales API is integrated
+          transactionCount: 0,
+          avgSale: '0.00'
+        };
+      });
+
+      // Combine all location breakdowns
+      const allLocationBreakdown = [...cloverLocationBreakdown, ...amazonLocationBreakdown];
 
       // Get total combined sales
       const totalSales = await db
@@ -1535,10 +1582,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .where(between(posSales.saleDate, start, end));
 
       res.json({
-        locationBreakdown: locationBreakdown,
+        locationBreakdown: allLocationBreakdown,
         totalSummary: {
           totalRevenue: parseFloat(totalSales[0]?.totalRevenue || '0').toFixed(2),
-          totalTransactions: parseInt(totalSales[0]?.totalTransactions || '0')
+          totalTransactions: parseInt(totalSales[0]?.totalTransactions || '0'),
+          integrations: {
+            cloverLocations: cloverLocationBreakdown.length,
+            amazonStores: amazonLocationBreakdown.length,
+            totalIntegrations: allLocationBreakdown.length
+          }
         }
       });
     } catch (error) {

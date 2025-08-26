@@ -26,6 +26,7 @@ import {
   cloverConfig,
   hsaConfig,
   thriveConfig,
+  amazonConfig,
   financialAccounts,
   financialTransactions,
   financialTransactionLines,
@@ -84,6 +85,8 @@ import {
   type InsertHsaConfig,
   type ThriveConfig,
   type InsertThriveConfig,
+  type AmazonConfig,
+  type InsertAmazonConfig,
   type FinancialAccount,
   type InsertFinancialAccount,
   type FinancialTransaction,
@@ -321,6 +324,12 @@ export interface IStorage {
   updateCloverConfig(id: number, config: Partial<InsertCloverConfig>): Promise<CloverConfig>;
   getActiveCloverConfig(): Promise<CloverConfig | undefined>;
   
+  createAmazonConfig(config: InsertAmazonConfig): Promise<AmazonConfig>;
+  getAmazonConfig(sellerId: string): Promise<AmazonConfig | undefined>;
+  getAllAmazonConfigs(): Promise<AmazonConfig[]>;
+  updateAmazonConfig(id: number, config: Partial<InsertAmazonConfig>): Promise<AmazonConfig>;
+  getActiveAmazonConfig(): Promise<AmazonConfig | undefined>;
+  
   createHsaConfig(config: InsertHsaConfig): Promise<HsaConfig>;
   getHsaConfig(): Promise<HsaConfig | undefined>;
   updateHsaConfig(id: number, config: Partial<InsertHsaConfig>): Promise<HsaConfig>;
@@ -380,6 +389,7 @@ export interface IStorage {
   getAllPosSales(limit?: number, offset?: number): Promise<PosSale[]>;
   getPosSaleById(id: number): Promise<PosSale | undefined>;
   getPosSaleByCloverOrderId(cloverOrderId: string): Promise<PosSale | undefined>;
+  getPosSaleByAmazonOrderId?(amazonOrderId: string): Promise<PosSale | undefined>;
   getSalesByDateRange(startDate: string, endDate: string): Promise<PosSale[]>;
   getSalesByLocation(locationId: number, startDate?: string, endDate?: string): Promise<PosSale[]>;
   getUnpostedSales(): Promise<PosSale[]>;
@@ -2051,6 +2061,36 @@ export class DatabaseStorage implements IStorage {
     return config;
   }
 
+  // Amazon Configuration Management
+  async createAmazonConfig(config: InsertAmazonConfig): Promise<AmazonConfig> {
+    const [amazonConf] = await db.insert(amazonConfig).values({
+      ...config,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    }).returning();
+    return amazonConf;
+  }
+
+  async getAmazonConfig(sellerId: string): Promise<AmazonConfig | undefined> {
+    const [config] = await db.select().from(amazonConfig).where(eq(amazonConfig.sellerId, sellerId));
+    return config;
+  }
+
+  async getAllAmazonConfigs(): Promise<AmazonConfig[]> {
+    const configs = await db.select().from(amazonConfig).orderBy(asc(amazonConfig.merchantName));
+    return configs;
+  }
+
+  async updateAmazonConfig(id: number, config: Partial<InsertAmazonConfig>): Promise<AmazonConfig> {
+    const [updated] = await db.update(amazonConfig).set({ ...config, updatedAt: new Date() }).where(eq(amazonConfig.id, id)).returning();
+    return updated;
+  }
+
+  async getActiveAmazonConfig(): Promise<AmazonConfig | undefined> {
+    const [config] = await db.select().from(amazonConfig).where(eq(amazonConfig.isActive, true));
+    return config;
+  }
+
   // HSA Configuration Management
   async createHsaConfig(config: InsertHsaConfig): Promise<HsaConfig> {
     const [hsaConf] = await db.insert(hsaConfig).values(config).returning();
@@ -2283,6 +2323,10 @@ export class DatabaseStorage implements IStorage {
   async getPosSaleById(id: number): Promise<PosSale | undefined> { return undefined; }
   async getPosSaleByCloverOrderId(cloverOrderId: string): Promise<PosSale | undefined> {
     const [sale] = await db.select().from(posSales).where(eq(posSales.cloverOrderId, cloverOrderId));
+    return sale;
+  }
+  async getPosSaleByAmazonOrderId(amazonOrderId: string): Promise<PosSale | undefined> {
+    const [sale] = await db.select().from(posSales).where(eq(posSales.amazonOrderId, amazonOrderId));
     return sale;
   }
   async getSalesByDateRange(startDate: string, endDate: string): Promise<PosSale[]> { return []; }

@@ -900,6 +900,27 @@ export const thriveConfig = pgTable("thrive_config", {
   storeIdIdx: index("idx_thrive_store_id").on(table.storeId),
 }));
 
+// Amazon Seller API Configuration
+export const amazonConfig = pgTable("amazon_config", {
+  id: serial("id").primaryKey(),
+  sellerId: varchar("seller_id").notNull().unique(),
+  marketplaceId: varchar("marketplace_id"), // e.g., ATVPDKIKX0DER for US
+  merchantName: varchar("merchant_name"), // Human-readable store name
+  refreshToken: text("refresh_token"), // Encrypted refresh token
+  clientId: text("client_id"), // Encrypted client identifier
+  clientSecret: text("client_secret"), // Encrypted client secret
+  accessToken: text("access_token"), // Current access token
+  tokenExpiry: timestamp("token_expires_at"),
+  baseUrl: varchar("base_url").default("https://sellingpartnerapi-na.amazon.com"), // SP API endpoint
+  isActive: boolean("is_active").default(true),
+  lastSyncAt: timestamp("last_sync_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  sellerIdIdx: index("idx_amazon_seller_id").on(table.sellerId),
+  marketplaceIdIdx: index("idx_amazon_marketplace_id").on(table.marketplaceId),
+}));
+
 // Financial Accounts (Chart of Accounts from QB)
 export const financialAccounts = pgTable("financial_accounts", {
   id: serial("id").primaryKey(),
@@ -1015,6 +1036,7 @@ export const inventoryItems = pgTable("inventory_items", {
 export const posSales = pgTable("pos_sales", {
   id: serial("id").primaryKey(),
   cloverOrderId: varchar("clover_order_id").unique(),
+  amazonOrderId: varchar("amazon_order_id").unique(),
   saleDate: date("sale_date").notNull(),
   saleTime: timestamp("sale_time").notNull(),
   totalAmount: decimal("total_amount", { precision: 10, scale: 2 }).notNull(),
@@ -1032,6 +1054,7 @@ export const posSales = pgTable("pos_sales", {
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => ({
   cloverOrderIdIdx: index("idx_ps_clover_order_id").on(table.cloverOrderId),
+  amazonOrderIdIdx: index("idx_ps_amazon_order_id").on(table.amazonOrderId),
   saleDateIdx: index("idx_ps_sale_date").on(table.saleDate),
   locationIdIdx: index("idx_ps_location_id").on(table.locationId),
   qbPostedIdx: index("idx_ps_qb_posted").on(table.qbPosted),
@@ -1210,6 +1233,12 @@ export const insertThriveConfigSchema = createInsertSchema(thriveConfig).omit({
   updatedAt: true,
 });
 
+export const insertAmazonConfigSchema = createInsertSchema(amazonConfig).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 export const insertFinancialAccountSchema = createInsertSchema(financialAccounts).omit({
   id: true,
   createdAt: true,
@@ -1287,6 +1316,9 @@ export type InsertHsaConfig = z.infer<typeof insertHsaConfigSchema>;
 
 export type ThriveConfig = typeof thriveConfig.$inferSelect;
 export type InsertThriveConfig = z.infer<typeof insertThriveConfigSchema>;
+
+export type AmazonConfig = typeof amazonConfig.$inferSelect;
+export type InsertAmazonConfig = z.infer<typeof insertAmazonConfigSchema>;
 
 export type FinancialAccount = typeof financialAccounts.$inferSelect;
 export type InsertFinancialAccount = z.infer<typeof insertFinancialAccountSchema>;
