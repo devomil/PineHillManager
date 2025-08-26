@@ -182,12 +182,13 @@ export function RevenueAnalytics() {
   const totalTransactions = revenueTrends?.data.reduce((sum, item) => sum + item.transactions, 0) || 0;
   const avgSaleOverall = totalTransactions > 0 ? totalRevenue / totalTransactions : 0;
 
-  // Prepare data for location comparison pie chart
-  const locationPieData = locationTrends?.locations.map((location, index) => ({
+  // Prepare data for location comparison pie chart using multi-location data (includes Amazon)
+  const locationPieData = multiLocationData?.locationBreakdown?.map((location, index) => ({
     name: location.locationName,
-    value: location.data.reduce((sum, period) => sum + parseFloat(period.revenue), 0),
-    color: location.isHSA ? HSA_COLOR : COLORS[index % COLORS.length],
-    isHSA: location.isHSA
+    value: parseFloat(location.totalSales),
+    color: location.platform === 'Amazon Store' ? '#FF9900' : (location.locationName?.includes('HSA') ? HSA_COLOR : COLORS[index % COLORS.length]),
+    isAmazon: location.platform === 'Amazon Store',
+    isHSA: location.locationName?.includes('HSA')
   })) || [];
 
   // Prepare data for multi-location line chart
@@ -398,13 +399,9 @@ export function RevenueAnalytics() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {locationTrends?.locations.map((location) => {
-                    const totalLocationRevenue = location.data.reduce(
-                      (sum, period) => sum + parseFloat(period.revenue), 0
-                    );
-                    const totalLocationTransactions = location.data.reduce(
-                      (sum, period) => sum + period.transactions, 0
-                    );
+                  {multiLocationData?.locationBreakdown?.map((location) => {
+                    const totalLocationRevenue = parseFloat(location.totalSales);
+                    const totalLocationTransactions = location.transactionCount;
                     
                     return (
                       <div key={location.locationId} className="flex items-center justify-between p-3 border rounded-lg">
@@ -412,7 +409,10 @@ export function RevenueAnalytics() {
                           <div className="flex flex-col">
                             <span className="font-medium">{location.locationName}</span>
                             <div className="flex gap-2">
-                              {location.isHSA && (
+                              {location.platform === 'Amazon Store' && (
+                                <Badge variant="secondary" className="text-xs bg-orange-100 text-orange-800">Amazon</Badge>
+                              )}
+                              {location.locationName?.includes('HSA') && (
                                 <Badge variant="secondary" className="text-xs">HSA</Badge>
                               )}
                               <Badge variant="outline" className="text-xs">
