@@ -1621,8 +1621,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
 
           // Get orders for the date range (Amazon API expects ISO format)
+          // Amazon requires dates to be at least 2 minutes before current time
+          const now = new Date();
+          const twoMinutesAgo = new Date(now.getTime() - 2 * 60 * 1000);
+          
           const startDateISO = new Date(startDateStr + 'T00:00:00.000Z').toISOString();
-          const endDateISO = new Date(endDateStr + 'T23:59:59.999Z').toISOString();
+          let endDateISO = new Date(endDateStr + 'T23:59:59.999Z').toISOString();
+          
+          // Ensure end date is at least 2 minutes before current time
+          const endDate = new Date(endDateISO);
+          if (endDate > twoMinutesAgo) {
+            endDateISO = twoMinutesAgo.toISOString();
+            console.log(`Amazon API: Adjusted end date to ${endDateISO} (2 minutes before current time)`);
+          }
           const amazonOrders = await amazonIntegration.getOrders(startDateISO, endDateISO);
           
           console.log(`Amazon Raw orders fetched for ${config.merchantName}:`, {
@@ -2554,9 +2565,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
               merchantName: amazonConfig.merchantName
             });
 
-            // Get orders for the date range (Amazon API expects ISO format)
+            // Get orders for the date range (Amazon API expects ISO format) 
+            // Amazon requires dates to be at least 2 minutes before current time
+            const now = new Date();
+            const twoMinutesAgo = new Date(now.getTime() - 2 * 60 * 1000);
+            
             const startDateISO = start.toISOString();
-            const endDateISO = end.toISOString();
+            let endDateISO = end.toISOString();
+            
+            // Ensure end date is at least 2 minutes before current time
+            if (end > twoMinutesAgo) {
+              endDateISO = twoMinutesAgo.toISOString();
+              console.log(`Amazon API: Adjusted end date to ${endDateISO} (2 minutes before current time)`);
+            }
             const amazonOrders = await amazonIntegration.getOrders(startDateISO, endDateISO);
             
             console.log(`Amazon Raw orders fetched for ${amazonConfig.merchantName}:`, {

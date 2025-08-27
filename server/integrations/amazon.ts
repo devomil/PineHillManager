@@ -12,6 +12,10 @@ export interface AmazonConfig {
 
 export class AmazonIntegration {
   private config: AmazonConfig | null = null;
+  private static orderCache = new Map<string, { data: any; timestamp: number }>();
+  private static readonly CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+  private static lastApiCall = 0;
+  private static readonly MIN_API_INTERVAL = 2000; // 2 seconds between calls
 
   constructor(dbConfig?: any) {
     if (dbConfig) {
@@ -147,8 +151,28 @@ export class AmazonIntegration {
     }
   }
 
-  // Get Amazon orders for a date range
+  // Get Amazon orders for a date range with caching and rate limiting
   async getOrders(startDate?: string, endDate?: string): Promise<any> {
+    // Create cache key
+    const cacheKey = `${this.config?.sellerId}-${startDate}-${endDate}`;
+    
+    // Check cache first
+    const cached = AmazonIntegration.orderCache.get(cacheKey);
+    if (cached && (Date.now() - cached.timestamp < AmazonIntegration.CACHE_DURATION)) {
+      console.log(`Amazon API: Using cached data for ${cacheKey}`);
+      return cached.data;
+    }
+    
+    // Rate limiting: ensure minimum time between API calls
+    const now = Date.now();
+    const timeSinceLastCall = now - AmazonIntegration.lastApiCall;
+    if (timeSinceLastCall < AmazonIntegration.MIN_API_INTERVAL) {
+      const waitTime = AmazonIntegration.MIN_API_INTERVAL - timeSinceLastCall;
+      console.log(`Amazon API: Rate limiting - waiting ${waitTime}ms`);
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+    }
+    
+    AmazonIntegration.lastApiCall = Date.now();
     if (!this.config) {
       throw new Error('Amazon config not set');
     }
@@ -165,7 +189,25 @@ export class AmazonIntegration {
     }
 
     const endpoint = `/orders/v0/orders?${params.toString()}`;
-    return await this.makeAmazonAPICall(endpoint);
+    
+    try {
+      const result = await this.makeAmazonAPICall(endpoint);
+      
+      // Cache successful results
+      AmazonIntegration.orderCache.set(cacheKey, {
+        data: result,
+        timestamp: Date.now()
+      });
+      
+      return result;
+    } catch (error) {
+      // If we hit rate limits, return cached data if available (even if expired)
+      if (cached && error.message.includes('429')) {
+        console.log(`Amazon API: Rate limited, using stale cache for ${cacheKey}`);
+        return cached.data;
+      }
+      throw error;
+    }
   }
 
   // Get financial events (for revenue tracking)
