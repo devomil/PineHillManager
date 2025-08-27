@@ -1526,41 +1526,81 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const allActiveAmazonLocations = await storage.getAllAmazonConfigs();
       const activeAmazonConfigs = allActiveAmazonLocations.filter(config => config.isActive);
       
-      // Get sales data by location for the date range
-      const salesData = await db
-        .select({
-          locationId: posSales.locationId,
-          totalSales: sql`COALESCE(SUM(${posSales.totalAmount}::decimal), 0)`.as('totalSales'),
-          transactionCount: sql`COUNT(*)`.as('transactionCount'),
-          avgSale: sql`COALESCE(AVG(${posSales.totalAmount}::decimal), 0)`.as('avgSale')
-        })
-        .from(posSales)
-        .where(between(posSales.saleDate, startDateStr, endDateStr))
-        .groupBy(posSales.locationId);
-
-      // Create a map of sales data by location ID
-      const salesMap = new Map();
-      salesData.forEach(sale => {
-        salesMap.set(sale.locationId, sale);
-      });
+      // Use live Clover API calls instead of database (same approach as revenue-trends)
+      const { CloverIntegration } = await import('./integrations/clover');
+      const start = new Date(startDateStr);
+      const end = new Date(endDateStr);
+      end.setHours(23, 59, 59, 999); // Include full day
       
-      // Build location breakdown for Clover POS locations
-      const cloverLocationBreakdown = activeCloverConfigs.map(config => {
-        const sales = salesMap.get(config.id) || {
-          totalSales: '0.00',
-          transactionCount: 0,
-          avgSale: '0.00'
-        };
-        
-        return {
-          locationId: config.id,
-          locationName: config.merchantName,
-          platform: 'Clover POS',
-          totalSales: parseFloat(sales.totalSales).toFixed(2),
-          transactionCount: parseInt(sales.transactionCount) || 0,
-          avgSale: parseFloat(sales.avgSale).toFixed(2)
-        };
-      });
+      console.log(`🚀 Multi-location using LIVE API calls for: ${start.toISOString()} - ${end.toISOString()}`);
+      
+      // Build location breakdown for Clover POS locations using live API data
+      const cloverLocationBreakdown = [];
+      
+      for (const config of activeCloverConfigs) {
+        try {
+          const cloverIntegration = new CloverIntegration(config);
+          console.log(`🚀 Creating CloverIntegration for ${config.merchantName} with MID: ${config.merchantId}`);
+          
+          const liveOrders = await cloverIntegration.fetchOrders({
+            filter: `modifiedTime>=${Math.floor(start.getTime())}`,
+            limit: 1000,
+            offset: 0
+          });
+          
+          if (liveOrders && liveOrders.elements && liveOrders.elements.length > 0) {
+            console.log(`Location Raw orders fetched for ${config.merchantName}: ${liveOrders.elements.length} orders`);
+            
+            // Filter orders by date on server-side (same as revenue-trends)
+            const filteredOrders = liveOrders.elements.filter((order: any) => {
+              const orderDate = new Date(order.modifiedTime);
+              return orderDate >= start && orderDate <= end;
+            });
+            
+            console.log(`Location Filtered orders for ${config.merchantName}: ${filteredOrders.length} orders`);
+            
+            const locationRevenue = filteredOrders.reduce((sum: number, order: any) => {
+              const orderTotal = parseFloat(order.total || '0') / 100; // Convert cents to dollars
+              return sum + orderTotal;
+            }, 0);
+            const locationTransactions = filteredOrders.length;
+            const avgSale = locationTransactions > 0 ? locationRevenue / locationTransactions : 0;
+            
+            console.log(`Live Location Revenue - ${config.merchantName}: $${locationRevenue.toFixed(2)} from ${locationTransactions} orders`);
+            
+            cloverLocationBreakdown.push({
+              locationId: config.id,
+              locationName: config.merchantName,
+              platform: 'Clover POS',
+              totalSales: locationRevenue.toFixed(2),
+              transactionCount: locationTransactions,
+              avgSale: avgSale.toFixed(2)
+            });
+          } else {
+            console.log(`Location No orders returned for ${config.merchantName}`);
+            // Still include location with zero sales
+            cloverLocationBreakdown.push({
+              locationId: config.id,
+              locationName: config.merchantName,
+              platform: 'Clover POS',
+              totalSales: '0.00',
+              transactionCount: 0,
+              avgSale: '0.00'
+            });
+          }
+        } catch (error) {
+          console.log(`Error fetching live data for ${config.merchantName}:`, error);
+          // Include location with zero sales on error
+          cloverLocationBreakdown.push({
+            locationId: config.id,
+            locationName: config.merchantName,
+            platform: 'Clover POS',
+            totalSales: '0.00',
+            transactionCount: 0,
+            avgSale: '0.00'
+          });
+        }
+      }
 
       // Build location breakdown for Amazon Store locations
       const amazonLocationBreakdown = activeAmazonConfigs.map(config => {
@@ -1579,20 +1619,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Combine all location breakdowns
       const allLocationBreakdown = [...cloverLocationBreakdown, ...amazonLocationBreakdown];
 
-      // Get total combined sales
-      const totalSales = await db
-        .select({
-          totalRevenue: sql`COALESCE(SUM(${posSales.totalAmount}::decimal), 0)`.as('totalRevenue'),
-          totalTransactions: sql`COUNT(*)`.as('totalTransactions')
-        })
-        .from(posSales)
-        .where(between(posSales.saleDate, startDateStr, endDateStr));
+      // Calculate total sales from live data (not database)
+      const totalRevenue = allLocationBreakdown.reduce((sum, location) => {
+        return sum + parseFloat(location.totalSales);
+      }, 0);
+      
+      const totalTransactions = allLocationBreakdown.reduce((sum, location) => {
+        return sum + location.transactionCount;
+      }, 0);
 
       res.json({
         locationBreakdown: allLocationBreakdown,
         totalSummary: {
-          totalRevenue: parseFloat(totalSales[0]?.totalRevenue?.toString() || '0').toFixed(2),
-          totalTransactions: parseInt(totalSales[0]?.totalTransactions?.toString() || '0'),
+          totalRevenue: totalRevenue.toFixed(2),
+          totalTransactions: totalTransactions,
           integrations: {
             cloverLocations: cloverLocationBreakdown.length,
             amazonStores: amazonLocationBreakdown.length,
