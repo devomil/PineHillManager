@@ -1620,8 +1620,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
             merchantName: config.merchantName
           });
 
-          // Get orders for the date range
-          const amazonOrders = await amazonIntegration.getOrders(startDateStr, endDateStr);
+          // Get orders for the date range (Amazon API expects ISO format)
+          const startDateISO = new Date(startDateStr + 'T00:00:00.000Z').toISOString();
+          const endDateISO = new Date(endDateStr + 'T23:59:59.999Z').toISOString();
+          const amazonOrders = await amazonIntegration.getOrders(startDateISO, endDateISO);
           
           console.log(`Amazon Raw orders fetched for ${config.merchantName}:`, {
             hasOrders: !!(amazonOrders && amazonOrders.payload && amazonOrders.payload.Orders),
@@ -2523,6 +2525,68 @@ export async function registerRoutes(app: Express): Promise<Server> {
             locationId: locationConfig.id,
             locationName: locationConfig.merchantName,
             isHSA: locationConfig.merchantName.includes('HSA'),
+            data: [{
+              period: `${start.toLocaleDateString()} - ${end.toLocaleDateString()}`,
+              revenue: revenue.toFixed(2),
+              transactions: transactions
+            }]
+          });
+        }
+        
+        // Add Amazon Store data for custom date range
+        const allAmazonConfigs = await storage.getAllAmazonConfigs();
+        const activeAmazonConfigs = allAmazonConfigs.filter(config => config.isActive);
+        
+        for (const amazonConfig of activeAmazonConfigs) {
+          let revenue = 0;
+          let transactions = 0;
+          
+          try {
+            console.log(`🚀 Creating AmazonIntegration for ${amazonConfig.merchantName} with Seller ID: ${amazonConfig.sellerId}`);
+            
+            const { AmazonIntegration } = await import('./integrations/amazon');
+            const amazonIntegration = new AmazonIntegration({
+              sellerId: process.env.AMAZON_SELLER_ID,
+              accessToken: process.env.AMAZON_ACCESS_TOKEN,
+              refreshToken: process.env.AMAZON_REFRESH_TOKEN,
+              clientId: process.env.AMAZON_CLIENT_ID,
+              clientSecret: process.env.AMAZON_CLIENT_SECRET,
+              merchantName: amazonConfig.merchantName
+            });
+
+            // Get orders for the date range (Amazon API expects ISO format)
+            const startDateISO = start.toISOString();
+            const endDateISO = end.toISOString();
+            const amazonOrders = await amazonIntegration.getOrders(startDateISO, endDateISO);
+            
+            console.log(`Amazon Raw orders fetched for ${amazonConfig.merchantName}:`, {
+              hasOrders: !!(amazonOrders && amazonOrders.payload && amazonOrders.payload.Orders),
+              orderCount: amazonOrders?.payload?.Orders?.length || 0
+            });
+
+            if (amazonOrders && amazonOrders.payload && amazonOrders.payload.Orders) {
+              const orders = amazonOrders.payload.Orders;
+              console.log(`Amazon Filtered orders for ${amazonConfig.merchantName}: ${orders.length} orders`);
+              
+              revenue = orders.reduce((sum, order) => {
+                const orderTotal = parseFloat(order.OrderTotal?.Amount || '0');
+                return sum + orderTotal;
+              }, 0);
+              transactions = orders.length;
+              
+              console.log(`Live Amazon Revenue - ${amazonConfig.merchantName}: $${revenue.toFixed(2)} from ${transactions} orders`);
+            } else {
+              console.log(`Amazon No orders returned for ${amazonConfig.merchantName}`);
+            }
+          } catch (error) {
+            console.log(`Error fetching Amazon data for ${amazonConfig.merchantName}:`, error);
+          }
+          
+          locationData.push({
+            locationId: `amazon_${amazonConfig.id}`,
+            locationName: amazonConfig.merchantName,
+            isHSA: false,
+            platform: 'Amazon Store',
             data: [{
               period: `${start.toLocaleDateString()} - ${end.toLocaleDateString()}`,
               revenue: revenue.toFixed(2),
