@@ -52,79 +52,84 @@ export function DateRangePicker({ value, onValueChange, className }: DateRangePi
   };
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="outline" className={`w-[200px] justify-between ${className}`}>
-          <div className="flex items-center gap-2">
-            <Calendar className="h-4 w-4" />
-            <span>{getDisplayLabel()}</span>
-          </div>
-          <ChevronDown className="h-4 w-4 opacity-50" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-[200px]">
-        {dateRangeOptions.map((option) => (
-          <DropdownMenuItem
-            key={option.value}
-            onSelect={() => handlePresetSelect(option)}
-            className={value === option.value ? 'bg-accent' : ''}
-          >
-            {option.label}
-          </DropdownMenuItem>
-        ))}
-        <DropdownMenuSeparator />
-        <Popover open={isCustomPopoverOpen} onOpenChange={setIsCustomPopoverOpen}>
-          <PopoverTrigger asChild>
-            <DropdownMenuItem
-              onSelect={(e) => {
-                e.preventDefault();
-                setIsCustomPopoverOpen(true);
-              }}
-              className={value === 'custom' ? 'bg-accent' : ''}
-            >
-              Custom Date Range
-            </DropdownMenuItem>
-          </PopoverTrigger>
-          <PopoverContent className="w-80" align="start">
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="start-date">Start Date</Label>
-                <Input
-                  id="start-date"
-                  type="date"
-                  value={customStartDate}
-                  onChange={(e) => setCustomStartDate(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="end-date">End Date</Label>
-                <Input
-                  id="end-date"
-                  type="date"
-                  value={customEndDate}
-                  onChange={(e) => setCustomEndDate(e.target.value)}
-                />
-              </div>
-              <div className="flex justify-end gap-2">
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => setIsCustomPopoverOpen(false)}
-                >
-                  Cancel
-                </Button>
-                <Button 
-                  size="sm"
-                  onClick={handleCustomRangeApply}
-                  disabled={!customStartDate || !customEndDate}
-                >
-                  Apply
-                </Button>
-              </div>
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" className={`w-[200px] justify-between ${className}`}>
+            <div className="flex items-center gap-2">
+              <Calendar className="h-4 w-4" />
+              <span>{getDisplayLabel()}</span>
             </div>
-          </PopoverContent>
-        </Popover>
-      </DropdownMenuContent>
-    </DropdownMenu>
+            <ChevronDown className="h-4 w-4 opacity-50" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-[200px]">
+          {dateRangeOptions.map((option) => (
+            <DropdownMenuItem
+              key={option.value}
+              onSelect={() => handlePresetSelect(option)}
+              className={value === option.value ? 'bg-accent' : ''}
+            >
+              {option.label}
+            </DropdownMenuItem>
+          ))}
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onSelect={(e) => {
+              e.preventDefault();
+              setIsCustomPopoverOpen(true);
+            }}
+            className={value === 'custom' ? 'bg-accent' : ''}
+          >
+            Custom Date Range
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      
+      {/* Separate Popover outside the DropdownMenu to prevent focus conflicts */}
+      <Popover open={isCustomPopoverOpen} onOpenChange={setIsCustomPopoverOpen}>
+        <PopoverTrigger asChild>
+          <div style={{ display: 'none' }} />
+        </PopoverTrigger>
+        <PopoverContent className="w-80" align="start">
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="start-date">Start Date</Label>
+              <Input
+                id="start-date"
+                type="date"
+                value={customStartDate}
+                onChange={(e) => setCustomStartDate(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="end-date">End Date</Label>
+              <Input
+                id="end-date"
+                type="date"
+                value={customEndDate}
+                onChange={(e) => setCustomEndDate(e.target.value)}
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => setIsCustomPopoverOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button 
+                size="sm"
+                onClick={handleCustomRangeApply}
+                disabled={!customStartDate || !customEndDate}
+              >
+                Apply
+              </Button>
+            </div>
+          </div>
+        </PopoverContent>
+      </Popover>
+    </>
   );
 }

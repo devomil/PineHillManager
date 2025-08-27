@@ -1648,16 +1648,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
             // Debug: Log first few orders to understand structure
             console.log(`Amazon Order Sample:`, JSON.stringify(orders.slice(0, 2), null, 2));
             
-            // Calculate revenue from Amazon orders - using only SHIPPED orders
-            const locationRevenue = orders.reduce((sum, order) => {
-              // Only count shipped orders like Amazon Seller Central
-              if (order.OrderStatus === 'Shipped' || order.OrderStatus === 'Delivered') {
-                const orderTotal = parseFloat(order.OrderTotal?.Amount || '0');
-                console.log(`Amazon Order: ${order.AmazonOrderId} - Status: ${order.OrderStatus} - Amount: $${orderTotal}`);
-                return sum + orderTotal;
+            // Try Financial Events API to match Seller Central calculations
+            let locationRevenue = 0;
+            try {
+              console.log('🔍 Trying Amazon Financial Events API for accurate revenue...');
+              const financialEvents = await amazonIntegration.getFinancialEvents(startDateISO, endDateISO);
+              
+              if (financialEvents && financialEvents.payload && financialEvents.payload.FinancialEvents && financialEvents.payload.FinancialEvents.ShipmentEventList) {
+                const shipmentEvents = financialEvents.payload.FinancialEvents.ShipmentEventList;
+                locationRevenue = shipmentEvents.reduce((sum, event) => {
+                  const charges = event.ShipmentItemList?.[0]?.ItemChargeList || [];
+                  const itemRevenue = charges.reduce((itemSum, charge) => {
+                    if (charge.ChargeType === 'Principal') {
+                      return itemSum + parseFloat(charge.ChargeAmount?.CurrencyAmount || '0');
+                    }
+                    return itemSum;
+                  }, 0);
+                  return sum + itemRevenue;
+                }, 0);
+                console.log(`Amazon Financial Events Revenue: $${locationRevenue.toFixed(2)} from ${shipmentEvents.length} shipment events`);
+              } else {
+                throw new Error('No financial events data');
               }
-              return sum;
-            }, 0);
+            } catch (finError) {
+              console.log('Financial Events API failed, falling back to Orders API:', finError.message);
+              // Fall back to Orders API calculation
+              locationRevenue = orders.reduce((sum, order) => {
+                // Only count shipped orders like Amazon Seller Central
+                if (order.OrderStatus === 'Shipped' || order.OrderStatus === 'Delivered') {
+                  const orderTotal = parseFloat(order.OrderTotal?.Amount || '0');
+                  console.log(`Amazon Order: ${order.AmazonOrderId} - Status: ${order.OrderStatus} - Amount: $${orderTotal}`);
+                  return sum + orderTotal;
+                }
+                return sum;
+              }, 0);
+            }
             
             const locationTransactions = orders.filter(order => 
               order.OrderStatus === 'Shipped' || order.OrderStatus === 'Delivered'
