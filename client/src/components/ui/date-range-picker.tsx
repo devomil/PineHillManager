@@ -9,10 +9,12 @@ import {
   DropdownMenuSeparator 
 } from '@/components/ui/dropdown-menu';
 import { 
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { getDateRangeOptions, formatDateForAPI, getDateRangeLabel, type DateRangeOption } from '@/lib/date-ranges';
@@ -26,7 +28,7 @@ interface DateRangePickerProps {
 export function DateRangePicker({ value, onValueChange, className }: DateRangePickerProps) {
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
-  const [isCustomPopoverOpen, setIsCustomPopoverOpen] = useState(false);
+  const [isCustomDialogOpen, setIsCustomDialogOpen] = useState(false);
   
   const dateRangeOptions = getDateRangeOptions();
   const selectedOption = dateRangeOptions.find(option => option.value === value);
@@ -40,7 +42,7 @@ export function DateRangePicker({ value, onValueChange, className }: DateRangePi
   const handleCustomRangeApply = () => {
     if (customStartDate && customEndDate) {
       onValueChange('custom', customStartDate, customEndDate);
-      setIsCustomPopoverOpen(false);
+      setIsCustomDialogOpen(false);
     }
   };
   
@@ -77,7 +79,7 @@ export function DateRangePicker({ value, onValueChange, className }: DateRangePi
           <DropdownMenuItem
             onSelect={(e) => {
               e.preventDefault();
-              setIsCustomPopoverOpen(true);
+              setIsCustomDialogOpen(true);
             }}
             className={value === 'custom' ? 'bg-accent' : ''}
           >
@@ -86,13 +88,12 @@ export function DateRangePicker({ value, onValueChange, className }: DateRangePi
         </DropdownMenuContent>
       </DropdownMenu>
       
-      {/* Separate Popover outside the DropdownMenu to prevent focus conflicts */}
-      <Popover open={isCustomPopoverOpen} onOpenChange={setIsCustomPopoverOpen}>
-        <PopoverTrigger asChild>
-          <div style={{ display: 'none' }} />
-        </PopoverTrigger>
-        <PopoverContent className="w-80" align="start">
-          <div className="space-y-4">
+      <Dialog open={isCustomDialogOpen} onOpenChange={setIsCustomDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Select Custom Date Range</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="start-date">Start Date</Label>
               <Input
@@ -115,7 +116,7 @@ export function DateRangePicker({ value, onValueChange, className }: DateRangePi
               <Button 
                 variant="outline" 
                 size="sm"
-                onClick={() => setIsCustomPopoverOpen(false)}
+                onClick={() => setIsCustomDialogOpen(false)}
               >
                 Cancel
               </Button>
@@ -128,8 +129,8 @@ export function DateRangePicker({ value, onValueChange, className }: DateRangePi
               </Button>
             </div>
           </div>
-        </PopoverContent>
-      </Popover>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

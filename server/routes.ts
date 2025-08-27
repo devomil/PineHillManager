@@ -1659,7 +1659,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               
               if (salesMetrics && salesMetrics.payload && salesMetrics.payload.length > 0) {
                 const metrics = salesMetrics.payload[0];
-                console.log('🔍 Amazon Sales API Response:', JSON.stringify(metrics, null, 2));
+                // Amazon Sales API response received successfully
                 
                 if (metrics.totalSales && metrics.totalSales.amount) {
                   locationRevenue = parseFloat(metrics.totalSales.amount);
