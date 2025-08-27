@@ -2662,6 +2662,78 @@ export async function registerRoutes(app: Express): Promise<Server> {
             data: periodData
           });
         }
+        
+        // Add Amazon Store data for monthly periods
+        const allAmazonConfigs = await storage.getAllAmazonConfigs();
+        const activeAmazonConfigs = allAmazonConfigs.filter(config => config.isActive);
+        
+        for (const amazonConfig of activeAmazonConfigs) {
+          const periodData = [];
+          
+          for (let month = 1; month <= 12; month++) {
+            const startDate = new Date(currentYear, month - 1, 1);
+            const endDate = new Date(currentYear, month, 0); // Last day of month
+            
+            let revenue = 0;
+            let transactions = 0;
+            
+            try {
+              console.log(`🚀 Creating AmazonIntegration for ${amazonConfig.merchantName} - Month ${month}`);
+              
+              const { AmazonIntegration } = await import('./integrations/amazon');
+              const amazonIntegration = new AmazonIntegration({
+                sellerId: process.env.AMAZON_SELLER_ID,
+                accessToken: process.env.AMAZON_ACCESS_TOKEN,
+                refreshToken: process.env.AMAZON_REFRESH_TOKEN,
+                clientId: process.env.AMAZON_CLIENT_ID,
+                clientSecret: process.env.AMAZON_CLIENT_SECRET,
+                merchantName: amazonConfig.merchantName
+              });
+
+              // Get orders for the month (Amazon API expects ISO format)
+              const now = new Date();
+              const twoMinutesAgo = new Date(now.getTime() - 2 * 60 * 1000);
+              
+              const startDateISO = startDate.toISOString();
+              let endDateISO = endDate.toISOString();
+              
+              // Ensure end date is at least 2 minutes before current time
+              if (endDate > twoMinutesAgo) {
+                endDateISO = twoMinutesAgo.toISOString();
+              }
+              
+              const amazonOrders = await amazonIntegration.getOrders(startDateISO, endDateISO);
+              
+              if (amazonOrders && amazonOrders.payload && amazonOrders.payload.Orders) {
+                const orders = amazonOrders.payload.Orders;
+                
+                revenue = orders.reduce((sum, order) => {
+                  const orderTotal = parseFloat(order.OrderTotal?.Amount || '0');
+                  return sum + orderTotal;
+                }, 0);
+                transactions = orders.length;
+                
+                console.log(`Amazon Revenue - ${amazonConfig.merchantName} ${startDate.toLocaleString('default', { month: 'short' })}: $${revenue.toFixed(2)} from ${transactions} orders`);
+              }
+            } catch (error) {
+              console.log(`Error fetching Amazon data for ${amazonConfig.merchantName} - Month ${month}:`, error);
+            }
+            
+            periodData.push({
+              period: new Date(currentYear, month - 1, 1).toLocaleString('default', { month: 'short' }),
+              revenue: revenue.toFixed(2),
+              transactions: transactions
+            });
+          }
+          
+          locationData.push({
+            locationId: `amazon_${amazonConfig.id}`,
+            locationName: amazonConfig.merchantName,
+            isHSA: false,
+            platform: 'Amazon Store',
+            data: periodData
+          });
+        }
       } else if (period === 'quarterly') {
         const quarters = [
           { name: 'Q1', startMonth: 1, endMonth: 3 },
