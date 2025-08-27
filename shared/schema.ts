@@ -310,6 +310,44 @@ export const messageTemplates = pgTable("message_templates", {
   activeIdx: index("idx_templates_active").on(table.isActive),
 }));
 
+// Employee responses to announcements and messages (supports threaded conversations)
+export const responses = pgTable("responses", {
+  id: serial("id").primaryKey(),
+  authorId: varchar("author_id").notNull().references(() => users.id),
+  content: text("content").notNull(),
+  
+  // References to parent content - either announcement or message
+  announcementId: integer("announcement_id").references(() => announcements.id, { onDelete: 'cascade' }),
+  messageId: integer("message_id").references(() => messages.id, { onDelete: 'cascade' }),
+  
+  // For threaded responses (responses to responses)
+  parentResponseId: integer("parent_response_id").references(() => responses.id, { onDelete: 'cascade' }),
+  
+  // Response metadata
+  responseType: varchar("response_type").notNull().default("reply"), // 'reply', 'question', 'confirmation', 'concern'
+  isFromSMS: boolean("is_from_sms").default(false), // Whether this response came via SMS
+  smsMessageSid: varchar("sms_message_sid"), // Twilio SID for tracking SMS source
+  
+  // Moderation and status
+  isRead: boolean("is_read").default(false),
+  readAt: timestamp("read_at"),
+  isHidden: boolean("is_hidden").default(false), // For moderation
+  hiddenBy: varchar("hidden_by").references(() => users.id),
+  hiddenReason: text("hidden_reason"),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  authorIdx: index("idx_responses_author").on(table.authorId),
+  announcementIdx: index("idx_responses_announcement").on(table.announcementId),
+  messageIdx: index("idx_responses_message").on(table.messageId),
+  parentIdx: index("idx_responses_parent").on(table.parentResponseId),
+  typeIdx: index("idx_responses_type").on(table.responseType),
+  smsIdx: index("idx_responses_sms").on(table.isFromSMS),
+  createdIdx: index("idx_responses_created").on(table.createdAt),
+  readIdx: index("idx_responses_read").on(table.isRead),
+}));
+
 // SMS delivery tracking for compliance and monitoring
 export const smsDeliveries = pgTable("sms_deliveries", {
   id: serial("id").primaryKey(),
@@ -1534,3 +1572,24 @@ export type UpdateProductVideo = z.infer<typeof updateProductVideoSchema>;
 
 export type VideoAsset = typeof videoAssets.$inferSelect;
 export type InsertVideoAsset = z.infer<typeof insertVideoAssetSchema>;
+
+// Response schemas
+export const insertResponseSchema = createInsertSchema(responses).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const updateResponseSchema = createInsertSchema(responses)
+  .omit({
+    id: true,
+    authorId: true,
+    createdAt: true,
+    updatedAt: true,
+  })
+  .partial();
+
+// Response types
+export type SelectResponse = typeof responses.$inferSelect;
+export type InsertResponse = z.infer<typeof insertResponseSchema>;
+export type UpdateResponse = z.infer<typeof updateResponseSchema>;

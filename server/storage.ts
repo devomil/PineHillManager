@@ -38,6 +38,7 @@ import {
   integrationLogs,
   reportConfigs,
   dashboardWidgets,
+  responses,
   type User,
   type UpsertUser,
   type InsertTimeOffRequest,
@@ -138,6 +139,9 @@ import {
   type InsertVoiceMessage,
   type MessageTemplate,
   type InsertMessageTemplate,
+  type SelectResponse,
+  type InsertResponse,
+  type UpdateResponse,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, asc, gte, lte, or, sql } from "drizzle-orm";
@@ -216,6 +220,14 @@ export interface IStorage {
   createMessage(message: InsertMessage): Promise<Message>;
   getUserMessages(userId: string): Promise<Message[]>;
   markMessageAsRead(id: number): Promise<Message>;
+
+  // Responses
+  createResponse(response: InsertResponse): Promise<SelectResponse>;
+  getResponsesByAnnouncement(announcementId: number): Promise<SelectResponse[]>;
+  getResponsesByMessage(messageId: number): Promise<SelectResponse[]>;
+  getResponsesByParent(parentResponseId: number): Promise<SelectResponse[]>;
+  markResponseAsRead(id: number): Promise<SelectResponse>;
+  updateResponse(id: number, updates: UpdateResponse): Promise<SelectResponse>;
 
   // Push subscriptions
   savePushSubscription(subscription: InsertPushSubscription): Promise<PushSubscription>;
@@ -1975,6 +1987,68 @@ export class DatabaseStorage implements IStorage {
       })
       .returning();
     return message;
+  }
+
+  // Response methods
+  async createResponse(response: InsertResponse): Promise<SelectResponse> {
+    const [newResponse] = await db
+      .insert(responses)
+      .values({
+        ...response,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      })
+      .returning();
+    return newResponse;
+  }
+
+  async getResponsesByAnnouncement(announcementId: number): Promise<SelectResponse[]> {
+    return await db
+      .select()
+      .from(responses)
+      .where(eq(responses.announcementId, announcementId))
+      .orderBy(asc(responses.createdAt));
+  }
+
+  async getResponsesByMessage(messageId: number): Promise<SelectResponse[]> {
+    return await db
+      .select()
+      .from(responses)
+      .where(eq(responses.messageId, messageId))
+      .orderBy(asc(responses.createdAt));
+  }
+
+  async getResponsesByParent(parentResponseId: number): Promise<SelectResponse[]> {
+    return await db
+      .select()
+      .from(responses)
+      .where(eq(responses.parentResponseId, parentResponseId))
+      .orderBy(asc(responses.createdAt));
+  }
+
+  async markResponseAsRead(id: number): Promise<SelectResponse> {
+    const [updated] = await db
+      .update(responses)
+      .set({ 
+        isRead: true, 
+        readAt: new Date(),
+        updatedAt: new Date()
+      })
+      .where(eq(responses.id, id))
+      .returning();
+    return updated;
+  }
+
+  async updateResponse(id: number, updates: UpdateResponse): Promise<SelectResponse> {
+    const [updated] = await db
+      .update(responses)
+      .set({ 
+        ...updates, 
+        updatedAt: new Date()
+      })
+      .where(eq(responses.id, id))
+      .returning();
+    return updated;
   }
 
   async getUserPresence(userId: string): Promise<any | undefined> {

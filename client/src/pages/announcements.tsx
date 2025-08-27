@@ -8,6 +8,7 @@ import { Bell, Calendar, Users, AlertTriangle, Clock } from "lucide-react";
 import { format, isAfter, parseISO } from "date-fns";
 import AdminLayout from "@/components/admin-layout";
 import { MessageReactions } from "@/components/ui/message-reactions";
+import { AnnouncementResponses } from "@/components/ui/announcement-responses";
 import { useAuth } from "@/hooks/use-auth";
 
 interface Announcement {
@@ -249,6 +250,13 @@ function AnnouncementsContent() {
                             messageId={announcement.id}
                             existingReactions={announcement.reactions || []}
                           />
+                        </div>
+                      )}
+
+                      {/* Employee Responses Section */}
+                      {user && (
+                        <div className="mt-6">
+                          <AnnouncementResponses announcementId={announcement.id} />
                         </div>
                       )}
                       

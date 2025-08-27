@@ -1335,6 +1335,228 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ================================
+  // EMPLOYEE RESPONSE ROUTES
+  // ================================
+
+  // Create response to announcement
+  app.post("/api/announcements/:id/responses", isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { content, responseType = 'reply', parentResponseId } = req.body;
+      const authorId = req.user!.id;
+
+      if (!content?.trim()) {
+        return res.status(400).json({ error: 'Response content is required' });
+      }
+
+      const response = await storage.createResponse({
+        authorId,
+        content: content.trim(),
+        announcementId: parseInt(id),
+        responseType,
+        parentResponseId: parentResponseId ? parseInt(parentResponseId) : null,
+        isFromSMS: false
+      });
+
+      res.json(response);
+    } catch (error) {
+      console.error("Error creating announcement response:", error);
+      res.status(500).json({ error: "Failed to create response" });
+    }
+  });
+
+  // Get responses for announcement
+  app.get("/api/announcements/:id/responses", isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const responses = await storage.getResponsesByAnnouncement(parseInt(id));
+      res.json(responses);
+    } catch (error) {
+      console.error("Error fetching announcement responses:", error);
+      res.status(500).json({ error: "Failed to fetch responses" });
+    }
+  });
+
+  // Create response to message
+  app.post("/api/messages/:id/responses", isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { content, responseType = 'reply', parentResponseId } = req.body;
+      const authorId = req.user!.id;
+
+      if (!content?.trim()) {
+        return res.status(400).json({ error: 'Response content is required' });
+      }
+
+      const response = await storage.createResponse({
+        authorId,
+        content: content.trim(),
+        messageId: parseInt(id),
+        responseType,
+        parentResponseId: parentResponseId ? parseInt(parentResponseId) : null,
+        isFromSMS: false
+      });
+
+      res.json(response);
+    } catch (error) {
+      console.error("Error creating message response:", error);
+      res.status(500).json({ error: "Failed to create response" });
+    }
+  });
+
+  // Get responses for message
+  app.get("/api/messages/:id/responses", isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const responses = await storage.getResponsesByMessage(parseInt(id));
+      res.json(responses);
+    } catch (error) {
+      console.error("Error fetching message responses:", error);
+      res.status(500).json({ error: "Failed to fetch responses" });
+    }
+  });
+
+  // Mark response as read
+  app.patch("/api/responses/:id/read", isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const response = await storage.markResponseAsRead(parseInt(id));
+      res.json(response);
+    } catch (error) {
+      console.error("Error marking response as read:", error);
+      res.status(500).json({ error: "Failed to mark response as read" });
+    }
+  });
+
+  // ================================
+  // SMS WEBHOOK FOR INCOMING REPLIES
+  // ================================
+
+  // Twilio webhook for incoming SMS replies
+  app.post("/api/sms/webhook", async (req, res) => {
+    try {
+      const { From, Body, MessageSid, To } = req.body;
+      
+      console.log('📱 Incoming SMS webhook:', {
+        from: From,
+        to: To,
+        body: Body,
+        messageSid: MessageSid
+      });
+
+      // Find user by phone number
+      const allUsers = await storage.getAllUsers();
+      const user = allUsers.find(u => 
+        u.phone && (
+          u.phone === From || 
+          u.phone.replace(/\D/g, '') === From.replace(/\D/g, '') ||
+          `+1${u.phone.replace(/\D/g, '')}` === From ||
+          u.phone === From.replace(/\D/g, '')
+        )
+      );
+
+      if (!user) {
+        console.log('❌ No user found for phone number:', From);
+        // Send auto-reply
+        try {
+          await smsService.sendSMS(From, 
+            "Hello! We received your message but couldn't find your employee account. Please contact your manager if you need assistance."
+          );
+        } catch (smsError) {
+          console.error('Error sending auto-reply:', smsError);
+        }
+        return res.status(200).send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
+      }
+
+      console.log('✅ Found user for SMS reply:', {
+        userId: user.id,
+        name: `${user.firstName} ${user.lastName}`,
+        phone: user.phone
+      });
+
+      // For now, create a general response since we don't have specific announcement tracking
+      // In a full implementation, you'd track which announcement the SMS relates to
+      try {
+        // Try to determine response type from message content
+        let responseType = 'reply';
+        const bodyLower = Body.toLowerCase();
+        
+        if (bodyLower.includes('question') || bodyLower.includes('?') || bodyLower.includes('help')) {
+          responseType = 'question';
+        } else if (bodyLower.includes('concern') || bodyLower.includes('issue') || bodyLower.includes('problem')) {
+          responseType = 'concern';
+        } else if (bodyLower.includes('confirm') || bodyLower.includes('yes') || bodyLower.includes('ok') || bodyLower.includes('understood')) {
+          responseType = 'confirmation';
+        }
+
+        // For this implementation, we'll look for the most recent announcement they could be replying to
+        const announcements = await storage.getPublishedAnnouncements();
+        if (announcements.length > 0) {
+          const latestAnnouncement = announcements[0]; // Most recent announcement
+          
+          // Create response linked to latest announcement
+          const response = await storage.createResponse({
+            authorId: user.id,
+            content: Body.trim(),
+            announcementId: latestAnnouncement.id,
+            responseType: responseType as any,
+            isFromSMS: true,
+            smsMessageSid: MessageSid
+          });
+
+          console.log('✅ Created SMS response:', {
+            responseId: response.id,
+            announcementId: latestAnnouncement.id,
+            userId: user.id,
+            responseType
+          });
+
+          // Send confirmation SMS
+          try {
+            await smsService.sendSMS(From, 
+              `Thanks ${user.firstName}! Your message has been received and added to "${latestAnnouncement.title}". Your team will see your response.`
+            );
+          } catch (smsError) {
+            console.error('Error sending confirmation SMS:', smsError);
+          }
+
+        } else {
+          console.log('⚠️ No announcements found to link SMS response to');
+          // Send auto-reply for no context
+          try {
+            await smsService.sendSMS(From, 
+              `Thanks ${user.firstName}! Your message has been received. If you're replying to a specific announcement, please check the app for the latest updates.`
+            );
+          } catch (smsError) {
+            console.error('Error sending auto-reply:', smsError);
+          }
+        }
+
+      } catch (dbError) {
+        console.error('Error saving SMS response to database:', dbError);
+        
+        // Send error notification
+        try {
+          await smsService.sendSMS(From, 
+            `Sorry ${user.firstName || 'there'}, we had trouble processing your message. Please try again or contact your manager.`
+          );
+        } catch (smsError) {
+          console.error('Error sending error SMS:', smsError);
+        }
+      }
+
+      // Return empty TwiML response
+      res.set('Content-Type', 'text/xml');
+      res.status(200).send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
+
+    } catch (error) {
+      console.error('❌ SMS webhook error:', error);
+      res.set('Content-Type', 'text/xml');
+      res.status(500).send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
+    }
+  });
+
   app.get("/api/messages/:messageId/reactions", isAuthenticated, async (req: any, res) => {
     try {
       const { messageId } = req.params;
