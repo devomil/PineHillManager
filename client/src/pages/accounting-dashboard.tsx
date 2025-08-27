@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Progress } from '@/components/ui/progress';
 import { 
   Dialog,
   DialogContent,
@@ -33,7 +34,10 @@ import {
   CreditCard,
   RefreshCw,
   Target,
-  Plus
+  Plus,
+  TrendingDown,
+  CheckCircle2,
+  AlertTriangle
 } from 'lucide-react';
 import { apiRequest } from '@/lib/queryClient';
 import AdminLayout from '@/components/admin-layout';
@@ -711,6 +715,144 @@ function AccountingContent() {
                     </CardContent>
                   </Card>
                 </div>
+
+                {/* Goal Progress & Visual Analytics */}
+                {monthlyGoals && biMetrics && (
+                  <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950 dark:to-indigo-950 p-6 rounded-lg space-y-6">
+                    <div className="flex items-center gap-2 mb-4">
+                      <Target className="h-5 w-5 text-blue-600" />
+                      <h3 className="text-lg font-semibold text-blue-800 dark:text-blue-200">Goal Progress Tracking</h3>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      {/* Revenue Goal Progress */}
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium">Revenue Goal</span>
+                          <span className="text-sm text-gray-600 dark:text-gray-400">
+                            ${biMetrics.monthlyRevenue.toLocaleString()} / ${monthlyGoals.revenue.toLocaleString()}
+                          </span>
+                        </div>
+                        <Progress 
+                          value={Math.min(100, (biMetrics.monthlyRevenue / monthlyGoals.revenue) * 100)} 
+                          className="h-3 transition-all duration-500 ease-out"
+                        />
+                        <div className="flex items-center gap-2">
+                          {biMetrics.monthlyRevenue >= monthlyGoals.revenue ? (
+                            <CheckCircle2 className="h-4 w-4 text-green-600 animate-pulse" />
+                          ) : biMetrics.monthlyRevenue >= monthlyGoals.revenue * 0.8 ? (
+                            <TrendingUp className="h-4 w-4 text-yellow-600 animate-bounce" />
+                          ) : (
+                            <AlertTriangle className="h-4 w-4 text-red-600" />
+                          )}
+                          <span className="text-xs">
+                            {biMetrics.monthlyRevenue >= monthlyGoals.revenue 
+                              ? 'Goal Achieved!' 
+                              : `${((biMetrics.monthlyRevenue / monthlyGoals.revenue) * 100).toFixed(1)}% Complete`}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Profit Goal Progress */}
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium">Profit Goal</span>
+                          <span className="text-sm text-gray-600 dark:text-gray-400">
+                            ${(biMetrics.monthlyRevenue - biMetrics.monthlyExpenses).toLocaleString()} / ${monthlyGoals.profit.toLocaleString()}
+                          </span>
+                        </div>
+                        <Progress 
+                          value={Math.min(100, ((biMetrics.monthlyRevenue - biMetrics.monthlyExpenses) / monthlyGoals.profit) * 100)} 
+                          className="h-3 transition-all duration-500 ease-out"
+                        />
+                        <div className="flex items-center gap-2">
+                          {(biMetrics.monthlyRevenue - biMetrics.monthlyExpenses) >= monthlyGoals.profit ? (
+                            <CheckCircle2 className="h-4 w-4 text-green-600 animate-pulse" />
+                          ) : (biMetrics.monthlyRevenue - biMetrics.monthlyExpenses) >= monthlyGoals.profit * 0.8 ? (
+                            <TrendingUp className="h-4 w-4 text-yellow-600 animate-bounce" />
+                          ) : (
+                            <AlertTriangle className="h-4 w-4 text-red-600" />
+                          )}
+                          <span className="text-xs">
+                            {(biMetrics.monthlyRevenue - biMetrics.monthlyExpenses) >= monthlyGoals.profit 
+                              ? 'Goal Achieved!' 
+                              : `${(((biMetrics.monthlyRevenue - biMetrics.monthlyExpenses) / monthlyGoals.profit) * 100).toFixed(1)}% Complete`}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Profit Margin Gauge */}
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium">Profit Margin</span>
+                          <span className="text-sm text-gray-600 dark:text-gray-400">
+                            {biMetrics.profitMargin.toFixed(1)}% / {monthlyGoals.profitMargin}%
+                          </span>
+                        </div>
+                        <div className="relative">
+                          <Progress 
+                            value={Math.min(100, (biMetrics.profitMargin / monthlyGoals.profitMargin) * 100)} 
+                            className="h-3 transition-all duration-500 ease-out"
+                          />
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <span className="text-xs font-semibold text-white drop-shadow">
+                              {biMetrics.profitMargin.toFixed(1)}%
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {biMetrics.profitMargin >= monthlyGoals.profitMargin ? (
+                            <CheckCircle2 className="h-4 w-4 text-green-600 animate-pulse" />
+                          ) : biMetrics.profitMargin >= monthlyGoals.profitMargin * 0.8 ? (
+                            <TrendingUp className="h-4 w-4 text-yellow-600 animate-bounce" />
+                          ) : (
+                            <AlertTriangle className="h-4 w-4 text-red-600" />
+                          )}
+                          <span className="text-xs">
+                            {biMetrics.profitMargin >= monthlyGoals.profitMargin 
+                              ? 'Target Met!' 
+                              : `${((biMetrics.profitMargin / monthlyGoals.profitMargin) * 100).toFixed(1)}% of Target`}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Goal Strategy Notes */}
+                    {monthlyGoals.notes && (
+                      <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
+                        <h4 className="text-sm font-medium text-blue-700 dark:text-blue-300 mb-2">Monthly Strategy</h4>
+                        <p className="text-sm text-gray-600 dark:text-gray-400">{monthlyGoals.notes}</p>
+                      </div>
+                    )}
+
+                    {/* Monthly Performance Insights */}
+                    <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
+                      <h4 className="text-sm font-medium text-blue-700 dark:text-blue-300 mb-3">Performance Insights</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                          <span>Daily Target: ${(monthlyGoals.revenue / 31).toFixed(0)}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                          <span>Current Pace: ${biMetrics.dailyAverage.toFixed(0)}/day</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                          <span>Projected: ${biMetrics.projectedRevenue.toFixed(0)}</span>
+                        </div>
+                      </div>
+                      {biMetrics.projectedRevenue >= monthlyGoals.revenue && (
+                        <div className="mt-3 p-2 bg-green-50 dark:bg-green-900/20 rounded border border-green-200 dark:border-green-800 animate-pulse">
+                          <p className="text-xs text-green-700 dark:text-green-300 flex items-center gap-1">
+                            <CheckCircle2 className="h-3 w-3 animate-spin" />
+                            🎉 On track to exceed revenue goal by ${(biMetrics.projectedRevenue - monthlyGoals.revenue).toFixed(0)}!
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {/* Second Row - Top Revenue Days & Expense Breakdown */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
