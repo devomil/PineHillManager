@@ -10,6 +10,8 @@ import AdminLayout from "@/components/admin-layout";
 import { MessageReactions } from "@/components/ui/message-reactions";
 import { AnnouncementResponses } from "@/components/ui/announcement-responses";
 import { useAuth } from "@/hooks/use-auth";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Plus } from "lucide-react";
 
 interface Announcement {
   id: number;
@@ -26,6 +28,7 @@ interface Announcement {
 
 function AnnouncementsContent() {
   const [selectedFilter, setSelectedFilter] = useState<string>("all");
+  const [showCreateAnnouncement, setShowCreateAnnouncement] = useState(false);
   const { user } = useAuth(); // Get current user for reactions
   
   const { data: announcements = [], isLoading, error } = useQuery<Announcement[]>({

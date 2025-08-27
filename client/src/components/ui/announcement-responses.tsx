@@ -154,13 +154,13 @@ export function AnnouncementResponses({ announcementId, className }: Announcemen
                   <Button
                     key={type}
                     type="button"
-                    variant={responseType === type ? "default" : "outline"}
+                    variant="outline"
                     size="sm"
                     onClick={() => setResponseType(type)}
                     className={cn(
-                      "text-xs",
+                      "text-xs border-2",
                       responseType === type 
-                        ? "bg-farm-blue text-white hover:bg-blue-600" 
+                        ? "bg-farm-blue text-white border-farm-blue hover:bg-blue-600 font-semibold" 
                         : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
                     )}
                   >
