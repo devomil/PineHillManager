@@ -158,7 +158,61 @@ function AnnouncementsContent() {
 
   return (
     <div className="space-y-6">
-
+      {/* Header with Create Button */}
+      <div className="flex justify-between items-center">
+        <div></div> {/* Empty div for spacing */}
+        
+        {/* Create New Announcement Button - Admin Only */}
+        {user?.role === 'admin' && (
+          <Dialog open={showCreateAnnouncement} onOpenChange={setShowCreateAnnouncement}>
+            <DialogTrigger asChild>
+              <Button 
+                style={{
+                  backgroundColor: '#1e40af',
+                  borderColor: '#1e40af',
+                  color: 'white',
+                  fontWeight: '600'
+                }}
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Create New Announcement
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>Create New Announcement</DialogTitle>
+              </DialogHeader>
+              <div className="py-4">
+                <p className="text-gray-600 mb-4">
+                  This will redirect you to the Communication Center where you can create announcements with full targeting and scheduling options.
+                </p>
+                <div className="flex gap-3">
+                  <Button 
+                    onClick={() => {
+                      setShowCreateAnnouncement(false);
+                      window.location.href = '/communication';
+                    }}
+                    style={{
+                      backgroundColor: '#1e40af',
+                      borderColor: '#1e40af',
+                      color: 'white',
+                      fontWeight: '600'
+                    }}
+                  >
+                    Go to Communication Center
+                  </Button>
+                  <Button 
+                    variant="outline"
+                    onClick={() => setShowCreateAnnouncement(false)}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+        )}
+      </div>
 
         {/* Filter Buttons */}
         <div className="mb-6 flex flex-wrap gap-2">
