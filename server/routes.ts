@@ -1645,13 +1645,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const orders = amazonOrders.payload.Orders;
             console.log(`Amazon Filtered orders for ${config.merchantName}: ${orders.length} orders`);
             
-            // Calculate revenue from Amazon orders
+            // Debug: Log first few orders to understand structure
+            console.log(`Amazon Order Sample:`, JSON.stringify(orders.slice(0, 2), null, 2));
+            
+            // Calculate revenue from Amazon orders - using only SHIPPED orders
             const locationRevenue = orders.reduce((sum, order) => {
-              const orderTotal = parseFloat(order.OrderTotal?.Amount || '0');
-              return sum + orderTotal;
+              // Only count shipped orders like Amazon Seller Central
+              if (order.OrderStatus === 'Shipped' || order.OrderStatus === 'Delivered') {
+                const orderTotal = parseFloat(order.OrderTotal?.Amount || '0');
+                console.log(`Amazon Order: ${order.AmazonOrderId} - Status: ${order.OrderStatus} - Amount: $${orderTotal}`);
+                return sum + orderTotal;
+              }
+              return sum;
             }, 0);
             
-            const locationTransactions = orders.length;
+            const locationTransactions = orders.filter(order => 
+              order.OrderStatus === 'Shipped' || order.OrderStatus === 'Delivered'
+            ).length;
             const avgSale = locationTransactions > 0 ? locationRevenue / locationTransactions : 0;
             
             console.log(`Live Amazon Revenue - ${config.merchantName}: $${locationRevenue.toFixed(2)} from ${locationTransactions} orders`);
@@ -2596,10 +2606,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
               console.log(`Amazon Filtered orders for ${amazonConfig.merchantName}: ${orders.length} orders`);
               
               revenue = orders.reduce((sum, order) => {
-                const orderTotal = parseFloat(order.OrderTotal?.Amount || '0');
-                return sum + orderTotal;
+                // Only count shipped orders like Amazon Seller Central
+                if (order.OrderStatus === 'Shipped' || order.OrderStatus === 'Delivered') {
+                  const orderTotal = parseFloat(order.OrderTotal?.Amount || '0');
+                  return sum + orderTotal;
+                }
+                return sum;
               }, 0);
-              transactions = orders.length;
+              transactions = orders.filter(order => 
+                order.OrderStatus === 'Shipped' || order.OrderStatus === 'Delivered'
+              ).length;
               
               console.log(`Live Amazon Revenue - ${amazonConfig.merchantName}: $${revenue.toFixed(2)} from ${transactions} orders`);
             } else {
@@ -2714,10 +2730,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 const orders = amazonOrders.payload.Orders;
                 
                 revenue = orders.reduce((sum, order) => {
-                  const orderTotal = parseFloat(order.OrderTotal?.Amount || '0');
-                  return sum + orderTotal;
+                  // Only count shipped orders like Amazon Seller Central
+                  if (order.OrderStatus === 'Shipped' || order.OrderStatus === 'Delivered') {
+                    const orderTotal = parseFloat(order.OrderTotal?.Amount || '0');
+                    return sum + orderTotal;
+                  }
+                  return sum;
                 }, 0);
-                transactions = orders.length;
+                transactions = orders.filter(order => 
+                  order.OrderStatus === 'Shipped' || order.OrderStatus === 'Delivered'
+                ).length;
                 
                 console.log(`Amazon Revenue - ${amazonConfig.merchantName} ${startDate.toLocaleString('default', { month: 'short' })}: $${revenue.toFixed(2)} from ${transactions} orders`);
               }

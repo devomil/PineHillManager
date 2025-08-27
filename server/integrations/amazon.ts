@@ -15,7 +15,7 @@ export class AmazonIntegration {
   private static orderCache = new Map<string, { data: any; timestamp: number }>();
   private static readonly CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
   private static lastApiCall = 0;
-  private static readonly MIN_API_INTERVAL = 8000; // 8 seconds between calls to prevent rate limits
+  private static readonly MIN_API_INTERVAL = 15000; // 15 seconds between calls to prevent rate limits
 
   constructor(dbConfig?: any) {
     if (dbConfig) {
