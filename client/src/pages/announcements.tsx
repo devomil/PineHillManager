@@ -165,7 +165,16 @@ function AnnouncementsContent() {
           <Button
             variant={selectedFilter === "all" ? "default" : "outline"}
             onClick={() => setSelectedFilter("all")}
-            className={selectedFilter === "all" ? "bg-farm-green hover:bg-farm-green/90" : ""}
+            style={selectedFilter === "all" ? {
+              backgroundColor: '#16a34a',
+              borderColor: '#16a34a',
+              color: 'white',
+              fontWeight: '600'
+            } : {
+              backgroundColor: 'white',
+              borderColor: '#d1d5db',
+              color: '#374151'
+            }}
           >
             All Announcements
           </Button>
