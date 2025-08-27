@@ -3,6 +3,17 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { 
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 // Tabs component no longer needed - using custom navigation
 import { Separator } from '@/components/ui/separator';
 import { 
@@ -20,11 +31,14 @@ import {
   MapPin,
   ShoppingCart,
   CreditCard,
-  RefreshCw
+  RefreshCw,
+  Target,
+  Plus
 } from 'lucide-react';
 import { apiRequest } from '@/lib/queryClient';
 import AdminLayout from '@/components/admin-layout';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/use-auth';
 import { RevenueAnalytics } from '@/components/revenue-analytics';
 import { ComprehensiveOrderManagement } from '@/components/comprehensive-order-management';
 import { InventoryManagement } from '@/components/inventory-management';
@@ -74,10 +88,42 @@ type MultiLocationAnalytics = {
   };
 };
 
+type MonthlyGoals = {
+  revenue: number;
+  profit: number;
+  profitMargin: number;
+  notes: string;
+  month: string;
+  setDate: string;
+};
+
 function AccountingContent() {
   const [activeSection, setActiveSection] = useState('overview');
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { user } = useAuth();
+
+  // Goal setting state
+  const [isGoalDialogOpen, setIsGoalDialogOpen] = useState(false);
+  const [monthlyGoals, setMonthlyGoals] = useState<MonthlyGoals | null>(null);
+  const [goalForm, setGoalForm] = useState({
+    revenue: '',
+    profit: '',
+    profitMargin: '',
+    notes: ''
+  });
+
+  // Load goals from localStorage on component mount
+  useEffect(() => {
+    const currentMonthKey = `monthly_goals_${currentMonth.getFullYear()}_${currentMonth.getMonth()}`;
+    const savedGoals = localStorage.getItem(currentMonthKey);
+    if (savedGoals) {
+      setMonthlyGoals(JSON.parse(savedGoals));
+    }
+  }, []);
+
+  // Check if user can set goals (Admin or Manager only)
+  const canSetGoals = user?.role === 'admin' || user?.role === 'manager';
   
   // System health check
   const { data: systemHealth, isLoading: healthLoading } = useQuery<SystemHealth>({
@@ -135,6 +181,123 @@ function AccountingContent() {
       return await response.json();
     },
   });
+
+  // Month-to-date analytics data
+  const currentMonth = new Date();
+  const monthStart = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1).toISOString().split('T')[0];
+  const { data: monthlyProfitLoss } = useQuery({
+    queryKey: ['/api/accounting/analytics/profit-loss', monthStart, today],
+    queryFn: async () => {
+      const response = await apiRequest('GET', `/api/accounting/analytics/profit-loss?startDate=${monthStart}&endDate=${today}`);
+      return await response.json();
+    },
+  });
+
+  // Calculate BI metrics from real data
+  const calculateBIMetrics = () => {
+    if (!monthlyProfitLoss) return null;
+    
+    const monthlyRevenue = parseFloat(monthlyProfitLoss.revenue || '0');
+    const monthlyExpenses = parseFloat(monthlyProfitLoss.expenses || '0');
+    const daysElapsed = new Date().getDate();
+    const daysInMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0).getDate();
+    const daysRemaining = daysInMonth - daysElapsed;
+    
+    const dailyAverage = monthlyRevenue / daysElapsed;
+    const projectedRevenue = dailyAverage * daysInMonth;
+    const profitMargin = monthlyRevenue > 0 ? ((monthlyRevenue - monthlyExpenses) / monthlyRevenue * 100) : 0;
+    
+    return {
+      monthlyRevenue,
+      monthlyExpenses,
+      profitMargin,
+      dailyAverage,
+      projectedRevenue,
+      daysElapsed,
+      daysRemaining,
+      confidence: Math.min(95, 60 + (daysElapsed * 2)) // Increases with more data
+    };
+  };
+
+  const biMetrics = calculateBIMetrics();
+
+  // Goal handling functions
+  const handleSaveGoals = () => {
+    const revenue = parseFloat(goalForm.revenue);
+    const profit = parseFloat(goalForm.profit);
+    const profitMargin = parseFloat(goalForm.profitMargin);
+
+    // Validation
+    if (!revenue || revenue <= 0) {
+      toast({
+        title: "Validation Error",
+        description: "Revenue goal must be a positive number",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!profit || profit <= 0) {
+      toast({
+        title: "Validation Error", 
+        description: "Profit goal must be a positive number",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (profit > revenue) {
+      toast({
+        title: "Validation Error",
+        description: "Profit goal cannot exceed revenue goal",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!profitMargin || profitMargin < 0 || profitMargin > 100) {
+      toast({
+        title: "Validation Error",
+        description: "Profit margin should be between 0-100%",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const goals: MonthlyGoals = {
+      revenue,
+      profit,
+      profitMargin,
+      notes: goalForm.notes,
+      month: `${currentMonth.getFullYear()}-${currentMonth.getMonth() + 1}`,
+      setDate: new Date().toISOString()
+    };
+
+    const currentMonthKey = `monthly_goals_${currentMonth.getFullYear()}_${currentMonth.getMonth()}`;
+    localStorage.setItem(currentMonthKey, JSON.stringify(goals));
+    setMonthlyGoals(goals);
+    setIsGoalDialogOpen(false);
+    setGoalForm({ revenue: '', profit: '', profitMargin: '', notes: '' });
+
+    toast({
+      title: "Goals Saved",
+      description: "Monthly goals have been successfully saved",
+      variant: "default",
+    });
+  };
+
+  const resetGoalForm = () => {
+    if (monthlyGoals) {
+      setGoalForm({
+        revenue: monthlyGoals.revenue.toString(),
+        profit: monthlyGoals.profit.toString(),
+        profitMargin: monthlyGoals.profitMargin.toString(),
+        notes: monthlyGoals.notes
+      });
+    } else {
+      setGoalForm({ revenue: '', profit: '', profitMargin: '', notes: '' });
+    }
+  };
 
   // Multi-location Clover data
   const { data: cloverLocations = [] } = useQuery<CloverLocation[]>({
@@ -373,9 +536,98 @@ function AccountingContent() {
                       Comprehensive monthly performance insights and analytics
                     </CardDescription>
                   </div>
-                  <Badge variant="secondary" className="text-sm">
-                    Updated: {new Date().toLocaleDateString()}
-                  </Badge>
+                  <div className="flex items-center gap-3">
+                    <Badge variant="secondary" className="text-sm">
+                      Updated: {new Date().toLocaleDateString()}
+                    </Badge>
+                    {canSetGoals && (
+                      <Dialog open={isGoalDialogOpen} onOpenChange={setIsGoalDialogOpen}>
+                        <DialogTrigger asChild>
+                          <Button 
+                            size="sm" 
+                            className="flex items-center gap-2"
+                            onClick={() => {
+                              resetGoalForm();
+                              setIsGoalDialogOpen(true);
+                            }}
+                          >
+                            <Target className="h-4 w-4" />
+                            {monthlyGoals ? 'Update Goals' : 'Set Monthly Goals'}
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent className="sm:max-w-[500px]">
+                          <DialogHeader>
+                            <DialogTitle className="flex items-center gap-2">
+                              <Target className="h-5 w-5" />
+                              Set Monthly Goals - {new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                            </DialogTitle>
+                            <DialogDescription>
+                              Set your monthly revenue, profit, and margin targets to track performance against goals.
+                            </DialogDescription>
+                          </DialogHeader>
+                          <div className="space-y-6 py-4">
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                <Label htmlFor="revenue-goal">Revenue Goal ($)</Label>
+                                <Input
+                                  id="revenue-goal"
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  placeholder="15000"
+                                  value={goalForm.revenue}
+                                  onChange={(e) => setGoalForm(prev => ({ ...prev, revenue: e.target.value }))}
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label htmlFor="profit-goal">Profit Goal ($)</Label>
+                                <Input
+                                  id="profit-goal"
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  placeholder="5000"
+                                  value={goalForm.profit}
+                                  onChange={(e) => setGoalForm(prev => ({ ...prev, profit: e.target.value }))}
+                                />
+                              </div>
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="margin-goal">Profit Margin Goal (%)</Label>
+                              <Input
+                                id="margin-goal"
+                                type="number"
+                                min="0"
+                                max="100"
+                                step="0.1"
+                                placeholder="33.3"
+                                value={goalForm.profitMargin}
+                                onChange={(e) => setGoalForm(prev => ({ ...prev, profitMargin: e.target.value }))}
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="notes">Notes/Strategy (Optional)</Label>
+                              <Textarea
+                                id="notes"
+                                placeholder="Enter your strategy or notes for achieving these goals..."
+                                value={goalForm.notes}
+                                onChange={(e) => setGoalForm(prev => ({ ...prev, notes: e.target.value }))}
+                                rows={3}
+                              />
+                            </div>
+                            <div className="flex justify-end gap-3">
+                              <Button variant="outline" onClick={() => setIsGoalDialogOpen(false)}>
+                                Cancel
+                              </Button>
+                              <Button onClick={handleSaveGoals}>
+                                Save Goals
+                              </Button>
+                            </div>
+                          </div>
+                        </DialogContent>
+                      </Dialog>
+                    )}
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-6">
@@ -393,15 +645,15 @@ function AccountingContent() {
                       <div className="space-y-2">
                         <div className="flex justify-between">
                           <span className="text-sm text-gray-600">Revenue:</span>
-                          <span className="font-bold text-green-600">$12,450.00</span>
+                          <span className="font-bold text-green-600">${biMetrics?.monthlyRevenue?.toFixed(2) || '0.00'}</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-sm text-gray-600">Expenses:</span>
-                          <span className="font-bold text-red-600">$3,200.00</span>
+                          <span className="font-bold text-red-600">${biMetrics?.monthlyExpenses?.toFixed(2) || '0.00'}</span>
                         </div>
                         <div className="flex justify-between border-t pt-2">
                           <span className="text-sm font-medium">Profit Margin:</span>
-                          <span className="font-bold text-blue-600">74.3%</span>
+                          <span className="font-bold text-blue-600">{biMetrics?.profitMargin?.toFixed(1) || '0.0'}%</span>
                         </div>
                       </div>
                     </CardContent>
@@ -418,16 +670,16 @@ function AccountingContent() {
                     <CardContent className="space-y-3">
                       <div className="space-y-2">
                         <div className="text-center">
-                          <div className="text-2xl font-bold text-green-600">$461.11</div>
+                          <div className="text-2xl font-bold text-green-600">${biMetrics?.dailyAverage?.toFixed(2) || '0.00'}</div>
                           <div className="text-xs text-gray-500">per day this month</div>
                         </div>
                         <div className="flex justify-between text-sm">
                           <span className="text-gray-600">Days elapsed:</span>
-                          <span className="font-medium">{new Date().getDate()}</span>
+                          <span className="font-medium">{biMetrics?.daysElapsed || new Date().getDate()}</span>
                         </div>
                         <div className="flex justify-between text-sm">
-                          <span className="text-gray-600">Best day:</span>
-                          <span className="font-medium text-green-600">$850.00</span>
+                          <span className="text-gray-600">Today:</span>
+                          <span className="font-medium text-green-600">${(profitLoss as any)?.revenue || '0.00'}</span>
                         </div>
                       </div>
                     </CardContent>
@@ -444,16 +696,16 @@ function AccountingContent() {
                     <CardContent className="space-y-3">
                       <div className="space-y-2">
                         <div className="text-center">
-                          <div className="text-2xl font-bold text-purple-600">$14,294</div>
+                          <div className="text-2xl font-bold text-purple-600">${biMetrics?.projectedRevenue?.toFixed(0) || '0'}</div>
                           <div className="text-xs text-gray-500">projected revenue</div>
                         </div>
                         <div className="flex justify-between text-sm">
                           <span className="text-gray-600">Confidence:</span>
-                          <span className="font-medium text-green-600">85%</span>
+                          <span className="font-medium text-green-600">{biMetrics?.confidence || 60}%</span>
                         </div>
                         <div className="flex justify-between text-sm">
                           <span className="text-gray-600">Days remaining:</span>
-                          <span className="font-medium">{new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate() - new Date().getDate()}</span>
+                          <span className="font-medium">{biMetrics?.daysRemaining || 0}</span>
                         </div>
                       </div>
                     </CardContent>
@@ -472,36 +724,44 @@ function AccountingContent() {
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-3">
-                        <div className="flex justify-between items-center py-2 border-b border-orange-200">
-                          <div>
-                            <div className="font-medium">Aug 15, 2025</div>
-                            <div className="text-xs text-gray-500">Friday</div>
+                        {biMetrics ? (
+                          <>
+                            <div className="flex justify-between items-center py-2 border-b border-orange-200">
+                              <div>
+                                <div className="font-medium">Today ({today})</div>
+                                <div className="text-xs text-gray-500">{new Date().toLocaleDateString('en-US', { weekday: 'long' })}</div>
+                              </div>
+                              <div className="text-right">
+                                <div className="font-bold text-orange-600">${(profitLoss as any)?.revenue || '0.00'}</div>
+                                <div className="text-xs text-blue-600">current</div>
+                              </div>
+                            </div>
+                            <div className="flex justify-between items-center py-2 border-b border-orange-200">
+                              <div>
+                                <div className="font-medium">Daily Average</div>
+                                <div className="text-xs text-gray-500">this month</div>
+                              </div>
+                              <div className="text-right">
+                                <div className="font-bold text-orange-600">${biMetrics.dailyAverage?.toFixed(2)}</div>
+                                <div className="text-xs text-green-600">avg</div>
+                              </div>
+                            </div>
+                            <div className="flex justify-between items-center py-2">
+                              <div>
+                                <div className="font-medium">Month Total</div>
+                                <div className="text-xs text-gray-500">so far</div>
+                              </div>
+                              <div className="text-right">
+                                <div className="font-bold text-orange-600">${biMetrics.monthlyRevenue?.toFixed(2)}</div>
+                                <div className="text-xs text-green-600">MTD</div>
+                              </div>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="text-center py-4 text-gray-500">
+                            Loading revenue data...
                           </div>
-                          <div className="text-right">
-                            <div className="font-bold text-orange-600">$850.00</div>
-                            <div className="text-xs text-green-600">+23% avg</div>
-                          </div>
-                        </div>
-                        <div className="flex justify-between items-center py-2 border-b border-orange-200">
-                          <div>
-                            <div className="font-medium">Aug 12, 2025</div>
-                            <div className="text-xs text-gray-500">Tuesday</div>
-                          </div>
-                          <div className="text-right">
-                            <div className="font-bold text-orange-600">$720.00</div>
-                            <div className="text-xs text-green-600">+12% avg</div>
-                          </div>
-                        </div>
-                        <div className="flex justify-between items-center py-2">
-                          <div>
-                            <div className="font-medium">Aug 8, 2025</div>
-                            <div className="text-xs text-gray-500">Saturday</div>
-                          </div>
-                          <div className="text-right">
-                            <div className="font-bold text-orange-600">$680.00</div>
-                            <div className="text-xs text-green-600">+8% avg</div>
-                          </div>
-                        </div>
+                        )}
                       </div>
                     </CardContent>
                   </Card>
@@ -516,46 +776,47 @@ function AccountingContent() {
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-3">
-                        <div className="flex justify-between items-center">
-                          <div className="flex items-center gap-2">
-                            <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-                            <span className="text-sm">Inventory</span>
+                        {biMetrics ? (
+                          <>
+                            <div className="flex justify-between items-center">
+                              <div className="flex items-center gap-2">
+                                <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+                                <span className="text-sm">Total Expenses</span>
+                              </div>
+                              <div className="text-right">
+                                <div className="font-bold">${biMetrics.monthlyExpenses?.toFixed(2) || '0.00'}</div>
+                                <div className="text-xs text-gray-500">MTD</div>
+                              </div>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <div className="flex items-center gap-2">
+                                <div className="w-3 h-3 bg-orange-500 rounded-full"></div>
+                                <span className="text-sm">Daily Avg</span>
+                              </div>
+                              <div className="text-right">
+                                <div className="font-bold">${(biMetrics.monthlyExpenses / biMetrics.daysElapsed)?.toFixed(2) || '0.00'}</div>
+                                <div className="text-xs text-gray-500">per day</div>
+                              </div>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <div className="flex items-center gap-2">
+                                <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                                <span className="text-sm">Net Profit</span>
+                              </div>
+                              <div className="text-right">
+                                <div className="font-bold">${(biMetrics.monthlyRevenue - biMetrics.monthlyExpenses)?.toFixed(2) || '0.00'}</div>
+                                <div className="text-xs text-green-600">{biMetrics.profitMargin?.toFixed(1)}%</div>
+                              </div>
+                            </div>
+                            <div className="text-center pt-2 text-xs text-gray-500 border-t">
+                              Detailed expense breakdown coming soon
+                            </div>
+                          </>
+                        ) : (
+                          <div className="text-center py-4 text-gray-500">
+                            Loading expense data...
                           </div>
-                          <div className="text-right">
-                            <div className="font-bold">$1,800</div>
-                            <div className="text-xs text-gray-500">56%</div>
-                          </div>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <div className="flex items-center gap-2">
-                            <div className="w-3 h-3 bg-orange-500 rounded-full"></div>
-                            <span className="text-sm">Labor</span>
-                          </div>
-                          <div className="text-right">
-                            <div className="font-bold">$900</div>
-                            <div className="text-xs text-gray-500">28%</div>
-                          </div>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <div className="flex items-center gap-2">
-                            <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
-                            <span className="text-sm">Utilities</span>
-                          </div>
-                          <div className="text-right">
-                            <div className="font-bold">$350</div>
-                            <div className="text-xs text-gray-500">11%</div>
-                          </div>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <div className="flex items-center gap-2">
-                            <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-                            <span className="text-sm">Marketing</span>
-                          </div>
-                          <div className="text-right">
-                            <div className="font-bold">$150</div>
-                            <div className="text-xs text-gray-500">5%</div>
-                          </div>
-                        </div>
+                        )}
                       </div>
                     </CardContent>
                   </Card>
