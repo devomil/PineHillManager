@@ -11,6 +11,7 @@ import {
 import { 
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -92,6 +93,9 @@ export function DateRangePicker({ value, onValueChange, className }: DateRangePi
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>Select Custom Date Range</DialogTitle>
+            <DialogDescription>
+              Choose your own start and end dates for custom analytics
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
