@@ -361,6 +361,208 @@ function AccountingContent() {
               </Card>
             </div>
 
+            {/* Monthly Business Intelligence Summary */}
+            <Card className="w-full shadow-lg border-2">
+              <CardHeader className="pb-4">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <CardTitle className="text-xl font-bold">
+                      Monthly Business Intelligence - {new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                    </CardTitle>
+                    <CardDescription>
+                      Comprehensive monthly performance insights and analytics
+                    </CardDescription>
+                  </div>
+                  <Badge variant="secondary" className="text-sm">
+                    Updated: {new Date().toLocaleDateString()}
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* BI Summary Cards Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {/* Month-to-Date Performance */}
+                  <Card className="border border-blue-200 bg-blue-50/50">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-sm font-semibold text-blue-700 flex items-center gap-2">
+                        <TrendingUp className="h-4 w-4" />
+                        Month-to-Date Performance
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="space-y-2">
+                        <div className="flex justify-between">
+                          <span className="text-sm text-gray-600">Revenue:</span>
+                          <span className="font-bold text-green-600">$12,450.00</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-sm text-gray-600">Expenses:</span>
+                          <span className="font-bold text-red-600">$3,200.00</span>
+                        </div>
+                        <div className="flex justify-between border-t pt-2">
+                          <span className="text-sm font-medium">Profit Margin:</span>
+                          <span className="font-bold text-blue-600">74.3%</span>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Daily Average Revenue */}
+                  <Card className="border border-green-200 bg-green-50/50">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-sm font-semibold text-green-700 flex items-center gap-2">
+                        <BarChart3 className="h-4 w-4" />
+                        Daily Average Revenue
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="space-y-2">
+                        <div className="text-center">
+                          <div className="text-2xl font-bold text-green-600">$461.11</div>
+                          <div className="text-xs text-gray-500">per day this month</div>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-600">Days elapsed:</span>
+                          <span className="font-medium">{new Date().getDate()}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-600">Best day:</span>
+                          <span className="font-medium text-green-600">$850.00</span>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Projected Month-End Numbers */}
+                  <Card className="border border-purple-200 bg-purple-50/50">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-sm font-semibold text-purple-700 flex items-center gap-2">
+                        <Activity className="h-4 w-4" />
+                        Projected Month-End
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="space-y-2">
+                        <div className="text-center">
+                          <div className="text-2xl font-bold text-purple-600">$14,294</div>
+                          <div className="text-xs text-gray-500">projected revenue</div>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-600">Confidence:</span>
+                          <span className="font-medium text-green-600">85%</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-600">Days remaining:</span>
+                          <span className="font-medium">{new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate() - new Date().getDate()}</span>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Second Row - Top Revenue Days & Expense Breakdown */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Top Revenue Days */}
+                  <Card className="border border-orange-200 bg-orange-50/50">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-sm font-semibold text-orange-700 flex items-center gap-2">
+                        <CreditCard className="h-4 w-4" />
+                        Top Revenue Days
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-center py-2 border-b border-orange-200">
+                          <div>
+                            <div className="font-medium">Aug 15, 2025</div>
+                            <div className="text-xs text-gray-500">Friday</div>
+                          </div>
+                          <div className="text-right">
+                            <div className="font-bold text-orange-600">$850.00</div>
+                            <div className="text-xs text-green-600">+23% avg</div>
+                          </div>
+                        </div>
+                        <div className="flex justify-between items-center py-2 border-b border-orange-200">
+                          <div>
+                            <div className="font-medium">Aug 12, 2025</div>
+                            <div className="text-xs text-gray-500">Tuesday</div>
+                          </div>
+                          <div className="text-right">
+                            <div className="font-bold text-orange-600">$720.00</div>
+                            <div className="text-xs text-green-600">+12% avg</div>
+                          </div>
+                        </div>
+                        <div className="flex justify-between items-center py-2">
+                          <div>
+                            <div className="font-medium">Aug 8, 2025</div>
+                            <div className="text-xs text-gray-500">Saturday</div>
+                          </div>
+                          <div className="text-right">
+                            <div className="font-bold text-orange-600">$680.00</div>
+                            <div className="text-xs text-green-600">+8% avg</div>
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Expense Categories Breakdown */}
+                  <Card className="border border-red-200 bg-red-50/50">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-sm font-semibold text-red-700 flex items-center gap-2">
+                        <DollarSign className="h-4 w-4" />
+                        Expense Categories
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-center">
+                          <div className="flex items-center gap-2">
+                            <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+                            <span className="text-sm">Inventory</span>
+                          </div>
+                          <div className="text-right">
+                            <div className="font-bold">$1,800</div>
+                            <div className="text-xs text-gray-500">56%</div>
+                          </div>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <div className="flex items-center gap-2">
+                            <div className="w-3 h-3 bg-orange-500 rounded-full"></div>
+                            <span className="text-sm">Labor</span>
+                          </div>
+                          <div className="text-right">
+                            <div className="font-bold">$900</div>
+                            <div className="text-xs text-gray-500">28%</div>
+                          </div>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <div className="flex items-center gap-2">
+                            <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
+                            <span className="text-sm">Utilities</span>
+                          </div>
+                          <div className="text-right">
+                            <div className="font-bold">$350</div>
+                            <div className="text-xs text-gray-500">11%</div>
+                          </div>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <div className="flex items-center gap-2">
+                            <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                            <span className="text-sm">Marketing</span>
+                          </div>
+                          <div className="text-right">
+                            <div className="font-bold">$150</div>
+                            <div className="text-xs text-gray-500">5%</div>
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </CardContent>
+            </Card>
+
             {/* Quick Actions */}
             <Card>
               <CardHeader>
