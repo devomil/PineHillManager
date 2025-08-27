@@ -159,7 +159,9 @@ export function AnnouncementResponses({ announcementId, className }: Announcemen
                     onClick={() => setResponseType(type)}
                     className={cn(
                       "text-xs",
-                      responseType === type && "bg-farm-blue hover:bg-blue-600"
+                      responseType === type 
+                        ? "bg-farm-blue text-white hover:bg-blue-600" 
+                        : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
                     )}
                   >
                     <Icon className="w-3 h-3 mr-1" />
@@ -191,7 +193,7 @@ export function AnnouncementResponses({ announcementId, className }: Announcemen
                   type="submit"
                   size="sm"
                   disabled={!responseContent.trim() || createResponseMutation.isPending}
-                  className="bg-farm-blue hover:bg-blue-600"
+                  className="bg-farm-blue hover:bg-blue-600 text-white font-medium px-4 py-2"
                 >
                   <Send className="w-4 h-4 mr-1" />
                   {createResponseMutation.isPending ? 'Sending...' : 'Send Response'}
