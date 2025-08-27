@@ -1650,6 +1650,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
             
             // Try Sales API to match Seller Central calculations exactly
             let locationRevenue = 0;
+            let locationTransactions = 0;
+            let salesApiSuccess = false;
+            
             try {
               console.log('🎯 Trying Amazon Sales API (same as Seller Central)...');
               const salesMetrics = await amazonIntegration.getSalesMetrics(startDateISO, endDateISO, 'Total');
@@ -1658,7 +1661,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 const metrics = salesMetrics.payload[0];
                 if (metrics.totalSales && metrics.totalSales.amount) {
                   locationRevenue = parseFloat(metrics.totalSales.amount);
-                  console.log(`✅ Amazon Sales API Revenue: $${locationRevenue.toFixed(2)} (should match Seller Central exactly)`);
+                  locationTransactions = metrics.orderCount || 0;
+                  salesApiSuccess = true;
+                  console.log(`✅ Amazon Sales API Revenue: $${locationRevenue.toFixed(2)}, Orders: ${locationTransactions} (should match Seller Central exactly)`);
                 } else {
                   throw new Error('No totalSales data in response');
                 }
@@ -1684,7 +1689,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
                     }, 0);
                     return sum + itemRevenue;
                   }, 0);
-                  console.log(`Amazon Financial Events Revenue: $${locationRevenue.toFixed(2)} from ${shipmentEvents.length} shipment events`);
+                  locationTransactions = shipmentEvents.length;
+                  console.log(`Amazon Financial Events Revenue: $${locationRevenue.toFixed(2)} from ${locationTransactions} shipment events`);
                 } else {
                   throw new Error('No financial events data');
                 }
@@ -1700,12 +1706,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   }
                   return sum;
                 }, 0);
+                
+                // Only calculate transactions from Orders API if Sales API didn't work
+                if (!salesApiSuccess) {
+                  locationTransactions = orders.filter(order => 
+                    order.OrderStatus === 'Shipped' || order.OrderStatus === 'Delivered'
+                  ).length;
+                }
               }
             }
-            
-            const locationTransactions = orders.filter(order => 
-              order.OrderStatus === 'Shipped' || order.OrderStatus === 'Delivered'
-            ).length;
             const avgSale = locationTransactions > 0 ? locationRevenue / locationTransactions : 0;
             
             console.log(`Live Amazon Revenue - ${config.merchantName}: $${locationRevenue.toFixed(2)} from ${locationTransactions} orders`);
