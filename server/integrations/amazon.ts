@@ -210,6 +210,30 @@ export class AmazonIntegration {
     }
   }
 
+  // Get sales metrics (same API used by Amazon Seller Central)
+  async getSalesMetrics(startDate: string, endDate: string, granularity: string = 'Total'): Promise<any> {
+    if (!this.config) {
+      throw new Error('Amazon config not set');
+    }
+
+    // Format interval for Sales API: 2018-09-01T00:00:00-07:00--2018-09-04T00:00:00-07:00
+    const interval = `${startDate}--${endDate}`;
+    
+    const params = new URLSearchParams({
+      marketplaceIds: 'ATVPDKIKX0DER', // US marketplace
+      interval: interval,
+      granularity: granularity
+    });
+
+    // Add timezone for Day/Week/Month granularities
+    if (granularity !== 'Total' && granularity !== 'Hour') {
+      params.append('granularityTimeZone', 'UTC');
+    }
+
+    const endpoint = `/sales/v1/orderMetrics?${params.toString()}`;
+    return await this.makeAmazonAPICall(endpoint);
+  }
+
   // Get financial events (for revenue tracking)
   async getFinancialEvents(startDate?: string, endDate?: string): Promise<any> {
     if (!this.config) {
