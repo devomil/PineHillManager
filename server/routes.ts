@@ -1602,19 +1602,80 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Build location breakdown for Amazon Store locations
-      const amazonLocationBreakdown = activeAmazonConfigs.map(config => {
-        // For now, Amazon sales data comes from Amazon API (placeholder with $0)
-        // TODO: Implement Amazon Seller API integration to fetch real sales data
-        return {
-          locationId: `amazon_${config.id}`,
-          locationName: config.merchantName,
-          platform: 'Amazon Store',
-          totalSales: '0.00', // Will be populated when Amazon Sales API is integrated
-          transactionCount: 0,
-          avgSale: '0.00'
-        };
-      });
+      // Build location breakdown for Amazon Store locations with LIVE data
+      const amazonLocationBreakdown = [];
+      
+      for (const config of activeAmazonConfigs) {
+        try {
+          console.log(`🚀 Creating AmazonIntegration for ${config.merchantName} with Seller ID: ${config.sellerId}`);
+          
+          // Create Amazon integration with environment variables
+          const { AmazonIntegration } = await import('./integrations/amazon');
+          const amazonIntegration = new AmazonIntegration({
+            sellerId: process.env.AMAZON_SELLER_ID,
+            accessToken: process.env.AMAZON_ACCESS_TOKEN,
+            refreshToken: process.env.AMAZON_REFRESH_TOKEN,
+            clientId: process.env.AMAZON_CLIENT_ID,
+            clientSecret: process.env.AMAZON_CLIENT_SECRET,
+            merchantName: config.merchantName
+          });
+
+          // Get orders for the date range
+          const amazonOrders = await amazonIntegration.getOrders(startDateStr, endDateStr);
+          
+          console.log(`Amazon Raw orders fetched for ${config.merchantName}:`, {
+            hasOrders: !!(amazonOrders && amazonOrders.payload && amazonOrders.payload.Orders),
+            orderCount: amazonOrders?.payload?.Orders?.length || 0
+          });
+
+          if (amazonOrders && amazonOrders.payload && amazonOrders.payload.Orders) {
+            const orders = amazonOrders.payload.Orders;
+            console.log(`Amazon Filtered orders for ${config.merchantName}: ${orders.length} orders`);
+            
+            // Calculate revenue from Amazon orders
+            const locationRevenue = orders.reduce((sum, order) => {
+              const orderTotal = parseFloat(order.OrderTotal?.Amount || '0');
+              return sum + orderTotal;
+            }, 0);
+            
+            const locationTransactions = orders.length;
+            const avgSale = locationTransactions > 0 ? locationRevenue / locationTransactions : 0;
+            
+            console.log(`Live Amazon Revenue - ${config.merchantName}: $${locationRevenue.toFixed(2)} from ${locationTransactions} orders`);
+            
+            amazonLocationBreakdown.push({
+              locationId: `amazon_${config.id}`,
+              locationName: config.merchantName,
+              platform: 'Amazon Store',
+              totalSales: locationRevenue.toFixed(2),
+              transactionCount: locationTransactions,
+              avgSale: avgSale.toFixed(2)
+            });
+          } else {
+            console.log(`Amazon No orders returned for ${config.merchantName}`);
+            // Still include location with zero sales
+            amazonLocationBreakdown.push({
+              locationId: `amazon_${config.id}`,
+              locationName: config.merchantName,
+              platform: 'Amazon Store',
+              totalSales: '0.00',
+              transactionCount: 0,
+              avgSale: '0.00'
+            });
+          }
+        } catch (error) {
+          console.log(`Error fetching Amazon data for ${config.merchantName}:`, error);
+          // Include location with zero sales on error
+          amazonLocationBreakdown.push({
+            locationId: `amazon_${config.id}`,
+            locationName: config.merchantName,
+            platform: 'Amazon Store',
+            totalSales: '0.00',
+            transactionCount: 0,
+            avgSale: '0.00'
+          });
+        }
+      }
 
       // Combine all location breakdowns
       const allLocationBreakdown = [...cloverLocationBreakdown, ...amazonLocationBreakdown];
