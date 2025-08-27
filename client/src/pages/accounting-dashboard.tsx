@@ -733,10 +733,24 @@ function AccountingContent() {
                             ${biMetrics.monthlyRevenue.toLocaleString()} / ${monthlyGoals.revenue.toLocaleString()}
                           </span>
                         </div>
-                        <Progress 
-                          value={Math.min(100, (biMetrics.monthlyRevenue / monthlyGoals.revenue) * 100)} 
-                          className="h-3 transition-all duration-500 ease-out"
-                        />
+                        <div className="relative">
+                          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-4 overflow-hidden">
+                            <div 
+                              className={`h-full rounded-full transition-all duration-500 ease-out ${
+                                (biMetrics.monthlyRevenue / monthlyGoals.revenue) >= 1.0 ? 'bg-gradient-to-r from-green-500 to-green-600' :
+                                (biMetrics.monthlyRevenue / monthlyGoals.revenue) >= 0.8 ? 'bg-gradient-to-r from-yellow-400 to-yellow-500' :
+                                (biMetrics.monthlyRevenue / monthlyGoals.revenue) >= 0.5 ? 'bg-gradient-to-r from-blue-400 to-blue-500' :
+                                'bg-gradient-to-r from-red-400 to-red-500'
+                              }`}
+                              style={{ width: `${Math.min(100, (biMetrics.monthlyRevenue / monthlyGoals.revenue) * 100)}%` }}
+                            />
+                          </div>
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <span className="text-xs font-semibold text-white drop-shadow">
+                              {((biMetrics.monthlyRevenue / monthlyGoals.revenue) * 100).toFixed(1)}%
+                            </span>
+                          </div>
+                        </div>
                         <div className="flex items-center gap-2">
                           {biMetrics.monthlyRevenue >= monthlyGoals.revenue ? (
                             <CheckCircle2 className="h-4 w-4 text-green-600 animate-pulse" />
@@ -761,10 +775,24 @@ function AccountingContent() {
                             ${(biMetrics.monthlyRevenue - biMetrics.monthlyExpenses).toLocaleString()} / ${monthlyGoals.profit.toLocaleString()}
                           </span>
                         </div>
-                        <Progress 
-                          value={Math.min(100, ((biMetrics.monthlyRevenue - biMetrics.monthlyExpenses) / monthlyGoals.profit) * 100)} 
-                          className="h-3 transition-all duration-500 ease-out"
-                        />
+                        <div className="relative">
+                          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-4 overflow-hidden">
+                            <div 
+                              className={`h-full rounded-full transition-all duration-500 ease-out ${
+                                ((biMetrics.monthlyRevenue - biMetrics.monthlyExpenses) / monthlyGoals.profit) >= 1.0 ? 'bg-gradient-to-r from-green-500 to-green-600' :
+                                ((biMetrics.monthlyRevenue - biMetrics.monthlyExpenses) / monthlyGoals.profit) >= 0.8 ? 'bg-gradient-to-r from-yellow-400 to-yellow-500' :
+                                ((biMetrics.monthlyRevenue - biMetrics.monthlyExpenses) / monthlyGoals.profit) >= 0.5 ? 'bg-gradient-to-r from-blue-400 to-blue-500' :
+                                'bg-gradient-to-r from-red-400 to-red-500'
+                              }`}
+                              style={{ width: `${Math.min(100, ((biMetrics.monthlyRevenue - biMetrics.monthlyExpenses) / monthlyGoals.profit) * 100)}%` }}
+                            />
+                          </div>
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <span className="text-xs font-semibold text-white drop-shadow">
+                              {(((biMetrics.monthlyRevenue - biMetrics.monthlyExpenses) / monthlyGoals.profit) * 100).toFixed(1)}%
+                            </span>
+                          </div>
+                        </div>
                         <div className="flex items-center gap-2">
                           {(biMetrics.monthlyRevenue - biMetrics.monthlyExpenses) >= monthlyGoals.profit ? (
                             <CheckCircle2 className="h-4 w-4 text-green-600 animate-pulse" />
@@ -790,10 +818,17 @@ function AccountingContent() {
                           </span>
                         </div>
                         <div className="relative">
-                          <Progress 
-                            value={Math.min(100, (biMetrics.profitMargin / monthlyGoals.profitMargin) * 100)} 
-                            className="h-3 transition-all duration-500 ease-out"
-                          />
+                          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-4 overflow-hidden">
+                            <div 
+                              className={`h-full rounded-full transition-all duration-500 ease-out ${
+                                (biMetrics.profitMargin / monthlyGoals.profitMargin) >= 1.0 ? 'bg-gradient-to-r from-green-500 to-green-600' :
+                                (biMetrics.profitMargin / monthlyGoals.profitMargin) >= 0.8 ? 'bg-gradient-to-r from-yellow-400 to-yellow-500' :
+                                (biMetrics.profitMargin / monthlyGoals.profitMargin) >= 0.5 ? 'bg-gradient-to-r from-blue-400 to-blue-500' :
+                                'bg-gradient-to-r from-red-400 to-red-500'
+                              }`}
+                              style={{ width: `${Math.min(100, (biMetrics.profitMargin / monthlyGoals.profitMargin) * 100)}%` }}
+                            />
+                          </div>
                           <div className="absolute inset-0 flex items-center justify-center">
                             <span className="text-xs font-semibold text-white drop-shadow">
                               {biMetrics.profitMargin.toFixed(1)}%
