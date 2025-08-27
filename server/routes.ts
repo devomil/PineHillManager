@@ -1678,15 +1678,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         } catch (error) {
           console.log(`Error fetching Amazon data for ${config.merchantName}:`, error);
-          // Include location with zero sales on error
-          amazonLocationBreakdown.push({
-            locationId: `amazon_${config.id}`,
-            locationName: config.merchantName,
-            platform: 'Amazon Store',
-            totalSales: '0.00',
-            transactionCount: 0,
-            avgSale: '0.00'
-          });
+          
+          // Only add zero data if it's not a rate limit error
+          // Rate limit errors shouldn't override potentially successful cached data
+          if (!error.message.includes('429')) {
+            amazonLocationBreakdown.push({
+              locationId: `amazon_${config.id}`,
+              locationName: config.merchantName,
+              platform: 'Amazon Store',
+              totalSales: '0.00',
+              transactionCount: 0,
+              avgSale: '0.00'
+            });
+          } else {
+            console.log(`Skipping Amazon location due to rate limit - will try cached data next time`);
+          }
         }
       }
 
