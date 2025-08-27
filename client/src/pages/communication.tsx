@@ -178,7 +178,7 @@ export default function Communication() {
     }
     
     // Store-specific options
-    locations.forEach((location: any) => {
+    (locations as any[])?.forEach?.((location: any) => {
       const storeKey = location.name.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
       options.push({ 
         value: `store:${storeKey}`, 
@@ -493,9 +493,9 @@ export default function Communication() {
                     </div>
                   ))}
                 </div>
-              ) : announcements && announcements.length > 0 ? (
+              ) : announcements && Array.isArray(announcements) && announcements.length > 0 ? (
                 <div className="space-y-4">
-                  {announcements.map((announcement: any) => (
+                  {(announcements as any[]).map((announcement: any) => (
                     <div
                       key={announcement.id}
                       className="border-l-4 border-farm-green pl-4 py-3 border border-slate-200 rounded-lg"
@@ -550,9 +550,9 @@ export default function Communication() {
                     </div>
                   ))}
                 </div>
-              ) : messages && messages.length > 0 ? (
+              ) : messages && Array.isArray(messages) && messages.length > 0 ? (
                 <div className="space-y-4">
-                  {messages.filter((msg: any) => msg.messageType !== 'announcement').map((message: any) => (
+                  {(messages as any[]).filter((msg: any) => msg.messageType !== 'announcement').map((message: any) => (
                     <div
                       key={message.id}
                       className="border border-slate-200 rounded-lg p-4"
@@ -628,9 +628,9 @@ export default function Communication() {
                     </div>
                   ))}
                 </div>
-              ) : communicationHistory.length > 0 ? (
+              ) : Array.isArray(communicationHistory) && communicationHistory.length > 0 ? (
                 <div className="space-y-4">
-                  {communicationHistory.map((item: any) => (
+                  {(communicationHistory as any[]).map((item: any) => (
                     <div
                       key={item.id}
                       className={`border rounded-lg p-4 ${
