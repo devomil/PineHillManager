@@ -172,21 +172,48 @@ function AnnouncementsContent() {
           <Button
             variant={selectedFilter === "important" ? "default" : "outline"}
             onClick={() => setSelectedFilter("important")}
-            className={selectedFilter === "important" ? "bg-red-500 hover:bg-red-600" : ""}
+            style={selectedFilter === "important" ? {
+              backgroundColor: '#dc2626',
+              borderColor: '#dc2626',
+              color: 'white',
+              fontWeight: '600'
+            } : {
+              backgroundColor: 'white',
+              borderColor: '#d1d5db',
+              color: '#374151'
+            }}
           >
             Important
           </Button>
           <Button
             variant={selectedFilter === "general" ? "default" : "outline"}
             onClick={() => setSelectedFilter("general")}
-            className={selectedFilter === "general" ? "bg-blue-500 hover:bg-blue-600" : ""}
+            style={selectedFilter === "general" ? {
+              backgroundColor: '#1e40af',
+              borderColor: '#1e40af',
+              color: 'white',
+              fontWeight: '600'
+            } : {
+              backgroundColor: 'white',
+              borderColor: '#d1d5db',
+              color: '#374151'
+            }}
           >
             General
           </Button>
           <Button
             variant={selectedFilter === "policy" ? "default" : "outline"}
             onClick={() => setSelectedFilter("policy")}
-            className={selectedFilter === "policy" ? "bg-purple-500 hover:bg-purple-600" : ""}
+            style={selectedFilter === "policy" ? {
+              backgroundColor: '#7c3aed',
+              borderColor: '#7c3aed',
+              color: 'white',
+              fontWeight: '600'
+            } : {
+              backgroundColor: 'white',
+              borderColor: '#d1d5db',
+              color: '#374151'
+            }}
           >
             Policy Updates
           </Button>

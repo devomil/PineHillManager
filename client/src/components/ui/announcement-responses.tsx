@@ -154,15 +154,20 @@ export function AnnouncementResponses({ announcementId, className }: Announcemen
                   <Button
                     key={type}
                     type="button"
-                    variant="outline"
+                    variant={responseType === type ? "default" : "outline"}
                     size="sm"
                     onClick={() => setResponseType(type)}
-                    className={cn(
-                      "text-xs border-2",
-                      responseType === type 
-                        ? "bg-farm-blue text-white border-farm-blue hover:bg-blue-600 font-semibold" 
-                        : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
-                    )}
+                    style={responseType === type ? {
+                      backgroundColor: '#1e40af',
+                      borderColor: '#1e40af',
+                      color: 'white',
+                      fontWeight: '600'
+                    } : {
+                      backgroundColor: 'white',
+                      borderColor: '#d1d5db',
+                      color: '#374151'
+                    }}
+                    className="text-xs border-2"
                   >
                     <Icon className="w-3 h-3 mr-1" />
                     {label}
@@ -193,7 +198,13 @@ export function AnnouncementResponses({ announcementId, className }: Announcemen
                   type="submit"
                   size="sm"
                   disabled={!responseContent.trim() || createResponseMutation.isPending}
-                  className="bg-farm-blue hover:bg-blue-600 text-white font-medium px-4 py-2"
+                  style={{
+                    backgroundColor: '#1e40af',
+                    borderColor: '#1e40af',
+                    color: 'white',
+                    fontWeight: '600',
+                    padding: '8px 16px'
+                  }}
                 >
                   <Send className="w-4 h-4 mr-1" />
                   {createResponseMutation.isPending ? 'Sending...' : 'Send Response'}
