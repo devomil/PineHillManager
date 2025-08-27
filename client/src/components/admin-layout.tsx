@@ -31,6 +31,9 @@ export default function AdminLayout({ children, currentTab }: AdminLayoutProps) 
       case 'announcements':
         setLocation('/announcements');
         break;
+      case 'communications':
+        setLocation('/communications');
+        break;
       case 'system-support':
         setLocation('/admin/training');
         break;

@@ -1,0 +1,1299 @@
+PHASE 1: DATABASE SCHEMA & FOUNDATION
+Create These Database Tables:
+sql-- Main communications table (handles announcements and messages)
+CREATE TABLE communications (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    type ENUM('announcement', 'direct_message', 'group_message'),
+    sender_id INT,
+    title VARCHAR(255),
+    content TEXT,
+    priority ENUM('low', 'medium', 'high', 'urgent'),
+    sms_enabled BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    scheduled_for TIMESTAMP NULL,
+    status ENUM('draft', 'sent', 'scheduled') DEFAULT 'sent'
+);
+
+-- Who receives what communications
+CREATE TABLE communication_recipients (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    communication_id INT,
+    recipient_id INT,
+    recipient_type ENUM('user', 'group', 'all_employees'),
+    sms_sent BOOLEAN DEFAULT FALSE,
+    sms_status VARCHAR(50),
+    sms_message_id VARCHAR(100),
+    read_at TIMESTAMP NULL,
+    delivered_at TIMESTAMP NULL,
+    FOREIGN KEY (communication_id) REFERENCES communications(id)
+);
+
+-- Employee reactions to announcements (SMS + UI)
+CREATE TABLE communication_reactions (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    communication_id INT,
+    user_id INT,
+    reaction_type ENUM('confirmed', 'question', 'reply', 'concern'),
+    message TEXT NULL,
+    response_method ENUM('ui', 'sms') DEFAULT 'ui',
+    phone_number VARCHAR(20) NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (communication_id) REFERENCES communications(id)
+);
+
+-- Track SMS conversation context for threading
+CREATE TABLE sms_context (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    phone_number VARCHAR(20) UNIQUE,
+    user_id INT,
+    last_communication_id INT,
+    last_communication_type ENUM('announcement', 'direct_message'),
+    context_expires_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Log all incoming SMS for analytics and debugging
+CREATE TABLE incoming_sms_log (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    phone_number VARCHAR(20),
+    user_id INT,
+    message_body TEXT,
+    parsed_intent VARCHAR(100),
+    processed_successfully BOOLEAN,
+    error_message TEXT,
+    twilio_message_sid VARCHAR(100),
+    received_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Direct message conversations
+CREATE TABLE message_conversations (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    communication_id INT,
+    participant_ids JSON, -- Array of user IDs
+    last_message_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (communication_id) REFERENCES communications(id)
+);
+
+-- Individual messages within conversations
+CREATE TABLE conversation_messages (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    conversation_id INT,
+    sender_id INT,
+    message TEXT,
+    sent_via_sms BOOLEAN DEFAULT FALSE,
+    sms_message_id VARCHAR(100),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (conversation_id) REFERENCES message_conversations(id)
+);
+
+📱 PHASE 2: TWILIO SMS INTEGRATION
+Set Up Twilio Configuration:
+javascript// config/twilio.js
+const twilio = require('twilio');
+const accountSid = process.env.TWILIO_ACCOUNT_SID;
+const authToken = process.env.TWILIO_AUTH_TOKEN;
+const client = twilio(accountSid, authToken);
+const twilioPhoneNumber = process.env.TWILIO_PHONE_NUMBER;
+
+module.exports = { client, twilioPhoneNumber };
+Create SMS Service Functions:
+javascript// services/smsService.js
+const { client, twilioPhoneNumber } = require('../config/twilio');
+
+async function sendSMS(to, message, trackingData = {}) {
+    try {
+        const result = await client.messages.create({
+            body: message,
+            from: twilioPhoneNumber,
+            to: to,
+            statusCallback: `${process.env.BASE_URL}/api/sms/status-callback`,
+        });
+        
+        // Log the sent message
+        await logSMSSent(to, message, result.sid, trackingData);
+        return result;
+    } catch (error) {
+        console.error('SMS Send Error:', error);
+        throw error;
+    }
+}
+
+async function sendAnnouncementSMS(announcement, recipients) {
+    const smsMessage = formatAnnouncementForSMS(announcement);
+    const results = [];
+    
+    for (const recipient of recipients) {
+        if (recipient.phone && recipient.sms_notifications_enabled) {
+            try {
+                const result = await sendSMS(recipient.phone, smsMessage);
+                
+                // Update recipient status
+                await updateRecipientSMSStatus(announcement.id, recipient.id, 'sent', result.sid);
+                
+                // Set SMS context for this user
+                await setSMSContext(recipient.phone, recipient.id, announcement.id, 'announcement');
+                
+                results.push({ success: true, recipient: recipient.id, sid: result.sid });
+            } catch (error) {
+                results.push({ success: false, recipient: recipient.id, error: error.message });
+            }
+        }
+    }
+    
+    return results;
+}
+
+function formatAnnouncementForSMS(announcement) {
+    const priorityEmoji = {
+        'low': 'ℹ️',
+        'medium': '📢',
+        'high': '⚠️',
+        'urgent': '🚨'
+    };
+    
+    return `${priorityEmoji[announcement.priority]} ${announcement.title}
+
+${announcement.content}
+
+Reply options:
+👍 CONFIRMED - I understand
+❓ QUESTION - I have a question  
+💬 REPLY - Send response
+⚠️ CONCERN - I have concerns
+
+Reply directly with your message.`;
+}
+
+module.exports = {
+    sendSMS,
+    sendAnnouncementSMS,
+    formatAnnouncementForSMS
+};
+Create Incoming SMS Webhook Handler:
+javascript// routes/sms.js
+const express = require('express');
+const router = express.Router();
+
+// Twilio webhook for incoming SMS
+router.post('/webhook', async (req, res) => {
+    const { From, Body, To, MessageSid } = req.body;
+    
+    try {
+        // Log incoming SMS
+        await logIncomingSMS(From, Body, MessageSid);
+        
+        // Find user by phone number
+        const user = await findUserByPhone(From);
+        if (!user) {
+            await sendSMS(From, "Phone number not recognized. Please contact your administrator.");
+            return res.status(200).send('User not found');
+        }
+        
+        // Parse the incoming message
+        const messageType = await parseIncomingSMS(Body, user);
+        
+        // Handle based on message type
+        switch(messageType.type) {
+            case 'announcement_reaction':
+                await handleAnnouncementReaction(user, messageType, From, Body);
+                break;
+            case 'direct_message_reply':
+                await handleDirectMessageReply(user, messageType, From, Body);
+                break;
+            case 'new_message':
+                await handleNewSMSMessage(user, messageType, From, Body);
+                break;
+            default:
+                await sendSMSHelp(From);
+        }
+        
+        res.status(200).send('Message processed');
+        
+    } catch (error) {
+        console.error('SMS Webhook Error:', error);
+        await logSMSError(From, Body, error.message);
+        res.status(500).send('Error processing message');
+    }
+});
+
+// SMS status callback handler
+router.post('/status-callback', async (req, res) => {
+    const { MessageSid, MessageStatus, To } = req.body;
+    
+    // Update SMS delivery status in database
+    await updateSMSDeliveryStatus(MessageSid, MessageStatus);
+    
+    res.status(200).send('Status updated');
+});
+
+module.exports = router;
+Create SMS Message Parser:
+javascript// services/smsParser.js
+async function parseIncomingSMS(messageBody, user) {
+    const body = messageBody.toLowerCase().trim();
+    
+    // Get SMS context for this user
+    const context = await getSMSContext(user.phone);
+    
+    // Check for announcement reaction keywords
+    if (body.includes('confirmed') || body.includes('👍') || body === 'yes' || body === 'y') {
+        return { 
+            type: 'announcement_reaction', 
+            reaction: 'confirmed', 
+            originalMessage: messageBody,
+            context: context 
+        };
+    }
+    
+    if (body.includes('question') || body.includes('❓') || body.startsWith('?')) {
+        return { 
+            type: 'announcement_reaction', 
+            reaction: 'question', 
+            originalMessage: messageBody,
+            context: context 
+        };
+    }
+    
+    if (body.includes('concern') || body.includes('⚠️') || body.includes('issue') || body.includes('problem')) {
+        return { 
+            type: 'announcement_reaction', 
+            reaction: 'concern', 
+            originalMessage: messageBody,
+            context: context 
+        };
+    }
+    
+    if (body.includes('reply') || body.includes('💬')) {
+        return { 
+            type: 'announcement_reaction', 
+            reaction: 'reply', 
+            originalMessage: messageBody,
+            context: context 
+        };
+    }
+    
+    // Check if it's a reply to a direct message
+    if (context && context.last_communication_type === 'direct_message') {
+        return { 
+            type: 'direct_message_reply', 
+            message: messageBody,
+            context: context 
+        };
+    }
+    
+    // Check if it's a reply to an announcement (within context window)
+    if (context && context.last_communication_type === 'announcement') {
+        return { 
+            type: 'announcement_reaction', 
+            reaction: 'reply', 
+            originalMessage: messageBody,
+            context: context 
+        };
+    }
+    
+    // Default to new message
+    return { 
+        type: 'new_message', 
+        message: messageBody 
+    };
+}
+
+async function handleAnnouncementReaction(user, messageType, phoneNumber, originalMessage) {
+    const context = messageType.context;
+    
+    if (!context || !context.last_communication_id) {
+        await sendSMS(phoneNumber, "No recent announcement found. Please check the app for current announcements.");
+        return;
+    }
+    
+    // Save the reaction
+    await saveReaction({
+        communication_id: context.last_communication_id,
+        user_id: user.id,
+        reaction_type: messageType.reaction,
+        message: originalMessage,
+        response_method: 'sms',
+        phone_number: phoneNumber
+    });
+    
+    // Send confirmation
+    const confirmations = {
+        confirmed: "✅ Thank you for confirming!",
+        question: "❓ Your question has been noted. An admin will respond soon.",
+        reply: "💬 Your reply has been recorded. Thank you!",
+        concern: "⚠️ Your concern has been flagged for immediate admin attention."
+    };
+    
+    await sendSMS(phoneNumber, confirmations[messageType.reaction]);
+    
+    // Alert admins for questions and concerns
+    if (['question', 'concern'].includes(messageType.reaction)) {
+        await alertAdminsOfReaction(context.last_communication_id, user, messageType, originalMessage);
+    }
+}
+
+module.exports = {
+    parseIncomingSMS,
+    handleAnnouncementReaction,
+    handleDirectMessageReply,
+    handleNewSMSMessage
+};
+
+🖥️ PHASE 3: FRONTEND UI STRUCTURE
+Create Main Communications Page (/communications):
+html<!-- views/communications.ejs -->
+<div class="communications-container">
+    <!-- Header with role-based actions -->
+    <div class="communications-header">
+        <h1>📢 Communications Hub</h1>
+        
+        <!-- Admin/Manager Actions -->
+        <% if (user.role === 'admin' || user.role === 'manager') { %>
+        <div class="action-buttons">
+            <button id="createAnnouncement" class="btn btn-primary">
+                📢 Send Announcement
+            </button>
+            <button id="sendDirectMessage" class="btn btn-secondary">
+                💬 Direct Message
+            </button>
+            <button id="sendGroupMessage" class="btn btn-info">
+                👥 Group Message
+            </button>
+        </div>
+        <% } %>
+        
+        <!-- Employee Actions -->
+        <% if (user.role === 'employee') { %>
+        <div class="action-buttons">
+            <button id="sendMessage" class="btn btn-primary">
+                💬 Send Message
+            </button>
+        </div>
+        <% } %>
+    </div>
+
+    <!-- Tab Navigation -->
+    <div class="tab-navigation">
+        <% if (user.role === 'admin' || user.role === 'manager') { %>
+        <button class="tab-btn active" data-tab="overview">📊 Overview</button>
+        <button class="tab-btn" data-tab="announcements">📢 Announcements</button>
+        <button class="tab-btn" data-tab="messages">💬 Messages</button>
+        <button class="tab-btn" data-tab="analytics">📈 Analytics</button>
+        <% } else { %>
+        <button class="tab-btn active" data-tab="announcements">📢 Announcements</button>
+        <button class="tab-btn" data-tab="my-messages">💬 My Messages</button>
+        <% } %>
+    </div>
+
+    <!-- Tab Content Areas -->
+    <div class="tab-content">
+        <!-- Overview Tab (Admin/Manager) -->
+        <% if (user.role === 'admin' || user.role === 'manager') { %>
+        <div id="overview" class="tab-pane active">
+            <div class="overview-grid">
+                <div class="stat-card">
+                    <h3>📊 Today's Messages</h3>
+                    <div class="stat-number" id="todayMessages">0</div>
+                    <div class="stat-detail">SMS: <span id="todaySMS">0</span></div>
+                </div>
+                
+                <div class="stat-card">
+                    <h3>📢 Active Announcements</h3>
+                    <div class="stat-number" id="activeAnnouncements">0</div>
+                    <div class="stat-detail">Pending reactions: <span id="pendingReactions">0</span></div>
+                </div>
+                
+                <div class="stat-card">
+                    <h3>⚠️ Concerns & Questions</h3>
+                    <div class="stat-number" id="concernsQuestions">0</div>
+                    <div class="stat-detail">Require attention</div>
+                </div>
+                
+                <div class="stat-card">
+                    <h3>📱 SMS Delivery</h3>
+                    <div class="stat-number" id="smsDeliveryRate">0%</div>
+                    <div class="stat-detail">Success rate</div>
+                </div>
+            </div>
+            
+            <!-- Recent Activity Feed -->
+            <div class="recent-activity">
+                <h3>🕒 Recent Activity</h3>
+                <div id="activityFeed" class="activity-list">
+                    <!-- Dynamic content -->
+                </div>
+            </div>
+        </div>
+        <% } %>
+
+        <!-- Announcements Tab -->
+        <div id="announcements" class="tab-pane <%= user.role === 'employee' ? 'active' : '' %>">
+            <div class="announcements-list" id="announcementsList">
+                <!-- Dynamic announcement cards -->
+            </div>
+        </div>
+
+        <!-- Messages Tab -->
+        <div id="messages" class="tab-pane">
+            <div class="messages-container">
+                <div class="conversations-sidebar">
+                    <h4>💬 Conversations</h4>
+                    <div id="conversationsList">
+                        <!-- Dynamic conversation list -->
+                    </div>
+                </div>
+                <div class="message-thread">
+                    <div id="messageThread">
+                        <!-- Selected conversation messages -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Analytics Tab (Admin/Manager) -->
+        <% if (user.role === 'admin' || user.role === 'manager') { %>
+        <div id="analytics" class="tab-pane">
+            <!-- Analytics dashboard content -->
+            <div class="analytics-grid">
+                <!-- Charts and metrics -->
+            </div>
+        </div>
+        <% } %>
+    </div>
+</div>
+
+<!-- Modals -->
+<div id="announcementModal" class="modal">
+    <!-- Announcement creation form -->
+</div>
+
+<div id="messageModal" class="modal">
+    <!-- Direct/Group message form -->
+</div>
+Create Announcement Creation Modal:
+html<!-- Announcement Modal Content -->
+<div class="modal-content">
+    <div class="modal-header">
+        <h2>📢 Create Announcement</h2>
+        <span class="close">&times;</span>
+    </div>
+    
+    <form id="announcementForm">
+        <div class="form-group">
+            <label>Title *</label>
+            <input type="text" id="announcementTitle" required maxlength="100">
+        </div>
+        
+        <div class="form-group">
+            <label>Message *</label>
+            <textarea id="announcementContent" required rows="4"></textarea>
+            <div class="char-counter">
+                <span id="charCount">0</span>/160 chars (SMS limit)
+                <span id="smsWarning" class="warning hidden">⚠️ Message exceeds SMS limit</span>
+            </div>
+        </div>
+        
+        <div class="form-group">
+            <label>Priority</label>
+            <select id="announcementPriority">
+                <option value="low">ℹ️ Low</option>
+                <option value="medium" selected>📢 Medium</option>
+                <option value="high">⚠️ High</option>
+                <option value="urgent">🚨 Urgent</option>
+            </select>
+        </div>
+        
+        <div class="form-group">
+            <label>Recipients</label>
+            <div class="recipient-options">
+                <div class="checkbox-group">
+                    <input type="checkbox" id="allEmployees" value="all">
+                    <label for="allEmployees">👥 All Employees</label>
+                </div>
+                
+                <div class="checkbox-group">
+                    <input type="checkbox" id="specificDepts">
+                    <label for="specificDepts">🏢 Specific Departments</label>
+                </div>
+                
+                <div id="departmentSelect" class="hidden">
+                    <select multiple id="departments">
+                        <!-- Dynamic department options -->
+                    </select>
+                </div>
+                
+                <div class="checkbox-group">
+                    <input type="checkbox" id="specificUsers">
+                    <label for="specificUsers">👤 Specific Users</label>
+                </div>
+                
+                <div id="userSelect" class="hidden">
+                    <input type="text" id="userSearch" placeholder="Search users...">
+                    <div id="userList">
+                        <!-- Dynamic user checkboxes -->
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="form-group">
+            <label>Delivery Options</label>
+            <div class="delivery-options">
+                <div class="checkbox-group">
+                    <input type="checkbox" id="enableSMS" checked>
+                    <label for="enableSMS">📱 Send SMS Notifications</label>
+                </div>
+                
+                <div class="checkbox-group">
+                    <input type="radio" name="timing" id="sendNow" value="now" checked>
+                    <label for="sendNow">⚡ Send Now</label>
+                </div>
+                
+                <div class="checkbox-group">
+                    <input type="radio" name="timing" id="scheduleFor" value="scheduled">
+                    <label for="scheduleFor">⏰ Schedule For Later</label>
+                </div>
+                
+                <div id="schedulePicker" class="hidden">
+                    <input type="datetime-local" id="scheduleDateTime">
+                </div>
+            </div>
+        </div>
+        
+        <div class="form-actions">
+            <button type="button" class="btn btn-secondary" id="previewAnnouncement">
+                👁️ Preview
+            </button>
+            <button type="submit" class="btn btn-primary">
+                📤 Send Announcement
+            </button>
+        </div>
+    </form>
+</div>
+
+📊 PHASE 4: FRONTEND JAVASCRIPT FUNCTIONALITY
+Main Communications JavaScript:
+javascript// public/js/communications.js
+class CommunicationsApp {
+    constructor() {
+        this.currentTab = 'overview';
+        this.socket = null;
+        this.init();
+    }
+    
+    init() {
+        this.setupEventListeners();
+        this.initWebSocket();
+        this.loadInitialData();
+    }
+    
+    setupEventListeners() {
+        // Tab navigation
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                this.switchTab(e.target.dataset.tab);
+            });
+        });
+        
+        // Create announcement button
+        const createAnnouncementBtn = document.getElementById('createAnnouncement');
+        if (createAnnouncementBtn) {
+            createAnnouncementBtn.addEventListener('click', () => {
+                this.openAnnouncementModal();
+            });
+        }
+        
+        // Form submissions
+        const announcementForm = document.getElementById('announcementForm');
+        if (announcementForm) {
+            announcementForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                this.submitAnnouncement();
+            });
+        }
+        
+        // Character counter for SMS
+        const contentTextarea = document.getElementById('announcementContent');
+        if (contentTextarea) {
+            contentTextarea.addEventListener('input', this.updateCharacterCount);
+        }
+        
+        // Recipient selection logic
+        this.setupRecipientSelection();
+    }
+    
+    switchTab(tabName) {
+        // Hide all tab panes
+        document.querySelectorAll('.tab-pane').forEach(pane => {
+            pane.classList.remove('active');
+        });
+        
+        // Remove active class from all tab buttons
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        
+        // Show selected tab
+        document.getElementById(tabName).classList.add('active');
+        document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
+        
+        this.currentTab = tabName;
+        this.loadTabData(tabName);
+    }
+    
+    async loadTabData(tabName) {
+        switch(tabName) {
+            case 'overview':
+                await this.loadOverviewData();
+                break;
+            case 'announcements':
+                await this.loadAnnouncements();
+                break;
+            case 'messages':
+                await this.loadMessages();
+                break;
+            case 'analytics':
+                await this.loadAnalytics();
+                break;
+        }
+    }
+    
+    async loadOverviewData() {
+        try {
+            const response = await fetch('/api/communications/overview');
+            const data = await response.json();
+            
+            // Update overview statistics
+            document.getElementById('todayMessages').textContent = data.todayMessages;
+            document.getElementById('todaySMS').textContent = data.todaySMS;
+            document.getElementById('activeAnnouncements').textContent = data.activeAnnouncements;
+            document.getElementById('pendingReactions').textContent = data.pendingReactions;
+            document.getElementById('concernsQuestions').textContent = data.concernsQuestions;
+            document.getElementById('smsDeliveryRate').textContent = data.smsDeliveryRate + '%';
+            
+            // Load recent activity
+            this.renderActivityFeed(data.recentActivity);
+            
+        } catch (error) {
+            console.error('Error loading overview:', error);
+        }
+    }
+    
+    async loadAnnouncements() {
+        try {
+            const response = await fetch('/api/communications/announcements');
+            const announcements = await response.json();
+            
+            this.renderAnnouncements(announcements);
+            
+        } catch (error) {
+            console.error('Error loading announcements:', error);
+        }
+    }
+    
+    renderAnnouncements(announcements) {
+        const container = document.getElementById('announcementsList');
+        container.innerHTML = '';
+        
+        announcements.forEach(announcement => {
+            const card = this.createAnnouncementCard(announcement);
+            container.appendChild(card);
+        });
+    }
+    
+    createAnnouncementCard(announcement) {
+        const card = document.createElement('div');
+        card.className = 'announcement-card';
+        card.dataset.id = announcement.id;
+        
+        const priorityIcons = {
+            'low': 'ℹ️',
+            'medium': '📢',
+            'high': '⚠️',
+            'urgent': '🚨'
+        };
+        
+        const isAdmin = window.userRole === 'admin' || window.userRole === 'manager';
+        
+        card.innerHTML = `
+            <div class="announcement-header">
+                <h3>${priorityIcons[announcement.priority]} ${announcement.title}</h3>
+                <div class="announcement-meta">
+                    <span class="timestamp">${new Date(announcement.created_at).toLocaleString()}</span>
+                    ${announcement.sms_enabled ? '<span class="sms-badge">📱 SMS</span>' : ''}
+                </div>
+            </div>
+            
+            <div class="announcement-content">
+                <p>${announcement.content}</p>
+            </div>
+            
+            <div class="announcement-actions">
+                ${isAdmin ? this.renderAdminActions(announcement) : this.renderEmployeeActions(announcement)}
+            </div>
+            
+            <div class="reactions-summary">
+                ${this.renderReactionsSummary(announcement.reactions)}
+            </div>
+        `;
+        
+        return card;
+    }
+    
+    renderEmployeeActions(announcement) {
+        const userReaction = announcement.user_reaction;
+        
+        return `
+            <div class="reaction-buttons">
+                <button class="reaction-btn ${userReaction === 'confirmed' ? 'active' : ''}" 
+                        data-reaction="confirmed" data-announcement="${announcement.id}">
+                    👍 Confirmed
+                </button>
+                <button class="reaction-btn ${userReaction === 'question' ? 'active' : ''}" 
+                        data-reaction="question" data-announcement="${announcement.id}">
+                    ❓ Question
+                </button>
+                <button class="reaction-btn ${userReaction === 'reply' ? 'active' : ''}" 
+                        data-reaction="reply" data-announcement="${announcement.id}">
+                    💬 Reply
+                </button>
+                <button class="reaction-btn ${userReaction === 'concern' ? 'active' : ''}" 
+                        data-reaction="concern" data-announcement="${announcement.id}">
+                    ⚠️ Concern
+                </button>
+            </div>
+        `;
+    }
+    
+    renderAdminActions(announcement) {
+        return `
+            <div class="admin-actions">
+                <button class="btn btn-sm btn-info" onclick="viewAnnouncementAnalytics(${announcement.id})">
+                    📊 View Analytics
+                </button>
+                <button class="btn btn-sm btn-secondary" onclick="editAnnouncement(${announcement.id})">
+                    ✏️ Edit
+                </button>
+            </div>
+        `;
+    }
+    
+    renderReactionsSummary(reactions) {
+        if (!reactions || Object.keys(reactions).length === 0) {
+            return '<div class="no-reactions">No reactions yet</div>';
+        }
+        
+        return `
+            <div class="reactions-count">
+                ${reactions.confirmed ? `👍 ${reactions.confirmed}` : ''}
+                ${reactions.question ? `❓ ${reactions.question}` : ''}
+                ${reactions.reply ? `💬 ${reactions.reply}` : ''}
+                ${reactions.concern ? `⚠️ ${reactions.concern}` : ''}
+                <span class="total-reactions">${reactions.total} total</span>
+            </div>
+        `;
+    }
+    
+    async submitAnnouncement() {
+        const formData = new FormData();
+        formData.append('title', document.getElementById('announcementTitle').value);
+        formData.append('content', document.getElementById('announcementContent').value);
+        formData.append('priority', document.getElementById('announcementPriority').value);
+        formData.append('sms_enabled', document.getElementById('enableSMS').checked);
+        
+        // Get selected recipients
+        const recipients = this.getSelectedRecipients();
+        formData.append('recipients', JSON.stringify(recipients));
+        
+        // Handle scheduling
+        const timing = document.querySelector('input[name="timing"]:checked').value;
+        if (timing === 'scheduled') {
+            formData.append('scheduled_for', document.getElementById('scheduleDateTime').value);
+        }
+        
+        try {
+            const response = await fetch('/api/communications/announcements', {
+                method: 'POST',
+                body: formData
+            });
+            
+            if (response.ok) {
+                const result = await response.json();
+                this.closeAnnouncementModal();
+                this.showSuccessMessage('Announcement sent successfully!');
+                
+                // Show SMS results if enabled
+                if (result.sms_results) {
+                    this.showSMSResults(result.sms_results);
+                }
+                
+                // Reload announcements
+                this.loadAnnouncements();
+                
+            } else {
+                throw new Error('Failed to send announcement');
+            }
+            
+        } catch (error) {
+            console.error('Error sending announcement:', error);
+            this.showErrorMessage('Failed to send announcement: ' + error.message);
+        }
+    }
+    
+    updateCharacterCount() {
+        const content = document.getElementById('announcementContent').value;
+        const charCount = document.getElementById('charCount');
+        const smsWarning = document.getElementById('smsWarning');
+        
+        charCount.textContent = content.length;
+        
+        if (content.length > 160) {
+            smsWarning.classList.remove('hidden');
+        } else {
+            smsWarning.classList.add('hidden');
+        }
+    }
+    
+    // WebSocket for real-time updates
+    initWebSocket() {
+        if (typeof io !== 'undefined') {
+            this.socket = io();
+            
+            this.socket.on('new_announcement', (data) => {
+                this.handleNewAnnouncement(data);
+            });
+            
+            this.socket.on('announcement_reaction', (data) => {
+                this.handleAnnouncementReaction(data);
+            });
+            
+            this.socket.on('sms_status_update', (data) => {
+                this.handleSMSStatusUpdate(data);
+            });
+        }
+    }
+    
+    handleNewAnnouncement(data) {
+        // Add new announcement to the top of the list
+        const container = document.getElementById('announcementsList');
+        const card = this.createAnnouncementCard(data.announcement);
+        container.insertBefore(card, container.firstChild);
+        
+        // Show notification
+        this.showNotification('📢 New announcement received', 'info');
+    }
+    
+    handleAnnouncementReaction(data) {
+        // Update reaction counts in real-time
+        const card = document.querySelector(`[data-id="${data.announcement_id}"]`);
+        if (card) {
+            const reactionsDiv = card.querySelector('.reactions-summary');
+            reactionsDiv.innerHTML = this.renderReactionsSummary(data.reactions);
+        }
+        
+        // Update overview statistics if on overview tab
+        if (this.currentTab === 'overview') {
+            this.loadOverviewData();
+        }
+    }
+}
+
+// Initialize the app when DOM is loaded
+document.addEventListener('DOMContentLoaded', () => {
+    window.communicationsApp = new CommunicationsApp();
+});
+
+⚙️ PHASE 5: BACKEND API ROUTES
+Main Communications Routes:
+javascript// routes/communications.js
+const express = require('express');
+const router = express.Router();
+const { requireAuth, requireRole } = require('../middleware/auth');
+const smsService = require('../services/smsService');
+
+// Get overview data (Admin/Manager only)
+router.get('/overview', requireAuth, requireRole(['admin', 'manager']), async (req, res) => {
+    try {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        const [
+            todayMessages,
+            todaySMS,
+            activeAnnouncements,
+            pendingReactions,
+            concernsQuestions,
+            smsDeliveryStats,
+            recentActivity
+        ] = await Promise.all([
+            getTodayMessageCount(),
+            getTodaySMSCount(),
+            getActiveAnnouncementsCount(),
+            getPendingReactionsCount(),
+            getConcernsQuestionsCount(),
+            getSMSDeliveryStats(),
+            getRecentActivity(10)
+        ]);
+        
+        res.json({
+            todayMessages,
+            todaySMS,
+            activeAnnouncements,
+            pendingReactions,
+            concernsQuestions,
+            smsDeliveryRate: smsDeliveryStats.successRate,
+            recentActivity
+        });
+        
+    } catch (error) {
+        console.error('Overview data error:', error);
+        res.status(500).json({ error: 'Failed to load overview data' });
+    }
+});
+
+// Get announcements
+router.get('/announcements', requireAuth, async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const userRole = req.user.role;
+        
+        let announcements;
+        
+        if (userRole === 'admin' || userRole === 'manager') {
+            // Admins see all announcements with full analytics
+            announcements = await getAllAnnouncementsWithAnalytics();
+        } else {
+            // Employees see announcements relevant to them
+            announcements = await getAnnouncementsForUser(userId);
+        }
+        
+        res.json(announcements);
+        
+    } catch (error) {
+        console.error('Announcements fetch error:', error);
+        res.status(500).json({ error: 'Failed to load announcements' });
+    }
+});
+
+// Create new announcement (Admin/Manager only)
+router.post('/announcements', requireAuth, requireRole(['admin', 'manager']), async (req, res) => {
+    try {
+        const { title, content, priority, sms_enabled, recipients, scheduled_for } = req.body;
+        const senderId = req.user.id;
+        
+        // Create the announcement
+        const announcement = await createAnnouncement({
+            type: 'announcement',
+            sender_id: senderId,
+            title,
+            content,
+            priority,
+            sms_enabled: sms_enabled === 'true',
+            scheduled_for: scheduled_for || null
+        });
+        
+        // Parse recipients
+        const recipientList = JSON.parse(recipients);
+        const resolvedRecipients = await resolveRecipients(recipientList);
+        
+        // Save recipients
+        await saveAnnouncementRecipients(announcement.id, resolvedRecipients);
+        
+        let smsResults = null;
+        
+        // Send SMS if enabled and not scheduled
+        if (sms_enabled === 'true' && !scheduled_for) {
+            smsResults = await smsService.sendAnnouncementSMS(announcement, resolvedRecipients);
+        }
+        
+        // Emit real-time update
+        if (req.app.get('io')) {
+            req.app.get('io').emit('new_announcement', {
+                announcement: announcement,
+                recipients: resolvedRecipients
+            });
+        }
+        
+        res.json({
+            success: true,
+            announcement,
+            sms_results: smsResults
+        });
+        
+    } catch (error) {
+        console.error('Create announcement error:', error);
+        res.status(500).json({ error: 'Failed to create announcement' });
+    }
+});
+
+// Handle announcement reactions
+router.post('/announcements/:id/react', requireAuth, async (req, res) => {
+    try {
+        const { reaction_type, message } = req.body;
+        const announcementId = req.params.id;
+        const userId = req.user.id;
+        
+        // Check if user already reacted
+        const existingReaction = await getUserReaction(announcementId, userId);
+        
+        if (existingReaction) {
+            // Update existing reaction
+            await updateReaction(existingReaction.id, {
+                reaction_type,
+                message: message || null,
+                response_method: 'ui'
+            });
+        } else {
+            // Create new reaction
+            await createReaction({
+                communication_id: announcementId,
+                user_id: userId,
+                reaction_type,
+                message: message || null,
+                response_method: 'ui'
+            });
+        }
+        
+        // Get updated reaction counts
+        const reactions = await getAnnouncementReactions(announcementId);
+        
+        // Emit real-time update
+        if (req.app.get('io')) {
+            req.app.get('io').emit('announcement_reaction', {
+                announcement_id: announcementId,
+                reactions: reactions,
+                user_id: userId,
+                reaction_type: reaction_type
+            });
+        }
+        
+        // Alert admins for questions and concerns
+        if (['question', 'concern'].includes(reaction_type)) {
+            await alertAdminsOfReaction(announcementId, userId, reaction_type, message);
+        }
+        
+        res.json({
+            success: true,
+            reactions: reactions
+        });
+        
+    } catch (error) {
+        console.error('Reaction error:', error);
+        res.status(500).json({ error: 'Failed to save reaction' });
+    }
+});
+
+module.exports = router;
+
+📈 PHASE 6: ANALYTICS DASHBOARD
+Analytics Backend Functions:
+javascript// services/analyticsService.js
+async function getCommunicationAnalytics(timeframe = '30d') {
+    const analytics = {};
+    
+    // Message volume analytics
+    analytics.messageVolume = await getMessageVolumeStats(timeframe);
+    
+    // SMS vs UI response analytics
+    analytics.responseChannels = await getResponseChannelStats(timeframe);
+    
+    // Employee engagement metrics
+    analytics.employeeEngagement = await getEmployeeEngagementStats(timeframe);
+    
+    // Announcement effectiveness
+    analytics.announcementEffectiveness = await getAnnouncementEffectivenessStats(timeframe);
+    
+    // SMS delivery analytics
+    analytics.smsDelivery = await getSMSDeliveryAnalytics(timeframe);
+    
+    // Top concerns and questions
+    analytics.concernsAndQuestions = await getConcernsAndQuestionsAnalytics(timeframe);
+    
+    return analytics;
+}
+
+async function getMessageVolumeStats(timeframe) {
+    // Daily message counts, SMS vs app usage, peak times
+    return {
+        totalMessages: await getTotalMessageCount(timeframe),
+        dailyAverage: await getDailyAverageMessages(timeframe),
+        smsPercentage: await getSMSUsagePercentage(timeframe),
+        peakHours: await getPeakUsageHours(timeframe),
+        trendData: await getMessageTrendData(timeframe)
+    };
+}
+
+async function getEmployeeEngagementStats(timeframe) {
+    return {
+        responseRates: await getAnnouncementResponseRates(timeframe),
+        averageResponseTime: await getAverageResponseTime(timeframe),
+        mostEngagedEmployees: await getMostEngagedEmployees(timeframe),
+        leastEngagedEmployees: await getLeastEngagedEmployees(timeframe),
+        engagementByDepartment: await getEngagementByDepartment(timeframe)
+    };
+}
+
+module.exports = {
+    getCommunicationAnalytics,
+    getMessageVolumeStats,
+    getEmployeeEngagementStats
+};
+Analytics Frontend Component:
+javascript// Analytics tab JavaScript
+class AnalyticsDashboard {
+    constructor() {
+        this.charts = {};
+        this.init();
+    }
+    
+    async init() {
+        await this.loadAnalyticsData();
+        this.renderCharts();
+        this.setupRealTimeUpdates();
+    }
+    
+    async loadAnalyticsData() {
+        try {
+            const response = await fetch('/api/communications/analytics');
+            this.data = await response.json();
+        } catch (error) {
+            console.error('Failed to load analytics:', error);
+        }
+    }
+    
+    renderCharts() {
+        this.renderMessageVolumeChart();
+        this.renderResponseChannelsChart();
+        this.renderEngagementChart();
+        this.renderSMSDeliveryChart();
+    }
+    
+    renderMessageVolumeChart() {
+        const ctx = document.getElementById('messageVolumeChart').getContext('2d');
+        this.charts.messageVolume = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: this.data.messageVolume.trendData.dates,
+                datasets: [{
+                    label: 'Total Messages',
+                    data: this.data.messageVolume.trendData.totals,
+                    borderColor: '#3B82F6',
+                    backgroundColor: '#3B82F6',
+                    tension: 0.4
+                }, {
+                    label: 'SMS Messages',
+                    data: this.data.messageVolume.trendData.sms,
+                    borderColor: '#10B981',
+                    backgroundColor: '#10B981',
+                    tension: 0.4
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+    }
+    
+    renderResponseChannelsChart() {
+        const ctx = document.getElementById('responseChannelsChart').getContext('2d');
+        this.charts.responseChannels = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: ['UI Responses', 'SMS Responses'],
+                datasets: [{
+                    data: [
+                        this.data.responseChannels.ui_responses,
+                        this.data.responseChannels.sms_responses
+                    ],
+                    backgroundColor: ['#8B5CF6', '#10B981'],
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        position: 'bottom'
+                    }
+                }
+            }
+        });
+    }
+}
+
+🔄 PHASE 7: REAL-TIME UPDATES & WEBSOCKETS
+Setup Socket.IO:
+javascript// app.js (main server file)
+const socketIo = require('socket.io');
+const http = require('http');
+
+const server = http.createServer(app);
+const io = socketIo(server);
+
+// Store io instance for use in routes
+app.set('io', io);
+
+// Socket.IO connection handling
+io.on('connection', (socket) => {
+    console.log('User connected:', socket.id);
+    
+    // Join room based on user role
+    socket.on('join_room', (data) => {
+        const { userId, role } = data;
+        socket.join(`user_${userId}`);
+        socket.join(`role_${role}`);
+    });
+    
+    // Handle disconnection
+    socket.on('disconnect', () => {
+        console.log('User disconnected:', socket.id);
+    });
+});
+
+✅ IMPLEMENTATION CHECKLIST
+Phase 1: Foundation ✅
+
+ Create database tables
+ Set up Twilio configuration
+ Create basic SMS service functions
+ Test SMS sending functionality
+
+Phase 2: Core Features
+
+ Build announcement creation system
+ Implement SMS webhook handler
+ Create SMS message parser
+ Add announcement reaction system
+ Test two-way SMS communication
+
+Phase 3: User Interface
+
+ Create unified communications page
+ Build role-based navigation
+ Implement announcement modals
+ Add real-time updates
+ Create responsive design
+
+Phase 4: Advanced Features
+
+ Build analytics dashboard
+ Add direct messaging
+ Implement conversation threading
+ Create admin notification system
+ Add SMS context management
+
+Phase 5: Testing & Polish
+
+ Test all SMS flows
+ Verify role-based permissions
+ Test real-time updates
+ Optimize database queries
+ Add error handling
+ Mobile responsiveness testing
+

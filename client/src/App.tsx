@@ -9,6 +9,7 @@ import LogosPage from "@/pages/admin/logos";
 import AnnouncementsPage from "@/pages/admin/announcements";
 import AdminEmployeesPage from "@/pages/admin/employees";
 import AnnouncementsViewPage from "@/pages/announcements";
+import CommunicationsPage from "@/pages/communications";
 import Calendar from "@/pages/calendar";
 import Employees from "@/pages/employees";
 import TimeManagement from "@/pages/time-management";
@@ -59,6 +60,7 @@ function AuthenticatedApp() {
       <Route path="/admin/logos" component={LogosPage} />
       <Route path="/admin/announcements" component={AnnouncementsPage} />
       <Route path="/announcements" component={AnnouncementsViewPage} />
+      <Route path="/communications" component={CommunicationsPage} />
       <Route path="/time-clock" component={TimeClock} />
       <Route path="/schedule" component={Schedule} />
       <Route path="/time-off" component={TimeOff} />
