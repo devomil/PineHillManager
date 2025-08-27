@@ -1659,11 +1659,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
               
               if (salesMetrics && salesMetrics.payload && salesMetrics.payload.length > 0) {
                 const metrics = salesMetrics.payload[0];
+                console.log('🔍 Amazon Sales API Response:', JSON.stringify(metrics, null, 2));
+                
                 if (metrics.totalSales && metrics.totalSales.amount) {
                   locationRevenue = parseFloat(metrics.totalSales.amount);
-                  locationTransactions = metrics.orderCount || 0;
+                  // Use orderItemCount to match Amazon Seller Central "Total order items"
+                  locationTransactions = metrics.orderItemCount || metrics.orderCount || 0;
                   salesApiSuccess = true;
-                  console.log(`✅ Amazon Sales API Revenue: $${locationRevenue.toFixed(2)}, Orders: ${locationTransactions} (should match Seller Central exactly)`);
+                  console.log(`✅ Amazon Sales API Revenue: $${locationRevenue.toFixed(2)}, Transactions: ${locationTransactions} (using ${metrics.orderItemCount ? 'orderItemCount' : 'orderCount'} to match Seller Central)`);
                 } else {
                   throw new Error('No totalSales data in response');
                 }
