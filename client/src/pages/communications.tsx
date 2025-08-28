@@ -797,7 +797,7 @@ function CommunicationsContent() {
         targetAudience: data.targetAudience,
         recipients: data.targetEmployees || []  // Server expects 'recipients' not 'targetEmployees'
       };
-      return apiRequest('/api/communications/send', 'POST', mappedData);
+      return apiRequest('POST', '/api/communications/send', mappedData);
     },
     onSuccess: () => {
       toast({ title: "Communication sent successfully!" });
