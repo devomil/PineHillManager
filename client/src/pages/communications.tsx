@@ -104,9 +104,6 @@ function EmployeeSelector({
   isVisible: boolean,
   onVisibilityChange: (visible: boolean) => void
 }) {
-  // Debug: log the employee data structure  
-  console.log("EmployeeSelector - employees:", employees?.slice(0, 2));
-  console.log("EmployeeSelector - searchQuery:", searchQuery);
   
   const filteredEmployees = employees.filter(emp => 
     emp.firstName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -114,8 +111,6 @@ function EmployeeSelector({
     emp.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     emp.department?.toLowerCase().includes(searchQuery.toLowerCase())
   );
-  
-  console.log("EmployeeSelector - filteredEmployees count:", filteredEmployees.length);
 
   const toggleEmployee = (employeeId: string) => {
     if (selectedEmployees.includes(employeeId)) {
@@ -747,24 +742,44 @@ function CommunicationsContent() {
   // Fetch employees for targeting
   const { data: employees = [] } = useQuery<any[]>({
     queryKey: ["/api/employees"],
+    queryFn: async () => {
+      const response = await fetch("/api/employees", { credentials: "include" });
+      if (!response.ok) throw new Error("Failed to fetch employees");
+      return response.json();
+    },
     retry: 1,
   });
   
   // Fetch announcements (existing functionality)
   const { data: announcements = [], isLoading: announcementsLoading } = useQuery<Announcement[]>({
     queryKey: ["/api/announcements/published"],
+    queryFn: async () => {
+      const response = await fetch("/api/announcements/published", { credentials: "include" });
+      if (!response.ok) throw new Error("Failed to fetch announcements");
+      return response.json();
+    },
     retry: 1,
   });
 
   // Phase 6: Fetch scheduled messages
   const { data: scheduledMessages = [], isLoading: scheduledLoading } = useQuery<ScheduledMessage[]>({
     queryKey: ["/api/scheduled-messages"],
+    queryFn: async () => {
+      const response = await fetch("/api/scheduled-messages", { credentials: "include" });
+      if (!response.ok) throw new Error("Failed to fetch scheduled messages");
+      return response.json();
+    },
     retry: 1,
   });
 
   // Phase 6: Fetch announcement templates
   const { data: templates = [], isLoading: templatesLoading } = useQuery<AnnouncementTemplate[]>({
     queryKey: ["/api/announcement-templates"],
+    queryFn: async () => {
+      const response = await fetch("/api/announcement-templates", { credentials: "include" });
+      if (!response.ok) throw new Error("Failed to fetch templates");
+      return response.json();
+    },
     retry: 1,
   });
 
