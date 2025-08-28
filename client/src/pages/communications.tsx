@@ -104,12 +104,18 @@ function EmployeeSelector({
   isVisible: boolean,
   onVisibilityChange: (visible: boolean) => void
 }) {
+  // Debug: log the employee data structure  
+  console.log("EmployeeSelector - employees:", employees?.slice(0, 2));
+  console.log("EmployeeSelector - searchQuery:", searchQuery);
+  
   const filteredEmployees = employees.filter(emp => 
     emp.firstName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     emp.lastName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     emp.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     emp.department?.toLowerCase().includes(searchQuery.toLowerCase())
   );
+  
+  console.log("EmployeeSelector - filteredEmployees count:", filteredEmployees.length);
 
   const toggleEmployee = (employeeId: string) => {
     if (selectedEmployees.includes(employeeId)) {
@@ -730,9 +736,13 @@ function CommunicationsContent() {
     scheduledFor: ''
   });
   
-  // Employee search state
+  // Employee search state for regular communications
   const [employeeSearchQuery, setEmployeeSearchQuery] = useState('');
   const [showEmployeeSelector, setShowEmployeeSelector] = useState(false);
+  
+  // Employee search state for scheduled messages  
+  const [scheduledEmployeeSearchQuery, setScheduledEmployeeSearchQuery] = useState('');
+  const [showScheduledEmployeeSelector, setShowScheduledEmployeeSelector] = useState(false);
 
   // Fetch employees for targeting
   const { data: employees = [] } = useQuery<any[]>({
@@ -1458,6 +1468,18 @@ function CommunicationsContent() {
                       onChange={(e) => setFormData({ ...formData, scheduledFor: e.target.value })}
                     />
                   </div>
+
+                  {/* Employee Selector for Scheduled Messages */}
+                  <EmployeeSelector
+                    employees={employees}
+                    selectedEmployees={formData.targetEmployees}
+                    onEmployeesChange={(selectedIds) => setFormData(prev => ({ ...prev, targetEmployees: selectedIds }))}
+                    searchQuery={scheduledEmployeeSearchQuery}
+                    onSearchChange={setScheduledEmployeeSearchQuery}
+                    isVisible={showScheduledEmployeeSelector}
+                    onVisibilityChange={setShowScheduledEmployeeSelector}
+                  />
+
                   <div className="flex items-center space-x-2">
                     <input
                       type="checkbox"
