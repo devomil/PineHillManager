@@ -6,6 +6,8 @@ export interface WebSocketMessage {
   channel?: string;
   data?: any;
   message?: string;
+  eventType?: string;
+  timestamp?: string;
 }
 
 export function useWebSocket() {

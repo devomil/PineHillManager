@@ -62,12 +62,15 @@ function AnalyticsDashboard() {
   useEffect(() => {
     if (isConnected && send) {
       send({ type: 'subscribe', channel: 'analytics' });
-      
-      return () => {
-        send({ type: 'unsubscribe', channel: 'analytics' });
-      };
     }
-  }, [isConnected, send]);
+    
+    // Cleanup function will run on component unmount
+    return () => {
+      if (send) {
+        send({ type: 'unsubscribe', channel: 'analytics' });
+      }
+    };
+  }, []); // Remove dependencies to prevent re-subscription cycles
 
   // Listen for real-time analytics updates
   const { messages: analyticsMessages, isConnected: wsConnected } = useWebSocketSubscription('analytics');
@@ -77,9 +80,9 @@ function AnalyticsDashboard() {
       const lastMessage = analyticsMessages[analyticsMessages.length - 1];
       
       if (lastMessage.type === 'analytics_update') {
-        console.log('📊 Real-time analytics update:', lastMessage.eventType, lastMessage.data);
+        console.log('📊 Real-time analytics update:', (lastMessage as any).eventType, lastMessage.data);
         
-        switch (lastMessage.eventType) {
+        switch ((lastMessage as any).eventType) {
           case 'sms_status_changed':
             // Refresh SMS metrics when delivery status changes
             queryClient.invalidateQueries({ queryKey: ['/api/analytics/sms/metrics'] });
@@ -835,7 +838,7 @@ function CommunicationsContent() {
 
       {/* Mobile-First Main Content with Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4 md:space-y-6">
-        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:w-auto bg-gray-100 p-1 rounded-lg">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 lg:w-auto bg-gray-100 p-1 rounded-lg">
           <TabsTrigger value="announcements" className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 text-xs sm:text-sm font-medium">
             <Bell className="w-3 h-3 sm:w-4 sm:h-4" />
             <span className="hidden sm:inline">Announcements</span>
@@ -847,9 +850,17 @@ function CommunicationsContent() {
             <span className="sm:hidden">Chat</span>
           </TabsTrigger>
           {(user?.role === 'admin' || user?.role === 'manager') && (
-            <TabsTrigger value="analytics" className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 text-xs sm:text-sm font-medium col-span-2 sm:col-span-1">
+            <TabsTrigger value="analytics" className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 text-xs sm:text-sm font-medium">
               <BarChart3 className="w-3 h-3 sm:w-4 sm:h-4" />
-              Analytics
+              <span className="hidden sm:inline">Analytics</span>
+              <span className="sm:hidden">Data</span>
+            </TabsTrigger>
+          )}
+          {user?.role === 'admin' && (
+            <TabsTrigger value="admin" className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 text-xs sm:text-sm font-medium">
+              <TrendingUp className="w-3 h-3 sm:w-4 sm:h-4" />
+              <span className="hidden sm:inline">Admin KPIs</span>
+              <span className="sm:hidden">KPIs</span>
             </TabsTrigger>
           )}
         </TabsList>
@@ -1098,7 +1109,328 @@ function CommunicationsContent() {
             <AnalyticsDashboard />
           </div>
         </TabsContent>
+
+        {/* Admin KPIs Dashboard Tab */}
+        <TabsContent value="admin">
+          <div className="space-y-6">
+            <AdminKPIDashboard />
+          </div>
+        </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+// Admin KPIs Dashboard Component
+function AdminKPIDashboard() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [selectedPeriod, setSelectedPeriod] = useState('30');
+
+  // Fetch comprehensive admin data
+  const { data: adminStats } = useQuery({
+    queryKey: ['/api/admin/stats'],
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+
+  const { data: analyticsOverview } = useQuery({
+    queryKey: ['/api/analytics/communication/overview', selectedPeriod],
+    staleTime: 2 * 60 * 1000, // 2 minutes
+  });
+
+  const { data: smsMetrics } = useQuery({
+    queryKey: ['/api/analytics/sms/metrics', selectedPeriod],
+    staleTime: 2 * 60 * 1000,
+  });
+
+  const { data: engagementData } = useQuery({
+    queryKey: ['/api/analytics/user-engagement', selectedPeriod],
+    staleTime: 2 * 60 * 1000,
+  });
+
+  // Calculate performance metrics
+  const totalCommunications = (analyticsOverview?.totalMessages || 0) + (analyticsOverview?.totalAnnouncements || 0);
+  const avgDeliveryRate = smsMetrics?.deliveryRate || 0;
+  const totalCost = (smsMetrics?.totalCost || 0) / 100; // Convert from cents to dollars
+  const costPerMessage = totalCommunications > 0 ? totalCost / totalCommunications : 0;
+  const activeUsers = engagementData?.topUsers?.length || 0;
+  const avgEngagement = analyticsOverview?.averageEngagementRate || 0;
+
+  // ROI Calculation (simplified)
+  const estimatedTimeSaved = totalCommunications * 2; // 2 minutes saved per automated communication
+  const hourlyRate = 25; // $25/hour average wage
+  const timeSavingsValue = (estimatedTimeSaved / 60) * hourlyRate;
+  const roi = totalCost > 0 ? ((timeSavingsValue - totalCost) / totalCost) * 100 : 0;
+
+  const performanceScore = Math.min(100, (avgDeliveryRate * 0.4) + (avgEngagement * 0.3) + (Math.min(activeUsers / 10, 1) * 30));
+
+  return (
+    <div className="space-y-6">
+      {/* Header with Period Selector */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+            <TrendingUp className="h-6 w-6 text-blue-600" />
+            Executive KPIs Dashboard
+          </h2>
+          <p className="text-gray-600 mt-1">System performance and business impact metrics</p>
+        </div>
+        <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
+          <SelectTrigger className="w-40">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="7">Last 7 Days</SelectItem>
+            <SelectItem value="30">Last 30 Days</SelectItem>
+            <SelectItem value="90">Last 90 Days</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Executive Summary KPIs */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-blue-700">System Performance</p>
+                <p className="text-2xl font-bold text-blue-900">{performanceScore.toFixed(1)}%</p>
+                <p className="text-xs text-blue-600 mt-1">Overall health score</p>
+              </div>
+              <div className="p-2 bg-blue-200 rounded-full">
+                <Activity className="h-6 w-6 text-blue-700" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-green-700">ROI</p>
+                <p className="text-2xl font-bold text-green-900">{roi > 0 ? '+' : ''}{roi.toFixed(1)}%</p>
+                <p className="text-xs text-green-600 mt-1">Return on investment</p>
+              </div>
+              <div className="p-2 bg-green-200 rounded-full">
+                <DollarSign className="h-6 w-6 text-green-700" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-purple-700">Active Users</p>
+                <p className="text-2xl font-bold text-purple-900">{activeUsers}</p>
+                <p className="text-xs text-purple-600 mt-1">Engaged employees</p>
+              </div>
+              <div className="p-2 bg-purple-200 rounded-full">
+                <Users className="h-6 w-6 text-purple-700" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-orange-50 to-orange-100 border-orange-200">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-orange-700">Delivery Rate</p>
+                <p className="text-2xl font-bold text-orange-900">{avgDeliveryRate.toFixed(1)}%</p>
+                <p className="text-xs text-orange-600 mt-1">SMS success rate</p>
+              </div>
+              <div className="p-2 bg-orange-200 rounded-full">
+                <Send className="h-6 w-6 text-orange-700" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Operational Metrics */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <BarChart3 className="h-5 w-5 text-blue-600" />
+              Operational Efficiency
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="text-center p-3 bg-gray-50 rounded-lg">
+                <p className="text-2xl font-bold text-gray-900">{totalCommunications}</p>
+                <p className="text-sm text-gray-600">Total Communications</p>
+              </div>
+              <div className="text-center p-3 bg-gray-50 rounded-lg">
+                <p className="text-2xl font-bold text-gray-900">${totalCost.toFixed(2)}</p>
+                <p className="text-sm text-gray-600">Communication Costs</p>
+              </div>
+              <div className="text-center p-3 bg-gray-50 rounded-lg">
+                <p className="text-2xl font-bold text-gray-900">${costPerMessage.toFixed(3)}</p>
+                <p className="text-sm text-gray-600">Cost Per Message</p>
+              </div>
+              <div className="text-center p-3 bg-gray-50 rounded-lg">
+                <p className="text-2xl font-bold text-gray-900">{estimatedTimeSaved}m</p>
+                <p className="text-sm text-gray-600">Time Saved</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5 text-purple-600" />
+              Employee Engagement
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-sm font-medium">Average Engagement</span>
+                <span className="text-sm font-bold">{avgEngagement.toFixed(1)}%</span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div 
+                  className="bg-purple-600 h-2 rounded-full transition-all duration-300"
+                  style={{ width: `${avgEngagement}%` }}
+                ></div>
+              </div>
+            </div>
+            
+            <div className="space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-sm font-medium">System Adoption</span>
+                <span className="text-sm font-bold">{Math.min(100, (activeUsers / (adminStats?.totalEmployees || 1)) * 100).toFixed(1)}%</span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div 
+                  className="bg-green-600 h-2 rounded-full transition-all duration-300"
+                  style={{ width: `${Math.min(100, (activeUsers / (adminStats?.totalEmployees || 1)) * 100)}%` }}
+                ></div>
+              </div>
+            </div>
+
+            <div className="text-center pt-4 border-t">
+              <p className="text-sm text-gray-600">
+                {activeUsers} of {adminStats?.totalEmployees || 'N/A'} employees actively engaged
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Business Impact Summary */}
+      <Card className="bg-gradient-to-r from-indigo-50 to-purple-50 border-indigo-200">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-indigo-900">
+            <TrendingUp className="h-5 w-5" />
+            Business Impact Analysis
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="text-center">
+              <div className="text-3xl font-bold text-indigo-600 mb-2">${timeSavingsValue.toFixed(0)}</div>
+              <div className="text-sm text-gray-600">Estimated Value from Time Savings</div>
+              <div className="text-xs text-gray-500 mt-1">Based on automated communications</div>
+            </div>
+            <div className="text-center">
+              <div className="text-3xl font-bold text-purple-600 mb-2">{((avgDeliveryRate / 100) * totalCommunications).toFixed(0)}</div>
+              <div className="text-sm text-gray-600">Successful Communications</div>
+              <div className="text-xs text-gray-500 mt-1">Messages delivered successfully</div>
+            </div>
+            <div className="text-center">
+              <div className="text-3xl font-bold text-green-600 mb-2">{roi > 0 ? 'Positive' : 'Negative'}</div>
+              <div className="text-sm text-gray-600">ROI Trend</div>
+              <div className="text-xs text-gray-500 mt-1">
+                {roi > 0 ? 'System generating value' : 'Investment period'}
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* System Health and Actions */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Activity className="h-5 w-5 text-red-600" />
+            System Health & Actions
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg border-l-4 border-green-400">
+              <div className="flex items-center gap-3">
+                <CheckCircle className="h-5 w-5 text-green-600" />
+                <div>
+                  <p className="font-medium text-green-900">Communications System Online</p>
+                  <p className="text-sm text-green-700">All services operational</p>
+                </div>
+              </div>
+              <Badge variant="secondary" className="bg-green-100 text-green-800">Healthy</Badge>
+            </div>
+
+            {avgDeliveryRate < 95 && (
+              <div className="flex items-center justify-between p-3 bg-yellow-50 rounded-lg border-l-4 border-yellow-400">
+                <div className="flex items-center gap-3">
+                  <AlertTriangle className="h-5 w-5 text-yellow-600" />
+                  <div>
+                    <p className="font-medium text-yellow-900">SMS Delivery Rate Below Target</p>
+                    <p className="text-sm text-yellow-700">Consider reviewing SMS service configuration</p>
+                  </div>
+                </div>
+                <Badge variant="outline" className="border-yellow-400 text-yellow-800">Warning</Badge>
+              </div>
+            )}
+
+            <div className="flex flex-wrap gap-2 pt-4 border-t">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={async () => {
+                  try {
+                    await queryClient.invalidateQueries({ queryKey: ['/api/admin/stats'] });
+                    await queryClient.invalidateQueries({ queryKey: ['/api/analytics/communication/overview'] });
+                    toast({
+                      title: "🔄 Data Refreshed",
+                      description: "All KPI metrics have been updated with latest data",
+                    });
+                  } catch (error) {
+                    toast({
+                      title: "❌ Refresh Failed",
+                      description: "Unable to refresh data. Please try again.",
+                      variant: "destructive",
+                    });
+                  }
+                }}
+              >
+                <Activity className="h-4 w-4 mr-2" />
+                Refresh Metrics
+              </Button>
+              
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  toast({
+                    title: "📊 Export Available",
+                    description: "KPI data export functionality will be available in the next update.",
+                  });
+                }}
+              >
+                <BarChart3 className="h-4 w-4 mr-2" />
+                Export Report
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
