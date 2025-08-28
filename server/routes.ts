@@ -5598,6 +5598,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Send communication (messages/announcements) with SMS + app notifications
   app.post('/api/communications/send', isAuthenticated, async (req, res) => {
+    console.log('📤 Communication send request received:', req.body);
     try {
       const {
         subject,
@@ -5668,10 +5669,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       if (targetUsers.length === 0) {
+        console.log('❌ No eligible recipients found');
         return res.status(400).json({ error: 'No eligible recipients found' });
       }
 
+      console.log(`📍 Found ${targetUsers.length} target users`);
+
       // Create message record in database
+      console.log('💾 Creating message record in database...');
       const messageRecord = await storage.createMessage({
         senderId,
         subject,
@@ -5681,10 +5686,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         targetAudience: recipientMode === 'individual' ? 'custom' : targetAudience,
         smsEnabled,
       });
+      console.log('✅ Message record created:', messageRecord.id);
 
       // Send notifications via smart notification service
+      console.log('🔔 Sending notifications to users...');
       const userIds = targetUsers.map(user => user.id);
-      const notificationResult = await smartNotificationService.sendBulkSmartNotifications(
+      
+      // Add timeout wrapper to prevent hanging
+      const notificationPromise = smartNotificationService.sendBulkSmartNotifications(
         userIds,
         {
           messageType: messageType === 'announcement' ? 'announcement' : 'announcement',
@@ -5702,6 +5711,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           bypassClockStatus: priority === 'emergency'
         }
       );
+
+      // Set a timeout to prevent hanging
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Notification timeout after 30 seconds')), 30000);
+      });
+
+      const notificationResult = await Promise.race([notificationPromise, timeoutPromise]) as any;
+      console.log('✅ Notifications sent:', notificationResult);
 
       // Create read receipts for tracking
       const readReceiptPromises = targetUsers.map(user => 
