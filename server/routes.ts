@@ -6232,7 +6232,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const utcTime = new Date(localTime.getTime() + (5 * 60 * 60 * 1000));
         
         console.log(`🌍 Timezone conversion: ${scheduledForDate} (local) → ${utcTime.toISOString()} (UTC)`);
-        scheduledForDate = utcTime;
+        scheduledForDate = utcTime.toISOString();
       }
       
       const validatedData = insertScheduledMessageSchema.parse({
