@@ -4181,13 +4181,17 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getScheduledMessagesForDelivery(): Promise<ScheduledMessage[]> {
+    // Create current time in local timezone for proper comparison
+    const now = new Date();
+    console.log(`🕐 Scheduler checking at: ${now.toLocaleString('en-US', { timeZone: 'America/Chicago' })} CT`);
+    
     return await db
       .select()
       .from(scheduledMessages)
       .where(
         and(
           eq(scheduledMessages.status, "scheduled"),
-          lte(scheduledMessages.scheduledFor, new Date())
+          lte(scheduledMessages.scheduledFor, now)
         )
       )
       .orderBy(asc(scheduledMessages.scheduledFor));

@@ -14,8 +14,13 @@ async function processScheduledMessages() {
     }
 
     console.log(`📅 Processing ${messagesForDelivery.length} scheduled message(s)...`);
-
+    
+    // Debug: Show current time and scheduled times
+    const currentTime = new Date();
+    console.log(`🕐 Current time: ${currentTime.toLocaleString('en-US', { timeZone: 'America/Chicago' })} CT (${currentTime.toISOString()})`);
+    
     for (const message of messagesForDelivery) {
+      console.log(`📋 Message #${message.id} scheduled for: ${message.scheduledFor} (stored as: ${typeof message.scheduledFor})`);
       try {
         // Get target employees based on targetEmployees array
         let targetEmployees = [];
@@ -76,7 +81,7 @@ async function processScheduledMessages() {
           sentAt: new Date()
         });
 
-        console.log(`✅ Scheduled message #${message.id} processed successfully`);
+        console.log(`✅ Scheduled message #${message.id} processed successfully at ${new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' })} CT`);
 
       } catch (error) {
         console.error(`Failed to process scheduled message #${message.id}:`, error);
