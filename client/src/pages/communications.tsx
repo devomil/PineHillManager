@@ -628,7 +628,7 @@ function CommunicationsContent() {
   // Phase 6: Create scheduled message mutation
   const createScheduledMessageMutation = useMutation({
     mutationFn: async (data: any) => {
-      return apiRequest('/api/scheduled-messages', 'POST', data);
+      return apiRequest('POST', '/api/scheduled-messages', data);
     },
     onSuccess: () => {
       toast({ title: "✅ Message scheduled successfully!" });
@@ -656,7 +656,7 @@ function CommunicationsContent() {
   // Phase 6: Create template mutation
   const createTemplateMutation = useMutation({
     mutationFn: async (data: any) => {
-      return apiRequest('/api/announcement-templates', 'POST', data);
+      return apiRequest('POST', '/api/announcement-templates', data);
     },
     onSuccess: () => {
       toast({ title: "📋 Template created successfully!" });
