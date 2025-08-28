@@ -1588,7 +1588,7 @@ function CommunicationsContent() {
                             <div className="flex items-center gap-1">
                               <Calendar className="h-3 w-3" />
                               <span>
-                                Scheduled: {format(parseISO(message.scheduledFor), 'MMM dd, yyyy h:mm a')}
+                                Scheduled: {format(new Date(message.scheduledFor.replace(' ', 'T')), 'MMM dd, yyyy h:mm a')}
                               </span>
                             </div>
                             <div className="flex items-center gap-1">
