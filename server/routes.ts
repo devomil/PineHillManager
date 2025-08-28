@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import * as QRCode from 'qrcode';
-// WebSocket functionality handled by Vite in development
+import { WebSocketServer, WebSocket } from "ws";
 import { setupAuth, isAuthenticated } from "./auth";
 import { storage } from "./storage";
 import { performanceMiddleware, getPerformanceMetrics, resetPerformanceMetrics } from "./performance-middleware";
@@ -6107,5 +6107,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   const httpServer = createServer(app);
+
+  // WebSocket server for real-time updates
+  const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
+
+  wss.on('connection', (ws) => {
+    console.log('✅ WebSocket client connected');
+
+    ws.on('message', (message) => {
+      try {
+        const data = JSON.parse(message.toString());
+        
+        // Handle different message types
+        switch (data.type) {
+          case 'subscribe':
+            // Subscribe to specific channels
+            ws.send(JSON.stringify({ type: 'subscribed', channel: data.channel }));
+            break;
+          case 'ping':
+            ws.send(JSON.stringify({ type: 'pong' }));
+            break;
+          default:
+            console.log('Unknown WebSocket message type:', data.type);
+        }
+      } catch (error) {
+        console.error('WebSocket message error:', error);
+      }
+    });
+
+    ws.on('close', () => {
+      console.log('❌ WebSocket client disconnected');
+    });
+
+    ws.on('error', (error) => {
+      console.error('WebSocket error:', error);
+    });
+
+    // Send welcome message
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'connected', message: 'Welcome to Pine Hill Farm Communications' }));
+    }
+  });
+
   return httpServer;
 }
