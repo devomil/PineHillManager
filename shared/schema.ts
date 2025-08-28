@@ -921,6 +921,7 @@ export const messageTemplatesRelations = relations(messageTemplates, ({ one }) =
   creator: one(users, { fields: [messageTemplates.createdBy], references: [users.id] }),
 }));
 
+
 // Enhanced messages relations with Phase 3 features
 export const enhancedMessagesRelations = relations(messages, ({ one, many }) => ({
   sender: one(users, { fields: [messages.senderId], references: [users.id], relationName: "messageSender" }),
@@ -928,6 +929,117 @@ export const enhancedMessagesRelations = relations(messages, ({ one, many }) => 
   reactions: many(messageReactions),
   readReceipts: many(readReceipts),
   voiceMessage: one(voiceMessages),
+}));
+
+// Phase 6: Advanced Features - Scheduled Messages
+export const scheduledMessages = pgTable("scheduled_messages", {
+  id: serial("id").primaryKey(),
+  authorId: varchar("author_id").notNull().references(() => users.id),
+  title: varchar("title").notNull(),
+  content: text("content").notNull(),
+  messageType: varchar("message_type").default("announcement"), // 'announcement', 'message', 'reminder'
+  priority: varchar("priority").default("normal"), // 'emergency', 'high', 'normal', 'low'
+  targetAudience: varchar("target_audience").default("all"), // 'all', 'employees', 'managers', 'department:X', 'store:X'
+  smsEnabled: boolean("sms_enabled").default(false),
+  
+  // Scheduling information
+  scheduledFor: timestamp("scheduled_for").notNull(),
+  status: varchar("status").default("scheduled"), // 'scheduled', 'sent', 'failed', 'cancelled'
+  
+  // Auto-expiry (optional)
+  expiresAt: timestamp("expires_at"),
+  
+  // Automation rule reference (if this is from an automation rule)
+  automationRuleId: integer("automation_rule_id"),
+  
+  // Delivery tracking
+  sentAt: timestamp("sent_at"),
+  failureReason: text("failure_reason"),
+  retryCount: integer("retry_count").default(0),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  authorIdx: index("idx_scheduled_messages_author").on(table.authorId),
+  scheduledForIdx: index("idx_scheduled_messages_scheduled_for").on(table.scheduledFor),
+  statusIdx: index("idx_scheduled_messages_status").on(table.status),
+  automationRuleIdx: index("idx_scheduled_messages_automation_rule").on(table.automationRuleId),
+  typeIdx: index("idx_scheduled_messages_type").on(table.messageType),
+}));
+
+// Phase 6: Announcement Templates
+export const announcementTemplates = pgTable("announcement_templates", {
+  id: serial("id").primaryKey(),
+  name: varchar("name").notNull(),
+  description: text("description"),
+  category: varchar("category").notNull(), // 'safety', 'policy', 'schedule', 'emergency', 'general', 'training'
+  
+  // Template content
+  title: varchar("title").notNull(),
+  content: text("content").notNull(),
+  priority: varchar("priority").default("normal"), // 'emergency', 'high', 'normal', 'low'
+  targetAudience: varchar("target_audience").default("all"), // Default audience for this template
+  smsEnabled: boolean("sms_enabled").default(false), // Default SMS setting
+  
+  // Template metadata
+  isActive: boolean("is_active").default(true),
+  useCount: integer("use_count").default(0),
+  createdBy: varchar("created_by").notNull().references(() => users.id),
+  lastUsedAt: timestamp("last_used_at"),
+  
+  // Tags for better organization
+  tags: text("tags").array(),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  categoryIdx: index("idx_announcement_templates_category").on(table.category),
+  createdByIdx: index("idx_announcement_templates_created_by").on(table.createdBy),
+  activeIdx: index("idx_announcement_templates_active").on(table.isActive),
+  nameIdx: index("idx_announcement_templates_name").on(table.name),
+}));
+
+// Phase 6: Automation Rules for recurring messages
+export const automationRules = pgTable("automation_rules", {
+  id: serial("id").primaryKey(),
+  name: varchar("name").notNull(),
+  description: text("description"),
+  
+  // Rule configuration
+  isActive: boolean("is_active").default(true),
+  ruleType: varchar("rule_type").notNull(), // 'recurring', 'conditional', 'reminder'
+  
+  // Scheduling pattern
+  cronExpression: varchar("cron_expression"), // For recurring messages (e.g., "0 9 * * 1" = every Monday at 9am)
+  timezone: varchar("timezone").default("America/Chicago"),
+  
+  // Template to use
+  templateId: integer("template_id").references(() => announcementTemplates.id),
+  
+  // Override template values if needed
+  title: varchar("title"), // Override template title
+  content: text("content"), // Override template content
+  priority: varchar("priority"), // Override template priority
+  targetAudience: varchar("target_audience"), // Override template audience
+  smsEnabled: boolean("sms_enabled"), // Override template SMS setting
+  
+  // Conditional logic (for future expansion)
+  conditions: jsonb("conditions"), // JSON object defining conditions
+  
+  // Rule metadata
+  createdBy: varchar("created_by").notNull().references(() => users.id),
+  lastTriggered: timestamp("last_triggered"),
+  nextRun: timestamp("next_run"),
+  runCount: integer("run_count").default(0),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  activeIdx: index("idx_automation_rules_active").on(table.isActive),
+  typeIdx: index("idx_automation_rules_type").on(table.ruleType),
+  nextRunIdx: index("idx_automation_rules_next_run").on(table.nextRun),
+  createdByIdx: index("idx_automation_rules_created_by").on(table.createdBy),
+  templateIdx: index("idx_automation_rules_template").on(table.templateId),
 }));
 
 // Export types
@@ -1386,6 +1498,20 @@ export const dashboardWidgetsRelations = relations(dashboardWidgets, ({ one }) =
   user: one(users, { fields: [dashboardWidgets.userId], references: [users.id] }),
 }));
 
+// Phase 6: Advanced Features Relations
+export const scheduledMessagesRelations = relations(scheduledMessages, ({ one }) => ({
+  author: one(users, { fields: [scheduledMessages.authorId], references: [users.id] }),
+}));
+
+export const announcementTemplatesRelations = relations(announcementTemplates, ({ one, many }) => ({
+  creator: one(users, { fields: [announcementTemplates.createdBy], references: [users.id] }),
+}));
+
+export const automationRulesRelations = relations(automationRules, ({ one, many }) => ({
+  creator: one(users, { fields: [automationRules.createdBy], references: [users.id] }),
+  template: one(announcementTemplates, { fields: [automationRules.templateId], references: [announcementTemplates.id] }),
+}));
+
 // ============================================
 // ACCOUNTING INSERT SCHEMAS & TYPES
 // ============================================
@@ -1745,3 +1871,71 @@ export type CommunicationEvent = typeof communicationEvents.$inferSelect;
 export type InsertCommunicationEvent = z.infer<typeof insertCommunicationEventSchema>;
 export type UserCommunicationStats = typeof userCommunicationStats.$inferSelect;
 export type InsertUserCommunicationStats = z.infer<typeof insertUserCommunicationStatsSchema>;
+
+// Phase 6: Advanced Features Schemas and Types
+export const insertScheduledMessageSchema = createInsertSchema(scheduledMessages).omit({
+  id: true,
+  sentAt: true,
+  retryCount: true,
+  status: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const updateScheduledMessageSchema = createInsertSchema(scheduledMessages)
+  .omit({
+    id: true,
+    authorId: true,
+    createdAt: true,
+    updatedAt: true,
+  })
+  .partial();
+
+export const insertAnnouncementTemplateSchema = createInsertSchema(announcementTemplates).omit({
+  id: true,
+  useCount: true,
+  lastUsedAt: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const updateAnnouncementTemplateSchema = createInsertSchema(announcementTemplates)
+  .omit({
+    id: true,
+    useCount: true,
+    createdBy: true,
+    createdAt: true,
+    updatedAt: true,
+  })
+  .partial();
+
+export const insertAutomationRuleSchema = createInsertSchema(automationRules).omit({
+  id: true,
+  lastTriggered: true,
+  nextRun: true,
+  runCount: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const updateAutomationRuleSchema = createInsertSchema(automationRules)
+  .omit({
+    id: true,
+    createdBy: true,
+    createdAt: true,
+    updatedAt: true,
+  })
+  .partial();
+
+// Phase 6: Advanced Features Types
+export type ScheduledMessage = typeof scheduledMessages.$inferSelect;
+export type InsertScheduledMessage = z.infer<typeof insertScheduledMessageSchema>;
+export type UpdateScheduledMessage = z.infer<typeof updateScheduledMessageSchema>;
+
+export type AnnouncementTemplate = typeof announcementTemplates.$inferSelect;
+export type InsertAnnouncementTemplate = z.infer<typeof insertAnnouncementTemplateSchema>;
+export type UpdateAnnouncementTemplate = z.infer<typeof updateAnnouncementTemplateSchema>;
+
+export type AutomationRule = typeof automationRules.$inferSelect;
+export type InsertAutomationRule = z.infer<typeof insertAutomationRuleSchema>;
+export type UpdateAutomationRule = z.infer<typeof updateAutomationRuleSchema>;

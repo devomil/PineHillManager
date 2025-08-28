@@ -14,6 +14,15 @@ import path from 'path';
 import fs from 'fs';
 import express from 'express';
 import twilio from 'twilio';
+// Phase 6: Advanced Features Schema Imports
+import {
+  insertScheduledMessageSchema,
+  updateScheduledMessageSchema,
+  insertAnnouncementTemplateSchema,
+  updateAnnouncementTemplateSchema,
+  insertAutomationRuleSchema,
+  updateAutomationRuleSchema,
+} from "@shared/schema";
 
 // Configure multer for file uploads
 const uploadsDir = path.join(process.cwd(), 'uploads');
@@ -6200,6 +6209,96 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error processing voice recording:', error);
       res.sendStatus(500);
+    }
+  });
+
+  // ============================================
+  // Phase 6: Advanced Features - API Routes
+  // ============================================
+
+  // Scheduled Messages Routes
+  app.post('/api/scheduled-messages', isAuthenticated, async (req, res) => {
+    try {
+      const validatedData = insertScheduledMessageSchema.parse({
+        ...req.body,
+        authorId: req.user!.id,
+      });
+      const scheduledMessage = await storage.createScheduledMessage(validatedData);
+      res.json(scheduledMessage);
+    } catch (error) {
+      console.error('Error creating scheduled message:', error);
+      res.status(400).json({ error: 'Failed to create scheduled message' });
+    }
+  });
+
+  app.get('/api/scheduled-messages', isAuthenticated, async (req, res) => {
+    try {
+      const scheduledMessages = await storage.getScheduledMessages();
+      res.json(scheduledMessages);
+    } catch (error) {
+      console.error('Error fetching scheduled messages:', error);
+      res.status(500).json({ error: 'Failed to fetch scheduled messages' });
+    }
+  });
+
+  // Announcement Templates Routes
+  app.post('/api/announcement-templates', isAuthenticated, async (req, res) => {
+    try {
+      const validatedData = insertAnnouncementTemplateSchema.parse({
+        ...req.body,
+        createdBy: req.user!.id,
+      });
+      const template = await storage.createAnnouncementTemplate(validatedData);
+      res.json(template);
+    } catch (error) {
+      console.error('Error creating announcement template:', error);
+      res.status(400).json({ error: 'Failed to create announcement template' });
+    }
+  });
+
+  app.get('/api/announcement-templates', isAuthenticated, async (req, res) => {
+    try {
+      const templates = await storage.getAnnouncementTemplates();
+      res.json(templates);
+    } catch (error) {
+      console.error('Error fetching announcement templates:', error);
+      res.status(500).json({ error: 'Failed to fetch announcement templates' });
+    }
+  });
+
+  app.get('/api/announcement-templates/category/:category', isAuthenticated, async (req, res) => {
+    try {
+      const { category } = req.params;
+      const templates = await storage.getAnnouncementTemplatesByCategory(category);
+      res.json(templates);
+    } catch (error) {
+      console.error('Error fetching templates by category:', error);
+      res.status(500).json({ error: 'Failed to fetch templates by category' });
+    }
+  });
+
+  // Automation Rules Routes (basic CRUD)
+  app.post('/api/automation-rules', isAuthenticated, async (req, res) => {
+    try {
+      const validatedData = insertAutomationRuleSchema.parse({
+        ...req.body,
+        createdBy: req.user!.id,
+      });
+      const rule = await storage.createAutomationRule(validatedData);
+      res.json(rule);
+    } catch (error) {
+      console.error('Error creating automation rule:', error);
+      res.status(400).json({ error: 'Failed to create automation rule' });
+    }
+  });
+
+  app.get('/api/automation-rules', isAuthenticated, async (req, res) => {
+    try {
+      const rules = await storage.getAutomationRules();
+      res.json(rules);
+    } catch (error) {
+      console.error('Error fetching automation rules:', error);
+      res.status(500).json({ error: 'Failed to fetch automation rules' });
     }
   });
 

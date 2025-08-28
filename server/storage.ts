@@ -42,6 +42,10 @@ import {
   communicationAnalytics,
   communicationEvents,
   userCommunicationStats,
+  // Phase 6: Advanced Features
+  scheduledMessages,
+  announcementTemplates,
+  automationRules,
   type User,
   type UpsertUser,
   type InsertTimeOffRequest,
@@ -145,6 +149,23 @@ import {
   type SelectResponse,
   type InsertResponse,
   type UpdateResponse,
+  // Communication Analytics
+  type CommunicationAnalytics,
+  type InsertCommunicationAnalytics,
+  type CommunicationEvent,
+  type InsertCommunicationEvent,
+  type UserCommunicationStats,
+  type InsertUserCommunicationStats,
+  // Phase 6: Advanced Features Types
+  type ScheduledMessage,
+  type InsertScheduledMessage,
+  type UpdateScheduledMessage,
+  type AnnouncementTemplate,
+  type InsertAnnouncementTemplate,
+  type UpdateAnnouncementTemplate,
+  type AutomationRule,
+  type InsertAutomationRule,
+  type UpdateAutomationRule,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, asc, gte, lte, or, sql } from "drizzle-orm";
@@ -568,6 +589,33 @@ export interface IStorage {
   createSMSDelivery(smsDelivery: any): Promise<any>;
   getSMSDeliveriesByMessageId(messageId: number): Promise<any[]>;
   updateSMSDeliveryStatus(deliveryId: number, status: string, deliveredAt?: Date): Promise<void>;
+  
+  // Phase 6: Advanced Features - Scheduled Messages
+  createScheduledMessage(scheduledMessage: InsertScheduledMessage): Promise<ScheduledMessage>;
+  getScheduledMessages(): Promise<ScheduledMessage[]>;
+  getScheduledMessage(id: number): Promise<ScheduledMessage | undefined>;
+  updateScheduledMessage(id: number, updates: UpdateScheduledMessage): Promise<ScheduledMessage>;
+  deleteScheduledMessage(id: number): Promise<void>;
+  getScheduledMessagesForDelivery(): Promise<ScheduledMessage[]>;
+  
+  // Phase 6: Advanced Features - Announcement Templates
+  createAnnouncementTemplate(template: InsertAnnouncementTemplate): Promise<AnnouncementTemplate>;
+  getAnnouncementTemplates(): Promise<AnnouncementTemplate[]>;
+  getAnnouncementTemplate(id: number): Promise<AnnouncementTemplate | undefined>;
+  updateAnnouncementTemplate(id: number, updates: UpdateAnnouncementTemplate): Promise<AnnouncementTemplate>;
+  deleteAnnouncementTemplate(id: number): Promise<void>;
+  getAnnouncementTemplatesByCategory(category: string): Promise<AnnouncementTemplate[]>;
+  incrementTemplateUsage(id: number): Promise<void>;
+  
+  // Phase 6: Advanced Features - Automation Rules
+  createAutomationRule(rule: InsertAutomationRule): Promise<AutomationRule>;
+  getAutomationRules(): Promise<AutomationRule[]>;
+  getAutomationRule(id: number): Promise<AutomationRule | undefined>;
+  updateAutomationRule(id: number, updates: UpdateAutomationRule): Promise<AutomationRule>;
+  deleteAutomationRule(id: number): Promise<void>;
+  getActiveAutomationRules(): Promise<AutomationRule[]>;
+  getAutomationRulesForExecution(): Promise<AutomationRule[]>;
+  updateAutomationRuleLastTriggered(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -4102,6 +4150,166 @@ export class DatabaseStorage implements IStorage {
           updatedAt: new Date(),
         },
       });
+  }
+
+  // Phase 6: Advanced Features - Scheduled Messages Implementation
+  async createScheduledMessage(scheduledMessage: InsertScheduledMessage): Promise<ScheduledMessage> {
+    const result = await db.insert(scheduledMessages).values(scheduledMessage).returning();
+    return result[0];
+  }
+
+  async getScheduledMessages(): Promise<ScheduledMessage[]> {
+    return await db.select().from(scheduledMessages).orderBy(desc(scheduledMessages.scheduledFor));
+  }
+
+  async getScheduledMessage(id: number): Promise<ScheduledMessage | undefined> {
+    const result = await db.select().from(scheduledMessages).where(eq(scheduledMessages.id, id));
+    return result[0];
+  }
+
+  async updateScheduledMessage(id: number, updates: UpdateScheduledMessage): Promise<ScheduledMessage> {
+    const result = await db
+      .update(scheduledMessages)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(scheduledMessages.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteScheduledMessage(id: number): Promise<void> {
+    await db.delete(scheduledMessages).where(eq(scheduledMessages.id, id));
+  }
+
+  async getScheduledMessagesForDelivery(): Promise<ScheduledMessage[]> {
+    return await db
+      .select()
+      .from(scheduledMessages)
+      .where(
+        and(
+          eq(scheduledMessages.status, "scheduled"),
+          lte(scheduledMessages.scheduledFor, new Date())
+        )
+      )
+      .orderBy(asc(scheduledMessages.scheduledFor));
+  }
+
+  // Phase 6: Advanced Features - Announcement Templates Implementation
+  async createAnnouncementTemplate(template: InsertAnnouncementTemplate): Promise<AnnouncementTemplate> {
+    const result = await db.insert(announcementTemplates).values(template).returning();
+    return result[0];
+  }
+
+  async getAnnouncementTemplates(): Promise<AnnouncementTemplate[]> {
+    return await db
+      .select()
+      .from(announcementTemplates)
+      .where(eq(announcementTemplates.isActive, true))
+      .orderBy(desc(announcementTemplates.createdAt));
+  }
+
+  async getAnnouncementTemplate(id: number): Promise<AnnouncementTemplate | undefined> {
+    const result = await db.select().from(announcementTemplates).where(eq(announcementTemplates.id, id));
+    return result[0];
+  }
+
+  async updateAnnouncementTemplate(id: number, updates: UpdateAnnouncementTemplate): Promise<AnnouncementTemplate> {
+    const result = await db
+      .update(announcementTemplates)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(announcementTemplates.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteAnnouncementTemplate(id: number): Promise<void> {
+    await db.update(announcementTemplates).set({ isActive: false }).where(eq(announcementTemplates.id, id));
+  }
+
+  async getAnnouncementTemplatesByCategory(category: string): Promise<AnnouncementTemplate[]> {
+    return await db
+      .select()
+      .from(announcementTemplates)
+      .where(
+        and(
+          eq(announcementTemplates.category, category),
+          eq(announcementTemplates.isActive, true)
+        )
+      )
+      .orderBy(desc(announcementTemplates.useCount));
+  }
+
+  async incrementTemplateUsage(id: number): Promise<void> {
+    await db
+      .update(announcementTemplates)
+      .set({ 
+        useCount: sql`${announcementTemplates.useCount} + 1`,
+        lastUsedAt: new Date(),
+        updatedAt: new Date()
+      })
+      .where(eq(announcementTemplates.id, id));
+  }
+
+  // Phase 6: Advanced Features - Automation Rules Implementation
+  async createAutomationRule(rule: InsertAutomationRule): Promise<AutomationRule> {
+    const result = await db.insert(automationRules).values(rule).returning();
+    return result[0];
+  }
+
+  async getAutomationRules(): Promise<AutomationRule[]> {
+    return await db
+      .select()
+      .from(automationRules)
+      .orderBy(desc(automationRules.createdAt));
+  }
+
+  async getAutomationRule(id: number): Promise<AutomationRule | undefined> {
+    const result = await db.select().from(automationRules).where(eq(automationRules.id, id));
+    return result[0];
+  }
+
+  async updateAutomationRule(id: number, updates: UpdateAutomationRule): Promise<AutomationRule> {
+    const result = await db
+      .update(automationRules)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(automationRules.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteAutomationRule(id: number): Promise<void> {
+    await db.update(automationRules).set({ isActive: false }).where(eq(automationRules.id, id));
+  }
+
+  async getActiveAutomationRules(): Promise<AutomationRule[]> {
+    return await db
+      .select()
+      .from(automationRules)
+      .where(eq(automationRules.isActive, true))
+      .orderBy(desc(automationRules.createdAt));
+  }
+
+  async getAutomationRulesForExecution(): Promise<AutomationRule[]> {
+    return await db
+      .select()
+      .from(automationRules)
+      .where(
+        and(
+          eq(automationRules.isActive, true),
+          lte(automationRules.nextRun, new Date())
+        )
+      )
+      .orderBy(asc(automationRules.nextRun));
+  }
+
+  async updateAutomationRuleLastTriggered(id: number): Promise<void> {
+    await db
+      .update(automationRules)
+      .set({ 
+        lastTriggered: new Date(),
+        runCount: sql`${automationRules.runCount} + 1`,
+        updatedAt: new Date()
+      })
+      .where(eq(automationRules.id, id));
   }
 }
 
