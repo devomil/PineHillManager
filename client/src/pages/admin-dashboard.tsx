@@ -11,6 +11,7 @@ import { formatTimeStringToCST } from "@/lib/time-utils";
 // Import tab components
 import EmployeesPage from "@/pages/employees";
 import ShiftScheduling from "@/pages/shift-scheduling";
+import CommunicationsPage from "@/pages/communications";
 import SystemSupport from "@/pages/system-support";
 import UserManagement from "@/pages/user-management";
 import ReportsPage from "@/pages/reports";
@@ -30,6 +31,7 @@ export default function AdminDashboard() {
     if (path.includes('/employees')) return 'employees';
     if (path.includes('/shift-scheduling')) return 'scheduling';
     if (path.includes('/communications')) return 'communications';
+    if (path.includes('/user-management')) return 'user-management';
     if (path.includes('/system-support')) return 'system-support';
     if (path.includes('/reports')) return 'reports';
     if (path.includes('/dashboard') && !path.includes('/admin')) return 'employee-view';
@@ -52,6 +54,9 @@ export default function AdminDashboard() {
         break;
       case 'communications':
         setLocation('/communications');
+        break;
+      case 'user-management':
+        setLocation('/user-management');
         break;
       case 'system-support':
         setLocation('/system-support');
@@ -555,12 +560,12 @@ export default function AdminDashboard() {
                 {/* Communication & Support Section */}
                 <div className="text-sm font-medium text-gray-500 px-3 py-2 border-b">Communication & Support</div>
                 <Button
-                  variant={getCurrentTab() === "announcements" ? "default" : "ghost"}
-                  onClick={() => { handleTabChange("announcements"); setMobileMenuOpen(false); }}
+                  variant={getCurrentTab() === "communications" ? "default" : "ghost"}
+                  onClick={() => { handleTabChange("communications"); setMobileMenuOpen(false); }}
                   className="w-full justify-start gap-2 h-10 hover:bg-blue-50 hover:text-blue-700"
                 >
-                  <Bell className="h-4 w-4" />
-                  Announcements
+                  <MessageCircle className="h-4 w-4" />
+                  Communications
                 </Button>
                 <Button
                   variant={getCurrentTab() === "system-support" ? "default" : "ghost"}
@@ -621,8 +626,8 @@ export default function AdminDashboard() {
             <ShiftScheduling />
           </TabsContent>
 
-          <TabsContent value="announcements" className="space-y-6">
-            <AnnouncementsPage />
+          <TabsContent value="communications" className="space-y-6">
+            <CommunicationsPage />
           </TabsContent>
 
           <TabsContent value="system-support" className="space-y-6">
