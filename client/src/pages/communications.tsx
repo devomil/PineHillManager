@@ -903,6 +903,31 @@ function CommunicationsContent() {
     }
   };
 
+  // New function to format audience based on selected employees
+  const formatMessageAudience = (message: any) => {
+    // If specific employees are selected, show their names
+    if (message.targetEmployees && message.targetEmployees.length > 0 && message.targetAudience === 'all') {
+      const selectedEmployees = employees?.filter(emp => 
+        message.targetEmployees.includes(emp.id)
+      ) || [];
+      
+      if (selectedEmployees.length > 0) {
+        if (selectedEmployees.length === 1) {
+          return `${selectedEmployees[0].firstName} ${selectedEmployees[0].lastName}`;
+        } else if (selectedEmployees.length === 2) {
+          return `${selectedEmployees[0].firstName} ${selectedEmployees[0].lastName} & ${selectedEmployees[1].firstName} ${selectedEmployees[1].lastName}`;
+        } else if (selectedEmployees.length <= 4) {
+          return `${selectedEmployees.length} Selected Employees`;
+        } else {
+          return `${selectedEmployees.length} Employees`;
+        }
+      }
+    }
+    
+    // Default to the audience type
+    return formatAudience(message.targetAudience);
+  };
+
   const isExpired = (expiresAt?: string) => {
     if (!expiresAt) return false;
     return isAfter(new Date(), parseISO(expiresAt));
@@ -1602,7 +1627,7 @@ function CommunicationsContent() {
                             </div>
                             <div className="flex items-center gap-1">
                               <Users className="h-3 w-3" />
-                              <span>{formatAudience(message.targetAudience)}</span>
+                              <span>{formatMessageAudience(message)}</span>
                             </div>
                             {message.smsEnabled && (
                               <Badge className="bg-blue-100 text-blue-800 text-xs">SMS</Badge>
