@@ -786,7 +786,18 @@ function CommunicationsContent() {
   // Create communication mutation
   const createCommunicationMutation = useMutation({
     mutationFn: async (data: any) => {
-      return apiRequest('/api/communications/send', 'POST', data);
+      // Map client fields to server expected fields
+      const mappedData = {
+        subject: data.title,           // Server expects 'subject' not 'title'
+        content: data.content,
+        priority: data.priority,
+        messageType: data.type,
+        smsEnabled: data.smsEnabled,
+        recipientMode: data.targetEmployees?.length > 0 ? 'individual' : 'audience',
+        targetAudience: data.targetAudience,
+        recipients: data.targetEmployees || []  // Server expects 'recipients' not 'targetEmployees'
+      };
+      return apiRequest('/api/communications/send', 'POST', mappedData);
     },
     onSuccess: () => {
       toast({ title: "Communication sent successfully!" });
@@ -1081,7 +1092,31 @@ function CommunicationsContent() {
                     onValueChange={(value) => setFormData(prev => ({ ...prev, targetAudience: value }))}
                   >
                     <SelectTrigger>
-                      <SelectValue />
+                      <SelectValue asChild>
+                        <span>
+                          {(() => {
+                            // Show selected employees if any are chosen
+                            if (formData.targetEmployees && formData.targetEmployees.length > 0) {
+                              const selectedEmployees = employees?.filter(emp => 
+                                formData.targetEmployees.includes(emp.id)
+                              ) || [];
+                              
+                              if (selectedEmployees.length === 1) {
+                                return `${selectedEmployees[0].firstName} ${selectedEmployees[0].lastName}`;
+                              } else if (selectedEmployees.length === 2) {
+                                return `${selectedEmployees[0].firstName} ${selectedEmployees[0].lastName} & ${selectedEmployees[1].firstName} ${selectedEmployees[1].lastName}`;
+                              } else if (selectedEmployees.length <= 4) {
+                                return `${selectedEmployees.length} Selected Employees`;
+                              } else {
+                                return `${selectedEmployees.length} Employees`;
+                              }
+                            }
+                            
+                            // Default to audience type
+                            return formatAudience(formData.targetAudience);
+                          })()} 
+                        </span>
+                      </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Staff</SelectItem>
