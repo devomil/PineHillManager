@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 // Removed Tabs imports to prevent RovingFocusGroupItem conflicts
-import { Users, Clock, Calendar, Bell, Settings, Eye, FileText, DollarSign, Menu, QrCode, Video, User, LogOut, ChevronDown } from "lucide-react";
+import { Users, Clock, Calendar, Bell, Settings, Eye, FileText, DollarSign, Menu, QrCode, Video, User, LogOut, ChevronDown, MessageSquare } from "lucide-react";
 import { useLocation } from "wouter";
 
 interface AdminLayoutProps {
@@ -27,9 +27,6 @@ export default function AdminLayout({ children, currentTab }: AdminLayoutProps) 
         break;
       case 'scheduling':
         setLocation('/shift-scheduling');
-        break;
-      case 'announcements':
-        setLocation('/announcements');
         break;
       case 'communications':
         setLocation('/communications');
@@ -183,12 +180,12 @@ export default function AdminLayout({ children, currentTab }: AdminLayoutProps) 
               {/* Secondary Items - Hidden on smaller screens */}
               <div className="h-6 w-px bg-gray-300 hidden xl:block"></div>
               <Button
-                variant={currentTab === "announcements" ? "default" : "ghost"}
-                onClick={() => handleTabChange("announcements")}
+                variant={currentTab === "communications" ? "default" : "ghost"}
+                onClick={() => handleTabChange("communications")}
                 className="nav-item-secondary hidden xl:flex items-center gap-2 px-3 py-2 rounded-md hover:bg-gray-50 hover:shadow-sm hover:-translate-y-0.5 transition-all duration-200 whitespace-nowrap mx-0 text-sm"
               >
-                <Bell className="h-3 w-3" />
-                Announcements
+                <MessageSquare className="h-3 w-3" />
+                Communications
               </Button>
               <Button
                 variant={currentTab === "system-support" ? "default" : "ghost"}
@@ -290,12 +287,12 @@ export default function AdminLayout({ children, currentTab }: AdminLayoutProps) 
                 {/* Communication & Support Section */}
                 <div className="text-sm font-medium text-gray-500 px-3 py-2 border-b">Communication & Support</div>
                 <Button
-                  variant={currentTab === "announcements" ? "default" : "ghost"}
-                  onClick={() => { handleTabChange("announcements"); setMobileMenuOpen(false); }}
+                  variant={currentTab === "communications" ? "default" : "ghost"}
+                  onClick={() => { handleTabChange("communications"); setMobileMenuOpen(false); }}
                   className="w-full justify-start gap-2 h-10 hover:bg-blue-50 hover:text-blue-700"
                 >
-                  <Bell className="h-4 w-4" />
-                  Announcements
+                  <MessageSquare className="h-4 w-4" />
+                  Communications
                 </Button>
                 <Button
                   variant={currentTab === "system-support" ? "default" : "ghost"}

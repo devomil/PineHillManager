@@ -11,7 +11,6 @@ import { formatTimeStringToCST } from "@/lib/time-utils";
 // Import tab components
 import EmployeesPage from "@/pages/employees";
 import ShiftScheduling from "@/pages/shift-scheduling";
-import AnnouncementsPage from "@/pages/admin/announcements";
 import SystemSupport from "@/pages/system-support";
 import UserManagement from "@/pages/user-management";
 import ReportsPage from "@/pages/reports";
@@ -30,7 +29,7 @@ export default function AdminDashboard() {
     const path = location;
     if (path.includes('/employees')) return 'employees';
     if (path.includes('/shift-scheduling')) return 'scheduling';
-    if (path.includes('/announcements')) return 'announcements';
+    if (path.includes('/communications')) return 'communications';
     if (path.includes('/system-support')) return 'system-support';
     if (path.includes('/reports')) return 'reports';
     if (path.includes('/dashboard') && !path.includes('/admin')) return 'employee-view';
@@ -51,8 +50,8 @@ export default function AdminDashboard() {
       case 'scheduling':
         setLocation('/shift-scheduling');
         break;
-      case 'announcements':
-        setLocation('/admin/announcements');
+      case 'communications':
+        setLocation('/communications');
         break;
       case 'system-support':
         setLocation('/system-support');
@@ -158,10 +157,10 @@ export default function AdminDashboard() {
       bgColor: "bg-green-50"
     },
     {
-      title: "Company Announcements",
-      description: "Create and manage announcements",
-      icon: Bell,
-      href: "/admin/announcements",
+      title: "Communications",
+      description: "Manage announcements, messages, and team communication",
+      icon: MessageCircle,
+      href: "/communications",
       color: "text-purple-600",
       bgColor: "bg-purple-50"
     },
@@ -172,14 +171,6 @@ export default function AdminDashboard() {
       href: "/system-support",
       color: "text-indigo-600",
       bgColor: "bg-indigo-50"
-    },
-    {
-      title: "Team Communication",
-      description: "Monitor team chat and messages",
-      icon: MessageCircle,
-      href: "/communication",
-      color: "text-teal-600",
-      bgColor: "bg-teal-50"
     },
     {
       title: "Reports & Analytics",

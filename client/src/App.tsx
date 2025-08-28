@@ -6,15 +6,12 @@ import HomeDashboard from "@/pages/home-dashboard";
 import AdminDashboard from "@/pages/admin-dashboard";
 import Documents from "@/pages/documents";
 import LogosPage from "@/pages/admin/logos";
-import AnnouncementsPage from "@/pages/admin/announcements";
 import AdminEmployeesPage from "@/pages/admin/employees";
-import AnnouncementsViewPage from "@/pages/announcements";
 import CommunicationsPage from "@/pages/communications";
 import Calendar from "@/pages/calendar";
 import Employees from "@/pages/employees";
 import TimeManagement from "@/pages/time-management";
 import ShiftScheduling from "@/pages/shift-scheduling";
-import Communication from "@/pages/communication";
 import Training from "@/pages/training";
 import AdminTraining from "@/pages/admin-training";
 import Profile from "@/pages/profile";
@@ -24,7 +21,6 @@ import TimeClock from "@/pages/time-clock";
 import Schedule from "@/pages/schedule";
 import TimeOff from "@/pages/time-off";
 import ShiftCoverage from "@/pages/shift-coverage";
-import TeamCommunication from "@/pages/team-communication";
 import SystemSupport from "@/pages/system-support";
 import EmployeeSupport from "@/pages/employee-support";
 import UserManagement from "@/pages/user-management";
@@ -50,7 +46,7 @@ function AuthenticatedApp() {
       <Route path="/admin/employees" component={AdminEmployeesPage} />
       <Route path="/time-management" component={TimeManagement} />
       <Route path="/shift-scheduling" component={ShiftScheduling} />
-      <Route path="/communication" component={TeamCommunication} />
+      <Route path="/communication" component={CommunicationsPage} />
       <Route path="/training" component={Training} />
       <Route path="/admin/training" component={AdminTraining} />
       <Route path="/profile" component={Profile} />
@@ -58,14 +54,13 @@ function AuthenticatedApp() {
       <Route path="/notifications" component={Notifications} />
       <Route path="/documents" component={Documents} />
       <Route path="/admin/logos" component={LogosPage} />
-      <Route path="/admin/announcements" component={AnnouncementsPage} />
-      <Route path="/announcements" component={AnnouncementsViewPage} />
+      <Route path="/announcements" component={CommunicationsPage} />
       <Route path="/communications" component={CommunicationsPage} />
       <Route path="/time-clock" component={TimeClock} />
       <Route path="/schedule" component={Schedule} />
       <Route path="/time-off" component={TimeOff} />
       <Route path="/shift-coverage" component={ShiftCoverage} />
-      <Route path="/team-communication" component={TeamCommunication} />
+      <Route path="/team-communication" component={CommunicationsPage} />
       <Route path="/system-support" component={SystemSupport} />
       <Route path="/support" component={EmployeeSupport} />
       <Route path="/user-management" component={UserManagement} />

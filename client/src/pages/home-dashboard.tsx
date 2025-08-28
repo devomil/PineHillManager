@@ -1,7 +1,7 @@
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Clock, Calendar, FileText, Users, MessageCircle, Bell, ChevronRight, HelpCircle, User, LogOut, ChevronDown } from "lucide-react";
+import { Clock, Calendar, FileText, Users, MessageSquare, Bell, ChevronRight, HelpCircle, User, LogOut, ChevronDown } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Link } from "wouter";
@@ -46,20 +46,12 @@ export default function HomeDashboard() {
       iconColor: "text-orange-600"
     },
     {
-      title: "Company Announcements",
-      description: "Stay updated with the latest company news and updates",
-      icon: Bell,
-      href: "/announcements",
-      color: "bg-green-50 border-green-200",
-      iconColor: "text-green-600"
-    },
-    {
-      title: "Team Communication",
-      description: "Chat with your team and stay connected",
-      icon: MessageCircle,
-      href: "/communication",
-      color: "bg-teal-50 border-teal-200",
-      iconColor: "text-teal-600"
+      title: "Communications",
+      description: "Company announcements, team messages, and SMS notifications",
+      icon: MessageSquare,
+      href: "/communications",
+      color: "bg-blue-50 border-blue-200",
+      iconColor: "text-blue-600"
     },
     {
       title: "Support Center",
@@ -187,8 +179,8 @@ export default function HomeDashboard() {
                        action.title === "My Schedule" ? "View Schedule" :
                        action.title === "Time Off Requests" ? "Request Time Off" :
                        action.title === "Shift Coverage" ? "Manage Coverage" :
-                       action.title === "Company Announcements" ? "View Announcements" :
-                       "Open Chat"}
+                       action.title === "Communications" ? "View Communications" :
+                       "Open"}
                     </Button>
                   </div>
                 </CardContent>
