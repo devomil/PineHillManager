@@ -1487,7 +1487,32 @@ function CommunicationsContent() {
                         onValueChange={(value) => setFormData({ ...formData, targetAudience: value })}
                       >
                         <SelectTrigger>
-                          <SelectValue />
+                          <SelectValue asChild>
+                            <span>
+                              {(() => {
+                                // Show selected employees if any are chosen
+                                if (formData.targetEmployees && formData.targetEmployees.length > 0) {
+                                  const selectedEmployees = employees?.filter(emp => 
+                                    formData.targetEmployees.includes(emp.id)
+                                  ) || [];
+                                  
+                                  if (selectedEmployees.length === 1) {
+                                    return `${selectedEmployees[0].firstName} ${selectedEmployees[0].lastName}`;
+                                  } else if (selectedEmployees.length === 2) {
+                                    return `${selectedEmployees[0].firstName} ${selectedEmployees[0].lastName} & ${selectedEmployees[1].firstName} ${selectedEmployees[1].lastName}`;
+                                  } else if (selectedEmployees.length <= 4) {
+                                    return `${selectedEmployees.length} Selected Employees`;
+                                  } else {
+                                    return `${selectedEmployees.length} Employees`;
+                                  }
+                                }
+                                
+                                // Default to audience type
+                                return formatAudience(formData.targetAudience);
+                              })()
+                              }
+                            </span>
+                          </SelectValue>
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="all">All Staff</SelectItem>

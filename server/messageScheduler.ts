@@ -34,7 +34,7 @@ async function processScheduledMessages() {
           }
         } else {
           // Default to all staff if no specific targets
-          const allEmployees = await storage.getEmployees();
+          const allEmployees = await storage.getUsers();
           targetEmployees = allEmployees.filter(emp => emp.smsEnabled && emp.phone);
         }
 
