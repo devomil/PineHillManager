@@ -628,12 +628,7 @@ function CommunicationsContent() {
   // Phase 6: Create scheduled message mutation
   const createScheduledMessageMutation = useMutation({
     mutationFn: async (data: any) => {
-      // Convert scheduledFor string to Date object
-      const payload = {
-        ...data,
-        scheduledFor: new Date(data.scheduledFor)
-      };
-      return apiRequest('POST', '/api/scheduled-messages', payload);
+      return apiRequest('POST', '/api/scheduled-messages', data);
     },
     onSuccess: () => {
       toast({ title: "✅ Message scheduled successfully!" });

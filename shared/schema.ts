@@ -1880,6 +1880,9 @@ export const insertScheduledMessageSchema = createInsertSchema(scheduledMessages
   status: true,
   createdAt: true,
   updatedAt: true,
+}).extend({
+  // Transform scheduledFor from string to Date
+  scheduledFor: z.string().transform((val) => new Date(val))
 });
 
 export const updateScheduledMessageSchema = createInsertSchema(scheduledMessages)
