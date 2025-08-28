@@ -20,15 +20,7 @@ export function useWebSocket() {
   const connect = () => {
     try {
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-      const host = window.location.hostname;
-      
-      // For Replit/development, use port 5000, otherwise use appropriate default
-      let port = window.location.port;
-      if (!port) {
-        port = protocol === "wss:" ? "443" : "5000";
-      }
-      
-      const wsUrl = `${protocol}//${host}:${port}/ws`;
+      const wsUrl = `${protocol}//${window.location.host}/ws`;
       
       console.log("Connecting to WebSocket:", wsUrl);
       socketRef.current = new WebSocket(wsUrl);
@@ -67,6 +59,10 @@ export function useWebSocket() {
             case "update":
               // Handle real-time updates (refresh queries, etc.)
               console.log("Real-time update received:", message.data);
+              break;
+            case "subscribed":
+              // Handle successful subscription
+              console.log("Successfully subscribed to channel");
               break;
             default:
               console.log("Unknown message type:", message.type);

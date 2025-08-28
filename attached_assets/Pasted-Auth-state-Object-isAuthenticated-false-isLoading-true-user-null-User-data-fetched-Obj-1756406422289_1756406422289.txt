@@ -1,0 +1,39 @@
+Auth state: 
+Object {isAuthenticated: false, isLoading: true, user: null}
+User data fetched: 
+Object {id: "40154188", email: "ryan@pinehillfarm.co", firstName: "Ryan", lastName: "Sorensen", role: "admin"}
+useAuth - user: 
+Object {id: "40154188", email: "ryan@pinehillfarm.co", firstName: "Ryan", lastName: "Sorensen", role: "admin"}
+ isLoading: false error: null
+useAuth - user: 
+Object {id: "40154188", email: "ryan@pinehillfarm.co", firstName: "Ryan", lastName: "Sorensen", role: "admin"}
+ isLoading: false error: null
+Auth state: 
+Object {isAuthenticated: true, isLoading: false, user: {…}}
+Rendering: AuthenticatedApp
+Auth state: 
+Object {isAuthenticated: true, isLoading: false, user: {…}}
+Rendering: AuthenticatedApp
+Connecting to WebSocket: wss://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev:443/ws
+WebSocket error: 
+Event {isTrusted: true}
+
+at t.value (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:17465)
+at new t (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:12630)
+at t.value (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:32766)
+at https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:34400
+WebSocket disconnected
+WebSocket error: 
+Event {isTrusted: true}
+
+at t.value (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:17465)
+at new t (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:12630)
+at t.value (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:32766)
+at https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:34400
+WebSocket disconnected
+WebSocket connected
+WebSocket welcomed: Welcome to Pine Hill Farm Communications
+WebSocket connected
+WebSocket welcomed: Welcome to Pine Hill Farm Communications
+Unknown message type: subscribed
+Attempting to reconnect (1/5)...
