@@ -113,7 +113,7 @@ export class SMSService {
         body: finalMessage,
         from: this.fromPhoneNumber,
         to: formattedTo,
-        statusCallback: `${process.env.BASE_URL || 'http://localhost:5000'}/api/sms/status-callback`,
+        // statusCallback: `${process.env.BASE_URL || 'http://localhost:5000'}/api/sms/status-callback`,
       });
 
       const deliveryStatus: SMSDeliveryStatus = {

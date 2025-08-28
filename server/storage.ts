@@ -3599,14 +3599,14 @@ export class DatabaseStorage implements IStorage {
 
   async createReadReceipt(receipt: { messageId: number; userId: string; deliveredAt?: Date }): Promise<void> {
     await db
-      .insert(messageReadReceipts)
+      .insert(readReceipts)
       .values({
         messageId: receipt.messageId,
         userId: receipt.userId,
         deliveredAt: receipt.deliveredAt || new Date(),
       })
       .onConflictDoUpdate({
-        target: messageReadReceipts.messageId,
+        target: readReceipts.messageId,
         set: {
           readAt: new Date(),
         },
@@ -3616,11 +3616,11 @@ export class DatabaseStorage implements IStorage {
   async getReadReceipt(messageId: number, userId: string): Promise<any> {
     const [receipt] = await db
       .select()
-      .from(messageReadReceipts)
+      .from(readReceipts)
       .where(
         and(
-          eq(messageReadReceipts.messageId, messageId),
-          eq(messageReadReceipts.userId, userId)
+          eq(readReceipts.messageId, messageId),
+          eq(readReceipts.userId, userId)
         )
       );
     return receipt;
@@ -3628,12 +3628,12 @@ export class DatabaseStorage implements IStorage {
 
   async markMessageAsRead(messageId: number, userId: string): Promise<void> {
     await db
-      .update(messageReadReceipts)
+      .update(readReceipts)
       .set({ readAt: new Date() })
       .where(
         and(
-          eq(messageReadReceipts.messageId, messageId),
-          eq(messageReadReceipts.userId, userId)
+          eq(readReceipts.messageId, messageId),
+          eq(readReceipts.userId, userId)
         )
       );
   }
