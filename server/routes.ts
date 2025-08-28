@@ -6219,8 +6219,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Scheduled Messages Routes
   app.post('/api/scheduled-messages', isAuthenticated, async (req, res) => {
     try {
+      // Convert scheduledFor from local time to proper timezone
+      let scheduledForDate = req.body.scheduledFor;
+      if (scheduledForDate) {
+        // Frontend sends: "2025-08-28T17:11" (assumed Central Time)
+        // Convert to proper timezone: 5:11 PM CT = 10:11 PM UTC
+        const localTime = new Date(scheduledForDate);
+        
+        // Add 5 hours to convert from CT to UTC (during standard time)
+        // Note: This assumes Central Standard Time (CST). In production,
+        // you'd want to use a proper timezone library like date-fns-tz
+        const utcTime = new Date(localTime.getTime() + (5 * 60 * 60 * 1000));
+        
+        console.log(`🌍 Timezone conversion: ${scheduledForDate} (local) → ${utcTime.toISOString()} (UTC)`);
+        scheduledForDate = utcTime;
+      }
+      
       const validatedData = insertScheduledMessageSchema.parse({
         ...req.body,
+        scheduledFor: scheduledForDate,
         authorId: req.user!.id,
       });
       const scheduledMessage = await storage.createScheduledMessage(validatedData);
