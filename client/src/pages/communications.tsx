@@ -1031,7 +1031,7 @@ function CommunicationsContent() {
                     value={formData.type} 
                     onValueChange={(value: any) => setFormData(prev => ({ ...prev, type: value }))}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="type">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -1072,7 +1072,7 @@ function CommunicationsContent() {
                     value={formData.priority} 
                     onValueChange={(value: any) => setFormData(prev => ({ ...prev, priority: value }))}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="priority">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -1091,7 +1091,7 @@ function CommunicationsContent() {
                     value={formData.targetAudience} 
                     onValueChange={(value) => setFormData(prev => ({ ...prev, targetAudience: value }))}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="audience">
                       <SelectValue asChild>
                         <span>
                           {(() => {
