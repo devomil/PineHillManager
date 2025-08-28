@@ -1460,9 +1460,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log('❌ No user found for phone number:', From);
         // Send auto-reply
         try {
-          await smsService.sendSMS(From, 
-            "Hello! We received your message but couldn't find your employee account. Please contact your manager if you need assistance."
-          );
+          await smsService.sendSMS({
+            to: From,
+            message: "Hello! We received your message but couldn't find your employee account. Please contact your manager if you need assistance.",
+            priority: 'normal'
+          });
         } catch (smsError) {
           console.error('Error sending auto-reply:', smsError);
         }
@@ -1514,9 +1516,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           // Send confirmation SMS
           try {
-            await smsService.sendSMS(From, 
-              `Thanks ${user.firstName}! Your message has been received and added to "${latestAnnouncement.title}". Your team will see your response.`
-            );
+            await smsService.sendSMS({
+              to: From,
+              message: `Thanks ${user.firstName}! Your message has been received and added to "${latestAnnouncement.title}". Your team will see your response.`,
+              priority: 'normal'
+            });
           } catch (smsError) {
             console.error('Error sending confirmation SMS:', smsError);
           }
@@ -1525,9 +1529,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.log('⚠️ No announcements found to link SMS response to');
           // Send auto-reply for no context
           try {
-            await smsService.sendSMS(From, 
-              `Thanks ${user.firstName}! Your message has been received. If you're replying to a specific announcement, please check the app for the latest updates.`
-            );
+            await smsService.sendSMS({
+              to: From,
+              message: `Thanks ${user.firstName}! Your message has been received. If you're replying to a specific announcement, please check the app for the latest updates.`,
+              priority: 'normal'
+            });
           } catch (smsError) {
             console.error('Error sending auto-reply:', smsError);
           }
@@ -1538,9 +1544,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         // Send error notification
         try {
-          await smsService.sendSMS(From, 
-            `Sorry ${user.firstName || 'there'}, we had trouble processing your message. Please try again or contact your manager.`
-          );
+          await smsService.sendSMS({
+            to: From,
+            message: `Sorry ${user.firstName || 'there'}, we had trouble processing your message. Please try again or contact your manager.`,
+            priority: 'normal'
+          });
         } catch (smsError) {
           console.error('Error sending error SMS:', smsError);
         }
@@ -1554,6 +1562,75 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error('❌ SMS webhook error:', error);
       res.set('Content-Type', 'text/xml');
       res.status(500).send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
+    }
+  });
+
+  // SMS status callback endpoint for Twilio delivery status updates
+  app.post("/api/sms/status-callback", async (req, res) => {
+    try {
+      const { MessageSid, MessageStatus, ErrorCode, ErrorMessage } = req.body;
+      
+      console.log('📱 SMS Status Callback:', {
+        sid: MessageSid,
+        status: MessageStatus,
+        errorCode: ErrorCode,
+        errorMessage: ErrorMessage
+      });
+      
+      // Update SMS service with delivery status
+      smsService.updateDeliveryStatus(MessageSid, MessageStatus, ErrorCode, ErrorMessage);
+      
+      res.status(200).send('OK');
+    } catch (error) {
+      console.error('Error processing SMS status callback:', error);
+      res.status(500).send('Error');
+    }
+  });
+
+  // SMS Testing Framework endpoint
+  app.post("/api/sms/run-tests", isAuthenticated, async (req: any, res) => {
+    try {
+      // Only allow admin users to run SMS tests
+      if (req.user?.role !== 'admin') {
+        return res.status(403).json({ error: 'Admin access required for SMS testing' });
+      }
+
+      console.log('🧪 Starting SMS testing framework...');
+      
+      // Import and run tests
+      const { smsTestingFramework } = await import('./sms-testing');
+      const testResults = await smsTestingFramework.runAllTests();
+      const report = smsTestingFramework.generateTestReport();
+
+      console.log('📋 SMS Testing completed');
+      console.log(report);
+
+      res.json({
+        success: true,
+        results: testResults,
+        report: report
+      });
+    } catch (error) {
+      console.error('Error running SMS tests:', error);
+      res.status(500).json({ 
+        error: 'Failed to run SMS tests',
+        details: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+
+  // SMS Analytics endpoint
+  app.get("/api/sms/analytics", isAuthenticated, async (req: any, res) => {
+    try {
+      if (req.user?.role !== 'admin' && req.user?.role !== 'manager') {
+        return res.status(403).json({ error: 'Admin or Manager access required' });
+      }
+
+      const stats = smsService.getDeliveryStats();
+      res.json(stats);
+    } catch (error) {
+      console.error('Error fetching SMS analytics:', error);
+      res.status(500).json({ error: 'Failed to fetch SMS analytics' });
     }
   });
 

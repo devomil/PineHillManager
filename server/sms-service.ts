@@ -42,10 +42,27 @@ export interface SMSDeliveryStatus {
   status: 'queued' | 'sending' | 'sent' | 'delivered' | 'failed' | 'undelivered';
   errorCode?: string;
   errorMessage?: string;
+  timestamp?: Date;
+  retryCount?: number;
+}
+
+export interface SMSRetryOptions {
+  maxRetries: number;
+  retryDelayMs: number;
+  backoffMultiplier: number;
 }
 
 export class SMSService {
   private fromPhoneNumber: string;
+  private deliveryStatusMap: Map<string, SMSDeliveryStatus> = new Map();
+  private retryQueue: Map<string, { attempt: number; nextRetryAt: Date; smsMessage: SMSMessage }> = new Map();
+  
+  // Default retry configuration
+  private defaultRetryOptions: SMSRetryOptions = {
+    maxRetries: 3,
+    retryDelayMs: 5000, // Start with 5 seconds
+    backoffMultiplier: 2 // Double delay each retry
+  };
 
   constructor() {
     // Format phone number to E.164 format (+1XXXXXXXXXX)
@@ -54,24 +71,35 @@ export class SMSService {
       : `+1${TWILIO_PHONE_NUMBER.replace(/\D/g, '')}`;
     
     console.log(`SMS Service initialized with phone number: ${this.fromPhoneNumber}`);
+    
+    // Start retry processor
+    this.startRetryProcessor();
   }
 
   /**
-   * Send a single SMS message
+   * Send a single SMS message with enhanced error handling and retry capability
    */
-  async sendSMS({ to, message, priority }: SMSMessage): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  async sendSMS({ to, message, priority, messageId }: SMSMessage, retryOptions?: Partial<SMSRetryOptions>): Promise<{ success: boolean; messageId?: string; error?: string; willRetry?: boolean }> {
+    const startTime = Date.now();
+    const options = { ...this.defaultRetryOptions, ...retryOptions };
+    
     try {
       // Check if Twilio is configured
       if (!twilioConfigured || !client) {
-        console.warn('SMS disabled: Twilio not configured properly');
-        return { success: false, error: 'SMS service not available' };
+        const error = 'SMS service not available - Twilio not configured properly';
+        console.warn(error);
+        await this.logSMSAttempt(to, message, false, error, 0);
+        return { success: false, error };
       }
 
       // Format recipient phone number
       const formattedTo = this.formatPhoneNumber(to);
       
       if (!formattedTo) {
-        return { success: false, error: 'Invalid phone number format' };
+        const error = 'Invalid phone number format';
+        console.error(`SMS failed for ${to}: ${error}`);
+        await this.logSMSAttempt(to, message, false, error, Date.now() - startTime);
+        return { success: false, error };
       }
 
       // Add priority prefix for emergency messages
@@ -79,23 +107,65 @@ export class SMSService {
         ? `🚨 EMERGENCY: ${message}` 
         : message;
 
+      // Attempt to send SMS
       const twilioMessage = await client.messages.create({
         body: finalMessage,
         from: this.fromPhoneNumber,
         to: formattedTo,
+        statusCallback: `${process.env.BASE_URL || 'http://localhost:5000'}/api/sms/status-callback`,
       });
 
-      console.log(`SMS sent successfully to ${formattedTo}, SID: ${twilioMessage.sid}`);
+      const deliveryStatus: SMSDeliveryStatus = {
+        messageId: twilioMessage.sid,
+        status: 'sent',
+        timestamp: new Date(),
+        retryCount: 0
+      };
+      
+      this.deliveryStatusMap.set(twilioMessage.sid, deliveryStatus);
+      
+      console.log(`✅ SMS sent successfully to ${formattedTo}, SID: ${twilioMessage.sid}, Priority: ${priority}`);
+      await this.logSMSAttempt(formattedTo, finalMessage, true, undefined, Date.now() - startTime, twilioMessage.sid);
       
       return { 
         success: true, 
         messageId: twilioMessage.sid 
       };
+      
     } catch (error: any) {
-      console.error('SMS sending failed:', error);
+      const errorMessage = error.message || 'Failed to send SMS';
+      const duration = Date.now() - startTime;
+      
+      console.error(`❌ SMS sending failed to ${to}: ${errorMessage}`);
+      await this.logSMSAttempt(to, message, false, errorMessage, duration);
+      
+      // Determine if this error is retryable
+      const isRetryable = this.isRetryableError(error);
+      
+      if (isRetryable && options.maxRetries > 0) {
+        // Add to retry queue
+        const retryId = messageId || `retry_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const nextRetryAt = new Date(Date.now() + options.retryDelayMs);
+        
+        this.retryQueue.set(retryId, {
+          attempt: 1,
+          nextRetryAt,
+          smsMessage: { to, message, priority, messageId: retryId }
+        });
+        
+        console.log(`📋 SMS queued for retry: ${retryId}, next attempt at ${nextRetryAt.toISOString()}`);
+        
+        return { 
+          success: false, 
+          error: errorMessage,
+          willRetry: true
+        };
+      }
+      
       return { 
         success: false, 
-        error: error.message || 'Failed to send SMS' 
+        error: errorMessage,
+        willRetry: false
       };
     }
   }
@@ -228,6 +298,179 @@ export class SMSService {
       default:
         return '';
     }
+  }
+
+  /**
+   * Start the retry processor that handles failed message retries
+   */
+  private startRetryProcessor(): void {
+    setInterval(async () => {
+      if (this.retryQueue.size === 0) return;
+      
+      const now = new Date();
+      const retryIds = Array.from(this.retryQueue.keys());
+      
+      for (const retryId of retryIds) {
+        const retryData = this.retryQueue.get(retryId);
+        if (!retryData || retryData.nextRetryAt > now) continue;
+        
+        // Remove from queue before retry attempt
+        this.retryQueue.delete(retryId);
+        
+        const { attempt, smsMessage } = retryData;
+        console.log(`🔄 Retrying SMS (attempt ${attempt + 1}): ${retryId}`);
+        
+        // Calculate new retry delay with backoff
+        const newRetryOptions = {
+          maxRetries: this.defaultRetryOptions.maxRetries - attempt,
+          retryDelayMs: this.defaultRetryOptions.retryDelayMs * Math.pow(this.defaultRetryOptions.backoffMultiplier, attempt),
+          backoffMultiplier: this.defaultRetryOptions.backoffMultiplier
+        };
+        
+        // Attempt retry
+        const result = await this.sendSMS(smsMessage, newRetryOptions);
+        
+        // If retry failed and more retries available, it will be automatically re-queued
+        if (result.success) {
+          console.log(`✅ SMS retry successful: ${retryId}`);
+        } else if (!result.willRetry) {
+          console.log(`❌ SMS retry failed permanently: ${retryId} - ${result.error}`);
+        }
+      }
+    }, 10000); // Check every 10 seconds
+  }
+
+  /**
+   * Determine if an error is retryable
+   */
+  private isRetryableError(error: any): boolean {
+    if (!error) return false;
+    
+    // Twilio error codes that are retryable
+    const retryableErrorCodes = [
+      20429, // Too Many Requests
+      21211, // Invalid 'To' phone number (might be temporary issue)
+      30001, // Queue overflow
+      30002, // Account suspended (might be temporary)
+      30003, // Unreachable destination handset
+      30004, // Message blocked
+      30005, // Unknown destination handset
+      30006, // Landline or unreachable carrier
+      30007, // Carrier violation
+      11200, // HTTP retrieval failure
+      11750, // TwiML Response body too large
+    ];
+    
+    // Network/timeout errors are typically retryable
+    const retryableMessages = [
+      'timeout',
+      'network',
+      'connection',
+      'temporarily',
+      'rate limit',
+      'service unavailable',
+      'internal server error'
+    ];
+    
+    // Check Twilio error codes
+    if (error.code && retryableErrorCodes.includes(Number(error.code))) {
+      return true;
+    }
+    
+    // Check error messages
+    const errorMessage = (error.message || '').toLowerCase();
+    return retryableMessages.some(msg => errorMessage.includes(msg));
+  }
+
+  /**
+   * Log SMS attempt for analytics and debugging
+   */
+  private async logSMSAttempt(
+    to: string, 
+    message: string, 
+    success: boolean, 
+    error?: string, 
+    duration?: number, 
+    messageId?: string
+  ): Promise<void> {
+    const logEntry = {
+      timestamp: new Date().toISOString(),
+      to,
+      messageLength: message.length,
+      success,
+      error,
+      duration: duration || 0,
+      messageId
+    };
+    
+    // For now, just console log - in future versions this could go to database
+    if (success) {
+      console.log(`📊 SMS Analytics: ${JSON.stringify(logEntry)}`);
+    } else {
+      console.error(`📊 SMS Error Log: ${JSON.stringify(logEntry)}`);
+    }
+  }
+
+  /**
+   * Update delivery status from Twilio webhook
+   */
+  updateDeliveryStatus(messageId: string, status: string, errorCode?: string, errorMessage?: string): void {
+    const existingStatus = this.deliveryStatusMap.get(messageId);
+    
+    const updatedStatus: SMSDeliveryStatus = {
+      messageId,
+      status: status as SMSDeliveryStatus['status'],
+      errorCode,
+      errorMessage,
+      timestamp: new Date(),
+      retryCount: existingStatus?.retryCount || 0
+    };
+    
+    this.deliveryStatusMap.set(messageId, updatedStatus);
+    
+    console.log(`📱 SMS Status Update: ${messageId} -> ${status}${errorCode ? ` (Error: ${errorCode})` : ''}`);
+  }
+
+  /**
+   * Get delivery statistics for analytics
+   */
+  getDeliveryStats(): {
+    totalMessages: number;
+    successful: number;
+    failed: number;
+    pending: number;
+    deliveryRate: number;
+  } {
+    const statuses = Array.from(this.deliveryStatusMap.values());
+    const total = statuses.length;
+    const successful = statuses.filter(s => s.status === 'delivered' || s.status === 'sent').length;
+    const failed = statuses.filter(s => s.status === 'failed' || s.status === 'undelivered').length;
+    const pending = statuses.filter(s => s.status === 'queued' || s.status === 'sending').length;
+    
+    return {
+      totalMessages: total,
+      successful,
+      failed,
+      pending,
+      deliveryRate: total > 0 ? (successful / total) * 100 : 0
+    };
+  }
+
+  /**
+   * Clear old delivery status records (cleanup)
+   */
+  cleanupDeliveryStatus(olderThanHours: number = 24): void {
+    const cutoffTime = new Date(Date.now() - (olderThanHours * 60 * 60 * 1000));
+    
+    // Convert map entries to array to avoid TypeScript iteration issue
+    const entries = Array.from(this.deliveryStatusMap.entries());
+    for (const [messageId, status] of entries) {
+      if (status.timestamp && status.timestamp < cutoffTime) {
+        this.deliveryStatusMap.delete(messageId);
+      }
+    }
+    
+    console.log(`🧹 Cleaned up SMS delivery status records older than ${olderThanHours} hours`);
   }
 }
 
