@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Bell, Calendar, Users, AlertTriangle, Clock, Plus, Send, MessageSquare, BarChart3, Wifi, WifiOff, TrendingUp, Activity, DollarSign, CheckCircle } from "lucide-react";
+import { Bell, Calendar, Users, AlertTriangle, Clock, Plus, Send, MessageSquare, BarChart3, Wifi, WifiOff, TrendingUp, Activity, DollarSign, CheckCircle, CalendarCheck, Template, Edit, Trash2 } from "lucide-react";
 import { LineChart, Line, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { format, isAfter, parseISO } from "date-fns";
 import AdminLayout from "@/components/admin-layout";
@@ -45,6 +45,37 @@ interface Communication {
   createdAt: string;
   scheduledFor?: string;
   status: string;
+}
+
+interface ScheduledMessage {
+  id: number;
+  title: string;
+  content: string;
+  scheduledFor: string;
+  status: 'scheduled' | 'sent' | 'failed' | 'cancelled';
+  priority: string;
+  targetAudience: string;
+  smsEnabled: boolean;
+  authorId: string;
+  createdAt: string;
+  updatedAt: string;
+  sentAt?: string;
+  failureReason?: string;
+}
+
+interface AnnouncementTemplate {
+  id: number;
+  name: string;
+  category: string;
+  title: string;
+  content: string;
+  variables: string[];
+  useCount: number;
+  lastUsedAt?: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  isActive: boolean;
 }
 
 // Chart colors
@@ -554,6 +585,18 @@ function CommunicationsContent() {
     retry: 1,
   });
 
+  // Phase 6: Fetch scheduled messages
+  const { data: scheduledMessages = [], isLoading: scheduledLoading } = useQuery<ScheduledMessage[]>({
+    queryKey: ["/api/scheduled-messages"],
+    retry: 1,
+  });
+
+  // Phase 6: Fetch announcement templates
+  const { data: templates = [], isLoading: templatesLoading } = useQuery<AnnouncementTemplate[]>({
+    queryKey: ["/api/announcement-templates"],
+    retry: 1,
+  });
+
   // Create communication mutation
   const createCommunicationMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -577,6 +620,52 @@ function CommunicationsContent() {
       toast({ 
         title: "Error sending communication", 
         description: error.message,
+        variant: "destructive" 
+      });
+    }
+  });
+
+  // Phase 6: Create scheduled message mutation
+  const createScheduledMessageMutation = useMutation({
+    mutationFn: async (data: any) => {
+      return apiRequest('/api/scheduled-messages', 'POST', data);
+    },
+    onSuccess: () => {
+      toast({ title: "✅ Message scheduled successfully!" });
+      setShowCreateDialog(false);
+      setFormData({
+        type: 'announcement',
+        title: '',
+        content: '',
+        priority: 'normal',
+        targetAudience: 'all',
+        smsEnabled: false,
+        scheduledFor: ''
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/scheduled-messages"] });
+    },
+    onError: (error: any) => {
+      toast({ 
+        title: "Failed to schedule message", 
+        description: error.message || "Please try again",
+        variant: "destructive" 
+      });
+    }
+  });
+
+  // Phase 6: Create template mutation
+  const createTemplateMutation = useMutation({
+    mutationFn: async (data: any) => {
+      return apiRequest('/api/announcement-templates', 'POST', data);
+    },
+    onSuccess: () => {
+      toast({ title: "📋 Template created successfully!" });
+      queryClient.invalidateQueries({ queryKey: ["/api/announcement-templates"] });
+    },
+    onError: (error: any) => {
+      toast({ 
+        title: "Failed to create template", 
+        description: error.message || "Please try again",
         variant: "destructive" 
       });
     }
@@ -838,7 +927,7 @@ function CommunicationsContent() {
 
       {/* Mobile-First Main Content with Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4 md:space-y-6">
-        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 lg:w-auto bg-gray-100 p-1 rounded-lg">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-5 lg:w-auto bg-gray-100 p-1 rounded-lg">
           <TabsTrigger value="announcements" className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 text-xs sm:text-sm font-medium">
             <Bell className="w-3 h-3 sm:w-4 sm:h-4" />
             <span className="hidden sm:inline">Announcements</span>
@@ -848,6 +937,11 @@ function CommunicationsContent() {
             <MessageSquare className="w-3 h-3 sm:w-4 sm:h-4" />
             <span className="hidden sm:inline">Messages</span>
             <span className="sm:hidden">Chat</span>
+          </TabsTrigger>
+          <TabsTrigger value="scheduled" className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 text-xs sm:text-sm font-medium">
+            <CalendarCheck className="w-3 h-3 sm:w-4 sm:h-4" />
+            <span className="hidden sm:inline">Scheduled</span>
+            <span className="sm:hidden">Queue</span>
           </TabsTrigger>
           {(user?.role === 'admin' || user?.role === 'manager') && (
             <TabsTrigger value="analytics" className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 text-xs sm:text-sm font-medium">
@@ -1101,6 +1195,219 @@ function CommunicationsContent() {
               </p>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Phase 6: Scheduled Messages Tab */}
+        <TabsContent value="scheduled" className="space-y-6">
+          <div className="flex justify-between items-center">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900">Scheduled Messages</h3>
+              <p className="text-sm text-gray-600">Manage future announcements and recurring messages</p>
+            </div>
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button className="flex items-center gap-2 bg-green-600 hover:bg-green-700">
+                  <Plus className="h-4 w-4" />
+                  Schedule Message
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[600px]">
+                <DialogHeader>
+                  <DialogTitle>Schedule New Message</DialogTitle>
+                  <DialogDescription>
+                    Create a message to be sent automatically at a future date and time.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="schedule-title">Title</Label>
+                    <Input
+                      id="schedule-title"
+                      value={formData.title}
+                      onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                      placeholder="Message title..."
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="schedule-content">Content</Label>
+                    <Textarea
+                      id="schedule-content"
+                      value={formData.content}
+                      onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+                      placeholder="Message content..."
+                      rows={4}
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="schedule-priority">Priority</Label>
+                      <Select
+                        value={formData.priority}
+                        onValueChange={(value) => setFormData({ ...formData, priority: value })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="low">Low</SelectItem>
+                          <SelectItem value="normal">Normal</SelectItem>
+                          <SelectItem value="high">High</SelectItem>
+                          <SelectItem value="urgent">Urgent</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label htmlFor="schedule-audience">Target Audience</Label>
+                      <Select
+                        value={formData.targetAudience}
+                        onValueChange={(value) => setFormData({ ...formData, targetAudience: value })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Staff</SelectItem>
+                          <SelectItem value="employees-only">Employees Only</SelectItem>
+                          <SelectItem value="admins-managers">Admins & Managers</SelectItem>
+                          <SelectItem value="managers-only">Managers Only</SelectItem>
+                          <SelectItem value="admins-only">Admins Only</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div>
+                    <Label htmlFor="schedule-time">Schedule For</Label>
+                    <Input
+                      id="schedule-time"
+                      type="datetime-local"
+                      value={formData.scheduledFor}
+                      onChange={(e) => setFormData({ ...formData, scheduledFor: e.target.value })}
+                    />
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id="schedule-sms"
+                      checked={formData.smsEnabled}
+                      onChange={(e) => setFormData({ ...formData, smsEnabled: e.target.checked })}
+                      className="rounded border-gray-300 text-green-600 focus:ring-green-500"
+                    />
+                    <Label htmlFor="schedule-sms">Send SMS notifications</Label>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button
+                    onClick={() => {
+                      if (!formData.title.trim() || !formData.content.trim() || !formData.scheduledFor) {
+                        toast({ 
+                          title: "Missing required fields", 
+                          description: "Please fill in title, content, and schedule time",
+                          variant: "destructive" 
+                        });
+                        return;
+                      }
+                      createScheduledMessageMutation.mutate(formData);
+                    }}
+                    disabled={createScheduledMessageMutation.isPending}
+                    className="bg-green-600 hover:bg-green-700"
+                  >
+                    {createScheduledMessageMutation.isPending ? (
+                      <>
+                        <Clock className="h-4 w-4 mr-2 animate-spin" />
+                        Scheduling...
+                      </>
+                    ) : (
+                      <>
+                        <Calendar className="h-4 w-4 mr-2" />
+                        Schedule Message
+                      </>
+                    )}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
+
+          {/* Scheduled Messages List */}
+          <div className="space-y-4">
+            {scheduledLoading ? (
+              <div className="text-center py-8">
+                <Clock className="h-8 w-8 text-gray-400 mx-auto mb-2 animate-spin" />
+                <p className="text-gray-500">Loading scheduled messages...</p>
+              </div>
+            ) : scheduledMessages.length === 0 ? (
+              <Card>
+                <CardContent className="py-8">
+                  <div className="text-center">
+                    <CalendarCheck className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold text-gray-700 mb-2">
+                      No Scheduled Messages
+                    </h3>
+                    <p className="text-gray-500">
+                      Create your first scheduled message to get started.
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="grid gap-4">
+                {scheduledMessages.map((message) => (
+                  <Card key={message.id} className="hover:shadow-md transition-shadow">
+                    <CardContent className="p-4">
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <h4 className="font-semibold text-gray-900">{message.title}</h4>
+                            <Badge 
+                              className={`text-xs ${
+                                message.status === 'scheduled' ? 'bg-blue-100 text-blue-800' :
+                                message.status === 'sent' ? 'bg-green-100 text-green-800' :
+                                message.status === 'failed' ? 'bg-red-100 text-red-800' :
+                                'bg-gray-100 text-gray-800'
+                              }`}
+                            >
+                              {message.status}
+                            </Badge>
+                            <Badge className={`text-xs ${getPriorityColor(message.priority)}`}>
+                              {message.priority}
+                            </Badge>
+                          </div>
+                          <p className="text-gray-600 text-sm mb-3">{message.content}</p>
+                          <div className="flex items-center gap-4 text-xs text-gray-500">
+                            <div className="flex items-center gap-1">
+                              <Calendar className="h-3 w-3" />
+                              <span>
+                                Scheduled: {format(new Date(message.scheduledFor), 'MMM dd, yyyy h:mm a')}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Users className="h-3 w-3" />
+                              <span>{formatAudience(message.targetAudience)}</span>
+                            </div>
+                            {message.smsEnabled && (
+                              <Badge className="bg-blue-100 text-blue-800 text-xs">SMS</Badge>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 ml-4">
+                          {message.status === 'scheduled' && (
+                            <>
+                              <Button size="sm" variant="outline">
+                                <Edit className="h-3 w-3" />
+                              </Button>
+                              <Button size="sm" variant="outline" className="text-red-600">
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </div>
         </TabsContent>
 
         {/* Analytics Tab */}
