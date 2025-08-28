@@ -786,7 +786,7 @@ function CommunicationsContent() {
   // Create communication mutation
   const createCommunicationMutation = useMutation({
     mutationFn: async (data: any) => {
-      return apiRequest('/api/communications', 'POST', data);
+      return apiRequest('/api/communications/send', 'POST', data);
     },
     onSuccess: () => {
       toast({ title: "Communication sent successfully!" });
@@ -815,7 +815,7 @@ function CommunicationsContent() {
   // Phase 6: Create scheduled message mutation
   const createScheduledMessageMutation = useMutation({
     mutationFn: async (data: any) => {
-      return apiRequest('POST', '/api/scheduled-messages', data);
+      return apiRequest('/api/scheduled-messages', 'POST', data);
     },
     onSuccess: () => {
       toast({ title: "✅ Message scheduled successfully!" });
