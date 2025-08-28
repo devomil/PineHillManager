@@ -185,6 +185,7 @@ export const announcements = pgTable("announcements", {
   authorId: varchar("author_id").notNull().references(() => users.id),
   priority: varchar("priority").default("normal"), // low, normal, high, urgent
   targetAudience: varchar("target_audience").default("all"), // all, employees, admins, department
+  targetEmployees: varchar("target_employees").array(), // specific employee IDs when targeting individuals
   isPublished: boolean("is_published").default(false),
   publishedAt: timestamp("published_at"),
   expiresAt: timestamp("expires_at"),
@@ -940,6 +941,7 @@ export const scheduledMessages = pgTable("scheduled_messages", {
   messageType: varchar("message_type").default("announcement"), // 'announcement', 'message', 'reminder'
   priority: varchar("priority").default("normal"), // 'emergency', 'high', 'normal', 'low'
   targetAudience: varchar("target_audience").default("all"), // 'all', 'employees', 'managers', 'department:X', 'store:X'
+  targetEmployees: varchar("target_employees").array(), // specific employee IDs when targeting individuals
   smsEnabled: boolean("sms_enabled").default(false),
   
   // Scheduling information
@@ -979,6 +981,7 @@ export const announcementTemplates = pgTable("announcement_templates", {
   content: text("content").notNull(),
   priority: varchar("priority").default("normal"), // 'emergency', 'high', 'normal', 'low'
   targetAudience: varchar("target_audience").default("all"), // Default audience for this template
+  targetEmployees: varchar("target_employees").array(), // specific employee IDs when targeting individuals
   smsEnabled: boolean("sms_enabled").default(false), // Default SMS setting
   
   // Template metadata

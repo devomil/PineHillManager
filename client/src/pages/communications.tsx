@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Bell, Calendar, Users, AlertTriangle, Clock, Plus, Send, MessageSquare, BarChart3, Wifi, WifiOff, TrendingUp, Activity, DollarSign, CheckCircle, CalendarCheck, Template, Edit, Trash2 } from "lucide-react";
+import { Bell, Calendar, Users, AlertTriangle, Clock, Plus, Send, MessageSquare, BarChart3, Wifi, WifiOff, TrendingUp, Activity, DollarSign, CheckCircle, CalendarCheck, Template, Edit, Trash2, Search, X } from "lucide-react";
 import { LineChart, Line, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { format, isAfter, parseISO } from "date-fns";
 import AdminLayout from "@/components/admin-layout";
@@ -26,6 +26,7 @@ interface Announcement {
   content: string;
   priority: string;
   targetAudience: string;
+  targetEmployees?: string[];
   authorName: string;
   createdAt: string;
   expiresAt?: string;
@@ -41,6 +42,7 @@ interface Communication {
   priority: string;
   smsEnabled: boolean;
   targetAudience: string;
+  targetEmployees?: string[];
   authorName: string;
   createdAt: string;
   scheduledFor?: string;
@@ -55,6 +57,7 @@ interface ScheduledMessage {
   status: 'scheduled' | 'sent' | 'failed' | 'cancelled';
   priority: string;
   targetAudience: string;
+  targetEmployees?: string[];
   smsEnabled: boolean;
   authorId: string;
   createdAt: string;
@@ -80,6 +83,153 @@ interface AnnouncementTemplate {
 
 // Chart colors
 const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#06B6D4'];
+
+// Employee Selection Component
+function EmployeeSelector({ 
+  employees, 
+  selectedEmployees, 
+  onEmployeesChange, 
+  searchQuery, 
+  onSearchChange, 
+  maxSelections = 10,
+  isVisible = false,
+  onVisibilityChange 
+}: {
+  employees: any[],
+  selectedEmployees: string[],
+  onEmployeesChange: (ids: string[]) => void,
+  searchQuery: string,
+  onSearchChange: (query: string) => void,
+  maxSelections?: number,
+  isVisible: boolean,
+  onVisibilityChange: (visible: boolean) => void
+}) {
+  const filteredEmployees = employees.filter(emp => 
+    emp.firstName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    emp.lastName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    emp.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    emp.department?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const toggleEmployee = (employeeId: string) => {
+    if (selectedEmployees.includes(employeeId)) {
+      onEmployeesChange(selectedEmployees.filter(id => id !== employeeId));
+    } else if (selectedEmployees.length < maxSelections) {
+      onEmployeesChange([...selectedEmployees, employeeId]);
+    }
+  };
+
+  const getSelectedEmployeeNames = () => {
+    return selectedEmployees
+      .map(id => employees.find(emp => emp.id === id))
+      .filter(emp => emp)
+      .map(emp => `${emp.firstName} ${emp.lastName}`)
+      .slice(0, 3)
+      .join(', ') + (selectedEmployees.length > 3 ? ` +${selectedEmployees.length - 3} more` : '');
+  };
+
+  if (!isVisible) {
+    return (
+      <div>
+        <Label>Specific Employees (Optional)</Label>
+        <Button 
+          type="button"
+          variant="outline" 
+          onClick={() => onVisibilityChange(true)}
+          className="w-full justify-between"
+        >
+          <span>
+            {selectedEmployees.length === 0 
+              ? "Select up to 10 employees..." 
+              : `${selectedEmployees.length} selected: ${getSelectedEmployeeNames()}`
+            }
+          </span>
+          <Search className="h-4 w-4" />
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <Label>Select Employees ({selectedEmployees.length}/{maxSelections})</Label>
+      <div className="space-y-2">
+        <div className="relative">
+          <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+          <Input
+            placeholder="Search employees by name, email, or department..."
+            value={searchQuery}
+            onChange={(e) => onSearchChange(e.target.value)}
+            className="pl-10"
+          />
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => onVisibilityChange(false)}
+            className="absolute right-2 top-2 h-6 w-6 p-0"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+        
+        {selectedEmployees.length > 0 && (
+          <div className="flex flex-wrap gap-1 p-2 bg-blue-50 rounded">
+            {selectedEmployees.map(employeeId => {
+              const employee = employees.find(emp => emp.id === employeeId);
+              return employee ? (
+                <Badge 
+                  key={employeeId} 
+                  variant="secondary"
+                  className="bg-blue-100 text-blue-800 flex items-center gap-1"
+                >
+                  {employee.firstName} {employee.lastName}
+                  <X 
+                    className="h-3 w-3 cursor-pointer" 
+                    onClick={() => toggleEmployee(employeeId)}
+                  />
+                </Badge>
+              ) : null;
+            })}
+          </div>
+        )}
+        
+        <div className="max-h-32 overflow-y-auto border rounded">
+          {filteredEmployees.length === 0 ? (
+            <div className="p-3 text-center text-gray-500">
+              {searchQuery ? "No employees found matching your search" : "No employees available"}
+            </div>
+          ) : (
+            filteredEmployees.map(employee => (
+              <div 
+                key={employee.id}
+                onClick={() => toggleEmployee(employee.id)}
+                className={`p-2 cursor-pointer hover:bg-gray-50 flex items-center justify-between ${
+                  selectedEmployees.includes(employee.id) ? 'bg-blue-50 border-l-2 border-blue-500' : ''
+                } ${
+                  !selectedEmployees.includes(employee.id) && selectedEmployees.length >= maxSelections 
+                    ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
+              >
+                <div>
+                  <div className="font-medium">
+                    {employee.firstName} {employee.lastName}
+                  </div>
+                  <div className="text-sm text-gray-500">
+                    {employee.email} • {employee.department} • {employee.role}
+                  </div>
+                </div>
+                {selectedEmployees.includes(employee.id) && (
+                  <CheckCircle className="h-4 w-4 text-blue-600" />
+                )}
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function AnalyticsDashboard() {
   const [timeRange, setTimeRange] = useState(30);
@@ -575,10 +725,21 @@ function CommunicationsContent() {
     content: '',
     priority: 'normal' as 'low' | 'normal' | 'high' | 'urgent',
     targetAudience: 'all',
+    targetEmployees: [] as string[],
     smsEnabled: false,
     scheduledFor: ''
   });
+  
+  // Employee search state
+  const [employeeSearchQuery, setEmployeeSearchQuery] = useState('');
+  const [showEmployeeSelector, setShowEmployeeSelector] = useState(false);
 
+  // Fetch employees for targeting
+  const { data: employees = [] } = useQuery<any[]>({
+    queryKey: ["/api/employees"],
+    retry: 1,
+  });
+  
   // Fetch announcements (existing functionality)
   const { data: announcements = [], isLoading: announcementsLoading } = useQuery<Announcement[]>({
     queryKey: ["/api/announcements/published"],
@@ -611,6 +772,7 @@ function CommunicationsContent() {
         content: '',
         priority: 'normal',
         targetAudience: 'all',
+        targetEmployees: [],
         smsEnabled: false,
         scheduledFor: ''
       });
@@ -639,6 +801,7 @@ function CommunicationsContent() {
         content: '',
         priority: 'normal',
         targetAudience: 'all',
+        targetEmployees: [],
         smsEnabled: false,
         scheduledFor: ''
       });
@@ -884,6 +1047,17 @@ function CommunicationsContent() {
                     </SelectContent>
                   </Select>
                 </div>
+
+                {/* Employee Selector */}
+                <EmployeeSelector
+                  employees={employees}
+                  selectedEmployees={formData.targetEmployees}
+                  onEmployeesChange={(selectedIds) => setFormData(prev => ({ ...prev, targetEmployees: selectedIds }))}
+                  searchQuery={employeeSearchQuery}
+                  onSearchChange={setEmployeeSearchQuery}
+                  isVisible={showEmployeeSelector}
+                  onVisibilityChange={setShowEmployeeSelector}
+                />
 
                 {/* SMS Enabled */}
                 <div className="flex items-center space-x-2">
