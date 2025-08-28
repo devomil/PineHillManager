@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Bell, Calendar, Users, AlertTriangle, Clock, Plus, Send, MessageSquare, BarChart3 } from "lucide-react";
+import { Bell, Calendar, Users, AlertTriangle, Clock, Plus, Send, MessageSquare, BarChart3, Wifi, WifiOff } from "lucide-react";
 import { format, isAfter, parseISO } from "date-fns";
 import AdminLayout from "@/components/admin-layout";
 import { MessageReactions } from "@/components/ui/message-reactions";
@@ -17,6 +17,7 @@ import { AnnouncementResponses } from "@/components/ui/announcement-responses";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useWebSocket, useWebSocketSubscription } from "@/lib/websocket";
 
 interface Announcement {
   id: number;
@@ -52,6 +53,33 @@ function CommunicationsContent() {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  
+  // WebSocket integration for real-time updates
+  const { isConnected } = useWebSocket();
+  
+  // Subscribe to communications updates
+  const { messages } = useWebSocketSubscription('communications');
+
+  // Handle real-time updates
+  useEffect(() => {
+    if (messages.length > 0) {
+      const lastMessage = messages[messages.length - 1];
+      
+      if (lastMessage.type === 'update' && lastMessage.data?.type === 'announcement') {
+        // Refresh announcements when we get real-time updates
+        queryClient.invalidateQueries({ queryKey: ["/api/announcements/published"] });
+        
+        // Show toast notification for new announcements
+        if (lastMessage.data.action === 'created') {
+          toast({
+            title: "📢 New Announcement",
+            description: `${lastMessage.data.title || 'A new announcement'} has been posted`,
+            duration: 5000,
+          });
+        }
+      }
+    }
+  }, [messages, queryClient, toast]);
 
   // Form state for creating communications
   const [formData, setFormData] = useState({
@@ -180,10 +208,27 @@ function CommunicationsContent() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header with Create Button */}
-      <div className="flex justify-between items-center">
-        <div></div>
+    <div className="space-y-4 md:space-y-6">
+      {/* Mobile-First Header with Create Button */}
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+        <div className="flex items-center gap-2">
+          {/* Connection Status Indicator */}
+          <div className="flex items-center gap-1 text-xs text-gray-500">
+            {isConnected ? (
+              <>
+                <Wifi className="w-3 h-3 text-green-500" />
+                <span className="hidden sm:inline">Real-time updates active</span>
+                <span className="sm:hidden">Live</span>
+              </>
+            ) : (
+              <>
+                <WifiOff className="w-3 h-3 text-orange-500" />
+                <span className="hidden sm:inline">Connecting...</span>
+                <span className="sm:hidden">Offline</span>
+              </>
+            )}
+          </div>
+        </div>
         
         {/* Create Communication Button - Admin/Manager Only */}
         {(user?.role === 'admin' || user?.role === 'manager') && (
@@ -201,7 +246,7 @@ function CommunicationsContent() {
                 Create Communication
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto mx-4 sm:mx-0">
               <DialogHeader>
                 <DialogTitle>Create New Communication</DialogTitle>
                 <DialogDescription>
@@ -318,6 +363,7 @@ function CommunicationsContent() {
                 <Button 
                   onClick={handleCreateCommunication}
                   disabled={createCommunicationMutation.isPending}
+                  className="w-full sm:w-auto touch-manipulation"
                   style={{
                     backgroundColor: '#1e40af',
                     borderColor: '#1e40af',
@@ -334,20 +380,22 @@ function CommunicationsContent() {
         )}
       </div>
 
-      {/* Main Content with Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3 lg:w-auto">
-          <TabsTrigger value="announcements" className="flex items-center gap-2">
-            <Bell className="w-4 h-4" />
-            Announcements
+      {/* Mobile-First Main Content with Tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4 md:space-y-6">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:w-auto bg-gray-100 p-1 rounded-lg">
+          <TabsTrigger value="announcements" className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 text-xs sm:text-sm font-medium">
+            <Bell className="w-3 h-3 sm:w-4 sm:h-4" />
+            <span className="hidden sm:inline">Announcements</span>
+            <span className="sm:hidden">News</span>
           </TabsTrigger>
-          <TabsTrigger value="messages" className="flex items-center gap-2">
-            <MessageSquare className="w-4 h-4" />
-            Messages
+          <TabsTrigger value="messages" className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 text-xs sm:text-sm font-medium">
+            <MessageSquare className="w-3 h-3 sm:w-4 sm:h-4" />
+            <span className="hidden sm:inline">Messages</span>
+            <span className="sm:hidden">Chat</span>
           </TabsTrigger>
           {(user?.role === 'admin' || user?.role === 'manager') && (
-            <TabsTrigger value="analytics" className="flex items-center gap-2">
-              <BarChart3 className="w-4 h-4" />
+            <TabsTrigger value="analytics" className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 text-xs sm:text-sm font-medium col-span-2 sm:col-span-1">
+              <BarChart3 className="w-3 h-3 sm:w-4 sm:h-4" />
               Analytics
             </TabsTrigger>
           )}
@@ -355,11 +403,14 @@ function CommunicationsContent() {
 
         {/* Announcements Tab */}
         <TabsContent value="announcements" className="space-y-6">
-          {/* Filter Buttons */}
-          <div className="mb-6 flex flex-wrap gap-2">
+          {/* Mobile-First Filter Buttons */}
+          <div className="mb-4 md:mb-6">
+            <div className="flex flex-wrap gap-2 sm:gap-3">
             <Button
               variant={selectedFilter === "all" ? "default" : "outline"}
               onClick={() => setSelectedFilter("all")}
+              size="sm"
+              className="touch-manipulation"
               style={selectedFilter === "all" ? {
                 backgroundColor: '#16a34a',
                 borderColor: '#16a34a',
@@ -371,11 +422,14 @@ function CommunicationsContent() {
                 color: '#374151'
               }}
             >
-              All Announcements
+              <span className="text-xs sm:text-sm">All</span>
+              <span className="hidden md:inline ml-1">Announcements</span>
             </Button>
             <Button
               variant={selectedFilter === "important" ? "default" : "outline"}
               onClick={() => setSelectedFilter("important")}
+              size="sm"
+              className="touch-manipulation"
               style={selectedFilter === "important" ? {
                 backgroundColor: '#dc2626',
                 borderColor: '#dc2626',
@@ -387,11 +441,13 @@ function CommunicationsContent() {
                 color: '#374151'
               }}
             >
-              Important
+              🔴 <span className="ml-1 text-xs sm:text-sm">Important</span>
             </Button>
             <Button
               variant={selectedFilter === "general" ? "default" : "outline"}
               onClick={() => setSelectedFilter("general")}
+              size="sm"
+              className="touch-manipulation"
               style={selectedFilter === "general" ? {
                 backgroundColor: '#1e40af',
                 borderColor: '#1e40af',
@@ -403,11 +459,13 @@ function CommunicationsContent() {
                 color: '#374151'
               }}
             >
-              General
+              🔵 <span className="ml-1 text-xs sm:text-sm">General</span>
             </Button>
             <Button
               variant={selectedFilter === "policy" ? "default" : "outline"}
               onClick={() => setSelectedFilter("policy")}
+              size="sm"
+              className="touch-manipulation"
               style={selectedFilter === "policy" ? {
                 backgroundColor: '#7c3aed',
                 borderColor: '#7c3aed',
@@ -419,8 +477,9 @@ function CommunicationsContent() {
                 color: '#374151'
               }}
             >
-              Policy Updates
+              📋 <span className="ml-1 text-xs sm:text-sm">Policy</span>
             </Button>
+            </div>
           </div>
 
           {/* Announcements List */}
@@ -444,30 +503,30 @@ function CommunicationsContent() {
                    selectedFilter === "general" ? "General Announcements" :
                    "Policy Updates"}
                 </h2>
-                <div className="space-y-4">
+                <div className="space-y-3 md:space-y-4">
                   {filteredAnnouncements.map((announcement) => (
-                    <Card key={announcement.id} className="shadow-lg hover:shadow-xl transition-shadow">
-                      <CardHeader>
-                        <div className="flex items-start justify-between">
-                          <div className="space-y-1">
-                            <CardTitle className="text-xl font-semibold text-gray-900">
+                    <Card key={announcement.id} className="shadow-md hover:shadow-lg transition-shadow touch-manipulation">
+                      <CardHeader className="pb-3 md:pb-6">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="space-y-1 flex-1 min-w-0">
+                            <CardTitle className="text-base sm:text-lg md:text-xl font-semibold text-gray-900 leading-tight">
                               {announcement.title}
                             </CardTitle>
                           </div>
-                          <div className="flex flex-col items-end space-y-2">
-                            <Badge className={getPriorityColor(announcement.priority)}>
+                          <div className="flex flex-col items-end space-y-1 sm:space-y-2 flex-shrink-0">
+                            <Badge className={`text-xs ${getPriorityColor(announcement.priority)}`}>
                               {announcement.priority}
                             </Badge>
                             {announcement.smsEnabled && (
-                              <Badge variant="outline" className="text-blue-600 border-blue-600">
+                              <Badge variant="outline" className="text-xs text-blue-600 border-blue-600">
                                 📱 SMS
                               </Badge>
                             )}
                           </div>
                         </div>
                       </CardHeader>
-                      <CardContent className="space-y-4">
-                        <p className="text-gray-700 leading-relaxed">
+                      <CardContent className="space-y-3 md:space-y-4 pt-0">
+                        <p className="text-gray-700 leading-relaxed text-sm md:text-base">
                           {announcement.content}
                         </p>
                         
@@ -479,11 +538,12 @@ function CommunicationsContent() {
                         {/* Announcement Responses */}
                         <AnnouncementResponses announcementId={announcement.id} />
                         
-                        <div className="flex items-center justify-between pt-4 border-t border-gray-200">
-                          <div className="flex items-center text-sm text-gray-500 space-x-4">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between pt-3 md:pt-4 border-t border-gray-200 gap-2">
+                          <div className="flex flex-col sm:flex-row sm:items-center text-xs sm:text-sm text-gray-500 gap-2 sm:gap-4">
                             <span className="flex items-center">
-                              <Calendar className="h-4 w-4 mr-1" />
-                              Published {format(parseISO(announcement.createdAt), "MMM d, yyyy")}
+                              <Calendar className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+                              Published {format(parseISO(announcement.createdAt), "MMM d")}
+                              <span className="hidden sm:inline">, {format(parseISO(announcement.createdAt), "yyyy")}</span>
                             </span>
                             <span className="flex items-center">
                               {getTargetAudienceIcon(announcement.targetAudience)}
@@ -491,9 +551,10 @@ function CommunicationsContent() {
                             </span>
                           </div>
                           {announcement.expiresAt && (
-                            <span className="flex items-center text-sm text-orange-600">
-                              <Clock className="h-4 w-4 mr-1" />
-                              Expires {format(parseISO(announcement.expiresAt), "MMM d, yyyy")}
+                            <span className="flex items-center text-xs sm:text-sm text-orange-600">
+                              <Clock className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+                              <span className="hidden sm:inline">Expires </span>
+                              {format(parseISO(announcement.expiresAt), "MMM d")}
                             </span>
                           )}
                         </div>
