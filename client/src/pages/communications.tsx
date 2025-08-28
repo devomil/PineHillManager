@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Bell, Calendar, Users, AlertTriangle, Clock, Plus, Send, MessageSquare, BarChart3, Wifi, WifiOff, TrendingUp, Activity, DollarSign, CheckCircle, CalendarCheck, Template, Edit, Trash2, Search, X } from "lucide-react";
+import { Bell, Calendar, Users, AlertTriangle, Clock, Plus, Send, MessageSquare, BarChart3, Wifi, WifiOff, TrendingUp, Activity, DollarSign, CheckCircle, CalendarCheck, Edit, Trash2, Search, X } from "lucide-react";
 import { LineChart, Line, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { format, isAfter, parseISO } from "date-fns";
 import AdminLayout from "@/components/admin-layout";
@@ -1588,7 +1588,7 @@ function CommunicationsContent() {
                             <div className="flex items-center gap-1">
                               <Calendar className="h-3 w-3" />
                               <span>
-                                Scheduled: {format(new Date(message.scheduledFor), 'MMM dd, yyyy h:mm a')}
+                                Scheduled: {format(parseISO(message.scheduledFor), 'MMM dd, yyyy h:mm a')}
                               </span>
                             </div>
                             <div className="flex items-center gap-1">
