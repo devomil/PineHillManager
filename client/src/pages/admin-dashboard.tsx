@@ -61,9 +61,6 @@ export default function AdminDashboard() {
       case 'system-support':
         setLocation('/system-support');
         break;
-      case 'user-management':
-        setLocation('/user-management');
-        break;
       case 'accounting':
         setLocation('/accounting');
         break;
@@ -72,9 +69,6 @@ export default function AdminDashboard() {
         break;
       case 'integrations':
         setLocation('/integrations');
-        break;
-      case 'communication':
-        setLocation('/communication');
         break;
       case 'reports':
         setLocation('/reports');
@@ -459,11 +453,11 @@ export default function AdminDashboard() {
               {/* Secondary Items - Hidden on smaller screens */}
               <div className="h-6 w-px bg-gray-300 hidden xl:block"></div>
               <TabsTrigger 
-                value="announcements" 
+                value="communications" 
                 className="nav-item-secondary hidden xl:flex items-center gap-2 px-3 py-2 rounded-md hover:bg-gray-50 hover:shadow-sm hover:-translate-y-0.5 transition-all duration-200 whitespace-nowrap mx-0 text-sm data-[state=active]:bg-gray-100 data-[state=active]:font-medium"
               >
-                <Bell className="h-3 w-3" />
-                Announcements
+                <MessageCircle className="h-3 w-3" />
+                Communications
               </TabsTrigger>
               <TabsTrigger 
                 value="system-support" 
