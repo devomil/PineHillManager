@@ -1,0 +1,41 @@
+
+DOMException {}
+stack: "SyntaxError: Failed to construct 'WebSocket': The URL 'wss://localhost:undefined/?token=PoifaEgmYjDy' is invalid.↵ at new t (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:218737)↵ at setupWebSocket (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/@vite/client:536:19)↵ at fallback (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/@vite/client:509:16)↵ at WebSocket.<anonymous> (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/@vite/client:555:7)"
+get stack: ƒ ()
+set stack: ƒ ()
+[[Prototype]]: DOMException
+
+useAuth - user: undefined isLoading: true error: null
+Auth state: 
+Object {isAuthenticated: false, isLoading: true, user: null}
+Auth state: 
+Object {isAuthenticated: false, isLoading: true, user: null}
+User data fetched: 
+Object {id: "40154188", email: "ryan@pinehillfarm.co", firstName: "Ryan", lastName: "Sorensen", role: "admin"}
+useAuth - user: 
+Object {id: "40154188", email: "ryan@pinehillfarm.co", firstName: "Ryan", lastName: "Sorensen", role: "admin"}
+ isLoading: false error: null
+useAuth - user: 
+Object {id: "40154188", email: "ryan@pinehillfarm.co", firstName: "Ryan", lastName: "Sorensen", role: "admin"}
+ isLoading: false error: null
+Auth state: 
+Object {isAuthenticated: true, isLoading: false, user: {…}}
+Rendering: AuthenticatedApp
+Auth state: 
+Object {isAuthenticated: true, isLoading: false, user: {…}}
+Rendering: AuthenticatedApp
+WebSocket error: 
+Event {isTrusted: true}
+
+at t.value (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:17465)
+at new t (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:12630)
+at t.value (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:32766)
+at https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:34400
+WebSocket disconnected
+WebSocket error: 
+Event {isTrusted: true}
+
+at t.value (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:17465)
+at new t (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:12630)
+at t.value (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:32766)
+at https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:34400
