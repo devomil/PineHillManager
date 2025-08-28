@@ -548,8 +548,114 @@ export const passwordResetTokens = pgTable("password_reset_tokens", {
   userIdx: index("idx_password_reset_user").on(table.userId),
 }));
 
+// Communication Analytics - Aggregated metrics for dashboard
+export const communicationAnalytics = pgTable("communication_analytics", {
+  id: serial("id").primaryKey(),
+  date: date("date").notNull(), // Daily aggregation date
+  
+  // Message metrics
+  totalMessages: integer("total_messages").default(0),
+  totalAnnouncements: integer("total_announcements").default(0),
+  totalSMS: integer("total_sms").default(0),
+  totalDirectMessages: integer("total_direct_messages").default(0),
+  totalChannelMessages: integer("total_channel_messages").default(0),
+  
+  // Delivery metrics
+  smsDelivered: integer("sms_delivered").default(0),
+  smsFailed: integer("sms_failed").default(0),
+  smsDeliveryRate: decimal("sms_delivery_rate", { precision: 5, scale: 2 }).default("0.00"), // Percentage
+  
+  // Engagement metrics
+  totalReactions: integer("total_reactions").default(0),
+  totalResponses: integer("total_responses").default(0),
+  totalReadReceipts: integer("total_read_receipts").default(0),
+  averageResponseTime: integer("average_response_time").default(0), // Minutes
+  engagementRate: decimal("engagement_rate", { precision: 5, scale: 2 }).default("0.00"), // Percentage
+  
+  // User metrics
+  activeUsers: integer("active_users").default(0),
+  newUsers: integer("new_users").default(0),
+  smsOptedInUsers: integer("sms_opted_in_users").default(0),
+  
+  // Cost metrics (in cents)
+  smsCost: integer("sms_cost").default(0), // Total SMS cost in cents
+  averageSMSCost: decimal("average_sms_cost", { precision: 10, scale: 4 }).default("0.0000"), // Per SMS in cents
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  dateIdx: index("idx_communication_analytics_date").on(table.date),
+  createdAtIdx: index("idx_communication_analytics_created").on(table.createdAt),
+  uniqueDate: unique("unique_communication_analytics_date").on(table.date),
+}));
+
+// Communication Events - Individual event tracking for detailed analytics
+export const communicationEvents = pgTable("communication_events", {
+  id: serial("id").primaryKey(),
+  eventType: varchar("event_type").notNull(), // 'message_sent', 'message_read', 'sms_delivered', 'reaction_added', 'response_created'
+  
+  // Related entities
+  userId: varchar("user_id").references(() => users.id),
+  messageId: integer("message_id").references(() => messages.id),
+  announcementId: integer("announcement_id").references(() => announcements.id),
+  channelMessageId: integer("channel_message_id").references(() => channelMessages.id),
+  
+  // Event metadata
+  eventData: jsonb("event_data"), // Flexible JSON for event-specific data
+  source: varchar("source").default("app"), // 'app', 'sms', 'email', 'push'
+  platform: varchar("platform"), // 'web', 'mobile', 'sms'
+  
+  // Cost tracking
+  cost: integer("cost").default(0), // Event cost in cents
+  
+  // Timing
+  eventTimestamp: timestamp("event_timestamp").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  eventTypeIdx: index("idx_communication_events_type").on(table.eventType),
+  userIdx: index("idx_communication_events_user").on(table.userId),
+  messageIdx: index("idx_communication_events_message").on(table.messageId),
+  timestampIdx: index("idx_communication_events_timestamp").on(table.eventTimestamp),
+  sourceIdx: index("idx_communication_events_source").on(table.source),
+}));
+
+// User Communication Preferences and Patterns
+export const userCommunicationStats = pgTable("user_communication_stats", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  
+  // Message preferences
+  preferredChannel: varchar("preferred_channel").default("app"), // 'app', 'sms', 'email'
+  messageFrequency: varchar("message_frequency").default("normal"), // 'high', 'normal', 'low'
+  
+  // Usage statistics (last 30 days)
+  messagesReceived: integer("messages_received").default(0),
+  messagesSent: integer("messages_sent").default(0),
+  announcementsViewed: integer("announcements_viewed").default(0),
+  reactionsGiven: integer("reactions_given").default(0),
+  responsesCreated: integer("responses_created").default(0),
+  
+  // Engagement metrics
+  averageResponseTime: integer("average_response_time").default(0), // Minutes
+  readReceiptRate: decimal("read_receipt_rate", { precision: 5, scale: 2 }).default("0.00"), // Percentage
+  engagementScore: decimal("engagement_score", { precision: 5, scale: 2 }).default("0.00"), // Calculated score
+  
+  // SMS specific
+  smsReceived: integer("sms_received").default(0),
+  smsCostIncurred: integer("sms_cost_incurred").default(0), // In cents
+  
+  lastCalculated: timestamp("last_calculated").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  userIdx: index("idx_user_communication_stats_user").on(table.userId),
+  lastCalculatedIdx: index("idx_user_communication_stats_calculated").on(table.lastCalculated),
+  engagementIdx: index("idx_user_communication_stats_engagement").on(table.engagementScore),
+  uniqueUser: unique("unique_user_communication_stats").on(table.userId),
+}));
+
 // Define relations
-export const usersRelations = relations(users, ({ many }) => ({
+export const usersRelations = relations(users, ({ many, one }) => ({
   timeOffRequests: many(timeOffRequests),
   workSchedules: many(workSchedules),
   shiftCoverageRequests: many(shiftCoverageRequests),
@@ -567,6 +673,8 @@ export const usersRelations = relations(users, ({ many }) => ({
   documentLogs: many(documentLogs),
   uploadedLogos: many(logos),
   sentInvitations: many(employeeInvitations),
+  communicationEvents: many(communicationEvents),
+  communicationStats: one(userCommunicationStats),
 }));
 
 export const timeOffRequestsRelations = relations(timeOffRequests, ({ one }) => ({
@@ -644,6 +752,22 @@ export const logosRelations = relations(logos, ({ one }) => ({
 
 export const employeeInvitationsRelations = relations(employeeInvitations, ({ one }) => ({
   inviter: one(users, { fields: [employeeInvitations.invitedBy], references: [users.id] }),
+}));
+
+// Analytics relations
+export const communicationAnalyticsRelations = relations(communicationAnalytics, ({ many }) => ({
+  // No direct relations needed for aggregated data
+}));
+
+export const communicationEventsRelations = relations(communicationEvents, ({ one }) => ({
+  user: one(users, { fields: [communicationEvents.userId], references: [users.id] }),
+  message: one(messages, { fields: [communicationEvents.messageId], references: [messages.id] }),
+  announcement: one(announcements, { fields: [communicationEvents.announcementId], references: [announcements.id] }),
+  channelMessage: one(channelMessages, { fields: [communicationEvents.channelMessageId], references: [channelMessages.id] }),
+}));
+
+export const userCommunicationStatsRelations = relations(userCommunicationStats, ({ one }) => ({
+  user: one(users, { fields: [userCommunicationStats.userId], references: [users.id] }),
 }));
 
 // Create insert schemas
@@ -747,6 +871,26 @@ export const insertEmployeeInvitationSchema = createInsertSchema(employeeInvitat
   id: true,
   invitedAt: true,
   acceptedAt: true,
+});
+
+// Analytics insert schemas
+export const insertCommunicationAnalyticsSchema = createInsertSchema(communicationAnalytics).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertCommunicationEventSchema = createInsertSchema(communicationEvents).omit({
+  id: true,
+  eventTimestamp: true,
+  createdAt: true,
+});
+
+export const insertUserCommunicationStatsSchema = createInsertSchema(userCommunicationStats).omit({
+  id: true,
+  lastCalculated: true,
+  createdAt: true,
+  updatedAt: true,
 });
 
 // Add relations for new tables
@@ -1593,3 +1737,11 @@ export const updateResponseSchema = createInsertSchema(responses)
 export type SelectResponse = typeof responses.$inferSelect;
 export type InsertResponse = z.infer<typeof insertResponseSchema>;
 export type UpdateResponse = z.infer<typeof updateResponseSchema>;
+
+// Analytics types
+export type CommunicationAnalytics = typeof communicationAnalytics.$inferSelect;
+export type InsertCommunicationAnalytics = z.infer<typeof insertCommunicationAnalyticsSchema>;
+export type CommunicationEvent = typeof communicationEvents.$inferSelect;
+export type InsertCommunicationEvent = z.infer<typeof insertCommunicationEventSchema>;
+export type UserCommunicationStats = typeof userCommunicationStats.$inferSelect;
+export type InsertUserCommunicationStats = z.infer<typeof insertUserCommunicationStatsSchema>;

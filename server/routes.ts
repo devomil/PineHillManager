@@ -64,6 +64,74 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Communication Analytics API endpoints
+  app.get('/api/analytics/communication/overview', isAuthenticated, async (req, res) => {
+    try {
+      const { days = 30 } = req.query;
+      const analytics = await storage.getCommunicationAnalytics(Number(days));
+      res.json(analytics);
+    } catch (error) {
+      console.error('Error fetching communication analytics:', error);
+      res.status(500).json({ message: 'Failed to fetch communication analytics' });
+    }
+  });
+
+  app.get('/api/analytics/communication/charts', isAuthenticated, async (req, res) => {
+    try {
+      const { type = 'engagement', days = 30 } = req.query;
+      const chartData = await storage.getCommunicationChartData(type as string, Number(days));
+      res.json(chartData);
+    } catch (error) {
+      console.error('Error fetching chart data:', error);
+      res.status(500).json({ message: 'Failed to fetch chart data' });
+    }
+  });
+
+  app.get('/api/analytics/sms/metrics', isAuthenticated, async (req, res) => {
+    try {
+      const { days = 30 } = req.query;
+      const smsMetrics = await storage.getSMSAnalytics(Number(days));
+      res.json(smsMetrics);
+    } catch (error) {
+      console.error('Error fetching SMS metrics:', error);
+      res.status(500).json({ message: 'Failed to fetch SMS metrics' });
+    }
+  });
+
+  app.get('/api/analytics/user-engagement', isAuthenticated, async (req, res) => {
+    try {
+      const { days = 30 } = req.query;
+      const engagement = await storage.getUserEngagementAnalytics(Number(days));
+      res.json(engagement);
+    } catch (error) {
+      console.error('Error fetching user engagement analytics:', error);
+      res.status(500).json({ message: 'Failed to fetch user engagement analytics' });
+    }
+  });
+
+  // Manual analytics aggregation endpoint (Admin only)
+  app.post('/api/analytics/aggregate-daily', isAuthenticated, async (req, res) => {
+    try {
+      if (req.user?.role !== 'admin') {
+        return res.status(403).json({ error: 'Admin access required' });
+      }
+
+      const { date } = req.body;
+      const targetDate = date || new Date().toISOString().split('T')[0];
+      
+      await storage.aggregateDailyCommunicationAnalytics(targetDate);
+      
+      res.json({ 
+        success: true, 
+        message: `Daily analytics aggregated for ${targetDate}`,
+        date: targetDate 
+      });
+    } catch (error) {
+      console.error('Error aggregating daily analytics:', error);
+      res.status(500).json({ message: 'Failed to aggregate daily analytics' });
+    }
+  });
+
   // Admin stats route
   app.get('/api/admin/stats', isAuthenticated, async (req, res) => {
     try {
@@ -1579,6 +1647,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Update SMS service with delivery status
       smsService.updateDeliveryStatus(MessageSid, MessageStatus, ErrorCode, ErrorMessage);
+      
+      // Update database record
+      await storage.updateSMSDeliveryStatus(MessageSid, MessageStatus, ErrorCode, ErrorMessage);
+      
+      // Log delivery event for analytics
+      if (MessageStatus === 'delivered' || MessageStatus === 'failed' || MessageStatus === 'undelivered') {
+        await storage.logCommunicationEvent({
+          eventType: 'sms_delivery_status',
+          source: 'sms',
+          messageId: MessageSid,
+          userId: null,
+          channelId: null,
+          cost: null,
+          priority: null,
+          eventTimestamp: new Date(),
+          metadata: { 
+            status: MessageStatus, 
+            errorCode: ErrorCode,
+            errorMessage: ErrorMessage,
+            isSuccess: MessageStatus === 'delivered'
+          },
+        });
+
+        // Broadcast real-time analytics update
+        const analyticsService = (global as any).analyticsService;
+        if (analyticsService) {
+          await analyticsService.broadcastSMSUpdate(MessageSid, MessageStatus);
+        }
+      }
       
       res.status(200).send('OK');
     } catch (error) {
@@ -6110,9 +6207,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // WebSocket server for real-time updates
   const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
+  
+  // Store client subscriptions
+  const clientSubscriptions = new Map<any, Set<string>>();
 
   wss.on('connection', (ws) => {
     console.log('✅ WebSocket client connected');
+    clientSubscriptions.set(ws, new Set());
 
     ws.on('message', (message) => {
       try {
@@ -6122,7 +6223,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         switch (data.type) {
           case 'subscribe':
             // Subscribe to specific channels
+            const subscriptions = clientSubscriptions.get(ws) || new Set();
+            subscriptions.add(data.channel);
+            clientSubscriptions.set(ws, subscriptions);
             ws.send(JSON.stringify({ type: 'subscribed', channel: data.channel }));
+            console.log(`Client subscribed to: ${data.channel}`);
+            break;
+          case 'unsubscribe':
+            // Unsubscribe from specific channels
+            const clientSubs = clientSubscriptions.get(ws);
+            if (clientSubs) {
+              clientSubs.delete(data.channel);
+              ws.send(JSON.stringify({ type: 'unsubscribed', channel: data.channel }));
+              console.log(`Client unsubscribed from: ${data.channel}`);
+            }
             break;
           case 'ping':
             ws.send(JSON.stringify({ type: 'pong' }));
@@ -6137,10 +6251,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     ws.on('close', () => {
       console.log('❌ WebSocket client disconnected');
+      clientSubscriptions.delete(ws);
     });
 
     ws.on('error', (error) => {
       console.error('WebSocket error:', error);
+      clientSubscriptions.delete(ws);
     });
 
     // Send welcome message
@@ -6148,6 +6264,85 @@ export async function registerRoutes(app: Express): Promise<Server> {
       ws.send(JSON.stringify({ type: 'connected', message: 'Welcome to Pine Hill Farm Communications' }));
     }
   });
+
+  // Analytics Broadcasting Service
+  const analyticsService = {
+    broadcastAnalyticsUpdate: (eventType: string, data: any) => {
+      const message = JSON.stringify({
+        type: 'analytics_update',
+        eventType,
+        data,
+        timestamp: new Date().toISOString()
+      });
+
+      // Broadcast to all clients subscribed to analytics
+      wss.clients.forEach((client) => {
+        if (client.readyState === WebSocket.OPEN) {
+          const subscriptions = clientSubscriptions.get(client);
+          if (subscriptions && subscriptions.has('analytics')) {
+            client.send(message);
+          }
+        }
+      });
+
+      console.log(`📊 Analytics update broadcasted: ${eventType}`);
+    },
+
+    broadcastSMSUpdate: async (messageId: string, status: string, cost?: number) => {
+      // Broadcast real-time SMS status update
+      analyticsService.broadcastAnalyticsUpdate('sms_status_changed', {
+        messageId,
+        status,
+        cost,
+        isSuccess: status === 'delivered',
+        timestamp: new Date().toISOString()
+      });
+
+      // If this is a final status (delivered/failed), trigger daily aggregation update
+      if (status === 'delivered' || status === 'failed' || status === 'undelivered') {
+        try {
+          const today = new Date().toISOString().split('T')[0];
+          await storage.aggregateDailyCommunicationAnalytics(today);
+          
+          // Broadcast updated daily metrics
+          const updatedAnalytics = await storage.getCommunicationAnalytics(1); // Just today
+          analyticsService.broadcastAnalyticsUpdate('daily_metrics_updated', {
+            date: today,
+            metrics: updatedAnalytics.overview
+          });
+        } catch (error) {
+          console.error('Error updating daily analytics:', error);
+        }
+      }
+    },
+
+    broadcastCommunicationUpdate: async (eventType: string, data: any) => {
+      // Broadcast communication event update
+      analyticsService.broadcastAnalyticsUpdate('communication_event', {
+        eventType,
+        data,
+        timestamp: new Date().toISOString()
+      });
+
+      // Trigger daily analytics update
+      try {
+        const today = new Date().toISOString().split('T')[0];
+        await storage.aggregateDailyCommunicationAnalytics(today);
+        
+        // Broadcast updated metrics
+        const updatedAnalytics = await storage.getCommunicationAnalytics(7); // Last 7 days
+        analyticsService.broadcastAnalyticsUpdate('metrics_refreshed', {
+          range: '7_days',
+          data: updatedAnalytics
+        });
+      } catch (error) {
+        console.error('Error updating communication analytics:', error);
+      }
+    }
+  };
+
+  // Export analytics service for use in other parts of the application
+  (global as any).analyticsService = analyticsService;
 
   return httpServer;
 }

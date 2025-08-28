@@ -1,4 +1,5 @@
 import twilio from 'twilio';
+import { storage } from './storage';
 
 // Environment variables for Twilio configuration
 const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID!;
@@ -88,7 +89,7 @@ export class SMSService {
       if (!twilioConfigured || !client) {
         const error = 'SMS service not available - Twilio not configured properly';
         console.warn(error);
-        await this.logSMSAttempt(to, message, false, error, 0);
+        await this.logSMSAttempt(to, message, false, error, 0, undefined, priority);
         return { success: false, error };
       }
 
@@ -98,7 +99,7 @@ export class SMSService {
       if (!formattedTo) {
         const error = 'Invalid phone number format';
         console.error(`SMS failed for ${to}: ${error}`);
-        await this.logSMSAttempt(to, message, false, error, Date.now() - startTime);
+        await this.logSMSAttempt(to, message, false, error, Date.now() - startTime, undefined, priority);
         return { success: false, error };
       }
 
@@ -125,7 +126,7 @@ export class SMSService {
       this.deliveryStatusMap.set(twilioMessage.sid, deliveryStatus);
       
       console.log(`✅ SMS sent successfully to ${formattedTo}, SID: ${twilioMessage.sid}, Priority: ${priority}`);
-      await this.logSMSAttempt(formattedTo, finalMessage, true, undefined, Date.now() - startTime, twilioMessage.sid);
+      await this.logSMSAttempt(formattedTo, finalMessage, true, undefined, Date.now() - startTime, twilioMessage.sid, priority);
       
       return { 
         success: true, 
@@ -137,7 +138,7 @@ export class SMSService {
       const duration = Date.now() - startTime;
       
       console.error(`❌ SMS sending failed to ${to}: ${errorMessage}`);
-      await this.logSMSAttempt(to, message, false, errorMessage, duration);
+      await this.logSMSAttempt(to, message, false, errorMessage, duration, undefined, priority);
       
       // Determine if this error is retryable
       const isRetryable = this.isRetryableError(error);
@@ -383,6 +384,31 @@ export class SMSService {
   }
 
   /**
+   * Calculate SMS cost based on message segments and type
+   */
+  private calculateSMSCost(message: string, priority: string = 'normal'): number {
+    // SMS segment calculation (160 chars for GSM, 70 for Unicode)
+    const segments = this.calculateMessageSegments(message);
+    
+    // Twilio pricing (in cents) - approximate US rates
+    const baseRate = 0.75; // $0.0075 per segment
+    const priorityMultiplier = priority === 'emergency' ? 1.5 : 1.0;
+    
+    return Math.ceil(segments * baseRate * priorityMultiplier);
+  }
+
+  /**
+   * Calculate number of SMS segments
+   */
+  private calculateMessageSegments(message: string): number {
+    // Check if message contains Unicode characters
+    const hasUnicode = /[^\x00-\x7F]/.test(message);
+    const segmentLength = hasUnicode ? 70 : 160;
+    
+    return Math.ceil(message.length / segmentLength);
+  }
+
+  /**
    * Log SMS attempt for analytics and debugging
    */
   private async logSMSAttempt(
@@ -391,23 +417,81 @@ export class SMSService {
     success: boolean, 
     error?: string, 
     duration?: number, 
-    messageId?: string
+    messageId?: string,
+    priority: string = 'normal'
   ): Promise<void> {
+    const cost = this.calculateSMSCost(message, priority);
+    const segments = this.calculateMessageSegments(message);
+    
     const logEntry = {
       timestamp: new Date().toISOString(),
       to,
       messageLength: message.length,
+      segments,
+      cost,
+      priority,
       success,
       error,
       duration: duration || 0,
       messageId
     };
     
-    // For now, just console log - in future versions this could go to database
-    if (success) {
-      console.log(`📊 SMS Analytics: ${JSON.stringify(logEntry)}`);
-    } else {
-      console.error(`📊 SMS Error Log: ${JSON.stringify(logEntry)}`);
+    try {
+      // Save to database for analytics
+      await storage.logSMSDelivery({
+        messageId: messageId || `temp_${Date.now()}`,
+        phoneNumber: to,
+        message: message.substring(0, 1000), // Limit message length in DB
+        status: success ? 'sent' : 'failed',
+        segments,
+        cost,
+        priority,
+        errorCode: error ? 'SEND_FAILED' : undefined,
+        errorMessage: error,
+        sentAt: new Date(),
+      });
+
+      // Log communication event for analytics
+      await storage.logCommunicationEvent({
+        eventType: 'sms_sent',
+        source: 'sms',
+        messageId: messageId || `temp_${Date.now()}`,
+        userId: null, // Could be enhanced to track which user sent it
+        channelId: null,
+        cost,
+        priority,
+        eventTimestamp: new Date(),
+        metadata: { 
+          phoneNumber: to, 
+          segments, 
+          success,
+          duration 
+        },
+      });
+
+      // Broadcast real-time analytics update
+      const analyticsService = (global as any).analyticsService;
+      if (analyticsService) {
+        await analyticsService.broadcastCommunicationUpdate('sms_sent', {
+          messageId: messageId || `temp_${Date.now()}`,
+          phoneNumber: to,
+          segments,
+          cost,
+          priority,
+          success,
+          timestamp: new Date().toISOString(),
+          duration
+        });
+      }
+
+      if (success) {
+        console.log(`📊 SMS Analytics: ${JSON.stringify(logEntry)}`);
+      } else {
+        console.error(`📊 SMS Error Log: ${JSON.stringify(logEntry)}`);
+      }
+    } catch (dbError) {
+      console.error('Failed to log SMS attempt to database:', dbError);
+      // Continue without failing the SMS operation
     }
   }
 

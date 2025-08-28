@@ -60,6 +60,10 @@ export function useWebSocket() {
               // Handle real-time updates (refresh queries, etc.)
               console.log("Real-time update received:", message.data);
               break;
+            case "analytics_update":
+              // Handle analytics updates
+              console.log("Analytics update received:", message.eventType, message.data);
+              break;
             case "subscribed":
               // Handle successful subscription
               console.log("Successfully subscribed to channel");
@@ -178,8 +182,15 @@ export function useWebSocketSubscription(channel: string) {
   }, [isConnected, channel]);
 
   useEffect(() => {
-    if (lastMessage && lastMessage.channel === channel) {
-      setChannelMessages(prev => [...prev, lastMessage]);
+    if (lastMessage) {
+      // For analytics channel, listen to analytics_update messages
+      if (channel === 'analytics' && lastMessage.type === 'analytics_update') {
+        setChannelMessages(prev => [...prev, lastMessage]);
+      }
+      // For other channels, use the channel property
+      else if (lastMessage.channel === channel) {
+        setChannelMessages(prev => [...prev, lastMessage]);
+      }
     }
   }, [lastMessage, channel]);
 

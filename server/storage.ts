@@ -39,6 +39,9 @@ import {
   reportConfigs,
   dashboardWidgets,
   responses,
+  communicationAnalytics,
+  communicationEvents,
+  userCommunicationStats,
   type User,
   type UpsertUser,
   type InsertTimeOffRequest,
@@ -3700,6 +3703,405 @@ export class DatabaseStorage implements IStorage {
       })
       .returning();
     return newMessage;
+  }
+
+  // Communication Analytics methods
+  async getCommunicationAnalytics(days: number = 30): Promise<any> {
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+
+    // Get aggregated analytics data
+    const analytics = await db
+      .select()
+      .from(communicationAnalytics)
+      .where(
+        and(
+          gte(communicationAnalytics.date, startDate.toISOString().split('T')[0]),
+          lte(communicationAnalytics.date, endDate.toISOString().split('T')[0])
+        )
+      )
+      .orderBy(desc(communicationAnalytics.date));
+
+    // Calculate totals and averages
+    const totals = analytics.reduce(
+      (acc, day) => ({
+        totalMessages: acc.totalMessages + (day.totalMessages || 0),
+        totalAnnouncements: acc.totalAnnouncements + (day.totalAnnouncements || 0),
+        totalSMS: acc.totalSMS + (day.totalSMS || 0),
+        totalReactions: acc.totalReactions + (day.totalReactions || 0),
+        totalResponses: acc.totalResponses + (day.totalResponses || 0),
+        smsDelivered: acc.smsDelivered + (day.smsDelivered || 0),
+        smsFailed: acc.smsFailed + (day.smsFailed || 0),
+        smsCost: acc.smsCost + (day.smsCost || 0),
+      }),
+      {
+        totalMessages: 0,
+        totalAnnouncements: 0,
+        totalSMS: 0,
+        totalReactions: 0,
+        totalResponses: 0,
+        smsDelivered: 0,
+        smsFailed: 0,
+        smsCost: 0,
+      }
+    );
+
+    const avgEngagementRate = analytics.length > 0 
+      ? analytics.reduce((sum, day) => sum + parseFloat(day.engagementRate || '0'), 0) / analytics.length
+      : 0;
+
+    const avgDeliveryRate = analytics.length > 0
+      ? analytics.reduce((sum, day) => sum + parseFloat(day.smsDeliveryRate || '0'), 0) / analytics.length
+      : 0;
+
+    return {
+      overview: {
+        ...totals,
+        averageEngagementRate: avgEngagementRate.toFixed(2),
+        averageDeliveryRate: avgDeliveryRate.toFixed(2),
+        totalCost: (totals.smsCost / 100).toFixed(2), // Convert cents to dollars
+      },
+      dailyData: analytics,
+      dateRange: { startDate: startDate.toISOString(), endDate: endDate.toISOString() }
+    };
+  }
+
+  async getCommunicationChartData(type: string, days: number = 30): Promise<any> {
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+
+    const analytics = await db
+      .select()
+      .from(communicationAnalytics)
+      .where(
+        and(
+          gte(communicationAnalytics.date, startDate.toISOString().split('T')[0]),
+          lte(communicationAnalytics.date, endDate.toISOString().split('T')[0])
+        )
+      )
+      .orderBy(communicationAnalytics.date);
+
+    const chartData = analytics.map(day => ({
+      date: day.date,
+      messages: day.totalMessages || 0,
+      announcements: day.totalAnnouncements || 0,
+      sms: day.totalSMS || 0,
+      reactions: day.totalReactions || 0,
+      responses: day.totalResponses || 0,
+      engagementRate: parseFloat(day.engagementRate || '0'),
+      deliveryRate: parseFloat(day.smsDeliveryRate || '0'),
+      cost: (day.smsCost || 0) / 100, // Convert to dollars
+    }));
+
+    return {
+      type,
+      data: chartData,
+      summary: {
+        totalDataPoints: chartData.length,
+        dateRange: { startDate, endDate }
+      }
+    };
+  }
+
+  async getSMSAnalytics(days: number = 30): Promise<any> {
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+
+    // Get SMS delivery statistics
+    const smsStats = await db
+      .select({
+        date: sql<string>`DATE(${smsDeliveries.sentAt})`,
+        status: smsDeliveries.status,
+        count: sql<number>`COUNT(*)`,
+      })
+      .from(smsDeliveries)
+      .where(
+        and(
+          gte(smsDeliveries.sentAt, startDate),
+          lte(smsDeliveries.sentAt, endDate)
+        )
+      )
+      .groupBy(sql`DATE(${smsDeliveries.sentAt})`, smsDeliveries.status)
+      .orderBy(sql`DATE(${smsDeliveries.sentAt})`);
+
+    // Get recent SMS events
+    const recentEvents = await db
+      .select()
+      .from(communicationEvents)
+      .where(
+        and(
+          eq(communicationEvents.source, 'sms'),
+          gte(communicationEvents.eventTimestamp, startDate)
+        )
+      )
+      .orderBy(desc(communicationEvents.eventTimestamp))
+      .limit(50);
+
+    // Process the data
+    const dailyStats = smsStats.reduce((acc, curr) => {
+      if (!acc[curr.date]) {
+        acc[curr.date] = { delivered: 0, failed: 0, pending: 0 };
+      }
+      if (curr.status === 'delivered') acc[curr.date].delivered += curr.count;
+      else if (curr.status === 'failed') acc[curr.date].failed += curr.count;
+      else acc[curr.date].pending += curr.count;
+      return acc;
+    }, {} as Record<string, any>);
+
+    return {
+      dailyStats,
+      recentEvents: recentEvents.map(event => ({
+        ...event,
+        cost: (event.cost || 0) / 100, // Convert to dollars
+      })),
+      summary: {
+        totalSent: Object.values(dailyStats).reduce((sum: number, day: any) => sum + day.delivered + day.failed + day.pending, 0),
+        totalDelivered: Object.values(dailyStats).reduce((sum: number, day: any) => sum + day.delivered, 0),
+        totalFailed: Object.values(dailyStats).reduce((sum: number, day: any) => sum + day.failed, 0),
+      }
+    };
+  }
+
+  async getUserEngagementAnalytics(days: number = 30): Promise<any> {
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+
+    // Get user communication stats
+    const userStats = await db
+      .select({
+        userId: userCommunicationStats.userId,
+        firstName: users.firstName,
+        lastName: users.lastName,
+        messagesReceived: userCommunicationStats.messagesReceived,
+        messagesSent: userCommunicationStats.messagesSent,
+        reactionsGiven: userCommunicationStats.reactionsGiven,
+        responsesCreated: userCommunicationStats.responsesCreated,
+        engagementScore: userCommunicationStats.engagementScore,
+        averageResponseTime: userCommunicationStats.averageResponseTime,
+        preferredChannel: userCommunicationStats.preferredChannel,
+      })
+      .from(userCommunicationStats)
+      .leftJoin(users, eq(userCommunicationStats.userId, users.id))
+      .orderBy(desc(userCommunicationStats.engagementScore));
+
+    // Get communication events by user
+    const userEvents = await db
+      .select({
+        userId: communicationEvents.userId,
+        eventType: communicationEvents.eventType,
+        count: sql<number>`COUNT(*)`,
+      })
+      .from(communicationEvents)
+      .where(
+        and(
+          isNotNull(communicationEvents.userId),
+          gte(communicationEvents.eventTimestamp, startDate)
+        )
+      )
+      .groupBy(communicationEvents.userId, communicationEvents.eventType);
+
+    return {
+      userStats: userStats.map(user => ({
+        ...user,
+        fullName: `${user.firstName || ''} ${user.lastName || ''}`.trim(),
+        engagementScore: parseFloat(user.engagementScore || '0'),
+      })),
+      eventsByUser: userEvents,
+      summary: {
+        totalUsers: userStats.length,
+        averageEngagement: userStats.length > 0 
+          ? userStats.reduce((sum, user) => sum + parseFloat(user.engagementScore || '0'), 0) / userStats.length 
+          : 0,
+        topEngaged: userStats.slice(0, 5),
+      }
+    };
+  }
+
+  // SMS Delivery Logging
+  async logSMSDelivery(delivery: {
+    messageId: string;
+    phoneNumber: string;
+    message: string;
+    status: 'queued' | 'sending' | 'sent' | 'delivered' | 'failed' | 'undelivered';
+    segments: number;
+    cost: number;
+    priority: string;
+    errorCode?: string;
+    errorMessage?: string;
+    sentAt: Date;
+  }): Promise<any> {
+    const [newDelivery] = await db
+      .insert(smsDeliveries)
+      .values({
+        messageId: delivery.messageId,
+        phoneNumber: delivery.phoneNumber,
+        message: delivery.message,
+        status: delivery.status,
+        segments: delivery.segments,
+        cost: delivery.cost,
+        priority: delivery.priority,
+        errorCode: delivery.errorCode,
+        errorMessage: delivery.errorMessage,
+        sentAt: delivery.sentAt,
+      })
+      .returning();
+    
+    return newDelivery;
+  }
+
+  // Communication Event Logging
+  async logCommunicationEvent(event: {
+    eventType: string;
+    source: string;
+    messageId: string;
+    userId?: string | null;
+    channelId?: number | null;
+    cost?: number;
+    priority?: string;
+    eventTimestamp: Date;
+    metadata?: any;
+  }): Promise<any> {
+    const [newEvent] = await db
+      .insert(communicationEvents)
+      .values({
+        eventType: event.eventType,
+        source: event.source,
+        messageId: event.messageId,
+        userId: event.userId || null,
+        channelId: event.channelId || null,
+        cost: event.cost || null,
+        priority: event.priority || null,
+        eventTimestamp: event.eventTimestamp,
+        metadata: event.metadata || null,
+      })
+      .returning();
+    
+    return newEvent;
+  }
+
+  // Update SMS delivery status (for webhooks)
+  async updateSMSDeliveryStatus(messageId: string, status: string, errorCode?: string, errorMessage?: string): Promise<void> {
+    await db
+      .update(smsDeliveries)
+      .set({
+        status: status as any,
+        errorCode,
+        errorMessage,
+        updatedAt: new Date(),
+      })
+      .where(eq(smsDeliveries.messageId, messageId));
+  }
+
+  // Daily analytics aggregation method
+  async aggregateDailyCommunicationAnalytics(date: string): Promise<void> {
+    const startOfDay = new Date(date);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(date);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    // Get SMS stats for the day
+    const smsStats = await db
+      .select({
+        totalSMS: sql<number>`COUNT(*)`,
+        totalDelivered: sql<number>`SUM(CASE WHEN ${smsDeliveries.status} = 'delivered' THEN 1 ELSE 0 END)`,
+        totalFailed: sql<number>`SUM(CASE WHEN ${smsDeliveries.status} IN ('failed', 'undelivered') THEN 1 ELSE 0 END)`,
+        totalCost: sql<number>`SUM(${smsDeliveries.cost})`,
+        totalSegments: sql<number>`SUM(${smsDeliveries.segments})`,
+      })
+      .from(smsDeliveries)
+      .where(
+        and(
+          gte(smsDeliveries.sentAt, startOfDay),
+          lte(smsDeliveries.sentAt, endOfDay)
+        )
+      );
+
+    // Get announcement stats
+    const announcementStats = await db
+      .select({
+        totalAnnouncements: sql<number>`COUNT(*)`,
+      })
+      .from(announcements)
+      .where(
+        and(
+          gte(announcements.createdAt, startOfDay),
+          lte(announcements.createdAt, endOfDay)
+        )
+      );
+
+    // Get reaction stats
+    const reactionStats = await db
+      .select({
+        totalReactions: sql<number>`COUNT(*)`,
+      })
+      .from(messageReactions)
+      .where(
+        and(
+          gte(messageReactions.createdAt, startOfDay),
+          lte(messageReactions.createdAt, endOfDay)
+        )
+      );
+
+    // Get response stats
+    const responseStats = await db
+      .select({
+        totalResponses: sql<number>`COUNT(*)`,
+      })
+      .from(responses)
+      .where(
+        and(
+          gte(responses.createdAt, startOfDay),
+          lte(responses.createdAt, endOfDay)
+        )
+      );
+
+    const sms = smsStats[0] || {};
+    const announcements = announcementStats[0] || {};
+    const reactions = reactionStats[0] || {};
+    const responses = responseStats[0] || {};
+
+    // Calculate rates
+    const deliveryRate = sms.totalSMS > 0 ? (sms.totalDelivered / sms.totalSMS) * 100 : 0;
+    const engagementRate = announcements.totalAnnouncements > 0 
+      ? ((reactions.totalReactions + responses.totalResponses) / announcements.totalAnnouncements) * 100 
+      : 0;
+
+    // Insert or update daily analytics
+    await db
+      .insert(communicationAnalytics)
+      .values({
+        date,
+        totalMessages: announcements.totalAnnouncements || 0,
+        totalAnnouncements: announcements.totalAnnouncements || 0,
+        totalSMS: sms.totalSMS || 0,
+        totalReactions: reactions.totalReactions || 0,
+        totalResponses: responses.totalResponses || 0,
+        smsDelivered: sms.totalDelivered || 0,
+        smsFailed: sms.totalFailed || 0,
+        smsCost: sms.totalCost || 0,
+        engagementRate: engagementRate.toFixed(2),
+        smsDeliveryRate: deliveryRate.toFixed(2),
+      })
+      .onConflictDoUpdate({
+        target: communicationAnalytics.date,
+        set: {
+          totalMessages: announcements.totalAnnouncements || 0,
+          totalAnnouncements: announcements.totalAnnouncements || 0,
+          totalSMS: sms.totalSMS || 0,
+          totalReactions: reactions.totalReactions || 0,
+          totalResponses: responses.totalResponses || 0,
+          smsDelivered: sms.totalDelivered || 0,
+          smsFailed: sms.totalFailed || 0,
+          smsCost: sms.totalCost || 0,
+          engagementRate: engagementRate.toFixed(2),
+          smsDeliveryRate: deliveryRate.toFixed(2),
+          updatedAt: new Date(),
+        },
+      });
   }
 }
 

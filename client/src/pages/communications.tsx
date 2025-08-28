@@ -9,7 +9,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Bell, Calendar, Users, AlertTriangle, Clock, Plus, Send, MessageSquare, BarChart3, Wifi, WifiOff } from "lucide-react";
+import { Bell, Calendar, Users, AlertTriangle, Clock, Plus, Send, MessageSquare, BarChart3, Wifi, WifiOff, TrendingUp, Activity, DollarSign } from "lucide-react";
+import { LineChart, Line, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { format, isAfter, parseISO } from "date-fns";
 import AdminLayout from "@/components/admin-layout";
 import { MessageReactions } from "@/components/ui/message-reactions";
@@ -44,6 +45,458 @@ interface Communication {
   createdAt: string;
   scheduledFor?: string;
   status: string;
+}
+
+// Chart colors
+const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#06B6D4'];
+
+function AnalyticsDashboard() {
+  const [timeRange, setTimeRange] = useState(30);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  
+  // WebSocket integration for real-time analytics updates
+  const { isConnected, send } = useWebSocket();
+
+  // Subscribe to analytics updates when component mounts
+  useEffect(() => {
+    if (isConnected && send) {
+      send({ type: 'subscribe', channel: 'analytics' });
+      
+      return () => {
+        send({ type: 'unsubscribe', channel: 'analytics' });
+      };
+    }
+  }, [isConnected, send]);
+
+  // Listen for real-time analytics updates
+  const { messages: analyticsMessages, isConnected: wsConnected } = useWebSocketSubscription('analytics');
+
+  useEffect(() => {
+    if (analyticsMessages.length > 0) {
+      const lastMessage = analyticsMessages[analyticsMessages.length - 1];
+      
+      if (lastMessage.type === 'analytics_update') {
+        console.log('📊 Real-time analytics update:', lastMessage.eventType, lastMessage.data);
+        
+        switch (lastMessage.eventType) {
+          case 'sms_status_changed':
+            // Refresh SMS metrics when delivery status changes
+            queryClient.invalidateQueries({ queryKey: ['/api/analytics/sms/metrics'] });
+            
+            // Show toast for successful delivery
+            if (lastMessage.data.isSuccess) {
+              toast({
+                title: "📱 SMS Delivered",
+                description: `Message ${lastMessage.data.messageId.substring(0, 8)}... delivered successfully`,
+              });
+            }
+            break;
+
+          case 'daily_metrics_updated':
+            // Refresh all analytics when daily metrics are updated
+            queryClient.invalidateQueries({ queryKey: ['/api/analytics/communication/overview'] });
+            queryClient.invalidateQueries({ queryKey: ['/api/analytics/communication/charts'] });
+            break;
+
+          case 'metrics_refreshed':
+            // Comprehensive metrics refresh
+            queryClient.invalidateQueries({ queryKey: ['/api/analytics/communication/overview'] });
+            queryClient.invalidateQueries({ queryKey: ['/api/analytics/communication/charts'] });
+            queryClient.invalidateQueries({ queryKey: ['/api/analytics/sms/metrics'] });
+            queryClient.invalidateQueries({ queryKey: ['/api/analytics/user-engagement'] });
+            
+            toast({
+              title: "📊 Analytics Updated",
+              description: "Dashboard refreshed with latest data",
+              variant: "default",
+            });
+            break;
+
+          case 'communication_event':
+            // Refresh engagement metrics for communication events
+            queryClient.invalidateQueries({ queryKey: ['/api/analytics/user-engagement'] });
+            break;
+        }
+      }
+    }
+  }, [analyticsMessages, queryClient, toast]);
+
+  // Fetch analytics data
+  const { data: analyticsOverview, isLoading: overviewLoading } = useQuery({
+    queryKey: ['/api/analytics/communication/overview', timeRange],
+    queryFn: () => fetch(`/api/analytics/communication/overview?days=${timeRange}`).then(res => res.json()),
+  });
+
+  const { data: chartData, isLoading: chartLoading } = useQuery({
+    queryKey: ['/api/analytics/communication/charts', timeRange],
+    queryFn: () => fetch(`/api/analytics/communication/charts?type=engagement&days=${timeRange}`).then(res => res.json()),
+  });
+
+  const { data: smsMetrics, isLoading: smsLoading } = useQuery({
+    queryKey: ['/api/analytics/sms/metrics', timeRange],
+    queryFn: () => fetch(`/api/analytics/sms/metrics?days=${timeRange}`).then(res => res.json()),
+  });
+
+  const { data: userEngagement, isLoading: userLoading } = useQuery({
+    queryKey: ['/api/analytics/user-engagement', timeRange],
+    queryFn: () => fetch(`/api/analytics/user-engagement?days=${timeRange}`).then(res => res.json()),
+  });
+
+  if (overviewLoading && chartLoading && smsLoading && userLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map((i) => (
+            <Card key={i} className="animate-pulse">
+              <CardContent className="p-6">
+                <div className="h-4 bg-gray-200 rounded mb-2"></div>
+                <div className="h-8 bg-gray-200 rounded"></div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {[1, 2].map((i) => (
+            <Card key={i} className="animate-pulse">
+              <CardContent className="p-6">
+                <div className="h-64 bg-gray-200 rounded"></div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  const overview = analyticsOverview?.overview || {};
+  const charts = chartData?.data || [];
+  const smsData = smsMetrics?.summary || {};
+  const engagement = userEngagement?.summary || {};
+
+  // Process SMS delivery data for pie chart
+  const smsDeliveryData = [
+    { name: 'Delivered', value: smsData.totalDelivered || 0, color: COLORS[1] },
+    { name: 'Failed', value: smsData.totalFailed || 0, color: COLORS[3] },
+  ];
+
+  return (
+    <div className="space-y-6">
+      {/* Time Range Selector */}
+      <div className="flex items-center justify-between">
+        <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+          <BarChart3 className="h-5 w-5 mr-2 text-blue-600" />
+          Communication Analytics
+        </h3>
+        <Select value={timeRange.toString()} onValueChange={(value) => setTimeRange(Number(value))}>
+          <SelectTrigger className="w-40">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="7">Last 7 days</SelectItem>
+            <SelectItem value="30">Last 30 days</SelectItem>
+            <SelectItem value="90">Last 90 days</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Overview Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Total Messages</p>
+                <p className="text-2xl font-bold text-gray-900">{overview.totalMessages || 0}</p>
+              </div>
+              <MessageSquare className="h-8 w-8 text-blue-600" />
+            </div>
+            <div className="mt-2">
+              <p className="text-sm text-gray-500">
+                {overview.totalAnnouncements || 0} announcements sent
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">SMS Delivered</p>
+                <p className="text-2xl font-bold text-gray-900">{overview.smsDelivered || 0}</p>
+              </div>
+              <Send className="h-8 w-8 text-green-600" />
+            </div>
+            <div className="mt-2">
+              <p className="text-sm text-gray-500">
+                {overview.averageDeliveryRate || 0}% delivery rate
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Engagement Rate</p>
+                <p className="text-2xl font-bold text-gray-900">{overview.averageEngagementRate || 0}%</p>
+              </div>
+              <Activity className="h-8 w-8 text-purple-600" />
+            </div>
+            <div className="mt-2">
+              <p className="text-sm text-gray-500">
+                {overview.totalReactions || 0} total reactions
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">SMS Costs</p>
+                <p className="text-2xl font-bold text-gray-900">${overview.totalCost || '0.00'}</p>
+              </div>
+              <DollarSign className="h-8 w-8 text-orange-600" />
+            </div>
+            <div className="mt-2">
+              <p className="text-sm text-gray-500">
+                {timeRange} day total
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Charts Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Communication Trends */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <TrendingUp className="h-5 w-5 mr-2 text-blue-600" />
+              Communication Trends
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={charts}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" />
+                  <YAxis />
+                  <Tooltip />
+                  <Line 
+                    type="monotone" 
+                    dataKey="messages" 
+                    stroke={COLORS[0]} 
+                    strokeWidth={2}
+                    name="Messages"
+                  />
+                  <Line 
+                    type="monotone" 
+                    dataKey="announcements" 
+                    stroke={COLORS[1]} 
+                    strokeWidth={2}
+                    name="Announcements"
+                  />
+                  <Line 
+                    type="monotone" 
+                    dataKey="sms" 
+                    stroke={COLORS[2]} 
+                    strokeWidth={2}
+                    name="SMS"
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Engagement Metrics */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <Activity className="h-5 w-5 mr-2 text-purple-600" />
+              Engagement Metrics
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={charts}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" />
+                  <YAxis />
+                  <Tooltip />
+                  <Area 
+                    type="monotone" 
+                    dataKey="reactions" 
+                    stackId="1"
+                    stroke={COLORS[4]} 
+                    fill={COLORS[4]}
+                    name="Reactions"
+                  />
+                  <Area 
+                    type="monotone" 
+                    dataKey="responses" 
+                    stackId="1"
+                    stroke={COLORS[5]} 
+                    fill={COLORS[5]}
+                    name="Responses"
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* SMS Delivery Stats */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <Send className="h-5 w-5 mr-2 text-green-600" />
+              SMS Delivery Status
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={smsDeliveryData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={80}
+                    paddingAngle={5}
+                    dataKey="value"
+                  >
+                    {smsDeliveryData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="flex justify-center space-x-4 mt-4">
+              {smsDeliveryData.map((item, index) => (
+                <div key={index} className="flex items-center">
+                  <div 
+                    className="w-3 h-3 rounded-full mr-2"
+                    style={{ backgroundColor: item.color }}
+                  ></div>
+                  <span className="text-sm text-gray-600">{item.name}: {item.value}</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Top Engaged Users */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <Users className="h-5 w-5 mr-2 text-indigo-600" />
+              Top Engaged Users
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {userEngagement?.topEngaged?.slice(0, 5).map((user: any, index: number) => (
+                <div key={user.userId} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div className="flex items-center space-x-3">
+                    <div className="flex-shrink-0">
+                      <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                        <span className="text-sm font-medium text-blue-600">{index + 1}</span>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">{user.fullName}</p>
+                      <p className="text-xs text-gray-500">
+                        {user.messagesSent || 0} messages • {user.reactionsGiven || 0} reactions
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-semibold text-blue-600">{user.engagementScore}%</p>
+                    <p className="text-xs text-gray-500">engagement</p>
+                  </div>
+                </div>
+              )) || (
+                <div className="text-center py-8">
+                  <Users className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                  <p className="text-gray-500">No engagement data available</p>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Real-time Updates Indicator */}
+      <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <div className={`w-2 h-2 rounded-full animate-pulse ${
+                wsConnected ? 'bg-green-500' : 'bg-red-500'
+              }`}></div>
+              <span className="text-sm font-medium text-gray-700">
+                {wsConnected ? 'Live Analytics Dashboard' : 'Connecting to live updates...'}
+              </span>
+              {wsConnected && (
+                <Badge variant="secondary" className="text-xs">
+                  <Wifi className="h-3 w-3 mr-1" />
+                  Live
+                </Badge>
+              )}
+            </div>
+            <div className="flex items-center space-x-2">
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={async () => {
+                  // Manual refresh all queries
+                  await Promise.all([
+                    queryClient.invalidateQueries({ queryKey: ['/api/analytics/communication/overview'] }),
+                    queryClient.invalidateQueries({ queryKey: ['/api/analytics/communication/charts'] }),
+                    queryClient.invalidateQueries({ queryKey: ['/api/analytics/sms/metrics'] }),
+                    queryClient.invalidateQueries({ queryKey: ['/api/analytics/user-engagement'] })
+                  ]);
+                  
+                  toast({
+                    title: "📊 Analytics Refreshed",
+                    description: "Dashboard data updated with latest metrics.",
+                  });
+                }}
+              >
+                Refresh Now
+              </Button>
+              {wsConnected && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    toast({
+                      title: "🔄 Real-time Active",
+                      description: "Analytics dashboard automatically updates when new data arrives via SMS deliveries and communication events.",
+                    });
+                  }}
+                >
+                  <Activity className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
 }
 
 function CommunicationsContent() {
@@ -641,18 +1094,9 @@ function CommunicationsContent() {
 
         {/* Analytics Tab */}
         <TabsContent value="analytics">
-          <Card>
-            <CardContent className="text-center py-12">
-              <BarChart3 className="h-16 w-16 mx-auto mb-4 text-gray-300" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">Communication Analytics</h3>
-              <p className="text-gray-500 mb-4">
-                Analytics dashboard will be implemented in Phase 5.
-              </p>
-              <p className="text-sm text-gray-400">
-                This will include delivery rates, engagement metrics, and SMS analytics.
-              </p>
-            </CardContent>
-          </Card>
+          <div className="space-y-6">
+            <AnalyticsDashboard />
+          </div>
         </TabsContent>
       </Tabs>
     </div>
