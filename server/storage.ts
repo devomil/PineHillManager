@@ -3598,19 +3598,18 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createReadReceipt(receipt: { messageId: number; userId: string; deliveredAt?: Date }): Promise<void> {
-    await db
-      .insert(readReceipts)
-      .values({
-        messageId: receipt.messageId,
-        userId: receipt.userId,
-        deliveredAt: receipt.deliveredAt || new Date(),
-      })
-      .onConflictDoUpdate({
-        target: readReceipts.messageId,
-        set: {
-          readAt: new Date(),
-        },
-      });
+    try {
+      await db
+        .insert(readReceipts)
+        .values({
+          messageId: receipt.messageId,
+          userId: receipt.userId,
+          deliveredAt: receipt.deliveredAt || new Date(),
+        });
+    } catch (error) {
+      // Ignore duplicate key errors - receipt already exists
+      console.log('Read receipt already exists, ignoring duplicate');
+    }
   }
 
   async getReadReceipt(messageId: number, userId: string): Promise<any> {

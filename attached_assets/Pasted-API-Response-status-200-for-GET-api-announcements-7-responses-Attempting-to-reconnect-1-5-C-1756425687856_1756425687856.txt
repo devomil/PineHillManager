@@ -1,0 +1,45 @@
+API Response status: 200 for GET /api/announcements/7/responses
+Attempting to reconnect (1/5)...
+Connecting to WebSocket: wss://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/ws
+Attempting to reconnect (1/5)...
+Connecting to WebSocket: wss://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/ws
+WebSocket connected
+WebSocket welcomed: Welcome to Pine Hill Farm Communications
+WebSocket connected
+WebSocket welcomed: Welcome to Pine Hill Farm Communications
+API Request: GET /api/announcements/3/responses with data: undefined
+API Request: GET /api/announcements/4/responses with data: undefined
+API Request: GET /api/announcements/5/responses with data: undefined
+API Request: GET /api/announcements/6/responses with data: undefined
+API Request: GET /api/announcements/11/responses with data: undefined
+API Request: GET /api/announcements/12/responses with data: undefined
+API Request: GET /api/announcements/14/responses with data: undefined
+API Request: GET /api/announcements/10/responses with data: undefined
+API Request: GET /api/announcements/9/responses with data: undefined
+API Request: GET /api/announcements/8/responses with data: undefined
+API Request: GET /api/announcements/7/responses with data: undefined
+API Response status: 200 for GET /api/announcements/4/responses
+API Response status: 200 for GET /api/announcements/3/responses
+API Response status: 200 for GET /api/announcements/5/responses
+API Response status: 200 for GET /api/announcements/11/responses
+API Response status: 200 for GET /api/announcements/12/responses
+API Response status: 200 for GET /api/announcements/6/responses
+API Response status: 200 for GET /api/announcements/14/responses
+API Response status: 200 for GET /api/announcements/10/responses
+API Response status: 200 for GET /api/announcements/9/responses
+API Response status: 200 for GET /api/announcements/8/responses
+API Response status: 200 for GET /api/announcements/7/responses
+API Request: POST /api/communications/send with data: 
+Object {subject: "Pizza time", content: "come hang out", priority: "normal", messageType: "announcement", smsEnabled: true, …}
+API Response status: 500 for POST /api/communications/send
+API Error: 500 {"error":"Failed to send communication"}
+at t.value (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:17465)
+at new t (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:12630)
+at t.value (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:32766)
+at https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:34400
+useAuth - user: 
+Object {id: "40154188", email: "ryan@pinehillfarm.co", firstName: "Ryan", lastName: "Sorensen", role: "admin"}
+ isLoading: false error: null
+useAuth - user: 
+Object {id: "40154188", email: "ryan@pinehillfarm.co", firstName: "Ryan", lastName: "Sorensen", role: "admin"}
+ isLoading: false error: nul
