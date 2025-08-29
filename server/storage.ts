@@ -2070,11 +2070,36 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getResponsesByAnnouncement(announcementId: number): Promise<SelectResponse[]> {
-    return await db
-      .select()
+    const result = await db
+      .select({
+        id: responses.id,
+        authorId: responses.authorId,
+        content: responses.content,
+        announcementId: responses.announcementId,
+        messageId: responses.messageId,
+        parentResponseId: responses.parentResponseId,
+        responseType: responses.responseType,
+        isFromSMS: responses.isFromSMS,
+        smsMessageSid: responses.smsMessageSid,
+        isRead: responses.isRead,
+        createdAt: responses.createdAt,
+        updatedAt: responses.updatedAt,
+        readAt: responses.readAt,
+        isHidden: responses.isHidden,
+        hiddenBy: responses.hiddenBy,
+        hiddenReason: responses.hiddenReason,
+        author: {
+          firstName: users.firstName,
+          lastName: users.lastName,
+          role: users.role
+        }
+      })
       .from(responses)
+      .leftJoin(users, eq(responses.authorId, users.id))
       .where(eq(responses.announcementId, announcementId))
       .orderBy(asc(responses.createdAt));
+
+    return result as SelectResponse[];
   }
 
   async getResponsesByMessage(messageId: number): Promise<SelectResponse[]> {
