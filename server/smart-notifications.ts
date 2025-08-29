@@ -38,7 +38,12 @@ export class SmartNotificationService {
     reason: string;
   }> {
     try {
-      console.log(`Smart notification routing for user ${context.userId}:`, context.messageType);
+      console.log(`Smart notification routing for user ${context.userId}:`, {
+        messageType: context.messageType,
+        priority: context.priority,
+        forceSMS: context.forceSMS,
+        bypassClockStatus: context.bypassClockStatus
+      });
 
       // Get user's current work status
       const workStatus = await this.getUserWorkStatus(context.userId);
@@ -61,10 +66,11 @@ export class SmartNotificationService {
       let sendApp = true; // Always send app notification
       let reason = '';
 
-      // Force SMS if explicitly requested (overrides smart routing)
+      // Force SMS if explicitly requested (overrides ALL smart routing)
       if (context.forceSMS && hasSMSConsent && smsEnabled) {
         sendSMS = true;
         reason = 'SMS explicitly requested - bypassing smart routing';
+        console.log(`🚀 FORCE SMS: Sending SMS regardless of clock status or smart routing`);
       }
       // Emergency messages always get SMS (if consent given)
       else if (context.priority === 'emergency' || context.bypassClockStatus) {
