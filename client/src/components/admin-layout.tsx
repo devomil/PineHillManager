@@ -168,6 +168,16 @@ export default function AdminLayout({ children, currentTab }: AdminLayoutProps) 
               </Button>
               <div className="h-6 w-px bg-gray-300 hidden lg:block"></div>
               <Button
+                variant={currentTab === "communications" ? "default" : "ghost"}
+                onClick={() => handleTabChange("communications")}
+                className="nav-item-core flex items-center gap-2 px-4 xl:px-6 py-2 xl:py-3 rounded-md hover:bg-blue-50 hover:text-blue-700 hover:shadow-sm hover:-translate-y-0.5 transition-all duration-200 whitespace-nowrap mx-0"
+              >
+                <MessageSquare className="h-4 w-4" />
+                <span className="hidden xl:inline">Communications</span>
+                <span className="xl:hidden">Comms</span>
+              </Button>
+              <div className="h-6 w-px bg-gray-300 hidden lg:block"></div>
+              <Button
                 variant={currentTab === "integrations" ? "default" : "ghost"}
                 onClick={() => handleTabChange("integrations")}
                 className="nav-item-core flex items-center gap-2 px-4 xl:px-6 py-2 xl:py-3 rounded-md hover:bg-blue-50 hover:text-blue-700 hover:shadow-sm hover:-translate-y-0.5 transition-all duration-200 whitespace-nowrap mx-0"
@@ -182,10 +192,11 @@ export default function AdminLayout({ children, currentTab }: AdminLayoutProps) 
               <Button
                 variant={currentTab === "communications" ? "default" : "ghost"}
                 onClick={() => handleTabChange("communications")}
-                className="nav-item-secondary hidden xl:flex items-center gap-2 px-3 py-2 rounded-md hover:bg-gray-50 hover:shadow-sm hover:-translate-y-0.5 transition-all duration-200 whitespace-nowrap mx-0 text-sm"
+                className="nav-item-core flex items-center gap-2 px-4 xl:px-6 py-2 xl:py-3 rounded-md hover:bg-blue-50 hover:text-blue-700 hover:shadow-sm hover:-translate-y-0.5 transition-all duration-200 whitespace-nowrap mx-0"
               >
-                <MessageSquare className="h-3 w-3" />
-                Communications
+                <MessageSquare className="h-4 w-4" />
+                <span className="hidden xl:inline">Communications</span>
+                <span className="xl:hidden">Comms</span>
               </Button>
               <Button
                 variant={currentTab === "system-support" ? "default" : "ghost"}
@@ -259,6 +270,14 @@ export default function AdminLayout({ children, currentTab }: AdminLayoutProps) 
               >
                 <Calendar className="h-3 w-3" />
                 Schedule
+              </Button>
+              <Button
+                variant={currentTab === "communications" ? "default" : "ghost"}
+                onClick={() => handleTabChange("communications")}
+                className="flex items-center gap-1 px-3 py-2 rounded-md hover:bg-blue-50 transition-colors text-sm"
+              >
+                <MessageSquare className="h-3 w-3" />
+                Communications
               </Button>
               <Button
                 variant={currentTab === "marketing" ? "default" : "ghost"}
