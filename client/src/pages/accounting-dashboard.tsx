@@ -182,7 +182,9 @@ function AccountingContent() {
     queryKey: ['/api/accounting/analytics/profit-loss', today],
     queryFn: async () => {
       const response = await apiRequest('GET', `/api/accounting/analytics/profit-loss?startDate=${today}&endDate=${today}`);
-      return await response.json();
+      const data = await response.json();
+      console.log('Today profitLoss data:', data);
+      return data;
     },
   });
 
