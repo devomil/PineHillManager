@@ -5615,6 +5615,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Send communication (messages/announcements) with SMS + app notifications
   app.post('/api/communications/send', isAuthenticated, async (req, res) => {
+    console.log('🟢 ROUTE HIT: /api/communications/send');
     console.log('📤 Communication send request received:', req.body);
     try {
       const {
