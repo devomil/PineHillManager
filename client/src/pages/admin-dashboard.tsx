@@ -281,7 +281,7 @@ export default function AdminDashboard() {
                   action.href.includes('/shift-scheduling') ? 'scheduling' :
                   action.href.includes('/announcements') ? 'announcements' :
                   action.href.includes('/system-support') ? 'system-support' :
-                  action.href.includes('/communication') ? 'communication' :
+                  action.href.includes('/communications') ? 'communications' :
                   action.href.includes('/reports') ? 'reports' :
                   action.href.includes('/accounting') ? 'accounting' :
                   action.href.includes('/marketing') ? 'marketing' : 'dashboard')}
@@ -454,10 +454,11 @@ export default function AdminDashboard() {
               <div className="h-6 w-px bg-gray-300 hidden xl:block"></div>
               <TabsTrigger 
                 value="communications" 
-                className="nav-item-secondary hidden xl:flex items-center gap-2 px-3 py-2 rounded-md hover:bg-gray-50 hover:shadow-sm hover:-translate-y-0.5 transition-all duration-200 whitespace-nowrap mx-0 text-sm data-[state=active]:bg-gray-100 data-[state=active]:font-medium"
+                className="nav-item-core flex items-center gap-2 px-4 xl:px-6 py-2 xl:py-3 rounded-md hover:bg-blue-50 hover:text-blue-700 hover:shadow-sm hover:-translate-y-0.5 transition-all duration-200 whitespace-nowrap mx-0 data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:font-medium"
               >
-                <MessageCircle className="h-3 w-3" />
-                Communications
+                <MessageCircle className="h-4 w-4" />
+                <span className="hidden xl:inline">Communications</span>
+                <span className="xl:hidden">Comms</span>
               </TabsTrigger>
               <TabsTrigger 
                 value="system-support" 
