@@ -18,6 +18,7 @@ import { AnnouncementResponses } from "@/components/ui/announcement-responses";
 import { useAuth } from "@/hooks/use-auth";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { getPriorityStyle, getCategoryStyle, getPriorityEmoji, getCategoryEmoji } from "@shared/template-utils";
 import { useWebSocket, useWebSocketSubscription } from "@/lib/websocket";
 
 interface Announcement {
@@ -1105,7 +1106,64 @@ function CommunicationsContent() {
                   />
                 </div>
 
-                {/* Priority */}
+                {/* Professional Templates */}
+                {templates && templates.length > 0 && (
+                  <div>
+                    <Label htmlFor="template">📋 Use Professional Template</Label>
+                    <Select 
+                      value=""
+                      onValueChange={(templateId) => {
+                        const template = templates.find(t => t.id.toString() === templateId);
+                        if (template) {
+                          setFormData(prev => ({
+                            ...prev,
+                            title: template.title,
+                            content: template.content,
+                            priority: template.priority,
+                            smsEnabled: template.smsEnabled || false
+                          }));
+                        }
+                      }}
+                    >
+                      <SelectTrigger id="template">
+                        <SelectValue placeholder="Choose a professional template..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {templates.map((template) => {
+                          const categoryStyle = getCategoryStyle(template.category);
+                          const priorityStyle = getPriorityStyle(template.priority);
+                          return (
+                            <SelectItem 
+                              key={template.id} 
+                              value={template.id.toString()}
+                              className="flex flex-col items-start"
+                            >
+                              <div className="flex items-center gap-2 w-full">
+                                <span className="text-lg">{template.emoji || getCategoryEmoji(template.category)}</span>
+                                <div className="flex-1">
+                                  <div className="font-medium">{template.name}</div>
+                                  <div className="text-xs text-gray-500 flex items-center gap-2 mt-1">
+                                    <Badge className={`text-xs ${categoryStyle.bg} ${categoryStyle.color}`}>
+                                      {template.category}
+                                    </Badge>
+                                    <Badge className={`text-xs ${priorityStyle.bg} ${priorityStyle.color}`}>
+                                      {getPriorityEmoji(template.priority)} {template.priority}
+                                    </Badge>
+                                  </div>
+                                </div>
+                              </div>
+                            </SelectItem>
+                          );
+                        })}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Select a template to automatically fill in title, content, and settings
+                    </p>
+                  </div>
+                )}
+
+                {/* Enhanced Priority with Emojis */}
                 <div>
                   <Label htmlFor="priority">Priority Level</Label>
                   <Select 
@@ -1116,10 +1174,34 @@ function CommunicationsContent() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="low">🔵 Low Priority</SelectItem>
-                      <SelectItem value="normal">⚪ Normal Priority</SelectItem>
-                      <SelectItem value="high">🟠 High Priority</SelectItem>
-                      <SelectItem value="urgent">🔴 Urgent</SelectItem>
+                      <SelectItem value="low">
+                        <div className="flex items-center gap-2">
+                          <span>💬</span>
+                          <span>Low Priority</span>
+                          <Badge className="text-xs bg-gray-100 text-gray-700">General info</Badge>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="normal">
+                        <div className="flex items-center gap-2">
+                          <span>📢</span>
+                          <span>Normal Priority</span>
+                          <Badge className="text-xs bg-blue-100 text-blue-700">Standard</Badge>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="high">
+                        <div className="flex items-center gap-2">
+                          <span>⚠️</span>
+                          <span>High Priority</span>
+                          <Badge className="text-xs bg-orange-100 text-orange-700">Important</Badge>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="emergency">
+                        <div className="flex items-center gap-2">
+                          <span>🚨</span>
+                          <span>Emergency</span>
+                          <Badge className="text-xs bg-red-100 text-red-700">Urgent action required</Badge>
+                        </div>
+                      </SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -1372,7 +1454,7 @@ function CommunicationsContent() {
                           </div>
                           <div className="flex flex-col items-end space-y-1 sm:space-y-2 flex-shrink-0">
                             <Badge className={`text-xs ${getPriorityColor(announcement.priority)}`}>
-                              {announcement.priority}
+                              {getPriorityEmoji(announcement.priority)} {announcement.priority}
                             </Badge>
                             {announcement.smsEnabled && (
                               <Badge variant="outline" className="text-xs text-blue-600 border-blue-600">

@@ -969,12 +969,17 @@ export const scheduledMessages = pgTable("scheduled_messages", {
   typeIdx: index("idx_scheduled_messages_type").on(table.messageType),
 }));
 
-// Phase 6: Announcement Templates
+// Phase 6: Enhanced Announcement Templates with Emojis & Professional Categories
 export const announcementTemplates = pgTable("announcement_templates", {
   id: serial("id").primaryKey(),
   name: varchar("name").notNull(),
   description: text("description"),
-  category: varchar("category").notNull(), // 'safety', 'policy', 'schedule', 'emergency', 'general', 'training'
+  category: varchar("category").notNull(), // 'emergency', 'safety', 'policy', 'schedule', 'general', 'training', 'important', 'recognition', 'maintenance'
+  
+  // Enhanced visual system
+  emoji: varchar("emoji"), // Custom emoji for this template (e.g., '🚨', '📋', '🎉')
+  priorityEmoji: varchar("priority_emoji"), // Auto-assigned based on priority
+  categoryEmoji: varchar("category_emoji"), // Auto-assigned based on category
   
   // Template content
   title: varchar("title").notNull(),

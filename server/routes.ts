@@ -6312,6 +6312,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Seed professional templates with emojis
+  app.post('/api/announcement-templates/seed', isAuthenticated, async (req, res) => {
+    try {
+      // Only admins can seed templates
+      if (req.user!.role !== 'admin') {
+        return res.status(403).json({ error: 'Only admins can seed templates' });
+      }
+      
+      await storage.seedProfessionalTemplates(req.user!.id);
+      res.json({ message: 'Professional templates seeded successfully!' });
+    } catch (error) {
+      console.error('Error seeding templates:', error);
+      res.status(500).json({ error: 'Failed to seed templates' });
+    }
+  });
+
   // Automation Rules Routes (basic CRUD)
   app.post('/api/automation-rules', isAuthenticated, async (req, res) => {
     try {

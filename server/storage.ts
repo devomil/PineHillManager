@@ -4263,6 +4263,50 @@ export class DatabaseStorage implements IStorage {
       .where(eq(announcementTemplates.id, id));
   }
 
+  // Seed professional templates with emojis
+  async seedProfessionalTemplates(adminUserId: string): Promise<void> {
+    const { PROFESSIONAL_TEMPLATES, getPriorityEmoji, getCategoryEmoji } = await import('../shared/template-utils.js');
+    
+    // Check if templates already exist
+    const existingTemplates = await this.getAnnouncementTemplates();
+    if (existingTemplates.length > 0) {
+      console.log('📋 Professional templates already exist, skipping seed');
+      return;
+    }
+
+    console.log('🌱 Seeding professional templates with emojis...');
+    
+    for (const template of PROFESSIONAL_TEMPLATES) {
+      const templateData = {
+        name: template.name,
+        description: `Professional template for ${template.category} communications`,
+        category: template.category,
+        emoji: template.emoji,
+        priorityEmoji: getPriorityEmoji(template.priority),
+        categoryEmoji: getCategoryEmoji(template.category),
+        title: template.title,
+        content: template.content,
+        priority: template.priority,
+        targetAudience: 'all' as const,
+        targetEmployees: [],
+        smsEnabled: template.smsEnabled,
+        tags: template.tags,
+        createdBy: adminUserId,
+        isActive: true,
+        useCount: 0
+      };
+
+      try {
+        await this.createAnnouncementTemplate(templateData);
+        console.log(`✅ Created template: ${template.name}`);
+      } catch (error) {
+        console.error(`❌ Failed to create template ${template.name}:`, error);
+      }
+    }
+    
+    console.log('🎉 Professional templates seeded successfully!');
+  }
+
   // Phase 6: Advanced Features - Automation Rules Implementation
   async createAutomationRule(rule: InsertAutomationRule): Promise<AutomationRule> {
     const result = await db.insert(automationRules).values(rule).returning();
