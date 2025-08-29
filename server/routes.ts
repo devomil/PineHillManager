@@ -5613,16 +5613,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ENHANCED COMMUNICATION ENDPOINTS
   // ================================
 
-  // TEST ROUTE TO VERIFY LOADING
-  app.get('/api/test-route-loading', (req, res) => {
-    console.log('🔥 TEST ROUTE HIT - routes.ts is loaded correctly');
-    res.json({ message: 'Routes file loaded successfully', timestamp: new Date() });
-  });
-
   // Send communication (messages/announcements) with SMS + app notifications
   app.post('/api/communications/send', isAuthenticated, async (req, res) => {
-    console.log('🟢 ROUTE HIT: /api/communications/send');
-    console.log('📤 Communication send request received:', req.body);
     try {
       const {
         subject,
@@ -5711,20 +5703,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log('✅ Message record created:', messageRecord.id);
 
       // Send notifications via smart notification service
-      console.log('🔔 Sending notifications to users...');
-      console.log('🔧 DEBUG - Communication params:', {
-        smsEnabled,
-        priority,
-        messageType,
-        subject,
-        content,
-        targetUserCount: targetUsers.length
-      });
-      
       const userIds = targetUsers.map(user => user.id);
-      
-      // Add timeout wrapper to prevent hanging
-      console.log('🚀 About to call sendBulkSmartNotifications with forceSMS:', smsEnabled);
       const notificationPromise = smartNotificationService.sendBulkSmartNotifications(
         userIds,
         {
