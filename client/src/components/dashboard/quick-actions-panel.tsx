@@ -36,9 +36,9 @@ export default function QuickActionsPanel() {
       color: "text-slate-500",
     },
     {
-      label: "View Announcements",
+      label: "Communications",
       icon: Megaphone,
-      href: "/announcements",
+      href: "/communications",
       color: "text-purple-500",
     },
   ];
@@ -91,12 +91,12 @@ export default function QuickActionsPanel() {
           <div className="flex items-center justify-between">
             <CardTitle>Recent Announcements</CardTitle>
             <a
-              href="/announcements"
+              href="/communications"
               className="text-sm text-farm-green hover:text-green-700 font-medium cursor-pointer"
               onClick={(e) => {
                 e.preventDefault();
-                console.log("Quick actions announcements link clicked");
-                window.location.href = "/announcements";
+                console.log("Quick actions communications link clicked");
+                window.location.href = "/communications";
               }}
             >
               View All →
