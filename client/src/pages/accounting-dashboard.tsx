@@ -176,15 +176,17 @@ function AccountingContent() {
     queryKey: ['/api/accounting/accounts'],
   });
 
-  // Analytics data - today's data
-  const today = new Date().toISOString().split('T')[0];
+  // Analytics data - last 24 hours data (more useful than just today's calendar date)
+  const now = new Date();
+  const last24Hours = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  const today = now.toISOString().split('T')[0];
+  const yesterday = last24Hours.toISOString().split('T')[0];
+  
   const { data: profitLoss } = useQuery({
-    queryKey: ['/api/accounting/analytics/profit-loss', today],
+    queryKey: ['/api/accounting/analytics/profit-loss', yesterday, today],
     queryFn: async () => {
-      const response = await apiRequest('GET', `/api/accounting/analytics/profit-loss?startDate=${today}&endDate=${today}`);
-      const data = await response.json();
-      console.log('Today profitLoss data:', data);
-      return data;
+      const response = await apiRequest('GET', `/api/accounting/analytics/profit-loss?startDate=${yesterday}&endDate=${today}`);
+      return await response.json();
     },
   });
 
@@ -492,7 +494,7 @@ function AccountingContent() {
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">${(profitLoss as any)?.revenue || '0.00'}</div>
-                  <p className="text-xs text-muted-foreground">Today</p>
+                  <p className="text-xs text-muted-foreground">Last 24 Hours</p>
                 </CardContent>
               </Card>
               
@@ -503,7 +505,7 @@ function AccountingContent() {
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">${(profitLoss as any)?.expenses || '0.00'}</div>
-                  <p className="text-xs text-muted-foreground">Today</p>
+                  <p className="text-xs text-muted-foreground">Last 24 Hours</p>
                 </CardContent>
               </Card>
 
@@ -514,7 +516,7 @@ function AccountingContent() {
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">${(profitLoss as any)?.netIncome || '0.00'}</div>
-                  <p className="text-xs text-muted-foreground">Today</p>
+                  <p className="text-xs text-muted-foreground">Last 24 Hours</p>
                 </CardContent>
               </Card>
 
