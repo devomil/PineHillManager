@@ -205,8 +205,24 @@ export class SmartNotificationService {
   private formatSMSMessage(context: NotificationContext): string {
     const { title, message } = context.content;
     
-    // Add priority indicator for emergency messages
-    const priorityPrefix = context.priority === 'emergency' ? '🚨 EMERGENCY: ' : '';
+    // Add priority indicator with appropriate emoji for all priority levels
+    let priorityPrefix = '';
+    switch (context.priority) {
+      case 'emergency':
+        priorityPrefix = '🚨 EMERGENCY: ';
+        break;
+      case 'high':
+        priorityPrefix = '⚠️ HIGH: ';
+        break;
+      case 'normal':
+        priorityPrefix = '📢 ';
+        break;
+      case 'low':
+        priorityPrefix = '💬 ';
+        break;
+      default:
+        priorityPrefix = '📢 ';
+    }
     
     // Keep SMS concise while including essential info
     let smsText = `${priorityPrefix}${title}`;

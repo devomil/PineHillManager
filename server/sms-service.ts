@@ -103,10 +103,26 @@ export class SMSService {
         return { success: false, error };
       }
 
-      // Add priority prefix for emergency messages
-      const finalMessage = priority === 'emergency' 
-        ? `🚨 EMERGENCY: ${message}` 
-        : message;
+      // Add priority prefix with appropriate emoji for all priority levels
+      let priorityPrefix = '';
+      switch (priority) {
+        case 'emergency':
+          priorityPrefix = '🚨 EMERGENCY: ';
+          break;
+        case 'high':
+          priorityPrefix = '⚠️ HIGH: ';
+          break;
+        case 'normal':
+          priorityPrefix = '📢 ';
+          break;
+        case 'low':
+          priorityPrefix = '💬 ';
+          break;
+        default:
+          priorityPrefix = '📢 ';
+      }
+      
+      const finalMessage = priorityPrefix + message;
 
       // Attempt to send SMS
       const twilioMessage = await client.messages.create({
