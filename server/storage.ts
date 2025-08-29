@@ -1170,12 +1170,17 @@ export class DatabaseStorage implements IStorage {
 
   // Messages
 
-  async getUserMessages(userId: string): Promise<Message[]> {
+  async getUserMessages(userId: string, limit = 50, offset = 0): Promise<Message[]> {
+    // Get all messages sent by or relevant to this user
     return await db
       .select()
       .from(messages)
-      .where(eq(messages.recipientId, userId))
-      .orderBy(desc(messages.sentAt));
+      .where(
+        eq(messages.senderId, userId) // Messages sent by this user
+      )
+      .orderBy(desc(messages.sentAt))
+      .limit(limit)
+      .offset(offset);
   }
 
   async markMessageAsRead(id: number): Promise<Message> {

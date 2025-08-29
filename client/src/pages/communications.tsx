@@ -838,6 +838,9 @@ function CommunicationsContent() {
       // Invalidate queries to refresh the data
       queryClient.invalidateQueries({ queryKey: ["/api/messages"] });
       queryClient.invalidateQueries({ queryKey: ["/api/announcements/published"] });
+      
+      // Force refetch to show new data immediately
+      queryClient.refetchQueries({ queryKey: ["/api/messages"] });
       setFormData({
         type: 'announcement',
         title: '',
