@@ -1,6 +1,6 @@
 import { storage } from './storage';
 import webpush from 'web-push';
-import { smsService } from './smsService';
+import { smsService } from './sms-service';
 
 // Configure web push with VAPID keys
 if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
@@ -154,8 +154,15 @@ class NotificationService {
     await this.sendToAllManagers(payload);
     
     // Send SMS notification to manager's phone (847-401-5540)
-    if (smsService.isConfigured()) {
-      await smsService.sendTimeOffAlert("8474015540", employeeName);
+    try {
+      const result = await smsService.sendSMS({
+        to: "+18474015540",
+        message: `Pine Hill Farm: ${employeeName} has submitted a time-off request that needs your approval. Check the dashboard for details.`,
+        priority: 'high'
+      });
+      console.log(`📤 Time-off SMS ${result.success ? 'sent' : 'failed'} to manager`);
+    } catch (error) {
+      console.error('Failed to send time-off SMS:', error);
     }
   }
 
@@ -186,8 +193,15 @@ class NotificationService {
     await this.sendToAllManagers(payload);
     
     // Send SMS notification to manager's phone (847-401-5540)
-    if (smsService.isConfigured()) {
-      await smsService.sendShiftCoverageAlert("8474015540", requesterName, shiftDate);
+    try {
+      const result = await smsService.sendSMS({
+        to: "+18474015540",
+        message: `Pine Hill Farm: ${requesterName} needs shift coverage for ${shiftDate}. Urgent attention required.`,
+        priority: 'high'
+      });
+      console.log(`📤 Shift coverage SMS ${result.success ? 'sent' : 'failed'} to manager`);
+    } catch (error) {
+      console.error('Failed to send shift coverage SMS:', error);
     }
   }
 

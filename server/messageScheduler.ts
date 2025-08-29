@@ -1,5 +1,5 @@
 import { storage } from './storage';
-import { smsService } from './smsService';
+import { smsService } from './sms-service';
 
 let schedulerInterval: NodeJS.Timeout | null = null;
 
@@ -51,8 +51,15 @@ async function processScheduledMessages() {
           
           for (const employee of targetEmployees) {
             try {
-              const success = await smsService.sendSMS(employee.phone!, messageText);
-              console.log(`📤 SMS ${success ? 'sent' : 'failed'} to ${employee.firstName} ${employee.lastName} (${employee.phone})`);
+              const result = await smsService.sendSMS({ 
+                to: employee.phone!, 
+                message: messageText, 
+                priority: message.priority || 'normal' 
+              });
+              console.log(`📤 SMS ${result.success ? 'sent' : 'failed'} to ${employee.firstName} ${employee.lastName} (${employee.phone})`);
+              if (!result.success) {
+                console.error(`SMS error: ${result.error}`);
+              }
             } catch (error) {
               console.error(`Failed to send SMS to ${employee.firstName} ${employee.lastName}:`, error);
             }
