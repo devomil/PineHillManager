@@ -260,6 +260,22 @@ export const messageReactions = pgTable("message_reactions", {
   uniqueReactionPerUser: unique("unique_reaction_per_user").on(table.messageId, table.userId, table.reactionType),
 }));
 
+// Announcement Reactions (new)
+export const announcementReactions = pgTable("announcement_reactions", {
+  id: serial("id").primaryKey(),
+  announcementId: integer("announcement_id").notNull().references(() => announcements.id, { onDelete: 'cascade' }),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  reactionType: varchar("reaction_type").notNull(), // 'check', 'thumbs_up', 'x', 'question'
+  isFromSMS: boolean("is_from_sms").default(false), // Track if reaction came via SMS
+  smsMessageSid: varchar("sms_message_sid"), // Twilio SID for SMS-originated reactions
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  announcementUserIdx: index("idx_announcement_reactions_announcement_user").on(table.announcementId, table.userId),
+  announcementTypeIdx: index("idx_announcement_reactions_announcement_type").on(table.announcementId, table.reactionType),
+  uniqueAnnouncementReactionPerUser: unique("unique_announcement_reaction_per_user").on(table.announcementId, table.userId, table.reactionType),
+  smsIdx: index("idx_announcement_reactions_sms").on(table.isFromSMS),
+}));
+
 // Phase 3: Read Receipts
 export const readReceipts = pgTable("read_receipts", {
   id: serial("id").primaryKey(),
@@ -674,6 +690,10 @@ export const usersRelations = relations(users, ({ many, one }) => ({
   documentLogs: many(documentLogs),
   uploadedLogos: many(logos),
   sentInvitations: many(employeeInvitations),
+  authoredResponses: many(responses, { relationName: "author" }),
+  hiddenResponses: many(responses, { relationName: "hiddenBy" }),
+  messageReactions: many(messageReactions),
+  announcementReactions: many(announcementReactions),
   communicationEvents: many(communicationEvents),
   communicationStats: one(userCommunicationStats),
 }));
@@ -694,8 +714,10 @@ export const shiftCoverageRequestsRelations = relations(shiftCoverageRequests, (
   coverer: one(users, { fields: [shiftCoverageRequests.coveredBy], references: [users.id] }),
 }));
 
-export const announcementsRelations = relations(announcements, ({ one }) => ({
+export const announcementsRelations = relations(announcements, ({ one, many }) => ({
   author: one(users, { fields: [announcements.authorId], references: [users.id] }),
+  reactions: many(announcementReactions),
+  responses: many(responses),
 }));
 
 export const trainingModulesRelations = relations(trainingModules, ({ many }) => ({
@@ -909,6 +931,11 @@ export const messageReactionsRelations = relations(messageReactions, ({ one }) =
   user: one(users, { fields: [messageReactions.userId], references: [users.id] }),
 }));
 
+export const announcementReactionsRelations = relations(announcementReactions, ({ one }) => ({
+  announcement: one(announcements, { fields: [announcementReactions.announcementId], references: [announcements.id] }),
+  user: one(users, { fields: [announcementReactions.userId], references: [users.id] }),
+}));
+
 export const readReceiptsRelations = relations(readReceipts, ({ one }) => ({
   message: one(messages, { fields: [readReceipts.messageId], references: [messages.id] }),
   user: one(users, { fields: [readReceipts.userId], references: [users.id] }),
@@ -1096,6 +1123,11 @@ export const insertMessageReactionSchema = createInsertSchema(messageReactions).
   createdAt: true,
 });
 
+export const insertAnnouncementReactionSchema = createInsertSchema(announcementReactions).omit({
+  id: true,
+  createdAt: true,
+});
+
 export const insertReadReceiptSchema = createInsertSchema(readReceipts).omit({
   id: true,
   readAt: true,
@@ -1116,6 +1148,8 @@ export const insertMessageTemplateSchema = createInsertSchema(messageTemplates).
 // Phase 3: Enhanced Messaging Types
 export type MessageReaction = typeof messageReactions.$inferSelect;
 export type InsertMessageReaction = typeof messageReactions.$inferInsert;
+export type AnnouncementReaction = typeof announcementReactions.$inferSelect;
+export type InsertAnnouncementReaction = typeof announcementReactions.$inferInsert;
 export type ReadReceipt = typeof readReceipts.$inferSelect;
 export type InsertReadReceipt = typeof readReceipts.$inferInsert;
 export type VoiceMessage = typeof voiceMessages.$inferSelect;

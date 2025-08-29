@@ -1421,6 +1421,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ================================
+  // ANNOUNCEMENT REACTION ROUTES
+  // ================================
+
+  app.post("/api/announcements/reactions", isAuthenticated, async (req: any, res) => {
+    try {
+      const { announcementId, reactionType } = req.body;
+      const userId = req.user.id;
+
+      // Validate reaction type
+      const validReactions = ['check', 'thumbs_up', 'x', 'question'];
+      if (!validReactions.includes(reactionType)) {
+        return res.status(400).json({ error: "Invalid reaction type" });
+      }
+
+      // Remove existing reaction of same type from same user, then add new one
+      await storage.removeAnnouncementReaction(announcementId, userId, reactionType);
+      const reaction = await storage.addAnnouncementReaction({
+        announcementId,
+        userId,
+        reactionType,
+        isFromSMS: false
+      });
+
+      res.json(reaction);
+    } catch (error) {
+      console.error("Error adding announcement reaction:", error);
+      res.status(500).json({ error: "Failed to add reaction" });
+    }
+  });
+
+  app.delete("/api/announcements/reactions/:announcementId/:reactionType", isAuthenticated, async (req: any, res) => {
+    try {
+      const { announcementId, reactionType } = req.params;
+      const userId = req.user.id;
+
+      await storage.removeAnnouncementReaction(parseInt(announcementId), userId, reactionType);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error removing announcement reaction:", error);
+      res.status(500).json({ error: "Failed to remove reaction" });
+    }
+  });
+
+  app.get("/api/announcements/:id/reactions", isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const reactions = await storage.getAnnouncementReactions(parseInt(id));
+      res.json(reactions);
+    } catch (error) {
+      console.error("Error fetching announcement reactions:", error);
+      res.status(500).json({ error: "Failed to fetch reactions" });
+    }
+  });
+
+  // ================================
   // EMPLOYEE RESPONSE ROUTES
   // ================================
 
@@ -1576,52 +1631,129 @@ export async function registerRoutes(app: Express): Promise<Server> {
         phone: user.phone
       });
 
-      // For now, create a general response since we don't have specific announcement tracking
-      // In a full implementation, you'd track which announcement the SMS relates to
+      // Enhanced SMS processing: Check for emoji reactions first, then handle as text responses
       try {
-        // Try to determine response type from message content
-        let responseType = 'reply';
-        const bodyLower = Body.toLowerCase();
+        // Define emoji and keyword patterns for quick reactions
+        const reactionPatterns = {
+          'check': ['✅', '✓', 'check', 'acknowledged', 'ack', 'got it', 'received', 'understood'],
+          'thumbs_up': ['👍', '👍🏻', '👍🏼', '👍🏽', '👍🏾', '👍🏿', 'thumbs up', 'good', 'approve', 'approved', 'yes', 'ok', 'okay'],
+          'x': ['❌', '✖', '❎', 'no', 'nope', 'decline', 'declined', 'disagree', 'stop'],
+          'question': ['❓', '❔', '?', 'question', 'help', 'clarify', 'explain', 'what', 'how', 'why', 'when']
+        };
+
+        // Check if the message is a simple emoji reaction
+        const bodyTrimmed = Body.trim();
+        const bodyLower = bodyTrimmed.toLowerCase();
         
-        if (bodyLower.includes('question') || bodyLower.includes('?') || bodyLower.includes('help')) {
-          responseType = 'question';
-        } else if (bodyLower.includes('concern') || bodyLower.includes('issue') || bodyLower.includes('problem')) {
-          responseType = 'concern';
-        } else if (bodyLower.includes('confirm') || bodyLower.includes('yes') || bodyLower.includes('ok') || bodyLower.includes('understood')) {
-          responseType = 'confirmation';
+        // Detect if it's a reaction vs a text response
+        let isQuickReaction = false;
+        let detectedReactionType = null;
+        
+        // Check for exact emoji matches or short keywords (3 words or less for reactions)
+        const wordCount = bodyTrimmed.split(/\s+/).length;
+        if (wordCount <= 3) {
+          for (const [reactionType, patterns] of Object.entries(reactionPatterns)) {
+            for (const pattern of patterns) {
+              if (bodyTrimmed === pattern || bodyLower === pattern.toLowerCase() || bodyTrimmed.includes(pattern)) {
+                isQuickReaction = true;
+                detectedReactionType = reactionType;
+                break;
+              }
+            }
+            if (isQuickReaction) break;
+          }
         }
 
-        // For this implementation, we'll look for the most recent announcement they could be replying to
+        // For text responses, determine response type from message content
+        let responseType = 'reply';
+        if (!isQuickReaction) {
+          if (bodyLower.includes('question') || bodyLower.includes('?') || bodyLower.includes('help')) {
+            responseType = 'question';
+          } else if (bodyLower.includes('concern') || bodyLower.includes('issue') || bodyLower.includes('problem')) {
+            responseType = 'concern';
+          } else if (bodyLower.includes('confirm') || bodyLower.includes('yes') || bodyLower.includes('ok') || bodyLower.includes('understood')) {
+            responseType = 'confirmation';
+          }
+        }
+
+        // Look for the most recent announcement they could be replying to
         const announcements = await storage.getPublishedAnnouncements();
         if (announcements.length > 0) {
           const latestAnnouncement = announcements[0]; // Most recent announcement
           
-          // Create response linked to latest announcement
-          const response = await storage.createResponse({
-            authorId: user.id,
-            content: Body.trim(),
-            announcementId: latestAnnouncement.id,
-            responseType: responseType as any,
-            isFromSMS: true,
-            smsMessageSid: MessageSid
-          });
-
-          console.log('✅ Created SMS response:', {
-            responseId: response.id,
-            announcementId: latestAnnouncement.id,
-            userId: user.id,
-            responseType
-          });
-
-          // Send confirmation SMS
-          try {
-            await smsService.sendSMS({
-              to: From,
-              message: `Thanks ${user.firstName}! Your message has been received and added to "${latestAnnouncement.title}". Your team will see your response.`,
-              priority: 'normal'
+          if (isQuickReaction && detectedReactionType) {
+            // Handle as a proper announcement reaction
+            console.log('🎭 Processing SMS as quick reaction:', {
+              userId: user.id,
+              reactionType: detectedReactionType,
+              originalMessage: bodyTrimmed,
+              announcementId: latestAnnouncement.id
             });
-          } catch (smsError) {
-            console.error('Error sending confirmation SMS:', smsError);
+
+            // Remove existing reaction of same type and add new one
+            await storage.removeAnnouncementReaction(latestAnnouncement.id, user.id, detectedReactionType);
+            const reaction = await storage.addAnnouncementReaction({
+              announcementId: latestAnnouncement.id,
+              userId: user.id,
+              reactionType: detectedReactionType,
+              isFromSMS: true,
+              smsMessageSid: MessageSid
+            });
+
+            console.log('✅ Created SMS announcement reaction:', {
+              reactionId: reaction.id,
+              reactionType: detectedReactionType,
+              announcementId: latestAnnouncement.id,
+              userId: user.id,
+              isFromSMS: true
+            });
+
+            // Send confirmation SMS for reaction
+            const reactionEmoji = {
+              'check': '✅',
+              'thumbs_up': '👍',
+              'x': '❌',
+              'question': '❓'
+            }[detectedReactionType] || '✅';
+
+            try {
+              await smsService.sendSMS({
+                to: From,
+                message: `${reactionEmoji} Thanks ${user.firstName}! Your reaction has been recorded for "${latestAnnouncement.title}".`,
+                priority: 'normal'
+              });
+            } catch (smsError) {
+              console.error('Error sending reaction confirmation SMS:', smsError);
+            }
+
+          } else {
+            // Handle as a text response
+            const response = await storage.createResponse({
+              authorId: user.id,
+              content: Body.trim(),
+              announcementId: latestAnnouncement.id,
+              responseType: responseType as any,
+              isFromSMS: true,
+              smsMessageSid: MessageSid
+            });
+
+            console.log('✅ Created SMS text response:', {
+              responseId: response.id,
+              announcementId: latestAnnouncement.id,
+              userId: user.id,
+              responseType
+            });
+
+            // Send confirmation SMS for text response
+            try {
+              await smsService.sendSMS({
+                to: From,
+                message: `Thanks ${user.firstName}! Your message has been received and added to "${latestAnnouncement.title}". Your team will see your response.`,
+                priority: 'normal'
+              });
+            } catch (smsError) {
+              console.error('Error sending confirmation SMS:', smsError);
+            }
           }
 
         } else {

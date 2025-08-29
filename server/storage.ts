@@ -617,6 +617,16 @@ export interface IStorage {
   getActiveAutomationRules(): Promise<AutomationRule[]>;
   getAutomationRulesForExecution(): Promise<AutomationRule[]>;
   updateAutomationRuleLastTriggered(id: number): Promise<void>;
+  
+  // Message reactions
+  addMessageReaction(reaction: InsertMessageReaction): Promise<MessageReaction>;
+  removeMessageReaction(messageId: number, userId: string, reactionType: string): Promise<void>;
+  getMessageReactions(messageId: number): Promise<MessageReaction[]>;
+  
+  // Announcement reactions
+  addAnnouncementReaction(reaction: InsertAnnouncementReaction): Promise<AnnouncementReaction>;
+  removeAnnouncementReaction(announcementId: number, userId: string, reactionType: string): Promise<void>;
+  getAnnouncementReactions(announcementId: number): Promise<AnnouncementReaction[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -3442,6 +3452,45 @@ export class DatabaseStorage implements IStorage {
         .orderBy(asc(messageReactions.createdAt));
     } catch (error) {
       console.error('Error fetching message reactions:', error);
+      return [];
+    }
+  }
+
+  // Announcement reactions
+  async addAnnouncementReaction(reaction: InsertAnnouncementReaction): Promise<AnnouncementReaction> {
+    try {
+      const [created] = await db.insert(announcementReactions).values(reaction).returning();
+      return created;
+    } catch (error) {
+      console.error('Error adding announcement reaction:', error);
+      throw error;
+    }
+  }
+
+  async removeAnnouncementReaction(announcementId: number, userId: string, reactionType: string): Promise<void> {
+    try {
+      await db.delete(announcementReactions)
+        .where(
+          and(
+            eq(announcementReactions.announcementId, announcementId),
+            eq(announcementReactions.userId, userId),
+            eq(announcementReactions.reactionType, reactionType)
+          )
+        );
+    } catch (error) {
+      console.error('Error removing announcement reaction:', error);
+      throw error;
+    }
+  }
+
+  async getAnnouncementReactions(announcementId: number): Promise<AnnouncementReaction[]> {
+    try {
+      return await db.select()
+        .from(announcementReactions)
+        .where(eq(announcementReactions.announcementId, announcementId))
+        .orderBy(asc(announcementReactions.createdAt));
+    } catch (error) {
+      console.error('Error fetching announcement reactions:', error);
       return [];
     }
   }
