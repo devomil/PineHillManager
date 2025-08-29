@@ -5705,6 +5705,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Send notifications via smart notification service
       console.log('🔔 Sending notifications to users...');
+      console.log('🔧 DEBUG - Communication params:', {
+        smsEnabled,
+        priority,
+        messageType,
+        subject,
+        content,
+        targetUserCount: targetUsers.length
+      });
+      
       const userIds = targetUsers.map(user => user.id);
       
       // Add timeout wrapper to prevent hanging
@@ -5723,7 +5732,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
           },
           targetAudience,
-          bypassClockStatus: priority === 'emergency'
+          bypassClockStatus: priority === 'emergency',
+          forceSMS: smsEnabled  // Pass the explicit SMS flag
         }
       );
 

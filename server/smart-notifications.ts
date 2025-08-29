@@ -12,6 +12,7 @@ export interface NotificationContext {
   };
   targetAudience?: string;
   bypassClockStatus?: boolean; // For emergency messages
+  forceSMS?: boolean; // Force SMS sending regardless of smart routing
 }
 
 export interface UserWorkStatus {
@@ -60,8 +61,13 @@ export class SmartNotificationService {
       let sendApp = true; // Always send app notification
       let reason = '';
 
+      // Force SMS if explicitly requested (overrides smart routing)
+      if (context.forceSMS && hasSMSConsent && smsEnabled) {
+        sendSMS = true;
+        reason = 'SMS explicitly requested - bypassing smart routing';
+      }
       // Emergency messages always get SMS (if consent given)
-      if (context.priority === 'emergency' || context.bypassClockStatus) {
+      else if (context.priority === 'emergency' || context.bypassClockStatus) {
         if (hasSMSConsent && smsEnabled && notificationTypes.includes('emergency')) {
           sendSMS = true;
           reason = 'Emergency message - SMS sent regardless of clock status';
@@ -185,6 +191,12 @@ export class SmartNotificationService {
     }
 
     const smsMessage = this.formatSMSMessage(context);
+    console.log(`🔧 DEBUG - SMS Message formatting:`, {
+      originalTitle: context.content.title,
+      originalMessage: context.content.message,
+      priority: context.priority,
+      formattedSMS: smsMessage
+    });
     
     try {
       await this.smsService.sendSMS({
