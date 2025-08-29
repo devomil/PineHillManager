@@ -1309,8 +1309,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/messages', isAuthenticated, async (req, res) => {
     try {
       const { channel } = req.query;
-      const messages = await storage.getMessagesByChannel(channel as string || 'general');
-      res.json(messages);
+      
+      // If no specific channel, return all user-relevant messages
+      if (!channel) {
+        const userId = req.user?.id;
+        const messages = await storage.getUserMessages(userId, 50, 0); // Get 50 most recent messages
+        res.json(messages);
+      } else {
+        const messages = await storage.getMessagesByChannel(channel as string);
+        res.json(messages);
+      }
     } catch (error) {
       console.error('Error fetching messages:', error);
       res.status(500).json({ message: 'Failed to fetch messages' });

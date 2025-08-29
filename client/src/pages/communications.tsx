@@ -751,7 +751,8 @@ function CommunicationsContent() {
   });
   
   // Fetch announcements (existing functionality)
-  const { data: announcements = [], isLoading: announcementsLoading } = useQuery<Announcement[]>({
+  // Fetch traditional announcements
+  const { data: legacyAnnouncements = [], isLoading: legacyLoading } = useQuery<Announcement[]>({
     queryKey: ["/api/announcements/published"],
     queryFn: async () => {
       const response = await fetch("/api/announcements/published", { credentials: "include" });
@@ -760,6 +761,37 @@ function CommunicationsContent() {
     },
     retry: 1,
   });
+
+  // Fetch new communication messages (announcements and direct messages)  
+  const { data: communicationMessages = [], isLoading: messagesLoading } = useQuery<any[]>({
+    queryKey: ["/api/messages"],
+    queryFn: async () => {
+      const response = await fetch("/api/messages", { credentials: "include" });
+      if (!response.ok) throw new Error("Failed to fetch messages");
+      return response.json();
+    },
+    retry: 1,
+  });
+
+  // Combine legacy announcements with new announcement-type messages
+  const announcements = [
+    ...legacyAnnouncements,
+    ...communicationMessages
+      .filter(msg => msg.messageType === 'announcement')
+      .map(msg => ({
+        id: msg.id,
+        title: msg.subject || 'Announcement',
+        content: msg.content,
+        priority: msg.priority || 'normal',
+        smsEnabled: msg.smsEnabled || false,
+        createdAt: msg.sentAt,
+        expiresAt: null, // New messages don't have expiration
+        targetAudience: msg.targetAudience || 'all',
+        messageType: msg.messageType
+      }))
+  ];
+
+  const announcementsLoading = legacyLoading || messagesLoading;
 
   // Phase 6: Fetch scheduled messages
   const { data: scheduledMessages = [], isLoading: scheduledLoading } = useQuery<ScheduledMessage[]>({
@@ -802,6 +834,10 @@ function CommunicationsContent() {
     onSuccess: () => {
       toast({ title: "Communication sent successfully!" });
       setShowCreateDialog(false);
+      
+      // Invalidate queries to refresh the data
+      queryClient.invalidateQueries({ queryKey: ["/api/messages"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/announcements/published"] });
       setFormData({
         type: 'announcement',
         title: '',
@@ -1442,18 +1478,68 @@ function CommunicationsContent() {
 
         {/* Messages Tab */}
         <TabsContent value="messages">
-          <Card>
-            <CardContent className="text-center py-12">
-              <MessageSquare className="h-16 w-16 mx-auto mb-4 text-gray-300" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">Direct Messages</h3>
-              <p className="text-gray-500 mb-4">
-                Direct messaging functionality will be implemented in Phase 3.
-              </p>
-              <p className="text-sm text-gray-400">
-                This will include one-on-one conversations, group chats, and SMS integration.
-              </p>
-            </CardContent>
-          </Card>
+          {messagesLoading ? (
+            <div className="text-center py-8">
+              <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              <p className="mt-2 text-gray-600">Loading messages...</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {communicationMessages
+                .filter(msg => msg.messageType === 'direct_message')
+                .sort((a, b) => new Date(b.sentAt).getTime() - new Date(a.sentAt).getTime())
+                .map((message) => (
+                  <Card key={message.id} className="shadow-sm hover:shadow-md transition-shadow">
+                    <CardHeader className="pb-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="space-y-1 flex-1 min-w-0">
+                          <CardTitle className="text-lg font-semibold text-gray-900">
+                            {message.subject || 'Direct Message'}
+                          </CardTitle>
+                        </div>
+                        <div className="flex flex-col items-end space-y-1">
+                          <Badge className={`text-xs ${getPriorityColor(message.priority)}`}>
+                            {message.priority}
+                          </Badge>
+                          {message.smsEnabled && (
+                            <Badge variant="outline" className="text-xs text-blue-600 border-blue-600">
+                              📱 SMS
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-3 pt-0">
+                      <p className="text-gray-700 leading-relaxed">
+                        {message.content}
+                      </p>
+                      
+                      <div className="flex items-center justify-between pt-3 border-t border-gray-200">
+                        <div className="flex items-center text-sm text-gray-500">
+                          <Calendar className="h-4 w-4 mr-1" />
+                          Sent {format(parseISO(message.sentAt), "MMM d, yyyy 'at' h:mm a")}
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          To: {message.targetAudience === 'all' ? 'All Staff' : 'Selected Recipients'}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              
+              {communicationMessages.filter(msg => msg.messageType === 'direct_message').length === 0 && (
+                <Card>
+                  <CardContent className="text-center py-12">
+                    <MessageSquare className="h-16 w-16 mx-auto mb-4 text-gray-300" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">No Messages Yet</h3>
+                    <p className="text-gray-500">
+                      Direct messages will appear here once you start sending them.
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          )}
         </TabsContent>
 
         {/* Phase 6: Scheduled Messages Tab */}
