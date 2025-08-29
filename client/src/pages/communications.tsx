@@ -779,7 +779,7 @@ function CommunicationsContent() {
     ...communicationMessages
       .filter(msg => msg.messageType === 'announcement')
       .map(msg => ({
-        id: msg.id,
+        id: `msg_${msg.id}`, // Prefix to avoid ID conflicts with legacy announcements
         title: msg.subject || 'Announcement',
         content: msg.content,
         priority: msg.priority || 'normal',
@@ -787,9 +787,10 @@ function CommunicationsContent() {
         createdAt: msg.sentAt,
         expiresAt: null, // New messages don't have expiration
         targetAudience: msg.targetAudience || 'all',
-        messageType: msg.messageType
+        messageType: msg.messageType,
+        isNewMessage: true // Flag to identify new messages
       }))
-  ];
+  ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
   const announcementsLoading = legacyLoading || messagesLoading;
 
