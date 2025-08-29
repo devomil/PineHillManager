@@ -1455,7 +1455,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/announcements/:id/responses", isAuthenticated, async (req, res) => {
     try {
       const { id } = req.params;
-      const responses = await storage.getResponsesByAnnouncement(parseInt(id));
+      
+      // Handle both numeric IDs and string IDs (like msg_20)
+      let announcementId: number;
+      if (id.startsWith('msg_')) {
+        // For string IDs like msg_20, we can't get responses since they're not in the database
+        // Return empty array for now
+        return res.json([]);
+      } else {
+        announcementId = parseInt(id);
+        if (isNaN(announcementId)) {
+          return res.status(400).json({ error: "Invalid announcement ID" });
+        }
+      }
+      
+      const responses = await storage.getResponsesByAnnouncement(announcementId);
       res.json(responses);
     } catch (error) {
       console.error("Error fetching announcement responses:", error);
