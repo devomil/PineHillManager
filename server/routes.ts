@@ -5638,17 +5638,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get target users based on recipient mode
       if (recipientMode === 'individual' && recipients.length > 0) {
         // Individual recipients selected (allow self-messaging for testing/reminders)
-        console.log('🔍 Filtering users for individual recipients:', recipients);
-        console.log('📊 Total users in database:', allUsers.length);
-        
-        targetUsers = allUsers.filter(user => {
-          const isIncluded = recipients.includes(user.id);
-          const isActive = user.isActive;
-          console.log(`👤 User ${user.id} (${user.firstName} ${user.lastName}): included=${isIncluded}, active=${isActive}`);
-          return isIncluded && isActive;
-        });
-        
-        console.log('✅ Final target users:', targetUsers.length);
+        targetUsers = allUsers.filter(user => 
+          recipients.includes(user.id) && 
+          user.isActive
+        );
       } else if (recipientMode === 'audience') {
         // Audience targeting
         let eligibleUsers = allUsers.filter(user => 

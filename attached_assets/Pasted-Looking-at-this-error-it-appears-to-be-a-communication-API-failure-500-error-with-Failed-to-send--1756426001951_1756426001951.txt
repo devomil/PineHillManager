@@ -1,0 +1,80 @@
+Looking at this error, it appears to be a communication API failure (500 error with "Failed to send communication") that's preventing announcements and messages from being sent via UI and SMS notifications.
+Here are the instructions you can give to the Replit agent to handle this issue:
+Error Handling Instructions for Replit Agent
+1. Add Try-Catch Blocks Around Communication Functions
+javascript// Wrap all communication API calls in try-catch blocks
+try {
+  await sendNotification(message);
+} catch (error) {
+  console.log('Notification failed, continuing silently:', error.message);
+  // Don't throw the error - just log it and continue
+}
+2. Create a Safe Communication Wrapper Function
+javascriptasync function safeSendCommunication(type, message, recipient) {
+  try {
+    const response = await fetch('/api/communication', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type, message, recipient })
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    // Silently fail - don't block the main application flow
+    console.warn(`Communication failed (${type}):`, error.message);
+    return { success: false, error: error.message };
+  }
+}
+3. Disable Notifications When API Fails
+javascript// Add a flag to disable notifications after failures
+let notificationsEnabled = true;
+
+function disableNotificationsTemporarily() {
+  notificationsEnabled = false;
+  setTimeout(() => {
+    notificationsEnabled = true;
+  }, 300000); // Re-enable after 5 minutes
+}
+
+// Check flag before sending
+if (notificationsEnabled) {
+  safeSendCommunication('ui', message).catch(() => {
+    disableNotificationsTemporarily();
+  });
+}
+4. Remove or Comment Out Notification Calls
+If the notifications aren't critical to the application:
+javascript// Comment out or remove these lines:
+// sendUINotification(message);
+// sendSMSNotification(phoneNumber, message);
+// sendAnnouncement(announcement);
+
+// Or replace with silent logging:
+console.log('Would send notification:', message);
+5. Add Error Boundaries for UI Components
+javascript// For React components handling notifications
+class NotificationErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.log('Notification component error:', error);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return null; // Don't render notification component
+    }
+    return this.props.children;
+  }
+}
