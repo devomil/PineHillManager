@@ -2537,14 +2537,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'Start date and end date are required' });
       }
 
-      console.log('Getting profit-loss data using LIVE CLOVER API...');
-      
       // Fix timezone issue: ensure end date includes full day (23:59:59.999)
       const start = new Date(startDate as string);
       const end = new Date(endDate as string);
       end.setHours(23, 59, 59, 999);
-      
-      console.log(`🚀 PROFIT-LOSS FIXED DATE RANGE: ${start.toISOString()} - ${end.toISOString()}`);
       
       // Get live revenue data from all Clover locations (same as Revenue Analytics)
       const { CloverIntegration } = await import('./integrations/clover');
@@ -2589,7 +2585,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         netIncome: totalRevenue.toFixed(2) // For now, net income = revenue since expenses = 0
       };
       
-      console.log('Live Profit-loss result:', profitLoss);
       res.json(profitLoss);
     } catch (error) {
       console.error('Error fetching profit and loss:', error);
