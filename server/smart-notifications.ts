@@ -212,10 +212,17 @@ export class SmartNotificationService {
   }
 
   /**
-   * Format message for SMS delivery
+   * Format message for SMS delivery with sender information
    */
   private formatSMSMessage(context: NotificationContext): string {
-    const { title, message } = context.content;
+    const { title, message, metadata } = context.content;
+    
+    // Extract sender information from metadata
+    const senderName = metadata?.senderName || 'System';
+    const senderRole = metadata?.senderRole || '';
+    
+    // Create header with sender info
+    const header = `From: ${senderName}${senderRole ? ` (${senderRole})` : ''}`;
     
     // Add priority indicator with appropriate emoji for all priority levels
     let priorityPrefix = '';
@@ -236,8 +243,8 @@ export class SmartNotificationService {
         priorityPrefix = '📢 ';
     }
     
-    // Keep SMS concise while including essential info
-    let smsText = `${priorityPrefix}${title}`;
+    // Build the message with header, priority, content
+    let smsText = `${header}\n${priorityPrefix}${title}`;
     
     if (message && message !== title) {
       smsText += ` - ${message}`;
@@ -247,13 +254,25 @@ export class SmartNotificationService {
     if (context.messageType === 'schedule_change') {
       smsText += ' Check your app for details.';
     }
+    
+    // Add footer signature
+    const footer = `\n- Pine Hill Farm`;
 
-    // Ensure SMS stays under 160 characters for optimal delivery
-    if (smsText.length > 160) {
-      smsText = smsText.substring(0, 157) + '...';
+    // Combine all parts
+    const fullMessage = smsText + footer;
+
+    // For SMS longer than 160 chars, we'll allow multi-part SMS
+    // Most carriers support up to 1600 characters across multiple segments
+    if (fullMessage.length > 300) {
+      // If too long, truncate the main message but keep header and footer
+      const availableSpace = 300 - header.length - footer.length - priorityPrefix.length - 10; // 10 for separators
+      const truncatedContent = title.length > availableSpace 
+        ? title.substring(0, availableSpace - 3) + '...'
+        : title;
+      return `${header}\n${priorityPrefix}${truncatedContent}${footer}`;
     }
 
-    return smsText;
+    return fullMessage;
   }
 
   /**
