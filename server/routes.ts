@@ -5717,6 +5717,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userIds = targetUsers.map(user => user.id);
       
       // Add timeout wrapper to prevent hanging
+      console.log('🚀 About to call sendBulkSmartNotifications with forceSMS:', smsEnabled);
       const notificationPromise = smartNotificationService.sendBulkSmartNotifications(
         userIds,
         {

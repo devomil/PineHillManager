@@ -369,6 +369,12 @@ export class SmartNotificationService {
     smsNotifications: number;
     errors: Array<{ userId: string; error: string }>;
   }> {
+    console.log(`📤 sendBulkSmartNotifications called for ${userIds.length} users`, {
+      forceSMS: context.forceSMS,
+      priority: context.priority,
+      messageType: context.messageType
+    });
+
     const results = {
       sent: 0,
       appNotifications: 0,
@@ -384,17 +390,19 @@ export class SmartNotificationService {
       await Promise.all(
         batch.map(async (userId) => {
           try {
+            console.log(`🔄 Processing notification for user ${userId}`);
             const result = await this.sendSmartNotification({
               ...context,
               userId
             });
 
+            console.log(`✅ Notification result for user ${userId}:`, result);
             results.sent++;
             if (result.appNotification) results.appNotifications++;
             if (result.smsNotification) results.smsNotifications++;
 
           } catch (error) {
-            console.error(`Failed to send notification to user ${userId}:`, error);
+            console.error(`❌ Failed to send notification to user ${userId}:`, error);
             results.errors.push({
               userId,
               error: error instanceof Error ? error.message : 'Unknown error'
@@ -404,6 +412,7 @@ export class SmartNotificationService {
       );
     }
 
+    console.log(`📊 Bulk notification results:`, results);
     return results;
   }
 }
