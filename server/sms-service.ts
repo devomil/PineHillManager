@@ -103,26 +103,9 @@ export class SMSService {
         return { success: false, error };
       }
 
-      // Add priority prefix with appropriate emoji for all priority levels
-      let priorityPrefix = '';
-      switch (priority) {
-        case 'emergency':
-          priorityPrefix = '🚨 EMERGENCY: ';
-          break;
-        case 'high':
-          priorityPrefix = '⚠️ HIGH: ';
-          break;
-        case 'normal':
-          priorityPrefix = '📢 ';
-          break;
-        case 'low':
-          priorityPrefix = '💬 ';
-          break;
-        default:
-          priorityPrefix = '📢 ';
-      }
-      
-      const finalMessage = priorityPrefix + message;
+      // Note: Message formatting (including emojis) is handled by smart-notifications.ts
+      // SMS service just sends the pre-formatted message
+      const finalMessage = message;
 
       // Attempt to send SMS
       const twilioMessage = await client.messages.create({
