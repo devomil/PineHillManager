@@ -1634,6 +1634,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         phone: user.phone
       });
 
+      // DEBUG: Test announcement ordering immediately  
+      console.log('🔍 DEBUGGING SMS targeting issue...');
+      const debugAnnouncements = await storage.getPublishedAnnouncements();
+      console.log('🎯 DEBUG announcements order:', debugAnnouncements.slice(0,3).map(a => ({
+        id: a.id, 
+        title: a.title, 
+        createdAt: a.createdAt
+      })));
+
       // Enhanced SMS processing: Check for emoji reactions first, then handle as text responses
       try {
         // Define emoji and keyword patterns for quick reactions
