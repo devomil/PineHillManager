@@ -211,6 +211,109 @@ export class CloverIntegration {
     return await this.makeCloverAPICall(endpoint);
   }
 
+  // Sync inventory items with cost data to database
+  async syncInventoryItems(config?: any): Promise<void> {
+    try {
+      console.log(`🏪 Starting inventory sync for merchant ${this.config.merchantId}`);
+      
+      await storage.createIntegrationLog({
+        system: 'clover',
+        operation: 'sync_inventory',
+        status: 'in_progress',
+        message: `Starting inventory sync for merchant ${this.config.merchantId}`
+      });
+
+      // Fetch all inventory items with cost data
+      let allItems = [];
+      let offset = 0;
+      const limit = 1000;
+      let hasMoreData = true;
+
+      while (hasMoreData) {
+        console.log(`📦 Fetching items batch: offset=${offset}, limit=${limit}`);
+        
+        const itemsResponse = await this.makeCloverAPICall(`items?limit=${limit}&offset=${offset}`);
+        
+        if (!itemsResponse || !itemsResponse.elements || itemsResponse.elements.length === 0) {
+          hasMoreData = false;
+          break;
+        }
+
+        allItems.push(...itemsResponse.elements);
+        console.log(`Fetched ${itemsResponse.elements.length} items, total so far: ${allItems.length}`);
+
+        if (itemsResponse.elements.length < limit) {
+          hasMoreData = false;
+        } else {
+          offset += limit;
+        }
+
+        // Rate limiting
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+
+      console.log(`📦 Total items fetched: ${allItems.length}`);
+
+      let syncedCount = 0;
+      let updatedCount = 0;
+
+      for (const item of allItems) {
+        try {
+          // Check if item already exists in inventory
+          const existingItems = await storage.getInventoryItemsBySKU(item.id);
+          const existingItem = existingItems.length > 0 ? existingItems[0] : null;
+
+          const itemData = {
+            sku: item.id,
+            itemName: item.name,
+            description: item.description || '',
+            category: item.categories?.elements?.[0]?.name || 'Uncategorized',
+            unitCost: item.cost ? (parseFloat(item.cost) / 100).toString() : '0.00',
+            unitPrice: item.price ? (parseFloat(item.price) / 100).toString() : '0.00',
+            quantityOnHand: item.stockCount ? item.stockCount.toString() : '0.000',
+            isActive: !item.hidden,
+            lastSyncAt: new Date()
+          };
+
+          if (existingItem) {
+            // Update existing item
+            await storage.updateInventoryItem(existingItem.id, itemData);
+            updatedCount++;
+            console.log(`Updated item: ${item.name} (Cost: $${itemData.unitCost})`);
+          } else {
+            // Create new item
+            await storage.createInventoryItem(itemData);
+            syncedCount++;
+            console.log(`Created item: ${item.name} (Cost: $${itemData.unitCost})`);
+          }
+        } catch (itemError) {
+          console.error(`Error processing item ${item.id}:`, itemError);
+        }
+      }
+
+      await storage.createIntegrationLog({
+        system: 'clover',
+        operation: 'sync_inventory',
+        status: 'success',
+        message: `Inventory sync completed: ${syncedCount} new items, ${updatedCount} updated items`
+      });
+
+      console.log(`✅ Inventory sync completed: ${syncedCount} new, ${updatedCount} updated`);
+
+    } catch (error) {
+      console.error('Error syncing inventory:', error);
+      
+      await storage.createIntegrationLog({
+        system: 'clover',
+        operation: 'sync_inventory',
+        status: 'error',
+        message: `Failed to sync inventory: ${error instanceof Error ? error.message : 'Unknown error'}`
+      });
+
+      throw error;
+    }
+  }
+
   async fetchItemStocks(params: {
     limit?: number;
     offset?: number;
@@ -329,8 +432,22 @@ export class CloverIntegration {
             const quantity = lineItem.quantity || 1;
             const lineTotal = itemAmount * quantity;
             
+            // Try to link to inventory item for cost tracking
+            let inventoryItemId = null;
+            try {
+              const inventoryItems = await storage.getInventoryItemsBySKU(lineItem.item?.id || lineItem.id);
+              const inventoryItem = inventoryItems.length > 0 ? inventoryItems[0] : null;
+              if (inventoryItem) {
+                inventoryItemId = inventoryItem.id;
+                console.log(`🔗 Linked sale item "${lineItem.name}" to inventory item ${inventoryItemId} (Cost: $${inventoryItem.unitCost})`);
+              }
+            } catch (error) {
+              console.log(`No inventory match for item: ${lineItem.name}`);
+            }
+            
             const itemData = {
               saleId: createdSale.id,
+              inventoryItemId,
               itemName: lineItem.name,
               quantity: quantity.toString(),
               unitPrice: itemAmount.toString(),
@@ -455,8 +572,22 @@ export class CloverIntegration {
             const quantity = lineItem.quantity || 1;
             const lineTotal = itemAmount * quantity;
             
+            // Try to link to inventory item for cost tracking
+            let inventoryItemId = null;
+            try {
+              const inventoryItems = await storage.getInventoryItemsBySKU(lineItem.item?.id || lineItem.id);
+              const inventoryItem = inventoryItems.length > 0 ? inventoryItems[0] : null;
+              if (inventoryItem) {
+                inventoryItemId = inventoryItem.id;
+                console.log(`🔗 Linked sale item "${lineItem.name}" to inventory item ${inventoryItemId} (Cost: $${inventoryItem.unitCost})`);
+              }
+            } catch (error) {
+              console.log(`No inventory match for item: ${lineItem.name}`);
+            }
+            
             const itemData = {
               saleId: createdSale.id,
+              inventoryItemId,
               itemName: lineItem.name,
               quantity: quantity.toString(),
               unitPrice: itemAmount.toString(),

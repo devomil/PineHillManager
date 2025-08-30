@@ -37,7 +37,8 @@ import {
   Plus,
   TrendingDown,
   CheckCircle2,
-  AlertTriangle
+  AlertTriangle,
+  Calculator
 } from 'lucide-react';
 import { apiRequest } from '@/lib/queryClient';
 import AdminLayout from '@/components/admin-layout';
@@ -329,6 +330,38 @@ function AccountingContent() {
     },
   });
 
+  // Cost of Goods Sold analytics
+  const { data: cogsData } = useQuery({
+    queryKey: ['/api/accounting/analytics/cogs', today],
+    queryFn: async () => {
+      const response = await apiRequest('GET', `/api/accounting/analytics/cogs?startDate=${today}&endDate=${today}`);
+      return await response.json();
+    },
+  });
+
+  // Inventory sync mutation
+  const inventorySync = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest('POST', '/api/accounting/sync-inventory');
+      return await response.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/accounting/analytics/cogs'] });
+      toast({
+        title: "Inventory Sync Complete",
+        description: `Product costs updated across ${data.results?.length || 0} locations`,
+        variant: "default",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Inventory Sync Failed",
+        description: "Failed to sync product costs. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'connected':
@@ -528,6 +561,76 @@ function AccountingContent() {
                 </CardContent>
               </Card>
             </div>
+
+            {/* Cost Analysis Section */}
+            <Card className="w-full shadow-md border-2">
+              <CardHeader className="pb-4">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <CardTitle className="text-lg font-bold flex items-center gap-2">
+                      <Calculator className="h-5 w-5 text-blue-600" />
+                      Cost of Goods Sold Analysis - Today
+                    </CardTitle>
+                    <CardDescription>
+                      Product cost tracking and profit margin insights
+                    </CardDescription>
+                  </div>
+                  <Button
+                    onClick={() => inventorySync.mutate()}
+                    disabled={inventorySync.isPending}
+                    size="sm"
+                    className="flex items-center gap-2"
+                  >
+                    <Package className="h-4 w-4" />
+                    {inventorySync.isPending ? 'Syncing...' : 'Sync Product Costs'}
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {cogsData ? (
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="space-y-1">
+                      <p className="text-sm text-muted-foreground">Total Revenue</p>
+                      <p className="text-xl font-bold text-green-600">${cogsData.totalRevenue}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-sm text-muted-foreground">Cost of Goods</p>
+                      <p className="text-xl font-bold text-red-600">${cogsData.totalCost}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-sm text-muted-foreground">Gross Profit</p>
+                      <p className="text-xl font-bold text-blue-600">${cogsData.grossProfit}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-sm text-muted-foreground">Gross Margin</p>
+                      <p className="text-xl font-bold text-purple-600">{cogsData.grossMargin}%</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <Package className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                    <p className="text-gray-500 mb-4">No cost data available</p>
+                    <p className="text-sm text-gray-400 mb-4">Sync inventory to get product costs and profit insights</p>
+                    <Button
+                      onClick={() => inventorySync.mutate()}
+                      disabled={inventorySync.isPending}
+                      size="sm"
+                    >
+                      {inventorySync.isPending ? 'Syncing Inventory...' : 'Sync Product Costs'}
+                    </Button>
+                  </div>
+                )}
+                
+                {cogsData && (
+                  <div className="mt-4 pt-4 border-t">
+                    <div className="flex justify-between items-center text-sm text-muted-foreground">
+                      <span>Items Sold: {cogsData.totalItemsSold}</span>
+                      <span>Unique Products: {cogsData.uniqueItems}</span>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
             {/* Monthly Business Intelligence Summary */}
             <Card className="w-full shadow-lg border-2">

@@ -2075,6 +2075,90 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Sync inventory items with cost data across all Clover locations
+  app.post('/api/accounting/sync-inventory', isAuthenticated, async (req, res) => {
+    try {
+      console.log('🏪 Starting inventory sync across all Clover locations...');
+      
+      const allCloverConfigs = await storage.getAllCloverConfigs();
+      const activeConfigs = allCloverConfigs.filter(config => config.isActive);
+      
+      const results = [];
+      
+      for (const config of activeConfigs) {
+        try {
+          const { CloverIntegration } = await import('./integrations/clover');
+          const cloverIntegration = new CloverIntegration(config);
+          
+          await cloverIntegration.syncInventoryItems(config);
+          results.push({
+            location: config.merchantName,
+            status: 'success',
+            message: 'Inventory synced successfully'
+          });
+        } catch (error) {
+          results.push({
+            location: config.merchantName,
+            status: 'error',
+            message: error instanceof Error ? error.message : 'Unknown error'
+          });
+        }
+      }
+      
+      res.json({
+        message: 'Inventory sync completed',
+        results
+      });
+    } catch (error) {
+      console.error('Error syncing inventory:', error);
+      res.status(500).json({ error: 'Failed to sync inventory' });
+    }
+  });
+
+  // Get cost of goods sold analysis
+  app.get('/api/accounting/analytics/cogs', isAuthenticated, async (req, res) => {
+    try {
+      const { startDate, endDate } = req.query;
+      const { db } = await import('./db');
+      const { posSales, posSaleItems, inventoryItems } = await import('@shared/schema');
+      const { sql, between, isNotNull } = await import('drizzle-orm');
+      
+      // Calculate cost of goods sold for the date range
+      const cogsQuery = await db
+        .select({
+          totalRevenue: sql<number>`COALESCE(SUM(${posSales.totalAmount}), 0)`.as('totalRevenue'),
+          totalCost: sql<number>`COALESCE(SUM(
+            CAST(${posSaleItems.quantity} AS DECIMAL) * 
+            CAST(${inventoryItems.unitCost} AS DECIMAL)
+          ), 0)`.as('totalCost'),
+          totalItemsSold: sql<number>`COALESCE(SUM(CAST(${posSaleItems.quantity} AS DECIMAL)), 0)`.as('totalItemsSold'),
+          uniqueItems: sql<number>`COUNT(DISTINCT ${inventoryItems.id})`.as('uniqueItems')
+        })
+        .from(posSales)
+        .leftJoin(posSaleItems, sql`${posSaleItems.saleId} = ${posSales.id}`)
+        .leftJoin(inventoryItems, sql`${inventoryItems.id} = ${posSaleItems.inventoryItemId}`)
+        .where(between(posSales.saleDate, startDate as string, endDate as string));
+
+      const cogsData = cogsQuery[0];
+      const grossProfit = parseFloat(cogsData.totalRevenue.toString()) - parseFloat(cogsData.totalCost.toString());
+      const grossMargin = cogsData.totalRevenue > 0 
+        ? (grossProfit / parseFloat(cogsData.totalRevenue.toString())) * 100 
+        : 0;
+
+      res.json({
+        totalRevenue: parseFloat(cogsData.totalRevenue.toString()).toFixed(2),
+        totalCost: parseFloat(cogsData.totalCost.toString()).toFixed(2),
+        grossProfit: grossProfit.toFixed(2),
+        grossMargin: grossMargin.toFixed(2),
+        totalItemsSold: parseInt(cogsData.totalItemsSold.toString()),
+        uniqueItems: parseInt(cogsData.uniqueItems.toString())
+      });
+    } catch (error) {
+      console.error('Error calculating COGS:', error);
+      res.status(500).json({ error: 'Failed to calculate cost of goods sold' });
+    }
+  });
+
   // Multi-location analytics endpoint (supports Clover POS + Amazon Store)
   app.get('/api/accounting/analytics/multi-location', async (req, res) => {
     console.log('🔥 MULTI-LOCATION ENDPOINT HIT - DEBUG TEST (NO AUTH CHECK)');
