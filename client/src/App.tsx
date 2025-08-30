@@ -27,7 +27,8 @@ import UserManagement from "@/pages/user-management";
 import AccountingDashboard from "@/pages/accounting-dashboard";
 import IntegrationsPage from "@/pages/integrations-page";
 import MarketingPage from "@/pages/marketing-page";
-import InventoryOrdersPage from "@/pages/inventory-orders";
+import InventoryPage from "@/pages/inventory";
+import OrdersPage from "@/pages/orders";
 import NotFound from "@/pages/not-found";
 import Landing from "@/pages/landing";
 import EmergencyContactPage from "@/pages/emergency-contact";
@@ -66,7 +67,8 @@ function AuthenticatedApp() {
       <Route path="/support" component={EmployeeSupport} />
       <Route path="/user-management" component={UserManagement} />
       <Route path="/accounting" component={AccountingDashboard} />
-      <Route path="/inventory-orders" component={InventoryOrdersPage} />
+      <Route path="/inventory" component={InventoryPage} />
+      <Route path="/orders" component={OrdersPage} />
       <Route path="/integrations" component={IntegrationsPage} />
       <Route path="/admin/accounting" component={AccountingDashboard} />
       <Route path="/admin/integrations" component={IntegrationsPage} />
