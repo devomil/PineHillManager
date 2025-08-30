@@ -583,15 +583,35 @@ function AccountingContent() {
                       Product cost tracking and profit margin insights
                     </CardDescription>
                   </div>
-                  <Button
-                    onClick={() => inventorySync.mutate()}
-                    disabled={inventorySync.isPending}
-                    size="sm"
-                    className="flex items-center gap-2"
-                  >
-                    <Package className="h-4 w-4" />
-                    {inventorySync.isPending ? 'Syncing...' : 'Sync Product Costs'}
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={async () => {
+                        // First sync sales data, then inventory costs
+                        try {
+                          console.log('Starting combined sync...');
+                          const salesResponse = await apiRequest('POST', '/api/accounting/sync-sales');
+                          const salesData = await salesResponse.json();
+                          console.log('Sales sync completed:', salesData);
+                          
+                          // Then sync inventory
+                          inventorySync.mutate();
+                        } catch (error) {
+                          console.error('Sales sync failed:', error);
+                          toast({
+                            title: "Sales Sync Failed",
+                            description: "Could not sync sales data. Try again.",
+                            variant: "destructive",
+                          });
+                        }
+                      }}
+                      disabled={inventorySync.isPending}
+                      size="sm"
+                      className="flex items-center gap-2"
+                    >
+                      <Calculator className="h-4 w-4" />
+                      {inventorySync.isPending ? 'Syncing...' : 'Sync Sales & Costs'}
+                    </Button>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent>

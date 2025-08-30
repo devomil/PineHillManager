@@ -2075,6 +2075,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Sync sales data from Clover to enable cost calculations
+  app.post('/api/accounting/sync-sales', isAuthenticated, async (req, res) => {
+    try {
+      console.log('💰 Starting sales sync across all Clover locations...');
+      
+      const allCloverConfigs = await storage.getAllCloverConfigs();
+      const activeConfigs = allCloverConfigs.filter(config => config.isActive);
+      
+      const results = [];
+      const today = new Date().toISOString().split('T')[0]; // Get today's date
+      
+      for (const config of activeConfigs) {
+        try {
+          const { CloverIntegration } = await import('./integrations/clover');
+          const cloverIntegration = new CloverIntegration(config);
+          
+          console.log(`💰 Syncing sales for ${config.merchantName}...`);
+          await cloverIntegration.syncOrders({ 
+            startDate: today,
+            endDate: today 
+          });
+          
+          results.push({
+            location: config.merchantName,
+            status: 'success',
+            message: 'Sales synced successfully'
+          });
+        } catch (error) {
+          console.error(`Error syncing sales for ${config.merchantName}:`, error);
+          results.push({
+            location: config.merchantName,
+            status: 'error',
+            message: error instanceof Error ? error.message : 'Unknown error'
+          });
+        }
+      }
+      
+      res.json({
+        message: 'Sales sync completed',
+        results
+      });
+    } catch (error) {
+      console.error('Error syncing sales:', error);
+      res.status(500).json({ error: 'Failed to sync sales' });
+    }
+  });
+
   // Sync inventory items with cost data across all Clover locations
   app.post('/api/accounting/sync-inventory', isAuthenticated, async (req, res) => {
     try {
