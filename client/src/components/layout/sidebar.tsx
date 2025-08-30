@@ -2,7 +2,7 @@ import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useAuth } from "@/hooks/use-auth";
-import { Home, Calendar, Clock, MessageSquare, Users, GraduationCap, Megaphone, BookOpen, BarChart3, Settings, User, X, CalendarDays, Bell, FileText, Image } from "lucide-react";
+import { Home, Calendar, Clock, MessageSquare, Users, GraduationCap, Megaphone, BookOpen, BarChart3, Settings, User, X, CalendarDays, Bell, FileText, Image, Package, ShoppingCart } from "lucide-react";
 
 interface SidebarProps {
   mobileMenuOpen: boolean;
@@ -19,6 +19,7 @@ export default function Sidebar({ mobileMenuOpen, setMobileMenuOpen }: SidebarPr
     { name: "Global Calendar", href: "/calendar", icon: Calendar, roles: ["employee", "admin", "manager"] },
     { name: "Time Management", href: "/time", icon: Clock, roles: ["employee", "admin", "manager"] },
     { name: "Communication", href: "/communication", icon: MessageSquare, roles: ["employee", "admin", "manager"] },
+    { name: "Inventory & Orders", href: "/inventory-orders", icon: Package, roles: ["employee", "admin", "manager"] },
     { name: "Documents", href: "/documents", icon: FileText, roles: ["employee", "admin", "manager"] },
     { name: "Notifications", href: "/notifications", icon: Bell, roles: ["employee", "admin", "manager"] },
     { name: "Marketing", href: "/marketing", icon: Megaphone, roles: ["employee", "admin", "manager"] },
