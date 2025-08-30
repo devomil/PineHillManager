@@ -1087,7 +1087,7 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(announcements)
       .where(eq(announcements.isPublished, true))
-      .orderBy(desc(announcements.publishedAt));
+      .orderBy(desc(announcements.createdAt));
   }
 
   async getAnnouncementById(id: number): Promise<Announcement | undefined> {
