@@ -906,39 +906,39 @@ function AccountingContent() {
                         <div className="flex items-center justify-between">
                           <span className="text-sm font-medium">Profit Goal</span>
                           <span className="text-sm text-gray-600 dark:text-gray-400">
-                            ${(biMetrics.monthlyRevenue - biMetrics.monthlyExpenses).toLocaleString()} / ${monthlyGoals.profit.toLocaleString()}
+                            ${monthlyCogsData ? parseFloat(monthlyCogsData.grossProfit).toLocaleString() : '0'} / ${monthlyGoals.profit.toLocaleString()}
                           </span>
                         </div>
                         <div className="relative">
                           <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-4 overflow-hidden">
                             <div 
                               className={`h-full rounded-full transition-all duration-500 ease-out ${
-                                ((biMetrics.monthlyRevenue - biMetrics.monthlyExpenses) / monthlyGoals.profit) >= 1.0 ? 'bg-gradient-to-r from-green-500 to-green-600' :
-                                ((biMetrics.monthlyRevenue - biMetrics.monthlyExpenses) / monthlyGoals.profit) >= 0.8 ? 'bg-gradient-to-r from-yellow-400 to-yellow-500' :
-                                ((biMetrics.monthlyRevenue - biMetrics.monthlyExpenses) / monthlyGoals.profit) >= 0.5 ? 'bg-gradient-to-r from-blue-400 to-blue-500' :
+                                monthlyCogsData && (parseFloat(monthlyCogsData.grossProfit) / monthlyGoals.profit) >= 1.0 ? 'bg-gradient-to-r from-green-500 to-green-600' :
+                                monthlyCogsData && (parseFloat(monthlyCogsData.grossProfit) / monthlyGoals.profit) >= 0.8 ? 'bg-gradient-to-r from-yellow-400 to-yellow-500' :
+                                monthlyCogsData && (parseFloat(monthlyCogsData.grossProfit) / monthlyGoals.profit) >= 0.5 ? 'bg-gradient-to-r from-blue-400 to-blue-500' :
                                 'bg-gradient-to-r from-red-400 to-red-500'
                               }`}
-                              style={{ width: `${Math.min(100, ((biMetrics.monthlyRevenue - biMetrics.monthlyExpenses) / monthlyGoals.profit) * 100)}%` }}
+                              style={{ width: `${Math.min(100, monthlyCogsData ? (parseFloat(monthlyCogsData.grossProfit) / monthlyGoals.profit) * 100 : 0)}%` }}
                             />
                           </div>
                           <div className="absolute inset-0 flex items-center justify-center">
                             <span className="text-xs font-semibold text-white drop-shadow">
-                              {(((biMetrics.monthlyRevenue - biMetrics.monthlyExpenses) / monthlyGoals.profit) * 100).toFixed(1)}%
+                              {monthlyCogsData ? ((parseFloat(monthlyCogsData.grossProfit) / monthlyGoals.profit) * 100).toFixed(1) : '0.0'}%
                             </span>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          {(biMetrics.monthlyRevenue - biMetrics.monthlyExpenses) >= monthlyGoals.profit ? (
+                          {monthlyCogsData && parseFloat(monthlyCogsData.grossProfit) >= monthlyGoals.profit ? (
                             <CheckCircle2 className="h-4 w-4 text-green-600 animate-pulse" />
-                          ) : (biMetrics.monthlyRevenue - biMetrics.monthlyExpenses) >= monthlyGoals.profit * 0.8 ? (
+                          ) : monthlyCogsData && parseFloat(monthlyCogsData.grossProfit) >= monthlyGoals.profit * 0.8 ? (
                             <TrendingUp className="h-4 w-4 text-yellow-600 animate-bounce" />
                           ) : (
                             <AlertTriangle className="h-4 w-4 text-red-600" />
                           )}
                           <span className="text-xs">
-                            {(biMetrics.monthlyRevenue - biMetrics.monthlyExpenses) >= monthlyGoals.profit 
+                            {monthlyCogsData && parseFloat(monthlyCogsData.grossProfit) >= monthlyGoals.profit 
                               ? 'Goal Achieved!' 
-                              : `${(((biMetrics.monthlyRevenue - biMetrics.monthlyExpenses) / monthlyGoals.profit) * 100).toFixed(1)}% Complete`}
+                              : `${monthlyCogsData ? ((parseFloat(monthlyCogsData.grossProfit) / monthlyGoals.profit) * 100).toFixed(1) : '0.0'}% Complete`}
                           </span>
                         </div>
                       </div>
@@ -948,39 +948,39 @@ function AccountingContent() {
                         <div className="flex items-center justify-between">
                           <span className="text-sm font-medium">Profit Margin</span>
                           <span className="text-sm text-gray-600 dark:text-gray-400">
-                            {biMetrics.profitMargin.toFixed(1)}% / {monthlyGoals.profitMargin}%
+                            {monthlyCogsData ? parseFloat(monthlyCogsData.grossMargin).toFixed(1) : '0.0'}% / {monthlyGoals.profitMargin}%
                           </span>
                         </div>
                         <div className="relative">
                           <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-4 overflow-hidden">
                             <div 
                               className={`h-full rounded-full transition-all duration-500 ease-out ${
-                                (biMetrics.profitMargin / monthlyGoals.profitMargin) >= 1.0 ? 'bg-gradient-to-r from-green-500 to-green-600' :
-                                (biMetrics.profitMargin / monthlyGoals.profitMargin) >= 0.8 ? 'bg-gradient-to-r from-yellow-400 to-yellow-500' :
-                                (biMetrics.profitMargin / monthlyGoals.profitMargin) >= 0.5 ? 'bg-gradient-to-r from-blue-400 to-blue-500' :
+                                monthlyCogsData && (parseFloat(monthlyCogsData.grossMargin) / monthlyGoals.profitMargin) >= 1.0 ? 'bg-gradient-to-r from-green-500 to-green-600' :
+                                monthlyCogsData && (parseFloat(monthlyCogsData.grossMargin) / monthlyGoals.profitMargin) >= 0.8 ? 'bg-gradient-to-r from-yellow-400 to-yellow-500' :
+                                monthlyCogsData && (parseFloat(monthlyCogsData.grossMargin) / monthlyGoals.profitMargin) >= 0.5 ? 'bg-gradient-to-r from-blue-400 to-blue-500' :
                                 'bg-gradient-to-r from-red-400 to-red-500'
                               }`}
-                              style={{ width: `${Math.min(100, (biMetrics.profitMargin / monthlyGoals.profitMargin) * 100)}%` }}
+                              style={{ width: `${Math.min(100, monthlyCogsData ? (parseFloat(monthlyCogsData.grossMargin) / monthlyGoals.profitMargin) * 100 : 0)}%` }}
                             />
                           </div>
                           <div className="absolute inset-0 flex items-center justify-center">
                             <span className="text-xs font-semibold text-white drop-shadow">
-                              {biMetrics.profitMargin.toFixed(1)}%
+                              {monthlyCogsData ? parseFloat(monthlyCogsData.grossMargin).toFixed(1) : '0.0'}%
                             </span>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          {biMetrics.profitMargin >= monthlyGoals.profitMargin ? (
+                          {monthlyCogsData && parseFloat(monthlyCogsData.grossMargin) >= monthlyGoals.profitMargin ? (
                             <CheckCircle2 className="h-4 w-4 text-green-600 animate-pulse" />
-                          ) : biMetrics.profitMargin >= monthlyGoals.profitMargin * 0.8 ? (
+                          ) : monthlyCogsData && parseFloat(monthlyCogsData.grossMargin) >= monthlyGoals.profitMargin * 0.8 ? (
                             <TrendingUp className="h-4 w-4 text-yellow-600 animate-bounce" />
                           ) : (
                             <AlertTriangle className="h-4 w-4 text-red-600" />
                           )}
                           <span className="text-xs">
-                            {biMetrics.profitMargin >= monthlyGoals.profitMargin 
+                            {monthlyCogsData && parseFloat(monthlyCogsData.grossMargin) >= monthlyGoals.profitMargin 
                               ? 'Target Met!' 
-                              : `${((biMetrics.profitMargin / monthlyGoals.profitMargin) * 100).toFixed(1)}% of Target`}
+                              : `${monthlyCogsData ? ((parseFloat(monthlyCogsData.grossMargin) / monthlyGoals.profitMargin) * 100).toFixed(1) : '0.0'}% of Target`}
                           </span>
                         </div>
                       </div>
