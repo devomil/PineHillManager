@@ -330,11 +330,20 @@ function AccountingContent() {
     },
   });
 
-  // Cost of Goods Sold analytics
+  // Cost of Goods Sold analytics - Daily
   const { data: cogsData } = useQuery({
     queryKey: ['/api/accounting/analytics/cogs', today],
     queryFn: async () => {
       const response = await apiRequest('GET', `/api/accounting/analytics/cogs?startDate=${today}&endDate=${today}`);
+      return await response.json();
+    },
+  });
+
+  // Cost of Goods Sold analytics - Monthly  
+  const { data: monthlyCogsData } = useQuery({
+    queryKey: ['/api/accounting/analytics/cogs', monthStart, monthEnd],
+    queryFn: async () => {
+      const response = await apiRequest('GET', `/api/accounting/analytics/cogs?startDate=${monthStart}&endDate=${monthEnd}`);
       return await response.json();
     },
   });
@@ -769,12 +778,20 @@ function AccountingContent() {
                           <span className="font-bold text-green-600">${biMetrics?.monthlyRevenue?.toFixed(2) || '0.00'}</span>
                         </div>
                         <div className="flex justify-between">
+                          <span className="text-sm text-gray-600">Cost of Goods:</span>
+                          <span className="font-bold text-orange-600">${monthlyCogsData?.totalCost || '0.00'}</span>
+                        </div>
+                        <div className="flex justify-between">
                           <span className="text-sm text-gray-600">Expenses:</span>
                           <span className="font-bold text-red-600">${biMetrics?.monthlyExpenses?.toFixed(2) || '0.00'}</span>
                         </div>
                         <div className="flex justify-between border-t pt-2">
-                          <span className="text-sm font-medium">Profit Margin:</span>
-                          <span className="font-bold text-blue-600">{biMetrics?.profitMargin?.toFixed(1) || '0.0'}%</span>
+                          <span className="text-sm font-medium">Gross Profit:</span>
+                          <span className="font-bold text-blue-600">${monthlyCogsData?.grossProfit || '0.00'}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-sm font-medium">Gross Margin:</span>
+                          <span className="font-bold text-blue-600">{monthlyCogsData?.grossMargin || '0.0'}%</span>
                         </div>
                       </div>
                     </CardContent>
