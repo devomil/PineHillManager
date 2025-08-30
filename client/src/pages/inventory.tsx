@@ -11,15 +11,18 @@ import {
   AlertTriangle,
   CheckCircle,
   MapPin,
-  Calculator
+  Calculator,
+  ArrowLeft
 } from 'lucide-react';
 import { InventoryManagement } from '@/components/inventory-management';
 import { apiRequest } from '@/lib/queryClient';
+import { useLocation } from 'wouter';
 
 export default function InventoryPage() {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [location, setLocation] = useLocation();
 
   // Inventory sync mutation - preserve functionality from accounting dashboard
   const inventorySync = useMutation({
@@ -82,13 +85,23 @@ export default function InventoryPage() {
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">
-                Inventory Management
-              </h1>
-              <p className="text-gray-600">
-                Manage products, stock levels, and categories across all store locations
-              </p>
+            <div className="flex items-center gap-4">
+              <Button
+                variant="outline"
+                onClick={() => setLocation('/admin')}
+                className="flex items-center gap-2 hover:bg-blue-50 hover:text-blue-700"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Back to Dashboard
+              </Button>
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900 mb-2">
+                  Inventory Management
+                </h1>
+                <p className="text-gray-600">
+                  Manage products, stock levels, and categories across all store locations
+                </p>
+              </div>
             </div>
             <div className="flex items-center gap-3">
               <Button

@@ -8,12 +8,15 @@ import {
   Users,
   AlertTriangle,
   CheckCircle,
-  MapPin
+  MapPin,
+  ArrowLeft
 } from 'lucide-react';
 import { ComprehensiveOrderManagement } from '@/components/comprehensive-order-management';
+import { useLocation } from 'wouter';
 
 export default function OrdersPage() {
   const { user } = useAuth();
+  const [location, setLocation] = useLocation();
 
   // Check if user has access to orders (admin, manager, or specific departments)
   const hasOrdersAccess = user?.role === 'admin' || 
@@ -46,13 +49,23 @@ export default function OrdersPage() {
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">
-                Order Management
-              </h1>
-              <p className="text-gray-600">
-                Process orders, view transaction details, and analyze sales performance across all locations
-              </p>
+            <div className="flex items-center gap-4">
+              <Button
+                variant="outline"
+                onClick={() => setLocation('/admin')}
+                className="flex items-center gap-2 hover:bg-blue-50 hover:text-blue-700"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Back to Dashboard
+              </Button>
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900 mb-2">
+                  Order Management
+                </h1>
+                <p className="text-gray-600">
+                  Process orders, view transaction details, and analyze sales performance across all locations
+                </p>
+              </div>
             </div>
             <div className="flex items-center gap-3">
               <Badge variant="outline" className="text-green-600 border-green-600">
