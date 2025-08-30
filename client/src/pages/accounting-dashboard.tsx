@@ -346,14 +346,22 @@ function AccountingContent() {
       return await response.json();
     },
     onSuccess: (data) => {
+      console.log('Sync success data:', data);
       queryClient.invalidateQueries({ queryKey: ['/api/accounting/analytics/cogs'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/accounting/analytics/multi-location'] });
+      
+      const successCount = data.results?.filter((r: any) => r.status === 'success').length || 0;
+      const totalLocations = data.results?.length || 0;
+      
       toast({
-        title: "Inventory Sync Complete",
-        description: `Product costs updated across ${data.results?.length || 0} locations`,
+        title: "Inventory Sync Complete! 🎉",
+        description: `Successfully synced product costs from ${successCount}/${totalLocations} Clover locations. Cost analysis data updated.`,
         variant: "default",
+        duration: 5000,
       });
     },
     onError: (error) => {
+      console.error('Sync error:', error);
       toast({
         title: "Inventory Sync Failed",
         description: "Failed to sync product costs. Please try again.",
