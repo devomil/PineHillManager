@@ -1592,6 +1592,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Twilio webhook for incoming SMS replies
   app.post("/api/sms/webhook", async (req, res) => {
+    console.log('🚨 SMS WEBHOOK HIT! Raw body:', req.body);
     try {
       const { From, Body, MessageSid, To } = req.body;
       
