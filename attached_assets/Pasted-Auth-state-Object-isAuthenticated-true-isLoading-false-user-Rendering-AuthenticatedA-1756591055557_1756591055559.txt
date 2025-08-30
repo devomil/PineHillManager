@@ -1,0 +1,48 @@
+Auth state: 
+Object {isAuthenticated: true, isLoading: false, user: {…}}
+Rendering: AuthenticatedApp
+Auth state: 
+Object {isAuthenticated: true, isLoading: false, user: {…}}
+Rendering: AuthenticatedApp
+API Request: GET /api/accounting/analytics/profit-loss?startDate=2025-08-30&endDate=2025-08-30 with data: undefined
+API Request: GET /api/accounting/analytics/profit-loss?startDate=2025-08-01&endDate=2025-08-30 with data: undefined
+API Request: GET /api/accounting/analytics/multi-location?startDate=2025-08-30&endDate=2025-08-30 with data: undefined
+API Request: GET /api/accounting/analytics/cogs?startDate=2025-08-30&endDate=2025-08-30 with data: undefined
+API Response status: 200 for GET /api/accounting/analytics/cogs?startDate=2025-08-30&endDate=2025-08-30
+API Response status: 200 for GET /api/accounting/analytics/profit-loss?startDate=2025-08-30&endDate=2025-08-30
+API Response status: 200 for GET /api/accounting/analytics/multi-location?startDate=2025-08-30&endDate=2025-08-30
+API Response status: 200 for GET /api/accounting/analytics/profit-loss?startDate=2025-08-01&endDate=2025-08-30
+Starting combined sync...
+API Request: POST /api/accounting/sync-sales with data: undefined
+API Response status: 200 for POST /api/accounting/sync-sales
+Sales sync failed: 
+SyntaxError {message: "Failed to execute 'json' on 'Response': Unexpected token '<', "<!DOCTYPE "... is not valid JSON"}
+
+at t.value (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:17465)
+at new t (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:12630)
+at t.value (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:32766)
+at https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:34400
+useAuth - user: 
+Object {id: "40154188", email: "ryan@pinehillfarm.co", firstName: "Ryan", lastName: "Sorensen", role: "admin"}
+ isLoading: false error: null
+useAuth - user: 
+Object {id: "40154188", email: "ryan@pinehillfarm.co", firstName: "Ryan", lastName: "Sorensen", role: "admin"}
+ isLoading: false error: null
+Auth state: 
+Object {isAuthenticated: true, isLoading: false, user: {…}}
+Rendering: AuthenticatedApp
+Auth state: 
+Object {isAuthenticated: true, isLoading: false, user: {…}}
+Rendering: AuthenticatedApp
+useAuth - user: 
+Object {id: "40154188", email: "ryan@pinehillfarm.co", firstName: "Ryan", lastName: "Sorensen", role: "admin"}
+ isLoading: false error: null
+useAuth - user: 
+Object {id: "40154188", email: "ryan@pinehillfarm.co", firstName: "Ryan", lastName: "Sorensen", role: "admin"}
+ isLoading: false error: null
+Auth state: 
+Object {isAuthenticated: true, isLoading: false, user: {…}}
+Rendering: AuthenticatedApp
+Auth state: 
+Object {isAuthenticated: true, isLoading: false, user: {…}}
+Rendering: AuthenticatedApp
