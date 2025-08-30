@@ -1681,6 +1681,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         // Look for the most recent announcement they could be replying to
         const announcements = await storage.getPublishedAnnouncements();
+        console.log('📋 SMS webhook announcement check:', {
+          totalAnnouncements: announcements.length,
+          latestAnnouncementId: announcements[0]?.id,
+          latestAnnouncementTitle: announcements[0]?.title,
+          allIds: announcements.slice(0,3).map(a => ({id: a.id, title: a.title}))
+        });
         if (announcements.length > 0) {
           const latestAnnouncement = announcements[0]; // Most recent announcement
           
