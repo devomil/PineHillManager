@@ -301,14 +301,22 @@ export default function AdminDashboard() {
             {adminQuickActions.map((action, index) => (
               <Card key={index} 
                 className="cursor-pointer transition-all duration-200 hover:shadow-md hover:scale-105 border border-gray-200"
-                onClick={() => handleTabChange(action.href.includes('/employees') ? 'employees' : 
-                  action.href.includes('/shift-scheduling') ? 'scheduling' :
-                  action.href.includes('/announcements') ? 'announcements' :
-                  action.href.includes('/system-support') ? 'system-support' :
-                  action.href.includes('/communications') ? 'communications' :
-                  action.href.includes('/reports') ? 'reports' :
-                  action.href.includes('/accounting') ? 'accounting' :
-                  action.href.includes('/marketing') ? 'marketing' : 'dashboard')}
+                onClick={() => {
+                  if (action.href.includes('/inventory')) {
+                    setLocation('/inventory');
+                  } else if (action.href.includes('/orders')) {
+                    setLocation('/orders');
+                  } else {
+                    handleTabChange(action.href.includes('/employees') ? 'employees' : 
+                      action.href.includes('/shift-scheduling') ? 'scheduling' :
+                      action.href.includes('/announcements') ? 'announcements' :
+                      action.href.includes('/system-support') ? 'system-support' :
+                      action.href.includes('/communications') ? 'communications' :
+                      action.href.includes('/reports') ? 'reports' :
+                      action.href.includes('/accounting') ? 'accounting' :
+                      action.href.includes('/marketing') ? 'marketing' : 'dashboard');
+                  }
+                }}
               >
                 <CardContent className="p-4">
                   <div className="flex items-center space-x-3">
@@ -454,6 +462,24 @@ export default function AdminDashboard() {
                 <DollarSign className="h-4 w-4" />
                 <span className="hidden xl:inline">Accounting</span>
                 <span className="xl:hidden">Finance</span>
+              </TabsTrigger>
+              <div className="h-6 w-px bg-gray-300 hidden lg:block"></div>
+              <TabsTrigger 
+                value="inventory" 
+                className="nav-item-core flex items-center gap-2 px-4 xl:px-6 py-2 xl:py-3 rounded-md hover:bg-blue-50 hover:text-blue-700 hover:shadow-sm hover:-translate-y-0.5 transition-all duration-200 whitespace-nowrap mx-0 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-800 data-[state=active]:font-medium"
+              >
+                <Package className="h-4 w-4" />
+                <span className="hidden xl:inline">Inventory</span>
+                <span className="xl:hidden">Inventory</span>
+              </TabsTrigger>
+              <div className="h-6 w-px bg-gray-300 hidden lg:block"></div>
+              <TabsTrigger 
+                value="orders" 
+                className="nav-item-core flex items-center gap-2 px-4 xl:px-6 py-2 xl:py-3 rounded-md hover:bg-blue-50 hover:text-blue-700 hover:shadow-sm hover:-translate-y-0.5 transition-all duration-200 whitespace-nowrap mx-0 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-800 data-[state=active]:font-medium"
+              >
+                <ShoppingCart className="h-4 w-4" />
+                <span className="hidden xl:inline">Orders</span>
+                <span className="xl:hidden">Orders</span>
               </TabsTrigger>
               <div className="h-6 w-px bg-gray-300 hidden lg:block"></div>
               <TabsTrigger 
