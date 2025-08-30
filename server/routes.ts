@@ -6107,142 +6107,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // SMS Response Webhook (for handling replies to SMS)
-  app.post('/api/sms/webhook', async (req, res) => {
+  // SMS Fallback Webhook (backup handler for when primary fails)
+  app.post('/api/sms/fallback', async (req, res) => {
     try {
-      const { From, Body, MessageSid } = req.body;
+      console.log('SMS fallback webhook activated:', req.body);
       
-      console.log('SMS webhook received:', { From, Body, MessageSid });
-
-      // Find user by phone number
-      const users = await storage.getAllUsers();
-      const user = users.find(u => u.phone === From);
-
-      if (!user) {
-        console.log('SMS webhook: User not found for phone number:', From);
-        res.status(200).send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
-        return;
-      }
-
-      // Process SMS commands
-      const message = Body.trim().toLowerCase();
+      const { From, Body } = req.body;
+      console.log(`Fallback SMS handler - From: ${From}, Message: "${Body}"`);
       
-      if (message === 'stop') {
-        // Handle opt-out
-        await storage.updateUserProfile(user.id, {
-          smsEnabled: false,
-          smsConsent: false,
-          smsConsentDate: null
-        });
-
-        // Send confirmation via TwiML
-        const twiml = new twilio.twiml.MessagingResponse();
-        twiml.message('You have been unsubscribed from Pine Hill Farm SMS notifications. Reply START to opt back in.');
-        
-        res.type('text/xml');
-        res.send(twiml.toString());
-        return;
-
-      } else if (message === 'start') {
-        // Handle opt-in
-        await storage.updateUserProfile(user.id, {
-          smsEnabled: true,
-          smsConsent: true,
-          smsConsentDate: new Date()
-        });
-
-        // Send confirmation via TwiML
-        const twiml = new twilio.twiml.MessagingResponse();
-        twiml.message('You have been subscribed to Pine Hill Farm SMS notifications. Reply STOP to opt out.');
-        
-        res.type('text/xml');
-        res.send(twiml.toString());
-        return;
-
-      } else if (message === 'help') {
-        // Send help message via TwiML
-        const twiml = new twilio.twiml.MessagingResponse();
-        twiml.message('Pine Hill Farm SMS: Reply STOP to opt out, START to opt in. Msg & data rates may apply. For support, call (414) 737-4100.');
-        
-        res.type('text/xml');
-        res.send(twiml.toString());
-        return;
-
-      } else {
-        // Handle message reactions or responses
-        const reactionMap: { [key: string]: string } = {
-          '✓': 'check', 'check': 'check', 'ok': 'check', 'yes': 'check', 'y': 'check',
-          '👍': 'thumbs_up', 'thumbs up': 'thumbs_up', 'good': 'thumbs_up', 'like': 'thumbs_up',
-          '❌': 'x', 'x': 'x', 'no': 'x', 'n': 'x',
-          '❓': 'question', '?': 'question', 'question': 'question', 'help': 'question'
-        };
-
-        const reactionType = reactionMap[message];
-        
-        if (reactionType) {
-          // Try to find the most recent message to react to
-          const recentMessages = await storage.getMessagesForUser(user.id, { limit: 1, offset: 0 });
-          
-          if (recentMessages.length > 0) {
-            const messageId = recentMessages[0].id;
-            
-            // Remove existing reaction of same type, then add new one
-            await storage.removeMessageReaction(messageId, user.id, reactionType);
-            await storage.addMessageReaction({
-              messageId,
-              userId: user.id,
-              reactionType,
-            });
-
-            // Send confirmation via TwiML
-            const twiml = new twilio.twiml.MessagingResponse();
-            twiml.message(`Your reaction (${reactionType.replace('_', ' ')}) has been recorded for the latest message.`);
-            
-            res.type('text/xml');
-            res.send(twiml.toString());
-            return;
-          } else {
-            // No recent messages to react to - send TwiML response
-            const twiml = new twilio.twiml.MessagingResponse();
-            twiml.message('No recent messages found to react to. Your reaction could not be processed.');
-            
-            res.type('text/xml');
-            res.send(twiml.toString());
-            return;
-          }
-        } else {
-          // Log general SMS response for review
-          console.log(`SMS response from ${user.firstName} ${user.lastName} (${From}): ${Body}`);
-          
-          // Create a message record of the response
-          await storage.createMessage({
-            senderId: user.id,
-            content: `SMS Response: ${Body}`,
-            messageType: 'direct',
-            targetAudience: 'admin',
-            priority: 'normal',
-            smsEnabled: false,
-          });
-        }
-      }
-
-      // Always respond with valid TwiML
+      // Simple fallback response
       const twiml = new twilio.twiml.MessagingResponse();
+      twiml.message('Your message was received but could not be processed at this time. Please contact Pine Hill Farm directly at (414) 737-4100 for urgent matters.');
+      
       res.type('text/xml');
       res.send(twiml.toString());
-
-    } catch (error) {
-      console.error('SMS webhook error:', error);
       
-      // Send error TwiML response
+    } catch (error) {
+      console.error('Error in SMS fallback handler:', error);
+      
       const twiml = new twilio.twiml.MessagingResponse();
       res.type('text/xml');
       res.send(twiml.toString());
     }
   });
 
-  // SMS Fallback Webhook (backup handler for when primary fails)
-  app.post('/api/sms/fallback', async (req, res) => {
+  // Voice Webhook endpoints for Twilio
+  // Main incoming voice call webhook
+  app.post('/api/voice/incoming', async (req, res) => {
     try {
       console.log('SMS fallback webhook activated:', req.body);
       
