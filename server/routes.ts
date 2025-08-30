@@ -1386,6 +1386,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { messageId, reactionType } = req.body;
       const userId = req.user.id;
 
+      // Convert messageId to integer (handles both "msg_32" and "32" formats)
+      const numericMessageId = parseInt(messageId.toString().replace('msg_', ''));
+
       // Validate reaction type
       const validReactions = ['check', 'thumbs_up', 'x', 'question'];
       if (!validReactions.includes(reactionType)) {
@@ -1393,9 +1396,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Remove existing reaction of same type from same user, then add new one
-      await storage.removeMessageReaction(messageId, userId, reactionType);
+      await storage.removeMessageReaction(numericMessageId, userId, reactionType);
       const reaction = await storage.addMessageReaction({
-        messageId,
+        messageId: numericMessageId,
         userId,
         reactionType,
       });
