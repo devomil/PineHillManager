@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 // Removed Tabs imports to prevent RovingFocusGroupItem conflicts
-import { Users, Clock, Calendar, Bell, Settings, Eye, FileText, DollarSign, Menu, QrCode, Video, User, LogOut, ChevronDown, MessageSquare } from "lucide-react";
+import { Users, Clock, Calendar, Bell, Settings, Eye, FileText, DollarSign, Menu, QrCode, Video, User, LogOut, ChevronDown, MessageSquare, Package, ShoppingCart } from "lucide-react";
 import { useLocation } from "wouter";
 
 interface AdminLayoutProps {
@@ -51,6 +51,12 @@ export default function AdminLayout({ children, currentTab }: AdminLayoutProps) 
         break;
       case 'marketing':
         setLocation('/admin/marketing');
+        break;
+      case 'inventory':
+        setLocation('/inventory');
+        break;
+      case 'orders':
+        setLocation('/orders');
         break;
     }
   };
@@ -155,6 +161,26 @@ export default function AdminLayout({ children, currentTab }: AdminLayoutProps) 
                 <DollarSign className="h-4 w-4" />
                 <span className="hidden xl:inline">Accounting</span>
                 <span className="xl:hidden">Finance</span>
+              </Button>
+              <div className="h-6 w-px bg-gray-300 hidden lg:block"></div>
+              <Button
+                variant={currentTab === "inventory" ? "default" : "ghost"}
+                onClick={() => handleTabChange("inventory")}
+                className="nav-item-core flex items-center gap-2 px-4 xl:px-6 py-2 xl:py-3 rounded-md hover:bg-blue-50 hover:text-blue-700 hover:shadow-sm hover:-translate-y-0.5 transition-all duration-200 whitespace-nowrap mx-0"
+              >
+                <Package className="h-4 w-4" />
+                <span className="hidden xl:inline">Inventory</span>
+                <span className="xl:hidden">Inventory</span>
+              </Button>
+              <div className="h-6 w-px bg-gray-300 hidden lg:block"></div>
+              <Button
+                variant={currentTab === "orders" ? "default" : "ghost"}
+                onClick={() => handleTabChange("orders")}
+                className="nav-item-core flex items-center gap-2 px-4 xl:px-6 py-2 xl:py-3 rounded-md hover:bg-blue-50 hover:text-blue-700 hover:shadow-sm hover:-translate-y-0.5 transition-all duration-200 whitespace-nowrap mx-0"
+              >
+                <ShoppingCart className="h-4 w-4" />
+                <span className="hidden xl:inline">Orders</span>
+                <span className="xl:hidden">Orders</span>
               </Button>
               <div className="h-6 w-px bg-gray-300 hidden lg:block"></div>
               <Button

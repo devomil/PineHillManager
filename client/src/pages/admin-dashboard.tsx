@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useQuery } from "@tanstack/react-query";
-import { Users, Clock, Calendar, MapPin, ChevronRight, FileText, MessageCircle, Bell, Settings, Eye, DollarSign, Menu, X, QrCode, Video } from "lucide-react";
+import { Users, Clock, Calendar, MapPin, ChevronRight, FileText, MessageCircle, Bell, Settings, Eye, DollarSign, Menu, X, QrCode, Video, Package, ShoppingCart } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { formatTimeStringToCST } from "@/lib/time-utils";
 
@@ -38,6 +38,8 @@ export default function AdminDashboard() {
     if (path.includes('/accounting')) return 'accounting';
     if (path.includes('/marketing')) return 'marketing';
     if (path.includes('/integrations')) return 'integrations';
+    if (path.includes('/inventory')) return 'inventory';
+    if (path.includes('/orders')) return 'orders';
     return 'dashboard';
   };
 
@@ -75,6 +77,12 @@ export default function AdminDashboard() {
         break;
       case 'employee-view':
         setLocation('/dashboard');
+        break;
+      case 'inventory':
+        setLocation('/inventory');
+        break;
+      case 'orders':
+        setLocation('/orders');
         break;
     }
   };
@@ -186,6 +194,22 @@ export default function AdminDashboard() {
       href: "/accounting",
       color: "text-orange-600",
       bgColor: "bg-orange-50"
+    },
+    {
+      title: "Inventory Management",
+      description: "Manage products, stock levels, and categories",
+      icon: Package,
+      href: "/inventory",
+      color: "text-emerald-600",
+      bgColor: "bg-emerald-50"
+    },
+    {
+      title: "Order Management",
+      description: "Process orders and analyze sales performance",
+      icon: ShoppingCart,
+      href: "/orders",
+      color: "text-cyan-600",
+      bgColor: "bg-cyan-50"
     },
     {
       title: "Marketing Tools",
