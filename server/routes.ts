@@ -6125,7 +6125,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // SMS Fallback Webhook (backup handler for when primary fails)
   app.post('/api/sms/fallback', async (req, res) => {
     try {
-      console.log('SMS fallback webhook activated:', req.body);
+      console.log('🚨 SMS FALLBACK webhook activated (NOT main webhook):', req.body);
       
       const { From, Body } = req.body;
       console.log(`Fallback SMS handler - From: ${From}, Message: "${Body}"`);
@@ -6150,7 +6150,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Main incoming voice call webhook
   app.post('/api/voice/incoming', async (req, res) => {
     try {
-      console.log('SMS fallback webhook activated:', req.body);
+      console.log('🚨 VOICE webhook wrongly called with SMS data:', req.body);
       
       const { From, Body } = req.body;
       console.log(`Fallback SMS handler - From: ${From}, Message: "${Body}"`);
