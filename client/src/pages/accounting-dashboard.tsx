@@ -339,11 +339,11 @@ function AccountingContent() {
     },
   });
 
-  // Cost of Goods Sold analytics - Monthly  
+  // Cost of Goods Sold analytics - Monthly (month-to-date)
   const { data: monthlyCogsData } = useQuery({
-    queryKey: ['/api/accounting/analytics/cogs', monthStart, monthEnd],
+    queryKey: ['/api/accounting/analytics/cogs', monthStart, today],
     queryFn: async () => {
-      const response = await apiRequest('GET', `/api/accounting/analytics/cogs?startDate=${monthStart}&endDate=${monthEnd}`);
+      const response = await apiRequest('GET', `/api/accounting/analytics/cogs?startDate=${monthStart}&endDate=${today}`);
       return await response.json();
     },
   });
