@@ -542,7 +542,7 @@ function AccountingContent() {
                   </div>
                   <div className="flex gap-2">
                     <Button
-                      onClick={() => window.open('/inventory-orders', '_blank')}
+                      onClick={() => window.open('/inventory', '_blank')}
                       size="sm"
                       className="flex items-center gap-2"
                     >
@@ -578,10 +578,10 @@ function AccountingContent() {
                     <p className="text-gray-500 mb-4">No cost data available</p>
                     <p className="text-sm text-gray-400 mb-4">Use the Inventory & Orders page to sync product costs</p>
                     <Button
-                      onClick={() => window.open('/inventory-orders', '_blank')}
+                      onClick={() => window.open('/inventory', '_blank')}
                       size="sm"
                     >
-                      Go to Inventory & Orders
+                      Go to Inventory
                     </Button>
                   </div>
                 )}
