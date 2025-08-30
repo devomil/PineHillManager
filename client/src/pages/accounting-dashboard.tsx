@@ -45,8 +45,6 @@ import AdminLayout from '@/components/admin-layout';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
 import { RevenueAnalytics } from '@/components/revenue-analytics';
-import { ComprehensiveOrderManagement } from '@/components/comprehensive-order-management';
-import { InventoryManagement } from '@/components/inventory-management';
 
 type SystemHealth = {
   database: string;
@@ -348,36 +346,6 @@ function AccountingContent() {
     },
   });
 
-  // Inventory sync mutation
-  const inventorySync = useMutation({
-    mutationFn: async () => {
-      const response = await apiRequest('POST', '/api/accounting/sync-inventory');
-      return await response.json();
-    },
-    onSuccess: (data) => {
-      console.log('Sync success data:', data);
-      queryClient.invalidateQueries({ queryKey: ['/api/accounting/analytics/cogs'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/accounting/analytics/multi-location'] });
-      
-      const successCount = data.results?.filter((r: any) => r.status === 'success').length || 0;
-      const totalLocations = data.results?.length || 0;
-      
-      toast({
-        title: "Inventory Sync Complete! 🎉",
-        description: `Successfully synced product costs from ${successCount}/${totalLocations} Clover locations. Cost analysis data updated.`,
-        variant: "default",
-        duration: 5000,
-      });
-    },
-    onError: (error) => {
-      console.error('Sync error:', error);
-      toast({
-        title: "Inventory Sync Failed",
-        description: "Failed to sync product costs. Please try again.",
-        variant: "destructive",
-      });
-    },
-  });
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -496,26 +464,6 @@ function AccountingContent() {
               Revenue Analytics
             </button>
             <button
-              onClick={() => setActiveSection('orders')}
-              className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                activeSection === 'orders'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              Order Management
-            </button>
-            <button
-              onClick={() => setActiveSection('inventory')}
-              className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                activeSection === 'inventory'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              Inventory
-            </button>
-            <button
               onClick={() => setActiveSection('integrations')}
               className={`py-2 px-1 border-b-2 font-medium text-sm ${
                 activeSection === 'integrations'
@@ -594,16 +542,12 @@ function AccountingContent() {
                   </div>
                   <div className="flex gap-2">
                     <Button
-                      onClick={() => {
-                        // Just sync inventory costs - the COGS endpoint now uses live data automatically
-                        inventorySync.mutate();
-                      }}
-                      disabled={inventorySync.isPending}
+                      onClick={() => window.open('/inventory-orders', '_blank')}
                       size="sm"
                       className="flex items-center gap-2"
                     >
-                      <Calculator className="h-4 w-4" />
-                      {inventorySync.isPending ? 'Syncing...' : 'Sync Product Costs'}
+                      <Package className="h-4 w-4" />
+                      Manage Inventory
                     </Button>
                   </div>
                 </div>
@@ -632,13 +576,12 @@ function AccountingContent() {
                   <div className="text-center py-8">
                     <Package className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                     <p className="text-gray-500 mb-4">No cost data available</p>
-                    <p className="text-sm text-gray-400 mb-4">Sync inventory to get product costs and profit insights</p>
+                    <p className="text-sm text-gray-400 mb-4">Use the Inventory & Orders page to sync product costs</p>
                     <Button
-                      onClick={() => inventorySync.mutate()}
-                      disabled={inventorySync.isPending}
+                      onClick={() => window.open('/inventory-orders', '_blank')}
                       size="sm"
                     >
-                      {inventorySync.isPending ? 'Syncing Inventory...' : 'Sync Product Costs'}
+                      Go to Inventory & Orders
                     </Button>
                   </div>
                 )}
@@ -1319,19 +1262,6 @@ function AccountingContent() {
             </div>
           )}
 
-          {/* Order Management Section */}
-          {activeSection === 'orders' && (
-            <div className="space-y-6">
-              <ComprehensiveOrderManagement />
-            </div>
-          )}
-
-          {/* Inventory Management Section */}
-          {activeSection === 'inventory' && (
-            <div className="space-y-6">
-              <InventoryManagement />
-            </div>
-          )}
 
           {/* Revenue Analytics Section */}
           {activeSection === 'analytics' && (

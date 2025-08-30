@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { useAuth } from '@/hooks/use-auth';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { useToast } from '@/hooks/use-toast';
 import { 
   Package, 
   ShoppingCart, 
@@ -12,14 +14,49 @@ import {
   Settings,
   AlertTriangle,
   CheckCircle,
-  MapPin
+  MapPin,
+  RefreshCw,
+  Calculator
 } from 'lucide-react';
 import { InventoryManagement } from '@/components/inventory-management';
 import { ComprehensiveOrderManagement } from '@/components/comprehensive-order-management';
+import { apiRequest } from '@/lib/queryClient';
 
 export default function InventoryOrdersPage() {
   const { user } = useAuth();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<'inventory' | 'orders'>('inventory');
+
+  // Inventory sync mutation - preserve functionality from accounting dashboard
+  const inventorySync = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest('POST', '/api/accounting/sync-inventory');
+      return await response.json();
+    },
+    onSuccess: (data) => {
+      console.log('Sync success data:', data);
+      queryClient.invalidateQueries({ queryKey: ['/api/accounting/analytics/cogs'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/accounting/analytics/multi-location'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/accounting/inventory'] });
+      
+      const successCount = data.results?.filter((r: any) => r.status === 'success').length || 0;
+      const totalLocations = data.results?.length || 0;
+      
+      toast({
+        title: "Inventory sync completed",
+        description: `Successfully synced ${successCount}/${totalLocations} locations`,
+      });
+    },
+    onError: (error) => {
+      console.error('Sync error:', error);
+      toast({
+        title: "Sync failed",
+        description: "Failed to sync inventory data. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
 
   // Check if user has access to inventory/orders (admin, manager, or specific departments)
   const hasInventoryAccess = user?.role === 'admin' || 
@@ -66,6 +103,15 @@ export default function InventoryOrdersPage() {
               </p>
             </div>
             <div className="flex items-center gap-3">
+              <Button
+                onClick={() => inventorySync.mutate()}
+                disabled={inventorySync.isPending}
+                size="sm"
+                className="flex items-center gap-2"
+              >
+                <Calculator className="h-4 w-4" />
+                {inventorySync.isPending ? 'Syncing...' : 'Sync All Data'}
+              </Button>
               <Badge variant="outline" className="text-green-600 border-green-600">
                 <MapPin className="h-3 w-3 mr-1" />
                 {user?.department || 'Operations'}
