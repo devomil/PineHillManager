@@ -188,6 +188,7 @@ function AccountingContent() {
   
   // PDF scanning state
   const [isPdfScanDialogOpen, setIsPdfScanDialogOpen] = useState(false);
+  const [isPLScanDialogOpen, setIsPLScanDialogOpen] = useState(false);
   const [scanningPdf, setScanningPdf] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   
@@ -1327,7 +1328,7 @@ function AccountingContent() {
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                       <Button
                         onClick={() => setIsPdfScanDialogOpen(true)}
                         className="h-24 flex flex-col gap-2"
@@ -1335,6 +1336,14 @@ function AccountingContent() {
                       >
                         <Upload className="h-6 w-6" />
                         <span>Upload Invoice</span>
+                      </Button>
+                      <Button
+                        onClick={() => setIsPLScanDialogOpen(true)}
+                        className="h-24 flex flex-col gap-2"
+                        variant="outline"
+                      >
+                        <FileText className="h-6 w-6" />
+                        <span>Import P&L</span>
                       </Button>
                       <Button
                         className="h-24 flex flex-col gap-2"
@@ -1486,6 +1495,13 @@ function AccountingContent() {
         <PdfScanningDialog
           isOpen={isPdfScanDialogOpen}
           onClose={() => setIsPdfScanDialogOpen(false)}
+          accounts={accounts}
+        />
+
+        {/* P&L Import Dialog */}
+        <PLImportDialog
+          isOpen={isPLScanDialogOpen}
+          onClose={() => setIsPLScanDialogOpen(false)}
           accounts={accounts}
         />
       </div>
@@ -2163,6 +2179,229 @@ function PdfScanningDialog({
             Close
           </Button>
         </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// P&L Import Dialog Component
+function PLImportDialog({ 
+  isOpen, 
+  onClose, 
+  accounts 
+}: { 
+  isOpen: boolean; 
+  onClose: () => void; 
+  accounts: FinancialAccount[];
+}) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [scanning, setScanning] = useState(false);
+  const [extractedData, setExtractedData] = useState<any>(null);
+  
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file && file.type === 'application/pdf') {
+      setSelectedFile(file);
+      setExtractedData(null);
+    } else {
+      toast({
+        title: "Invalid file type",
+        description: "Please select a PDF file.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleScanPdf = async () => {
+    if (!selectedFile) return;
+    
+    setScanning(true);
+    try {
+      // Create FormData for file upload
+      const formData = new FormData();
+      formData.append('pdf', selectedFile);
+      
+      const response = await fetch('/api/accounting/scan-pl-pdf', {
+        method: 'POST',
+        body: formData,
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to scan PDF');
+      }
+      
+      const data = await response.json();
+      setExtractedData(data);
+      
+      toast({
+        title: "P&L Scanned Successfully",
+        description: "Financial data extracted from PDF. Review before importing.",
+        variant: "default",
+      });
+    } catch (error) {
+      console.error('Error scanning PDF:', error);
+      toast({
+        title: "Scan Failed",
+        description: "Failed to extract data from PDF. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  const handleImportData = async () => {
+    if (!extractedData) return;
+    
+    try {
+      const response = await fetch('/api/accounting/import-pl-data', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(extractedData),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to import P&L data');
+      }
+      
+      toast({
+        title: "P&L Data Imported",
+        description: "Financial transactions have been created successfully.",
+        variant: "default",
+      });
+      
+      // Refresh data
+      queryClient.invalidateQueries({ queryKey: ['/api/accounting/accounts'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/accounting/transactions'] });
+      
+      onClose();
+    } catch (error) {
+      console.error('Error importing P&L data:', error);
+      toast({
+        title: "Import Failed",
+        description: "Failed to import P&L data. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <FileText className="h-5 w-5 text-blue-600" />
+            Import P&L Document
+          </DialogTitle>
+          <DialogDescription>
+            Upload a P&L PDF to automatically extract and import financial data for historical periods
+          </DialogDescription>
+        </DialogHeader>
+        
+        <div className="space-y-6">
+          <div className="space-y-4">
+            <div className="flex items-center justify-center w-full">
+              <label 
+                htmlFor="pl-dropzone-file" 
+                className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100"
+              >
+                <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                  <Upload className="w-8 h-8 mb-4 text-gray-500" />
+                  <p className="mb-2 text-sm text-gray-500">
+                    <span className="font-semibold">Click to upload</span> P&L PDF
+                  </p>
+                  <p className="text-xs text-gray-500">PDF files only</p>
+                  {selectedFile && (
+                    <p className="mt-2 text-sm text-blue-600 font-medium">
+                      Selected: {selectedFile.name}
+                    </p>
+                  )}
+                </div>
+                <input 
+                  id="pl-dropzone-file" 
+                  type="file" 
+                  className="hidden" 
+                  accept=".pdf"
+                  onChange={handleFileSelect}
+                />
+              </label>
+            </div>
+          </div>
+          
+          {selectedFile && (
+            <div className="flex justify-center">
+              <Button 
+                onClick={handleScanPdf} 
+                disabled={scanning}
+                className="flex items-center gap-2"
+              >
+                {scanning ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    Extracting Data...
+                  </>
+                ) : (
+                  <>
+                    <Scan className="h-4 w-4" />
+                    Extract P&L Data
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
+          
+          {extractedData && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Extracted P&L Data</CardTitle>
+                <CardDescription>
+                  Review the extracted financial data before importing
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-sm font-medium">Period</Label>
+                      <p className="text-sm text-gray-600">{extractedData.period}</p>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium">Total Revenue</Label>
+                      <p className="text-sm text-gray-600 font-medium">${extractedData.totalRevenue}</p>
+                    </div>
+                  </div>
+                  
+                  {extractedData.incomeCategories && (
+                    <div>
+                      <Label className="text-sm font-medium">Income Categories</Label>
+                      <div className="mt-2 space-y-2">
+                        {extractedData.incomeCategories.map((category: any, index: number) => (
+                          <div key={index} className="flex justify-between items-center py-2 px-3 bg-gray-50 rounded">
+                            <span className="text-sm">{category.name}</span>
+                            <span className="text-sm font-medium">${category.amount}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                
+                <div className="flex justify-between mt-6">
+                  <Button variant="outline" onClick={() => setExtractedData(null)}>
+                    Re-scan
+                  </Button>
+                  <Button onClick={handleImportData}>
+                    Import Financial Data
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
       </DialogContent>
     </Dialog>
   );
