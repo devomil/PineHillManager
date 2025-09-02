@@ -14,7 +14,24 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogFooter
 } from '@/components/ui/dialog';
+import { 
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
 // Tabs component no longer needed - using custom navigation
 import { Separator } from '@/components/ui/separator';
 import { 
@@ -38,13 +55,22 @@ import {
   TrendingDown,
   CheckCircle2,
   AlertTriangle,
-  Calculator
+  Calculator,
+  Edit,
+  FileText,
+  Scan,
+  Upload,
+  Receipt,
+  BookOpen
 } from 'lucide-react';
 import { apiRequest } from '@/lib/queryClient';
 import AdminLayout from '@/components/admin-layout';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
 import { RevenueAnalytics } from '@/components/revenue-analytics';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 
 type SystemHealth = {
   database: string;
@@ -57,11 +83,60 @@ type SystemHealth = {
 
 type FinancialAccount = {
   id: number;
+  qbAccountId?: string;
+  accountNumber?: string;
   accountName: string;
   accountType: string;
+  subType?: string;
+  description?: string;
   balance: string;
   isActive: boolean;
+  parentAccountId?: number;
+  createdAt: string;
+  updatedAt: string;
 };
+
+type JournalEntry = {
+  id?: number;
+  transactionDate: string;
+  transactionType: string;
+  description: string;
+  referenceNumber?: string;
+  lines: JournalEntryLine[];
+};
+
+type JournalEntryLine = {
+  accountId: number;
+  description?: string;
+  debitAmount: string;
+  creditAmount: string;
+};
+
+// Form schemas
+const accountFormSchema = z.object({
+  accountName: z.string().min(1, 'Account name is required'),
+  accountType: z.enum(['Asset', 'Liability', 'Equity', 'Income', 'Expense']),
+  subType: z.string().optional(),
+  description: z.string().optional(),
+  accountNumber: z.string().optional(),
+  parentAccountId: z.string().optional(),
+});
+
+const journalEntryFormSchema = z.object({
+  transactionDate: z.string().min(1, 'Transaction date is required'),
+  description: z.string().min(1, 'Description is required'),
+  referenceNumber: z.string().optional(),
+  lines: z.array(z.object({
+    accountId: z.string().min(1, 'Account is required'),
+    description: z.string().optional(),
+    debitAmount: z.string().refine((val) => !val || !isNaN(parseFloat(val)), 'Must be a valid number'),
+    creditAmount: z.string().refine((val) => !val || !isNaN(parseFloat(val)), 'Must be a valid number'),
+  })).min(2, 'At least 2 journal lines are required').refine((lines) => {
+    const totalDebits = lines.reduce((sum, line) => sum + (parseFloat(line.debitAmount) || 0), 0);
+    const totalCredits = lines.reduce((sum, line) => sum + (parseFloat(line.creditAmount) || 0), 0);
+    return Math.abs(totalDebits - totalCredits) < 0.01;
+  }, 'Total debits must equal total credits'),
+});
 
 type CloverLocation = {
   id: number;
@@ -105,6 +180,19 @@ function AccountingContent() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { user } = useAuth();
+  
+  // Account management state
+  const [isAccountDialogOpen, setIsAccountDialogOpen] = useState(false);
+  const [isJournalEntryDialogOpen, setIsJournalEntryDialogOpen] = useState(false);
+  const [editingAccount, setEditingAccount] = useState<FinancialAccount | null>(null);
+  
+  // PDF scanning state
+  const [isPdfScanDialogOpen, setIsPdfScanDialogOpen] = useState(false);
+  const [scanningPdf, setScanningPdf] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  
+  // Check if user can manage accounts (Admin or Manager only)
+  const canManageAccounts = user?.role === 'admin' || user?.role === 'manager';
 
   // Goal setting state
   const [isGoalDialogOpen, setIsGoalDialogOpen] = useState(false);
@@ -1113,12 +1201,42 @@ function AccountingContent() {
             {/* Chart of Accounts Section */}
           {activeSection === 'accounts' && (
             <div className="space-y-6">
+              {/* Chart of Accounts Management */}
               <Card>
                 <CardHeader>
-                  <CardTitle>Chart of Accounts</CardTitle>
-                  <CardDescription>
-                    Manage your financial account structure
-                  </CardDescription>
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <CardTitle className="flex items-center gap-2">
+                        <BookOpen className="h-5 w-5 text-blue-600" />
+                        Chart of Accounts
+                      </CardTitle>
+                      <CardDescription>
+                        Manage your financial account structure and create journal entries
+                      </CardDescription>
+                    </div>
+                    {canManageAccounts && (
+                      <div className="flex gap-2">
+                        <Button
+                          onClick={() => {
+                            setEditingAccount(null);
+                            setIsAccountDialogOpen(true);
+                          }}
+                          className="flex items-center gap-2"
+                        >
+                          <Plus className="h-4 w-4" />
+                          Add Account
+                        </Button>
+                        <Button
+                          onClick={() => setIsJournalEntryDialogOpen(true)}
+                          variant="outline"
+                          className="flex items-center gap-2"
+                        >
+                          <FileText className="h-4 w-4" />
+                          Journal Entry
+                        </Button>
+                      </div>
+                    )}
+                  </div>
                 </CardHeader>
                 <CardContent>
                   {accountsLoading ? (
@@ -1128,49 +1246,120 @@ function AccountingContent() {
                   ) : accounts.length > 0 ? (
                     <div className="space-y-2">
                       {accounts.map((account) => (
-                        <div key={account.id} className="flex items-center justify-between p-3 border rounded-lg">
-                          <div>
-                            <h3 className="font-medium">{account.accountName}</h3>
-                            <p className="text-sm text-gray-500">{account.accountType}</p>
+                        <div key={account.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-3">
+                              <h3 className="font-medium">{account.accountName}</h3>
+                              {account.accountNumber && (
+                                <span className="text-xs bg-gray-100 px-2 py-1 rounded">
+                                  {account.accountNumber}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-4 mt-1">
+                              <p className="text-sm text-gray-500">{account.accountType}</p>
+                              {account.subType && (
+                                <p className="text-sm text-gray-400">• {account.subType}</p>
+                              )}
+                            </div>
+                            {account.description && (
+                              <p className="text-sm text-gray-400 mt-1">{account.description}</p>
+                            )}
                           </div>
-                          <div className="text-right">
-                            <p className="font-medium">${account.balance}</p>
-                            <Badge variant={account.isActive ? "default" : "secondary"}>
-                              {account.isActive ? "Active" : "Inactive"}
-                            </Badge>
+                          <div className="flex items-center gap-4">
+                            <div className="text-right">
+                              <p className="font-medium text-lg">${account.balance}</p>
+                              <Badge variant={account.isActive ? "default" : "secondary"}>
+                                {account.isActive ? "Active" : "Inactive"}
+                              </Badge>
+                            </div>
+                            {canManageAccounts && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  setEditingAccount(account);
+                                  setIsAccountDialogOpen(true);
+                                }}
+                                className="flex items-center gap-1"
+                              >
+                                <Edit className="h-4 w-4" />
+                                Edit
+                              </Button>
+                            )}
                           </div>
                         </div>
                       ))}
                     </div>
                   ) : (
                     <div className="text-center py-8">
+                      <BookOpen className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                       <p className="text-gray-500 mb-4">No accounts found. Start by setting up your chart of accounts.</p>
-                      <Button>Add First Account</Button>
+                      {canManageAccounts && (
+                        <Button
+                          onClick={() => {
+                            setEditingAccount(null);
+                            setIsAccountDialogOpen(true);
+                          }}
+                        >
+                          Add First Account
+                        </Button>
+                      )}
                     </div>
                   )}
                 </CardContent>
               </Card>
+              
+              {/* PDF Scanning for Vendor Invoices */}
+              {canManageAccounts && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Scan className="h-5 w-5 text-green-600" />
+                      Invoice Processing
+                    </CardTitle>
+                    <CardDescription>
+                      Upload and scan vendor invoices to create accounting entries automatically
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <Button
+                        onClick={() => setIsPdfScanDialogOpen(true)}
+                        className="h-24 flex flex-col gap-2"
+                        variant="outline"
+                      >
+                        <Upload className="h-6 w-6" />
+                        <span>Upload Invoice</span>
+                      </Button>
+                      <Button
+                        className="h-24 flex flex-col gap-2"
+                        variant="outline"
+                        disabled
+                      >
+                        <Receipt className="h-6 w-6" />
+                        <span>Scan Receipt</span>
+                        <span className="text-xs text-gray-500">Coming Soon</span>
+                      </Button>
+                      <Button
+                        className="h-24 flex flex-col gap-2"
+                        variant="outline"
+                        disabled
+                      >
+                        <Database className="h-6 w-6" />
+                        <span>Batch Process</span>
+                        <span className="text-xs text-gray-500">Coming Soon</span>
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
             </div>
           )}
 
           {/* Transactions Section */}
           {activeSection === 'transactions' && (
-            <div className="space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Financial Transactions</CardTitle>
-                  <CardDescription>
-                    View and manage all financial transactions
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-center py-8">
-                    <p className="text-gray-500 mb-4">Transaction management will be available in Phase 2.</p>
-                    <Button variant="outline" disabled>Coming Soon</Button>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+            <TransactionsSection canManageAccounts={canManageAccounts} accounts={accounts} />
           )}
 
           {/* Reports Section */}
@@ -1270,8 +1459,808 @@ function AccountingContent() {
             </div>
           )}
         </div>
+
+        {/* Account Management Dialog */}
+        <AccountManagementDialog
+          isOpen={isAccountDialogOpen}
+          onClose={() => {
+            setIsAccountDialogOpen(false);
+            setEditingAccount(null);
+          }}
+          editingAccount={editingAccount}
+          accounts={accounts}
+        />
+
+        {/* Journal Entry Dialog */}
+        <JournalEntryDialog
+          isOpen={isJournalEntryDialogOpen}
+          onClose={() => setIsJournalEntryDialogOpen(false)}
+          accounts={accounts}
+        />
+
+        {/* PDF Scanning Dialog */}
+        <PdfScanningDialog
+          isOpen={isPdfScanDialogOpen}
+          onClose={() => setIsPdfScanDialogOpen(false)}
+          accounts={accounts}
+        />
       </div>
     </AdminLayout>
+  );
+}
+
+// Account Management Dialog Component
+function AccountManagementDialog({ 
+  isOpen, 
+  onClose, 
+  editingAccount, 
+  accounts 
+}: { 
+  isOpen: boolean; 
+  onClose: () => void; 
+  editingAccount: FinancialAccount | null;
+  accounts: FinancialAccount[];
+}) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  
+  const form = useForm<z.infer<typeof accountFormSchema>>({
+    resolver: zodResolver(accountFormSchema),
+    defaultValues: {
+      accountName: editingAccount?.accountName || '',
+      accountType: editingAccount?.accountType as any || 'Asset',
+      subType: editingAccount?.subType || '',
+      description: editingAccount?.description || '',
+      accountNumber: editingAccount?.accountNumber || '',
+      parentAccountId: editingAccount?.parentAccountId?.toString() || '',
+    },
+  });
+
+  const accountMutation = useMutation({
+    mutationFn: async (data: z.infer<typeof accountFormSchema>) => {
+      const payload = {
+        ...data,
+        parentAccountId: data.parentAccountId ? parseInt(data.parentAccountId) : null,
+      };
+      
+      if (editingAccount) {
+        const response = await apiRequest('PUT', `/api/accounting/accounts/${editingAccount.id}`, payload);
+        return await response.json();
+      } else {
+        const response = await apiRequest('POST', '/api/accounting/accounts', payload);
+        return await response.json();
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/accounting/accounts'] });
+      toast({
+        title: editingAccount ? "Account Updated" : "Account Created",
+        description: editingAccount ? "Account has been updated successfully" : "New account has been created successfully",
+      });
+      onClose();
+      form.reset();
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: editingAccount ? "Failed to update account" : "Failed to create account",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleSubmit = (data: z.infer<typeof accountFormSchema>) => {
+    accountMutation.mutate(data);
+  };
+
+  useEffect(() => {
+    if (editingAccount) {
+      form.reset({
+        accountName: editingAccount.accountName,
+        accountType: editingAccount.accountType as any,
+        subType: editingAccount.subType || '',
+        description: editingAccount.description || '',
+        accountNumber: editingAccount.accountNumber || '',
+        parentAccountId: editingAccount.parentAccountId?.toString() || '',
+      });
+    } else {
+      form.reset({
+        accountName: '',
+        accountType: 'Asset',
+        subType: '',
+        description: '',
+        accountNumber: '',
+        parentAccountId: '',
+      });
+    }
+  }, [editingAccount, form]);
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>
+            {editingAccount ? 'Edit Account' : 'Add New Account'}
+          </DialogTitle>
+          <DialogDescription>
+            {editingAccount ? 'Update account information' : 'Create a new financial account for your chart of accounts'}
+          </DialogDescription>
+        </DialogHeader>
+        
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+            <FormField
+              control={form.control}
+              name="accountName"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Account Name</FormLabel>
+                  <FormControl>
+                    <Input placeholder="e.g., Cash in Bank" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            
+            <FormField
+              control={form.control}
+              name="accountType"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Account Type</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select account type" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="Asset">Asset</SelectItem>
+                      <SelectItem value="Liability">Liability</SelectItem>
+                      <SelectItem value="Equity">Equity</SelectItem>
+                      <SelectItem value="Income">Income</SelectItem>
+                      <SelectItem value="Expense">Expense</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            
+            <FormField
+              control={form.control}
+              name="accountNumber"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Account Number (Optional)</FormLabel>
+                  <FormControl>
+                    <Input placeholder="e.g., 1000" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            
+            <FormField
+              control={form.control}
+              name="subType"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Sub Type (Optional)</FormLabel>
+                  <FormControl>
+                    <Input placeholder="e.g., Current Asset" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            
+            <FormField
+              control={form.control}
+              name="parentAccountId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Parent Account (Optional)</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select parent account" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="">No Parent</SelectItem>
+                      {accounts.filter(acc => acc.id !== editingAccount?.id).map((account) => (
+                        <SelectItem key={account.id} value={account.id.toString()}>
+                          {account.accountName}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            
+            <FormField
+              control={form.control}
+              name="description"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Description (Optional)</FormLabel>
+                  <FormControl>
+                    <Textarea placeholder="Account description" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={onClose}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={accountMutation.isPending}>
+                {accountMutation.isPending ? 'Saving...' : (editingAccount ? 'Update Account' : 'Create Account')}
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// Journal Entry Dialog Component
+function JournalEntryDialog({ 
+  isOpen, 
+  onClose, 
+  accounts 
+}: { 
+  isOpen: boolean; 
+  onClose: () => void; 
+  accounts: FinancialAccount[];
+}) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [lines, setLines] = useState<JournalEntryLine[]>([
+    { accountId: 0, description: '', debitAmount: '', creditAmount: '' },
+    { accountId: 0, description: '', debitAmount: '', creditAmount: '' },
+  ]);
+  
+  const form = useForm<z.infer<typeof journalEntryFormSchema>>({
+    resolver: zodResolver(journalEntryFormSchema),
+    defaultValues: {
+      transactionDate: new Date().toISOString().split('T')[0],
+      description: '',
+      referenceNumber: '',
+      lines: lines.map(line => ({ ...line, accountId: line.accountId.toString() })),
+    },
+  });
+
+  const journalMutation = useMutation({
+    mutationFn: async (data: z.infer<typeof journalEntryFormSchema>) => {
+      const payload = {
+        transactionDate: data.transactionDate,
+        transactionType: 'Journal Entry',
+        description: data.description,
+        referenceNumber: data.referenceNumber,
+        sourceSystem: 'Manual',
+        totalAmount: data.lines.reduce((sum, line) => sum + (parseFloat(line.debitAmount) || 0), 0).toFixed(2),
+        lines: data.lines.map(line => ({
+          accountId: parseInt(line.accountId),
+          description: line.description,
+          debitAmount: parseFloat(line.debitAmount) || 0,
+          creditAmount: parseFloat(line.creditAmount) || 0,
+        })),
+      };
+      
+      const response = await apiRequest('POST', '/api/accounting/transactions', payload);
+      return await response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/accounting/transactions'] });
+      toast({
+        title: "Journal Entry Created",
+        description: "Journal entry has been posted successfully",
+      });
+      onClose();
+      form.reset();
+      setLines([
+        { accountId: 0, description: '', debitAmount: '', creditAmount: '' },
+        { accountId: 0, description: '', debitAmount: '', creditAmount: '' },
+      ]);
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: "Failed to create journal entry",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const addLine = () => {
+    setLines([...lines, { accountId: 0, description: '', debitAmount: '', creditAmount: '' }]);
+  };
+
+  const removeLine = (index: number) => {
+    if (lines.length > 2) {
+      setLines(lines.filter((_, i) => i !== index));
+    }
+  };
+
+  const updateLine = (index: number, field: keyof JournalEntryLine, value: string | number) => {
+    const newLines = [...lines];
+    newLines[index] = { ...newLines[index], [field]: value };
+    setLines(newLines);
+    form.setValue('lines', newLines.map(line => ({ ...line, accountId: line.accountId.toString() })));
+  };
+
+  const totalDebits = lines.reduce((sum, line) => sum + (parseFloat(line.debitAmount) || 0), 0);
+  const totalCredits = lines.reduce((sum, line) => sum + (parseFloat(line.creditAmount) || 0), 0);
+  const isBalanced = Math.abs(totalDebits - totalCredits) < 0.01;
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <FileText className="h-5 w-5" />
+            Create Journal Entry
+          </DialogTitle>
+          <DialogDescription>
+            Create a manual journal entry with multiple account lines
+          </DialogDescription>
+        </DialogHeader>
+        
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit((data) => journalMutation.mutate(data))} className="space-y-6">
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="transactionDate"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Transaction Date</FormLabel>
+                    <FormControl>
+                      <Input type="date" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <FormField
+                control={form.control}
+                name="referenceNumber"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Reference Number (Optional)</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g., JE-001" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+            
+            <FormField
+              control={form.control}
+              name="description"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Description</FormLabel>
+                  <FormControl>
+                    <Textarea placeholder="Journal entry description" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <h3 className="text-lg font-medium">Journal Lines</h3>
+                <Button type="button" onClick={addLine} variant="outline" size="sm">
+                  <Plus className="h-4 w-4 mr-1" />
+                  Add Line
+                </Button>
+              </div>
+              
+              <div className="border rounded-lg">
+                <div className="grid grid-cols-12 gap-2 p-3 bg-gray-50 border-b font-medium text-sm">
+                  <div className="col-span-4">Account</div>
+                  <div className="col-span-3">Description</div>
+                  <div className="col-span-2">Debit</div>
+                  <div className="col-span-2">Credit</div>
+                  <div className="col-span-1">Action</div>
+                </div>
+                
+                {lines.map((line, index) => (
+                  <div key={index} className="grid grid-cols-12 gap-2 p-3 border-b last:border-b-0">
+                    <div className="col-span-4">
+                      <Select 
+                        value={line.accountId.toString()} 
+                        onValueChange={(value) => updateLine(index, 'accountId', parseInt(value))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select account" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {accounts.map((account) => (
+                            <SelectItem key={account.id} value={account.id.toString()}>
+                              {account.accountName} ({account.accountType})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="col-span-3">
+                      <Input 
+                        placeholder="Line description"
+                        value={line.description}
+                        onChange={(e) => updateLine(index, 'description', e.target.value)}
+                      />
+                    </div>
+                    <div className="col-span-2">
+                      <Input 
+                        type="number"
+                        step="0.01"
+                        placeholder="0.00"
+                        value={line.debitAmount}
+                        onChange={(e) => updateLine(index, 'debitAmount', e.target.value)}
+                      />
+                    </div>
+                    <div className="col-span-2">
+                      <Input 
+                        type="number"
+                        step="0.01"
+                        placeholder="0.00"
+                        value={line.creditAmount}
+                        onChange={(e) => updateLine(index, 'creditAmount', e.target.value)}
+                      />
+                    </div>
+                    <div className="col-span-1">
+                      {lines.length > 2 && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeLine(index)}
+                          className="text-red-600 hover:text-red-700"
+                        >
+                          ×
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                
+                <div className="grid grid-cols-12 gap-2 p-3 bg-gray-50 border-t font-medium">
+                  <div className="col-span-7">Totals:</div>
+                  <div className="col-span-2 text-right">${totalDebits.toFixed(2)}</div>
+                  <div className="col-span-2 text-right">${totalCredits.toFixed(2)}</div>
+                  <div className="col-span-1">
+                    {isBalanced ? (
+                      <CheckCircle className="h-5 w-5 text-green-600" />
+                    ) : (
+                      <AlertTriangle className="h-5 w-5 text-red-600" />
+                    )}
+                  </div>
+                </div>
+              </div>
+              
+              {!isBalanced && (
+                <p className="text-sm text-red-600">
+                  Debits and credits must be equal. Difference: ${Math.abs(totalDebits - totalCredits).toFixed(2)}
+                </p>
+              )}
+            </div>
+            
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={onClose}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={journalMutation.isPending || !isBalanced}>
+                {journalMutation.isPending ? 'Creating...' : 'Create Journal Entry'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// PDF Scanning Dialog Component
+function PdfScanningDialog({ 
+  isOpen, 
+  onClose, 
+  accounts 
+}: { 
+  isOpen: boolean; 
+  onClose: () => void; 
+  accounts: FinancialAccount[];
+}) {
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [scanning, setScanning] = useState(false);
+  const [extractedData, setExtractedData] = useState<any>(null);
+  const { toast } = useToast();
+
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file && file.type === 'application/pdf') {
+      setSelectedFile(file);
+      setExtractedData(null);
+    } else {
+      toast({
+        title: "Invalid File",
+        description: "Please select a PDF file",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleScanPdf = async () => {
+    if (!selectedFile) return;
+    
+    setScanning(true);
+    try {
+      // Mock PDF scanning - in real implementation, you'd send to a PDF processing service
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      
+      // Mock extracted data
+      setExtractedData({
+        vendor: 'ACME Office Supplies',
+        invoiceNumber: 'INV-2025-001',
+        date: '2025-09-02',
+        amount: '125.50',
+        description: 'Office supplies - printer paper, pens',
+        suggestedAccount: 'Office Expenses'
+      });
+      
+      toast({
+        title: "PDF Scanned Successfully",
+        description: "Invoice data has been extracted. Please review and approve.",
+      });
+    } catch (error) {
+      toast({
+        title: "Scan Failed",
+        description: "Failed to extract data from PDF",
+        variant: "destructive",
+      });
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  const handleCreateEntry = () => {
+    // This would create a journal entry based on the extracted data
+    toast({
+      title: "Feature Coming Soon",
+      description: "Automatic journal entry creation from PDF data will be available soon",
+    });
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Scan className="h-5 w-5" />
+            Scan Vendor Invoice
+          </DialogTitle>
+          <DialogDescription>
+            Upload a PDF invoice to automatically extract vendor and expense information
+          </DialogDescription>
+        </DialogHeader>
+        
+        <div className="space-y-6">
+          <div className="border-2 border-dashed border-gray-300 rounded-lg p-6">
+            <div className="text-center">
+              <Upload className="mx-auto h-12 w-12 text-gray-400" />
+              <div className="mt-4">
+                <label htmlFor="pdf-upload" className="cursor-pointer">
+                  <span className="mt-2 block text-sm font-medium text-gray-900">
+                    {selectedFile ? selectedFile.name : 'Upload PDF Invoice'}
+                  </span>
+                  <span className="mt-1 block text-sm text-gray-500">
+                    {selectedFile ? 'Click to select a different file' : 'Click to browse or drag and drop'}
+                  </span>
+                </label>
+                <input
+                  id="pdf-upload"
+                  type="file"
+                  accept=".pdf"
+                  onChange={handleFileSelect}
+                  className="hidden"
+                />
+              </div>
+            </div>
+          </div>
+          
+          {selectedFile && (
+            <div className="flex justify-center">
+              <Button 
+                onClick={handleScanPdf} 
+                disabled={scanning}
+                className="flex items-center gap-2"
+              >
+                {scanning ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    Scanning...
+                  </>
+                ) : (
+                  <>
+                    <Scan className="h-4 w-4" />
+                    Scan PDF
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
+          
+          {extractedData && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Extracted Information</CardTitle>
+                <CardDescription>
+                  Review the extracted data and create a journal entry
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-sm font-medium">Vendor</Label>
+                      <p className="text-sm text-gray-600">{extractedData.vendor}</p>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium">Invoice Number</Label>
+                      <p className="text-sm text-gray-600">{extractedData.invoiceNumber}</p>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium">Date</Label>
+                      <p className="text-sm text-gray-600">{extractedData.date}</p>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium">Amount</Label>
+                      <p className="text-sm text-gray-600 font-medium">${extractedData.amount}</p>
+                    </div>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium">Description</Label>
+                    <p className="text-sm text-gray-600">{extractedData.description}</p>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium">Suggested Account</Label>
+                    <p className="text-sm text-gray-600">{extractedData.suggestedAccount}</p>
+                  </div>
+                </div>
+                
+                <div className="flex justify-between mt-6">
+                  <Button variant="outline" onClick={() => setExtractedData(null)}>
+                    Re-scan
+                  </Button>
+                  <Button onClick={handleCreateEntry}>
+                    Create Journal Entry
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+        
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={onClose}>
+            Close
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// Transactions Section Component
+function TransactionsSection({ 
+  canManageAccounts, 
+  accounts 
+}: { 
+  canManageAccounts: boolean; 
+  accounts: FinancialAccount[];
+}) {
+  const { data: transactions = [], isLoading: transactionsLoading } = useQuery({
+    queryKey: ['/api/accounting/transactions'],
+    queryFn: async () => {
+      const response = await apiRequest('GET', '/api/accounting/transactions?limit=50');
+      return await response.json();
+    },
+  });
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <div className="flex justify-between items-center">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <FileText className="h-5 w-5 text-blue-600" />
+                Financial Transactions
+              </CardTitle>
+              <CardDescription>
+                View and manage all financial transactions and journal entries
+              </CardDescription>
+            </div>
+            {canManageAccounts && (
+              <Button className="flex items-center gap-2">
+                <Plus className="h-4 w-4" />
+                New Transaction
+              </Button>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          {transactionsLoading ? (
+            <div className="flex items-center justify-center h-20">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            </div>
+          ) : transactions.length > 0 ? (
+            <div className="space-y-2">
+              {transactions.map((transaction: any) => (
+                <div key={transaction.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3">
+                      <h3 className="font-medium">{transaction.description}</h3>
+                      <Badge variant="outline">{transaction.transactionType}</Badge>
+                      {transaction.referenceNumber && (
+                        <span className="text-xs bg-gray-100 px-2 py-1 rounded">
+                          {transaction.referenceNumber}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-4 mt-1">
+                      <p className="text-sm text-gray-500">{transaction.transactionDate}</p>
+                      <p className="text-sm text-gray-400">• {transaction.sourceSystem}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div className="text-right">
+                      <p className="font-medium text-lg">${transaction.totalAmount}</p>
+                      <Badge variant={transaction.status === 'posted' ? "default" : "secondary"}>
+                        {transaction.status}
+                      </Badge>
+                    </div>
+                    {canManageAccounts && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="flex items-center gap-1"
+                      >
+                        <Edit className="h-4 w-4" />
+                        View
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <p className="text-gray-500 mb-4">No transactions found. Create your first journal entry.</p>
+              {canManageAccounts && (
+                <Button>
+                  Create First Transaction
+                </Button>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 
