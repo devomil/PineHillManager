@@ -191,8 +191,10 @@ export function RevenueAnalytics() {
     return new Intl.NumberFormat('en-US').format(value);
   };
 
-  // Calculate totals for summary cards (using Reports data for consistency)
-  const totalRevenue = parseFloat(reportsData?.totalRevenue || '0');
+  // Calculate totals for summary cards (using multi-location data like the pie chart)
+  const totalRevenue = multiLocationData?.locationBreakdown?.reduce((sum, location) => {
+    return sum + parseFloat(location.totalSales || location.totalRevenue || '0');
+  }, 0) || 0;
   const totalTransactions = revenueTrends?.data.reduce((sum, item) => sum + item.transactions, 0) || 0;
   const avgSaleOverall = totalTransactions > 0 ? totalRevenue / totalTransactions : 0;
 

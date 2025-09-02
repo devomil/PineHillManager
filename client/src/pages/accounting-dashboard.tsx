@@ -2579,7 +2579,11 @@ function ReportsSection({
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
             <div className="text-center p-3 bg-green-50 rounded-lg">
               <div className="text-lg md:text-xl font-bold text-green-600">
-                {profitLossLoading ? '...' : formatCurrency(profitLossData.totalRevenue || 0)}
+                {revenueLoading ? '...' : formatCurrency(
+                  revenueData.locationBreakdown?.reduce((sum, location) => 
+                    sum + parseFloat(location.totalSales || location.totalRevenue || '0'), 0
+                  ) || 0
+                )}
               </div>
               <div className="text-xs md:text-sm text-gray-600">Total Revenue</div>
               <div className="text-xs text-gray-500 mt-1">
