@@ -120,6 +120,16 @@ export function RevenueAnalytics() {
     },
   });
 
+  // Reports data (same as Reports section for consistency)
+  const { data: reportsData, isLoading: reportsLoading } = useQuery({
+    queryKey: ['/api/accounting/reports/profit-loss', dateRange, customStartDate, customEndDate],
+    queryFn: async () => {
+      const params = getQueryParams();
+      const response = await apiRequest('GET', `/api/accounting/reports/profit-loss?${params}`);
+      return await response.json();
+    },
+  });
+
   // Multi-location analytics (includes Clover POS + Amazon Store)
   const { data: multiLocationData, isLoading: multiLocationLoading } = useQuery({
     queryKey: ['/api/accounting/analytics/multi-location', dateRange, customStartDate, customEndDate],
@@ -181,8 +191,8 @@ export function RevenueAnalytics() {
     return new Intl.NumberFormat('en-US').format(value);
   };
 
-  // Calculate totals for summary cards
-  const totalRevenue = revenueTrends?.data.reduce((sum, item) => sum + parseFloat(item.revenue), 0) || 0;
+  // Calculate totals for summary cards (using Reports data for consistency)
+  const totalRevenue = parseFloat(reportsData?.totalRevenue || '0');
   const totalTransactions = revenueTrends?.data.reduce((sum, item) => sum + item.transactions, 0) || 0;
   const avgSaleOverall = totalTransactions > 0 ? totalRevenue / totalTransactions : 0;
 
@@ -264,8 +274,13 @@ export function RevenueAnalytics() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(totalRevenue)}</div>
+            <div className="text-2xl font-bold">
+              {reportsLoading ? '...' : formatCurrency(totalRevenue)}
+            </div>
             <p className="text-sm text-gray-500 capitalize">{selectedPeriod} total</p>
+            <p className="text-xs text-gray-400 mt-1">
+              {multiLocationData?.locationBreakdown?.length || 0} locations
+            </p>
           </CardContent>
         </Card>
 
