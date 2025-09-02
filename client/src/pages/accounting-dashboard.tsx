@@ -2576,39 +2576,66 @@ function ReportsSection({
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="text-center p-4 bg-green-50 rounded-lg">
-              <div className="text-2xl font-bold text-green-600">
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+            <div className="text-center p-3 bg-green-50 rounded-lg">
+              <div className="text-lg md:text-xl font-bold text-green-600">
                 {profitLossLoading ? '...' : formatCurrency(profitLossData.totalRevenue || 0)}
               </div>
-              <div className="text-sm text-gray-600">Total Revenue</div>
+              <div className="text-xs md:text-sm text-gray-600">Total Revenue</div>
               <div className="text-xs text-gray-500 mt-1">
                 {revenueData.locationBreakdown?.length || 0} locations
               </div>
             </div>
-            <div className="text-center p-4 bg-red-50 rounded-lg">
-              <div className="text-2xl font-bold text-red-600">
+            <div className="text-center p-3 bg-orange-50 rounded-lg">
+              <div className="text-lg md:text-xl font-bold text-orange-600">
+                {profitLossLoading ? '...' : formatCurrency(profitLossData.totalCOGS || 0)}
+              </div>
+              <div className="text-xs md:text-sm text-gray-600">COGS</div>
+              <div className="text-xs text-gray-500 mt-1">
+                Cost of Goods Sold
+              </div>
+            </div>
+            <div className="text-center p-3 bg-emerald-50 rounded-lg">
+              <div className="text-lg md:text-xl font-bold text-emerald-600">
+                {profitLossLoading ? '...' : formatCurrency(profitLossData.grossProfit || 0)}
+              </div>
+              <div className="text-xs md:text-sm text-gray-600">Gross Profit</div>
+              <div className="text-xs text-gray-500 mt-1">
+                Revenue - COGS
+              </div>
+            </div>
+            <div className="text-center p-3 bg-teal-50 rounded-lg">
+              <div className="text-lg md:text-xl font-bold text-teal-600">
+                {profitLossLoading ? '...' : `${profitLossData.grossMargin || '0.0'}%`}
+              </div>
+              <div className="text-xs md:text-sm text-gray-600">Gross Margin</div>
+              <div className="text-xs text-gray-500 mt-1">
+                Gross Profit / Revenue
+              </div>
+            </div>
+            <div className="text-center p-3 bg-red-50 rounded-lg">
+              <div className="text-lg md:text-xl font-bold text-red-600">
                 {profitLossLoading ? '...' : formatCurrency(profitLossData.totalExpenses || 0)}
               </div>
-              <div className="text-sm text-gray-600">Total Expenses</div>
+              <div className="text-xs md:text-sm text-gray-600">Operating Expenses</div>
               <div className="text-xs text-gray-500 mt-1">
                 {expenseData.expenseCategories?.length || 0} categories
               </div>
             </div>
-            <div className="text-center p-4 bg-blue-50 rounded-lg">
-              <div className="text-2xl font-bold text-blue-600">
-                {(profitLossLoading) ? '...' : formatCurrency((profitLossData.totalRevenue || 0) - (profitLossData.totalExpenses || 0))}
+            <div className="text-center p-3 bg-blue-50 rounded-lg">
+              <div className="text-lg md:text-xl font-bold text-blue-600">
+                {profitLossLoading ? '...' : formatCurrency(profitLossData.netIncome || 0)}
               </div>
-              <div className="text-sm text-gray-600">Net Income</div>
+              <div className="text-xs md:text-sm text-gray-600">Net Income</div>
               <div className="text-xs text-gray-500 mt-1">
-                Revenue - Expenses
+                Gross Profit - Expenses
               </div>
             </div>
-            <div className="text-center p-4 bg-purple-50 rounded-lg">
-              <div className="text-2xl font-bold text-purple-600">
-                {(profitLossLoading) ? '...' : `${((((profitLossData.totalRevenue || 0) - (profitLossData.totalExpenses || 0)) / (profitLossData.totalRevenue || 1)) * 100).toFixed(1)}%`}
+            <div className="text-center p-3 bg-purple-50 rounded-lg">
+              <div className="text-lg md:text-xl font-bold text-purple-600">
+                {profitLossLoading ? '...' : `${profitLossData.profitMargin || '0.0'}%`}
               </div>
-              <div className="text-sm text-gray-600">Profit Margin</div>
+              <div className="text-xs md:text-sm text-gray-600">Net Margin</div>
               <div className="text-xs text-gray-500 mt-1">
                 Net Income / Revenue
               </div>
