@@ -1512,7 +1512,7 @@ function AccountManagementDialog({
       subType: editingAccount?.subType || '',
       description: editingAccount?.description || '',
       accountNumber: editingAccount?.accountNumber || '',
-      parentAccountId: editingAccount?.parentAccountId?.toString() || '',
+      parentAccountId: editingAccount?.parentAccountId?.toString() || 'none',
     },
   });
 
@@ -1520,7 +1520,7 @@ function AccountManagementDialog({
     mutationFn: async (data: z.infer<typeof accountFormSchema>) => {
       const payload = {
         ...data,
-        parentAccountId: data.parentAccountId ? parseInt(data.parentAccountId) : null,
+        parentAccountId: data.parentAccountId && data.parentAccountId !== 'none' ? parseInt(data.parentAccountId) : null,
       };
       
       if (editingAccount) {
@@ -1561,7 +1561,7 @@ function AccountManagementDialog({
         subType: editingAccount.subType || '',
         description: editingAccount.description || '',
         accountNumber: editingAccount.accountNumber || '',
-        parentAccountId: editingAccount.parentAccountId?.toString() || '',
+        parentAccountId: editingAccount.parentAccountId?.toString() || 'none',
       });
     } else {
       form.reset({
@@ -1570,7 +1570,7 @@ function AccountManagementDialog({
         subType: '',
         description: '',
         accountNumber: '',
-        parentAccountId: '',
+        parentAccountId: 'none',
       });
     }
   }, [editingAccount, form]);
@@ -1669,7 +1669,7 @@ function AccountManagementDialog({
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="">No Parent</SelectItem>
+                      <SelectItem value="none">No Parent</SelectItem>
                       {accounts.filter(acc => acc.id !== editingAccount?.id).map((account) => (
                         <SelectItem key={account.id} value={account.id.toString()}>
                           {account.accountName}
