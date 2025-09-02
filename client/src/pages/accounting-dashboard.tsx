@@ -296,8 +296,8 @@ function AccountingContent() {
   const calculateBIMetrics = () => {
     if (!monthlyProfitLoss) return null;
     
-    const monthlyRevenue = parseFloat(monthlyProfitLoss.revenue || '0');
-    const monthlyExpenses = parseFloat(monthlyProfitLoss.expenses || '0');
+    const monthlyRevenue = parseFloat(monthlyProfitLoss.totalRevenue || '0');
+    const monthlyExpenses = parseFloat(monthlyProfitLoss.totalExpenses || '0');
     const daysElapsed = new Date().getDate();
     const daysInMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0).getDate();
     const daysRemaining = daysInMonth - daysElapsed;
@@ -605,7 +605,7 @@ function AccountingContent() {
                   <BarChart3 className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">${cogsData?.netIncome || profitLoss?.netIncome || '0.00'}</div>
+                  <div className="text-2xl font-bold">${cogsData?.grossProfit || (parseFloat(cogsData?.totalRevenue || '0') - parseFloat(cogsData?.totalExpenses || '0')).toFixed(2) || '0.00'}</div>
                   <p className="text-xs text-muted-foreground">Today</p>
                 </CardContent>
               </Card>
@@ -855,7 +855,7 @@ function AccountingContent() {
                         </div>
                         <div className="flex justify-between text-sm">
                           <span className="text-gray-600">Today:</span>
-                          <span className="font-medium text-green-600">${(profitLoss as any)?.revenue || '0.00'}</span>
+                          <span className="font-medium text-green-600">${cogsData?.totalRevenue || profitLoss?.totalRevenue || '0.00'}</span>
                         </div>
                       </div>
                     </CardContent>
