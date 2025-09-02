@@ -103,6 +103,10 @@ export function RevenueAnalytics() {
     if (value === 'custom') {
       setCustomStartDate(startDate);
       setCustomEndDate(endDate);
+    } else {
+      // Clear custom dates when preset is selected
+      setCustomStartDate('');
+      setCustomEndDate('');
     }
   };
 
