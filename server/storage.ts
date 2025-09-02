@@ -168,7 +168,7 @@ import {
   type UpdateAutomationRule,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, desc, asc, gte, lte, or, sql } from "drizzle-orm";
+import { eq, and, desc, asc, gte, lte, or, sql, like } from "drizzle-orm";
 
 export interface IStorage {
   // User operations - supports both Replit Auth and traditional email/password
@@ -384,6 +384,7 @@ export interface IStorage {
   updateFinancialAccount(id: number, account: Partial<InsertFinancialAccount>): Promise<FinancialAccount>;
   deleteFinancialAccount(id: number): Promise<void>;
   getAccountsByType(accountType: string): Promise<FinancialAccount[]>;
+  getAccountsByName(accountName: string): Promise<FinancialAccount[]>;
 
   // Financial Transactions
   createFinancialTransaction(transaction: InsertFinancialTransaction): Promise<FinancialTransaction>;
@@ -2339,6 +2340,12 @@ export class DatabaseStorage implements IStorage {
   async getAccountsByType(accountType: string): Promise<FinancialAccount[]> {
     return await db.select().from(financialAccounts)
       .where(and(eq(financialAccounts.accountType, accountType), eq(financialAccounts.isActive, true)))
+      .orderBy(asc(financialAccounts.accountName));
+  }
+
+  async getAccountsByName(accountName: string): Promise<FinancialAccount[]> {
+    return await db.select().from(financialAccounts)
+      .where(and(like(financialAccounts.accountName, `%${accountName}%`), eq(financialAccounts.isActive, true)))
       .orderBy(asc(financialAccounts.accountName));
   }
 

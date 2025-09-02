@@ -5527,6 +5527,106 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Expense reporting endpoint
+  app.get('/api/accounting/reports/expenses', isAuthenticated, async (req, res) => {
+    try {
+      const { startDate, endDate } = req.query;
+      
+      if (!startDate || !endDate) {
+        return res.status(400).json({ error: 'Start date and end date are required' });
+      }
+
+      // Get all expense accounts
+      const expenseAccounts = await storage.getAccountsByType('expense');
+      
+      // Calculate total expenses from account balances
+      const totalExpenses = expenseAccounts.reduce((sum, account) => {
+        return sum + parseFloat(account.balance || '0');
+      }, 0);
+
+      // Group expenses by category
+      const expenseCategories = expenseAccounts.map(account => ({
+        id: account.id,
+        name: account.accountName,
+        amount: parseFloat(account.balance || '0'),
+        description: account.description,
+        accountType: account.accountType
+      }));
+
+      res.json({
+        totalExpenses: totalExpenses.toFixed(2),
+        expenseCategories,
+        period: `${startDate} to ${endDate}`,
+        currency: 'USD'
+      });
+    } catch (error) {
+      console.error('Error fetching expense data:', error);
+      res.status(500).json({ error: 'Failed to fetch expense data' });
+    }
+  });
+
+  // Profit & Loss reporting endpoint
+  app.get('/api/accounting/reports/profit-loss', isAuthenticated, async (req, res) => {
+    try {
+      const { startDate, endDate } = req.query;
+      
+      if (!startDate || !endDate) {
+        return res.status(400).json({ error: 'Start date and end date are required' });
+      }
+
+      // Get accounts by type
+      const incomeAccounts = await storage.getAccountsByType('income');
+      const expenseAccounts = await storage.getAccountsByType('expense');
+      const cogsAccounts = await storage.getAccountsByName('Cost of Goods Sold');
+
+      // Calculate totals
+      const totalRevenue = incomeAccounts.reduce((sum, account) => {
+        return sum + parseFloat(account.balance || '0');
+      }, 0);
+
+      const totalExpenses = expenseAccounts.reduce((sum, account) => {
+        return sum + parseFloat(account.balance || '0');
+      }, 0);
+
+      const totalCOGS = cogsAccounts.reduce((sum, account) => {
+        return sum + parseFloat(account.balance || '0');
+      }, 0);
+
+      const grossProfit = totalRevenue - totalCOGS;
+      const netIncome = grossProfit - totalExpenses;
+
+      // Get transaction data for the period
+      const transactions = await storage.getTransactionsByDateRange(startDate as string, endDate as string);
+
+      res.json({
+        period: `${startDate} to ${endDate}`,
+        totalRevenue: totalRevenue.toFixed(2),
+        totalCOGS: totalCOGS.toFixed(2),
+        grossProfit: grossProfit.toFixed(2),
+        totalExpenses: totalExpenses.toFixed(2),
+        netIncome: netIncome.toFixed(2),
+        profitMargin: totalRevenue > 0 ? ((netIncome / totalRevenue) * 100).toFixed(2) : '0.00',
+        transactionCount: transactions.length,
+        currency: 'USD',
+        incomeBreakdown: incomeAccounts.map(account => ({
+          id: account.id,
+          name: account.accountName,
+          amount: parseFloat(account.balance || '0'),
+          percentage: totalRevenue > 0 ? ((parseFloat(account.balance || '0') / totalRevenue) * 100).toFixed(2) : '0.00'
+        })),
+        expenseBreakdown: expenseAccounts.map(account => ({
+          id: account.id,
+          name: account.accountName,
+          amount: parseFloat(account.balance || '0'),
+          percentage: totalExpenses > 0 ? ((parseFloat(account.balance || '0') / totalExpenses) * 100).toFixed(2) : '0.00'
+        }))
+      });
+    } catch (error) {
+      console.error('Error generating P&L report:', error);
+      res.status(500).json({ error: 'Failed to generate P&L report' });
+    }
+  });
+
   app.get('/api/accounting/inventory/items/:itemId/stock', async (req, res) => {
     try {
       if (!req.isAuthenticated() || !req.user) {
