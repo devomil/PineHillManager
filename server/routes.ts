@@ -2294,17 +2294,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Multi-location analytics endpoint (supports Clover POS + Amazon Store)
-  app.get('/api/accounting/analytics/multi-location', async (req, res) => {
-    console.log('🔥 MULTI-LOCATION ENDPOINT HIT - DEBUG TEST (NO AUTH CHECK)');
+  app.get('/api/accounting/analytics/multi-location', isAuthenticated, async (req, res) => {
+    console.log('🔥 MULTI-LOCATION ENDPOINT HIT');
     console.log('Request query params:', req.query);
-    
-    // Manual auth check to debug
-    if (!req.isAuthenticated()) {
-      console.log('Manual auth check failed');
-      return res.status(401).json({ error: 'Authentication required' });
-    }
-    
-    console.log('Manual auth check passed');
     try {
       const { startDate, endDate } = req.query;
       const { db } = await import('./db');
@@ -2905,12 +2897,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/accounting/analytics/profit-loss', async (req, res) => {
+  app.get('/api/accounting/analytics/profit-loss', isAuthenticated, async (req, res) => {
     try {
-      // Check auth without middleware
-      if (!req.isAuthenticated() || !req.user) {
-        return res.status(401).json({ error: "Authentication required" });
-      }
       
       const { startDate, endDate } = req.query;
       console.log('Analytics profit-loss request:', { startDate, endDate });
