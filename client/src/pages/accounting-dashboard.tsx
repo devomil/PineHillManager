@@ -583,7 +583,7 @@ function AccountingContent() {
                   <TrendingUp className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">${(profitLoss as any)?.revenue || '0.00'}</div>
+                  <div className="text-2xl font-bold">${profitLoss?.totalRevenue || '0.00'}</div>
                   <p className="text-xs text-muted-foreground">Today</p>
                 </CardContent>
               </Card>
@@ -594,7 +594,7 @@ function AccountingContent() {
                   <DollarSign className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">${(profitLoss as any)?.expenses || '0.00'}</div>
+                  <div className="text-2xl font-bold">${profitLoss?.totalExpenses || '0.00'}</div>
                   <p className="text-xs text-muted-foreground">Today</p>
                 </CardContent>
               </Card>
@@ -605,7 +605,7 @@ function AccountingContent() {
                   <BarChart3 className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">${(profitLoss as any)?.netIncome || '0.00'}</div>
+                  <div className="text-2xl font-bold">${profitLoss?.netIncome || '0.00'}</div>
                   <p className="text-xs text-muted-foreground">Today</p>
                 </CardContent>
               </Card>
