@@ -2622,7 +2622,7 @@ function ReportsSection({
         <ProfitLossReport 
           data={profitLossData} 
           period={formatPeriodLabel()} 
-          loading={plLoading}
+          loading={profitLossLoading}
           accounts={accounts}
         />
       )}
