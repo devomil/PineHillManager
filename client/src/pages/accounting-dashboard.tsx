@@ -2460,7 +2460,7 @@ function ReportsSection({
   });
 
   // Fetch P&L data
-  const { data: profitLossData = {}, isLoading: plLoading } = useQuery({
+  const { data: profitLossData = {}, isLoading: profitLossLoading } = useQuery({
     queryKey: ['/api/accounting/reports/profit-loss', startDateStr, endDateStr],
     queryFn: async () => {
       const response = await apiRequest('GET', `/api/accounting/reports/profit-loss?startDate=${startDateStr}&endDate=${endDateStr}`);
@@ -2579,7 +2579,7 @@ function ReportsSection({
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="text-center p-4 bg-green-50 rounded-lg">
               <div className="text-2xl font-bold text-green-600">
-                {revenueLoading ? '...' : formatCurrency(revenueData.totalRevenue || 0)}
+                {profitLossLoading ? '...' : formatCurrency(profitLossData.totalRevenue || 0)}
               </div>
               <div className="text-sm text-gray-600">Total Revenue</div>
               <div className="text-xs text-gray-500 mt-1">
@@ -2597,7 +2597,7 @@ function ReportsSection({
             </div>
             <div className="text-center p-4 bg-blue-50 rounded-lg">
               <div className="text-2xl font-bold text-blue-600">
-                {(revenueLoading || expenseLoading) ? '...' : formatCurrency((revenueData.totalRevenue || 0) - (expenseData.totalExpenses || 0))}
+                {(profitLossLoading || expenseLoading) ? '...' : formatCurrency((profitLossData.totalRevenue || 0) - (expenseData.totalExpenses || 0))}
               </div>
               <div className="text-sm text-gray-600">Net Income</div>
               <div className="text-xs text-gray-500 mt-1">
@@ -2606,7 +2606,7 @@ function ReportsSection({
             </div>
             <div className="text-center p-4 bg-purple-50 rounded-lg">
               <div className="text-2xl font-bold text-purple-600">
-                {(revenueLoading || expenseLoading) ? '...' : `${((((revenueData.totalRevenue || 0) - (expenseData.totalExpenses || 0)) / (revenueData.totalRevenue || 1)) * 100).toFixed(1)}%`}
+                {(profitLossLoading || expenseLoading) ? '...' : `${((((profitLossData.totalRevenue || 0) - (expenseData.totalExpenses || 0)) / (profitLossData.totalRevenue || 1)) * 100).toFixed(1)}%`}
               </div>
               <div className="text-sm text-gray-600">Profit Margin</div>
               <div className="text-xs text-gray-500 mt-1">
