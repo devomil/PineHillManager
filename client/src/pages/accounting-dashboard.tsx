@@ -261,6 +261,10 @@ function AccountingContent() {
   // Financial accounts
   const { data: accounts = [], isLoading: accountsLoading } = useQuery<FinancialAccount[]>({
     queryKey: ['/api/accounting/accounts'],
+    queryFn: async () => {
+      const response = await apiRequest('GET', '/api/accounting/accounts');
+      return await response.json();
+    },
   });
 
   // Analytics data - today's data (current calendar date)
