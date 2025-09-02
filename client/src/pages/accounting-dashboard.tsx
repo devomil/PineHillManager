@@ -292,33 +292,7 @@ function AccountingContent() {
     },
   });
 
-  // Calculate BI metrics from real data
-  const calculateBIMetrics = () => {
-    if (!monthlyCogsData) return null;
-    
-    const monthlyRevenue = parseFloat(monthlyCogsData.totalRevenue || '0');
-    const monthlyExpenses = parseFloat(monthlyCogsData.totalExpenses || '0');
-    const daysElapsed = new Date().getDate();
-    const daysInMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0).getDate();
-    const daysRemaining = daysInMonth - daysElapsed;
-    
-    const dailyAverage = monthlyRevenue / daysElapsed;
-    const projectedRevenue = dailyAverage * daysInMonth;
-    const profitMargin = monthlyRevenue > 0 ? ((monthlyRevenue - monthlyExpenses) / monthlyRevenue * 100) : 0;
-    
-    return {
-      monthlyRevenue,
-      monthlyExpenses,
-      profitMargin,
-      dailyAverage,
-      projectedRevenue,
-      daysElapsed,
-      daysRemaining,
-      confidence: Math.min(95, 60 + (daysElapsed * 2)) // Increases with more data
-    };
-  };
-
-  const biMetrics = calculateBIMetrics();
+  // Moved calculateBIMetrics and biMetrics calculation after monthlyCogsData declaration
 
   // Goal handling functions
   const handleSaveGoals = () => {
@@ -440,6 +414,34 @@ function AccountingContent() {
       return await response.json();
     },
   });
+
+  // Calculate BI metrics from real data (moved after monthlyCogsData declaration)
+  const calculateBIMetrics = () => {
+    if (!monthlyCogsData) return null;
+    
+    const monthlyRevenue = parseFloat(monthlyCogsData.totalRevenue || '0');
+    const monthlyExpenses = parseFloat(monthlyCogsData.totalExpenses || '0');
+    const daysElapsed = new Date().getDate();
+    const daysInMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0).getDate();
+    const daysRemaining = daysInMonth - daysElapsed;
+    
+    const dailyAverage = monthlyRevenue / daysElapsed;
+    const projectedRevenue = dailyAverage * daysInMonth;
+    const profitMargin = monthlyRevenue > 0 ? ((monthlyRevenue - monthlyExpenses) / monthlyRevenue * 100) : 0;
+    
+    return {
+      monthlyRevenue,
+      monthlyExpenses,
+      profitMargin,
+      dailyAverage,
+      projectedRevenue,
+      daysElapsed,
+      daysRemaining,
+      confidence: Math.min(95, 60 + (daysElapsed * 2)) // Increases with more data
+    };
+  };
+
+  const biMetrics = calculateBIMetrics();
 
 
   const getStatusIcon = (status: string) => {
