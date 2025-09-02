@@ -2588,7 +2588,7 @@ function ReportsSection({
             </div>
             <div className="text-center p-4 bg-red-50 rounded-lg">
               <div className="text-2xl font-bold text-red-600">
-                {expenseLoading ? '...' : formatCurrency(expenseData.totalExpenses || 0)}
+                {profitLossLoading ? '...' : formatCurrency(profitLossData.totalExpenses || 0)}
               </div>
               <div className="text-sm text-gray-600">Total Expenses</div>
               <div className="text-xs text-gray-500 mt-1">
@@ -2597,7 +2597,7 @@ function ReportsSection({
             </div>
             <div className="text-center p-4 bg-blue-50 rounded-lg">
               <div className="text-2xl font-bold text-blue-600">
-                {(profitLossLoading || expenseLoading) ? '...' : formatCurrency((profitLossData.totalRevenue || 0) - (expenseData.totalExpenses || 0))}
+                {(profitLossLoading) ? '...' : formatCurrency((profitLossData.totalRevenue || 0) - (profitLossData.totalExpenses || 0))}
               </div>
               <div className="text-sm text-gray-600">Net Income</div>
               <div className="text-xs text-gray-500 mt-1">
@@ -2606,7 +2606,7 @@ function ReportsSection({
             </div>
             <div className="text-center p-4 bg-purple-50 rounded-lg">
               <div className="text-2xl font-bold text-purple-600">
-                {(profitLossLoading || expenseLoading) ? '...' : `${((((profitLossData.totalRevenue || 0) - (expenseData.totalExpenses || 0)) / (profitLossData.totalRevenue || 1)) * 100).toFixed(1)}%`}
+                {(profitLossLoading) ? '...' : `${((((profitLossData.totalRevenue || 0) - (profitLossData.totalExpenses || 0)) / (profitLossData.totalRevenue || 1)) * 100).toFixed(1)}%`}
               </div>
               <div className="text-sm text-gray-600">Profit Margin</div>
               <div className="text-xs text-gray-500 mt-1">

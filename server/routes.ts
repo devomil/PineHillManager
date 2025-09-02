@@ -5576,8 +5576,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Get accounts by type
       const incomeAccounts = await storage.getAccountsByType('Income');
-      const expenseAccounts = await storage.getAccountsByType('Expense');
+      const allExpenseAccounts = await storage.getAccountsByType('Expense');
       const cogsAccounts = await storage.getAccountsByName('Cost of Goods Sold');
+      
+      // Exclude COGS from operating expenses to prevent duplication
+      const expenseAccounts = allExpenseAccounts.filter(account => 
+        !account.accountName.toLowerCase().includes('cost of goods sold')
+      );
 
       // Calculate totals
       const totalRevenue = incomeAccounts.reduce((sum, account) => {
