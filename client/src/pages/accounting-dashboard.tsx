@@ -294,10 +294,10 @@ function AccountingContent() {
 
   // Calculate BI metrics from real data
   const calculateBIMetrics = () => {
-    if (!monthlyProfitLoss) return null;
+    if (!monthlyCogsData) return null;
     
-    const monthlyRevenue = parseFloat(monthlyProfitLoss.totalRevenue || '0');
-    const monthlyExpenses = parseFloat(monthlyProfitLoss.totalExpenses || '0');
+    const monthlyRevenue = parseFloat(monthlyCogsData.totalRevenue || '0');
+    const monthlyExpenses = parseFloat(monthlyCogsData.totalExpenses || '0');
     const daysElapsed = new Date().getDate();
     const daysInMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0).getDate();
     const daysRemaining = daysInMonth - daysElapsed;
@@ -1081,7 +1081,7 @@ function AccountingContent() {
                                 <div className="text-xs text-gray-500">{new Date().toLocaleDateString('en-US', { weekday: 'long' })}</div>
                               </div>
                               <div className="text-right">
-                                <div className="font-bold text-orange-600">${(profitLoss as any)?.revenue || '0.00'}</div>
+                                <div className="font-bold text-orange-600">${cogsData?.totalRevenue || profitLoss?.totalRevenue || '0.00'}</div>
                                 <div className="text-xs text-blue-600">current</div>
                               </div>
                             </div>
