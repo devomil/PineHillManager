@@ -1493,10 +1493,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: 'Response content is required' });
       }
 
+      // Handle both numeric IDs and string IDs (like msg_43)
+      let announcementId: number;
+      if (id.startsWith('msg_')) {
+        // For string IDs like msg_43, we can't create responses since they're not real announcements
+        return res.status(400).json({ error: "Cannot create response to message ID" });
+      } else {
+        announcementId = parseInt(id);
+        if (isNaN(announcementId)) {
+          return res.status(400).json({ error: "Invalid announcement ID" });
+        }
+      }
+
       const response = await storage.createResponse({
         authorId,
         content: content.trim(),
-        announcementId: parseInt(id),
+        announcementId,
         responseType,
         parentResponseId: parentResponseId ? parseInt(parentResponseId) : null,
         isFromSMS: false
