@@ -111,6 +111,28 @@ export const userPresence = pgTable("user_presence", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// SMS consent history tracking for compliance and auditing
+export const smsConsentHistory = pgTable("sms_consent_history", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  consentGiven: boolean("consent_given").notNull(), // true = opted in, false = opted out
+  previousConsent: boolean("previous_consent"), // What their consent was before this change
+  notificationTypes: text("notification_types").array(), // What notification types they consented to
+  previousNotificationTypes: text("previous_notification_types").array(), // Previous notification types
+  changeReason: varchar("change_reason"), // 'bulk_opt_in', 'user_preference', 'admin_update', 'onboarding'
+  changedBy: varchar("changed_by").references(() => users.id), // Who made the change (admin/user themselves)
+  changeMethod: varchar("change_method"), // 'web_interface', 'bulk_script', 'admin_panel', 'mobile_app'
+  ipAddress: varchar("ip_address"), // For audit trail
+  userAgent: text("user_agent"), // Browser/device info
+  notes: text("notes"), // Optional notes about the change
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  userIdIdx: index("idx_sms_consent_history_user_id").on(table.userId),
+  consentGivenIdx: index("idx_sms_consent_history_consent").on(table.consentGiven),
+  changeReasonIdx: index("idx_sms_consent_history_reason").on(table.changeReason),
+  createdAtIdx: index("idx_sms_consent_history_created_at").on(table.createdAt),
+}));
+
 // Time off requests
 export const timeOffRequests = pgTable("time_off_requests", {
   id: serial("id").primaryKey(),
@@ -1080,6 +1102,8 @@ export const automationRules = pgTable("automation_rules", {
 // Export types
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
+export type SMSConsentHistory = typeof smsConsentHistory.$inferSelect;
+export type InsertSMSConsentHistory = typeof smsConsentHistory.$inferInsert;
 export type InsertTimeOffRequest = z.infer<typeof insertTimeOffRequestSchema>;
 export type TimeOffRequest = typeof timeOffRequests.$inferSelect;
 export type InsertWorkSchedule = z.infer<typeof insertWorkScheduleSchema>;

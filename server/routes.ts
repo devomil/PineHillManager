@@ -738,6 +738,88 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // SMS Consent History endpoints
+  // Get SMS consent history for a specific user
+  app.get('/api/employees/:id/sms-consent-history', isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const history = await storage.getSmsConsentHistoryByUserId(id);
+      res.json(history);
+    } catch (error) {
+      console.error('Error fetching SMS consent history:', error);
+      res.status(500).json({ message: 'Failed to fetch SMS consent history' });
+    }
+  });
+
+  // Bulk opt-in to SMS announcements
+  app.post('/api/employees/bulk-sms-opt-in', isAuthenticated, async (req: any, res) => {
+    try {
+      const { userIds, notificationTypes, notes } = req.body;
+      const changedBy = req.user.id;
+      const ipAddress = req.ip || req.connection.remoteAddress;
+      const userAgent = req.get('User-Agent');
+
+      if (!userIds || !Array.isArray(userIds) || userIds.length === 0) {
+        return res.status(400).json({ message: 'userIds array is required' });
+      }
+
+      if (!notificationTypes || !Array.isArray(notificationTypes)) {
+        return res.status(400).json({ message: 'notificationTypes array is required' });
+      }
+
+      const result = await storage.bulkOptInSmsConsent({
+        userIds,
+        changedBy,
+        changeReason: 'bulk_opt_in',
+        notificationTypes,
+        ipAddress,
+        userAgent,
+        notes: notes || `Bulk SMS opt-in for announcements by admin ${req.user.firstName} ${req.user.lastName}`
+      });
+
+      res.json({
+        message: `Bulk opt-in completed: ${result.successful} successful, ${result.failed} failed`,
+        ...result
+      });
+    } catch (error) {
+      console.error('Error performing bulk SMS opt-in:', error);
+      res.status(500).json({ message: 'Failed to perform bulk SMS opt-in' });
+    }
+  });
+
+  // Get users who need SMS opt-in (no consent or missing announcement notifications)
+  app.get('/api/employees/sms-opt-in-candidates', isAuthenticated, async (req: any, res) => {
+    try {
+      const allUsers = await storage.getAllUsers();
+      const candidates = allUsers.filter(user => 
+        !user.smsConsent || 
+        !user.smsNotificationTypes?.includes('announcements')
+      );
+      
+      const candidateInfo = candidates.map(user => ({
+        id: user.id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+        phone: user.phone,
+        department: user.department,
+        position: user.position,
+        smsConsent: user.smsConsent,
+        smsEnabled: user.smsEnabled,
+        smsNotificationTypes: user.smsNotificationTypes,
+        reason: !user.smsConsent ? 'No SMS consent' : 'Missing announcement notifications'
+      }));
+
+      res.json({
+        total: candidateInfo.length,
+        candidates: candidateInfo
+      });
+    } catch (error) {
+      console.error('Error fetching SMS opt-in candidates:', error);
+      res.status(500).json({ message: 'Failed to fetch SMS opt-in candidates' });
+    }
+  });
+
   // Employee invitation system for admin registration
   app.post('/api/admin/invite-employee', isAuthenticated, async (req, res) => {
     try {

@@ -48,8 +48,11 @@ import {
   automationRules,
   messageReactions,
   announcementReactions,
+  smsConsentHistory,
   type User,
   type UpsertUser,
+  type SMSConsentHistory,
+  type InsertSMSConsentHistory,
   type InsertTimeOffRequest,
   type TimeOffRequest,
   type InsertWorkSchedule,
@@ -4461,6 +4464,91 @@ export class DatabaseStorage implements IStorage {
         updatedAt: new Date()
       })
       .where(eq(automationRules.id, id));
+  }
+
+  // SMS Consent History Methods
+  async createSmsConsentRecord(record: InsertSMSConsentHistory): Promise<SMSConsentHistory> {
+    const [consentRecord] = await db
+      .insert(smsConsentHistory)
+      .values(record)
+      .returning();
+    return consentRecord;
+  }
+
+  async getSmsConsentHistoryByUserId(userId: string): Promise<SMSConsentHistory[]> {
+    return await db
+      .select()
+      .from(smsConsentHistory)
+      .where(eq(smsConsentHistory.userId, userId))
+      .orderBy(desc(smsConsentHistory.createdAt));
+  }
+
+  async bulkOptInSmsConsent(options: {
+    userIds: string[];
+    changedBy: string;
+    changeReason: string;
+    notificationTypes: string[];
+    ipAddress?: string;
+    userAgent?: string;
+    notes?: string;
+  }): Promise<{ 
+    successful: number; 
+    failed: number; 
+    errors: Array<{ userId: string; error: string }> 
+  }> {
+    const { userIds, changedBy, changeReason, notificationTypes, ipAddress, userAgent, notes } = options;
+    let successful = 0;
+    let failed = 0;
+    const errors: Array<{ userId: string; error: string }> = [];
+
+    for (const userId of userIds) {
+      try {
+        // Get current user consent status
+        const user = await this.getUser(userId);
+        if (!user) {
+          errors.push({ userId, error: 'User not found' });
+          failed++;
+          continue;
+        }
+
+        const previousConsent = user.smsConsent;
+        const previousNotificationTypes = user.smsNotificationTypes || ['emergency'];
+
+        // Update user SMS consent
+        await db
+          .update(users)
+          .set({
+            smsConsent: true,
+            smsConsentDate: new Date(),
+            smsNotificationTypes: notificationTypes,
+            updatedAt: new Date()
+          })
+          .where(eq(users.id, userId));
+
+        // Create consent history record
+        await this.createSmsConsentRecord({
+          userId,
+          consentGiven: true,
+          previousConsent,
+          notificationTypes,
+          previousNotificationTypes,
+          changeReason,
+          changedBy,
+          changeMethod: 'bulk_script',
+          ipAddress,
+          userAgent,
+          notes
+        });
+
+        successful++;
+      } catch (error) {
+        console.error(`Error updating SMS consent for user ${userId}:`, error);
+        errors.push({ userId, error: error instanceof Error ? error.message : 'Unknown error' });
+        failed++;
+      }
+    }
+
+    return { successful, failed, errors };
   }
 }
 

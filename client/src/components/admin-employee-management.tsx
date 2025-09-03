@@ -37,6 +37,69 @@ import {
 import { format } from "date-fns";
 import type { User as UserType } from "@shared/schema";
 
+// SMS Consent History Component
+function SMSConsentHistoryComponent({ employeeId }: { employeeId: string }) {
+  const { data: consentHistory, isLoading } = useQuery({
+    queryKey: ['/api/employees', employeeId, 'sms-consent-history'],
+    queryFn: async () => {
+      const response = await apiRequest('GET', `/api/employees/${employeeId}/sms-consent-history`);
+      return response.json();
+    },
+    enabled: !!employeeId,
+    staleTime: 30000,
+  });
+
+  if (isLoading) {
+    return (
+      <div className="mt-3 text-sm text-slate-500">
+        Loading consent history...
+      </div>
+    );
+  }
+
+  if (!consentHistory || consentHistory.length === 0) {
+    return (
+      <div className="mt-3 text-sm text-slate-500">
+        No consent history available
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-3">
+      <details className="text-sm">
+        <summary className="cursor-pointer text-slate-700 hover:text-slate-900 mb-2">
+          View Consent History ({consentHistory.length} records)
+        </summary>
+        <div className="space-y-2 max-h-32 overflow-y-auto">
+          {consentHistory.map((record: any, index: number) => (
+            <div key={record.id} className="flex justify-between items-start p-2 bg-slate-50 rounded text-xs">
+              <div className="flex-1">
+                <div className="font-medium">
+                  {record.consentGiven ? "✅ Opted In" : "❌ Opted Out"}
+                </div>
+                <div className="text-slate-500">
+                  {record.changeReason.replace(/_/g, ' ')} • {record.changeMethod.replace(/_/g, ' ')}
+                </div>
+                {record.notes && (
+                  <div className="text-slate-600 mt-1 italic">
+                    {record.notes}
+                  </div>
+                )}
+              </div>
+              <div className="text-slate-500 text-right ml-2">
+                {new Date(record.createdAt).toLocaleDateString()}
+                <br />
+                {new Date(record.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </div>
+            </div>
+          ))}
+        </div>
+      </details>
+    </div>
+  );
+}
+
 // Helper function to generate next employee ID
 const generateNextEmployeeId = (baseId: string, currentCount: number): string => {
   const number = parseInt(baseId) || 1000;
@@ -1064,6 +1127,39 @@ export default function AdminEmployeeManagement() {
                       rows={3}
                     />
                   </div>
+
+                  {/* SMS Consent History Section */}
+                  {selectedEmployee && (
+                    <div className="border-t pt-4 mt-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="text-sm font-medium text-slate-900">SMS Consent History</h4>
+                        <Badge variant={selectedEmployee.smsConsent ? "default" : "secondary"}>
+                          {selectedEmployee.smsConsent ? "Consented" : "No Consent"}
+                        </Badge>
+                      </div>
+                      
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-slate-500">SMS Enabled:</span>
+                          <span>{selectedEmployee.smsEnabled ? "Yes" : "No"}</span>
+                        </div>
+                        {selectedEmployee.smsConsentDate && (
+                          <div className="flex justify-between">
+                            <span className="text-slate-500">Consent Date:</span>
+                            <span>{new Date(selectedEmployee.smsConsentDate).toLocaleDateString()}</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between">
+                          <span className="text-slate-500">Notification Types:</span>
+                          <span className="text-right">
+                            {selectedEmployee.smsNotificationTypes?.join(", ") || "None"}
+                          </span>
+                        </div>
+                      </div>
+
+                      <SMSConsentHistoryComponent employeeId={selectedEmployee.id} />
+                    </div>
+                  )}
                 </TabsContent>
 
                 <TabsContent value="settings" className="space-y-4">
