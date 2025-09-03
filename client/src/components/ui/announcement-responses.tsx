@@ -65,8 +65,11 @@ export function AnnouncementResponses({ announcementId, className }: Announcemen
 
   // Fetch responses for this announcement
   const { data: responses = [], isLoading } = useQuery<ResponseWithAuthor[]>({
-    queryKey: ['/api/announcements', announcementId, 'responses'],
+    queryKey: ['/api/announcements', announcementId, 'responses', Date.now()], // Force unique key
     queryFn: () => apiRequest('GET', `/api/announcements/${announcementId}/responses`),
+    staleTime: 0, // Always fetch fresh data
+    refetchOnMount: true, // Refetch when component mounts
+    cacheTime: 0, // Don't cache at all
   });
 
   // Create response mutation
