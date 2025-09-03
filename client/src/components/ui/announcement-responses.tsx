@@ -64,21 +64,31 @@ export function AnnouncementResponses({ announcementId, className }: Announcemen
   const [expandedResponses, setExpandedResponses] = useState<Set<number>>(new Set());
 
   // Fetch responses for this announcement
-  const { data: responses = [], isLoading, error } = useQuery<ResponseWithAuthor[]>({
+  const { data: rawResponses = [], isLoading, error } = useQuery<ResponseWithAuthor[]>({
     queryKey: ['/api/announcements', announcementId, 'responses'],
-    queryFn: () => apiRequest('GET', `/api/announcements/${announcementId}/responses`),
-    staleTime: 30000, // 30 seconds before considering stale
+    queryFn: async () => {
+      const response = await apiRequest('GET', `/api/announcements/${announcementId}/responses`);
+      return response.json();
+    },
+    staleTime: 0, // No caching - always fresh
     refetchOnMount: 'always', // Always refetch when component mounts
+    gcTime: 0, // Don't store in cache (React Query v5)
   });
 
-  // Debug logging
-  console.log(`🔍 AnnouncementResponses ${announcementId}:`, {
-    responses,
-    responsesLength: responses?.length,
-    isLoading,
-    error: error?.message,
-    rawData: responses
-  });
+  // Ensure we always have an array
+  const responses = Array.isArray(rawResponses) ? rawResponses : [];
+
+  // Debug logging - only for announcement 30
+  if (announcementId === 30) {
+    console.log(`🔍 AnnouncementResponses ${announcementId}:`, {
+      rawResponses,
+      responses,
+      responsesLength: responses?.length,
+      isLoading,
+      error: error?.message,
+      isArray: Array.isArray(rawResponses)
+    });
+  }
 
   // Create response mutation
   const createResponseMutation = useMutation({
