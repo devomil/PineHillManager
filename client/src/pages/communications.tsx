@@ -821,7 +821,7 @@ function CommunicationsContent() {
   const createCommunicationMutation = useMutation({
     mutationFn: async (data: any) => {
       // Route announcements to correct endpoint for proper database storage
-      if (data.type === 'announcement') {
+      if (data.type === 'announcement' || data.messageType === 'announcement') {
         const announcementData = {
           title: data.title,
           content: data.content,
