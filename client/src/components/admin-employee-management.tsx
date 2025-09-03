@@ -416,7 +416,7 @@ export default function AdminEmployeeManagement() {
               Add Employee
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-4xl max-h-[95vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Add New Employee</DialogTitle>
               <DialogDescription>
@@ -944,7 +944,7 @@ export default function AdminEmployeeManagement() {
 
       {/* Edit Employee Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-4xl max-h-[95vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Employee</DialogTitle>
             <DialogDescription>
@@ -1130,11 +1130,11 @@ export default function AdminEmployeeManagement() {
 
                   {/* SMS Consent History Section */}
                   {selectedEmployee && (
-                    <div className="border-t pt-4 mt-4">
-                      <div className="flex items-center justify-between mb-3">
-                        <h4 className="text-sm font-medium text-slate-900">SMS Consent History</h4>
-                        <Badge variant={selectedEmployee.smsConsent ? "default" : "secondary"}>
-                          {selectedEmployee.smsConsent ? "Consented" : "No Consent"}
+                    <div className="border-t-2 border-blue-200 pt-6 mt-6 bg-blue-50 p-4 rounded-lg">
+                      <div className="flex items-center justify-between mb-4">
+                        <h4 className="text-base font-semibold text-slate-900">📱 SMS Consent History</h4>
+                        <Badge variant={selectedEmployee.smsConsent ? "default" : "secondary"} className="text-sm px-3 py-1">
+                          {selectedEmployee.smsConsent ? "✅ Consented" : "❌ No Consent"}
                         </Badge>
                       </div>
                       
