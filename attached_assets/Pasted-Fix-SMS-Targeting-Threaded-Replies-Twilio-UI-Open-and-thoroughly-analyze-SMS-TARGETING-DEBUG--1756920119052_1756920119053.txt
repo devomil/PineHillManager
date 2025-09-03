@@ -1,0 +1,155 @@
+Fix SMS Targeting + Threaded Replies (Twilio + UI)
+Open and thoroughly analyze SMS_TARGETING_DEBUG_REPORT.md (dated Aug 30, 2025). Key facts you must incorporate:
+•	Twilio webhook currently points to production: https://phfmanager.co/api/sms/webhook
+•	Dev does not receive webhooks; prod + dev share one database.
+•	Wrong targeting: incoming SMS keeps attaching to announcement_id = 11 instead of newest (should be 25 “FINAL DEBUG TEST”).
+•	Phone numbers for testing: User +18474015540, Twilio +12624751882.
+Your job: (A) fix SMS routing/targeting, (B) enable threaded replies from SMS and UI, and (C) make it observable, testable, and production-safe.
+“Please create a structured checklist of tasks from the SMS_TARGETING_DEBUG_REPORT.md instructions. Organize it into:
+1.	Database Migration
+2.	Webhook + Routing Logic
+3.	Thread Token Handling
+4.	UI/Frontend Changes
+5.	Tests (Unit, Integration, Acceptance AT-01..AT-07)
+6.	Observability/Logging
+7.	Deployment & Rollout Steps
+Each item should have sub-steps that can be checked off when completed.”
+Acceptance Tests (must pass)
+•	AT-01: With webhook on production, send SMS “new test”. Verify new responses row targets announcement_id = 25 (not 11).
+•	AT-02: Post a UI reply to announcement 25; verify it appears in the same thread as inbound SMS.
+•	AT-03: Send SMS that includes a thread token (e.g., [#A25-M123]); response attaches to that exact announcement/message even if newer announcements exist.
+•	AT-04: If multiple active announcements exist, inbound SMS without token attaches to most recent active announcement for that user/group (deterministic).
+•	AT-05: Duplicate Twilio webhook deliveries are handled idempotently (no dup rows).
+•	AT-06: Feature flags allow safe prod rollout; logging + metrics visible.
+•	AT-07: WebSocket update fires and UI renders the new reply in-thread within 1s in dev.
+2.1 Data Model (extend, don’t break)
+Add/confirm the following fields exist in the DB (migrate if missing):
+•	announcements: id, title, content, created_at, is_active (bool, default true)
+•	messages (or responses if that’s your canonical table):
+o	id (PK)
+o	announcement_id (FK, required)
+o	parent_message_id (FK to messages.id, nullable) — for threading
+o	sender_id (nullable for external SMS if we only have phone)
+o	sender_phone (nullable, E.164)
+o	group_id (nullable)
+o	source ENUM(‘sms’, ‘ui’, ‘system’)
+o	body TEXT
+o	twilio_message_sid (unique, nullable)
+o	thread_token (nullable, short text)
+o	created_at TIMESTAMP
+•	message_index: create composite indexes for:
+o	(announcement_id, created_at DESC)
+o	(twilio_message_sid) unique
+o	(thread_token) (optional, if used frequently)
+Migration skeleton (Postgres):
+ALTER TABLE responses
+  ADD COLUMN IF NOT EXISTS parent_message_id BIGINT NULL,
+  ADD COLUMN IF NOT EXISTS sender_phone TEXT NULL,
+  ADD COLUMN IF NOT EXISTS source TEXT CHECK (source IN ('sms','ui','system')) DEFAULT 'sms',
+  ADD COLUMN IF NOT EXISTS twilio_message_sid TEXT UNIQUE NULL,
+  ADD COLUMN IF NOT EXISTS thread_token TEXT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_responses_announcement_created
+  ON responses(announcement_id, created_at DESC);
+2.2 Thread Token Format (for deterministic routing)
+•	Outbound UI and outbound SMS should append a trailing token: [#A<announcementId>-M<messageId>].
+Example: [#A25-M123]
+•	On inbound SMS, if the body contains [#A\d+-M\d+], attach the reply to that exact parent. If no token, use fallback strategy (see 2.3).
+2.3 Fallback Targeting Strategy (no token)
+•	Resolve the recipient (phone → user → groups).
+•	Pick the user’s most recent active announcement (is_active = true) relevant to their group(s).
+•	If none, attach to the globally most recent active announcement (configurable).
+2.4 Environment Separation & Webhooks
+•	Keep production webhook at https://phfmanager.co/api/sms/webhook.
+•	Add a dev/test webhook route (e.g., /api/sms/webhook/dev) and configurable Twilio dev phone number.
+•	Support both via TWILIO_ENV=prod|dev and TWILIO_VERIFY_SIGNATURE=true|false in dev.
+.env expectations:
+TWILIO_ACCOUNT_SID=...
+TWILIO_AUTH_TOKEN=...
+TWILIO_INBOUND_NUMBER_PROD=+12624751882
+TWILIO_INBOUND_NUMBER_DEV=+1xxxxxxxxxx
+TWILIO_ENV=prod
+TWILIO_VERIFY_SIGNATURE=true
+2.5 Idempotency & Safety
+•	Idempotency key: twilio_message_sid. Reject/ignore repeats.
+•	Validate Twilio signature in prod.
+•	Feature flag: FEATURE_THREAD_TOKEN=true.
+•	Dry-run mode in dev: log resolved routing without insert when SMS_DRY_RUN=true.
+2.6 Observability
+•	Structured logs at INFO/DEBUG around:
+o	parsed sender phone, matched user, matched groups,
+o	resolved target (announcement_id, parent_message_id),
+o	token detection.
+•	Metrics counters (expose to whatever we have: Prom, StatsD, or simple logs):
+o	sms_inbound_total, sms_routed_with_token_total, sms_routed_fallback_total, sms_idempotent_dupe_total.
+•	Add a lightweight /admin/sms/last-100 page (dev only) to see routing decisions.
+________________________________________
+3) API & Handlers (define/confirm)
+3.1 Twilio Inbound Webhook (POST /api/sms/webhook)
+•	Parse From, To, Body, MessageSid.
+•	If MessageSid seen → 200 OK, no-op.
+•	Extract thread_token via regex: /\[#A(\d+)-M(\d+)\]/.
+•	Resolve announcement_id + parent_message_id:
+o	With token → strict match.
+o	Without → fallback strategy (2.3).
+•	Insert row in responses with source='sms', sender_phone=From.
+•	Emit WebSocket event message.created.
+3.2 UI Reply (POST /api/messages)
+Payload:
+{
+  "announcement_id": 25,
+  "parent_message_id": 123,
+  "body": "Reply from UI"
+}
+•	Persist with source='ui', attach same threading model.
+•	Return payload including generated thread_token so the UI can display/share it in outbound confirmations.
+________________________________________
+4) Frontend Requirements
+•	Threaded View: Render parent → children (latest first within thread).
+•	Reply Box on thread:
+o	Posts to /api/messages with announcement_id and parent_message_id.
+•	Copy Token button on each message to copy [#A..-M..].
+•	Live Updates: On message.created, append in the correct thread.
+________________________________________
+5) Test Plan (automate)
+5.1 Unit Tests
+•	Token parse (good, missing, malformed).
+•	Fallback resolver: user with multiple groups, no active announcements, etc.
+•	Idempotency with duplicate MessageSid.
+5.2 Integration Tests
+•	Mock Twilio POST → expect 200, 1 row inserted, correct FK linkage.
+•	UI POST → expect threaded insertion and websocket emission.
+5.3 Manual SQL Verification
+Run:
+SELECT id, content, announcement_id, parent_message_id, sender_phone, source, twilio_message_sid, created_at
+FROM responses
+WHERE created_at > NOW() - INTERVAL '1 day'
+ORDER BY created_at DESC;
+Confirm new rows attach to announcement_id = 25 for our current tests.
+________________________________________
+6) Rollout Steps (production-safe)
+1.	Ship DB migration.
+2.	Deploy code behind FEATURE_THREAD_TOKEN=false.
+3.	Enable in dev first; run AT-01 … AT-07.
+4.	Toggle FEATURE_THREAD_TOKEN=true in prod during a low-risk window.
+5.	Monitor logs/metrics for 30 minutes; verify no dupes, correct targeting.
+________________________________________
+7) Deliverables
+•	PR with:
+o	DB migration(s).
+o	Backend changes (webhook, UI replies, idempotency, feature flags).
+o	Frontend threaded view + reply box + token copy.
+o	Tests (unit + integration) and a short README-sms-threading.md covering:
+	token format,
+	fallback rules,
+	env vars,
+	debug endpoints,
+	common failure modes.
+•	Demo notes: steps to reproduce AT-01..AT-07 and screenshots.
+________________________________________
+8) Known Edge Cases (handle or log clearly)
+•	Inbound SMS from unknown phone → create “unmapped sender” placeholder with sender_phone and attach to fallback announcement; flag in logs.
+•	Token references non-existent IDs → fall back (and log WARN).
+•	Multiple tokens in one message → use the first valid token.
+________________________________________
+Do the work exactly as specified. If the existing schema or routes differ, update them to match the model above and migrate safely. If anything blocks you, propose a minimal adjustment with rationale and proceed.
