@@ -64,12 +64,20 @@ export function AnnouncementResponses({ announcementId, className }: Announcemen
   const [expandedResponses, setExpandedResponses] = useState<Set<number>>(new Set());
 
   // Fetch responses for this announcement
-  const { data: responses = [], isLoading } = useQuery<ResponseWithAuthor[]>({
-    queryKey: ['/api/announcements', announcementId, 'responses', Date.now()], // Force unique key
+  const { data: responses = [], isLoading, error } = useQuery<ResponseWithAuthor[]>({
+    queryKey: ['/api/announcements', announcementId, 'responses'],
     queryFn: () => apiRequest('GET', `/api/announcements/${announcementId}/responses`),
-    staleTime: 0, // Always fetch fresh data
-    refetchOnMount: true, // Refetch when component mounts
-    cacheTime: 0, // Don't cache at all
+    staleTime: 30000, // 30 seconds before considering stale
+    refetchOnMount: 'always', // Always refetch when component mounts
+  });
+
+  // Debug logging
+  console.log(`🔍 AnnouncementResponses ${announcementId}:`, {
+    responses,
+    responsesLength: responses?.length,
+    isLoading,
+    error: error?.message,
+    rawData: responses
   });
 
   // Create response mutation
