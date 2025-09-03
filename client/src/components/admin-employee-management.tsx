@@ -173,6 +173,12 @@ export default function AdminEmployeeManagement() {
     queryKey: ["/api/employees"],
   });
 
+  // Debug logging
+  console.log("AdminEmployeeManagement - employees data:", employees);
+  console.log("AdminEmployeeManagement - isLoading:", isLoading);
+  console.log("AdminEmployeeManagement - error:", error);
+  console.log("AdminEmployeeManagement - employees length:", employees?.length);
+
   const addForm = useForm<AddEmployeeFormData>({
     resolver: zodResolver(addEmployeeSchema),
     defaultValues: {
