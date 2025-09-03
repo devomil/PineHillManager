@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
@@ -26,14 +26,34 @@ export function MessageReactions({ messageId, announcementId, existingReactions 
   const queryClient = useQueryClient();
   const [showReactions, setShowReactions] = useState(false);
 
+  // Fetch reactions from API if not provided as props
+  const { data: fetchedReactions = [] } = useQuery({
+    queryKey: announcementId ? ['/api/announcements', announcementId, 'reactions'] : ['/api/messages', messageId, 'reactions'],
+    queryFn: async () => {
+      if (announcementId) {
+        const response = await apiRequest('GET', `/api/announcements/${announcementId}/reactions`);
+        return response.json();
+      } else if (messageId) {
+        const response = await apiRequest('GET', `/api/messages/${messageId}/reactions`);
+        return response.json();
+      }
+      return [];
+    },
+    enabled: !!(announcementId || messageId),
+    staleTime: 0,
+  });
+
+  // Use provided reactions or fetched reactions
+  const reactions = existingReactions.length > 0 ? existingReactions : fetchedReactions;
+
   // Group reactions by type and count them
-  const reactionCounts = existingReactions.reduce((acc, reaction) => {
+  const reactionCounts = reactions.reduce((acc, reaction) => {
     acc[reaction.reactionType] = (acc[reaction.reactionType] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);
 
   // Check if current user has reacted
-  const userReactions = existingReactions.filter(r => r.userId === user?.id);
+  const userReactions = reactions.filter(r => r.userId === user?.id);
   const userReactionTypes = new Set(userReactions.map(r => r.reactionType));
 
   const reactionMutation = useMutation({
@@ -62,6 +82,11 @@ export function MessageReactions({ messageId, announcementId, existingReactions 
     },
     onSuccess: () => {
       // Invalidate queries to refresh reactions
+      if (announcementId) {
+        queryClient.invalidateQueries({ queryKey: ['/api/announcements', announcementId, 'reactions'] });
+      } else if (messageId) {
+        queryClient.invalidateQueries({ queryKey: ['/api/messages', messageId, 'reactions'] });
+      }
       queryClient.invalidateQueries({ queryKey: ['/api/announcements'] });
       queryClient.invalidateQueries({ queryKey: ['/api/announcements/published'] });
       queryClient.invalidateQueries({ queryKey: ['/api/messages'] });
