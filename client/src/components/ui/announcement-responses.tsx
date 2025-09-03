@@ -78,17 +78,6 @@ export function AnnouncementResponses({ announcementId, className }: Announcemen
   // Ensure we always have an array
   const responses = Array.isArray(rawResponses) ? rawResponses : [];
 
-  // Debug logging - only for announcement 30
-  if (announcementId === 30) {
-    console.log(`🔍 AnnouncementResponses ${announcementId}:`, {
-      rawResponses,
-      responses,
-      responsesLength: responses?.length,
-      isLoading,
-      error: error?.message,
-      isArray: Array.isArray(rawResponses)
-    });
-  }
 
   // Create response mutation
   const createResponseMutation = useMutation({

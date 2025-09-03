@@ -1483,7 +1483,7 @@ function CommunicationsContent() {
                         
                         {/* Message Reactions */}
                         <MessageReactions 
-                          messageId={announcement.id} 
+                          announcementId={announcement.id} 
                         />
                         
                         {/* Announcement Responses */}

@@ -8,7 +8,8 @@ import { Check, ThumbsUp, X, HelpCircle } from "lucide-react";
 import type { MessageReaction } from "@shared/schema";
 
 interface MessageReactionsProps {
-  messageId: number;
+  messageId?: number;
+  announcementId?: number;
   existingReactions?: MessageReaction[];
   className?: string;
 }
@@ -20,7 +21,7 @@ const REACTION_TYPES = [
   { type: 'question', icon: HelpCircle, label: 'Question', color: 'text-yellow-600' },
 ] as const;
 
-export function MessageReactions({ messageId, existingReactions = [], className }: MessageReactionsProps) {
+export function MessageReactions({ messageId, announcementId, existingReactions = [], className }: MessageReactionsProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [showReactions, setShowReactions] = useState(false);
@@ -37,13 +38,26 @@ export function MessageReactions({ messageId, existingReactions = [], className 
 
   const reactionMutation = useMutation({
     mutationFn: async ({ reactionType, action }: { reactionType: string; action: 'add' | 'remove' }) => {
-      if (action === 'add') {
-        await apiRequest('POST', '/api/messages/reactions', {
-          messageId,
-          reactionType,
-        });
-      } else {
-        await apiRequest('DELETE', `/api/messages/reactions/${messageId}/${reactionType}`);
+      if (announcementId) {
+        // Handle announcement reactions
+        if (action === 'add') {
+          await apiRequest('POST', '/api/announcements/reactions', {
+            announcementId,
+            reactionType,
+          });
+        } else {
+          await apiRequest('DELETE', `/api/announcements/reactions/${announcementId}/${reactionType}`);
+        }
+      } else if (messageId) {
+        // Handle message reactions
+        if (action === 'add') {
+          await apiRequest('POST', '/api/messages/reactions', {
+            messageId,
+            reactionType,
+          });
+        } else {
+          await apiRequest('DELETE', `/api/messages/reactions/${messageId}/${reactionType}`);
+        }
       }
     },
     onSuccess: () => {
