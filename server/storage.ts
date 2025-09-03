@@ -2079,6 +2079,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getResponsesByAnnouncement(announcementId: number): Promise<SelectResponse[]> {
+    console.log('🔍 GET RESPONSES BY ANNOUNCEMENT called with ID:', announcementId);
+    
     const result = await db
       .select({
         id: responses.id,
@@ -2107,6 +2109,12 @@ export class DatabaseStorage implements IStorage {
       .leftJoin(users, eq(responses.authorId, users.id))
       .where(eq(responses.announcementId, announcementId))
       .orderBy(asc(responses.createdAt));
+
+    console.log('📋 RESPONSE QUERY RESULT:', {
+      announcementId,
+      resultCount: result.length,
+      results: result.map(r => ({ id: r.id, content: r.content, authorId: r.authorId }))
+    });
 
     return result as SelectResponse[];
   }
