@@ -4,7 +4,15 @@
 The Pine Hill Farm Employee Management System is a comprehensive platform designed to streamline operations for employees, managers, and administrators. Built with React (Vite), Express.js, and PostgreSQL, its core purpose is to provide role-based access for time tracking, scheduling, communication, support ticket management, and robust accounting. The system aims to integrate essential business tools like QuickBooks, Clover POS, HSA providers, and Thrive inventory to offer an all-in-one solution for farm management, enhancing efficiency and oversight across all departments.
 
 ## Recent Changes
-**Latest Update: September 2, 2025**
+**Latest Update: September 3, 2025**
+- ✅ **Announcements Auto-Save Fix**: Resolved critical issue where announcements weren't saving to database automatically
+- ✅ **Field Name Routing**: Fixed UI field name mismatch (`data.type` vs `data.messageType`) that caused wrong endpoint routing
+- ✅ **SMS Threading Automation**: Announcements now automatically route to `/api/announcements` for proper database storage and SMS targeting
+- ✅ **Database Persistence**: Eliminated need for manual database intervention - all announcements save automatically with `action: 'publish'`
+- ✅ **Endpoint Segregation**: Clear separation between announcement creation (`/api/announcements`) and message creation (`/api/communications/send`)
+- ✅ **Production Tested**: Confirmed working with live announcement creation, database storage, and SMS delivery
+
+**Previous Update: September 2, 2025**
 - ✅ **Accounting Dashboard Fix**: Resolved all Monthly Business Intelligence sections showing $0.00 instead of live financial data
 - ✅ **Data Source Integration**: Fixed BI calculations to use working `monthlyCogsData` API instead of broken profitLoss endpoints
 - ✅ **JavaScript Error Resolution**: Fixed "Cannot access before initialization" error that caused white screen crashes
