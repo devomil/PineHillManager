@@ -820,18 +820,31 @@ function CommunicationsContent() {
   // Create communication mutation
   const createCommunicationMutation = useMutation({
     mutationFn: async (data: any) => {
-      // Map client fields to server expected fields
-      const mappedData = {
-        subject: data.title,           // Server expects 'subject' not 'title'
-        content: data.content,
-        priority: data.priority,
-        messageType: data.type,
-        smsEnabled: data.smsEnabled,
-        recipientMode: data.targetEmployees?.length > 0 ? 'individual' : 'audience',
-        targetAudience: data.targetAudience,
-        recipients: data.targetEmployees || []  // Server expects 'recipients' not 'targetEmployees'
-      };
-      return apiRequest('POST', '/api/communications/send', mappedData);
+      // Route announcements to correct endpoint for proper database storage
+      if (data.type === 'announcement') {
+        const announcementData = {
+          title: data.title,
+          content: data.content,
+          priority: data.priority,
+          targetAudience: data.targetAudience,
+          smsEnabled: data.smsEnabled,
+          action: 'publish'  // Auto-publish announcements for SMS threading
+        };
+        return apiRequest('POST', '/api/announcements', announcementData);
+      } else {
+        // Regular messages use communications endpoint
+        const mappedData = {
+          subject: data.title,           // Server expects 'subject' not 'title'
+          content: data.content,
+          priority: data.priority,
+          messageType: data.type,
+          smsEnabled: data.smsEnabled,
+          recipientMode: data.targetEmployees?.length > 0 ? 'individual' : 'audience',
+          targetAudience: data.targetAudience,
+          recipients: data.targetEmployees || []  // Server expects 'recipients' not 'targetEmployees'
+        };
+        return apiRequest('POST', '/api/communications/send', mappedData);
+      }
     },
     onSuccess: () => {
       toast({ title: "Communication sent successfully!" });
@@ -853,7 +866,6 @@ function CommunicationsContent() {
         smsEnabled: false,
         scheduledFor: ''
       });
-      queryClient.invalidateQueries({ queryKey: ["/api/announcements/published"] });
     },
     onError: (error: any) => {
       toast({ 
