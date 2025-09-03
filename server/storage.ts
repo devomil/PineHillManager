@@ -197,6 +197,7 @@ export interface IStorage {
   updateEmployee(id: string, employeeData: any): Promise<User>;
   deleteEmployee(id: string): Promise<void>;
   getEmployeeByEmployeeId(employeeId: string): Promise<User | undefined>;
+  getUsersByRole(roles: string[]): Promise<User[]>;
   
   // Password management (admin only)
   hashPassword(password: string): Promise<string>;
@@ -708,6 +709,15 @@ export class DatabaseStorage implements IStorage {
 
   async getAllUsers(): Promise<User[]> {
     return await db.select().from(users).where(eq(users.isActive, true)).orderBy(asc(users.firstName));
+  }
+
+  async getUsersByRole(roles: string[]): Promise<User[]> {
+    return await db.select().from(users)
+      .where(and(
+        eq(users.isActive, true),
+        sql`${users.role} = ANY(${roles})`
+      ))
+      .orderBy(asc(users.role), asc(users.firstName));
   }
 
   async updateUserRole(id: string, role: string): Promise<User> {

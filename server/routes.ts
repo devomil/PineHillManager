@@ -751,6 +751,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Test bulk opt-in for managers and admins only
+  app.post('/api/employees/bulk-sms-opt-in/test-managers-admins', isAuthenticated, async (req: any, res) => {
+    try {
+      const { notificationTypes, notes } = req.body;
+      const changedBy = req.user.id;
+      const ipAddress = req.ip || req.connection.remoteAddress;
+      const userAgent = req.get('User-Agent');
+
+      // Get all managers and admins with phone numbers
+      const managersAndAdmins = await storage.getUsersByRole(['manager', 'admin']);
+      const usersWithPhones = managersAndAdmins.filter(user => user.phone && user.isActive);
+      const userIds = usersWithPhones.map(user => user.id);
+
+      if (userIds.length === 0) {
+        return res.status(400).json({ message: 'No managers or admins found with phone numbers' });
+      }
+
+      const defaultNotificationTypes = notificationTypes || ['emergency', 'schedule', 'announcements', 'reminders'];
+
+      console.log(`🧪 TEST: Bulk SMS opt-in for ${userIds.length} managers/admins:`, 
+        usersWithPhones.map(u => `${u.firstName} ${u.lastName} (${u.role}) - ${u.phone}`));
+
+      const result = await storage.bulkOptInSmsConsent({
+        userIds,
+        changedBy,
+        changeReason: 'test_bulk_opt_in_managers_admins',
+        notificationTypes: defaultNotificationTypes,
+        ipAddress,
+        userAgent,
+        notes: notes || `TEST: Bulk SMS opt-in for managers and admins by ${req.user.firstName} ${req.user.lastName}`
+      });
+
+      res.json({
+        message: `TEST completed for managers/admins: ${result.successful} successful, ${result.failed} failed`,
+        targetUsers: usersWithPhones.map(u => ({
+          id: u.id,
+          name: `${u.firstName} ${u.lastName}`,
+          role: u.role,
+          phone: u.phone,
+          previousConsent: u.smsConsent
+        })),
+        ...result
+      });
+    } catch (error) {
+      console.error('Error performing test bulk SMS opt-in:', error);
+      res.status(500).json({ message: 'Failed to perform test bulk SMS opt-in' });
+    }
+  });
+
   // Bulk opt-in to SMS announcements
   app.post('/api/employees/bulk-sms-opt-in', isAuthenticated, async (req: any, res) => {
     try {
