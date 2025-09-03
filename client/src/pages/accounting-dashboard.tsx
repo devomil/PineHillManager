@@ -2470,6 +2470,15 @@ function ReportsSection({
     },
   });
 
+  // Fetch COGS data using working API (same as Overview section)
+  const { data: reportsCogsData = {}, isLoading: cogsLoading } = useQuery({
+    queryKey: ['/api/accounting/analytics/cogs', startDateStr, endDateStr],
+    queryFn: async () => {
+      const response = await apiRequest('GET', `/api/accounting/analytics/cogs?startDate=${startDateStr}&endDate=${endDateStr}`);
+      return await response.json();
+    },
+  });
+
   // Get revenue analytics with Clover integration
   const { data: revenueData = {}, isLoading: revenueLoading } = useQuery({
     queryKey: ['/api/accounting/analytics/multi-location', startDateStr, endDateStr],
@@ -2594,7 +2603,7 @@ function ReportsSection({
             </div>
             <div className="text-center p-3 bg-orange-50 rounded-lg">
               <div className="text-lg md:text-xl font-bold text-orange-600">
-                {profitLossLoading ? '...' : formatCurrency(profitLossData.totalCOGS || 0)}
+                {cogsLoading ? '...' : formatCurrency(reportsCogsData.totalCost || 0)}
               </div>
               <div className="text-xs md:text-sm text-gray-600">COGS</div>
               <div className="text-xs text-gray-500 mt-1">
@@ -2603,7 +2612,11 @@ function ReportsSection({
             </div>
             <div className="text-center p-3 bg-emerald-50 rounded-lg">
               <div className="text-lg md:text-xl font-bold text-emerald-600">
-                {profitLossLoading ? '...' : formatCurrency(profitLossData.grossProfit || 0)}
+                {(revenueLoading || cogsLoading) ? '...' : formatCurrency(
+                  (revenueData.locationBreakdown?.reduce((sum, location) => 
+                    sum + parseFloat(location.totalSales || location.totalRevenue || '0'), 0
+                  ) || 0) - (parseFloat(reportsCogsData.totalCost || '0'))
+                )}
               </div>
               <div className="text-xs md:text-sm text-gray-600">Gross Profit</div>
               <div className="text-xs text-gray-500 mt-1">
@@ -2612,7 +2625,15 @@ function ReportsSection({
             </div>
             <div className="text-center p-3 bg-teal-50 rounded-lg">
               <div className="text-lg md:text-xl font-bold text-teal-600">
-                {profitLossLoading ? '...' : `${profitLossData.grossMargin || '0.0'}%`}
+                {(revenueLoading || cogsLoading) ? '...' : (() => {
+                  const totalRevenue = revenueData.locationBreakdown?.reduce((sum, location) => 
+                    sum + parseFloat(location.totalSales || location.totalRevenue || '0'), 0
+                  ) || 0;
+                  const totalCogs = parseFloat(reportsCogsData.totalCost || '0');
+                  const grossProfit = totalRevenue - totalCogs;
+                  const grossMargin = totalRevenue > 0 ? ((grossProfit / totalRevenue) * 100) : 0;
+                  return `${grossMargin.toFixed(1)}%`;
+                })()}
               </div>
               <div className="text-xs md:text-sm text-gray-600">Gross Margin</div>
               <div className="text-xs text-gray-500 mt-1">
@@ -2653,9 +2674,15 @@ function ReportsSection({
       {/* Report Content Based on Type */}
       {reportType === 'profit_loss' && (
         <ProfitLossReport 
-          data={profitLossData} 
+          data={{
+            ...profitLossData,
+            totalCOGS: parseFloat(reportsCogsData.totalCost || '0'),
+            grossProfit: (revenueData.locationBreakdown?.reduce((sum, location) => 
+              sum + parseFloat(location.totalSales || location.totalRevenue || '0'), 0
+            ) || 0) - parseFloat(reportsCogsData.totalCost || '0')
+          }} 
           period={formatPeriodLabel()} 
-          loading={profitLossLoading}
+          loading={profitLossLoading || cogsLoading}
           accounts={accounts}
         />
       )}
