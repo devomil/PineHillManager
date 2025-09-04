@@ -53,6 +53,9 @@ export const users = pgTable("users", {
   notes: text("notes"),
   permissions: text("permissions").array(), // Array of permission strings
   
+  // Visual identification for scheduling
+  displayColor: varchar("display_color").default("#3b82f6"), // Color for shift displays (blue default)
+  
   // Store/Location assignments for multi-location targeting
   primaryStore: varchar("primary_store"), // 'lake_geneva', 'watertown', 'online'
   assignedStores: text("assigned_stores").array(), // Array of store IDs user works at

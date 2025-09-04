@@ -25,7 +25,8 @@ import {
   StickyNote,
   Users2,
   Building,
-  Trash2
+  Trash2,
+  Palette
 } from "lucide-react";
 import { 
   format, 
@@ -71,6 +72,10 @@ export default function EnhancedMonthlyScheduler() {
     content: "",
     noteType: "general",
     locationId: 1
+  });
+
+  const [employeeColorForm, setEmployeeColorForm] = useState({
+    color: "#3b82f6"
   });
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [selectedSchedule, setSelectedSchedule] = useState<WorkSchedule | null>(null);
@@ -212,6 +217,27 @@ export default function EnhancedMonthlyScheduler() {
         title: "Error",
         description: "Failed to remove schedule: " + error.message,
         variant: "destructive",
+      });
+    }
+  });
+
+  // Update employee color mutation
+  const updateEmployeeColorMutation = useMutation({
+    mutationFn: async ({ employeeId, color }: { employeeId: string, color: string }) => {
+      return apiRequest("PATCH", `/api/employees/${employeeId}`, { displayColor: color });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/employees"] });
+      toast({ 
+        title: "Employee color updated", 
+        description: "The employee's display color has been updated." 
+      });
+    },
+    onError: (error: any) => {
+      toast({ 
+        title: "Failed to update color", 
+        description: error.message,
+        variant: "destructive" 
       });
     }
   });
@@ -376,6 +402,15 @@ export default function EnhancedMonthlyScheduler() {
     return employee ? `${employee.firstName} ${employee.lastName}` : "Unknown";
   };
 
+  const getEmployeeColor = (userId: string) => {
+    const employee = employees.find((emp: UserType) => emp.id === userId);
+    return employee?.displayColor || "#3b82f6";
+  };
+
+  const getEmployeeData = (userId: string) => {
+    return employees.find((emp: UserType) => emp.id === userId);
+  };
+
   const formatTime = (timeString: string) => {
     try {
       const time = parseISO(timeString);
@@ -427,8 +462,24 @@ export default function EnhancedMonthlyScheduler() {
       endTime: `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`,
       locationId: schedule.locationId || 1
     });
+    
+    // Set employee color form with current color
+    const employeeData = getEmployeeData(schedule.userId);
+    setEmployeeColorForm({
+      color: employeeData?.displayColor || "#3b82f6"
+    });
+    
     setIsAddingShift(false);
     setIsEditDialogOpen(true);
+  };
+
+  const handleUpdateEmployeeColor = () => {
+    if (selectedSchedule) {
+      updateEmployeeColorMutation.mutate({
+        employeeId: selectedSchedule.userId,
+        color: employeeColorForm.color
+      });
+    }
   };
 
   const handleUpdateSchedule = () => {
@@ -687,7 +738,13 @@ export default function EnhancedMonthlyScheduler() {
                               {sortedSchedules.map((schedule, index) => (
                                 <div
                                   key={schedule.id}
-                                  className="text-xs p-1 bg-blue-100 border border-blue-200 rounded cursor-pointer hover:bg-blue-200 transition-colors"
+                                  className="text-xs p-1 rounded cursor-pointer hover:opacity-80 transition-colors"
+                                  style={{ 
+                                    backgroundColor: `${getEmployeeColor(userId)}20`,
+                                    borderColor: getEmployeeColor(userId),
+                                    borderWidth: '1px',
+                                    borderStyle: 'solid'
+                                  }}
                                   onClick={() => handleEditSchedule(schedule)}
                                 >
                                   <div className="font-medium text-blue-800 flex items-center justify-between">
@@ -866,6 +923,38 @@ export default function EnhancedMonthlyScheduler() {
                 </SelectContent>
               </Select>
             </div>
+            
+            {/* Employee Color Picker - Only for Managers/Admins */}
+            {!isAddingShift && selectedSchedule && user && (user.role === 'manager' || user.role === 'admin') && (
+              <div className="border-t pt-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Palette className="h-4 w-4 text-gray-500" />
+                    <Label className="text-sm">Employee Display Color</Label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div 
+                      className="w-8 h-8 rounded border-2 cursor-pointer"
+                      style={{ backgroundColor: employeeColorForm.color }}
+                    />
+                    <Input
+                      type="color"
+                      value={employeeColorForm.color}
+                      onChange={(e) => setEmployeeColorForm({ color: e.target.value })}
+                      className="w-16 h-8 p-0 border-0"
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleUpdateEmployeeColor}
+                      disabled={updateEmployeeColorMutation.isPending}
+                    >
+                      Apply
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
           
           <DialogFooter className="flex justify-between">
