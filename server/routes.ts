@@ -419,6 +419,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return location ? location.name : 'Unknown';
       };
 
+      const getLocationAbbreviation = (locationId: number): string => {
+        const location = locations.find((l: any) => l.id === locationId);
+        if (!location) return 'UNK';
+        
+        // Store name abbreviations for space optimization
+        switch (location.name) {
+          case 'Lake Geneva Retail':
+            return 'LGR';
+          case 'Watertown Retail':
+            return 'WTR';
+          case 'Watertown Spa':
+            return 'WTSPA';
+          case 'Amazon Store':
+            return 'online';
+          default:
+            // Fallback: first 4 characters or custom abbreviation
+            return location.name.length > 4 ? location.name.substring(0, 4).toUpperCase() : location.name.toUpperCase();
+        }
+      };
+
       // Generate PDF content in landscape format with tabular layout
       let pdfContent = `\n`;
       pdfContent += `=`.repeat(120) + '\n';
@@ -437,11 +457,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }, {} as Record<string, any[]>);
       
       // Get all dates in the month and organize by weeks
-      const startDate = new Date(month + '-01');
-      const endDate = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0);
+      const monthStartDate = new Date(month + '-01');
+      const monthEndDate = new Date(monthStartDate.getFullYear(), monthStartDate.getMonth() + 1, 0);
       const allDates = [];
       
-      for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+      for (let d = new Date(monthStartDate); d <= monthEndDate; d.setDate(d.getDate() + 1)) {
         allDates.push(new Date(d).toISOString().split('T')[0]);
       }
       
@@ -509,9 +529,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
               });
               
               const employeeName = getEmployeeName(schedule.userId);
-              const shortName = employeeName.length > 12 ? employeeName.substring(0, 12) : employeeName;
+              const shortName = employeeName.length > 10 ? employeeName.substring(0, 10) : employeeName;
               const timeRange = `${startTime}-${endTime}`;
-              const cellContent = `${shortName}\n${timeRange}`;
+              const locationAbbrev = getLocationAbbreviation(schedule.locationId || 1);
+              const cellContent = `${shortName}\n${timeRange}\n${locationAbbrev}`;
               
               shiftRow += cellContent.padEnd(17) + '|';
             } else {

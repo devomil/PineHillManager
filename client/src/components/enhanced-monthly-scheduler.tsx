@@ -351,6 +351,26 @@ export default function EnhancedMonthlyScheduler() {
     return location ? location.name : "Unknown";
   };
 
+  const getLocationAbbreviation = (locationId: number): string => {
+    const location = locations.find((loc: Location) => loc.id === locationId);
+    if (!location) return 'UNK';
+    
+    // Store name abbreviations for space optimization
+    switch (location.name) {
+      case 'Lake Geneva Retail':
+        return 'LGR';
+      case 'Watertown Retail':
+        return 'WTR';
+      case 'Watertown Spa':
+        return 'WTSPA';
+      case 'Amazon Store':
+        return 'online';
+      default:
+        // Fallback: first 4 characters or custom abbreviation
+        return location.name.length > 4 ? location.name.substring(0, 4).toUpperCase() : location.name.toUpperCase();
+    }
+  };
+
   const getEmployeeName = (userId: string) => {
     const employee = employees.find((emp: UserType) => emp.id === userId);
     return employee ? `${employee.firstName} ${employee.lastName}` : "Unknown";
@@ -680,7 +700,7 @@ export default function EnhancedMonthlyScheduler() {
                                   </div>
                                   {!selectedLocation && (
                                     <div className="text-blue-500 text-xs truncate">
-                                      {sortedSchedules.map(s => getLocationName(s.locationId || 1)).join(", ")}
+                                      {sortedSchedules.map(s => getLocationAbbreviation(s.locationId || 1)).join(", ")}
                                     </div>
                                   )}
                                 </div>
@@ -699,7 +719,7 @@ export default function EnhancedMonthlyScheduler() {
                                   </div>
                                   {!selectedLocation && sortedSchedules[0].locationId && (
                                     <div className="text-blue-500 text-xs">
-                                      {getLocationName(sortedSchedules[0].locationId)}
+                                      {getLocationAbbreviation(sortedSchedules[0].locationId)}
                                     </div>
                                   )}
                                 </div>
@@ -823,7 +843,7 @@ export default function EnhancedMonthlyScheduler() {
                         {formatTime(shift.startTime)} - {formatTime(shift.endTime)}
                       </span>
                       <span className="text-muted-foreground">
-                        {getLocationName(shift.locationId || 1)}
+                        {getLocationAbbreviation(shift.locationId || 1)}
                       </span>
                     </div>
                   </div>
