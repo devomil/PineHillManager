@@ -2,31 +2,50 @@ import { useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { useQuery } from "@tanstack/react-query";
-import { Calendar, Clock, MapPin, User, Printer } from "lucide-react";
-import { format, addDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, addWeeks, addMonths, eachDayOfInterval, isSameMonth, isToday } from "date-fns";
+import { Calendar, Clock, ChevronLeft, ChevronRight, Printer } from "lucide-react";
+import { format, addMonths, startOfWeek, endOfWeek, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isToday, parseISO, addDays } from "date-fns";
 import { useLocation } from "wouter";
-import { formatTimeStringToCST } from "@/lib/time-utils";
+
+interface WorkSchedule {
+  id: number;
+  userId: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  locationId: number;
+  position?: string;
+  status?: string;
+}
+
+interface Employee {
+  id: string;
+  firstName: string;
+  lastName: string;
+  displayColor?: string;
+}
+
+interface Location {
+  id: number;
+  name: string;
+  abbreviation?: string;
+}
 
 export default function Schedule() {
   const { user } = useAuth();
-  const [currentWeek, setCurrentWeek] = useState(new Date());
-  const [viewMode, setViewMode] = useState<'week' | 'month'>('week');
-  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [currentDate, setCurrentDate] = useState(new Date());
   const [, setLocation] = useLocation();
 
-  const weekStart = startOfWeek(currentWeek, { weekStartsOn: 0 });
-  const weekEnd = endOfWeek(currentWeek, { weekStartsOn: 0 });
-  const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
-
-  const monthStart = startOfMonth(currentMonth);
-  const monthEnd = endOfMonth(currentMonth);
-  const monthDays = eachDayOfInterval({ start: monthStart, end: monthEnd });
-
-  // Determine the date range based on view mode
-  const startDate = viewMode === 'week' ? weekStart : monthStart;
-  const endDate = viewMode === 'week' ? weekEnd : monthEnd;
+  // Calculate calendar dates for month view
+  const startOfCurrentMonth = startOfMonth(currentDate);
+  const endOfCurrentMonth = endOfMonth(currentDate);
+  const startOfCalendar = startOfWeek(startOfCurrentMonth, { weekStartsOn: 0 });
+  const endOfCalendar = endOfWeek(endOfCurrentMonth, { weekStartsOn: 0 });
+  
+  const calendarDays = eachDayOfInterval({
+    start: startOfCalendar,
+    end: endOfCalendar
+  });
 
   // Fetch locations for mapping
   const { data: locations = [] } = useQuery({
@@ -40,16 +59,29 @@ export default function Schedule() {
     }
   });
 
+  // Fetch employee data (including current user's display color)
+  const { data: employees = [] } = useQuery({
+    queryKey: ["/api/employees"],
+    queryFn: async () => {
+      const response = await fetch("/api/employees", {
+        credentials: 'include'
+      });
+      if (!response.ok) throw new Error("Failed to fetch employees");
+      return response.json();
+    }
+  });
+
   // Fetch user's schedules
   const { data: schedules = [] } = useQuery({
-    queryKey: ["/api/my-schedules", format(startDate, "yyyy-MM-dd"), format(endDate, "yyyy-MM-dd")],
+    queryKey: ["/api/work-schedules", format(startOfCalendar, "yyyy-MM-dd"), format(endOfCalendar, "yyyy-MM-dd"), user?.id],
     queryFn: async () => {
-      const response = await fetch(`/api/my-schedules?start=${format(startDate, "yyyy-MM-dd")}&end=${format(endDate, "yyyy-MM-dd")}`, {
+      const response = await fetch(`/api/work-schedules?startDate=${format(startOfCalendar, "yyyy-MM-dd")}&endDate=${format(endOfCalendar, "yyyy-MM-dd")}&userId=${user?.id}`, {
         credentials: 'include'
       });
       if (!response.ok) throw new Error("Failed to fetch schedules");
       return response.json();
-    }
+    },
+    enabled: !!user?.id
   });
 
   const getScheduleForDay = (date: Date) => {
@@ -57,18 +89,47 @@ export default function Schedule() {
     return schedules.filter((schedule: any) => schedule.date === dateStr);
   };
 
-  const getLocationName = (locationId: number) => {
+  const getLocationAbbreviation = (locationId: number) => {
     const location = locations.find((loc: any) => loc.id === locationId);
-    return location ? location.name : "Location TBD";
+    if (location?.abbreviation) return location.abbreviation;
+    
+    // Generate abbreviations for common locations
+    const name = location?.name || "Location TBD";
+    if (name.includes("Lake Geneva") && name.includes("Retail")) return "LGR";
+    if (name.includes("Watertown") && name.includes("Retail")) return "WTR";
+    if (name.includes("Watertown") && name.includes("Spa")) return "WTSPA";
+    if (name.includes("Amazon")) return "online";
+    return name.substring(0, 3).toUpperCase();
   };
 
-  const getTotalWeeklyHours = () => {
+  const getCurrentUserColor = () => {
+    const currentEmployee = employees.find((emp: any) => emp.id === user?.id);
+    return currentEmployee?.displayColor || "#3b82f6";
+  };
+
+  const getTotalMonthlyHours = () => {
     return schedules.reduce((total: number, schedule: any) => {
-      const start = new Date(`2000-01-01T${schedule.startTime}`);
-      const end = new Date(`2000-01-01T${schedule.endTime}`);
-      const hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
-      return total + hours;
+      try {
+        const start = parseISO(schedule.startTime);
+        const end = parseISO(schedule.endTime);
+        const hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+        return total + hours;
+      } catch {
+        return total;
+      }
     }, 0);
+  };
+
+  const formatShiftTime = (startTime: string, endTime: string) => {
+    try {
+      const start = parseISO(startTime);
+      const end = parseISO(endTime);
+      const startFormat = start.getMinutes() === 0 ? 'ha' : 'h:mma';
+      const endFormat = end.getMinutes() === 0 ? 'ha' : 'h:mma';
+      return `${format(start, startFormat)}-${format(end, endFormat)}`;
+    } catch {
+      return `${startTime}-${endTime}`;
+    }
   };
 
   const handlePrint = () => {
@@ -84,11 +145,8 @@ export default function Schedule() {
   };
 
   const generatePrintContent = () => {
-    const title = viewMode === 'week' 
-      ? `Schedule for Week of ${format(weekStart, "MMM d, yyyy")}`
-      : `Schedule for ${format(currentMonth, "MMMM yyyy")}`;
-    
-    const scheduleHtml = viewMode === 'week' ? generateWeeklyPrintHtml() : generateMonthlyPrintHtml();
+    const title = `Schedule for ${format(currentDate, "MMMM yyyy")}`;
+    const scheduleHtml = generateMonthlyPrintHtml();
     
     return `
       <!DOCTYPE html>
@@ -188,78 +246,22 @@ export default function Schedule() {
     `;
   };
 
-  const generateWeeklyPrintHtml = () => {
-    const totalHours = getTotalWeeklyHours();
-    
-    return `
-      <table class="schedule-grid">
-        <thead>
-          <tr>
-            ${weekDays.map(day => `
-              <th class="day-header">
-                ${format(day, "EEE, MMM d")}
-                ${isToday(day) ? ' (Today)' : ''}
-              </th>
-            `).join('')}
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            ${weekDays.map(day => {
-              const daySchedules = getScheduleForDay(day);
-              return `
-                <td>
-                  ${daySchedules.length > 0 ? 
-                    daySchedules.map((schedule: any) => `
-                      <div class="shift-item">
-                        <div class="shift-time">${formatTimeStringToCST(schedule.startTime)} - ${formatTimeStringToCST(schedule.endTime)}</div>
-                        <div class="shift-location">${schedule.locationId ? getLocationName(schedule.locationId) : 'Location TBD'}</div>
-                        ${schedule.position ? `<div class="shift-location">${schedule.position}</div>` : ''}
-                      </div>
-                    `).join('') :
-                    '<div class="no-shifts">No shifts</div>'
-                  }
-                </td>
-              `;
-            }).join('')}
-          </tr>
-        </tbody>
-      </table>
-      <div class="summary">
-        <strong>Weekly Summary:</strong><br>
-        Total Hours: ${totalHours.toFixed(1)}h<br>
-        Total Shifts: ${schedules.length}
-      </div>
-    `;
-  };
-
   const generateMonthlyPrintHtml = () => {
-    const monthlySchedules = schedules.filter((schedule: any) => {
-      const scheduleDate = new Date(schedule.date);
-      return isSameMonth(scheduleDate, currentMonth);
-    });
+    const totalHours = getTotalMonthlyHours();
     
-    const totalMonthlyHours = monthlySchedules.reduce((total: number, schedule: any) => {
-      const start = new Date(`2000-01-01T${schedule.startTime}`);
-      const end = new Date(`2000-01-01T${schedule.endTime}`);
-      const hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
-      return total + hours;
-    }, 0);
-
     // Create calendar grid
     const calendarWeeks = [];
-    let currentDate = startOfWeek(monthStart);
+    let startDate = startOfCalendar;
     
-    while (currentDate <= endOfMonth(currentMonth)) {
+    while (startDate <= endOfCalendar) {
       const week = [];
       for (let i = 0; i < 7; i++) {
-        week.push(new Date(currentDate));
-        currentDate = addDays(currentDate, 1);
+        week.push(new Date(startDate));
+        startDate = addDays(startDate, 1);
       }
       calendarWeeks.push(week);
       
-      // Break if we've covered the entire month
-      if (currentDate > endOfMonth(currentMonth)) break;
+      if (startDate > endOfCalendar) break;
     }
 
     return `
@@ -274,7 +276,7 @@ export default function Schedule() {
             <tr>
               ${week.map(day => {
                 const daySchedules = getScheduleForDay(day);
-                const isCurrentMonth = isSameMonth(day, currentMonth);
+                const isCurrentMonth = isSameMonth(day, currentDate);
                 const isDayToday = isToday(day);
                 
                 return `
@@ -282,12 +284,11 @@ export default function Schedule() {
                     <div class="day-header" style="${isDayToday ? 'color: #059669; font-weight: bold;' : ''}">
                       ${format(day, "d")}
                     </div>
-                    ${daySchedules.slice(0, 3).map((schedule: any) => `
-                      <div class="shift-item" style="margin: 2px 0; padding: 2px 4px; font-size: 10px;">
-                        <div class="shift-time">${formatTimeStringToCST(schedule.startTime)}</div>
+                    ${daySchedules.map((schedule: any) => `
+                      <div class="shift-item" style="margin: 2px 0; padding: 2px 4px; font-size: 10px; background-color: ${getCurrentUserColor()}20; border-left: 3px solid ${getCurrentUserColor()};">
+                        <div class="shift-time">${formatShiftTime(schedule.startTime, schedule.endTime)} • ${getLocationAbbreviation(schedule.locationId)}</div>
                       </div>
                     `).join('')}
-                    ${daySchedules.length > 3 ? `<div style="font-size: 10px; color: #666;">+${daySchedules.length - 3} more</div>` : ''}
                   </td>
                 `;
               }).join('')}
@@ -297,8 +298,8 @@ export default function Schedule() {
       </table>
       <div class="summary">
         <strong>Monthly Summary:</strong><br>
-        Total Hours: ${totalMonthlyHours.toFixed(1)}h<br>
-        Total Shifts: ${monthlySchedules.length}
+        Total Hours: ${totalHours.toFixed(1)}h<br>
+        Total Shifts: ${schedules.length}
       </div>
     `;
   };
@@ -307,7 +308,7 @@ export default function Schedule() {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100">
       {/* Header */}
       <div className="bg-white shadow-sm">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-6">
             <div className="flex items-center space-x-4">
               <div>
@@ -331,87 +332,42 @@ export default function Schedule() {
       </div>
 
       {/* Main Content */}
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="space-y-8">
           {/* Navigation */}
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-2xl font-bold text-gray-900">
-                {viewMode === 'week' 
-                  ? `Week of ${format(weekStart, "MMM d, yyyy")}`
-                  : format(currentMonth, "MMMM yyyy")
-                }
+                {format(currentDate, "MMMM yyyy")}
               </h2>
               <p className="text-gray-600">
-                {viewMode === 'week'
-                  ? `${format(weekStart, "MMM d")} - ${format(weekEnd, "MMM d, yyyy")}`
-                  : `${format(monthStart, "MMM d")} - ${format(monthEnd, "MMM d, yyyy")}`
-                }
+                {format(startOfCurrentMonth, "MMM d")} - {format(endOfCurrentMonth, "MMM d, yyyy")}
               </p>
             </div>
             <div className="flex items-center space-x-2">
-              {/* View Mode Toggle */}
-              <div className="flex items-center space-x-2 mr-4">
-                <Button 
-                  variant={viewMode === 'week' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setViewMode('week')}
-                >
-                  This Week
-                </Button>
-                <Button 
-                  variant={viewMode === 'month' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setViewMode('month')}
-                >
-                  This Month
-                </Button>
-              </div>
-              
-              {/* Navigation Buttons */}
-              {viewMode === 'week' ? (
-                <>
-                  <Button 
-                    variant="outline"
-                    onClick={() => setCurrentWeek(addDays(currentWeek, -7))}
-                  >
-                    ← Previous Week
-                  </Button>
-                  <Button 
-                    variant="outline"
-                    onClick={() => setCurrentWeek(new Date())}
-                  >
-                    Today
-                  </Button>
-                  <Button 
-                    variant="outline"
-                    onClick={() => setCurrentWeek(addDays(currentWeek, 7))}
-                  >
-                    Next Week →
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <Button 
-                    variant="outline"
-                    onClick={() => setCurrentMonth(addMonths(currentMonth, -1))}
-                  >
-                    ← Previous Month
-                  </Button>
-                  <Button 
-                    variant="outline"
-                    onClick={() => setCurrentMonth(new Date())}
-                  >
-                    Today
-                  </Button>
-                  <Button 
-                    variant="outline"
-                    onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
-                  >
-                    Next Month →
-                  </Button>
-                </>
-              )}
+              <Button 
+                variant="outline"
+                onClick={() => setCurrentDate(addMonths(currentDate, -1))}
+                className="text-gray-600 border-gray-300 hover:bg-gray-50"
+              >
+                <ChevronLeft className="h-4 w-4 mr-1" />
+                Previous Month
+              </Button>
+              <Button 
+                variant="outline"
+                onClick={() => setCurrentDate(new Date())}
+                className="text-gray-600 border-gray-300 hover:bg-gray-50"
+              >
+                Today
+              </Button>
+              <Button 
+                variant="outline"
+                onClick={() => setCurrentDate(addMonths(currentDate, 1))}
+                className="text-gray-600 border-gray-300 hover:bg-gray-50"
+              >
+                Next Month
+                <ChevronRight className="h-4 w-4 ml-1" />
+              </Button>
               
               {/* Print Button */}
               <Button 
@@ -425,15 +381,15 @@ export default function Schedule() {
             </div>
           </div>
 
-          {/* Weekly Summary */}
+          {/* Monthly Summary */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium text-gray-600">Total Hours</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-gray-900">{getTotalWeeklyHours().toFixed(1)}h</div>
-                <p className="text-xs text-gray-500 mt-1">This week</p>
+                <div className="text-2xl font-bold text-gray-900">{getTotalMonthlyHours().toFixed(1)}h</div>
+                <p className="text-xs text-gray-500 mt-1">This month</p>
               </CardContent>
             </Card>
 
@@ -449,183 +405,90 @@ export default function Schedule() {
 
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-gray-600">Next Shift</CardTitle>
+                <CardTitle className="text-sm font-medium text-gray-600">My Color</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-gray-900">
-                  {schedules.length > 0 ? format(new Date(schedules[0].date), "MMM d") : "None"}
+                <div className="flex items-center gap-3">
+                  <div 
+                    className="w-6 h-6 rounded border-2 border-gray-300"
+                    style={{ backgroundColor: getCurrentUserColor() }}
+                  />
+                  <span className="text-sm text-gray-600">Your shifts display in this color</span>
                 </div>
-                <p className="text-xs text-gray-500 mt-1">
-                  {schedules.length > 0 ? `${schedules[0].startTime} - ${schedules[0].endTime}` : "No upcoming shifts"}
-                </p>
               </CardContent>
             </Card>
           </div>
 
-          {/* Schedule Display */}
+          {/* Enhanced Monthly Calendar */}
           <Card className="shadow-lg">
-            <CardHeader>
-              <CardTitle>
-                {viewMode === 'week' ? 'Weekly Schedule' : 'Monthly Schedule'}
+            <CardHeader className="pb-4">
+              <CardTitle className="flex items-center justify-between">
+                <span className="flex items-center">
+                  <Calendar className="h-5 w-5 mr-2 text-blue-600" />
+                  {format(currentDate, "MMMM yyyy")} Schedule
+                </span>
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {viewMode === 'week' ? (
-                /* Weekly View */
-                <div className="grid grid-cols-1 lg:grid-cols-7 gap-4">
-                  {weekDays.map((day, index) => {
+              {/* Calendar Grid */}
+              <div className="space-y-4">
+                {/* Day Headers */}
+                <div className="grid grid-cols-7 gap-2 text-center font-semibold text-gray-700 text-sm border-b pb-3">
+                  <div>Sunday</div>
+                  <div>Monday</div>
+                  <div>Tuesday</div>
+                  <div>Wednesday</div>
+                  <div>Thursday</div>
+                  <div>Friday</div>
+                  <div>Saturday</div>
+                </div>
+                
+                {/* Calendar Days */}
+                <div className="grid grid-cols-7 gap-2" style={{ minHeight: '600px' }}>
+                  {calendarDays.map((day, index) => {
                     const daySchedules = getScheduleForDay(day);
-                    const isTodayWeek = format(day, "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd");
+                    const isCurrentMonth = isSameMonth(day, currentDate);
+                    const isDayToday = isToday(day);
                     
                     return (
-                      <div key={index} className={`border rounded-lg p-4 ${isTodayWeek ? 'border-green-500 bg-green-50' : 'border-gray-200'}`}>
-                        <div className="text-center mb-3">
-                          <h3 className="font-semibold text-gray-900">
-                            {format(day, "EEE")}
-                          </h3>
-                          <p className={`text-lg font-bold ${isTodayWeek ? 'text-green-600' : 'text-gray-600'}`}>
-                            {format(day, "d")}
-                          </p>
+                      <div 
+                        key={index}
+                        className={`
+                          min-h-[120px] border rounded-lg p-2 transition-colors
+                          ${isDayToday 
+                            ? 'border-blue-500 bg-blue-50' 
+                            : isCurrentMonth 
+                              ? 'border-gray-200 bg-white hover:bg-gray-50' 
+                              : 'border-gray-100 bg-gray-50 text-gray-400'
+                          }
+                        `}
+                      >
+                        <div className={`text-sm font-semibold mb-2 ${
+                          isDayToday ? 'text-blue-600' : isCurrentMonth ? 'text-gray-900' : 'text-gray-400'
+                        }`}>
+                          {format(day, "d")}
                         </div>
                         
-                        <div className="space-y-2">
-                          {daySchedules.length > 0 ? (
-                            daySchedules.map((schedule: any, schedIndex: number) => (
-                              <div key={schedIndex} className="bg-white rounded p-3 border border-gray-200 shadow-sm">
-                                <div className="flex items-center space-x-2 mb-2">
-                                  <Clock className="h-4 w-4 text-gray-500" />
-                                  <span className="font-medium text-sm">
-                                    {formatTimeStringToCST(schedule.startTime)} - {formatTimeStringToCST(schedule.endTime)}
-                                  </span>
-                                </div>
-                                <div className="flex items-center space-x-2 mb-2">
-                                  <MapPin className="h-4 w-4 text-gray-500" />
-                                  <span className="text-sm text-gray-600">
-                                    {schedule.locationId ? getLocationName(schedule.locationId) : "Location TBD"}
-                                  </span>
-                                </div>
-                                {schedule.position && (
-                                  <div className="flex items-center space-x-2">
-                                    <User className="h-4 w-4 text-gray-500" />
-                                    <span className="text-sm text-gray-600">
-                                      {schedule.position}
-                                    </span>
-                                  </div>
-                                )}
-                                <Badge 
-                                  variant="secondary" 
-                                  className="mt-2 bg-green-100 text-green-800 text-xs"
-                                >
-                                  {schedule.status || "Scheduled"}
-                                </Badge>
+                        <div className="space-y-1">
+                          {daySchedules.map((schedule: any, schedIndex: number) => (
+                            <div 
+                              key={schedIndex}
+                              className="text-xs rounded p-1.5 border-l-3 text-gray-800"
+                              style={{ 
+                                backgroundColor: getCurrentUserColor() + '20',
+                                borderLeftColor: getCurrentUserColor()
+                              }}
+                            >
+                              <div className="font-medium">
+                                {formatShiftTime(schedule.startTime, schedule.endTime)} • {getLocationAbbreviation(schedule.locationId)}
                               </div>
-                            ))
-                          ) : (
-                            <div className="text-center py-4">
-                              <p className="text-sm text-gray-500">No shifts</p>
                             </div>
-                          )}
+                          ))}
                         </div>
                       </div>
                     );
                   })}
                 </div>
-              ) : (
-                /* Monthly View */
-                <div className="space-y-4">
-                  {/* Calendar Header */}
-                  <div className="grid grid-cols-7 gap-2 text-center font-semibold text-gray-700 border-b pb-2">
-                    <div>Sun</div>
-                    <div>Mon</div>
-                    <div>Tue</div>
-                    <div>Wed</div>
-                    <div>Thu</div>
-                    <div>Fri</div>
-                    <div>Sat</div>
-                  </div>
-                  
-                  {/* Calendar Grid */}
-                  <div className="grid grid-cols-7 gap-2">
-                    {/* Empty cells for days before month starts */}
-                    {Array.from({ length: startOfWeek(monthStart).getDay() }).map((_, index) => (
-                      <div key={`empty-${index}`} className="h-24 border border-gray-100 rounded bg-gray-50"></div>
-                    ))}
-                    
-                    {/* Month days */}
-                    {monthDays.map((day, index) => {
-                      const daySchedules = getScheduleForDay(day);
-                      const isTodayMonth = isToday(day);
-                      const isCurrentMonth = isSameMonth(day, currentMonth);
-                      
-                      return (
-                        <div 
-                          key={index} 
-                          className={`h-24 border rounded p-1 ${
-                            isTodayMonth 
-                              ? 'border-green-500 bg-green-50' 
-                              : isCurrentMonth 
-                                ? 'border-gray-200 bg-white' 
-                                : 'border-gray-100 bg-gray-50'
-                          }`}
-                        >
-                          <div className={`text-sm font-semibold mb-1 ${
-                            isTodayMonth ? 'text-green-600' : 'text-gray-700'
-                          }`}>
-                            {format(day, "d")}
-                          </div>
-                          
-                          <div className="space-y-1">
-                            {daySchedules.slice(0, 2).map((schedule: any, schedIndex: number) => (
-                              <div key={schedIndex} className="text-xs bg-blue-100 text-blue-800 px-1 py-0.5 rounded truncate">
-                                {formatTimeStringToCST(schedule.startTime)}
-                              </div>
-                            ))}
-                            {daySchedules.length > 2 && (
-                              <div className="text-xs text-gray-500 px-1">
-                                +{daySchedules.length - 2} more
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Quick Actions */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Quick Actions</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Button 
-                  variant="outline" 
-                  className="h-auto p-4 flex flex-col items-center space-y-2 hover:bg-blue-50 hover:border-blue-300 transition-colors"
-                  onClick={() => setLocation('/time-off')}
-                >
-                  <Calendar className="h-6 w-6 text-gray-600" />
-                  <span className="text-sm">Request Time Off</span>
-                </Button>
-                <Button 
-                  variant="outline" 
-                  className="h-auto p-4 flex flex-col items-center space-y-2 hover:bg-blue-50 hover:border-blue-300 transition-colors"
-                  onClick={() => setLocation('/shift-coverage')}
-                >
-                  <User className="h-6 w-6 text-gray-600" />
-                  <span className="text-sm">Find Shift Coverage</span>
-                </Button>
-                <Button 
-                  variant="outline" 
-                  className="h-auto p-4 flex flex-col items-center space-y-2 hover:bg-blue-50 hover:border-blue-300 transition-colors"
-                  onClick={() => setLocation('/time-clock')}
-                >
-                  <Clock className="h-6 w-6 text-gray-600" />
-                  <span className="text-sm">View Time Clock</span>
-                </Button>
               </div>
             </CardContent>
           </Card>
