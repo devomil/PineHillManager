@@ -145,14 +145,11 @@ export default function EnhancedMonthlyScheduler() {
   });
 
   // Fetch approved time off requests for calendar display
-  const { data: approvedTimeOff = [], isLoading: isLoadingTimeOff } = useQuery({
+  const { data: approvedTimeOff = [] } = useQuery({
     queryKey: ["/api/time-off-requests/approved", format(calendarStart, "yyyy-MM-dd"), format(calendarEnd, "yyyy-MM-dd")],
     queryFn: async () => {
-      console.log("Fetching approved time off from:", format(calendarStart, "yyyy-MM-dd"), "to", format(calendarEnd, "yyyy-MM-dd"));
       const response = await apiRequest("GET", `/api/time-off-requests/approved?startDate=${format(calendarStart, "yyyy-MM-dd")}&endDate=${format(calendarEnd, "yyyy-MM-dd")}`);
-      const data = await response.json();
-      console.log("Approved time off data:", data);
-      return data;
+      return response.json();
     },
     enabled: !!user
   });

@@ -84,9 +84,32 @@ export default function Schedule() {
     enabled: !!user?.id
   });
 
+  // Fetch approved time off requests for calendar display
+  const { data: approvedTimeOff = [] } = useQuery({
+    queryKey: ["/api/time-off-requests/approved", format(startOfCalendar, "yyyy-MM-dd"), format(endOfCalendar, "yyyy-MM-dd"), user?.id],
+    queryFn: async () => {
+      const response = await fetch(`/api/time-off-requests/approved?startDate=${format(startOfCalendar, "yyyy-MM-dd")}&endDate=${format(endOfCalendar, "yyyy-MM-dd")}&userId=${user?.id}`, {
+        credentials: 'include'
+      });
+      if (!response.ok) throw new Error("Failed to fetch approved time off");
+      return response.json();
+    },
+    enabled: !!user?.id
+  });
+
   const getScheduleForDay = (date: Date) => {
     const dateStr = format(date, "yyyy-MM-dd");
     return schedules.filter((schedule: any) => schedule.date === dateStr);
+  };
+
+  const getTimeOffForDay = (date: Date) => {
+    const dateStr = format(date, "yyyy-MM-dd");
+    return approvedTimeOff.filter((timeOff: any) => {
+      const startDate = new Date(timeOff.startDate);
+      const endDate = new Date(timeOff.endDate);
+      const currentDate = new Date(dateStr);
+      return currentDate >= startDate && currentDate <= endDate;
+    });
   };
 
   const getLocationAbbreviation = (locationId: number) => {
@@ -279,6 +302,7 @@ export default function Schedule() {
                 const isCurrentMonth = isSameMonth(day, currentDate);
                 const isDayToday = isToday(day);
                 
+                const dayTimeOff = getTimeOffForDay(day);
                 return `
                   <td style="${!isCurrentMonth ? 'background-color: #f5f5f5; color: #ccc;' : ''} height: 100px;">
                     <div class="day-header" style="${isDayToday ? 'color: #059669; font-weight: bold;' : ''}">
@@ -287,6 +311,11 @@ export default function Schedule() {
                     ${daySchedules.map((schedule: any) => `
                       <div class="shift-item" style="margin: 2px 0; padding: 2px 4px; font-size: 10px; background-color: ${getCurrentUserColor()}20; border-left: 3px solid ${getCurrentUserColor()};">
                         <div class="shift-time">${formatShiftTime(schedule.startTime, schedule.endTime)} • ${getLocationAbbreviation(schedule.locationId)}</div>
+                      </div>
+                    `).join('')}
+                    ${dayTimeOff.map((timeOff: any) => `
+                      <div class="shift-item" style="margin: 2px 0; padding: 2px 4px; font-size: 10px; background-color: #fed7aa; border-left: 3px solid #ea580c; color: #9a3412;">
+                        <div class="shift-time">Time Off${timeOff.reason ? ` • ${timeOff.reason}` : ''}</div>
                       </div>
                     `).join('')}
                   </td>
@@ -322,7 +351,7 @@ export default function Schedule() {
             
             <Button 
               variant="ghost" 
-              onClick={() => window.history.back()}
+              onClick={() => setLocation("/")}
               className="text-gray-700 hover:text-gray-900"
             >
               ← Back to Dashboard
@@ -481,6 +510,25 @@ export default function Schedule() {
                             >
                               <div className="font-medium">
                                 {formatShiftTime(schedule.startTime, schedule.endTime)} • {getLocationAbbreviation(schedule.locationId)}
+                              </div>
+                            </div>
+                          ))}
+                          
+                          {/* Display Time Off Requests */}
+                          {getTimeOffForDay(day).map((timeOff: any, timeOffIndex: number) => (
+                            <div 
+                              key={`timeoff-${timeOffIndex}`}
+                              className="text-xs rounded p-1.5 border-l-3 text-orange-800 bg-orange-50"
+                              style={{ 
+                                borderLeftColor: '#ea580c'
+                              }}
+                            >
+                              <div className="font-medium flex items-center gap-1">
+                                <Clock className="h-3 w-3" />
+                                Time Off
+                                {timeOff.reason && (
+                                  <span className="text-orange-600">• {timeOff.reason}</span>
+                                )}
                               </div>
                             </div>
                           ))}
