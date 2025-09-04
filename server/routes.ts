@@ -322,6 +322,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const swapData = {
         ...req.body,
         requesterId: req.user?.id,
+        expiresAt: req.body.expiresAt ? new Date(req.body.expiresAt) : undefined,
         createdAt: new Date(),
         updatedAt: new Date()
       };
