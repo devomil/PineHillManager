@@ -385,6 +385,15 @@ export default function EnhancedMonthlyScheduler() {
     }
   };
 
+  const formatCompactTime = (timeString: string) => {
+    try {
+      const time = parseISO(timeString);
+      return format(time, "h a").replace(' ', '').toLowerCase();
+    } catch {
+      return timeString;
+    }
+  };
+
   const handleAddNote = (date: Date) => {
     setSelectedDate(date);
     setNoteForm({
@@ -690,19 +699,19 @@ export default function EnhancedMonthlyScheduler() {
                                       <Edit className="h-3 w-3" />
                                     </div>
                                   </div>
-                                  <div className="text-blue-600 truncate">
-                                    {formatTime(sortedSchedules[0].startTime)} - {formatTime(sortedSchedules[sortedSchedules.length - 1].endTime)}
+                                  <div className="text-blue-600 text-xs truncate">
+                                    {formatCompactTime(sortedSchedules[0].startTime)}-{formatCompactTime(sortedSchedules[sortedSchedules.length - 1].endTime)}
+                                    {!selectedLocation && (
+                                      <span className="text-blue-500 ml-1">
+                                        • {sortedSchedules.map(s => getLocationAbbreviation(s.locationId || 1)).join(",")}
+                                      </span>
+                                    )}
                                     {sortedSchedules.length > 1 && (
                                       <span className="text-blue-500 ml-1">
-                                        +{sortedSchedules.length - 1} more
+                                        +{sortedSchedules.length - 1}
                                       </span>
                                     )}
                                   </div>
-                                  {!selectedLocation && (
-                                    <div className="text-blue-500 text-xs truncate">
-                                      {sortedSchedules.map(s => getLocationAbbreviation(s.locationId || 1)).join(", ")}
-                                    </div>
-                                  )}
                                 </div>
                               ) : (
                                 // Single shift - show as before
@@ -714,14 +723,14 @@ export default function EnhancedMonthlyScheduler() {
                                     {getEmployeeName(userId)}
                                     <Edit className="h-3 w-3" />
                                   </div>
-                                  <div className="text-blue-600">
-                                    {formatTime(sortedSchedules[0].startTime)} - {formatTime(sortedSchedules[0].endTime)}
+                                  <div className="text-blue-600 text-xs">
+                                    {formatCompactTime(sortedSchedules[0].startTime)}-{formatCompactTime(sortedSchedules[0].endTime)}
+                                    {!selectedLocation && sortedSchedules[0].locationId && (
+                                      <span className="text-blue-500 ml-1">
+                                        • {getLocationAbbreviation(sortedSchedules[0].locationId)}
+                                      </span>
+                                    )}
                                   </div>
-                                  {!selectedLocation && sortedSchedules[0].locationId && (
-                                    <div className="text-blue-500 text-xs">
-                                      {getLocationAbbreviation(sortedSchedules[0].locationId)}
-                                    </div>
-                                  )}
                                 </div>
                               )}
                             </div>
