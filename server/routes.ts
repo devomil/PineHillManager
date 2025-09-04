@@ -283,6 +283,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Create work schedule endpoint
+  app.post('/api/work-schedules', isAuthenticated, async (req, res) => {
+    try {
+      if (!req.user || (req.user.role !== 'admin' && req.user.role !== 'manager')) {
+        return res.status(403).json({ error: 'Admin or Manager access required' });
+      }
+
+      const scheduleData = {
+        ...req.body,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+
+      const newSchedule = await storage.createWorkSchedule(scheduleData);
+      res.status(201).json(newSchedule);
+    } catch (error) {
+      console.error('Error creating work schedule:', error);
+      res.status(500).json({ message: 'Failed to create work schedule' });
+    }
+  });
+
   // PDF Schedule Generation
   app.post('/api/schedules/generate-pdf', isAuthenticated, async (req, res) => {
     try {

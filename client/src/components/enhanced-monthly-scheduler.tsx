@@ -354,20 +354,20 @@ export default function EnhancedMonthlyScheduler() {
         </Select>
 
         <div className="flex gap-2">
-          <div className="flex items-center gap-1">
-            <Label className="text-sm">Default Shift:</Label>
+          <div className="flex items-center gap-2">
+            <Label className="text-sm whitespace-nowrap">Default Shift:</Label>
             <Input
               type="time"
               value={defaultShiftTimes.startTime}
               onChange={(e) => setDefaultShiftTimes({...defaultShiftTimes, startTime: e.target.value})}
-              className="w-24"
+              className="w-28"
             />
-            <span>-</span>
+            <span className="text-sm">-</span>
             <Input
               type="time"
               value={defaultShiftTimes.endTime}
               onChange={(e) => setDefaultShiftTimes({...defaultShiftTimes, endTime: e.target.value})}
-              className="w-24"
+              className="w-28"
             />
           </div>
         </div>
