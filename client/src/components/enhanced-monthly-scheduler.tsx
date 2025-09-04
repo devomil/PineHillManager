@@ -24,7 +24,8 @@ import {
   Download,
   StickyNote,
   Users2,
-  Building
+  Building,
+  Trash2
 } from "lucide-react";
 import { 
   format, 
@@ -69,6 +70,13 @@ export default function EnhancedMonthlyScheduler() {
     title: "",
     content: "",
     noteType: "general",
+    locationId: 1
+  });
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [selectedSchedule, setSelectedSchedule] = useState<WorkSchedule | null>(null);
+  const [editForm, setEditForm] = useState({
+    startTime: "",
+    endTime: "",
     locationId: 1
   });
   const [defaultShiftTimes, setDefaultShiftTimes] = useState({
@@ -147,6 +155,59 @@ export default function EnhancedMonthlyScheduler() {
       toast({
         title: "Error",
         description: "Failed to create schedule: " + error.message,
+        variant: "destructive",
+      });
+    }
+  });
+
+  // Update schedule mutation
+  const updateScheduleMutation = useMutation({
+    mutationFn: async (data: { id: number; userId: string; locationId: number; date: string; startTime: string; endTime: string }) => {
+      const response = await apiRequest("PUT", `/api/admin/work-schedules/${data.id}`, {
+        userId: data.userId,
+        locationId: data.locationId,
+        date: data.date,
+        startTime: `${data.date}T${data.startTime}:00`,
+        endTime: `${data.date}T${data.endTime}:00`,
+        updatedBy: user?.id
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/work-schedules"] });
+      setIsEditDialogOpen(false);
+      toast({
+        title: "Schedule Updated",
+        description: "Employee shift has been updated successfully.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: "Failed to update schedule: " + error.message,
+        variant: "destructive",
+      });
+    }
+  });
+
+  // Delete schedule mutation
+  const deleteScheduleMutation = useMutation({
+    mutationFn: async (scheduleId: number) => {
+      const response = await apiRequest("DELETE", `/api/admin/work-schedules/${scheduleId}`);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/work-schedules"] });
+      setIsEditDialogOpen(false);
+      toast({
+        title: "Schedule Removed",
+        description: "Employee has been removed from this shift.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: "Failed to remove schedule: " + error.message,
         variant: "destructive",
       });
     }
@@ -276,7 +337,7 @@ export default function EnhancedMonthlyScheduler() {
   const formatTime = (timeString: string) => {
     try {
       const time = parseISO(timeString);
-      return format(time, "HH:mm");
+      return format(time, "h:mm a");
     } catch {
       return timeString;
     }
@@ -291,6 +352,42 @@ export default function EnhancedMonthlyScheduler() {
       locationId: selectedLocation || 1
     });
     setIsNoteDialogOpen(true);
+  };
+
+  const handleEditSchedule = (schedule: WorkSchedule) => {
+    setSelectedSchedule(schedule);
+    const startTime = formatTime(schedule.startTime).split(' ')[0];
+    const endTime = formatTime(schedule.endTime).split(' ')[0];
+    const startHour = parseISO(schedule.startTime).getHours();
+    const endHour = parseISO(schedule.endTime).getHours();
+    const startMinute = parseISO(schedule.startTime).getMinutes();
+    const endMinute = parseISO(schedule.endTime).getMinutes();
+    
+    setEditForm({
+      startTime: `${startHour.toString().padStart(2, '0')}:${startMinute.toString().padStart(2, '0')}`,
+      endTime: `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`,
+      locationId: schedule.locationId || 1
+    });
+    setIsEditDialogOpen(true);
+  };
+
+  const handleUpdateSchedule = () => {
+    if (selectedSchedule) {
+      updateScheduleMutation.mutate({
+        id: selectedSchedule.id,
+        userId: selectedSchedule.userId,
+        locationId: editForm.locationId,
+        date: selectedSchedule.date,
+        startTime: editForm.startTime,
+        endTime: editForm.endTime
+      });
+    }
+  };
+
+  const handleRemoveEmployee = () => {
+    if (selectedSchedule) {
+      deleteScheduleMutation.mutate(selectedSchedule.id);
+    }
   };
 
   const activeEmployees = employees.filter((emp: UserType) => emp.isActive);
@@ -487,10 +584,12 @@ export default function EnhancedMonthlyScheduler() {
                       {dayData.schedules.map((schedule: WorkSchedule) => (
                         <div
                           key={schedule.id}
-                          className="text-xs p-1 bg-blue-100 border border-blue-200 rounded mb-1"
+                          className="text-xs p-1 bg-blue-100 border border-blue-200 rounded mb-1 cursor-pointer hover:bg-blue-200 transition-colors"
+                          onClick={() => handleEditSchedule(schedule)}
                         >
-                          <div className="font-medium text-blue-800">
+                          <div className="font-medium text-blue-800 flex items-center justify-between">
                             {getEmployeeName(schedule.userId)}
+                            <Edit className="h-3 w-3" />
                           </div>
                           <div className="text-blue-600">
                             {formatTime(schedule.startTime)} - {formatTime(schedule.endTime)}
@@ -580,6 +679,73 @@ export default function EnhancedMonthlyScheduler() {
               disabled={!noteForm.title}
             >
               Add Note
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Schedule Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Shift Details</DialogTitle>
+            <DialogDescription>
+              Edit shift for {selectedSchedule && getEmployeeName(selectedSchedule.userId)} on {selectedSchedule && format(parseISO(selectedSchedule.date), "MMMM d, yyyy")}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Start Time</Label>
+                <Input
+                  type="time"
+                  value={editForm.startTime}
+                  onChange={(e) => setEditForm({...editForm, startTime: e.target.value})}
+                />
+              </div>
+              <div>
+                <Label>End Time</Label>
+                <Input
+                  type="time"
+                  value={editForm.endTime}
+                  onChange={(e) => setEditForm({...editForm, endTime: e.target.value})}
+                />
+              </div>
+            </div>
+            <div>
+              <Label>Location</Label>
+              <Select value={editForm.locationId.toString()} onValueChange={(value) => setEditForm({...editForm, locationId: parseInt(value)})}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {locations.map((location: Location) => (
+                    <SelectItem key={location.id} value={location.id.toString()}>
+                      {location.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter className="space-x-2">
+            <Button 
+              variant="destructive" 
+              onClick={handleRemoveEmployee}
+              disabled={deleteScheduleMutation.isPending}
+              className="mr-auto"
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Remove Employee
+            </Button>
+            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleUpdateSchedule}
+              disabled={updateScheduleMutation.isPending}
+            >
+              Update Shift
             </Button>
           </DialogFooter>
         </DialogContent>
