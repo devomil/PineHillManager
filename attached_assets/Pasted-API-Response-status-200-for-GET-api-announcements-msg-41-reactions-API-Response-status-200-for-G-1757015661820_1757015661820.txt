@@ -1,0 +1,261 @@
+API Response status: 200 for GET /api/announcements/msg_41/reactions
+API Response status: 200 for GET /api/announcements/msg_40/reactions
+API Response status: 200 for GET /api/announcements/25/reactions
+API Response status: 200 for GET /api/announcements/25/responses
+API Response status: 200 for GET /api/announcements/msg_39/responses
+API Response status: 200 for GET /api/announcements/msg_39/reactions
+API Response status: 200 for GET /api/announcements/msg_38/responses
+API Response status: 200 for GET /api/announcements/msg_38/reactions
+API Response status: 200 for GET /api/announcements/msg_37/responses
+API Response status: 200 for GET /api/announcements/msg_37/reactions
+API Response status: 200 for GET /api/announcements/msg_36/responses
+API Response status: 200 for GET /api/announcements/msg_35/responses
+API Response status: 200 for GET /api/announcements/msg_36/reactions
+API Response status: 200 for GET /api/announcements/msg_35/reactions
+API Response status: 200 for GET /api/announcements/msg_34/responses
+API Response status: 200 for GET /api/announcements/msg_34/reactions
+API Response status: 200 for GET /api/announcements/msg_32/responses
+API Response status: 200 for GET /api/announcements/msg_32/reactions
+API Response status: 200 for GET /api/announcements/24/reactions
+API Response status: 200 for GET /api/announcements/msg_31/responses
+API Response status: 200 for GET /api/announcements/24/responses
+API Response status: 200 for GET /api/announcements/msg_31/reactions
+API Response status: 200 for GET /api/announcements/msg_30/reactions
+API Response status: 200 for GET /api/announcements/msg_30/responses
+API Response status: 200 for GET /api/announcements/msg_29/reactions
+API Response status: 200 for GET /api/announcements/msg_29/responses
+API Response status: 200 for GET /api/announcements/msg_28/responses
+API Response status: 200 for GET /api/announcements/msg_27/responses
+API Response status: 200 for GET /api/announcements/msg_28/reactions
+API Response status: 200 for GET /api/announcements/msg_27/reactions
+API Response status: 200 for GET /api/announcements/msg_26/reactions
+API Response status: 200 for GET /api/announcements/msg_26/responses
+API Response status: 200 for GET /api/announcements/msg_25/responses
+API Response status: 200 for GET /api/announcements/msg_24/responses
+API Response status: 200 for GET /api/announcements/msg_25/reactions
+API Response status: 200 for GET /api/announcements/msg_24/reactions
+API Response status: 200 for GET /api/announcements/msg_23/responses
+API Response status: 200 for GET /api/announcements/msg_23/reactions
+API Response status: 200 for GET /api/announcements/msg_22/responses
+API Response status: 200 for GET /api/announcements/msg_22/reactions
+API Response status: 200 for GET /api/announcements/msg_21/responses
+API Response status: 200 for GET /api/announcements/msg_21/reactions
+API Response status: 200 for GET /api/announcements/msg_20/responses
+API Response status: 200 for GET /api/announcements/msg_20/reactions
+API Response status: 200 for GET /api/announcements/msg_19/responses
+API Response status: 200 for GET /api/announcements/msg_19/reactions
+API Response status: 200 for GET /api/announcements/msg_17/responses
+API Response status: 200 for GET /api/announcements/msg_17/reactions
+API Response status: 200 for GET /api/announcements/msg_13/responses
+API Response status: 200 for GET /api/announcements/msg_11/responses
+API Response status: 200 for GET /api/announcements/msg_13/reactions
+API Response status: 200 for GET /api/announcements/msg_11/reactions
+API Response status: 200 for GET /api/announcements/msg_9/responses
+API Response status: 200 for GET /api/announcements/msg_9/reactions
+API Response status: 200 for GET /api/announcements/msg_8/responses
+API Response status: 200 for GET /api/announcements/msg_7/responses
+API Response status: 200 for GET /api/announcements/msg_8/reactions
+API Response status: 200 for GET /api/announcements/msg_7/reactions
+API Response status: 200 for GET /api/announcements/msg_6/responses
+API Response status: 200 for GET /api/announcements/msg_6/reactions
+API Response status: 200 for GET /api/announcements/msg_5/responses
+API Response status: 200 for GET /api/announcements/msg_4/responses
+API Response status: 200 for GET /api/announcements/msg_5/reactions
+API Response status: 200 for GET /api/announcements/msg_4/reactions
+API Response status: 200 for GET /api/announcements/14/reactions
+API Response status: 200 for GET /api/announcements/14/responses
+API Response status: 200 for GET /api/announcements/12/reactions
+API Response status: 200 for GET /api/announcements/12/responses
+API Response status: 200 for GET /api/announcements/11/reactions
+API Response status: 200 for GET /api/announcements/11/responses
+API Response status: 200 for GET /api/announcements/10/reactions
+API Response status: 200 for GET /api/announcements/10/responses
+API Response status: 200 for GET /api/announcements/9/responses
+API Response status: 200 for GET /api/announcements/9/reactions
+API Response status: 200 for GET /api/announcements/8/reactions
+API Response status: 200 for GET /api/announcements/8/responses
+API Response status: 200 for GET /api/announcements/7/reactions
+API Response status: 200 for GET /api/announcements/7/responses
+API Response status: 200 for GET /api/announcements/4/reactions
+API Response status: 200 for GET /api/announcements/3/reactions
+API Response status: 200 for GET /api/announcements/4/responses
+API Response status: 200 for GET /api/announcements/3/responses
+API Request: POST /api/communications/send with data: 
+Object {subject: "test", content: "12345325", priority: "normal", messageType: "direct_message", smsEnabled: true, …}
+API Response status: 200 for POST /api/communications/send
+useAuth - user: 
+Object {id: "40154188", email: "ryan@pinehillfarm.co", firstName: "Ryan", lastName: "Sorensen", role: "admin"}
+ isLoading: false error: null
+useAuth - user: 
+Object {id: "40154188", email: "ryan@pinehillfarm.co", firstName: "Ryan", lastName: "Sorensen", role: "admin"}
+ isLoading: false error: null
+Auth state: 
+Object {isAuthenticated: true, isLoading: false, user: {…}}
+Rendering: AuthenticatedApp
+Auth state: 
+Object {isAuthenticated: true, isLoading: false, user: {…}}
+Rendering: AuthenticatedApp
+useAuth - user: 
+Object {id: "40154188", email: "ryan@pinehillfarm.co", firstName: "Ryan", lastName: "Sorensen", role: "admin"}
+ isLoading: false error: null
+useAuth - user: 
+Object {id: "40154188", email: "ryan@pinehillfarm.co", firstName: "Ryan", lastName: "Sorensen", role: "admin"}
+ isLoading: false error: null
+Auth state: 
+Object {isAuthenticated: true, isLoading: false, user: {…}}
+Rendering: AuthenticatedApp
+Auth state: 
+Object {isAuthenticated: true, isLoading: false, user: {…}}
+Rendering: AuthenticatedApp
+API Request: GET /api/messages/60/reactions with data: undefined
+API Request: GET /api/messages/60/responses with data: undefined
+API Request: GET /api/messages/59/reactions with data: undefined
+API Request: GET /api/messages/59/responses with data: undefined
+API Request: GET /api/messages/58/reactions with data: undefined
+API Request: GET /api/messages/58/responses with data: undefined
+API Request: GET /api/messages/57/reactions with data: undefined
+API Request: GET /api/messages/57/responses with data: undefined
+API Request: GET /api/messages/56/reactions with data: undefined
+API Request: GET /api/messages/56/responses with data: undefined
+API Request: GET /api/messages/55/reactions with data: undefined
+API Request: GET /api/messages/55/responses with data: undefined
+API Request: GET /api/messages/54/reactions with data: undefined
+API Request: GET /api/messages/54/responses with data: undefined
+API Request: GET /api/messages/53/reactions with data: undefined
+API Request: GET /api/messages/53/responses with data: undefined
+API Request: GET /api/messages/52/reactions with data: undefined
+API Request: GET /api/messages/52/responses with data: undefined
+API Request: GET /api/messages/51/reactions with data: undefined
+API Request: GET /api/messages/51/responses with data: undefined
+API Request: GET /api/messages/50/reactions with data: undefined
+API Request: GET /api/messages/50/responses with data: undefined
+API Request: GET /api/messages/18/reactions with data: undefined
+API Request: GET /api/messages/18/responses with data: undefined
+API Request: GET /api/messages/16/reactions with data: undefined
+API Request: GET /api/messages/16/responses with data: undefined
+API Request: GET /api/messages/12/reactions with data: undefined
+API Request: GET /api/messages/12/responses with data: undefined
+API Request: GET /api/messages/10/reactions with data: undefined
+API Request: GET /api/messages/10/responses with data: undefined
+API Response status: 200 for GET /api/messages/60/reactions
+API Response status: 200 for GET /api/messages/59/responses
+API Response status: 200 for GET /api/messages/59/reactions
+API Response status: 200 for GET /api/messages/58/reactions
+API Response status: 200 for GET /api/messages/58/responses
+API Response status: 200 for GET /api/messages/56/reactions
+API Response status: 200 for GET /api/messages/57/responses
+API Response status: 200 for GET /api/messages/57/reactions
+API Response status: 200 for GET /api/messages/60/responses
+API Response status: 200 for GET /api/messages/56/responses
+API Response status: 200 for GET /api/messages/55/reactions
+API Response status: 200 for GET /api/messages/54/reactions
+API Response status: 200 for GET /api/messages/54/responses
+API Response status: 200 for GET /api/messages/55/responses
+API Response status: 200 for GET /api/messages/53/reactions
+API Response status: 200 for GET /api/messages/53/responses
+API Response status: 200 for GET /api/messages/52/reactions
+API Response status: 200 for GET /api/messages/52/responses
+API Response status: 200 for GET /api/messages/51/responses
+API Response status: 200 for GET /api/messages/51/reactions
+API Response status: 200 for GET /api/messages/50/reactions
+API Response status: 200 for GET /api/messages/50/responses
+API Response status: 200 for GET /api/messages/18/reactions
+API Response status: 200 for GET /api/messages/18/responses
+API Response status: 200 for GET /api/messages/16/reactions
+API Response status: 200 for GET /api/messages/16/responses
+API Response status: 200 for GET /api/messages/12/reactions
+API Response status: 200 for GET /api/messages/12/responses
+API Response status: 200 for GET /api/messages/10/reactions
+API Response status: 200 for GET /api/messages/10/responses
+API Request: POST /api/communications/send with data: 
+Object {subject: "hello", content: "testtesa", priority: "normal", messageType: "direct_message", smsEnabled: true, …}
+API Response status: 200 for POST /api/communications/send
+API Request: GET /api/messages/60/reactions with data: undefined
+API Request: GET /api/messages/60/responses with data: undefined
+API Request: GET /api/messages/59/reactions with data: undefined
+API Request: GET /api/messages/59/responses with data: undefined
+API Request: GET /api/messages/58/reactions with data: undefined
+API Request: GET /api/messages/58/responses with data: undefined
+API Request: GET /api/messages/57/reactions with data: undefined
+API Request: GET /api/messages/57/responses with data: undefined
+API Request: GET /api/messages/56/reactions with data: undefined
+API Request: GET /api/messages/56/responses with data: undefined
+API Request: GET /api/messages/55/reactions with data: undefined
+API Request: GET /api/messages/55/responses with data: undefined
+API Request: GET /api/messages/54/reactions with data: undefined
+API Request: GET /api/messages/54/responses with data: undefined
+API Request: GET /api/messages/53/reactions with data: undefined
+API Request: GET /api/messages/53/responses with data: undefined
+API Request: GET /api/messages/52/reactions with data: undefined
+API Request: GET /api/messages/52/responses with data: undefined
+API Request: GET /api/messages/51/reactions with data: undefined
+API Request: GET /api/messages/51/responses with data: undefined
+API Request: GET /api/messages/50/reactions with data: undefined
+API Request: GET /api/messages/50/responses with data: undefined
+API Request: GET /api/messages/18/reactions with data: undefined
+API Request: GET /api/messages/18/responses with data: undefined
+API Request: GET /api/messages/16/reactions with data: undefined
+API Request: GET /api/messages/16/responses with data: undefined
+API Request: GET /api/messages/12/reactions with data: undefined
+API Request: GET /api/messages/12/responses with data: undefined
+API Request: GET /api/messages/10/reactions with data: undefined
+API Request: GET /api/messages/10/responses with data: undefined
+API Request: GET /api/messages/60/reactions with data: undefined
+API Request: GET /api/messages/60/responses with data: undefined
+API Request: GET /api/messages/59/reactions with data: undefined
+API Request: GET /api/messages/59/responses with data: undefined
+API Request: GET /api/messages/58/reactions with data: undefined
+API Request: GET /api/messages/58/responses with data: undefined
+API Request: GET /api/messages/57/reactions with data: undefined
+API Request: GET /api/messages/57/responses with data: undefined
+API Request: GET /api/messages/56/reactions with data: undefined
+API Request: GET /api/messages/56/responses with data: undefined
+API Request: GET /api/messages/55/reactions with data: undefined
+API Request: GET /api/messages/55/responses with data: undefined
+API Request: GET /api/messages/54/reactions with data: undefined
+API Request: GET /api/messages/54/responses with data: undefined
+API Request: GET /api/messages/53/reactions with data: undefined
+API Request: GET /api/messages/53/responses with data: undefined
+API Request: GET /api/messages/52/reactions with data: undefined
+API Request: GET /api/messages/52/responses with data: undefined
+API Request: GET /api/messages/51/reactions with data: undefined
+API Request: GET /api/messages/51/responses with data: undefined
+API Request: GET /api/messages/50/reactions with data: undefined
+API Request: GET /api/messages/50/responses with data: undefined
+API Request: GET /api/messages/18/reactions with data: undefined
+API Request: GET /api/messages/18/responses with data: undefined
+API Request: GET /api/messages/16/reactions with data: undefined
+API Request: GET /api/messages/16/responses with data: undefined
+API Request: GET /api/messages/12/reactions with data: undefined
+API Request: GET /api/messages/12/responses with data: undefined
+API Request: GET /api/messages/10/reactions with data: undefined
+API Request: GET /api/messages/10/responses with data: undefined
+useAuth - user: 
+Object {id: "40154188", email: "ryan@pinehillfarm.co", firstName: "Ryan", lastName: "Sorensen", role: "admin"}
+ isLoading: false error: null
+useAuth - user: 
+Object {id: "40154188", email: "ryan@pinehillfarm.co", firstName: "Ryan", lastName: "Sorensen", role: "admin"}
+ isLoading: false error: null
+Auth state: 
+Object {isAuthenticated: true, isLoading: false, user: {…}}
+Rendering: AuthenticatedApp
+Auth state: 
+Object {isAuthenticated: true, isLoading: false, user: {…}}
+Rendering: AuthenticatedApp
+API Response status: 200 for GET /api/messages/59/reactions
+API Response status: 200 for GET /api/messages/58/responses
+API Response status: 200 for GET /api/messages/58/reactions
+API Response status: 200 for GET /api/messages/60/responses
+API Response status: 200 for GET /api/messages/59/responses
+API Response status: 200 for GET /api/messages/60/reactions
+API Response status: 200 for GET /api/messages/57/reactions
+API Response status: 200 for GET /api/messages/57/responses
+API Response status: 200 for GET /api/messages/56/reactions
+API Response status: 200 for GET /api/messages/56/responses
+API Response status: 200 for GET /api/messages/55/reactions
+API Response status: 200 for GET /api/messages/55/responses
+API Response status: 200 for GET /api/messages/54/reactions
+API Response status: 200 for GET /api/messages/54/responses
+API Response status: 200 for GET /api/messages/53/reactions
+API Response status: 200 for GET /api/messages/52/reactions
+API Response status: 200 for GET /api/messages/53/responses
