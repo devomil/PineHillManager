@@ -1612,13 +1612,23 @@ function CommunicationsContent() {
                         {message.content}
                       </p>
                       
+                      {/* Message Reactions - Same as Announcements */}
+                      <div className="pt-3 border-t border-gray-200">
+                        <MessageReactions announcementId={message.id} />
+                      </div>
+                      
+                      {/* Message Responses - Same as Announcements */}
+                      <div className="pt-2">
+                        <AnnouncementResponses announcementId={message.id} />
+                      </div>
+                      
                       <div className="flex items-center justify-between pt-3 border-t border-gray-200">
                         <div className="flex items-center text-sm text-gray-500">
                           <Calendar className="h-4 w-4 mr-1" />
                           Sent {format(parseISO(message.sentAt), "MMM d, yyyy 'at' h:mm a")}
                         </div>
                         <div className="text-sm text-gray-500">
-                          To: {message.targetAudience === 'all' ? 'All Staff' : 'Selected Recipients'}
+                          To: {formatTargetAudience(message)}
                         </div>
                       </div>
                     </CardContent>
