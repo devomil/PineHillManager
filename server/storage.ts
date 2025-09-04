@@ -2346,14 +2346,6 @@ export class DatabaseStorage implements IStorage {
 
   // Response methods
   async createResponse(response: InsertResponse): Promise<SelectResponse> {
-    console.log('🚨 CREATE RESPONSE CALLED! Stack trace:', new Error().stack?.split('\n').slice(1,4));
-    console.log('🎯 CREATE RESPONSE data:', {
-      announcement_id: response.announcement_id,
-      message_id: response.message_id,
-      content: response.content,
-      is_from_sms: response.is_from_sms,
-      sms_message_sid: response.sms_message_sid
-    });
     const [newResponse] = await db
       .insert(responses)
       .values({
