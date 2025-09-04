@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 // Removed Tabs imports to prevent RovingFocusGroupItem conflicts
-import { Users, Clock, Calendar, Bell, Settings, Eye, FileText, DollarSign, Menu, QrCode, Video, User, LogOut, ChevronDown, MessageSquare, Package, ShoppingCart } from "lucide-react";
+import { Users, Clock, Calendar, Bell, Settings, Eye, FileText, DollarSign, Menu, QrCode, Video, User, LogOut, ChevronDown, MessageSquare, Package, ShoppingCart, ArrowLeftRight } from "lucide-react";
 import { useLocation } from "wouter";
 
 interface AdminLayoutProps {
