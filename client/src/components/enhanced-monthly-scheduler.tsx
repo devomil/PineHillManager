@@ -533,7 +533,7 @@ export default function EnhancedMonthlyScheduler() {
                 Active Employees
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2">
+            <CardContent className="max-h-[600px] overflow-y-auto space-y-2">
               {activeEmployees.map((employee: UserType) => (
                 <div
                   key={employee.id}
@@ -596,7 +596,7 @@ export default function EnhancedMonthlyScheduler() {
                       onDragOver={handleDragOver}
                       onDrop={(e) => handleDrop(e, day)}
                       className={`
-                        min-h-[120px] p-2 border rounded-lg relative
+                        min-h-[100px] p-1.5 border rounded-lg relative
                         ${isCurrentMonth ? 'bg-white' : 'bg-gray-50'}
                         ${isCurrentDay ? 'border-blue-500 bg-blue-50' : 'border-gray-200'}
                         ${isDragging ? 'border-dashed border-green-400 bg-green-50' : ''}
@@ -613,7 +613,7 @@ export default function EnhancedMonthlyScheduler() {
                         <Button
                           size="sm"
                           variant="ghost"
-                          className="h-6 w-6 p-0"
+                          className="h-5 w-5 p-0"
                           onClick={() => handleAddNote(day)}
                         >
                           <Plus className="h-3 w-3" />
@@ -626,9 +626,9 @@ export default function EnhancedMonthlyScheduler() {
                           key={note.id}
                           className={`text-xs p-1 rounded mb-1 border ${getNoteTypeStyle(note.noteType)}`}
                         >
-                          <div className="font-semibold">{note.title}</div>
+                          <div className="font-semibold truncate">{note.title}</div>
                           {note.content && (
-                            <div className="truncate">{note.content}</div>
+                            <div className="text-xs truncate">{note.content}</div>
                           )}
                         </div>
                       ))}
@@ -655,34 +655,33 @@ export default function EnhancedMonthlyScheduler() {
                           return (
                             <div key={userId} className="mb-1">
                               {hasMultipleShifts ? (
-                                // Multiple shifts - show as grouped block
+                                // Multiple shifts - show as compact single block
                                 <div 
-                                  className="text-xs p-2 bg-gradient-to-r from-blue-100 to-purple-100 border border-blue-200 rounded cursor-pointer hover:from-blue-200 hover:to-purple-200 transition-colors"
+                                  className="text-xs p-1.5 bg-gradient-to-r from-blue-100 to-purple-100 border border-blue-200 rounded cursor-pointer hover:from-blue-200 hover:to-purple-200 transition-colors"
                                   onClick={() => handleEditSchedule(sortedSchedules[0])}
                                 >
                                   <div className="font-medium text-blue-800 flex items-center justify-between">
                                     {getEmployeeName(userId)}
                                     <div className="flex items-center gap-1">
-                                      <Badge variant="secondary" className="text-xs px-1 py-0">
-                                        {sortedSchedules.length} shifts
+                                      <Badge variant="secondary" className="text-xs px-1 py-0 h-4">
+                                        {sortedSchedules.length}
                                       </Badge>
                                       <Edit className="h-3 w-3" />
                                     </div>
                                   </div>
-                                  <div className="space-y-1 mt-1">
-                                    {sortedSchedules.map((schedule, index) => (
-                                      <div key={schedule.id} className="text-blue-600 flex justify-between">
-                                        <span>
-                                          {formatTime(schedule.startTime)} - {formatTime(schedule.endTime)}
-                                        </span>
-                                        {!selectedLocation && schedule.locationId && (
-                                          <span className="text-blue-500 text-xs">
-                                            {getLocationName(schedule.locationId)}
-                                          </span>
-                                        )}
-                                      </div>
-                                    ))}
+                                  <div className="text-blue-600 truncate">
+                                    {formatTime(sortedSchedules[0].startTime)} - {formatTime(sortedSchedules[sortedSchedules.length - 1].endTime)}
+                                    {sortedSchedules.length > 1 && (
+                                      <span className="text-blue-500 ml-1">
+                                        +{sortedSchedules.length - 1} more
+                                      </span>
+                                    )}
                                   </div>
+                                  {!selectedLocation && (
+                                    <div className="text-blue-500 text-xs truncate">
+                                      {sortedSchedules.map(s => getLocationName(s.locationId || 1)).join(", ")}
+                                    </div>
+                                  )}
                                 </div>
                               ) : (
                                 // Single shift - show as before
