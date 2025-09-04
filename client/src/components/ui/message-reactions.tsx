@@ -26,20 +26,30 @@ export function MessageReactions({ messageId, announcementId, existingReactions 
   const queryClient = useQueryClient();
   const [showReactions, setShowReactions] = useState(false);
 
+  // Extract numeric ID from string IDs like "msg_22"
+  const getNumericMessageId = (id: number | string) => {
+    if (typeof id === 'string' && id.startsWith('msg_')) {
+      return parseInt(id.replace('msg_', ''));
+    }
+    return typeof id === 'string' ? parseInt(id) : id;
+  };
+
+  const numericMessageId = messageId ? getNumericMessageId(messageId) : undefined;
+
   // Fetch reactions from API if not provided as props
   const { data: fetchedReactions = [] } = useQuery({
-    queryKey: announcementId ? ['/api/announcements', announcementId, 'reactions'] : ['/api/messages', messageId, 'reactions'],
+    queryKey: announcementId ? ['/api/announcements', announcementId, 'reactions'] : ['/api/messages', numericMessageId, 'reactions'],
     queryFn: async () => {
       if (announcementId) {
         const response = await apiRequest('GET', `/api/announcements/${announcementId}/reactions`);
         return response.json();
-      } else if (messageId) {
-        const response = await apiRequest('GET', `/api/messages/${messageId}/reactions`);
+      } else if (numericMessageId) {
+        const response = await apiRequest('GET', `/api/messages/${numericMessageId}/reactions`);
         return response.json();
       }
       return [];
     },
-    enabled: !!(announcementId || messageId),
+    enabled: !!(announcementId || numericMessageId),
     staleTime: 0,
   });
 
@@ -72,11 +82,11 @@ export function MessageReactions({ messageId, announcementId, existingReactions 
         // Handle message reactions
         if (action === 'add') {
           await apiRequest('POST', '/api/messages/reactions', {
-            messageId,
+            messageId: numericMessageId,
             reactionType,
           });
         } else {
-          await apiRequest('DELETE', `/api/messages/reactions/${messageId}/${reactionType}`);
+          await apiRequest('DELETE', `/api/messages/reactions/${numericMessageId}/${reactionType}`);
         }
       }
     },
@@ -84,8 +94,8 @@ export function MessageReactions({ messageId, announcementId, existingReactions 
       // Invalidate queries to refresh reactions
       if (announcementId) {
         queryClient.invalidateQueries({ queryKey: ['/api/announcements', announcementId, 'reactions'] });
-      } else if (messageId) {
-        queryClient.invalidateQueries({ queryKey: ['/api/messages', messageId, 'reactions'] });
+      } else if (numericMessageId) {
+        queryClient.invalidateQueries({ queryKey: ['/api/messages', numericMessageId, 'reactions'] });
       }
       queryClient.invalidateQueries({ queryKey: ['/api/announcements'] });
       queryClient.invalidateQueries({ queryKey: ['/api/announcements/published'] });

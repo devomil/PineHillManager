@@ -62,11 +62,21 @@ export function MessageResponses({ messageId, className }: MessageResponsesProps
   const [responseType, setResponseType] = useState<'reply' | 'question' | 'confirmation' | 'concern'>('reply');
   const [expandedResponses, setExpandedResponses] = useState<Set<number>>(new Set());
 
+  // Extract numeric ID from string IDs like "msg_22"
+  const getNumericMessageId = (id: number | string) => {
+    if (typeof id === 'string' && id.startsWith('msg_')) {
+      return parseInt(id.replace('msg_', ''));
+    }
+    return typeof id === 'string' ? parseInt(id) : id;
+  };
+
+  const numericMessageId = getNumericMessageId(messageId);
+
   // Fetch responses for this message
   const { data: rawResponses = [], isLoading, error } = useQuery<ResponseWithAuthor[]>({
-    queryKey: ['/api/messages', messageId, 'responses'],
+    queryKey: ['/api/messages', numericMessageId, 'responses'],
     queryFn: async () => {
-      const response = await apiRequest('GET', `/api/messages/${messageId}/responses`);
+      const response = await apiRequest('GET', `/api/messages/${numericMessageId}/responses`);
       return response.json();
     },
     staleTime: 0, // No caching - always fresh
@@ -81,10 +91,10 @@ export function MessageResponses({ messageId, className }: MessageResponsesProps
   // Create response mutation
   const createResponseMutation = useMutation({
     mutationFn: async (responseData: { content: string; responseType: string; parentResponseId?: number }) => {
-      return apiRequest('POST', `/api/messages/${messageId}/responses`, responseData);
+      return apiRequest('POST', `/api/messages/${numericMessageId}/responses`, responseData);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/messages', messageId, 'responses'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/messages', numericMessageId, 'responses'] });
       setResponseContent('');
       setShowResponseForm(false);
     },
