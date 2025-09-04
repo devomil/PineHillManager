@@ -28,9 +28,6 @@ export default function AdminLayout({ children, currentTab }: AdminLayoutProps) 
       case 'scheduling':
         setLocation('/shift-scheduling');
         break;
-      case 'swaps':
-        setLocation('/shift-swaps');
-        break;
       case 'communications':
         setLocation('/communications');
         break;
@@ -154,16 +151,6 @@ export default function AdminLayout({ children, currentTab }: AdminLayoutProps) 
                 <Calendar className="h-4 w-4" />
                 <span className="hidden xl:inline">Schedule Management</span>
                 <span className="xl:hidden">Schedule</span>
-              </Button>
-              <div className="h-6 w-px bg-gray-300 hidden lg:block"></div>
-              <Button
-                variant={currentTab === "swaps" ? "default" : "ghost"}
-                onClick={() => handleTabChange("swaps")}
-                className="nav-item-core flex items-center gap-2 px-4 xl:px-6 py-2 xl:py-3 rounded-md hover:bg-blue-50 hover:text-blue-700 hover:shadow-sm hover:-translate-y-0.5 transition-all duration-200 whitespace-nowrap mx-0"
-              >
-                <ArrowLeftRight className="h-4 w-4" />
-                <span className="hidden xl:inline">Shift Swaps</span>
-                <span className="xl:hidden">Swaps</span>
               </Button>
               <div className="h-6 w-px bg-gray-300 hidden lg:block"></div>
               <Button
