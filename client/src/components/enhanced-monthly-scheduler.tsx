@@ -683,56 +683,27 @@ export default function EnhancedMonthlyScheduler() {
                           const hasMultipleShifts = sortedSchedules.length > 1;
 
                           return (
-                            <div key={userId} className="mb-1">
-                              {hasMultipleShifts ? (
-                                // Multiple shifts - show as compact single block
-                                <div 
-                                  className="text-xs p-1.5 bg-gradient-to-r from-blue-100 to-purple-100 border border-blue-200 rounded cursor-pointer hover:from-blue-200 hover:to-purple-200 transition-colors"
-                                  onClick={() => handleEditSchedule(sortedSchedules[0])}
-                                >
-                                  <div className="font-medium text-blue-800 flex items-center justify-between">
-                                    {getEmployeeName(userId)}
-                                    <div className="flex items-center gap-1">
-                                      <Badge variant="secondary" className="text-xs px-1 py-0 h-4">
-                                        {sortedSchedules.length}
-                                      </Badge>
-                                      <Edit className="h-3 w-3" />
-                                    </div>
-                                  </div>
-                                  <div className="text-blue-600 text-xs truncate">
-                                    {formatCompactTime(sortedSchedules[0].startTime)}-{formatCompactTime(sortedSchedules[sortedSchedules.length - 1].endTime)}
-                                    {!selectedLocation && (
-                                      <span className="text-blue-500 ml-1">
-                                        • {sortedSchedules.map(s => getLocationAbbreviation(s.locationId || 1)).join(",")}
-                                      </span>
-                                    )}
-                                    {sortedSchedules.length > 1 && (
-                                      <span className="text-blue-500 ml-1">
-                                        +{sortedSchedules.length - 1}
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-                              ) : (
-                                // Single shift - show as before
+                            <div key={userId} className="mb-1 space-y-1">
+                              {sortedSchedules.map((schedule, index) => (
                                 <div
+                                  key={schedule.id}
                                   className="text-xs p-1 bg-blue-100 border border-blue-200 rounded cursor-pointer hover:bg-blue-200 transition-colors"
-                                  onClick={() => handleEditSchedule(sortedSchedules[0])}
+                                  onClick={() => handleEditSchedule(schedule)}
                                 >
                                   <div className="font-medium text-blue-800 flex items-center justify-between">
-                                    {getEmployeeName(userId)}
+                                    {index === 0 ? getEmployeeName(userId) : ""}
                                     <Edit className="h-3 w-3" />
                                   </div>
                                   <div className="text-blue-600 text-xs">
-                                    {formatCompactTime(sortedSchedules[0].startTime)}-{formatCompactTime(sortedSchedules[0].endTime)}
-                                    {!selectedLocation && sortedSchedules[0].locationId && (
+                                    {formatCompactTime(schedule.startTime)}-{formatCompactTime(schedule.endTime)}
+                                    {!selectedLocation && schedule.locationId && (
                                       <span className="text-blue-500 ml-1">
-                                        • {getLocationAbbreviation(sortedSchedules[0].locationId)}
+                                        • {getLocationAbbreviation(schedule.locationId)}
                                       </span>
                                     )}
                                   </div>
                                 </div>
-                              )}
+                              ))}
                             </div>
                           );
                         });
