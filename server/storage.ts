@@ -946,7 +946,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Shift swap marketplace operations
-  async getShiftSwapRequests(status?: string, userId?: string): Promise<ShiftSwapRequest[]> {
+  async getShiftSwapRequests(status?: string, userId?: string): Promise<any[]> {
     try {
       const conditions = [eq(shiftSwapRequests.isActive, true)];
       
@@ -963,7 +963,7 @@ export class DatabaseStorage implements IStorage {
         );
       }
       
-      return await db
+      const results = await db
         .select()
         .from(shiftSwapRequests)
         .leftJoin(workSchedules, eq(shiftSwapRequests.originalScheduleId, workSchedules.id))
@@ -971,6 +971,39 @@ export class DatabaseStorage implements IStorage {
         .leftJoin(users, eq(shiftSwapRequests.requesterId, users.id))
         .where(and(...conditions))
         .orderBy(desc(shiftSwapRequests.createdAt));
+
+      // Transform the joined data to match frontend expectations
+      const transformedResults = results.map((result: any) => ({
+        ...result.shift_swap_requests,
+        requester: result.users,
+        originalSchedule: {
+          ...result.work_schedules,
+          location: result.locations
+        }
+      }));
+
+      // If any results have taker IDs, fetch taker data separately
+      const takersToFetch = transformedResults
+        .filter(swap => swap.takerId)
+        .map(swap => swap.takerId);
+
+      let takerUsers: any = {};
+      if (takersToFetch.length > 0) {
+        const takerResults = await db
+          .select()
+          .from(users)
+          .where(or(...takersToFetch.map(id => eq(users.id, id))));
+        
+        takerResults.forEach(user => {
+          takerUsers[user.id] = user;
+        });
+      }
+
+      // Add taker data to results
+      return transformedResults.map(swap => ({
+        ...swap,
+        taker: swap.takerId ? takerUsers[swap.takerId] : undefined
+      }));
     } catch (error) {
       console.error("Error fetching shift swap requests:", error);
       throw error;
