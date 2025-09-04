@@ -2260,99 +2260,205 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
 
-        // Look for the most recent announcement they could be replying to
+        // Look for the most recent announcement OR message they could be replying to
         const announcements = await storage.getPublishedAnnouncements();
-        console.log('📋 SMS webhook announcement check:', {
+        const messages = await storage.getUserMessages(user.id, 10, 0); // Get recent messages for this user
+        
+        console.log('📋 SMS webhook content check:', {
           totalAnnouncements: announcements.length,
+          totalMessages: messages.length,
           latestAnnouncementId: announcements[0]?.id,
           latestAnnouncementTitle: announcements[0]?.title,
-          allIds: announcements.slice(0,3).map(a => ({id: a.id, title: a.title}))
+          latestMessageId: messages[0]?.id,
+          latestMessageContent: messages[0]?.content?.substring(0, 50),
         });
-        if (announcements.length > 0) {
-          const latestAnnouncement = announcements[0]; // Most recent announcement
+
+        // Determine which is more recent: announcement or direct message
+        let isRespondingToMessage = false;
+        let targetMessage = null;
+        let targetAnnouncement = null;
+
+        if (messages.length > 0 && announcements.length > 0) {
+          const latestMessageTime = new Date(messages[0].sentAt).getTime();
+          const latestAnnouncementTime = new Date(announcements[0].createdAt).getTime();
+          
+          if (latestMessageTime > latestAnnouncementTime) {
+            isRespondingToMessage = true;
+            targetMessage = messages[0];
+            console.log('🎯 User likely responding to MESSAGE:', targetMessage.id, targetMessage.content?.substring(0, 50));
+          } else {
+            targetAnnouncement = announcements[0];
+            console.log('🎯 User likely responding to ANNOUNCEMENT:', targetAnnouncement.id, targetAnnouncement.title);
+          }
+        } else if (messages.length > 0) {
+          isRespondingToMessage = true;
+          targetMessage = messages[0];
+          console.log('🎯 User responding to MESSAGE (no announcements):', targetMessage.id);
+        } else if (announcements.length > 0) {
+          targetAnnouncement = announcements[0];
+          console.log('🎯 User responding to ANNOUNCEMENT (no messages):', targetAnnouncement.id);
+        }
+
+        if (targetMessage || targetAnnouncement) {
           
           if (isQuickReaction && detectedReactionType) {
-            // Handle as a proper announcement reaction
-            console.log('🎭 Processing SMS as quick reaction:', {
-              userId: user.id,
-              reactionType: detectedReactionType,
-              originalMessage: bodyTrimmed,
-              announcementId: latestAnnouncement.id
-            });
-
-            // Remove existing reaction of same type and add new one
-            await storage.removeAnnouncementReaction(latestAnnouncement.id, user.id, detectedReactionType);
-            const reaction = await storage.addAnnouncementReaction({
-              announcementId: latestAnnouncement.id,
-              userId: user.id,
-              reactionType: detectedReactionType,
-              isFromSMS: true,
-              smsMessageSid: MessageSid
-            });
-
-            console.log('✅ Created SMS announcement reaction:', {
-              reactionId: reaction.id,
-              reactionType: detectedReactionType,
-              announcementId: latestAnnouncement.id,
-              userId: user.id,
-              isFromSMS: true
-            });
-
-            // Send confirmation SMS for reaction
-            const reactionEmoji = {
-              'check': '✅',
-              'thumbs_up': '👍',
-              'x': '❌',
-              'question': '❓'
-            }[detectedReactionType] || '✅';
-
-            try {
-              await smsService.sendSMS({
-                to: From,
-                message: `${reactionEmoji} Thanks ${user.firstName}! Your reaction has been recorded for "${latestAnnouncement.title}".`,
-                priority: 'normal'
+            if (isRespondingToMessage) {
+              // Handle as message reaction
+              console.log('🎭 Processing SMS as MESSAGE reaction:', {
+                userId: user.id,
+                reactionType: detectedReactionType,
+                originalMessage: bodyTrimmed,
+                messageId: targetMessage.id
               });
-            } catch (smsError) {
-              console.error('Error sending reaction confirmation SMS:', smsError);
+
+              // Remove existing reaction and add new one
+              await storage.removeMessageReaction(targetMessage.id, user.id, detectedReactionType);
+              const reaction = await storage.addMessageReaction({
+                messageId: targetMessage.id,
+                userId: user.id,
+                reactionType: detectedReactionType,
+                isFromSMS: true,
+                smsMessageSid: MessageSid
+              });
+
+              console.log('✅ Created SMS message reaction:', {
+                reactionId: reaction.id,
+                reactionType: detectedReactionType,
+                messageId: targetMessage.id,
+                userId: user.id
+              });
+
+              // Send confirmation SMS for message reaction
+              const reactionEmoji = {
+                'check': '✅',
+                'thumbs_up': '👍',
+                'x': '❌',
+                'question': '❓'
+              }[detectedReactionType] || '✅';
+
+              try {
+                await smsService.sendSMS({
+                  to: From,
+                  message: `${reactionEmoji} Thanks ${user.firstName}! Your reaction has been recorded for the direct message.`,
+                  priority: 'normal'
+                });
+              } catch (smsError) {
+                console.error('Error sending reaction confirmation SMS:', smsError);
+              }
+            } else {
+              // Handle as announcement reaction
+              console.log('🎭 Processing SMS as ANNOUNCEMENT reaction:', {
+                userId: user.id,
+                reactionType: detectedReactionType,
+                originalMessage: bodyTrimmed,
+                announcementId: targetAnnouncement.id
+              });
+
+              // Remove existing reaction of same type and add new one
+              await storage.removeAnnouncementReaction(targetAnnouncement.id, user.id, detectedReactionType);
+              const reaction = await storage.addAnnouncementReaction({
+                announcementId: targetAnnouncement.id,
+                userId: user.id,
+                reactionType: detectedReactionType,
+                isFromSMS: true,
+                smsMessageSid: MessageSid
+              });
+
+              console.log('✅ Created SMS announcement reaction:', {
+                reactionId: reaction.id,
+                reactionType: detectedReactionType,
+                announcementId: targetAnnouncement.id,
+                userId: user.id,
+                isFromSMS: true
+              });
+
+              // Send confirmation SMS for reaction
+              const reactionEmoji = {
+                'check': '✅',
+                'thumbs_up': '👍',
+                'x': '❌',
+                'question': '❓'
+              }[detectedReactionType] || '✅';
+
+              try {
+                await smsService.sendSMS({
+                  to: From,
+                  message: `${reactionEmoji} Thanks ${user.firstName}! Your reaction has been recorded for "${targetAnnouncement.title}".`,
+                  priority: 'normal'
+                });
+              } catch (smsError) {
+                console.error('Error sending reaction confirmation SMS:', smsError);
+              }
             }
 
           } else {
-            // Handle as a text response
-            const response = await storage.createResponse({
-              authorId: user.id,
-              content: Body.trim(),
-              announcementId: latestAnnouncement.id,
-              responseType: responseType as any,
-              isFromSMS: true,
-              smsMessageSid: MessageSid
-            });
-
-            console.log('✅ Created SMS text response:', {
-              responseId: response.id,
-              announcementId: latestAnnouncement.id,
-              userId: user.id,
-              responseType
-            });
-
-            // Send confirmation SMS for text response
-            try {
-              await smsService.sendSMS({
-                to: From,
-                message: `Thanks ${user.firstName}! Your message has been received and added to "${latestAnnouncement.title}". Your team will see your response.`,
-                priority: 'normal'
+            // Handle as text response
+            if (isRespondingToMessage) {
+              // Create response to direct message
+              const response = await storage.createResponse({
+                authorId: user.id,
+                content: Body.trim(),
+                messageId: targetMessage.id,
+                responseType: responseType as any,
+                isFromSMS: true,
+                smsMessageSid: MessageSid
               });
-            } catch (smsError) {
-              console.error('Error sending confirmation SMS:', smsError);
+
+              console.log('✅ Created SMS text response to MESSAGE:', {
+                responseId: response.id,
+                messageId: targetMessage.id,
+                userId: user.id,
+                responseType
+              });
+
+              // Send confirmation SMS for message response
+              try {
+                await smsService.sendSMS({
+                  to: From,
+                  message: `Thanks ${user.firstName}! Your message has been received and added to the direct message conversation.`,
+                  priority: 'normal'
+                });
+              } catch (smsError) {
+                console.error('Error sending confirmation SMS:', smsError);
+              }
+            } else {
+              // Create response to announcement
+              const response = await storage.createResponse({
+                authorId: user.id,
+                content: Body.trim(),
+                announcementId: targetAnnouncement.id,
+                responseType: responseType as any,
+                isFromSMS: true,
+                smsMessageSid: MessageSid
+              });
+
+              console.log('✅ Created SMS text response to ANNOUNCEMENT:', {
+                responseId: response.id,
+                announcementId: targetAnnouncement.id,
+                userId: user.id,
+                responseType
+              });
+
+              // Send confirmation SMS for announcement response
+              try {
+                await smsService.sendSMS({
+                  to: From,
+                  message: `Thanks ${user.firstName}! Your message has been received and added to "${targetAnnouncement.title}". Your team will see your response.`,
+                  priority: 'normal'
+                });
+              } catch (smsError) {
+                console.error('Error sending confirmation SMS:', smsError);
+              }
             }
           }
 
         } else {
-          console.log('⚠️ No announcements found to link SMS response to');
+          console.log('⚠️ No announcements or messages found to link SMS response to');
           // Send auto-reply for no context
           try {
             await smsService.sendSMS({
               to: From,
-              message: `Thanks ${user.firstName}! Your message has been received. If you're replying to a specific announcement, please check the app for the latest updates.`,
+              message: `Thanks ${user.firstName}! Your message has been received. If you're replying to a specific message or announcement, please check the app for the latest updates.`,
               priority: 'normal'
             });
           } catch (smsError) {
