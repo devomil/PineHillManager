@@ -876,6 +876,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getApprovedTimeOffRequests(startDate?: string, endDate?: string, userId?: string): Promise<TimeOffRequest[]> {
+    console.log("getApprovedTimeOffRequests called with:", { startDate, endDate, userId });
     const conditions = [eq(timeOffRequests.status, "approved")];
     
     if (startDate && endDate) {
@@ -908,10 +909,15 @@ export class DatabaseStorage implements IStorage {
       .where(and(...conditions))
       .orderBy(timeOffRequests.startDate);
 
-    return results.map((result: any) => ({
+    console.log("Raw results from DB:", results);
+    
+    const mappedResults = results.map((result: any) => ({
       ...result.time_off_requests,
       user: result.users
     }));
+    
+    console.log("Mapped results:", mappedResults);
+    return mappedResults;
   }
 
   // Work schedules

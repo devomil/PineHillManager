@@ -102,6 +102,7 @@ export default function TimeOffManager() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/time-off-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/time-off-requests/approved"] });
       setIsReviewDialogOpen(false);
       setSelectedRequest(null);
       toast({
