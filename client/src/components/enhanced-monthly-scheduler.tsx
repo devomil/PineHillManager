@@ -74,11 +74,14 @@ export default function EnhancedMonthlyScheduler() {
   });
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [selectedSchedule, setSelectedSchedule] = useState<WorkSchedule | null>(null);
+  const [selectedEmployeeShifts, setSelectedEmployeeShifts] = useState<WorkSchedule[]>([]);
+  const [selectedEditDate, setSelectedEditDate] = useState<Date | null>(null);
   const [editForm, setEditForm] = useState({
     startTime: "",
     endTime: "",
     locationId: 1
   });
+  const [isAddingShift, setIsAddingShift] = useState(false);
   const [defaultShiftTimes, setDefaultShiftTimes] = useState({
     startTime: "09:00",
     endTime: "17:00"
@@ -297,13 +300,32 @@ export default function EnhancedMonthlyScheduler() {
   const handleDrop = (e: React.DragEvent, date: Date) => {
     e.preventDefault();
     if (draggedEmployee) {
-      createScheduleMutation.mutate({
-        userId: draggedEmployee.employee.id,
-        locationId: draggedEmployee.locationId,
-        date: format(date, "yyyy-MM-dd"),
-        startTime: draggedEmployee.startTime,
-        endTime: draggedEmployee.endTime
-      });
+      const dateStr = format(date, "yyyy-MM-dd");
+      const existingShifts = schedules.filter((s: WorkSchedule) => 
+        s.userId === draggedEmployee.employee.id && s.date === dateStr
+      );
+
+      if (existingShifts.length > 0) {
+        // Employee already has shift(s) on this day - ask if they want to add another
+        if (confirm(`${draggedEmployee.employee.firstName} ${draggedEmployee.employee.lastName} already has ${existingShifts.length} shift${existingShifts.length > 1 ? 's' : ''} on this day. Add another shift?`)) {
+          createScheduleMutation.mutate({
+            userId: draggedEmployee.employee.id,
+            locationId: draggedEmployee.locationId,
+            date: dateStr,
+            startTime: draggedEmployee.startTime,
+            endTime: draggedEmployee.endTime
+          });
+        }
+      } else {
+        // No existing shifts - create new one
+        createScheduleMutation.mutate({
+          userId: draggedEmployee.employee.id,
+          locationId: draggedEmployee.locationId,
+          date: dateStr,
+          startTime: draggedEmployee.startTime,
+          endTime: draggedEmployee.endTime
+        });
+      }
     }
     handleDragEnd();
   };
@@ -356,8 +378,16 @@ export default function EnhancedMonthlyScheduler() {
 
   const handleEditSchedule = (schedule: WorkSchedule) => {
     setSelectedSchedule(schedule);
-    const startTime = formatTime(schedule.startTime).split(' ')[0];
-    const endTime = formatTime(schedule.endTime).split(' ')[0];
+    const scheduleDate = parseISO(schedule.date);
+    setSelectedEditDate(scheduleDate);
+    
+    // Get all shifts for this employee on this day
+    const employeeShiftsThisDay = schedules.filter((s: WorkSchedule) => 
+      s.userId === schedule.userId && s.date === schedule.date
+    ).sort((a: WorkSchedule, b: WorkSchedule) => parseISO(a.startTime).getTime() - parseISO(b.startTime).getTime());
+    
+    setSelectedEmployeeShifts(employeeShiftsThisDay);
+    
     const startHour = parseISO(schedule.startTime).getHours();
     const endHour = parseISO(schedule.endTime).getHours();
     const startMinute = parseISO(schedule.startTime).getMinutes();
@@ -368,6 +398,7 @@ export default function EnhancedMonthlyScheduler() {
       endTime: `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`,
       locationId: schedule.locationId || 1
     });
+    setIsAddingShift(false);
     setIsEditDialogOpen(true);
   };
 
@@ -387,6 +418,28 @@ export default function EnhancedMonthlyScheduler() {
   const handleRemoveEmployee = () => {
     if (selectedSchedule) {
       deleteScheduleMutation.mutate(selectedSchedule.id);
+    }
+  };
+
+  const handleAddAnotherShift = () => {
+    setIsAddingShift(true);
+    setSelectedSchedule(null);
+    setEditForm({
+      startTime: "17:00",
+      endTime: "19:00",
+      locationId: 1
+    });
+  };
+
+  const handleCreateAdditionalShift = () => {
+    if (selectedEmployeeShifts.length > 0 && selectedEditDate) {
+      createScheduleMutation.mutate({
+        userId: selectedEmployeeShifts[0].userId,
+        locationId: editForm.locationId,
+        date: format(selectedEditDate, "yyyy-MM-dd"),
+        startTime: editForm.startTime,
+        endTime: editForm.endTime
+      });
     }
   };
 
@@ -580,27 +633,81 @@ export default function EnhancedMonthlyScheduler() {
                         </div>
                       ))}
 
-                      {/* Scheduled Shifts */}
-                      {dayData.schedules.map((schedule: WorkSchedule) => (
-                        <div
-                          key={schedule.id}
-                          className="text-xs p-1 bg-blue-100 border border-blue-200 rounded mb-1 cursor-pointer hover:bg-blue-200 transition-colors"
-                          onClick={() => handleEditSchedule(schedule)}
-                        >
-                          <div className="font-medium text-blue-800 flex items-center justify-between">
-                            {getEmployeeName(schedule.userId)}
-                            <Edit className="h-3 w-3" />
-                          </div>
-                          <div className="text-blue-600">
-                            {formatTime(schedule.startTime)} - {formatTime(schedule.endTime)}
-                          </div>
-                          {!selectedLocation && schedule.locationId && (
-                            <div className="text-blue-500 text-xs">
-                              {getLocationName(schedule.locationId)}
+                      {/* Scheduled Shifts - Group by employee */}
+                      {(() => {
+                        // Group schedules by employee
+                        const employeeGroups = dayData.schedules.reduce((groups: { [key: string]: WorkSchedule[] }, schedule: WorkSchedule) => {
+                          if (!groups[schedule.userId]) {
+                            groups[schedule.userId] = [];
+                          }
+                          groups[schedule.userId].push(schedule);
+                          return groups;
+                        }, {});
+
+                        return Object.entries(employeeGroups).map(([userId, employeeSchedules]) => {
+                          // Sort schedules by start time
+                          const sortedSchedules = employeeSchedules.sort((a: WorkSchedule, b: WorkSchedule) => 
+                            parseISO(a.startTime).getTime() - parseISO(b.startTime).getTime()
+                          );
+                          
+                          const hasMultipleShifts = sortedSchedules.length > 1;
+
+                          return (
+                            <div key={userId} className="mb-1">
+                              {hasMultipleShifts ? (
+                                // Multiple shifts - show as grouped block
+                                <div 
+                                  className="text-xs p-2 bg-gradient-to-r from-blue-100 to-purple-100 border border-blue-200 rounded cursor-pointer hover:from-blue-200 hover:to-purple-200 transition-colors"
+                                  onClick={() => handleEditSchedule(sortedSchedules[0])}
+                                >
+                                  <div className="font-medium text-blue-800 flex items-center justify-between">
+                                    {getEmployeeName(userId)}
+                                    <div className="flex items-center gap-1">
+                                      <Badge variant="secondary" className="text-xs px-1 py-0">
+                                        {sortedSchedules.length} shifts
+                                      </Badge>
+                                      <Edit className="h-3 w-3" />
+                                    </div>
+                                  </div>
+                                  <div className="space-y-1 mt-1">
+                                    {sortedSchedules.map((schedule, index) => (
+                                      <div key={schedule.id} className="text-blue-600 flex justify-between">
+                                        <span>
+                                          {formatTime(schedule.startTime)} - {formatTime(schedule.endTime)}
+                                        </span>
+                                        {!selectedLocation && schedule.locationId && (
+                                          <span className="text-blue-500 text-xs">
+                                            {getLocationName(schedule.locationId)}
+                                          </span>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              ) : (
+                                // Single shift - show as before
+                                <div
+                                  className="text-xs p-1 bg-blue-100 border border-blue-200 rounded cursor-pointer hover:bg-blue-200 transition-colors"
+                                  onClick={() => handleEditSchedule(sortedSchedules[0])}
+                                >
+                                  <div className="font-medium text-blue-800 flex items-center justify-between">
+                                    {getEmployeeName(userId)}
+                                    <Edit className="h-3 w-3" />
+                                  </div>
+                                  <div className="text-blue-600">
+                                    {formatTime(sortedSchedules[0].startTime)} - {formatTime(sortedSchedules[0].endTime)}
+                                  </div>
+                                  {!selectedLocation && sortedSchedules[0].locationId && (
+                                    <div className="text-blue-500 text-xs">
+                                      {getLocationName(sortedSchedules[0].locationId)}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
                             </div>
-                          )}
-                        </div>
-                      ))}
+                          );
+                        });
+                      })()}
                     </div>
                   );
                 })}
@@ -686,13 +793,46 @@ export default function EnhancedMonthlyScheduler() {
 
       {/* Edit Schedule Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Edit Shift Details</DialogTitle>
+            <DialogTitle>
+              {isAddingShift ? "Add Another Shift" : "Edit Shift Details"}
+            </DialogTitle>
             <DialogDescription>
-              Edit shift for {selectedSchedule && getEmployeeName(selectedSchedule.userId)} on {selectedSchedule && format(parseISO(selectedSchedule.date), "MMMM d, yyyy")}
+              {selectedEmployeeShifts.length > 0 && selectedEditDate && (
+                <>
+                  {isAddingShift ? "Adding new shift for" : "Managing shifts for"} {getEmployeeName(selectedEmployeeShifts[0]?.userId || "")} on {format(selectedEditDate, "MMMM d, yyyy")}
+                </>
+              )}
             </DialogDescription>
           </DialogHeader>
+          
+          {/* Show existing shifts for this employee/day */}
+          {!isAddingShift && selectedEmployeeShifts.length > 1 && (
+            <div className="mb-4">
+              <Label className="text-sm font-medium">All shifts today:</Label>
+              <div className="space-y-2 mt-2">
+                {selectedEmployeeShifts.map((shift) => (
+                  <div
+                    key={shift.id}
+                    className={`p-2 border rounded-lg text-sm ${
+                      selectedSchedule?.id === shift.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+                    }`}
+                  >
+                    <div className="flex justify-between items-center">
+                      <span className="font-medium">
+                        {formatTime(shift.startTime)} - {formatTime(shift.endTime)}
+                      </span>
+                      <span className="text-muted-foreground">
+                        {getLocationName(shift.locationId || 1)}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -728,25 +868,50 @@ export default function EnhancedMonthlyScheduler() {
               </Select>
             </div>
           </div>
-          <DialogFooter className="space-x-2">
-            <Button 
-              variant="destructive" 
-              onClick={handleRemoveEmployee}
-              disabled={deleteScheduleMutation.isPending}
-              className="mr-auto"
-            >
-              <Trash2 className="h-4 w-4 mr-2" />
-              Remove Employee
-            </Button>
-            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button 
-              onClick={handleUpdateSchedule}
-              disabled={updateScheduleMutation.isPending}
-            >
-              Update Shift
-            </Button>
+          
+          <DialogFooter className="flex justify-between">
+            <div className="flex gap-2">
+              {!isAddingShift && selectedSchedule && (
+                <Button 
+                  variant="destructive" 
+                  onClick={handleRemoveEmployee}
+                  disabled={deleteScheduleMutation.isPending}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Remove Shift
+                </Button>
+              )}
+              {!isAddingShift && selectedEmployeeShifts.length >= 1 && (
+                <Button 
+                  variant="outline"
+                  onClick={handleAddAnotherShift}
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Another Shift
+                </Button>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+                Cancel
+              </Button>
+              {isAddingShift ? (
+                <Button 
+                  onClick={handleCreateAdditionalShift}
+                  disabled={createScheduleMutation.isPending}
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Shift
+                </Button>
+              ) : (
+                <Button 
+                  onClick={handleUpdateSchedule}
+                  disabled={updateScheduleMutation.isPending}
+                >
+                  Update Shift
+                </Button>
+              )}
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
