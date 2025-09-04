@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
@@ -43,6 +44,7 @@ import {
   isSameDay 
 } from "date-fns";
 import type { WorkSchedule, User as UserType, Location, CalendarNote } from "@shared/schema";
+import ShiftSwapMarketplace from "./shift-swap-marketplace";
 
 interface DraggedEmployee {
   employee: UserType;
@@ -65,6 +67,7 @@ export default function EnhancedMonthlyScheduler() {
   const [selectedLocation, setSelectedLocation] = useState<number | null>(null);
   const [draggedEmployee, setDraggedEmployee] = useState<DraggedEmployee | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [activeTab, setActiveTab] = useState("schedule");
   const [isNoteDialogOpen, setIsNoteDialogOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [noteForm, setNoteForm] = useState({
@@ -603,7 +606,21 @@ export default function EnhancedMonthlyScheduler() {
         </div>
       </div>
 
-      {/* Employee Panel - Now horizontal at top */}
+      {/* Tabs for Schedule and Shift Swaps */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+        <TabsList className="grid w-full max-w-md grid-cols-2">
+          <TabsTrigger value="schedule" className="flex items-center gap-2">
+            <Calendar className="h-4 w-4" />
+            Schedule
+          </TabsTrigger>
+          <TabsTrigger value="shift-swaps" className="flex items-center gap-2">
+            <Users2 className="h-4 w-4" />
+            Shift Swaps
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="schedule" className="space-y-6">
+          {/* Employee Panel - Now horizontal at top */}
       <div className="mb-6">
         <Card>
           <CardHeader>
@@ -1003,6 +1020,12 @@ export default function EnhancedMonthlyScheduler() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+        </TabsContent>
+
+        <TabsContent value="shift-swaps" className="space-y-6">
+          <ShiftSwapMarketplace />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
