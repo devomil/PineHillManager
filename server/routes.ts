@@ -305,6 +305,88 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Time Off Request Routes
+  app.post('/api/time-off-requests', isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: 'User not authenticated' });
+      }
+
+      const { startDate, endDate, reason } = req.body;
+      const timeOffData = {
+        userId,
+        startDate: new Date(startDate),
+        endDate: new Date(endDate),
+        reason,
+        status: 'pending' as const,
+        requestedAt: new Date()
+      };
+
+      const request = await storage.createTimeOffRequest(timeOffData);
+      res.status(201).json(request);
+    } catch (error) {
+      console.error('Error creating time off request:', error);
+      res.status(500).json({ error: 'Failed to create time off request' });
+    }
+  });
+
+  app.get('/api/time-off-requests', isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: 'User not authenticated' });
+      }
+
+      let requests;
+      if (req.user.role === 'admin' || req.user.role === 'manager') {
+        // Admins/managers see all requests
+        requests = await storage.getPendingTimeOffRequests();
+      } else {
+        // Employees see only their own requests
+        requests = await storage.getUserTimeOffRequests(userId);
+      }
+
+      res.json(requests);
+    } catch (error) {
+      console.error('Error fetching time off requests:', error);
+      res.status(500).json({ error: 'Failed to fetch time off requests' });
+    }
+  });
+
+  app.patch('/api/time-off-requests/:id/status', isAuthenticated, async (req, res) => {
+    try {
+      if (!req.user || (req.user.role !== 'admin' && req.user.role !== 'manager')) {
+        return res.status(403).json({ error: 'Admin or Manager access required' });
+      }
+
+      const id = parseInt(req.params.id);
+      const { status, comments } = req.body;
+      const reviewedBy = req.user.id;
+
+      const updatedRequest = await storage.updateTimeOffRequestStatus(id, status, reviewedBy, comments);
+      res.json(updatedRequest);
+    } catch (error) {
+      console.error('Error updating time off request status:', error);
+      res.status(500).json({ error: 'Failed to update time off request status' });
+    }
+  });
+
+  app.get('/api/time-off-requests/approved', isAuthenticated, async (req, res) => {
+    try {
+      const { startDate, endDate, userId } = req.query;
+      const approvedRequests = await storage.getApprovedTimeOffRequests(
+        startDate as string,
+        endDate as string,
+        userId as string | undefined
+      );
+      res.json(approvedRequests);
+    } catch (error) {
+      console.error('Error fetching approved time off requests:', error);
+      res.status(500).json({ error: 'Failed to fetch approved time off requests' });
+    }
+  });
+
   // Shift Swap Marketplace Routes
   app.get('/api/shift-swaps', isAuthenticated, async (req, res) => {
     try {

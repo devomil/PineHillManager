@@ -215,6 +215,7 @@ export interface IStorage {
   getUserTimeOffRequests(userId: string): Promise<TimeOffRequest[]>;
   getPendingTimeOffRequests(): Promise<TimeOffRequest[]>;
   updateTimeOffRequestStatus(id: number, status: string, reviewedBy: string, comments?: string): Promise<TimeOffRequest>;
+  getApprovedTimeOffRequests(startDate?: string, endDate?: string, userId?: string): Promise<TimeOffRequest[]>;
 
   // Locations
   getAllLocations(): Promise<Location[]>;
@@ -872,6 +873,45 @@ export class DatabaseStorage implements IStorage {
       .where(eq(timeOffRequests.id, id))
       .returning();
     return request;
+  }
+
+  async getApprovedTimeOffRequests(startDate?: string, endDate?: string, userId?: string): Promise<TimeOffRequest[]> {
+    const conditions = [eq(timeOffRequests.status, "approved")];
+    
+    if (startDate && endDate) {
+      conditions.push(
+        or(
+          and(
+            gte(timeOffRequests.startDate, startDate),
+            lte(timeOffRequests.startDate, endDate)
+          ),
+          and(
+            gte(timeOffRequests.endDate, startDate),
+            lte(timeOffRequests.endDate, endDate)
+          ),
+          and(
+            lte(timeOffRequests.startDate, startDate),
+            gte(timeOffRequests.endDate, endDate)
+          )
+        )
+      );
+    }
+    
+    if (userId) {
+      conditions.push(eq(timeOffRequests.userId, userId));
+    }
+
+    const results = await db
+      .select()
+      .from(timeOffRequests)
+      .leftJoin(users, eq(timeOffRequests.userId, users.id))
+      .where(and(...conditions))
+      .orderBy(timeOffRequests.startDate);
+
+    return results.map((result: any) => ({
+      ...result.time_off_requests,
+      user: result.users
+    }));
   }
 
   // Work schedules

@@ -45,6 +45,7 @@ import {
 } from "date-fns";
 import type { WorkSchedule, User as UserType, Location, CalendarNote } from "@shared/schema";
 import ShiftSwapMarketplace from "./shift-swap-marketplace";
+import TimeOffManager from "./time-off-manager";
 
 interface DraggedEmployee {
   employee: UserType;
@@ -56,6 +57,7 @@ interface DraggedEmployee {
 interface ScheduleForDay {
   schedules: WorkSchedule[];
   notes: CalendarNote[];
+  timeOff: any[];
 }
 
 export default function EnhancedMonthlyScheduler() {
@@ -137,6 +139,16 @@ export default function EnhancedMonthlyScheduler() {
     queryKey: ["/api/calendar-notes", format(calendarStart, "yyyy-MM-dd"), format(calendarEnd, "yyyy-MM-dd")],
     queryFn: async () => {
       const response = await apiRequest("GET", `/api/calendar-notes?startDate=${format(calendarStart, "yyyy-MM-dd")}&endDate=${format(calendarEnd, "yyyy-MM-dd")}`);
+      return response.json();
+    },
+    enabled: !!user
+  });
+
+  // Fetch approved time off requests for calendar display
+  const { data: approvedTimeOff = [] } = useQuery({
+    queryKey: ["/api/time-off-requests/approved", format(calendarStart, "yyyy-MM-dd"), format(calendarEnd, "yyyy-MM-dd")],
+    queryFn: async () => {
+      const response = await apiRequest("GET", `/api/time-off-requests/approved?startDate=${format(calendarStart, "yyyy-MM-dd")}&endDate=${format(calendarEnd, "yyyy-MM-dd")}`);
       return response.json();
     },
     enabled: !!user
@@ -294,6 +306,14 @@ export default function EnhancedMonthlyScheduler() {
     const daySchedules = schedules.filter((schedule: WorkSchedule) => schedule.date === dateStr);
     const dayNotes = calendarNotes.filter((note: CalendarNote) => note.date === dateStr);
     
+    // Filter time off requests that overlap with this date
+    const dayTimeOff = approvedTimeOff.filter((timeOff: any) => {
+      const startDate = new Date(timeOff.startDate);
+      const endDate = new Date(timeOff.endDate);
+      const currentDate = new Date(dateStr);
+      return currentDate >= startDate && currentDate <= endDate;
+    });
+    
     // Filter by location if selected
     const filteredSchedules = selectedLocation 
       ? daySchedules.filter((s: WorkSchedule) => s.locationId === selectedLocation)
@@ -302,7 +322,7 @@ export default function EnhancedMonthlyScheduler() {
       ? dayNotes.filter((n: CalendarNote) => n.locationId === selectedLocation)
       : dayNotes;
 
-    return { schedules: filteredSchedules, notes: filteredNotes };
+    return { schedules: filteredSchedules, notes: filteredNotes, timeOff: dayTimeOff };
   };
 
   // Employee card drag handlers
@@ -608,7 +628,7 @@ export default function EnhancedMonthlyScheduler() {
 
       {/* Tabs for Schedule and Shift Swaps */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full max-w-md grid-cols-2">
+        <TabsList className="grid w-full max-w-2xl grid-cols-3">
           <TabsTrigger value="schedule" className="flex items-center gap-2">
             <Calendar className="h-4 w-4" />
             Schedule
@@ -616,6 +636,10 @@ export default function EnhancedMonthlyScheduler() {
           <TabsTrigger value="shift-swaps" className="flex items-center gap-2">
             <Users2 className="h-4 w-4" />
             Shift Swaps
+          </TabsTrigger>
+          <TabsTrigger value="time-off" className="flex items-center gap-2">
+            <Clock className="h-4 w-4" />
+            Time Off
           </TabsTrigger>
         </TabsList>
 
@@ -782,6 +806,25 @@ export default function EnhancedMonthlyScheduler() {
                           );
                         });
                       })()}
+
+                      {/* Display Time Off Requests */}
+                      {dayData.timeOff.map((timeOff: any) => (
+                        <div
+                          key={`timeoff-${timeOff.id}`}
+                          className="text-xs p-1 rounded border border-orange-200 bg-orange-50 mb-1"
+                        >
+                          <div className="font-medium text-orange-800 flex items-center gap-1">
+                            <Clock className="h-3 w-3" />
+                            {timeOff.user ? `${timeOff.user.firstName} ${timeOff.user.lastName}` : 'Time Off'}
+                          </div>
+                          <div className="text-orange-600 text-xs">
+                            Time Off
+                            {timeOff.reason && (
+                              <span className="text-orange-500 ml-1">• {timeOff.reason}</span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   );
                 })}
@@ -1024,6 +1067,10 @@ export default function EnhancedMonthlyScheduler() {
 
         <TabsContent value="shift-swaps" className="space-y-6">
           <ShiftSwapMarketplace />
+        </TabsContent>
+        
+        <TabsContent value="time-off" className="space-y-6">
+          <TimeOffManager />
         </TabsContent>
       </Tabs>
     </div>
