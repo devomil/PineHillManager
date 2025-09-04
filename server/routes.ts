@@ -2163,10 +2163,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Twilio webhook for incoming SMS replies
   app.post("/api/sms/webhook", async (req, res) => {
-    console.log('🚨 SMS WEBHOOK HIT! Raw body:', req.body);
-    console.log('🔍 SMS WEBHOOK - Headers:', JSON.stringify(req.headers, null, 2));
-    console.log('🔍 SMS WEBHOOK - Method:', req.method);
-    console.log('🔍 SMS WEBHOOK - URL:', req.url);
+    console.log('📱 SMS webhook received:', req.body);
     try {
       const { From, Body, MessageSid, To } = req.body;
       
@@ -2261,19 +2258,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const announcements = await storage.getPublishedAnnouncements();
         const messages = await storage.getUserMessages(user.id, 10, 0); // Get recent messages for this user
         
-        console.log('📋 SMS webhook content check:', {
-          totalAnnouncements: announcements.length,
-          totalMessages: messages.length,
-          latestAnnouncementId: announcements[0]?.id,
-          latestAnnouncementTitle: announcements[0]?.title,
-          latestAnnouncementTime: announcements[0]?.createdAt,
-          latestMessageId: messages[0]?.id,
-          latestMessageContent: messages[0]?.content?.substring(0, 50),
-          latestMessageTime: messages[0]?.sentAt,
-          latestMessageSender: messages[0]?.senderId,
-          latestMessageRecipient: messages[0]?.recipientId,
-          currentUserId: user.id
-        });
+        // Determine content targeting based on most recent activity
 
         // Determine which is more recent: announcement or direct message
         let isRespondingToMessage = false;
@@ -2284,27 +2269,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const latestMessageTime = new Date(messages[0].sentAt).getTime();
           const latestAnnouncementTime = new Date(announcements[0].createdAt).getTime();
           
-          console.log('🕐 TIMESTAMP COMPARISON:', {
-            messageTime: latestMessageTime,
-            announcementTime: latestAnnouncementTime,
-            messageNewer: latestMessageTime > latestAnnouncementTime,
-            timeDifference: latestMessageTime - latestAnnouncementTime
-          });
-          
-          console.log('🎯 SMS ROUTING DECISION:', {
-            messagesFound: messages.length,
-            announcementsFound: announcements.length,
-            latestMessage: messages[0] ? {id: messages[0].id, content: messages[0].content?.substring(0, 30), sentAt: messages[0].sentAt} : null,
-            latestAnnouncement: announcements[0] ? {id: announcements[0].id, title: announcements[0].title, createdAt: announcements[0].createdAt} : null
-          });
-          
           if (latestMessageTime > latestAnnouncementTime) {
             isRespondingToMessage = true;
             targetMessage = messages[0];
-            console.log('✅ ROUTING TO MESSAGE:', targetMessage.id, targetMessage.content?.substring(0, 50));
+            console.log('📨 SMS routing to message:', targetMessage.id);
           } else {
             targetAnnouncement = announcements[0];
-            console.log('❌ ROUTING TO ANNOUNCEMENT:', targetAnnouncement.id, targetAnnouncement.title);
+            console.log('📢 SMS routing to announcement:', targetAnnouncement.id);
           }
         } else if (messages.length > 0) {
           isRespondingToMessage = true;
