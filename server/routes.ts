@@ -7059,15 +7059,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Create message record in database
       console.log('💾 Creating message record in database...');
-      const messageRecord = await storage.createMessage({
-        senderId,
-        subject,
-        content,
-        priority,
-        messageType,
-        targetAudience: recipientMode === 'individual' ? 'custom' : targetAudience,
-        smsEnabled,
-      });
+      
+      // For individual direct messages, create separate message records for each recipient
+      let messageRecord;
+      if (recipientMode === 'individual' && messageType === 'direct_message' && targetUsers.length === 1) {
+        messageRecord = await storage.createMessage({
+          senderId,
+          recipientId: targetUsers[0].id, // Set recipient for direct messages
+          subject,
+          content,
+          priority,
+          messageType,
+          targetAudience: 'custom',
+          smsEnabled,
+        });
+      } else {
+        // For announcements and multi-recipient messages
+        messageRecord = await storage.createMessage({
+          senderId,
+          subject,
+          content,
+          priority,
+          messageType,
+          targetAudience: recipientMode === 'individual' ? 'custom' : targetAudience,
+          smsEnabled,
+        });
+      }
       console.log('✅ Message record created:', messageRecord.id);
 
       // Send notifications via smart notification service
