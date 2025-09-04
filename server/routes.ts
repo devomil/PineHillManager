@@ -265,10 +265,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         );
         res.json(schedules);
       } else {
-        // Get all user schedules (last 30 days by default)
-        const endDate = new Date();
+        // Get user schedules (last 30 days + next 90 days for shift swaps)
         const startDate = new Date();
-        startDate.setDate(endDate.getDate() - 30);
+        startDate.setDate(startDate.getDate() - 30); // Past 30 days
+        const endDate = new Date();
+        endDate.setDate(endDate.getDate() + 90); // Next 90 days
         
         const schedules = await storage.getUserWorkSchedules(
           userId,
