@@ -2232,6 +2232,57 @@ function AdminKPIDashboard() {
 }
 
 export default function CommunicationsPage() {
+  const { user } = useAuth();
+  const isEmployee = user?.role === 'employee';
+
+  if (isEmployee) {
+    // Employee view - clean interface without admin navigation
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100">
+        {/* Header */}
+        <div className="bg-white shadow-sm">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex justify-between items-center py-6">
+              <div className="flex items-center space-x-4">
+                <div>
+                  <h1 className="text-3xl font-bold text-gray-900 font-brand" 
+                      style={{ fontFamily: "'Great Vibes', cursive" }}>
+                    Pine Hill Farm
+                  </h1>
+                  <p className="text-sm text-gray-600">Communications</p>
+                </div>
+              </div>
+              
+              <Button 
+                variant="ghost" 
+                onClick={() => window.location.href = "/"}
+                className="text-gray-700 hover:text-gray-900"
+              >
+                ← Back to Dashboard
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        {/* Main Content */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="space-y-8">
+            <div className="mb-8">
+              <h2 className="text-3xl font-bold text-gray-900 mb-2">
+                📢 Communications Hub
+              </h2>
+              <p className="text-gray-600">
+                Stay updated with company announcements and team communications.
+              </p>
+            </div>
+            <CommunicationsContent />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Admin/Manager view - full admin layout
   return (
     <AdminLayout currentTab="communications">
       <div className="space-y-8">
