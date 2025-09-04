@@ -419,14 +419,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return location ? location.name : 'Unknown';
       };
 
-      // Generate PDF content using a simple text-based approach
-      let pdfContent = `Pine Hill Farm - Schedule for ${month}\n\n`;
-      
+      // Generate PDF content in landscape format with tabular layout
+      let pdfContent = `\n`;
+      pdfContent += `=`.repeat(120) + '\n';
+      pdfContent += ` `.repeat(40) + `PINE HILL FARM - SCHEDULE FOR ${month.toUpperCase()}\n`;
       if (locationId) {
-        pdfContent += `Location: ${getLocationName(parseInt(locationId))}\n\n`;
+        pdfContent += ` `.repeat(35) + `LOCATION: ${getLocationName(parseInt(locationId)).toUpperCase()}\n`;
       }
+      pdfContent += `=`.repeat(120) + '\n\n';
       
-      // Group schedules by date
+      // Group schedules by week for landscape layout
       const schedulesByDate = filteredSchedules.reduce((acc: any, schedule: any) => {
         const date = schedule.date;
         if (!acc[date]) acc[date] = [];
@@ -434,46 +436,101 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return acc;
       }, {} as Record<string, any[]>);
       
-      // Sort dates and generate content
-      Object.keys(schedulesByDate)
-        .sort()
-        .forEach(date => {
-          const daySchedules = schedulesByDate[date];
-          const formattedDate = new Date(date + 'T00:00:00').toLocaleDateString('en-US', {
-            weekday: 'long',
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric'
-          });
-          
-          pdfContent += `${formattedDate}\n`;
-          pdfContent += '─'.repeat(50) + '\n';
-          
-          daySchedules.forEach((schedule: any) => {
-            const startTime = new Date(schedule.startTime).toLocaleTimeString('en-US', {
-              hour: 'numeric',
-              minute: '2-digit',
-              hour12: true
-            });
-            const endTime = new Date(schedule.endTime).toLocaleTimeString('en-US', {
-              hour: 'numeric',
-              minute: '2-digit',
-              hour12: true
-            });
-            
-            pdfContent += `${getEmployeeName(schedule.userId)} - ${startTime} to ${endTime}`;
-            if (!locationId && schedule.locationId) {
-              pdfContent += ` (${getLocationName(schedule.locationId)})`;
-            }
-            pdfContent += '\n';
-          });
-          
-          pdfContent += '\n';
+      // Get all dates in the month and organize by weeks
+      const startDate = new Date(month + '-01');
+      const endDate = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0);
+      const allDates = [];
+      
+      for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+        allDates.push(new Date(d).toISOString().split('T')[0]);
+      }
+      
+      // Organize into weeks (Sunday to Saturday)
+      const weeks = [];
+      let currentWeek = [];
+      
+      allDates.forEach(dateStr => {
+        const date = new Date(dateStr + 'T00:00:00');
+        const dayOfWeek = date.getDay(); // 0 = Sunday
+        
+        if (dayOfWeek === 0 && currentWeek.length > 0) {
+          weeks.push(currentWeek);
+          currentWeek = [];
+        }
+        currentWeek.push(dateStr);
+      });
+      
+      if (currentWeek.length > 0) {
+        weeks.push(currentWeek);
+      }
+      
+      // Generate landscape calendar layout
+      const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      
+      weeks.forEach((week, weekIndex) => {
+        pdfContent += `WEEK ${weekIndex + 1}\n`;
+        pdfContent += '─'.repeat(120) + '\n';
+        
+        // Header row with day names and dates
+        let headerRow = '';
+        week.forEach((dateStr, dayIndex) => {
+          const date = new Date(dateStr + 'T00:00:00');
+          const dayName = dayNames[date.getDay()].substring(0, 3);
+          const dayNumber = date.getDate();
+          headerRow += `${dayName} ${dayNumber.toString().padStart(2, '0')}`.padEnd(17) + '|';
         });
+        pdfContent += headerRow + '\n';
+        pdfContent += '─'.repeat(120) + '\n';
+        
+        // Find max number of shifts for any day in this week
+        let maxShifts = 0;
+        week.forEach(dateStr => {
+          const daySchedules = schedulesByDate[dateStr] || [];
+          maxShifts = Math.max(maxShifts, daySchedules.length);
+        });
+        
+        // Generate rows for each shift slot
+        for (let shiftIndex = 0; shiftIndex < Math.max(maxShifts, 1); shiftIndex++) {
+          let shiftRow = '';
+          week.forEach(dateStr => {
+            const daySchedules = schedulesByDate[dateStr] || [];
+            const schedule = daySchedules[shiftIndex];
+            
+            if (schedule) {
+              const startTime = new Date(schedule.startTime).toLocaleTimeString('en-US', {
+                hour: 'numeric',
+                minute: '2-digit',
+                hour12: true
+              });
+              const endTime = new Date(schedule.endTime).toLocaleTimeString('en-US', {
+                hour: 'numeric',
+                minute: '2-digit',
+                hour12: true
+              });
+              
+              const employeeName = getEmployeeName(schedule.userId);
+              const shortName = employeeName.length > 12 ? employeeName.substring(0, 12) : employeeName;
+              const timeRange = `${startTime}-${endTime}`;
+              const cellContent = `${shortName}\n${timeRange}`;
+              
+              shiftRow += cellContent.padEnd(17) + '|';
+            } else {
+              shiftRow += ''.padEnd(17) + '|';
+            }
+          });
+          pdfContent += shiftRow + '\n';
+        }
+        
+        pdfContent += '─'.repeat(120) + '\n\n';
+      });
       
       if (Object.keys(schedulesByDate).length === 0) {
-        pdfContent += 'No schedules found for this period.\n';
+        pdfContent += `\n` + ` `.repeat(45) + `NO SCHEDULES FOUND FOR THIS PERIOD\n`;
       }
+      
+      pdfContent += '\n' + `=`.repeat(120) + '\n';
+      pdfContent += ` `.repeat(30) + `Generated on ${new Date().toLocaleDateString('en-US')} at ${new Date().toLocaleTimeString('en-US')}\n`;
+      pdfContent += `=`.repeat(120) + '\n';
 
       // Create a simple PDF using basic text layout
       // Since we don't have a proper PDF library installed, we'll create a simple text response

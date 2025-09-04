@@ -523,41 +523,42 @@ export default function EnhancedMonthlyScheduler() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        {/* Employee Panel */}
-        <div className="lg:col-span-1">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Users2 className="h-5 w-5" />
-                Active Employees
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="max-h-[600px] overflow-y-auto space-y-2">
+      {/* Employee Panel - Now horizontal at top */}
+      <div className="mb-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Users2 className="h-5 w-5" />
+              Active Employees (Drag to schedule)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="max-h-[200px] overflow-y-auto">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-2">
               {activeEmployees.map((employee: UserType) => (
                 <div
                   key={employee.id}
                   draggable
                   onDragStart={() => handleDragStart(employee)}
                   onDragEnd={handleDragEnd}
-                  className={`p-3 border rounded-lg cursor-move hover:bg-gray-50 transition-colors ${
+                  className={`p-2 border rounded-lg cursor-move hover:bg-gray-50 transition-colors text-center ${
                     isDragging ? 'opacity-50' : ''
                   }`}
                 >
-                  <div className="font-medium text-sm">
+                  <div className="font-medium text-xs">
                     {employee.firstName} {employee.lastName}
                   </div>
-                  <div className="text-xs text-muted-foreground">
-                    {employee.department} • {employee.position}
+                  <div className="text-xs text-muted-foreground truncate">
+                    {employee.department}
                   </div>
                 </div>
               ))}
-            </CardContent>
-          </Card>
-        </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
-        {/* Calendar Grid */}
-        <div className="lg:col-span-3">
+      {/* Calendar Grid - Now full width */}
+      <div className="w-full">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
@@ -575,16 +576,16 @@ export default function EnhancedMonthlyScheduler() {
             </CardHeader>
             <CardContent>
               {/* Calendar Header */}
-              <div className="grid grid-cols-7 gap-1 mb-2">
-                {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
-                  <div key={day} className="p-2 text-center font-medium text-sm bg-gray-50 rounded">
+              <div className="grid grid-cols-7 gap-2 mb-3">
+                {["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"].map((day) => (
+                  <div key={day} className="p-3 text-center font-semibold text-sm bg-gray-100 rounded-lg">
                     {day}
                   </div>
                 ))}
               </div>
 
               {/* Calendar Days */}
-              <div className="grid grid-cols-7 gap-1">
+              <div className="grid grid-cols-7 gap-2">
                 {calendarDays.map((day) => {
                   const dayData = getDataForDay(day);
                   const isCurrentMonth = isSameMonth(day, currentMonth);
@@ -596,7 +597,7 @@ export default function EnhancedMonthlyScheduler() {
                       onDragOver={handleDragOver}
                       onDrop={(e) => handleDrop(e, day)}
                       className={`
-                        min-h-[100px] p-1.5 border rounded-lg relative
+                        min-h-[140px] p-2 border rounded-lg relative
                         ${isCurrentMonth ? 'bg-white' : 'bg-gray-50'}
                         ${isCurrentDay ? 'border-blue-500 bg-blue-50' : 'border-gray-200'}
                         ${isDragging ? 'border-dashed border-green-400 bg-green-50' : ''}
@@ -713,7 +714,6 @@ export default function EnhancedMonthlyScheduler() {
               </div>
             </CardContent>
           </Card>
-        </div>
       </div>
 
       {/* Add Note Dialog */}
@@ -722,7 +722,7 @@ export default function EnhancedMonthlyScheduler() {
           <DialogHeader>
             <DialogTitle>Add Calendar Note</DialogTitle>
             <DialogDescription>
-              Add a note for {selectedDate && format(selectedDate, "MMMM d, yyyy")}
+              Add a note for {selectedDate ? format(selectedDate, "MMMM d, yyyy") : ""}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -800,7 +800,7 @@ export default function EnhancedMonthlyScheduler() {
             <DialogDescription>
               {selectedEmployeeShifts.length > 0 && selectedEditDate && (
                 <>
-                  {isAddingShift ? "Adding new shift for" : "Managing shifts for"} {getEmployeeName(selectedEmployeeShifts[0]?.userId || "")} on {format(selectedEditDate, "MMMM d, yyyy")}
+                  {isAddingShift ? "Adding new shift for" : "Managing shifts for"} {getEmployeeName(selectedEmployeeShifts[0]?.userId || "")} on {selectedEditDate ? format(selectedEditDate, "MMMM d, yyyy") : ""}
                 </>
               )}
             </DialogDescription>
