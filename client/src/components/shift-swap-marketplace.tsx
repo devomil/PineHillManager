@@ -150,6 +150,33 @@ export default function ShiftSwapMarketplace() {
     }
   });
 
+  // Approve swap request mutation (admin/manager only)
+  const approveSwapMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const response = await apiRequest("POST", `/api/shift-swaps/${id}/approve`);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/shift-swaps"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/my-schedules"] });
+      toast({
+        title: "Shift Swap Approved",
+        description: "The shift has been transferred successfully.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: "Failed to approve shift swap: " + error.message,
+        variant: "destructive",
+      });
+    }
+  });
+
+  const handleApproveSwap = (id: number) => {
+    approveSwapMutation.mutate(id);
+  };
+
   // Filter swap requests
   const filteredSwaps = swapRequests.filter((swap: SwapWithDetails) => {
     if (filter === "my-requests" && swap.requesterId !== user?.id) return false;
@@ -479,6 +506,24 @@ export default function ShiftSwapMarketplace() {
                       <ArrowRight className="h-3 w-3" />
                       <strong>Covered by:</strong> {swap.taker.firstName} {swap.taker.lastName}
                     </div>
+                  )}
+
+                  {/* Approve button for pending swaps (admin/manager only) */}
+                  {swap.status === "pending" && swap.taker && (user?.role === "admin" || user?.role === "manager") && (
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      className="flex gap-2 pt-2"
+                    >
+                      <Button
+                        size="sm"
+                        className="flex-1 bg-blue-500 hover:bg-blue-600"
+                        onClick={() => handleApproveSwap(swap.id)}
+                      >
+                        <CheckCircle className="h-4 w-4 mr-1" />
+                        Approve Swap
+                      </Button>
+                    </motion.div>
                   )}
 
                   {swap.expiresAt && (
