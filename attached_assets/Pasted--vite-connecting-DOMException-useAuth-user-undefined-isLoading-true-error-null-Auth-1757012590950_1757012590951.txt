@@ -1,0 +1,62 @@
+[vite] connecting...
+DOMException {}
+
+useAuth - user: undefined isLoading: true error: null
+Auth state: 
+Object {isAuthenticated: false, isLoading: true, user: null}
+Auth state: 
+Object {isAuthenticated: false, isLoading: true, user: null}
+User data fetched: 
+Object {id: "40154188", email: "ryan@pinehillfarm.co", firstName: "Ryan", lastName: "Sorensen", role: "admin"}
+useAuth - user: 
+Object {id: "40154188", email: "ryan@pinehillfarm.co", firstName: "Ryan", lastName: "Sorensen", role: "admin"}
+ isLoading: false error: null
+useAuth - user: 
+Object {id: "40154188", email: "ryan@pinehillfarm.co", firstName: "Ryan", lastName: "Sorensen", role: "admin"}
+ isLoading: false error: null
+Auth state: 
+Object {isAuthenticated: true, isLoading: false, user: {…}}
+Rendering: AuthenticatedApp
+Auth state: 
+Object {isAuthenticated: true, isLoading: false, user: {…}}
+Rendering: AuthenticatedApp
+Connecting to WebSocket: wss://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/ws
+WebSocket error: 
+Event {isTrusted: true}
+
+WebSocket disconnected
+WebSocket error: 
+Event {isTrusted: true}
+
+WebSocket disconnected
+WebSocket connected
+WebSocket welcomed: Welcome to Pine Hill Farm Communications
+WebSocket connected
+WebSocket welcomed: Welcome to Pine Hill Farm Communications
+Successfully subscribed to channel
+formatTargetAudience is not defined
+formatTargetAudience is not defined
+The above error occurred in the <CommunicationsContent> component:
+
+    at CommunicationsContent (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/src/pages/communications.tsx:1262:47)
+    at div
+    at div
+    at div
+    at div
+    at div
+    at AdminLayout (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/src/components/admin-layout.tsx:25:39)
+    at CommunicationsPage (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/src/pages/communications.tsx:4564:20)
+    at Route (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=7cb58779:323:16)
+    at Switch (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=7cb58779:379:17)
+    at AuthenticatedApp (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/src/App.tsx?v=AJXMpkIE9L-zGgVtb3md1:55:20)
+    at AppRouter (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/src/App.tsx?v=AJXMpkIE9L-zGgVtb3md1:279:48)
+    at Router (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=7cb58779:291:17)
+    at AuthProvider (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/src/hooks/use-auth.tsx:26:32)
+    at App
+    at QueryClientProvider (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@tanstack_react-query.js?v=7cb58779:2805:3)
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries.
+formatTargetAudience is not defined
+WebSocket is not connected. Message not sent: 
+Object {type: "unsubscribe", channel: "communications"}
