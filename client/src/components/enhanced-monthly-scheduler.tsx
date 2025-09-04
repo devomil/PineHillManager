@@ -124,11 +124,14 @@ export default function EnhancedMonthlyScheduler() {
     enabled: !!user
   });
 
-  // Fetch schedules for the month
+  // Fetch schedules for the month (filter by user for employees)
   const { data: schedules = [] } = useQuery({
-    queryKey: ["/api/work-schedules", format(calendarStart, "yyyy-MM-dd"), format(calendarEnd, "yyyy-MM-dd")],
+    queryKey: ["/api/work-schedules", format(calendarStart, "yyyy-MM-dd"), format(calendarEnd, "yyyy-MM-dd"), user?.role === 'employee' ? user.id : 'all'],
     queryFn: async () => {
-      const response = await apiRequest("GET", `/api/work-schedules?startDate=${format(calendarStart, "yyyy-MM-dd")}&endDate=${format(calendarEnd, "yyyy-MM-dd")}`);
+      const url = user?.role === 'employee' 
+        ? `/api/work-schedules?startDate=${format(calendarStart, "yyyy-MM-dd")}&endDate=${format(calendarEnd, "yyyy-MM-dd")}&userId=${user.id}`
+        : `/api/work-schedules?startDate=${format(calendarStart, "yyyy-MM-dd")}&endDate=${format(calendarEnd, "yyyy-MM-dd")}`;
+      const response = await apiRequest("GET", url);
       return response.json();
     },
     enabled: !!user
@@ -547,15 +550,23 @@ export default function EnhancedMonthlyScheduler() {
   };
 
   const activeEmployees = employees.filter((emp: UserType) => emp.isActive);
+  
+  // Check if user is employee for role-based view
+  const isEmployee = user?.role === 'employee';
 
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold">Monthly Schedule Manager</h1>
+          <h1 className="text-3xl font-bold">
+            {isEmployee ? 'My Schedule' : 'Monthly Schedule Manager'}
+          </h1>
           <p className="text-muted-foreground">
-            Drag employees onto calendar days to create shifts
+            {isEmployee 
+              ? 'View your schedule, request time off, and manage shift swaps' 
+              : 'Drag employees onto calendar days to create shifts'
+            }
           </p>
         </div>
         <div className="flex gap-2">
@@ -606,24 +617,26 @@ export default function EnhancedMonthlyScheduler() {
           </SelectContent>
         </Select>
 
-        <div className="flex gap-2">
-          <div className="flex items-center gap-2">
-            <Label className="text-sm whitespace-nowrap">Default Shift:</Label>
-            <Input
-              type="time"
-              value={defaultShiftTimes.startTime}
-              onChange={(e) => setDefaultShiftTimes({...defaultShiftTimes, startTime: e.target.value})}
-              className="w-28"
-            />
-            <span className="text-sm">-</span>
-            <Input
-              type="time"
-              value={defaultShiftTimes.endTime}
-              onChange={(e) => setDefaultShiftTimes({...defaultShiftTimes, endTime: e.target.value})}
-              className="w-28"
-            />
+        {!isEmployee && (
+          <div className="flex gap-2">
+            <div className="flex items-center gap-2">
+              <Label className="text-sm whitespace-nowrap">Default Shift:</Label>
+              <Input
+                type="time"
+                value={defaultShiftTimes.startTime}
+                onChange={(e) => setDefaultShiftTimes({...defaultShiftTimes, startTime: e.target.value})}
+                className="w-28"
+              />
+              <span className="text-sm">-</span>
+              <Input
+                type="time"
+                value={defaultShiftTimes.endTime}
+                onChange={(e) => setDefaultShiftTimes({...defaultShiftTimes, endTime: e.target.value})}
+                className="w-28"
+              />
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Tabs for Schedule and Shift Swaps */}
@@ -644,39 +657,41 @@ export default function EnhancedMonthlyScheduler() {
         </TabsList>
 
         <TabsContent value="schedule" className="space-y-6">
-          {/* Employee Panel - Now horizontal at top */}
-      <div className="mb-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Users2 className="h-5 w-5" />
-              Active Employees (Drag to schedule)
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="max-h-[200px] overflow-y-auto">
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-2">
-              {activeEmployees.map((employee: UserType) => (
-                <div
-                  key={employee.id}
-                  draggable
-                  onDragStart={() => handleDragStart(employee)}
-                  onDragEnd={handleDragEnd}
-                  className={`p-2 border rounded-lg cursor-move hover:bg-gray-50 transition-colors text-center ${
-                    isDragging ? 'opacity-50' : ''
-                  }`}
-                >
-                  <div className="font-medium text-xs">
-                    {employee.firstName} {employee.lastName}
+          {/* Employee Panel - Only show for admins/managers */}
+          {!isEmployee && (
+            <div className="mb-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Users2 className="h-5 w-5" />
+                    Active Employees (Drag to schedule)
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="max-h-[200px] overflow-y-auto">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-2">
+                    {activeEmployees.map((employee: UserType) => (
+                      <div
+                        key={employee.id}
+                        draggable
+                        onDragStart={() => handleDragStart(employee)}
+                        onDragEnd={handleDragEnd}
+                        className={`p-2 border rounded-lg cursor-move hover:bg-gray-50 transition-colors text-center ${
+                          isDragging ? 'opacity-50' : ''
+                        }`}
+                      >
+                        <div className="font-medium text-xs">
+                          {employee.firstName} {employee.lastName}
+                        </div>
+                        <div className="text-xs text-muted-foreground truncate">
+                          {employee.department}
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                  <div className="text-xs text-muted-foreground truncate">
-                    {employee.department}
-                  </div>
-                </div>
-              ))}
+                </CardContent>
+              </Card>
             </div>
-          </CardContent>
-        </Card>
-      </div>
+          )}
 
       {/* Calendar Grid - Now full width */}
       <div className="w-full">
@@ -715,14 +730,16 @@ export default function EnhancedMonthlyScheduler() {
                   return (
                     <div
                       key={day.toISOString()}
-                      onDragOver={handleDragOver}
-                      onDrop={(e) => handleDrop(e, day)}
+                      {...(!isEmployee && {
+                        onDragOver: handleDragOver,
+                        onDrop: (e: React.DragEvent) => handleDrop(e, day)
+                      })}
                       className={`
                         min-h-[140px] p-2 border rounded-lg relative
                         ${isCurrentMonth ? 'bg-white' : 'bg-gray-50'}
                         ${isCurrentDay ? 'border-blue-500 bg-blue-50' : 'border-gray-200'}
-                        ${isDragging ? 'border-dashed border-green-400 bg-green-50' : ''}
-                        hover:border-gray-300 transition-colors
+                        ${!isEmployee && isDragging ? 'border-dashed border-green-400 bg-green-50' : ''}
+                        ${!isEmployee ? 'hover:border-gray-300' : ''} transition-colors
                       `}
                     >
                       {/* Date Number */}
