@@ -2269,8 +2269,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           totalMessages: messages.length,
           latestAnnouncementId: announcements[0]?.id,
           latestAnnouncementTitle: announcements[0]?.title,
+          latestAnnouncementTime: announcements[0]?.createdAt,
           latestMessageId: messages[0]?.id,
           latestMessageContent: messages[0]?.content?.substring(0, 50),
+          latestMessageTime: messages[0]?.sentAt,
+          latestMessageSender: messages[0]?.senderId,
+          latestMessageRecipient: messages[0]?.recipientId,
+          currentUserId: user.id
         });
 
         // Determine which is more recent: announcement or direct message
@@ -2281,6 +2286,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (messages.length > 0 && announcements.length > 0) {
           const latestMessageTime = new Date(messages[0].sentAt).getTime();
           const latestAnnouncementTime = new Date(announcements[0].createdAt).getTime();
+          
+          console.log('🕐 TIMESTAMP COMPARISON:', {
+            messageTime: latestMessageTime,
+            announcementTime: latestAnnouncementTime,
+            messageNewer: latestMessageTime > latestAnnouncementTime,
+            timeDifference: latestMessageTime - latestAnnouncementTime
+          });
           
           if (latestMessageTime > latestAnnouncementTime) {
             isRespondingToMessage = true;
