@@ -29,7 +29,8 @@ The frontend utilizes React 18 with TypeScript and Vite. Radix UI provides acces
     - **Interactive Reaction System**: One-click thumbs-up, checkmark, X, and question mark reactions with immediate visual feedback and database persistence.
     - **Auto-Fetching Components**: MessageReactions component automatically loads existing reactions from API with real-time updates.
     - **SMS Quick Reactions**: Emoji/keyword detection (✅👍❌❓ + "yes", "ok", "help", etc.) with 3-word smart classification.
-    - **Response Threading**: SMS responses automatically link to announcements with professional confirmation messages.
+    - **Smart Message Threading**: SMS responses automatically route to correct conversation thread based on timestamp comparison between direct messages and announcements (September 2024).
+    - **Direct Message Threading**: Fixed SMS responses to direct messages routing correctly to message threads instead of announcements (September 2024).
     - **Dual Response System**: Separate storage for announcement reactions and text responses with proper UI display.
     - **Complete API Layer**: Full CRUD operations for both message and announcement reactions via dedicated endpoints.
     - **Real-time Integration**: WebSocket updates, message scheduling, automation rules, smart targeting with instant cache invalidation.
@@ -71,6 +72,35 @@ The system follows a clear separation of concerns between frontend and backend. 
 - `/communications` - SMS messaging and announcement system.
 - `/employees` - Staff management and permissions.
 - `/shift-scheduling` - Work schedule management.
+
+## Recent Changes (September 2024)
+
+### SMS Message Threading Fix
+**Issue Resolved**: SMS responses to direct messages were incorrectly routing to "Hello Ryan" announcement instead of proper message threads.
+
+**Root Cause**: 
+- Direct message creation had missing `recipientId` field for self-sent messages
+- `getUserMessages` function only checked `senderId`, missing received messages
+- Twilio webhook configuration pointing to production server instead of development environment
+
+**Fixes Implemented**:
+1. **Direct Message Creation Fix**: Set both `senderId` and `recipientId` to user ID for self-sent messages
+2. **Message Lookup Enhancement**: Updated `getUserMessages` to check both sent AND received messages using OR logic
+3. **Smart Routing Logic**: SMS responses now compare timestamps between latest messages and announcements to route to most recent conversation
+4. **Production Deployment**: All fixes prepared and deployed to production server at pinehillmanager.co
+
+**Current Status**: ✅ Complete
+- Announcement responses work as expected
+- Direct message responses route correctly to message threads
+- Smart timestamp-based routing operational
+- Production system updated with all fixes
+
+### System Stability
+- All existing functionality preserved during fixes
+- SMS consent system operational
+- Real-time messaging and reactions working
+- WebSocket connections stable
+- Database operations optimized
 
 ## External Dependencies
 
