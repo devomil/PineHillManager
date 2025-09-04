@@ -12,6 +12,7 @@ import Calendar from "@/pages/calendar";
 import Employees from "@/pages/employees";
 import TimeManagement from "@/pages/time-management";
 import ShiftScheduling from "@/pages/shift-scheduling";
+import ShiftSwapMarketplace from "@/pages/shift-swap-marketplace";
 import Training from "@/pages/training";
 import AdminTraining from "@/pages/admin-training";
 import Profile from "@/pages/profile";
@@ -48,6 +49,7 @@ function AuthenticatedApp() {
       <Route path="/admin/employees" component={AdminEmployeesPage} />
       <Route path="/time-management" component={TimeManagement} />
       <Route path="/shift-scheduling" component={ShiftScheduling} />
+      <Route path="/shift-swaps" component={ShiftSwapMarketplace} />
       <Route path="/communication" component={CommunicationsPage} />
       <Route path="/training" component={Training} />
       <Route path="/admin/training" component={AdminTraining} />

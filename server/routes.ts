@@ -304,6 +304,87 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Shift Swap Marketplace Routes
+  app.get('/api/shift-swaps', isAuthenticated, async (req, res) => {
+    try {
+      const { status, userId } = req.query as { status?: string; userId?: string };
+      const swapRequests = await storage.getShiftSwapRequests(status, userId);
+      res.json(swapRequests);
+    } catch (error) {
+      console.error('Error fetching shift swap requests:', error);
+      res.status(500).json({ error: 'Failed to fetch shift swap requests' });
+    }
+  });
+
+  app.post('/api/shift-swaps', isAuthenticated, async (req, res) => {
+    try {
+      const swapData = {
+        ...req.body,
+        requesterId: req.user?.id,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+      const newSwap = await storage.createShiftSwapRequest(swapData);
+      res.status(201).json(newSwap);
+    } catch (error) {
+      console.error('Error creating shift swap request:', error);
+      res.status(500).json({ error: 'Failed to create shift swap request' });
+    }
+  });
+
+  app.post('/api/shift-swaps/:id/accept', isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { responseMessage } = req.body;
+      const takerId = req.user?.id;
+      
+      if (!takerId) {
+        return res.status(401).json({ error: 'User not authenticated' });
+      }
+
+      const updatedSwap = await storage.respondToShiftSwap(id, takerId, 'accept', responseMessage);
+      res.json(updatedSwap);
+    } catch (error) {
+      console.error('Error accepting shift swap:', error);
+      res.status(500).json({ error: 'Failed to accept shift swap' });
+    }
+  });
+
+  app.post('/api/shift-swaps/:id/reject', isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { responseMessage } = req.body;
+      const takerId = req.user?.id;
+      
+      if (!takerId) {
+        return res.status(401).json({ error: 'User not authenticated' });
+      }
+
+      const updatedSwap = await storage.respondToShiftSwap(id, takerId, 'reject', responseMessage);
+      res.json(updatedSwap);
+    } catch (error) {
+      console.error('Error rejecting shift swap:', error);
+      res.status(500).json({ error: 'Failed to reject shift swap' });
+    }
+  });
+
+  app.post('/api/shift-swaps/:id/approve', isAuthenticated, async (req, res) => {
+    try {
+      if (!req.user || (req.user.role !== 'admin' && req.user.role !== 'manager')) {
+        return res.status(403).json({ error: 'Admin or Manager access required' });
+      }
+
+      const id = parseInt(req.params.id);
+      const approverId = req.user.id;
+      
+      const approvedSwap = await storage.approveShiftSwap(id, approverId);
+      res.json(approvedSwap);
+    } catch (error) {
+      console.error('Error approving shift swap:', error);
+      res.status(500).json({ error: 'Failed to approve shift swap' });
+    }
+  });
+
   // PDF Schedule Generation
   app.post('/api/schedules/generate-pdf', isAuthenticated, async (req, res) => {
     try {

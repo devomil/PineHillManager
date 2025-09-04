@@ -3,6 +3,7 @@ import {
   timeOffRequests,
   workSchedules,
   calendarNotes,
+  shiftSwapRequests,
   shiftCoverageRequests,
   announcements,
   trainingModules,
@@ -60,6 +61,8 @@ import {
   type WorkSchedule,
   type CalendarNote,
   type InsertCalendarNote,
+  type ShiftSwapRequest,
+  type InsertShiftSwapRequest,
   type InsertShiftCoverageRequest,
   type ShiftCoverageRequest,
   type InsertAnnouncement,
@@ -938,6 +941,107 @@ export class DatabaseStorage implements IStorage {
       await db.update(calendarNotes).set({ isActive: false }).where(eq(calendarNotes.id, id));
     } catch (error) {
       console.error("Error deleting calendar note:", error);
+      throw error;
+    }
+  }
+
+  // Shift swap marketplace operations
+  async getShiftSwapRequests(status?: string, userId?: string): Promise<ShiftSwapRequest[]> {
+    try {
+      const conditions = [eq(shiftSwapRequests.isActive, true)];
+      
+      if (status) {
+        conditions.push(eq(shiftSwapRequests.status, status));
+      }
+      
+      if (userId) {
+        conditions.push(
+          or(
+            eq(shiftSwapRequests.requesterId, userId),
+            eq(shiftSwapRequests.takerId, userId)
+          )
+        );
+      }
+      
+      return await db
+        .select()
+        .from(shiftSwapRequests)
+        .leftJoin(workSchedules, eq(shiftSwapRequests.originalScheduleId, workSchedules.id))
+        .leftJoin(locations, eq(workSchedules.locationId, locations.id))
+        .leftJoin(users, eq(shiftSwapRequests.requesterId, users.id))
+        .where(and(...conditions))
+        .orderBy(desc(shiftSwapRequests.createdAt));
+    } catch (error) {
+      console.error("Error fetching shift swap requests:", error);
+      throw error;
+    }
+  }
+
+  async createShiftSwapRequest(requestData: InsertShiftSwapRequest): Promise<ShiftSwapRequest> {
+    try {
+      const [request] = await db.insert(shiftSwapRequests).values(requestData).returning();
+      return request;
+    } catch (error) {
+      console.error("Error creating shift swap request:", error);
+      throw error;
+    }
+  }
+
+  async updateShiftSwapRequest(id: number, updates: Partial<InsertShiftSwapRequest>): Promise<ShiftSwapRequest> {
+    try {
+      const [request] = await db
+        .update(shiftSwapRequests)
+        .set({ ...updates, updatedAt: new Date() })
+        .where(eq(shiftSwapRequests.id, id))
+        .returning();
+      return request;
+    } catch (error) {
+      console.error("Error updating shift swap request:", error);
+      throw error;
+    }
+  }
+
+  async respondToShiftSwap(id: number, takerId: string, action: "accept" | "reject", responseMessage?: string): Promise<ShiftSwapRequest> {
+    try {
+      const updates: Partial<InsertShiftSwapRequest> = {
+        responseMessage,
+        updatedAt: new Date()
+      };
+
+      if (action === "accept") {
+        updates.takerId = takerId;
+        updates.status = "pending"; // Requires manager approval
+      } else {
+        updates.status = "open"; // Keep open for others
+      }
+
+      const [request] = await db
+        .update(shiftSwapRequests)
+        .set(updates)
+        .where(eq(shiftSwapRequests.id, id))
+        .returning();
+      return request;
+    } catch (error) {
+      console.error("Error responding to shift swap request:", error);
+      throw error;
+    }
+  }
+
+  async approveShiftSwap(id: number, approverId: string): Promise<ShiftSwapRequest> {
+    try {
+      const [request] = await db
+        .update(shiftSwapRequests)
+        .set({ 
+          status: "approved", 
+          approvedBy: approverId,
+          approvedAt: new Date(),
+          updatedAt: new Date()
+        })
+        .where(eq(shiftSwapRequests.id, id))
+        .returning();
+      return request;
+    } catch (error) {
+      console.error("Error approving shift swap request:", error);
       throw error;
     }
   }

@@ -205,6 +205,34 @@ export const calendarNotes = pgTable("calendar_notes", {
   activeIdx: index("idx_calendar_notes_active").on(table.isActive),
 }));
 
+// Shift Swap Marketplace
+export const shiftSwapRequests = pgTable("shift_swap_requests", {
+  id: serial("id").primaryKey(),
+  originalScheduleId: integer("original_schedule_id").references(() => workSchedules.id).notNull(),
+  requesterId: varchar("requester_id").references(() => users.id).notNull(),
+  takerId: varchar("taker_id").references(() => users.id),
+  status: varchar("status").default("open"), // open, pending, approved, rejected, completed, cancelled
+  reason: text("reason"),
+  offerMessage: text("offer_message"),
+  responseMessage: text("response_message"),
+  urgencyLevel: varchar("urgency_level").default("normal"), // low, normal, high, urgent
+  incentive: text("incentive"), // e.g., "Will cover your next weekend shift", monetary compensation, etc.
+  approvedBy: varchar("approved_by").references(() => users.id),
+  approvedAt: timestamp("approved_at"),
+  completedAt: timestamp("completed_at"),
+  expiresAt: timestamp("expires_at"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  requesterIdx: index("idx_shift_swap_requester").on(table.requesterId),
+  takerIdx: index("idx_shift_swap_taker").on(table.takerId),
+  statusIdx: index("idx_shift_swap_status").on(table.status),
+  scheduleIdx: index("idx_shift_swap_schedule").on(table.originalScheduleId),
+  urgencyIdx: index("idx_shift_swap_urgency").on(table.urgencyLevel),
+  activeIdx: index("idx_shift_swap_active").on(table.isActive),
+}));
+
 // Shift coverage requests
 export const shiftCoverageRequests = pgTable("shift_coverage_requests", {
   id: serial("id").primaryKey(),
@@ -1128,6 +1156,9 @@ export type InsertWorkSchedule = z.infer<typeof insertWorkScheduleSchema>;
 export type WorkSchedule = typeof workSchedules.$inferSelect;
 export type CalendarNote = typeof calendarNotes.$inferSelect;
 export type InsertCalendarNote = typeof calendarNotes.$inferInsert;
+
+export type ShiftSwapRequest = typeof shiftSwapRequests.$inferSelect;
+export type InsertShiftSwapRequest = typeof shiftSwapRequests.$inferInsert;
 export type InsertShiftCoverageRequest = z.infer<typeof insertShiftCoverageRequestSchema>;
 export type ShiftCoverageRequest = typeof shiftCoverageRequests.$inferSelect;
 export type InsertAnnouncement = z.infer<typeof insertAnnouncementSchema>;
