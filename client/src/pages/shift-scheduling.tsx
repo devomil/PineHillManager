@@ -1,10 +1,10 @@
 import AdminLayout from "@/components/admin-layout";
-import EnhancedShiftScheduling from "@/components/enhanced-shift-scheduling";
+import EnhancedMonthlyScheduler from "@/components/enhanced-monthly-scheduler";
 
 export default function ShiftScheduling() {
   return (
     <AdminLayout currentTab="scheduling">
-      <EnhancedShiftScheduling />
+      <EnhancedMonthlyScheduler />
     </AdminLayout>
   );
 }

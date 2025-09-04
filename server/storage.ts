@@ -2,6 +2,7 @@ import {
   users,
   timeOffRequests,
   workSchedules,
+  calendarNotes,
   shiftCoverageRequests,
   announcements,
   trainingModules,
@@ -57,6 +58,8 @@ import {
   type TimeOffRequest,
   type InsertWorkSchedule,
   type WorkSchedule,
+  type CalendarNote,
+  type InsertCalendarNote,
   type InsertShiftCoverageRequest,
   type ShiftCoverageRequest,
   type InsertAnnouncement,
@@ -875,6 +878,68 @@ export class DatabaseStorage implements IStorage {
       .values(schedule)
       .returning();
     return workSchedule;
+  }
+
+  // Calendar note operations
+  async getCalendarNotes(startDate?: string, endDate?: string, locationId?: number): Promise<CalendarNote[]> {
+    try {
+      let query = db.select().from(calendarNotes).where(eq(calendarNotes.isActive, true));
+      
+      const conditions = [eq(calendarNotes.isActive, true)];
+      
+      if (startDate && endDate) {
+        conditions.push(
+          gte(calendarNotes.date, startDate),
+          lte(calendarNotes.date, endDate)
+        );
+      }
+      
+      if (locationId) {
+        conditions.push(eq(calendarNotes.locationId, locationId));
+      }
+      
+      return await db
+        .select()
+        .from(calendarNotes)
+        .where(and(...conditions))
+        .orderBy(asc(calendarNotes.date));
+    } catch (error) {
+      console.error("Error fetching calendar notes:", error);
+      throw error;
+    }
+  }
+
+  async createCalendarNote(noteData: InsertCalendarNote): Promise<CalendarNote> {
+    try {
+      const [note] = await db.insert(calendarNotes).values(noteData).returning();
+      return note;
+    } catch (error) {
+      console.error("Error creating calendar note:", error);
+      throw error;
+    }
+  }
+
+  async updateCalendarNote(id: number, updates: Partial<InsertCalendarNote>): Promise<CalendarNote> {
+    try {
+      const [note] = await db
+        .update(calendarNotes)
+        .set({ ...updates, updatedAt: new Date() })
+        .where(eq(calendarNotes.id, id))
+        .returning();
+      return note;
+    } catch (error) {
+      console.error("Error updating calendar note:", error);
+      throw error;
+    }
+  }
+
+  async deleteCalendarNote(id: number): Promise<void> {
+    try {
+      await db.update(calendarNotes).set({ isActive: false }).where(eq(calendarNotes.id, id));
+    } catch (error) {
+      console.error("Error deleting calendar note:", error);
+      throw error;
+    }
   }
 
   async getUserWorkSchedules(userId: string, startDate?: string, endDate?: string): Promise<WorkSchedule[]> {

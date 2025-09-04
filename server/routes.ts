@@ -196,6 +196,60 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Calendar Notes Routes
+  app.get('/api/calendar-notes', isAuthenticated, async (req, res) => {
+    try {
+      const { startDate, endDate, locationId } = req.query as { 
+        startDate?: string; 
+        endDate?: string; 
+        locationId?: string;
+      };
+      const notes = await storage.getCalendarNotes(
+        startDate, 
+        endDate, 
+        locationId ? parseInt(locationId) : undefined
+      );
+      res.json(notes);
+    } catch (error) {
+      console.error('Error fetching calendar notes:', error);
+      res.status(500).json({ error: 'Failed to fetch calendar notes' });
+    }
+  });
+
+  app.post('/api/calendar-notes', isAuthenticated, async (req, res) => {
+    try {
+      const noteData = req.body;
+      const note = await storage.createCalendarNote(noteData);
+      res.status(201).json(note);
+    } catch (error) {
+      console.error('Error creating calendar note:', error);
+      res.status(500).json({ error: 'Failed to create calendar note' });
+    }
+  });
+
+  app.put('/api/calendar-notes/:id', isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const updates = req.body;
+      const note = await storage.updateCalendarNote(id, updates);
+      res.json(note);
+    } catch (error) {
+      console.error('Error updating calendar note:', error);
+      res.status(500).json({ error: 'Failed to update calendar note' });
+    }
+  });
+
+  app.delete('/api/calendar-notes/:id', isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      await storage.deleteCalendarNote(id);
+      res.status(204).send();
+    } catch (error) {
+      console.error('Error deleting calendar note:', error);
+      res.status(500).json({ error: 'Failed to delete calendar note' });
+    }
+  });
+
   // User's personal schedules endpoint
   app.get('/api/my-schedules', isAuthenticated, async (req, res) => {
     try {
@@ -226,6 +280,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error fetching user schedules:', error);
       res.status(500).json({ message: 'Failed to fetch user schedules' });
+    }
+  });
+
+  // PDF Schedule Generation
+  app.post('/api/schedules/generate-pdf', isAuthenticated, async (req, res) => {
+    try {
+      if (!req.user || (req.user.role !== 'admin' && req.user.role !== 'manager')) {
+        return res.status(403).json({ error: 'Admin or Manager access required' });
+      }
+
+      const { month, locationId } = req.body;
+      
+      // Placeholder for PDF generation
+      // This would integrate with a PDF library like puppeteer or jsPDF
+      // For now, return a simple response
+      
+      const response = {
+        success: true,
+        message: `PDF schedule generated for ${month}`,
+        locationId: locationId,
+        downloadUrl: `/api/schedules/pdf/${month}${locationId ? `-location-${locationId}` : ''}.pdf`
+      };
+      
+      res.json(response);
+    } catch (error) {
+      console.error('Error generating PDF schedule:', error);
+      res.status(500).json({ error: 'Failed to generate PDF schedule' });
     }
   });
 

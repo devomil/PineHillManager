@@ -187,6 +187,24 @@ export const workSchedules = pgTable("work_schedules", {
   statusIdx: index("idx_work_schedules_status").on(table.status),
 }));
 
+// Calendar notes for day-level annotations (staff meetings, open shifts, etc.)
+export const calendarNotes = pgTable("calendar_notes", {
+  id: serial("id").primaryKey(),
+  date: date("date").notNull(),
+  locationId: integer("location_id").references(() => locations.id),
+  title: varchar("title").notNull(),
+  content: text("content"),
+  noteType: varchar("note_type").default("general"), // general, meeting, open_shifts, closure, event
+  isActive: boolean("is_active").default(true),
+  createdBy: varchar("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  dateLocationIdx: index("idx_calendar_notes_date_location").on(table.date, table.locationId),
+  noteTypeIdx: index("idx_calendar_notes_type").on(table.noteType),
+  activeIdx: index("idx_calendar_notes_active").on(table.isActive),
+}));
+
 // Shift coverage requests
 export const shiftCoverageRequests = pgTable("shift_coverage_requests", {
   id: serial("id").primaryKey(),
@@ -1108,6 +1126,8 @@ export type InsertTimeOffRequest = z.infer<typeof insertTimeOffRequestSchema>;
 export type TimeOffRequest = typeof timeOffRequests.$inferSelect;
 export type InsertWorkSchedule = z.infer<typeof insertWorkScheduleSchema>;
 export type WorkSchedule = typeof workSchedules.$inferSelect;
+export type CalendarNote = typeof calendarNotes.$inferSelect;
+export type InsertCalendarNote = typeof calendarNotes.$inferInsert;
 export type InsertShiftCoverageRequest = z.infer<typeof insertShiftCoverageRequestSchema>;
 export type ShiftCoverageRequest = typeof shiftCoverageRequests.$inferSelect;
 export type InsertAnnouncement = z.infer<typeof insertAnnouncementSchema>;
