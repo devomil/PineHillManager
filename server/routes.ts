@@ -2288,13 +2288,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
             timeDifference: latestMessageTime - latestAnnouncementTime
           });
           
+          console.log('🎯 SMS ROUTING DECISION:', {
+            messagesFound: messages.length,
+            announcementsFound: announcements.length,
+            latestMessage: messages[0] ? {id: messages[0].id, content: messages[0].content?.substring(0, 30), sentAt: messages[0].sentAt} : null,
+            latestAnnouncement: announcements[0] ? {id: announcements[0].id, title: announcements[0].title, createdAt: announcements[0].createdAt} : null
+          });
+          
           if (latestMessageTime > latestAnnouncementTime) {
             isRespondingToMessage = true;
             targetMessage = messages[0];
-            console.log('🎯 User likely responding to MESSAGE:', targetMessage.id, targetMessage.content?.substring(0, 50));
+            console.log('✅ ROUTING TO MESSAGE:', targetMessage.id, targetMessage.content?.substring(0, 50));
           } else {
             targetAnnouncement = announcements[0];
-            console.log('🎯 User likely responding to ANNOUNCEMENT:', targetAnnouncement.id, targetAnnouncement.title);
+            console.log('❌ ROUTING TO ANNOUNCEMENT:', targetAnnouncement.id, targetAnnouncement.title);
           }
         } else if (messages.length > 0) {
           isRespondingToMessage = true;
