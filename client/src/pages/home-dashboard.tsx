@@ -23,27 +23,11 @@ export default function HomeDashboard() {
     },
     {
       title: "My Schedule", 
-      description: "View your upcoming shifts and manage your work schedule",
+      description: "View shifts, request time off, and manage shift swaps - all in one place",
       icon: Calendar,
       href: "/schedule",
       color: "bg-blue-50 border-blue-200",
       iconColor: "text-blue-600"
-    },
-    {
-      title: "Time Off Requests",
-      description: "Request vacation days, sick leave, and personal time",
-      icon: FileText,
-      href: "/time-off",
-      color: "bg-purple-50 border-purple-200", 
-      iconColor: "text-purple-600"
-    },
-    {
-      title: "Shift Coverage",
-      description: "Find coverage for your shifts or cover for colleagues",
-      icon: Users,
-      href: "/shift-coverage",
-      color: "bg-orange-50 border-orange-200",
-      iconColor: "text-orange-600"
     },
     {
       title: "Communications",
@@ -89,9 +73,6 @@ export default function HomeDashboard() {
               </Link>
               <Link href="/schedule">
                 <Button variant="ghost">Schedule</Button>
-              </Link>
-              <Link href="/time-off">
-                <Button variant="ghost">Time Off</Button>
               </Link>
               <Link href="/announcements">
                 <Button variant="ghost">Announcements</Button>
@@ -177,8 +158,6 @@ export default function HomeDashboard() {
                     <Button className={`w-full ${action.iconColor.replace('text-', 'bg-').replace('600', '600')} hover:${action.iconColor.replace('text-', 'bg-').replace('600', '700')} text-white`}>
                       {action.title === "Time Clock" ? "Clock In/Out" :
                        action.title === "My Schedule" ? "View Schedule" :
-                       action.title === "Time Off Requests" ? "Request Time Off" :
-                       action.title === "Shift Coverage" ? "Manage Coverage" :
                        action.title === "Communications" ? "View Communications" :
                        "Open"}
                     </Button>
@@ -205,7 +184,7 @@ export default function HomeDashboard() {
                 </div>
                 <h4 className="font-semibold text-gray-900 mb-2">Time Management</h4>
                 <p className="text-sm text-gray-600">
-                  Request time off, view your schedule, and manage shift coverage with ease.
+                  Manage your schedule with integrated time off requests and shift swaps.
                 </p>
               </div>
               <div className="text-center">
