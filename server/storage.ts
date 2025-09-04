@@ -1062,6 +1062,30 @@ export class DatabaseStorage implements IStorage {
 
   async approveShiftSwap(id: number, approverId: string): Promise<ShiftSwapRequest> {
     try {
+      // First, get the shift swap request details
+      const [swapRequest] = await db
+        .select()
+        .from(shiftSwapRequests)
+        .where(eq(shiftSwapRequests.id, id));
+
+      if (!swapRequest) {
+        throw new Error("Shift swap request not found");
+      }
+
+      if (!swapRequest.takerId) {
+        throw new Error("No taker assigned for this shift swap request");
+      }
+
+      // Transfer the schedule ownership from requester to taker
+      await db
+        .update(workSchedules)
+        .set({ 
+          userId: swapRequest.takerId,
+          updatedAt: new Date()
+        })
+        .where(eq(workSchedules.id, swapRequest.originalScheduleId));
+
+      // Update the shift swap request status to approved
       const [request] = await db
         .update(shiftSwapRequests)
         .set({ 
@@ -1072,6 +1096,7 @@ export class DatabaseStorage implements IStorage {
         })
         .where(eq(shiftSwapRequests.id, id))
         .returning();
+      
       return request;
     } catch (error) {
       console.error("Error approving shift swap request:", error);
