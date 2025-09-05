@@ -568,10 +568,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       };
 
-      // Create professional PDF using PDFKit with proper formatting
+      // Create single-page landscape PDF to fit entire calendar
       const doc = new PDFDocument({ 
         layout: 'landscape',
-        margin: 40,
+        margin: 15, // Minimal margins for maximum space
         size: 'LETTER'
       });
       
@@ -642,13 +642,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         weeks.push(currentWeek);
       }
 
-      // Clean calendar grid layout matching the UI exactly
+      // SINGLE-PAGE calendar layout - landscape with compact dimensions
       const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-      const startY = 150; 
-      const margins = 40;
-      const columnWidth = (doc.page.width - (margins * 2)) / 7;
-      const headerHeight = 25;
-      const cellHeight = 85; // Adequate space for multiple shifts
+      const startY = 80; // Start higher for more room
+      const sideMargin = 15;
+      const columnWidth = (doc.page.width - (sideMargin * 2)) / 7; // ~107px per column in landscape
+      const headerHeight = 20; // Compact header
+      const cellHeight = 55; // Much smaller cells to fit 6 rows on one page
       
       // Employee colors matching the UI
       const employeeColors: { [key: string]: string } = {
@@ -663,48 +663,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Clean calendar grid matching UI layout
       weeks.forEach((week, weekIndex) => {
-        // Day headers - clean white background with day names
+        // Compact day headers to save space
         week.forEach((dateStr, dayIndex) => {
           const date = new Date(dateStr + 'T00:00:00');
           const dayName = dayNames[date.getDay()];
           const dayNumber = date.getDate();
-          const x = margins + (dayIndex * columnWidth);
+          const x = sideMargin + (dayIndex * columnWidth);
           
-          // Clean header cell with border
+          // Compact header cell
           doc.rect(x, currentY, columnWidth, headerHeight)
              .fill('white')
              .stroke('#CCCCCC');
           
-          // Day name and number - readable formatting
-          doc.fontSize(10)
+          // Smaller fonts to save space
+          doc.fontSize(7)
              .font('Helvetica-Bold')
              .fillColor('#333333')
-             .text(dayName, x + 5, currentY + 3, { width: columnWidth - 10, align: 'left' });
+             .text(dayName, x + 3, currentY + 2, { width: columnWidth - 6, align: 'left' });
           
-          doc.fontSize(14)
+          doc.fontSize(9)
              .font('Helvetica-Bold')
              .fillColor('#333333')
-             .text(dayNumber.toString(), x + 5, currentY + 14, { width: columnWidth - 10, align: 'left' });
+             .text(dayNumber.toString(), x + 3, currentY + 11, { width: columnWidth - 6, align: 'left' });
         });
 
         currentY += headerHeight;
 
-        // Calendar cells with shifts - matching UI appearance exactly
+        // Compact calendar cells to fit everything on one page
         week.forEach((dateStr, dayIndex) => {
           const daySchedules = schedulesByDate[dateStr] || [];
-          const x = margins + (dayIndex * columnWidth);
+          const x = sideMargin + (dayIndex * columnWidth);
           
           // Cell background and border
           doc.rect(x, currentY, columnWidth, cellHeight)
              .fill('white')
              .stroke('#CCCCCC');
           
-          // Stack shifts in cell like the UI
-          let shiftY = currentY + 5;
+          // Compact shift stacking
+          let shiftY = currentY + 2;
           daySchedules.forEach((schedule, shiftIndex) => {
-            if (shiftY + 18 > currentY + cellHeight - 5) return; // Don't overflow
+            if (shiftY + 12 > currentY + cellHeight - 2) return; // Tight fit
             
-            // Convert to 12-hour format like UI
+            // 12-hour format like UI
             const startTime = new Date(schedule.startTime).toLocaleString('en-US', {
               hour: 'numeric',
               minute: '2-digit',
@@ -723,29 +723,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const timeRange = `${startTime}-${endTime}`;
             const locationName = getLocationAbbreviation(schedule.locationId || 1);
             
-            // Colored background for each person (like UI)
+            // Colored background (matching UI colors)
             const backgroundColor = employeeColors[employeeName] || '#F0F0F0';
-            doc.rect(x + 2, shiftY, columnWidth - 4, 16)
+            doc.rect(x + 1, shiftY, columnWidth - 2, 11)
                .fill(backgroundColor)
                .stroke('#CCCCCC');
             
-            // Employee name
-            doc.fontSize(8)
+            // Very compact text
+            doc.fontSize(6)
                .font('Helvetica-Bold')
                .fillColor('#333333')
-               .text(employeeName, x + 4, shiftY + 2, { width: columnWidth - 8, align: 'left' });
+               .text(employeeName, x + 2, shiftY + 1, { width: columnWidth - 4, align: 'left' });
             
-            // Time and location
-            doc.fontSize(7)
+            doc.fontSize(5)
                .font('Helvetica')
                .fillColor('#666666')
-               .text(`${timeRange} • ${locationName}`, x + 4, shiftY + 10, { width: columnWidth - 8, align: 'left' });
+               .text(`${timeRange} • ${locationName}`, x + 2, shiftY + 7, { width: columnWidth - 4, align: 'left' });
             
-            shiftY += 18; // Space between shifts
+            shiftY += 12; // Tight spacing
           });
         });
 
-        currentY += cellHeight + 2; // Small gap between weeks
+        currentY += cellHeight + 1; // Minimal gap between weeks
       });
 
       // No schedules message
