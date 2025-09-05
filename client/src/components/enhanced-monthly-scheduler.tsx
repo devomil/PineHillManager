@@ -333,9 +333,13 @@ export default function EnhancedMonthlyScheduler() {
   const isEmployee = user?.role === 'employee';
   
   // SMS Status Query
-  const { data: smsStatus } = useQuery({
+  const { data: smsStatus, refetch: refetchSMSStatus } = useQuery({
     queryKey: ['/api/sms/status'],
-    enabled: !isEmployee // Only admins/managers need SMS controls
+    enabled: !isEmployee, // Only admins/managers need SMS controls
+    refetchInterval: 5000, // Refetch every 5 seconds to stay current
+    onSuccess: (data) => {
+      console.log('SMS Status Data:', data);
+    }
   });
 
   // SMS Control Mutations
@@ -345,6 +349,7 @@ export default function EnhancedMonthlyScheduler() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/sms/status'] });
+      refetchSMSStatus(); // Force immediate refetch
       toast({
         title: "SMS Paused",
         description: "SMS notifications are now paused for bulk schedule entry",
@@ -365,6 +370,7 @@ export default function EnhancedMonthlyScheduler() {
     },
     onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ['/api/sms/status'] });
+      refetchSMSStatus(); // Force immediate refetch
       setShowSMSSummaryOption(false);
       toast({
         title: "SMS Resumed",
@@ -381,7 +387,7 @@ export default function EnhancedMonthlyScheduler() {
   });
 
   const handleSMSToggle = () => {
-    if ((smsStatus as any)?.paused) {
+    if ((smsStatus as any)?.status?.paused) {
       setShowSMSSummaryOption(true);
     } else {
       pauseSMSMutation.mutate();
@@ -729,13 +735,13 @@ export default function EnhancedMonthlyScheduler() {
                 SMS:
               </Label>
               <Button
-                variant={(smsStatus as any)?.paused ? "secondary" : "outline"}
+                variant={(smsStatus as any)?.status?.paused ? "secondary" : "outline"}
                 size="sm"
                 onClick={handleSMSToggle}
                 disabled={pauseSMSMutation.isPending || resumeSMSMutation.isPending}
                 className="h-8"
               >
-                {(smsStatus as any)?.paused ? (
+                {(smsStatus as any)?.status?.paused ? (
                   <>
                     <Play className="h-3 w-3 mr-1" />
                     Resume
@@ -747,7 +753,7 @@ export default function EnhancedMonthlyScheduler() {
                   </>
                 )}
               </Button>
-              {(smsStatus as any)?.paused && (
+              {(smsStatus as any)?.status?.paused && (
                 <Badge variant="secondary" className="text-xs">
                   Paused
                 </Badge>
