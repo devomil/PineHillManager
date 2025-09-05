@@ -3,7 +3,7 @@ import { SMSService } from './sms-service';
 
 export interface NotificationContext {
   userId: string;
-  messageType: 'schedule_change' | 'emergency' | 'announcement' | 'reminder';
+  messageType: 'schedule_change' | 'emergency' | 'announcement' | 'reminder' | 'time_off' | 'shift_swap';
   priority: 'emergency' | 'high' | 'normal' | 'low';
   content: {
     title: string;
@@ -24,9 +24,124 @@ export interface UserWorkStatus {
 
 export class SmartNotificationService {
   private smsService: SMSService;
+  private smsNotificationsPaused: boolean = false;
+  private pausedBy: string | null = null;
+  private pausedAt: Date | null = null;
+  private queuedScheduleNotifications: Array<{
+    userId: string;
+    scheduleData: any;
+    timestamp: Date;
+  }> = [];
 
   constructor() {
     this.smsService = new SMSService();
+  }
+
+  /**
+   * Pause SMS notifications for bulk schedule entry (admin/manager only)
+   */
+  pauseSMSNotifications(adminUserId: string): { success: boolean; message: string } {
+    if (this.smsNotificationsPaused) {
+      return {
+        success: false,
+        message: `SMS notifications already paused by ${this.pausedBy} at ${this.pausedAt?.toLocaleString()}`
+      };
+    }
+
+    this.smsNotificationsPaused = true;
+    this.pausedBy = adminUserId;
+    this.pausedAt = new Date();
+    this.queuedScheduleNotifications = []; // Reset queue
+
+    console.log(`📵 SMS notifications PAUSED by ${adminUserId} at ${this.pausedAt.toLocaleString()}`);
+    
+    return {
+      success: true,
+      message: `SMS notifications paused for bulk schedule entry. Notifications will be queued until resumed.`
+    };
+  }
+
+  /**
+   * Resume SMS notifications and optionally send summary
+   */
+  async resumeSMSNotifications(
+    adminUserId: string,
+    sendSummary: boolean = true
+  ): Promise<{ success: boolean; message: string; summary?: any }> {
+    if (!this.smsNotificationsPaused) {
+      return {
+        success: false,
+        message: 'SMS notifications are not currently paused'
+      };
+    }
+
+    const pausedDuration = this.pausedAt ? Date.now() - this.pausedAt.getTime() : 0;
+    const queuedCount = this.queuedScheduleNotifications.length;
+    
+    // Resume notifications
+    this.smsNotificationsPaused = false;
+    this.pausedBy = null;
+    this.pausedAt = null;
+
+    console.log(`📱 SMS notifications RESUMED by ${adminUserId}. Queued: ${queuedCount} notifications`);
+
+    let summary = null;
+    
+    if (sendSummary && queuedCount > 0) {
+      // Group notifications by user
+      const userNotifications = new Map<string, any[]>();
+      
+      this.queuedScheduleNotifications.forEach(notification => {
+        if (!userNotifications.has(notification.userId)) {
+          userNotifications.set(notification.userId, []);
+        }
+        userNotifications.get(notification.userId)!.push(notification.scheduleData);
+      });
+
+      // Send summary notifications
+      let sentSummaries = 0;
+      for (const [userId, schedules] of Array.from(userNotifications.entries())) {
+        try {
+          await this.sendScheduleSummaryNotification(userId, schedules);
+          sentSummaries++;
+        } catch (error) {
+          console.error(`Failed to send summary to user ${userId}:`, error);
+        }
+      }
+
+      summary = {
+        totalUsers: userNotifications.size,
+        totalSchedules: queuedCount,
+        sentSummaries,
+        pausedDuration: Math.round(pausedDuration / 1000 / 60) // minutes
+      };
+    }
+
+    // Clear the queue
+    this.queuedScheduleNotifications = [];
+
+    return {
+      success: true,
+      message: `SMS notifications resumed. ${sendSummary ? `Summary sent to ${summary?.sentSummaries} employees.` : 'No summary sent.'}`,
+      summary
+    };
+  }
+
+  /**
+   * Get current SMS pause status
+   */
+  getSMSPauseStatus(): {
+    isPaused: boolean;
+    pausedBy?: string;
+    pausedAt?: Date;
+    queuedNotifications: number;
+  } {
+    return {
+      isPaused: this.smsNotificationsPaused,
+      pausedBy: this.pausedBy || undefined,
+      pausedAt: this.pausedAt || undefined,
+      queuedNotifications: this.queuedScheduleNotifications.length
+    };
   }
 
   /**
@@ -38,6 +153,30 @@ export class SmartNotificationService {
     reason: string;
   }> {
     try {
+      // Check if SMS notifications are paused (except for emergency messages)
+      if (this.smsNotificationsPaused && context.priority !== 'emergency' && !context.bypassClockStatus) {
+        // Queue schedule notifications for later summary
+        if (context.messageType === 'schedule_change') {
+          this.queuedScheduleNotifications.push({
+            userId: context.userId,
+            scheduleData: context.content.metadata,
+            timestamp: new Date()
+          });
+          
+          return {
+            appNotification: true,
+            smsNotification: false,
+            reason: `SMS notifications paused - schedule notification queued for summary`
+          };
+        }
+        
+        // For non-schedule notifications during pause, still send app notification
+        return {
+          appNotification: true,
+          smsNotification: false,
+          reason: `SMS notifications paused by ${this.pausedBy}`
+        };
+      }
       console.log(`Smart notification routing for user ${context.userId}:`, {
         messageType: context.messageType,
         priority: context.priority,
@@ -305,8 +444,8 @@ export class SmartNotificationService {
         return;
       }
 
-      // Format change details
-      const changeDetails = this.formatScheduleChanges(changes);
+      // Format change details with proper async handling
+      const changeDetails = await this.formatScheduleChanges(changes);
       
       const notificationContext: NotificationContext = {
         userId: schedule.userId,
@@ -333,19 +472,28 @@ export class SmartNotificationService {
   }
 
   /**
-   * Format schedule changes for human-readable display
+   * Format schedule changes for human-readable display with proper time formatting and location names
    */
-  private formatScheduleChanges(changes: any): string {
+  private async formatScheduleChanges(changes: any): Promise<string> {
     const changeMessages: string[] = [];
 
     if (changes.startTime) {
-      changeMessages.push(`Start time: ${changes.startTime}`);
+      const formattedTime = this.formatTimeForSMS(changes.startTime);
+      changeMessages.push(`Start time: ${formattedTime}`);
     }
     if (changes.endTime) {
-      changeMessages.push(`End time: ${changes.endTime}`);
+      const formattedTime = this.formatTimeForSMS(changes.endTime);
+      changeMessages.push(`End time: ${formattedTime}`);
     }
     if (changes.locationId) {
-      changeMessages.push(`Location changed`);
+      try {
+        const location = await storage.getLocationById(changes.locationId);
+        const locationName = location?.name || 'Unknown Location';
+        changeMessages.push(`Location: ${locationName}`);
+      } catch (error) {
+        console.error('Error fetching location for SMS:', error);
+        changeMessages.push('Location changed');
+      }
     }
     if (changes.shiftType) {
       changeMessages.push(`Shift type: ${changes.shiftType}`);
@@ -355,6 +503,41 @@ export class SmartNotificationService {
     }
 
     return changeMessages.length > 0 ? changeMessages.join(', ') : 'Details updated';
+  }
+
+  /**
+   * Format time for SMS display (convert ISO to readable AM/PM format)
+   */
+  private formatTimeForSMS(timeString: string): string {
+    try {
+      // Handle various time format inputs
+      let dateObj: Date;
+      
+      if (timeString.includes('T')) {
+        // ISO format: 2025-09-06T10:00:00
+        dateObj = new Date(timeString);
+      } else if (timeString.includes(':')) {
+        // Time only format: 10:00:00 or 10:00
+        const today = new Date();
+        const [hours, minutes] = timeString.split(':').map(Number);
+        dateObj = new Date(today.getFullYear(), today.getMonth(), today.getDate(), hours, minutes);
+      } else {
+        // Fallback to original string
+        return timeString;
+      }
+
+      // Format to readable AM/PM time
+      return dateObj.toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+        timeZone: 'America/Chicago' // CST timezone for Pine Hill Farm
+      });
+      
+    } catch (error) {
+      console.error('Error formatting time for SMS:', error);
+      return timeString; // Return original if formatting fails
+    }
   }
 
   /**
@@ -414,6 +597,188 @@ export class SmartNotificationService {
 
     console.log(`📊 Bulk notification results:`, results);
     return results;
+  }
+
+  /**
+   * Send a summary notification to a user about their schedule updates
+   */
+  private async sendScheduleSummaryNotification(userId: string, schedules: any[]): Promise<void> {
+    try {
+      const user = await storage.getUser(userId);
+      if (!user) {
+        console.error(`User not found for summary notification: ${userId}`);
+        return;
+      }
+
+      // Group schedules by date for better summary
+      const schedulesByDate = schedules.reduce((acc, schedule) => {
+        const date = schedule.date || 'Unknown Date';
+        if (!acc[date]) acc[date] = [];
+        acc[date].push(schedule);
+        return acc;
+      }, {} as Record<string, any[]>);
+
+      const totalSchedules = schedules.length;
+      const totalDates = Object.keys(schedulesByDate).length;
+
+      const summaryContext: NotificationContext = {
+        userId,
+        messageType: 'schedule_change',
+        priority: 'high',
+        content: {
+          title: 'Schedule Ready',
+          message: `Your schedule has been updated with ${totalSchedules} shift${totalSchedules > 1 ? 's' : ''} across ${totalDates} day${totalDates > 1 ? 's' : ''}. Check your app for complete details.`,
+          metadata: {
+            summaryType: 'bulk_schedule_update',
+            totalSchedules,
+            totalDates,
+            schedulesByDate
+          }
+        },
+        forceSMS: true // Force SMS for summary notifications
+      };
+
+      await this.sendSmartNotification(summaryContext);
+
+    } catch (error) {
+      console.error(`Failed to send schedule summary to user ${userId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Handle time off request status changes
+   */
+  async handleTimeOffStatusChange(
+    timeOffRequestId: number, 
+    requestUserId: string,
+    newStatus: 'approved' | 'rejected' | 'cancelled',
+    reviewedBy: string,
+    comments?: string
+  ): Promise<void> {
+    try {
+      const user = await storage.getUser(requestUserId);
+      const reviewer = await storage.getUser(reviewedBy);
+      
+      if (!user) {
+        console.error(`User not found for time-off notification: ${requestUserId}`);
+        return;
+      }
+
+      const reviewerName = reviewer ? `${reviewer.firstName} ${reviewer.lastName}` : 'Manager';
+      let title: string;
+      let message: string;
+      
+      switch (newStatus) {
+        case 'approved':
+          title = 'Time Off Approved';
+          message = `Your time off request has been approved by ${reviewerName}.${comments ? ` Note: ${comments}` : ''}`;
+          break;
+        case 'rejected':
+          title = 'Time Off Request Denied';
+          message = `Your time off request has been denied by ${reviewerName}.${comments ? ` Reason: ${comments}` : ''}`;
+          break;
+        case 'cancelled':
+          title = 'Time Off Request Cancelled';
+          message = `Your time off request has been cancelled.${comments ? ` Reason: ${comments}` : ''}`;
+          break;
+        default:
+          return; // Unknown status, don't send notification
+      }
+
+      const notificationContext: NotificationContext = {
+        userId: requestUserId,
+        messageType: 'time_off',
+        priority: 'high',
+        content: {
+          title,
+          message,
+          metadata: {
+            timeOffRequestId,
+            status: newStatus,
+            reviewedBy,
+            reviewerName,
+            comments
+          }
+        },
+        forceSMS: true // Always send SMS for time off decisions
+      };
+
+      await this.sendSmartNotification(notificationContext);
+
+    } catch (error) {
+      console.error('Error handling time off status change notification:', error);
+    }
+  }
+
+  /**
+   * Handle shift swap request decisions
+   */
+  async handleShiftSwapDecision(
+    swapRequestId: number,
+    requestUserId: string,
+    targetUserId: string,
+    decision: 'approved' | 'declined',
+    decidedBy: string,
+    comments?: string
+  ): Promise<void> {
+    try {
+      const requester = await storage.getUser(requestUserId);
+      const target = await storage.getUser(targetUserId);
+      const decisionMaker = await storage.getUser(decidedBy);
+      
+      if (!requester || !target) {
+        console.error(`Users not found for shift swap notification: ${requestUserId}, ${targetUserId}`);
+        return;
+      }
+
+      const decisionMakerName = decisionMaker ? `${decisionMaker.firstName} ${decisionMaker.lastName}` : 'Manager';
+      
+      // Notify both parties involved in the shift swap
+      const notifications = [
+        {
+          userId: requestUserId,
+          title: decision === 'approved' ? 'Shift Swap Approved' : 'Shift Swap Declined',
+          message: decision === 'approved' 
+            ? `Your shift swap request with ${target.firstName} ${target.lastName} has been approved by ${decisionMakerName}.${comments ? ` Note: ${comments}` : ''}`
+            : `Your shift swap request with ${target.firstName} ${target.lastName} has been declined by ${decisionMakerName}.${comments ? ` Reason: ${comments}` : ''}`
+        },
+        {
+          userId: targetUserId,
+          title: decision === 'approved' ? 'Shift Swap Approved' : 'Shift Swap Declined',
+          message: decision === 'approved'
+            ? `The shift swap request from ${requester.firstName} ${requester.lastName} has been approved by ${decisionMakerName}.${comments ? ` Note: ${comments}` : ''}`
+            : `The shift swap request from ${requester.firstName} ${requester.lastName} has been declined by ${decisionMakerName}.${comments ? ` Reason: ${comments}` : ''}`
+        }
+      ];
+
+      // Send notifications to both users
+      for (const notif of notifications) {
+        const notificationContext: NotificationContext = {
+          userId: notif.userId,
+          messageType: 'shift_swap',
+          priority: 'high',
+          content: {
+            title: notif.title,
+            message: notif.message,
+            metadata: {
+              swapRequestId,
+              decision,
+              decidedBy,
+              decisionMakerName,
+              comments,
+              otherParty: notif.userId === requestUserId ? targetUserId : requestUserId
+            }
+          },
+          forceSMS: true // Always send SMS for shift swap decisions
+        };
+
+        await this.sendSmartNotification(notificationContext);
+      }
+
+    } catch (error) {
+      console.error('Error handling shift swap decision notification:', error);
+    }
   }
 }
 

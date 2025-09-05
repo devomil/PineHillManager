@@ -366,6 +366,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const reviewedBy = req.user.id;
 
       const updatedRequest = await storage.updateTimeOffRequestStatus(id, status, reviewedBy, comments);
+      
+      // Send SMS notification for time off status change
+      if (updatedRequest && (status === 'approved' || status === 'rejected')) {
+        try {
+          await smartNotificationService.handleTimeOffStatusChange(
+            id,
+            updatedRequest.userId,
+            status,
+            reviewedBy,
+            comments
+          );
+        } catch (notifError) {
+          console.error('Failed to send time off notification:', notifError);
+          // Don't fail the request if notification fails
+        }
+      }
+      
       res.json(updatedRequest);
     } catch (error) {
       console.error('Error updating time off request status:', error);
@@ -472,6 +489,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const updatedSwap = await storage.respondToShiftSwap(id, takerId, 'accept', responseMessage);
+      
+      // Send SMS notification to requester about acceptance
+      if (updatedSwap && updatedSwap.requesterId) {
+        try {
+          await smartNotificationService.handleShiftSwapDecision(
+            id,
+            updatedSwap.requesterId,
+            takerId,
+            'approved', // Employee accepted, but still needs manager approval
+            takerId,
+            `${req.user?.firstName || 'Employee'} accepted your shift swap request. Pending manager approval.`
+          );
+        } catch (notifError) {
+          console.error('Failed to send shift swap acceptance notification:', notifError);
+        }
+      }
+      
       res.json(updatedSwap);
     } catch (error) {
       console.error('Error accepting shift swap:', error);
@@ -490,6 +524,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const updatedSwap = await storage.respondToShiftSwap(id, takerId, 'reject', responseMessage);
+      
+      // Send SMS notification to requester about rejection
+      if (updatedSwap && updatedSwap.requesterId) {
+        try {
+          await smartNotificationService.handleShiftSwapDecision(
+            id,
+            updatedSwap.requesterId,
+            takerId,
+            'declined',
+            takerId,
+            responseMessage || `${req.user?.firstName || 'Employee'} declined your shift swap request.`
+          );
+        } catch (notifError) {
+          console.error('Failed to send shift swap rejection notification:', notifError);
+        }
+      }
+      
       res.json(updatedSwap);
     } catch (error) {
       console.error('Error rejecting shift swap:', error);
@@ -507,6 +558,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const approverId = req.user.id;
       
       const approvedSwap = await storage.approveShiftSwap(id, approverId);
+      
+      // Send SMS notification to both parties about final approval
+      if (approvedSwap && approvedSwap.requesterId && approvedSwap.takerId) {
+        try {
+          await smartNotificationService.handleShiftSwapDecision(
+            id,
+            approvedSwap.requesterId,
+            approvedSwap.takerId,
+            'approved',
+            approverId,
+            'Shift swap has been approved by management and is now active.'
+          );
+        } catch (notifError) {
+          console.error('Failed to send shift swap approval notification:', notifError);
+        }
+      }
+      
       res.json(approvedSwap);
     } catch (error) {
       console.error('Error approving shift swap:', error);
@@ -7850,6 +7918,90 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error fetching automation rules:', error);
       res.status(500).json({ error: 'Failed to fetch automation rules' });
+    }
+  });
+
+  // SMS Notification Control routes for bulk schedule entry
+  app.post('/api/sms/pause', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user as any;
+      
+      // Only admins and managers can pause SMS notifications
+      if (!user || !['admin', 'manager'].includes(user.role)) {
+        return res.status(403).json({ 
+          success: false, 
+          error: 'Insufficient permissions. Only admins and managers can pause SMS notifications.' 
+        });
+      }
+
+      const result = smartNotificationService.pauseSMSNotifications(user.id);
+      
+      if (result.success) {
+        res.json(result);
+      } else {
+        res.status(400).json(result);
+      }
+
+    } catch (error) {
+      console.error('Error pausing SMS notifications:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: 'Failed to pause SMS notifications' 
+      });
+    }
+  });
+
+  app.post('/api/sms/resume', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user as any;
+      
+      // Only admins and managers can resume SMS notifications
+      if (!user || !['admin', 'manager'].includes(user.role)) {
+        return res.status(403).json({ 
+          success: false, 
+          error: 'Insufficient permissions. Only admins and managers can resume SMS notifications.' 
+        });
+      }
+
+      const { sendSummary = true } = req.body;
+      const result = await smartNotificationService.resumeSMSNotifications(user.id, sendSummary);
+      
+      if (result.success) {
+        res.json(result);
+      } else {
+        res.status(400).json(result);
+      }
+
+    } catch (error) {
+      console.error('Error resuming SMS notifications:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: 'Failed to resume SMS notifications' 
+      });
+    }
+  });
+
+  app.get('/api/sms/status', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user as any;
+      
+      // Only admins and managers can check SMS notification status
+      if (!user || !['admin', 'manager'].includes(user.role)) {
+        return res.status(403).json({ 
+          success: false, 
+          error: 'Insufficient permissions.' 
+        });
+      }
+
+      const status = smartNotificationService.getSMSPauseStatus();
+      res.json({ success: true, status });
+
+    } catch (error) {
+      console.error('Error getting SMS notification status:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: 'Failed to get SMS notification status' 
+      });
     }
   });
 
