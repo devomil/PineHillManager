@@ -34,14 +34,30 @@ export function formatDateTimeToCST(date: string | Date): string {
  */
 export function formatTimeStringToCST(timeString: string): string {
   try {
+    // Validate input
+    if (!timeString || typeof timeString !== 'string') {
+      return timeString || '';
+    }
+
+    // Check if timeString matches the expected HH:mm format
+    if (!/^\d{1,2}:\d{2}$/.test(timeString)) {
+      return timeString;
+    }
+
     // Create a date object with today's date and the specified time
     const today = new Date();
     const [hours, minutes] = timeString.split(':').map(Number);
+    
+    // Validate hours and minutes
+    if (isNaN(hours) || isNaN(minutes) || hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+      return timeString;
+    }
+
     const date = new Date(today.getFullYear(), today.getMonth(), today.getDate(), hours, minutes);
     return formatInTimeZone(date, CST_TIMEZONE, 'h:mm a');
   } catch (error) {
-    console.error('Error formatting time string to CST:', error);
-    return timeString;
+    // Silently return original string to avoid console spam
+    return timeString || '';
   }
 }
 
