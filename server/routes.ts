@@ -662,8 +662,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // SINGLE-PAGE CONSTRAINT: Calculate exact dimensions to fit everything on one page
       const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-      const startY = 120; // Professional header space
-      const footerSpace = 60; // Reserve space for footer
+      const startY = 110; // Reduced header space to give more cell room
+      const footerSpace = 45; // Reduced footer space for more calendar area
       const sideMargin = 20;
       const columnWidth = (doc.page.width - (sideMargin * 2)) / 7; // ~105px per column
       const headerHeight = 22; // Compact but readable header
