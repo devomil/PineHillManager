@@ -1483,12 +1483,16 @@ function CommunicationsContent() {
                         </p>
                         
                         {/* Message Reactions */}
-                        <MessageReactions 
-                          announcementId={Number(announcement.id)} 
-                        />
+                        {typeof announcement.id === 'number' && announcement.id > 0 && (
+                          <MessageReactions 
+                            announcementId={announcement.id} 
+                          />
+                        )}
                         
                         {/* Announcement Responses */}
-                        <AnnouncementResponses announcementId={Number(announcement.id)} />
+                        {typeof announcement.id === 'number' && announcement.id > 0 && (
+                          <AnnouncementResponses announcementId={announcement.id} />
+                        )}
                         
                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between pt-3 md:pt-4 border-t border-gray-200 gap-2">
                           <div className="flex flex-col sm:flex-row sm:items-center text-xs sm:text-sm text-gray-500 gap-2 sm:gap-4">
