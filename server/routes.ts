@@ -14,6 +14,7 @@ import path from 'path';
 import fs from 'fs';
 import express from 'express';
 import twilio from 'twilio';
+import PDFDocument from 'pdfkit';
 // Phase 6: Advanced Features Schema Imports
 import {
   insertScheduledMessageSchema,
@@ -682,7 +683,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       pdfContent += `=`.repeat(120) + '\n';
 
       // Create actual PDF using PDFKit
-      const PDFDocument = require('pdfkit');
       const doc = new PDFDocument({ 
         layout: 'landscape',
         margin: 50 
