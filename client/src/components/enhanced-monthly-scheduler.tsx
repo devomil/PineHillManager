@@ -287,18 +287,37 @@ export default function EnhancedMonthlyScheduler() {
         month: format(currentMonth, "yyyy-MM"),
         locationId: selectedLocation
       });
+      
+      if (!response.ok) {
+        throw new Error('Failed to generate PDF');
+      }
+      
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
       a.download = `schedule-${format(currentMonth, "yyyy-MM")}.pdf`;
+      a.style.display = 'none';
+      
+      document.body.appendChild(a);
       a.click();
-      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      // Clean up the URL after a short delay
+      setTimeout(() => window.URL.revokeObjectURL(url), 100);
     },
     onSuccess: () => {
       toast({
         title: "PDF Generated",
         description: "Schedule PDF has been downloaded.",
+      });
+    },
+    onError: (error: any) => {
+      console.error("PDF generation failed:", error);
+      toast({
+        title: "Download Failed",
+        description: "Failed to generate PDF. Please try again.",
+        variant: "destructive",
       });
     }
   });
