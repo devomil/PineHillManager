@@ -339,12 +339,23 @@ export default function EnhancedMonthlyScheduler() {
     enabled: !isEmployee && !!user, // Only admins/managers need SMS controls and user must be loaded
     refetchInterval: 3000, // Refetch every 3 seconds to stay current
     retry: 3, // Retry failed requests
+    staleTime: 0, // Always consider data stale
+    cacheTime: 0, // Don't cache results
     onSuccess: (data) => {
       console.log('SMS Status Data:', data);
     },
     onError: (error) => {
       console.error('SMS Status Error:', error);
     }
+  });
+
+  // Debug logging
+  console.log('SMS Query Debug:', {
+    isEmployee,
+    user: !!user,
+    enabled: !isEmployee && !!user,
+    smsStatus,
+    smsStatusLoading
   });
 
   // SMS Control Mutations
