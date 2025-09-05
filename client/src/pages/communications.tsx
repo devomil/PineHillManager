@@ -729,7 +729,7 @@ function CommunicationsContent() {
     priority: 'normal' as 'low' | 'normal' | 'high' | 'urgent',
     targetAudience: 'all',
     targetEmployees: [] as string[],
-    smsEnabled: false,
+    smsEnabled: true,
     scheduledFor: ''
   });
   
@@ -864,7 +864,7 @@ function CommunicationsContent() {
         priority: 'normal',
         targetAudience: 'all',
         targetEmployees: [],
-        smsEnabled: false,
+        smsEnabled: true,
         scheduledFor: ''
       });
     },
@@ -892,7 +892,7 @@ function CommunicationsContent() {
         priority: 'normal',
         targetAudience: 'all',
         targetEmployees: [],
-        smsEnabled: false,
+        smsEnabled: true,
         scheduledFor: ''
       });
       queryClient.invalidateQueries({ queryKey: ["/api/scheduled-messages"] });
