@@ -341,7 +341,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let requests;
       if (req.user.role === 'admin' || req.user.role === 'manager') {
         // Admins/managers see all requests
-        requests = await storage.getPendingTimeOffRequests();
+        requests = await storage.getAllTimeOffRequests();
       } else {
         // Employees see only their own requests
         requests = await storage.getUserTimeOffRequests(userId);
