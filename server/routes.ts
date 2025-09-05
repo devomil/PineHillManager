@@ -372,6 +372,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Request cancellation of approved time off
+  app.patch('/api/time-off-requests/:id/request-cancellation', isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user?.id;
+      const id = parseInt(req.params.id);
+      const { reason } = req.body;
+
+      if (!userId) {
+        return res.status(401).json({ error: 'User not authenticated' });
+      }
+
+      // Get the existing request to verify ownership and status
+      const existingRequest = await storage.getTimeOffRequestById(id);
+      if (!existingRequest) {
+        return res.status(404).json({ error: 'Time off request not found' });
+      }
+
+      if (existingRequest.userId !== userId) {
+        return res.status(403).json({ error: 'Can only request cancellation of your own requests' });
+      }
+
+      if (existingRequest.status !== 'approved') {
+        return res.status(400).json({ error: 'Can only request cancellation of approved time off' });
+      }
+
+      // Update status to cancellation_requested and add reason to comments
+      const cancellationComment = reason 
+        ? `Cancellation requested: ${reason}` 
+        : 'Cancellation requested';
+      
+      const updatedRequest = await storage.updateTimeOffRequestStatus(
+        id, 
+        'cancellation_requested', 
+        userId, 
+        cancellationComment
+      );
+      
+      res.json(updatedRequest);
+    } catch (error) {
+      console.error('Error requesting time off cancellation:', error);
+      res.status(500).json({ error: 'Failed to request time off cancellation' });
+    }
+  });
+
   app.get('/api/time-off-requests/approved', isAuthenticated, async (req, res) => {
     try {
       const { startDate, endDate, userId } = req.query;

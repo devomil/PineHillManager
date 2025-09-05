@@ -143,7 +143,7 @@ export const timeOffRequests = pgTable("time_off_requests", {
   startDate: date("start_date").notNull(),
   endDate: date("end_date").notNull(),
   reason: text("reason"),
-  status: varchar("status").notNull().default("pending"), // pending, approved, rejected
+  status: varchar("status").notNull().default("pending"), // pending, approved, rejected, cancellation_requested, cancelled
   requestedAt: timestamp("requested_at").defaultNow(),
   reviewedAt: timestamp("reviewed_at"),
   reviewedBy: varchar("reviewed_by").references(() => users.id),

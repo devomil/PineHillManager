@@ -21,7 +21,7 @@ interface TimeOffRequest {
   startDate: string;
   endDate: string;
   reason?: string;
-  status: "pending" | "approved" | "rejected";
+  status: "pending" | "approved" | "rejected" | "cancellation_requested" | "cancelled";
   requestedAt: string;
   reviewedAt?: string;
   reviewedBy?: string;
@@ -36,7 +36,9 @@ interface TimeOffRequest {
 const statusStyles = {
   pending: "bg-yellow-100 text-yellow-800 border-yellow-200",
   approved: "bg-green-100 text-green-800 border-green-200",
-  rejected: "bg-red-100 text-red-800 border-red-200"
+  rejected: "bg-red-100 text-red-800 border-red-200",
+  cancellation_requested: "bg-orange-100 text-orange-800 border-orange-200",
+  cancelled: "bg-gray-100 text-gray-800 border-gray-200"
 };
 
 export default function TimeOffManager() {
@@ -46,6 +48,7 @@ export default function TimeOffManager() {
 
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isReviewDialogOpen, setIsReviewDialogOpen] = useState(false);
+  const [isCancellationDialogOpen, setIsCancellationDialogOpen] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<TimeOffRequest | null>(null);
   const [filter, setFilter] = useState("all");
 
@@ -58,6 +61,10 @@ export default function TimeOffManager() {
   const [reviewForm, setReviewForm] = useState({
     status: "",
     comments: ""
+  });
+
+  const [cancellationForm, setCancellationForm] = useState({
+    reason: ""
   });
 
   // Fetch time off requests
@@ -119,6 +126,32 @@ export default function TimeOffManager() {
     }
   });
 
+  // Request cancellation mutation
+  const requestCancellationMutation = useMutation({
+    mutationFn: async ({ id, reason }: { id: number; reason?: string }) => {
+      const response = await apiRequest("PATCH", `/api/time-off-requests/${id}/request-cancellation`, { reason });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/time-off-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/time-off-requests/approved"] });
+      setIsCancellationDialogOpen(false);
+      setSelectedRequest(null);
+      setCancellationForm({ reason: "" });
+      toast({
+        title: "Cancellation Requested",
+        description: "Your cancellation request has been sent for manager review.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: "Failed to request cancellation: " + error.message,
+        variant: "destructive",
+      });
+    }
+  });
+
   const handleCreateRequest = () => {
     if (!createForm.startDate || !createForm.endDate) {
       toast({
@@ -144,7 +177,7 @@ export default function TimeOffManager() {
     createRequestMutation.mutate(createForm);
   };
 
-  const handleReviewRequest = (action: "approved" | "rejected") => {
+  const handleReviewRequest = (action: "approved" | "rejected" | "cancelled") => {
     if (!selectedRequest) return;
     
     setReviewForm({ status: action, comments: reviewForm.comments });
@@ -152,6 +185,15 @@ export default function TimeOffManager() {
       id: selectedRequest.id,
       status: action,
       comments: reviewForm.comments
+    });
+  };
+
+  const handleRequestCancellation = () => {
+    if (!selectedRequest) return;
+    
+    requestCancellationMutation.mutate({
+      id: selectedRequest.id,
+      reason: cancellationForm.reason
     });
   };
 
@@ -187,6 +229,8 @@ export default function TimeOffManager() {
       if (filter === "pending") return request.status === "pending";
       if (filter === "approved") return request.status === "approved";
       if (filter === "rejected") return request.status === "rejected";
+      if (filter === "cancellation_requested") return request.status === "cancellation_requested";
+      if (filter === "cancelled") return request.status === "cancelled";
       return true; // "all"
     } else {
       // Employees see only their own requests
@@ -293,6 +337,8 @@ export default function TimeOffManager() {
                 <SelectItem value="pending">Pending Review</SelectItem>
                 <SelectItem value="approved">Approved</SelectItem>
                 <SelectItem value="rejected">Rejected</SelectItem>
+                <SelectItem value="cancellation_requested">Cancellation Requested</SelectItem>
+                <SelectItem value="cancelled">Cancelled</SelectItem>
               </>
             )}
           </SelectContent>
@@ -406,6 +452,64 @@ export default function TimeOffManager() {
                       </Button>
                     </motion.div>
                   )}
+
+                  {/* Approve/Reject cancellation requests for managers/admins */}
+                  {canReviewRequests && request.status === "cancellation_requested" && (
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      className="flex gap-2 pt-4 mt-4 border-t"
+                    >
+                      <Button
+                        size="sm"
+                        className="flex-1 bg-green-500 hover:bg-green-600"
+                        onClick={() => {
+                          setSelectedRequest(request);
+                          setReviewForm({ status: "cancelled", comments: "" });
+                          setIsReviewDialogOpen(true);
+                        }}
+                      >
+                        <CheckCircle className="h-4 w-4 mr-1" />
+                        Approve Cancellation
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="flex-1 border-blue-200 text-blue-600 hover:bg-blue-50"
+                        onClick={() => {
+                          setSelectedRequest(request);
+                          setReviewForm({ status: "approved", comments: "" });
+                          setIsReviewDialogOpen(true);
+                        }}
+                      >
+                        <XCircle className="h-4 w-4 mr-1" />
+                        Keep Approved
+                      </Button>
+                    </motion.div>
+                  )}
+
+                  {/* Request cancellation button for employees */}
+                  {!canReviewRequests && request.userId === user?.id && request.status === "approved" && (
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      className="flex gap-2 pt-4 mt-4 border-t"
+                    >
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="flex-1 border-orange-200 text-orange-600 hover:bg-orange-50"
+                        onClick={() => {
+                          setSelectedRequest(request);
+                          setCancellationForm({ reason: "" });
+                          setIsCancellationDialogOpen(true);
+                        }}
+                      >
+                        <XCircle className="h-4 w-4 mr-1" />
+                        Request Cancellation
+                      </Button>
+                    </motion.div>
+                  )}
                 </CardContent>
               </Card>
             </motion.div>
@@ -475,6 +579,55 @@ export default function TimeOffManager() {
             >
               {reviewRequestMutation.isPending ? "Processing..." : 
                (reviewForm.status === "approved" ? "Approve Request" : "Reject Request")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Cancellation Request Dialog */}
+      <Dialog open={isCancellationDialogOpen} onOpenChange={setIsCancellationDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Request Time Off Cancellation</DialogTitle>
+            <DialogDescription>
+              {selectedRequest && (
+                <div className="space-y-2 pt-2">
+                  <div><strong>Dates:</strong> {formatDateRange(selectedRequest.startDate, selectedRequest.endDate)}</div>
+                  <div><strong>Duration:</strong> {calculateDays(selectedRequest.startDate, selectedRequest.endDate)} day(s)</div>
+                  {selectedRequest.reason && <div><strong>Original Reason:</strong> {selectedRequest.reason}</div>}
+                  <div className="text-amber-600 text-sm font-medium pt-2">
+                    ⚠️ This will request cancellation of your approved time off. Manager approval is required.
+                  </div>
+                </div>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="cancellation-reason">Reason for Cancellation (Optional)</Label>
+              <Textarea
+                id="cancellation-reason"
+                placeholder="Trip was cancelled, change of plans, etc."
+                value={cancellationForm.reason}
+                onChange={(e) => setCancellationForm({ ...cancellationForm, reason: e.target.value })}
+              />
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setIsCancellationDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleRequestCancellation}
+              disabled={requestCancellationMutation.isPending}
+              className="bg-orange-500 hover:bg-orange-600"
+            >
+              {requestCancellationMutation.isPending ? "Requesting..." : "Request Cancellation"}
             </Button>
           </DialogFooter>
         </DialogContent>

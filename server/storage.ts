@@ -856,6 +856,14 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(timeOffRequests.requestedAt));
   }
 
+  async getTimeOffRequestById(id: number): Promise<TimeOffRequest | undefined> {
+    const [request] = await db
+      .select()
+      .from(timeOffRequests)
+      .where(eq(timeOffRequests.id, id));
+    return request;
+  }
+
   async updateTimeOffRequestStatus(
     id: number,
     status: string,
