@@ -31,7 +31,8 @@ import {
   MessageSquare,
   MessageSquareOff,
   Play,
-  Pause
+  Pause,
+  RefreshCw
 } from "lucide-react";
 import { 
   format, 
