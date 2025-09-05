@@ -2519,10 +2519,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       try {
         // Define emoji and keyword patterns for quick reactions
         const reactionPatterns = {
-          'check': ['✅', '✓', 'check', 'acknowledged', 'ack', 'got it', 'received', 'understood'],
-          'thumbs_up': ['👍', '👍🏻', '👍🏼', '👍🏽', '👍🏾', '👍🏿', 'thumbs up', 'good', 'approve', 'approved', 'yes', 'ok', 'okay'],
-          'x': ['❌', '✖', '❎', 'no', 'nope', 'decline', 'declined', 'disagree', 'stop'],
-          'question': ['❓', '❔', '?', 'question', 'help', 'clarify', 'explain', 'what', 'how', 'why', 'when']
+          'check': {
+            emojis: ['✅', '✓'],
+            exactWords: ['check', 'acknowledged', 'ack', 'got it', 'received', 'understood']
+          },
+          'thumbs_up': {
+            emojis: ['👍', '👍🏻', '👍🏼', '👍🏽', '👍🏾', '👍🏿'],
+            exactWords: ['thumbs up', 'good', 'approve', 'approved', 'yes', 'ok', 'okay']
+          },
+          'x': {
+            emojis: ['❌', '✖', '❎'],
+            exactWords: ['no', 'nope', 'decline', 'declined', 'disagree', 'stop']
+          },
+          'question': {
+            emojis: ['❓', '❔', '?'],
+            exactWords: ['question', 'help', 'clarify', 'explain', 'what', 'how', 'why', 'when']
+          }
         };
 
         // Check if the message is a simple emoji reaction
@@ -2533,19 +2545,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
         let isQuickReaction = false;
         let detectedReactionType = null;
         
-        // Check for exact emoji matches or short keywords (3 words or less for reactions)
+        // Check for emoji reactions (any message length) or exact word matches (3 words or less for reactions)
         const wordCount = bodyTrimmed.split(/\s+/).length;
-        if (wordCount <= 3) {
-          for (const [reactionType, patterns] of Object.entries(reactionPatterns)) {
-            for (const pattern of patterns) {
-              if (bodyTrimmed === pattern || bodyLower === pattern.toLowerCase() || bodyTrimmed.includes(pattern)) {
+        
+        for (const [reactionType, patterns] of Object.entries(reactionPatterns)) {
+          // Check emoji patterns (can be anywhere in message, any length)
+          for (const emoji of patterns.emojis) {
+            if (bodyTrimmed.includes(emoji)) {
+              isQuickReaction = true;
+              detectedReactionType = reactionType;
+              break;
+            }
+          }
+          
+          // Only check exact word matches for short messages (3 words or less)
+          if (!isQuickReaction && wordCount <= 3) {
+            for (const word of patterns.exactWords) {
+              if (bodyTrimmed === word || bodyLower === word.toLowerCase()) {
                 isQuickReaction = true;
                 detectedReactionType = reactionType;
                 break;
               }
             }
-            if (isQuickReaction) break;
           }
+          
+          if (isQuickReaction) break;
         }
 
         // For text responses, determine response type from message content
