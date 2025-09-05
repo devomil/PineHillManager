@@ -1,0 +1,57 @@
+API Response status: 200 for GET /api/announcements/35/reactions
+API Response status: 200 for GET /api/announcements/36/reactions
+API Response status: 200 for GET /api/announcements/36/responses
+WebSocket connected
+WebSocket welcomed: Welcome to Pine Hill Farm Communications
+API Response status: 200 for GET /api/announcements/35/responses
+API Response status: 200 for GET /api/announcements/34/reactions
+API Response status: 200 for GET /api/announcements/34/responses
+API Response status: 200 for GET /api/announcements/33/reactions
+API Response status: 200 for GET /api/announcements/33/responses
+API Response status: 200 for GET /api/announcements/32/reactions
+WebSocket connected
+WebSocket welcomed: Welcome to Pine Hill Farm Communications
+API Response status: 200 for GET /api/announcements/32/responses
+Successfully subscribed to channel
+API Response status: 200 for GET /api/announcements/31/responses
+API Response status: 200 for GET /api/announcements/31/reactions
+API Response status: 200 for GET /api/announcements/30/reactions
+API Response status: 200 for GET /api/announcements/30/responses
+API Response status: 200 for GET /api/announcements/29/reactions
+API Response status: 200 for GET /api/announcements/29/responses
+API Response status: 200 for GET /api/announcements/28/reactions
+API Response status: 200 for GET /api/announcements/27/reactions
+API Response status: 200 for GET /api/announcements/28/responses
+API Response status: 200 for GET /api/announcements/27/responses
+API Response status: 200 for GET /api/announcements/26/reactions
+API Response status: 200 for GET /api/announcements/26/responses
+API Response status: 200 for GET /api/announcements/25/reactions
+API Response status: 200 for GET /api/announcements/25/responses
+API Response status: 200 for GET /api/announcements/24/reactions
+API Response status: 200 for GET /api/announcements/24/responses
+API Response status: 200 for GET /api/announcements/14/reactions
+API Response status: 200 for GET /api/announcements/14/responses
+API Response status: 200 for GET /api/announcements/12/responses
+API Response status: 200 for GET /api/announcements/12/reactions
+API Response status: 200 for GET /api/announcements/11/reactions
+API Response status: 200 for GET /api/announcements/11/responses
+API Response status: 200 for GET /api/announcements/10/reactions
+API Response status: 200 for GET /api/announcements/10/responses
+API Response status: 200 for GET /api/announcements/9/reactions
+API Response status: 200 for GET /api/announcements/8/reactions
+API Response status: 200 for GET /api/announcements/9/responses
+API Response status: 200 for GET /api/announcements/8/responses
+API Response status: 200 for GET /api/announcements/7/reactions
+API Response status: 200 for GET /api/announcements/7/responses
+API Response status: 200 for GET /api/announcements/4/reactions
+API Response status: 200 for GET /api/announcements/4/responses
+API Response status: 200 for GET /api/announcements/3/reactions
+API Response status: 200 for GET /api/announcements/3/responses
+Attempting to reconnect (1/5)...
+Connecting to WebSocket: wss://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/ws
+Attempting to reconnect (1/5)...
+Connecting to WebSocket: wss://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/ws
+WebSocket connected
+WebSocket welcomed: Welcome to Pine Hill Farm Communications
+WebSocket connected
+WebSocket welcomed: Welcome to Pine Hill Farm Communications

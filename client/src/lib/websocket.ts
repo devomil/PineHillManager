@@ -26,13 +26,13 @@ export function useWebSocket() {
       const host = window.location.hostname === 'localhost' ? 'localhost:5000' : window.location.host;
       const wsUrl = `${protocol}//${host}/ws`;
       
-      console.log("Connecting to WebSocket:", wsUrl);
+      if (import.meta.env.DEV) console.log("Connecting to WebSocket:", wsUrl);
       socketRef.current = new WebSocket(wsUrl);
 
       socketRef.current.onopen = () => {
         setIsConnected(true);
         reconnectAttempts.current = 0;
-        console.log("WebSocket connected");
+        if (import.meta.env.DEV) console.log("WebSocket connected");
         
         // Send initial ping
         send({ type: "ping" });
@@ -46,7 +46,7 @@ export function useWebSocket() {
           // Handle different message types
           switch (message.type) {
             case "connected":
-              console.log("WebSocket welcomed:", message.message);
+              if (import.meta.env.DEV) console.log("WebSocket welcomed:", message.message);
               break;
             case "pong":
               // Keep-alive response
@@ -70,7 +70,7 @@ export function useWebSocket() {
               break;
             case "subscribed":
               // Handle successful subscription
-              console.log("Successfully subscribed to channel");
+              if (import.meta.env.DEV) console.log("Successfully subscribed to channel");
               break;
             default:
               console.log("Unknown message type:", message.type);
@@ -82,14 +82,14 @@ export function useWebSocket() {
 
       socketRef.current.onclose = () => {
         setIsConnected(false);
-        console.log("WebSocket disconnected");
+        if (import.meta.env.DEV) console.log("WebSocket disconnected");
         
         // Attempt to reconnect if not intentionally closed
         if (reconnectAttempts.current < maxReconnectAttempts) {
           const delay = Math.pow(2, reconnectAttempts.current) * 1000; // Exponential backoff
           reconnectTimeoutRef.current = setTimeout(() => {
             reconnectAttempts.current++;
-            console.log(`Attempting to reconnect (${reconnectAttempts.current}/${maxReconnectAttempts})...`);
+            if (import.meta.env.DEV) console.log(`Attempting to reconnect (${reconnectAttempts.current}/${maxReconnectAttempts})...`);
             connect();
           }, delay);
         } else {

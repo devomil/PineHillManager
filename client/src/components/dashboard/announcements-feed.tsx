@@ -40,7 +40,7 @@ export default function AnnouncementsFeed() {
       }
       
       const data = await response.json();
-      console.log("Dashboard fresh API response:", data);
+      if (import.meta.env.DEV) console.log("Dashboard fresh API response:", data);
       return data;
     },
     refetchOnMount: true,
@@ -49,8 +49,8 @@ export default function AnnouncementsFeed() {
   });
 
   // Debug logging
-  console.log("Dashboard announcements query state:", { isLoading, announcements });
-  console.log("Dashboard raw announcements data:", announcements);
+  if (import.meta.env.DEV) console.log("Dashboard announcements query state:", { isLoading, announcements });
+  if (import.meta.env.DEV) console.log("Dashboard raw announcements data:", announcements);
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {

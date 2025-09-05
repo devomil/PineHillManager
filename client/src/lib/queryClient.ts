@@ -9,7 +9,7 @@ export const queryClient = new QueryClient({
       staleTime: 0,
       queryFn: async ({ queryKey }) => {
         const url = queryKey[0] as string;
-        console.log('QueryClient: Making request to:', url);
+        if (import.meta.env.DEV) console.log('QueryClient: Making request to:', url);
         
         try {
           const response = await fetch(url, {
@@ -22,7 +22,7 @@ export const queryClient = new QueryClient({
             },
           });
           
-          console.log('Response status:', response.status, 'for', url);
+          if (import.meta.env.DEV) console.log('Response status:', response.status, 'for', url);
           
           if (!response.ok) {
             if (response.status === 401) {
@@ -34,12 +34,12 @@ export const queryClient = new QueryClient({
           }
           
           const text = await response.text();
-          console.log('Raw response text for', url, ':', text);
+          if (import.meta.env.DEV) console.log('Raw response text for', url, ':', text);
           
           let data;
           try {
             data = JSON.parse(text);
-            console.log('Parsed response data for', url, ':', data);
+            if (import.meta.env.DEV) console.log('Parsed response data for', url, ':', data);
           } catch (e) {
             console.error('Failed to parse JSON for', url, ':', text);
             throw new Error('Invalid JSON response');
@@ -56,7 +56,7 @@ export const queryClient = new QueryClient({
 });
 
 export async function apiRequest(method: string, url: string, data?: any) {
-  console.log('API Request:', method, url, 'with data:', data);
+  if (import.meta.env.DEV) console.log('API Request:', method, url, 'with data:', data);
   
   const options: RequestInit = {
     method,
@@ -85,7 +85,7 @@ export async function apiRequest(method: string, url: string, data?: any) {
   }
 
   const response = await fetch(url, options);
-  console.log('API Response status:', response.status, 'for', method, url);
+  if (import.meta.env.DEV) console.log('API Response status:', response.status, 'for', method, url);
 
   if (!response.ok) {
     const errorText = await response.text();
