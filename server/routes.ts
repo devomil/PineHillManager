@@ -647,7 +647,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const startY = 150;
       const columnWidth = (doc.page.width - 80) / 7;
       const headerHeight = 20;
-      const weekRowHeight = 120; // Tall enough to stack multiple shifts
+      const weekRowHeight = 100; // More compact height for shifts
       
       let currentY = startY;
 
@@ -657,13 +657,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       weeksWithSchedules.forEach((week, weekIndex) => {
-        // Week label
-        doc.fontSize(12)
-           .font('Helvetica-Bold')
-           .fillColor(textColor)
-           .text(`Week ${weekIndex + 1}`, 40, currentY);
-        
-        currentY += 20;
+        // No week label needed - dates are sufficient
         
         // Day headers with blue background like UI
         doc.rect(40, currentY, doc.page.width - 80, headerHeight).fill('#4A90A4');
@@ -746,7 +740,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
         });
 
-        currentY += weekRowHeight + 8; // Small gap between weeks
+        currentY += weekRowHeight + 3; // Minimal gap between weeks
       });
 
       // No schedules message
