@@ -63,6 +63,7 @@ function AuthenticatedApp() {
       <Route path="/time-clock" component={TimeClock} />
       <Route path="/schedule" component={Schedule} />
       <Route path="/time-off" component={TimeOff} />
+      <Route path="/admin/time-off" component={TimeOff} />
       <Route path="/shift-coverage" component={ShiftCoverage} />
       <Route path="/team-communication" component={CommunicationsPage} />
       <Route path="/system-support" component={SystemSupport} />
