@@ -683,7 +683,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const sideMargin = 20;
       const columnWidth = (doc.page.width - (sideMargin * 2)) / 7; // ~105px per column
       const headerHeight = 24; // Readable header
-      const cellHeight = 70; // Uniform height for better layout
+      const cellHeight = 110; // Increased to fit 4-5 employees per day
       
       // Employee colors exactly matching UI calendar
       const employeeColors: { [key: string]: string } = {
@@ -750,9 +750,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           let processedShifts = 0;
           daySchedules.forEach((schedule, shiftIndex) => {
             // DEBUG: Check if we're cutting off data
-            if (shiftY + 20 > currentY + cellHeight - 6) {
-              console.log(`⚠️  PDF DEBUG: CUTTING OFF SHIFT ${shiftIndex + 1}/${daySchedules.length} on ${dateStr} - ${getEmployeeName(schedule.userId)} - Y position would be ${shiftY + 20}, cell limit is ${currentY + cellHeight - 6}`);
-              return; // This is the problem - early exit cutting off data!
+            if (shiftY + 18 > currentY + cellHeight - 4) {
+              console.log(`⚠️  PDF DEBUG: CUTTING OFF SHIFT ${shiftIndex + 1}/${daySchedules.length} on ${dateStr} - ${getEmployeeName(schedule.userId)} - Y position would be ${shiftY + 18}, cell limit is ${currentY + cellHeight - 4}`);
+              return; // Early exit when truly out of space
             }
             processedShifts++;
             
@@ -775,26 +775,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const timeRange = `${startTime}-${endTime}`;
             const locationName = getLocationAbbreviation(schedule.locationId || 1);
             
-            // Modern rounded employee color blocks with better padding
+            // Compact rounded employee color blocks optimized for multiple shifts
             const backgroundColor = employeeColors[employeeName] || lightBg;
-            doc.roundedRect(x + 4, shiftY, columnWidth - 8, 18, 4)
+            doc.roundedRect(x + 3, shiftY, columnWidth - 6, 16, 3)
                .fill(backgroundColor)
                .stroke('rgba(255,255,255,0.2)')
                .lineWidth(0.5);
             
-            // Bolder employee names with excellent contrast for printing
-            doc.fontSize(8)
-               .font('Helvetica-Bold')
-               .fillColor('#ffffff')
-               .text(employeeName, x + 6, shiftY + 3, { width: columnWidth - 12, align: 'left' });
-            
-            // Clear time and location with optimized contrast
+            // Compact but bold employee names
             doc.fontSize(7)
                .font('Helvetica-Bold')
-               .fillColor('rgba(255,255,255,0.9)')
-               .text(`${timeRange} • ${locationName}`, x + 6, shiftY + 12, { width: columnWidth - 12, align: 'left' });
+               .fillColor('#ffffff')
+               .text(employeeName, x + 5, shiftY + 2, { width: columnWidth - 10, align: 'left' });
             
-            shiftY += 22; // Uniform spacing between entries for consistent layout
+            // Compact time and location
+            doc.fontSize(6)
+               .font('Helvetica-Bold')
+               .fillColor('rgba(255,255,255,0.9)')
+               .text(`${timeRange} • ${locationName}`, x + 5, shiftY + 10, { width: columnWidth - 10, align: 'left' });
+            
+            shiftY += 18; // Tighter spacing to fit more shifts
           });
         });
 
