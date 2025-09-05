@@ -1,0 +1,91 @@
+[vite] connecting...
+DOMException {}
+
+useAuth - user: undefined isLoading: true error: null
+Auth state: 
+Object {isAuthenticated: false, isLoading: true, user: null}
+Auth state: 
+Object {isAuthenticated: false, isLoading: true, user: null}
+User data fetched: 
+Object {id: "40154188", email: "ryan@pinehillfarm.co", firstName: "Ryan", lastName: "Sorensen", role: "admin"}
+useAuth - user: 
+Object {id: "40154188", email: "ryan@pinehillfarm.co", firstName: "Ryan", lastName: "Sorensen", role: "admin"}
+ isLoading: false error: null
+useAuth - user: 
+Object {id: "40154188", email: "ryan@pinehillfarm.co", firstName: "Ryan", lastName: "Sorensen", role: "admin"}
+ isLoading: false error: null
+Auth state: 
+Object {isAuthenticated: true, isLoading: false, user: {…}}
+Rendering: AuthenticatedApp
+Auth state: 
+Object {isAuthenticated: true, isLoading: false, user: {…}}
+Rendering: AuthenticatedApp
+API Request: GET /api/employees with data: undefined
+API Request: GET /api/locations with data: undefined
+API Request: GET /api/work-schedules?startDate=2025-08-31&endDate=2025-10-04 with data: undefined
+API Request: GET /api/calendar-notes?startDate=2025-08-31&endDate=2025-10-04 with data: undefined
+API Request: GET /api/time-off-requests/approved?startDate=2025-08-31&endDate=2025-10-04 with data: undefined
+API Response status: 200 for GET /api/locations
+API Response status: 200 for GET /api/calendar-notes?startDate=2025-08-31&endDate=2025-10-04
+API Response status: 200 for GET /api/time-off-requests/approved?startDate=2025-08-31&endDate=2025-10-04
+API Response status: 200 for GET /api/work-schedules?startDate=2025-08-31&endDate=2025-10-04
+API Response status: 200 for GET /api/employees
+API Request: POST /api/schedules/generate-pdf with data: 
+Object {month: "2025-09", locationId: null}
+API Response status: 500 for POST /api/schedules/generate-pdf
+API Error: 500 {"error":"Failed to generate PDF schedule"}
+at t.value (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:17465)
+at new t (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:12630)
+at t.value (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:32766)
+at https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:34400
+PDF generation failed: 
+Error {}
+
+at t.value (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:17465)
+at new t (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:12630)
+at t.value (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:32766)
+at https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:34400
+useAuth - user: 
+Object {id: "40154188", email: "ryan@pinehillfarm.co", firstName: "Ryan", lastName: "Sorensen", role: "admin"}
+ isLoading: false error: null
+useAuth - user: 
+Object {id: "40154188", email: "ryan@pinehillfarm.co", firstName: "Ryan", lastName: "Sorensen", role: "admin"}
+ isLoading: false error: null
+Auth state: 
+Object {isAuthenticated: true, isLoading: false, user: {…}}
+Rendering: AuthenticatedApp
+Auth state: 
+Object {isAuthenticated: true, isLoading: false, user: {…}}
+Rendering: AuthenticatedApp
+useAuth - user: 
+Object {id: "40154188", email: "ryan@pinehillfarm.co", firstName: "Ryan", lastName: "Sorensen", role: "admin"}
+ isLoading: false error: null
+useAuth - user: 
+Object {id: "40154188", email: "ryan@pinehillfarm.co", firstName: "Ryan", lastName: "Sorensen", role: "admin"}
+ isLoading: false error: null
+Auth state: 
+Object {isAuthenticated: true, isLoading: false, user: {…}}
+Rendering: AuthenticatedApp
+Auth state: 
+Object {isAuthenticated: true, isLoading: false, user: {…}}
+Rendering: AuthenticatedApp
+API Request: POST /api/schedules/generate-pdf with data: 
+Object {month: "2025-09", locationId: null}
+API Response status: 500 for POST /api/schedules/generate-pdf
+API Error: 500 {"error":"Failed to generate PDF schedule"}
+at t.value (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:17465)
+at new t (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:12630)
+at t.value (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:32766)
+at https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:34400
+PDF generation failed: 
+Error {}
+message: "500: Internal Server Error"
+stack: "Error: 500: Internal Server Error↵ at apiRequest (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/src/lib/queryClient.ts:79:11)↵ at async Object.mutationFn (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/src/components/enhanced-monthly-scheduler.tsx:256:24)"
+get stack: ƒ ()
+set stack: ƒ ()
+[[Prototype]]: Object
+
+at t.value (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:17465)
+at new t (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:12630)
+at t.value (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:32766)
+at https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:34400

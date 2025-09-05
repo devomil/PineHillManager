@@ -15,7 +15,6 @@ import fs from 'fs';
 import express from 'express';
 import twilio from 'twilio';
 import PDFDocument from 'pdfkit';
-import puppeteer from 'puppeteer';
 // Phase 6: Advanced Features Schema Imports
 import {
   insertScheduledMessageSchema,
@@ -612,150 +611,211 @@ export async function registerRoutes(app: Express): Promise<Server> {
                           'July', 'August', 'September', 'October', 'November', 'December'];
       const monthName = monthNames[parseInt(monthStr) - 1];
 
-      // Employee colors exactly matching UI calendar
-      const employeeColors: { [key: string]: string } = {
-        'Dianne Zubke': '#E879F9',
-        'Jacalyn Phillips': '#60A5FA',
-        'Danielle Clark': '#FBBF24',
-        'Rozalyn Wolter': '#34D399',
-        'Janell Gray': '#22D3EE'
-      };
+      // Brand colors - professional Pine Hill Farm palette
+      const primaryColor = '#5b7c99';  // Brand blue-gray
+      const secondaryColor = '#8c93ad';  // Secondary brand color
+      const accentColor = '#607e66';     // Accent green
+      const neutralGray = '#a9a9a9';    // Neutral gray
+      const lightBg = '#f8f9fa';        // Light background
+      const textColor = '#333333';
 
-      // Create HTML template for the calendar
-      const htmlContent = `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <style>
-    @page { size: A4 landscape; margin: 15mm; }
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'Helvetica', Arial, sans-serif; font-size: 8px; background: white; }
-    
-    .header {
-      background: linear-gradient(135deg, #5b7c99 0%, #8c93ad 100%);
-      color: white; text-align: center; padding: 12px 0; margin-bottom: 8px;
-    }
-    .header h1 { font-size: 24px; font-weight: bold; margin-bottom: 3px; }
-    .header h2 { font-size: 14px; font-weight: bold; }
-    
-    .calendar {
-      display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px;
-      background: #d1d5db; height: calc(100vh - 100px);
-    }
-    
-    .day-header {
-      background: #f8f9fa; text-align: center; padding: 4px;
-      font-weight: bold; font-size: 7px; color: #5b7c99; border: 1px solid #d1d5db;
-    }
-    .day-header.weekend { color: #5b7c99; font-weight: bold; }
-    
-    .day-cell {
-      background: white; padding: 2px; border: 1px solid #d1d5db;
-      min-height: 75px; overflow: hidden;
-    }
-    .day-cell.alternate { background: #fafbfc; }
-    
-    .date-number {
-      font-size: 10px; font-weight: bold; color: #5b7c99;
-      text-align: center; margin-bottom: 2px;
-    }
-    
-    .shift {
-      margin-bottom: 1px; padding: 1px 3px; border-radius: 2px;
-      color: white; font-weight: bold; font-size: 5px; line-height: 1.1;
-    }
-    .shift-name { font-weight: bold; }
-    .shift-time { font-size: 4px; opacity: 0.9; }
-    
-    .footer {
-      text-align: center; margin-top: 8px; color: #666; font-size: 5px;
-    }
-    
-    /* Employee Colors */
-    .employee-dianne-zubke { background-color: #E879F9; }
-    .employee-jacalyn-phillips { background-color: #60A5FA; }
-    .employee-danielle-clark { background-color: #FBBF24; }
-    .employee-rozalyn-wolter { background-color: #34D399; }
-    .employee-janell-gray { background-color: #22D3EE; }
-  </style>
-</head>
-<body>
-  <div class="header">
-    <h1>PINE HILL FARM</h1>
-    <h2>${monthName.toUpperCase()} ${year} SCHEDULE</h2>
-    ${locationId ? `<div style="font-size: 10px; margin-top: 3px;">Location: ${getLocationName(parseInt(locationId))}</div>` : ''}
-  </div>
-  
-  <div class="calendar">
-    ${weeks.map((week, weekIndex) => `
-      ${week.map((dateStr, dayIndex) => {
-        const date = new Date(dateStr + 'T00:00:00');
-        const dayName = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][date.getDay()];
-        const isWeekend = date.getDay() === 0 || date.getDay() === 6;
-        return `<div class="day-header ${isWeekend ? 'weekend' : ''}">${dayName}<br><span style="font-size: 8px; font-weight: bold;">${date.getDate()}</span></div>`;
-      }).join('')}
-      
-      ${week.map((dateStr, dayIndex) => {
-        const daySchedules = schedulesByDate[dateStr] || [];
-        const isAlternate = weekIndex % 2 === 1;
-        
-        return `<div class="day-cell ${isAlternate ? 'alternate' : ''}">
-          ${daySchedules.map(schedule => {
-            const employeeName = getEmployeeName(schedule.userId);
-            const startTime = new Date(schedule.startTime).toLocaleString('en-US', {
-              hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'America/Chicago'
-            }).toLowerCase().replace(' ', '');
-            
-            const endTime = new Date(schedule.endTime).toLocaleString('en-US', {
-              hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'America/Chicago'
-            }).toLowerCase().replace(' ', '');
-            
-            const timeRange = `${startTime}-${endTime}`;
-            const locationName = getLocationAbbreviation(schedule.locationId || 1);
-            const cssClass = `employee-${employeeName.toLowerCase().replace(/\s+/g, '-')}`;
-            
-            return `<div class="shift ${cssClass}">
-              <div class="shift-name">${employeeName}</div>
-              <div class="shift-time">${timeRange} • ${locationName}</div>
-            </div>`;
-          }).join('')}
-        </div>`;
-      }).join('')}
-    `).join('')}
-  </div>
-  
-  <div class="footer">
-    Generated on ${new Date().toLocaleDateString('en-US')} at ${new Date().toLocaleTimeString('en-US')}<br>
-    Pine Hill Farm Employee Management System
-  </div>
-</body>
-</html>`;
+      // Create PDF document with fixed single-page dimensions
+      const doc = new PDFDocument({
+        size: 'A4',
+        layout: 'landscape',
+        margins: { top: 20, bottom: 20, left: 20, right: 20 }
+      });
 
-      // Launch Puppeteer and generate PDF
-      const browser = await puppeteer.launch({
-        headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox']
-      });
-      
-      const page = await browser.newPage();
-      await page.setContent(htmlContent);
-      
-      const pdf = await page.pdf({
-        format: 'A4',
-        landscape: true,
-        margin: { top: '15mm', right: '15mm', bottom: '15mm', left: '15mm' },
-        printBackground: true,
-        scale: 0.8
-      });
-      
-      await browser.close();
-      
-      // Set headers for PDF download
+      // Set response headers for PDF download
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename="schedule-${month}.pdf"`);
       
-      // Send PDF
-      res.send(pdf);
+      doc.pipe(res);
+
+      // Professional branded header
+      doc.rect(0, 0, doc.page.width, 100).fill(primaryColor);
+      
+      // Add subtle gradient effect with secondary color
+      doc.rect(0, 80, doc.page.width, 20)
+         .fill(secondaryColor)
+         .opacity(0.3);
+      doc.opacity(1); // Reset opacity
+      
+      // Company title with professional typography
+      doc.fontSize(32)
+         .font('Helvetica-Bold')
+         .fillColor('white')
+         .text('PINE HILL FARM', 0, 25, { align: 'center', width: doc.page.width });
+      
+      // Prominent month/year with better contrast
+      doc.fontSize(20)
+         .font('Helvetica-Bold')
+         .fillColor('#ffffff')
+         .text(`${monthName.toUpperCase()} ${year} SCHEDULE`, 0, 55, { align: 'center', width: doc.page.width });
+      
+      if (locationId) {
+        doc.fontSize(14)
+           .font('Helvetica')
+           .fillColor('#e8f1f8')
+           .text(`Location: ${getLocationName(parseInt(locationId))}`, 0, 78, { align: 'center', width: doc.page.width });
+      }
+
+      // CRITICAL FIX: Dynamic cell height calculation to prevent data cutoffs
+      let maxSchedulesPerDay = 0;
+      weeks.forEach(week => {
+        week.forEach(dateStr => {
+          const daySchedules = schedulesByDate[dateStr] || [];
+          maxSchedulesPerDay = Math.max(maxSchedulesPerDay, daySchedules.length);
+        });
+      });
+
+      // Professional single-page calendar layout - FIXED for all employees
+      const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      const startY = 120; // Professional header space
+      const sideMargin = 20;
+      const columnWidth = (doc.page.width - (sideMargin * 2)) / 7; // ~105px per column
+      const headerHeight = 24; // Readable header
+      
+      // DYNAMIC cell height based on actual data - THIS FIXES THE CUTOFF ISSUE
+      const availableHeight = doc.page.height - startY - 60; // Reserve space for footer
+      const totalRows = weeks.length;
+      const cellHeight = Math.floor((availableHeight - (headerHeight * totalRows)) / totalRows);
+      
+      // Ensure minimum viable cell height for readability
+      const minCellHeight = Math.max(cellHeight, 60);
+      const dynamicCellHeight = Math.max(minCellHeight, maxSchedulesPerDay * 18 + 10);
+      
+      console.log(`📊 PDF Layout: ${maxSchedulesPerDay} max schedules per day, using ${dynamicCellHeight}px cell height`);
+      
+      // Employee colors exactly matching UI calendar
+      const employeeColors: { [key: string]: string } = {
+        'Dianne Zubke': '#E879F9',        // Purple/magenta to match UI exactly
+        'Jacalyn Phillips': '#60A5FA',    // Blue to match UI exactly
+        'Danielle Clark': '#FBBF24',      // Yellow/orange to match UI exactly
+        'Rozalyn Wolter': '#34D399',      // Green to match UI exactly  
+        'Janell Gray': '#22D3EE'          // Teal to match UI exactly
+      };
+      
+      let currentY = startY;
+
+      // Clean calendar grid matching UI layout
+      weeks.forEach((week, weekIndex) => {
+        // Professional day headers with brand styling
+        week.forEach((dateStr, dayIndex) => {
+          const date = new Date(dateStr + 'T00:00:00');
+          const dayName = dayNames[date.getDay()];
+          const dayNumber = date.getDate();
+          const x = sideMargin + (dayIndex * columnWidth);
+          const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+          const isAlternateWeek = weekIndex % 2 === 1;
+          
+          // Professional header with subtle grid and alternating backgrounds
+          const headerBg = isAlternateWeek ? lightBg : 'white';
+          doc.rect(x, currentY, columnWidth, headerHeight)
+             .fill(headerBg)
+             .stroke('#d1d5db')  // Subtle light gray grid lines
+             .lineWidth(0.5);
+          
+          // Clean day name styling
+          doc.fontSize(10)
+             .font('Helvetica-Bold')
+             .fillColor(isWeekend ? primaryColor : textColor)
+             .text(dayName, x, currentY + 4, { width: columnWidth, align: 'center' });
+          
+          // Larger, bolder date numbers perfectly centered
+          doc.fontSize(16)
+             .font('Helvetica-Bold')
+             .fillColor(primaryColor)
+             .text(dayNumber.toString(), x, currentY + 14, { width: columnWidth, align: 'center' });
+        });
+
+        currentY += headerHeight;
+
+        // FIXED: Professional calendar cells with DYNAMIC height
+        week.forEach((dateStr, dayIndex) => {
+          const daySchedules = schedulesByDate[dateStr] || [];
+          const x = sideMargin + (dayIndex * columnWidth);
+          const isAlternateWeek = weekIndex % 2 === 1;
+          
+          // Cell with subtle grid lines and alternating backgrounds
+          const cellBg = isAlternateWeek ? lightBg : 'white';
+          doc.rect(x, currentY, columnWidth, dynamicCellHeight)
+             .fill(cellBg)
+             .stroke('#d1d5db')  // Light gray grid lines for better print readability
+             .lineWidth(0.5);
+          
+          // FIXED: All shifts now display with proper spacing
+          let shiftY = currentY + 6; // Better top padding
+          daySchedules.forEach((schedule, shiftIndex) => {
+            // 12-hour format matching your system
+            const startTime = new Date(schedule.startTime).toLocaleString('en-US', {
+              hour: 'numeric',
+              minute: '2-digit',
+              hour12: true,
+              timeZone: 'America/Chicago'
+            }).toLowerCase().replace(' ', '');
+            
+            const endTime = new Date(schedule.endTime).toLocaleString('en-US', {
+              hour: 'numeric', 
+              minute: '2-digit',
+              hour12: true,
+              timeZone: 'America/Chicago'
+            }).toLowerCase().replace(' ', '');
+            
+            const employeeName = getEmployeeName(schedule.userId);
+            const timeRange = `${startTime}-${endTime}`;
+            const locationName = getLocationAbbreviation(schedule.locationId || 1);
+            
+            // Compact rounded employee color blocks
+            const backgroundColor = employeeColors[employeeName] || lightBg;
+            doc.roundedRect(x + 3, shiftY, columnWidth - 6, 16, 3)
+               .fill(backgroundColor)
+               .stroke('rgba(255,255,255,0.2)')
+               .lineWidth(0.5);
+            
+            // Compact but bold employee names
+            doc.fontSize(7)
+               .font('Helvetica-Bold')
+               .fillColor('#ffffff')
+               .text(employeeName, x + 5, shiftY + 2, { width: columnWidth - 10, align: 'left' });
+            
+            // Compact time and location
+            doc.fontSize(6)
+               .font('Helvetica-Bold')
+               .fillColor('rgba(255,255,255,0.9)')
+               .text(`${timeRange} • ${locationName}`, x + 5, shiftY + 10, { width: columnWidth - 10, align: 'left' });
+            
+            shiftY += 18; // Proper spacing for all shifts
+          });
+        });
+
+        currentY += dynamicCellHeight + 2; // Clear separation between weeks
+      });
+
+      // No schedules message
+      if (Object.keys(schedulesByDate).length === 0) {
+        doc.fontSize(14)
+           .font('Helvetica-Bold')
+           .fillColor('#888888')
+           .text('NO SCHEDULES FOUND FOR THIS PERIOD', 40, currentY + 50, { align: 'center' });
+      }
+
+      // Footer
+      const footerY = doc.page.height - 60;
+      doc.rect(40, footerY - 10, doc.page.width - 80, 40).fill(lightBg);
+      
+      doc.fontSize(8)
+         .font('Helvetica')
+         .fillColor(textColor)
+         .text(`Generated on ${new Date().toLocaleDateString('en-US')} at ${new Date().toLocaleTimeString('en-US')}`, 
+               40, footerY, { align: 'center' });
+      
+      doc.fontSize(7)
+         .fillColor('#666666')
+         .text('Pine Hill Farm Employee Management System', 40, footerY + 15, { align: 'center' });
+      
+      // Finalize PDF
+      doc.end();
 
       
     } catch (error) {
