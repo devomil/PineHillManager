@@ -646,7 +646,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
       const columnWidth = (doc.page.width - 80) / 7;
       const headerHeight = 25;
-      const rowHeight = 60;
+      const rowHeight = 50; // Reduced from 60 to make more compact
 
       weeks.forEach((week, weekIndex) => {
         // Week header
@@ -679,15 +679,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         currentY += headerHeight;
 
-        // Find max shifts for this week
+        // Find max shifts for this week (only create rows if there are actual shifts)
         let maxShifts = 0;
         week.forEach(dateStr => {
           const daySchedules = schedulesByDate[dateStr] || [];
           maxShifts = Math.max(maxShifts, daySchedules.length);
         });
 
-        // Draw schedule rows
-        for (let shiftIndex = 0; shiftIndex < Math.max(maxShifts, 2); shiftIndex++) {
+        // Only draw rows if there are actual shifts (no empty weeks)
+        if (maxShifts === 0) {
+          currentY += 20; // Small space for empty weeks
+          return;
+        }
+
+        // Draw schedule rows (only as many as needed)
+        for (let shiftIndex = 0; shiftIndex < maxShifts; shiftIndex++) {
           // Alternating row colors
           const rowColor = shiftIndex % 2 === 0 ? 'white' : lightGray;
           doc.rect(40, currentY, doc.page.width - 80, rowHeight).fill(rowColor);
@@ -739,10 +745,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           currentY += rowHeight;
         }
 
-        currentY += 20; // Space between weeks
+        currentY += 10; // Reduced space between weeks from 20 to 10
 
-        // Check if we need a new page
-        if (currentY > doc.page.height - 150 && weekIndex < weeks.length - 1) {
+        // Check if we need a new page (more generous with space)
+        if (currentY > doc.page.height - 100 && weekIndex < weeks.length - 1) {
           doc.addPage();
           currentY = 60;
         }
