@@ -568,16 +568,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       };
 
-      // Generate PDF content in landscape format with tabular layout
-      let pdfContent = `\n`;
-      pdfContent += `=`.repeat(120) + '\n';
-      pdfContent += ` `.repeat(40) + `PINE HILL FARM - SCHEDULE FOR ${month.toUpperCase()}\n`;
-      if (locationId) {
-        pdfContent += ` `.repeat(35) + `LOCATION: ${getLocationName(parseInt(locationId)).toUpperCase()}\n`;
-      }
-      pdfContent += `=`.repeat(120) + '\n\n';
+      // Create professional PDF using PDFKit with proper formatting
+      const doc = new PDFDocument({ 
+        layout: 'landscape',
+        margin: 40,
+        size: 'LETTER'
+      });
       
-      // Group schedules by week for landscape layout
+      // Set headers for PDF download
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="schedule-${month}.pdf"`);
+      
+      // Pipe PDF to response
+      doc.pipe(res);
+
+      // Colors
+      const primaryColor = '#2E5C4A';  // Pine green
+      const secondaryColor = '#4A90A4';  // Blue
+      const lightGray = '#F5F5F5';
+      const mediumGray = '#CCCCCC';
+      const textColor = '#333333';
+
+      // Add header with background
+      doc.rect(40, 40, doc.page.width - 80, 80).fill(primaryColor);
+      
+      // Company title
+      doc.fontSize(20)
+         .font('Helvetica-Bold')
+         .fillColor('white')
+         .text('PINE HILL FARM', 40, 60, { align: 'center' });
+         
+      doc.fontSize(16)
+         .text(`SCHEDULE FOR ${month.toUpperCase()}`, 40, 85, { align: 'center' });
+      
+      if (locationId) {
+        doc.fontSize(12)
+           .text(`Location: ${getLocationName(parseInt(locationId))}`, 40, 105, { align: 'center' });
+      }
+
+      // Group schedules by date
       const schedulesByDate = filteredSchedules.reduce((acc: any, schedule: any) => {
         const date = schedule.date;
         if (!acc[date]) acc[date] = [];
@@ -612,13 +641,157 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (currentWeek.length > 0) {
         weeks.push(currentWeek);
       }
-      
-      // Generate landscape calendar layout
+
+      let currentY = 150;
       const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-      
+      const columnWidth = (doc.page.width - 80) / 7;
+      const headerHeight = 25;
+      const rowHeight = 60;
+
       weeks.forEach((week, weekIndex) => {
-        pdfContent += `WEEK ${weekIndex + 1}\n`;
-        pdfContent += '─'.repeat(120) + '\n';
+        // Week header
+        doc.fontSize(14)
+           .font('Helvetica-Bold')
+           .fillColor(textColor)
+           .text(`Week ${weekIndex + 1}`, 40, currentY);
+        
+        currentY += 25;
+
+        // Draw header row background
+        doc.rect(40, currentY, doc.page.width - 80, headerHeight).fill(secondaryColor);
+
+        // Day headers
+        week.forEach((dateStr, dayIndex) => {
+          const date = new Date(dateStr + 'T00:00:00');
+          const dayName = dayNames[date.getDay()];
+          const dayNumber = date.getDate();
+          const x = 40 + (dayIndex * columnWidth);
+          
+          // Day name and number
+          doc.fontSize(10)
+             .font('Helvetica-Bold')
+             .fillColor('white')
+             .text(`${dayName}`, x + 5, currentY + 5, { width: columnWidth - 10, align: 'center' });
+          
+          doc.fontSize(14)
+             .text(`${dayNumber}`, x + 5, currentY + 15, { width: columnWidth - 10, align: 'center' });
+        });
+
+        currentY += headerHeight;
+
+        // Find max shifts for this week
+        let maxShifts = 0;
+        week.forEach(dateStr => {
+          const daySchedules = schedulesByDate[dateStr] || [];
+          maxShifts = Math.max(maxShifts, daySchedules.length);
+        });
+
+        // Draw schedule rows
+        for (let shiftIndex = 0; shiftIndex < Math.max(maxShifts, 2); shiftIndex++) {
+          // Alternating row colors
+          const rowColor = shiftIndex % 2 === 0 ? 'white' : lightGray;
+          doc.rect(40, currentY, doc.page.width - 80, rowHeight).fill(rowColor);
+
+          week.forEach((dateStr, dayIndex) => {
+            const daySchedules = schedulesByDate[dateStr] || [];
+            const schedule = daySchedules[shiftIndex];
+            const x = 40 + (dayIndex * columnWidth);
+            
+            // Draw cell border
+            doc.rect(x, currentY, columnWidth, rowHeight).stroke(mediumGray);
+
+            if (schedule) {
+              const startTime = new Date(schedule.startTime).toLocaleTimeString('en-US', {
+                hour: 'numeric',
+                minute: '2-digit',
+                hour12: true
+              });
+              const endTime = new Date(schedule.endTime).toLocaleTimeString('en-US', {
+                hour: 'numeric',
+                minute: '2-digit',
+                hour12: true
+              });
+              
+              const employeeName = getEmployeeName(schedule.userId);
+              const displayName = employeeName.length > 12 ? employeeName.substring(0, 12) + '...' : employeeName;
+              const timeRange = `${startTime} - ${endTime}`;
+              const locationName = getLocationAbbreviation(schedule.locationId || 1);
+              
+              // Employee name (bold)
+              doc.fontSize(9)
+                 .font('Helvetica-Bold')
+                 .fillColor(textColor)
+                 .text(displayName, x + 3, currentY + 5, { width: columnWidth - 6, align: 'center' });
+              
+              // Time range
+              doc.fontSize(8)
+                 .font('Helvetica')
+                 .fillColor(primaryColor)
+                 .text(timeRange, x + 3, currentY + 18, { width: columnWidth - 6, align: 'center' });
+              
+              // Location
+              doc.fontSize(7)
+                 .fillColor('#666666')
+                 .text(locationName, x + 3, currentY + 30, { width: columnWidth - 6, align: 'center' });
+            }
+          });
+
+          currentY += rowHeight;
+        }
+
+        currentY += 20; // Space between weeks
+
+        // Check if we need a new page
+        if (currentY > doc.page.height - 150 && weekIndex < weeks.length - 1) {
+          doc.addPage();
+          currentY = 60;
+        }
+      });
+
+      // No schedules message
+      if (Object.keys(schedulesByDate).length === 0) {
+        doc.fontSize(14)
+           .font('Helvetica-Bold')
+           .fillColor('#888888')
+           .text('NO SCHEDULES FOUND FOR THIS PERIOD', 40, currentY + 50, { align: 'center' });
+      }
+
+      // Footer
+      const footerY = doc.page.height - 60;
+      doc.rect(40, footerY - 10, doc.page.width - 80, 40).fill(lightGray);
+      
+      doc.fontSize(8)
+         .font('Helvetica')
+         .fillColor(textColor)
+         .text(`Generated on ${new Date().toLocaleDateString('en-US')} at ${new Date().toLocaleTimeString('en-US')}`, 
+               40, footerY, { align: 'center' });
+      
+      doc.fontSize(7)
+         .fillColor('#666666')
+         .text('Pine Hill Farm Employee Management System', 40, footerY + 15, { align: 'center' });
+      
+      // Finalize PDF
+      doc.end();
+      
+    } catch (error) {
+      console.error('Error generating PDF schedule:', error);
+      res.status(500).json({ error: 'Failed to generate PDF schedule' });
+    }
+  });
+
+  // Shift coverage requests routes
+  app.get('/api/shift-coverage-requests', isAuthenticated, async (req, res) => {
+    try {
+      const { status } = req.query;
+      const coverageRequests = await storage.getShiftCoverageRequests(status as string);
+      res.json(coverageRequests);
+    } catch (error) {
+      console.error('Error fetching shift coverage requests:', error);
+      res.status(500).json({ message: 'Failed to fetch shift coverage requests' });
+    }
+  });
+  
+  app.get('/api/my-coverage-requests', isAuthenticated, async (req, res) => {
         
         // Header row with day names and dates
         let headerRow = '';
@@ -674,51 +847,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         pdfContent += '─'.repeat(120) + '\n\n';
       });
       
-      if (Object.keys(schedulesByDate).length === 0) {
-        pdfContent += `\n` + ` `.repeat(45) + `NO SCHEDULES FOUND FOR THIS PERIOD\n`;
-      }
-      
-      pdfContent += '\n' + `=`.repeat(120) + '\n';
-      pdfContent += ` `.repeat(30) + `Generated on ${new Date().toLocaleDateString('en-US')} at ${new Date().toLocaleTimeString('en-US')}\n`;
-      pdfContent += `=`.repeat(120) + '\n';
-
-      // Create actual PDF using PDFKit
-      const doc = new PDFDocument({ 
-        layout: 'landscape',
-        margin: 50 
-      });
-      
-      // Set headers for PDF download
-      res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', `attachment; filename="schedule-${month}.pdf"`);
-      
-      // Pipe PDF to response
-      doc.pipe(res);
-      
-      // Add title
-      doc.fontSize(16)
-         .font('Helvetica-Bold')
-         .text(`PINE HILL FARM - SCHEDULE FOR ${month.toUpperCase()}`, 50, 50, { align: 'center' });
-      
-      if (locationId) {
-        doc.fontSize(14)
-           .text(`LOCATION: ${getLocationName(parseInt(locationId)).toUpperCase()}`, 50, 80, { align: 'center' });
-      }
-      
-      // Add content with proper formatting
-      doc.fontSize(10)
-         .font('Courier')
-         .text(pdfContent, 50, 120);
-      
-      // Finalize PDF
-      doc.end();
-      
-    } catch (error) {
-      console.error('Error generating PDF schedule:', error);
-      res.status(500).json({ error: 'Failed to generate PDF schedule' });
-    }
-  });
-
   // Shift coverage requests routes
   app.get('/api/shift-coverage-requests', isAuthenticated, async (req, res) => {
     try {
