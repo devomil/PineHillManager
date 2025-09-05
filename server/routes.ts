@@ -786,7 +786,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Footer
       const footerY = doc.page.height - 60;
-      doc.rect(40, footerY - 10, doc.page.width - 80, 40).fill(lightGray);
+      doc.rect(40, footerY - 10, doc.page.width - 80, 40).fill(lightBg);
       
       doc.fontSize(8)
          .font('Helvetica')
