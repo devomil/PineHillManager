@@ -333,29 +333,50 @@ export default function EnhancedMonthlyScheduler() {
   // Check if user is employee for role-based view
   const isEmployee = user?.role === 'employee';
   
-  // SMS Status Query
-  const { data: smsStatus, refetch: refetchSMSStatus, isLoading: smsStatusLoading } = useQuery({
-    queryKey: ['/api/sms/status'],
-    enabled: !isEmployee && !!user, // Only admins/managers need SMS controls and user must be loaded
-    refetchInterval: 3000, // Refetch every 3 seconds to stay current
-    retry: 3, // Retry failed requests
-    staleTime: 0, // Always consider data stale
-    cacheTime: 0, // Don't cache results
-    onSuccess: (data) => {
-      console.log('SMS Status Data:', data);
-    },
-    onError: (error) => {
-      console.error('SMS Status Error:', error);
+  // SMS Status Query with manual control
+  const [manualSMSStatus, setManualSMSStatus] = useState<any>(null);
+  const [manualSMSLoading, setManualSMSLoading] = useState(false);
+
+  const fetchSMSStatus = async () => {
+    if (isEmployee || !user || (user.role !== 'admin' && user.role !== 'manager')) {
+      return;
     }
-  });
+    
+    try {
+      setManualSMSLoading(true);
+      console.log('Manually fetching SMS status...');
+      const response = await apiRequest('GET', '/api/sms/status');
+      console.log('SMS Status Response:', response);
+      setManualSMSStatus(response);
+    } catch (error) {
+      console.error('Manual SMS Status Error:', error);
+    } finally {
+      setManualSMSLoading(false);
+    }
+  };
+
+  // Fetch status on component mount and when user changes
+  useEffect(() => {
+    fetchSMSStatus();
+  }, [user?.id, isEmployee]);
+
+  // Auto-refresh status every 5 seconds
+  useEffect(() => {
+    if (isEmployee || !user || (user.role !== 'admin' && user.role !== 'manager')) {
+      return;
+    }
+    
+    const interval = setInterval(fetchSMSStatus, 5000);
+    return () => clearInterval(interval);
+  }, [user?.id, isEmployee]);
 
   // Debug logging
-  console.log('SMS Query Debug:', {
+  console.log('SMS Status Debug:', {
     isEmployee,
     user: !!user,
-    enabled: !isEmployee && !!user,
-    smsStatus,
-    smsStatusLoading
+    userRole: user?.role,
+    manualSMSStatus,
+    manualSMSLoading
   });
 
   // SMS Control Mutations
@@ -364,8 +385,7 @@ export default function EnhancedMonthlyScheduler() {
       return await apiRequest('POST', '/api/sms/pause');
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/sms/status'] });
-      refetchSMSStatus(); // Force immediate refetch
+      fetchSMSStatus(); // Force immediate refetch
       toast({
         title: "SMS Paused",
         description: "SMS notifications are now paused for bulk schedule entry",
@@ -375,7 +395,7 @@ export default function EnhancedMonthlyScheduler() {
       console.error('Pause SMS Error:', error);
       // If SMS is already paused, just refresh status instead of showing error
       if (error.message?.includes('already paused')) {
-        refetchSMSStatus();
+        fetchSMSStatus();
         toast({
           title: "SMS Already Paused",
           description: "SMS notifications are already paused for bulk schedule entry",
@@ -395,8 +415,7 @@ export default function EnhancedMonthlyScheduler() {
       return await apiRequest('POST', '/api/sms/resume', { sendSummary });
     },
     onSuccess: (data: any) => {
-      queryClient.invalidateQueries({ queryKey: ['/api/sms/status'] });
-      refetchSMSStatus(); // Force immediate refetch
+      fetchSMSStatus(); // Force immediate refetch
       setShowSMSSummaryOption(false);
       toast({
         title: "SMS Resumed",
@@ -413,7 +432,7 @@ export default function EnhancedMonthlyScheduler() {
   });
 
   const handleSMSToggle = () => {
-    if ((smsStatus as any)?.status?.isPaused) {
+    if (manualSMSStatus?.status?.isPaused) {
       setShowSMSSummaryOption(true);
     } else {
       pauseSMSMutation.mutate();
@@ -761,18 +780,18 @@ export default function EnhancedMonthlyScheduler() {
                 SMS:
               </Label>
               <Button
-                variant={(smsStatus as any)?.status?.isPaused ? "secondary" : "outline"}
+                variant={manualSMSStatus?.status?.isPaused ? "secondary" : "outline"}
                 size="sm"
                 onClick={handleSMSToggle}
-                disabled={pauseSMSMutation.isPending || resumeSMSMutation.isPending || smsStatusLoading}
+                disabled={pauseSMSMutation.isPending || resumeSMSMutation.isPending || manualSMSLoading}
                 className="h-8"
               >
-                {smsStatusLoading ? (
+                {manualSMSLoading ? (
                   <>
                     <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
                     Loading...
                   </>
-                ) : (smsStatus as any)?.status?.isPaused ? (
+                ) : manualSMSStatus?.status?.isPaused ? (
                   <>
                     <Play className="h-3 w-3 mr-1" />
                     Resume
@@ -784,7 +803,7 @@ export default function EnhancedMonthlyScheduler() {
                   </>
                 )}
               </Button>
-              {(smsStatus as any)?.status?.isPaused && (
+              {manualSMSStatus?.status?.isPaused && (
                 <Badge variant="secondary" className="text-xs">
                   Paused
                 </Badge>
