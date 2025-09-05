@@ -27,7 +27,11 @@ import {
   Users2,
   Building,
   Trash2,
-  Palette
+  Palette,
+  MessageSquare,
+  MessageSquareOff,
+  Play,
+  Pause
 } from "lucide-react";
 import { 
   format, 
@@ -96,6 +100,9 @@ export default function EnhancedMonthlyScheduler() {
     startTime: "09:00",
     endTime: "17:00"
   });
+  
+  // SMS Control State
+  const [showSMSSummaryOption, setShowSMSSummaryOption] = useState(false);
 
   // Calculate calendar dates
   const monthStart = startOfMonth(currentMonth);
@@ -321,6 +328,69 @@ export default function EnhancedMonthlyScheduler() {
       });
     }
   });
+
+  // Check if user is employee for role-based view
+  const isEmployee = user?.role === 'employee';
+  
+  // SMS Status Query
+  const { data: smsStatus } = useQuery({
+    queryKey: ['/api/sms/status'],
+    enabled: !isEmployee // Only admins/managers need SMS controls
+  });
+
+  // SMS Control Mutations
+  const pauseSMSMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest('POST', '/api/sms/pause');
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/sms/status'] });
+      toast({
+        title: "SMS Paused",
+        description: "SMS notifications are now paused for bulk schedule entry",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: "Failed to pause SMS notifications",
+        variant: "destructive"
+      });
+    }
+  });
+
+  const resumeSMSMutation = useMutation({
+    mutationFn: async (sendSummary: boolean) => {
+      return await apiRequest('POST', '/api/sms/resume', { sendSummary });
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/sms/status'] });
+      setShowSMSSummaryOption(false);
+      toast({
+        title: "SMS Resumed",
+        description: data?.summary ? `SMS notifications resumed. ${data.summary.sent} notifications sent.` : "SMS notifications resumed",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: "Failed to resume SMS notifications",
+        variant: "destructive"
+      });
+    }
+  });
+
+  const handleSMSToggle = () => {
+    if ((smsStatus as any)?.paused) {
+      setShowSMSSummaryOption(true);
+    } else {
+      pauseSMSMutation.mutate();
+    }
+  };
+
+  const handleSMSResume = (sendSummary: boolean) => {
+    resumeSMSMutation.mutate(sendSummary);
+  };
 
   // Get data for specific day
   const getDataForDay = (date: Date): ScheduleForDay => {
@@ -569,9 +639,6 @@ export default function EnhancedMonthlyScheduler() {
   };
 
   const activeEmployees = employees.filter((emp: UserType) => emp.isActive);
-  
-  // Check if user is employee for role-based view
-  const isEmployee = user?.role === 'employee';
 
   return (
     <div className="p-6 space-y-6">
@@ -637,7 +704,7 @@ export default function EnhancedMonthlyScheduler() {
         </Select>
 
         {!isEmployee && (
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             <div className="flex items-center gap-2">
               <Label className="text-sm whitespace-nowrap">Default Shift:</Label>
               <Input
@@ -653,6 +720,38 @@ export default function EnhancedMonthlyScheduler() {
                 onChange={(e) => setDefaultShiftTimes({...defaultShiftTimes, endTime: e.target.value})}
                 className="w-28"
               />
+            </div>
+            
+            {/* SMS Control Toggle */}
+            <div className="flex items-center gap-2 border-l pl-4">
+              <Label className="text-sm whitespace-nowrap flex items-center gap-1">
+                <MessageSquare className="h-3 w-3" />
+                SMS:
+              </Label>
+              <Button
+                variant={(smsStatus as any)?.paused ? "secondary" : "outline"}
+                size="sm"
+                onClick={handleSMSToggle}
+                disabled={pauseSMSMutation.isPending || resumeSMSMutation.isPending}
+                className="h-8"
+              >
+                {(smsStatus as any)?.paused ? (
+                  <>
+                    <Play className="h-3 w-3 mr-1" />
+                    Resume
+                  </>
+                ) : (
+                  <>
+                    <Pause className="h-3 w-3 mr-1" />
+                    Pause
+                  </>
+                )}
+              </Button>
+              {(smsStatus as any)?.paused && (
+                <Badge variant="secondary" className="text-xs">
+                  Paused
+                </Badge>
+              )}
             </div>
           </div>
         )}
@@ -1109,6 +1208,60 @@ export default function EnhancedMonthlyScheduler() {
           <TimeOffManager />
         </TabsContent>
       </Tabs>
+
+      {/* SMS Summary Options Dialog */}
+      <Dialog open={showSMSSummaryOption} onOpenChange={setShowSMSSummaryOption}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <MessageSquare className="h-5 w-5" />
+            Resume SMS Notifications
+          </DialogTitle>
+          <DialogDescription>
+            SMS notifications are currently paused. How would you like to resume?
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="space-y-3">
+            <Button
+              onClick={() => handleSMSResume(true)}
+              disabled={resumeSMSMutation.isPending}
+              className="w-full justify-start h-auto p-4"
+              variant="outline"
+            >
+              <div className="text-left">
+                <div className="font-semibold">Resume with Summary</div>
+                <div className="text-sm text-muted-foreground">
+                  Send one summary message about all schedule changes
+                </div>
+              </div>
+            </Button>
+            <Button
+              onClick={() => handleSMSResume(false)}
+              disabled={resumeSMSMutation.isPending}
+              className="w-full justify-start h-auto p-4"
+              variant="outline"
+            >
+              <div className="text-left">
+                <div className="font-semibold">Resume Silently</div>
+                <div className="text-sm text-muted-foreground">
+                  Resume notifications without sending queued messages
+                </div>
+              </div>
+            </Button>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button
+            variant="ghost"
+            onClick={() => setShowSMSSummaryOption(false)}
+            disabled={resumeSMSMutation.isPending}
+          >
+            Cancel
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
     </div>
   );
 }
