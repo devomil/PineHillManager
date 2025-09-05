@@ -1,0 +1,93 @@
+useAuth - user: undefined isLoading: true error: null
+Auth state: 
+Object {isAuthenticated: false, isLoading: true, user: null}
+Auth state: 
+Object {isAuthenticated: false, isLoading: true, user: null}
+User data fetched: 
+Object {id: "40154188", email: "ryan@pinehillfarm.co", firstName: "Ryan", lastName: "Sorensen", role: "admin"}
+useAuth - user: 
+Object {id: "40154188", email: "ryan@pinehillfarm.co", firstName: "Ryan", lastName: "Sorensen", role: "admin"}
+ isLoading: false error: null
+useAuth - user: 
+Object {id: "40154188", email: "ryan@pinehillfarm.co", firstName: "Ryan", lastName: "Sorensen", role: "admin"}
+ isLoading: false error: null
+Auth state: 
+Object {isAuthenticated: true, isLoading: false, user: {…}}
+Rendering: AuthenticatedApp
+Auth state: 
+Object {isAuthenticated: true, isLoading: false, user: {…}}
+Rendering: AuthenticatedApp
+SMS Status Debug: 
+Object {isEmployee: false, user: true, userRole: "admin", manualSMSStatus: null, manualSMSLoading: false}
+SMS Status Debug: 
+Object {isEmployee: false, user: true, userRole: "admin", manualSMSStatus: null, manualSMSLoading: false}
+API Request: GET /api/employees with data: undefined
+API Request: GET /api/locations with data: undefined
+API Request: GET /api/work-schedules?startDate=2025-08-31&endDate=2025-10-04 with data: undefined
+API Request: GET /api/calendar-notes?startDate=2025-08-31&endDate=2025-10-04 with data: undefined
+API Request: GET /api/time-off-requests/approved?startDate=2025-08-31&endDate=2025-10-04 with data: undefined
+Manually fetching SMS status...
+API Request: GET /api/sms/status with data: undefined
+Manually fetching SMS status...
+API Request: GET /api/sms/status with data: undefined
+SMS Status Debug: 
+Object {isEmployee: false, user: true, userRole: "admin", manualSMSStatus: null, manualSMSLoading: true}
+SMS Status Debug: 
+Object {isEmployee: false, user: true, userRole: "admin", manualSMSStatus: null, manualSMSLoading: true}
+API Response status: 200 for GET /api/sms/status
+SMS Status Response: 
+Response {type: "basic", url: "https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/api/sms/status", redirected: false, status: 200, ok: true, …}
+SMS Status Debug: 
+Object {isEmployee: false, user: true, userRole: "admin", manualSMSStatus: Response, manualSMSLoading: false}
+SMS Status Debug: 
+Object {isEmployee: false, user: true, userRole: "admin", manualSMSStatus: Response, manualSMSLoading: false}
+API Response status: 200 for GET /api/locations
+SMS Status Debug: 
+Object {isEmployee: false, user: true, userRole: "admin", manualSMSStatus: Response, manualSMSLoading: false}
+SMS Status Debug: 
+Object {isEmployee: false, user: true, userRole: "admin", manualSMSStatus: Response, manualSMSLoading: false}
+API Response status: 200 for GET /api/time-off-requests/approved?startDate=2025-08-31&endDate=2025-10-04
+SMS Status Debug: 
+Object {isEmployee: false, user: true, userRole: "admin", manualSMSStatus: Response, manualSMSLoading: false}
+SMS Status Debug: 
+Object {isEmployee: false, user: true, userRole: "admin", manualSMSStatus: Response, manualSMSLoading: false}
+API Response status: 200 for GET /api/employees
+SMS Status Debug: 
+Object {isEmployee: false, user: true, userRole: "admin", manualSMSStatus: Response, manualSMSLoading: false}
+SMS Status Debug: 
+Object {isEmployee: false, user: true, userRole: "admin", manualSMSStatus: Response, manualSMSLoading: false}
+API Response status: 200 for GET /api/calendar-notes?startDate=2025-08-31&endDate=2025-10-04
+SMS Status Debug: 
+Object {isEmployee: false, user: true, userRole: "admin", manualSMSStatus: Response, manualSMSLoading: false}
+SMS Status Debug: 
+Object {isEmployee: false, user: true, userRole: "admin", manualSMSStatus: Response, manualSMSLoading: false}
+API Response status: 200 for GET /api/work-schedules?startDate=2025-08-31&endDate=2025-10-04
+SMS Status Debug: 
+Object {isEmployee: false, user: true, userRole: "admin", manualSMSStatus: Response, manualSMSLoading: false}
+SMS Status Debug: 
+Object {isEmployee: false, user: true, userRole: "admin", manualSMSStatus: Response, manualSMSLoading: false}
+API Response status: 200 for GET /api/sms/status
+SMS Status Response: 
+Response {type: "basic", url: "https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/api/sms/status", redirected: false, status: 200, ok: true, …}
+SMS Status Debug: 
+Object {isEmployee: false, user: true, userRole: "admin", manualSMSStatus: Response, manualSMSLoading: false}
+SMS Status Debug: 
+Object {isEmployee: false, user: true, userRole: "admin", manualSMSStatus: Response, manualSMSLoading: false}
+API Request: POST /api/sms/pause with data: undefined
+SMS Status Debug: 
+Object {isEmployee: false, user: true, userRole: "admin", manualSMSStatus: Response, manualSMSLoading: false}
+SMS Status Debug: 
+Object {isEmployee: false, user: true, userRole: "admin", manualSMSStatus: Response, manualSMSLoading: false}
+API Response status: 400 for POST /api/sms/pause
+API Error: 400 {"success":false,"message":"SMS notifications already paused by 40154188 at 9/5/2025, 5:33:15 PM"}
+at t.value (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:17465)
+at new t (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:12630)
+at t.value (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:32766)
+at https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:34400
+Pause SMS Error: 
+Error {}
+
+at t.value (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:17465)
+at new t (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:12630)
+at t.value (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:32766)
+at https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:34400

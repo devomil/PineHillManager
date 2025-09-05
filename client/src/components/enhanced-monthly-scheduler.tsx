@@ -345,11 +345,23 @@ export default function EnhancedMonthlyScheduler() {
     try {
       setManualSMSLoading(true);
       console.log('Manually fetching SMS status...');
-      const response = await apiRequest('GET', '/api/sms/status');
-      console.log('SMS Status Response:', response);
-      setManualSMSStatus(response);
+      const response = await fetch('/api/sms/status', {
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      console.log('SMS Status Response:', data);
+      setManualSMSStatus(data);
     } catch (error) {
       console.error('Manual SMS Status Error:', error);
+      setManualSMSStatus(null);
     } finally {
       setManualSMSLoading(false);
     }
@@ -376,7 +388,8 @@ export default function EnhancedMonthlyScheduler() {
     user: !!user,
     userRole: user?.role,
     manualSMSStatus,
-    manualSMSLoading
+    manualSMSLoading,
+    isPaused: manualSMSStatus?.status?.isPaused
   });
 
   // SMS Control Mutations
