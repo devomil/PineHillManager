@@ -333,12 +333,16 @@ export default function EnhancedMonthlyScheduler() {
   const isEmployee = user?.role === 'employee';
   
   // SMS Status Query
-  const { data: smsStatus, refetch: refetchSMSStatus } = useQuery({
+  const { data: smsStatus, refetch: refetchSMSStatus, isLoading: smsStatusLoading } = useQuery({
     queryKey: ['/api/sms/status'],
-    enabled: !isEmployee, // Only admins/managers need SMS controls
-    refetchInterval: 5000, // Refetch every 5 seconds to stay current
+    enabled: !isEmployee && !!user, // Only admins/managers need SMS controls and user must be loaded
+    refetchInterval: 3000, // Refetch every 3 seconds to stay current
+    retry: 3, // Retry failed requests
     onSuccess: (data) => {
       console.log('SMS Status Data:', data);
+    },
+    onError: (error) => {
+      console.error('SMS Status Error:', error);
     }
   });
 
@@ -356,11 +360,21 @@ export default function EnhancedMonthlyScheduler() {
       });
     },
     onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: "Failed to pause SMS notifications",
-        variant: "destructive"
-      });
+      console.error('Pause SMS Error:', error);
+      // If SMS is already paused, just refresh status instead of showing error
+      if (error.message?.includes('already paused')) {
+        refetchSMSStatus();
+        toast({
+          title: "SMS Already Paused",
+          description: "SMS notifications are already paused for bulk schedule entry",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to pause SMS notifications",
+          variant: "destructive"
+        });
+      }
     }
   });
 
@@ -738,10 +752,15 @@ export default function EnhancedMonthlyScheduler() {
                 variant={(smsStatus as any)?.status?.isPaused ? "secondary" : "outline"}
                 size="sm"
                 onClick={handleSMSToggle}
-                disabled={pauseSMSMutation.isPending || resumeSMSMutation.isPending}
+                disabled={pauseSMSMutation.isPending || resumeSMSMutation.isPending || smsStatusLoading}
                 className="h-8"
               >
-                {(smsStatus as any)?.status?.isPaused ? (
+                {smsStatusLoading ? (
+                  <>
+                    <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
+                    Loading...
+                  </>
+                ) : (smsStatus as any)?.status?.isPaused ? (
                   <>
                     <Play className="h-3 w-3 mr-1" />
                     Resume
