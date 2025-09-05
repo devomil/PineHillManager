@@ -711,17 +711,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
              .stroke('#d1d5db')  // Subtle light gray grid lines
              .lineWidth(0.5);
           
-          // Clean day name styling - smaller font to prevent cutoff
-          doc.fontSize(8)
+          // Clean day name styling - compact but readable
+          doc.fontSize(7)
              .font('Helvetica-Bold')
              .fillColor(isWeekend ? primaryColor : textColor)
-             .text(dayName, x, currentY + 2, { width: columnWidth, align: 'center' });
+             .text(dayName, x, currentY + 1, { width: columnWidth, align: 'center' });
           
-          // Date numbers - reduced size to fit properly
-          doc.fontSize(12)
+          // Date numbers - compact but clear
+          doc.fontSize(10)
              .font('Helvetica-Bold')
              .fillColor(primaryColor)
-             .text(dayNumber.toString(), x, currentY + 11, { width: columnWidth, align: 'center' });
+             .text(dayNumber.toString(), x, currentY + 10, { width: columnWidth, align: 'center' });
         });
 
         currentY += headerHeight;
@@ -739,11 +739,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
              .stroke('#d1d5db')  // Light gray grid lines for better print readability
              .lineWidth(0.5);
           
-          // SMART shift rendering - adapts to available cell space
+          // SMART shift rendering - improved text visibility
           const availableShiftSpace = finalCellHeight - 8; // Reserve padding
-          const shiftHeight = Math.min(14, Math.floor(availableShiftSpace / Math.max(daySchedules.length, 1)));
-          const fontSize = Math.min(6, shiftHeight - 4);
-          const timeFont = Math.max(4, fontSize - 1);
+          const shiftHeight = Math.min(16, Math.floor(availableShiftSpace / Math.max(daySchedules.length, 1)));
+          const fontSize = Math.min(7, Math.max(5, shiftHeight - 4)); // Increased range 5-7
+          const timeFont = Math.min(6, Math.max(4, fontSize - 1)); // Improved time text size
           
           let shiftY = currentY + 4; // Consistent top padding
           daySchedules.forEach((schedule, shiftIndex) => {
