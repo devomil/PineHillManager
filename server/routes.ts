@@ -582,11 +582,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Pipe PDF to response
       doc.pipe(res);
 
-      // Colors
-      const primaryColor = '#2E5C4A';  // Pine green
-      const secondaryColor = '#4A90A4';  // Blue
-      const lightGray = '#F5F5F5';
-      const mediumGray = '#CCCCCC';
+      // Brand colors - professional Pine Hill Farm palette
+      const primaryColor = '#5b7c99';  // Brand blue-gray
+      const secondaryColor = '#8c93ad';  // Secondary brand color
+      const accentColor = '#607e66';     // Accent green
+      const neutralGray = '#a9a9a9';    // Neutral gray
+      const lightBg = '#f8f9fa';        // Light background
       const textColor = '#333333';
 
       // Extract month name and year from the month parameter (e.g. "2025-09")
@@ -596,25 +597,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
                           'July', 'August', 'September', 'October', 'November', 'December'];
       const monthName = monthNames[parseInt(monthStr) - 1];
 
-      // Professional header with month/year prominent
-      doc.rect(0, 0, doc.page.width, 90).fill(primaryColor);
+      // Professional branded header
+      doc.rect(0, 0, doc.page.width, 100).fill(primaryColor);
       
-      // Company title
-      doc.fontSize(28)
+      // Add subtle gradient effect with secondary color
+      doc.rect(0, 80, doc.page.width, 20)
+         .fill(secondaryColor)
+         .opacity(0.3);
+      doc.opacity(1); // Reset opacity
+      
+      // Company title with professional typography
+      doc.fontSize(32)
          .font('Helvetica-Bold')
          .fillColor('white')
-         .text('PINE HILL FARM', 0, 20, { align: 'center', width: doc.page.width });
-         
-      doc.fontSize(18)
+         .text('PINE HILL FARM', 0, 25, { align: 'center', width: doc.page.width });
+      
+      // Prominent month/year with better contrast
+      doc.fontSize(20)
          .font('Helvetica-Bold')
-         .fillColor('#E8F5E8')
-         .text(`${monthName.toUpperCase()} ${year} SCHEDULE`, 0, 50, { align: 'center', width: doc.page.width });
+         .fillColor('#ffffff')
+         .text(`${monthName.toUpperCase()} ${year} SCHEDULE`, 0, 55, { align: 'center', width: doc.page.width });
       
       if (locationId) {
-        doc.fontSize(12)
+        doc.fontSize(14)
            .font('Helvetica')
-           .fillColor('#C0D9C0')
-           .text(`Location: ${getLocationName(parseInt(locationId))}`, 0, 70, { align: 'center', width: doc.page.width });
+           .fillColor('#e8f1f8')
+           .text(`Location: ${getLocationName(parseInt(locationId))}`, 0, 78, { align: 'center', width: doc.page.width });
       }
 
       // Group schedules by date
@@ -661,20 +669,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const headerHeight = 24; // Readable header
       const cellHeight = 70; // Uniform height for better layout
       
-      // Employee colors matching the UI
+      // Employee colors exactly matching UI calendar
       const employeeColors: { [key: string]: string } = {
-        'Dianne Zubke': '#E8D5F2',        // Light purple like in UI
-        'Jacalyn Phillips': '#D1E7FF',    // Light blue like in UI  
-        'Danielle Clark': '#FFE6CC',      // Light orange like in UI
-        'Rozalyn Walter': '#D4F4DD',      // Light green like in UI
-        'Janell Gray': '#F0F0F0'          // Light gray for others
+        'Dianne Zubke': '#E879F9',        // Purple/magenta to match UI exactly
+        'Jacalyn Phillips': '#60A5FA',    // Blue to match UI exactly
+        'Danielle Clark': '#FBBF24',      // Yellow/orange to match UI exactly
+        'Rozalyn Wolter': '#34D399',      // Green to match UI exactly  
+        'Janell Gray': '#22D3EE'          // Teal to match UI exactly
       };
       
       let currentY = startY;
 
       // Clean calendar grid matching UI layout
       weeks.forEach((week, weekIndex) => {
-        // Professional day headers with clear grid
+        // Professional day headers with brand styling
         week.forEach((dateStr, dayIndex) => {
           const date = new Date(dateStr + 'T00:00:00');
           const dayName = dayNames[date.getDay()];
@@ -683,45 +691,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const isWeekend = date.getDay() === 0 || date.getDay() === 6;
           const isAlternateWeek = weekIndex % 2 === 1;
           
-          // Professional header cell with alternating backgrounds
-          const headerBg = isAlternateWeek ? '#F8F9FA' : 'white';
+          // Professional header with subtle alternating backgrounds
+          const headerBg = isAlternateWeek ? lightBg : 'white';
           doc.rect(x, currentY, columnWidth, headerHeight)
              .fill(headerBg)
-             .stroke('#666666'); // Stronger border
+             .stroke(neutralGray)
+             .lineWidth(1);
           
-          // Readable day name
-          doc.fontSize(9)
+          // Clean day name styling
+          doc.fontSize(10)
              .font('Helvetica-Bold')
-             .fillColor(isWeekend ? '#2C5530' : '#333333')
-             .text(dayName, x + 4, currentY + 3, { width: columnWidth - 8, align: 'center' });
+             .fillColor(isWeekend ? primaryColor : textColor)
+             .text(dayName, x + 4, currentY + 4, { width: columnWidth - 8, align: 'center' });
           
-          // Bold, prominent date number
-          doc.fontSize(12)
+          // Bold, prominent date number with brand color
+          doc.fontSize(14)
              .font('Helvetica-Bold')
-             .fillColor('#2C5530')
-             .text(dayNumber.toString(), x + 4, currentY + 13, { width: columnWidth - 8, align: 'center' });
+             .fillColor(primaryColor)
+             .text(dayNumber.toString(), x + 4, currentY + 16, { width: columnWidth - 8, align: 'center' });
         });
 
         currentY += headerHeight;
 
-        // Professional calendar cells with clear formatting
+        // Professional calendar cells with brand styling
         week.forEach((dateStr, dayIndex) => {
           const daySchedules = schedulesByDate[dateStr] || [];
           const x = sideMargin + (dayIndex * columnWidth);
           const isAlternateWeek = weekIndex % 2 === 1;
           
-          // Cell with alternating backgrounds for easier reading
-          const cellBg = isAlternateWeek ? '#FAFBFA' : 'white';
+          // Cell with subtle alternating backgrounds using brand colors
+          const cellBg = isAlternateWeek ? lightBg : 'white';
           doc.rect(x, currentY, columnWidth, cellHeight)
              .fill(cellBg)
-             .stroke('#666666'); // Stronger borders
+             .stroke(neutralGray)
+             .lineWidth(1);
           
-          // Better spaced shift entries
-          let shiftY = currentY + 4; // More padding
+          // Clean shift entry styling
+          let shiftY = currentY + 5; // Clean top padding
           daySchedules.forEach((schedule, shiftIndex) => {
-            if (shiftY + 16 > currentY + cellHeight - 4) return; // Professional spacing
+            if (shiftY + 18 > currentY + cellHeight - 5) return; // Professional spacing
             
-            // 12-hour format with proper spacing
+            // 12-hour format matching your system
             const startTime = new Date(schedule.startTime).toLocaleString('en-US', {
               hour: 'numeric',
               minute: '2-digit',
@@ -740,25 +750,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const timeRange = `${startTime}-${endTime}`;
             const locationName = getLocationAbbreviation(schedule.locationId || 1);
             
-            // Professional colored backgrounds with better contrast
-            const backgroundColor = employeeColors[employeeName] || '#F0F0F0';
-            doc.rect(x + 2, shiftY, columnWidth - 4, 14)
+            // UI-matching employee color blocks 
+            const backgroundColor = employeeColors[employeeName] || lightBg;
+            doc.rect(x + 3, shiftY, columnWidth - 6, 16)
                .fill(backgroundColor)
-               .stroke('#999999');
+               .stroke('rgba(255,255,255,0.3)')
+               .lineWidth(0.5);
             
-            // More readable employee names (larger, bold)
-            doc.fontSize(7)
+            // Bold employee names with better contrast
+            doc.fontSize(8)
                .font('Helvetica-Bold')
-               .fillColor('#2C2C2C')
-               .text(employeeName, x + 3, shiftY + 1, { width: columnWidth - 6, align: 'left' });
+               .fillColor('#ffffff')
+               .text(employeeName, x + 5, shiftY + 2, { width: columnWidth - 10, align: 'left' });
             
-            // Clear time and location info
-            doc.fontSize(6)
+            // Clean time and location with white text
+            doc.fontSize(7)
                .font('Helvetica')
-               .fillColor('#555555')
-               .text(`${timeRange} • ${locationName}`, x + 3, shiftY + 9, { width: columnWidth - 6, align: 'left' });
+               .fillColor('#ffffff')
+               .text(`${timeRange} • ${locationName}`, x + 5, shiftY + 11, { width: columnWidth - 10, align: 'left' });
             
-            shiftY += 16; // Professional spacing between entries
+            shiftY += 20; // Professional spacing between entries
           });
         });
 
