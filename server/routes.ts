@@ -647,7 +647,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const startY = 150;
       const columnWidth = (doc.page.width - 80) / 7;
       const headerHeight = 15;
-      const weekRowHeight = 80; // Even more compact height for shifts
+      const weekRowHeight = 130; // Taller to accommodate multiple stacked shifts
       
       let currentY = startY;
 
@@ -689,9 +689,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           doc.rect(x, currentY, columnWidth, weekRowHeight).stroke('#CCCCCC');
           
           // Stack all shifts in this cell vertically (matching UI layout)
-          let cellY = currentY + 3;
+          let cellY = currentY + 2;
           daySchedules.forEach((schedule, shiftIndex) => {
-            if (cellY + 25 > currentY + weekRowHeight - 5) return; // Don't overflow cell
+            if (cellY + 20 > currentY + weekRowHeight - 3) return; // Don't overflow cell
             
             const startTime = new Date(schedule.startTime).toLocaleTimeString('en-US', {
               hour: 'numeric',
@@ -712,27 +712,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
             // Light background for each shift entry (alternating)
             const shiftBg = shiftIndex % 2 === 0 ? '#F8F9FA' : 'white';
             if (shiftIndex % 2 === 0) {
-              doc.rect(x + 1, cellY - 1, columnWidth - 2, 25).fill(shiftBg);
+              doc.rect(x + 1, cellY - 1, columnWidth - 2, 20).fill(shiftBg);
             }
             
             // Employee name (bold)
-            doc.fontSize(7)
+            doc.fontSize(6)
                .font('Helvetica-Bold')
                .fillColor(textColor)
                .text(displayName, x + 2, cellY, { width: columnWidth - 4, align: 'center' });
             
             // Time range (blue)
-            doc.fontSize(6)
+            doc.fontSize(5.5)
                .font('Helvetica')
                .fillColor('#0066CC')
-               .text(timeRange, x + 2, cellY + 9, { width: columnWidth - 4, align: 'center' });
+               .text(timeRange, x + 2, cellY + 7, { width: columnWidth - 4, align: 'center' });
             
             // Location (gray)
-            doc.fontSize(6)
+            doc.fontSize(5)
                .fillColor('#666666')
-               .text(locationName, x + 2, cellY + 17, { width: columnWidth - 4, align: 'center' });
+               .text(locationName, x + 2, cellY + 13, { width: columnWidth - 4, align: 'center' });
             
-            cellY += 27; // Move down for next shift
+            cellY += 22; // Move down for next shift (more compact spacing)
           });
         });
 
