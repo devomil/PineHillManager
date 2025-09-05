@@ -488,8 +488,8 @@ export default function TimeOffManager() {
                     </motion.div>
                   )}
 
-                  {/* Request cancellation button for employees */}
-                  {!canReviewRequests && request.userId === user?.id && request.status === "approved" && (
+                  {/* Request cancellation button for own approved requests */}
+                  {request.userId === user?.id && request.status === "approved" && (
                     <motion.div
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
