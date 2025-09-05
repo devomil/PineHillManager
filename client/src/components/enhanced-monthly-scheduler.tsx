@@ -344,7 +344,9 @@ export default function EnhancedMonthlyScheduler() {
     
     try {
       setManualSMSLoading(true);
-      console.log('Manually fetching SMS status...');
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Manually fetching SMS status...');
+      }
       const response = await fetch('/api/sms/status', {
         credentials: 'include',
         headers: {
@@ -357,10 +359,14 @@ export default function EnhancedMonthlyScheduler() {
       }
       
       const data = await response.json();
-      console.log('SMS Status Response:', data);
+      if (process.env.NODE_ENV === 'development') {
+        console.log('SMS Status Response:', data);
+      }
       setManualSMSStatus(data);
     } catch (error) {
-      console.error('Manual SMS Status Error:', error);
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Manual SMS Status Error:', error);
+      }
       setManualSMSStatus(null);
     } finally {
       setManualSMSLoading(false);
@@ -382,15 +388,17 @@ export default function EnhancedMonthlyScheduler() {
     return () => clearInterval(interval);
   }, [user?.id, isEmployee]);
 
-  // Debug logging
-  console.log('SMS Status Debug:', {
-    isEmployee,
-    user: !!user,
-    userRole: user?.role,
-    manualSMSStatus,
-    manualSMSLoading,
-    isPaused: manualSMSStatus?.status?.isPaused
-  });
+  // SMS Status logging (development only)
+  if (process.env.NODE_ENV === 'development') {
+    console.log('SMS Status Debug:', {
+      isEmployee,
+      user: !!user,
+      userRole: user?.role,
+      manualSMSStatus,
+      manualSMSLoading,
+      isPaused: manualSMSStatus?.status?.isPaused
+    });
+  }
 
   // SMS Control Mutations
   const pauseSMSMutation = useMutation({
@@ -405,7 +413,9 @@ export default function EnhancedMonthlyScheduler() {
       });
     },
     onError: (error: any) => {
-      console.error('Pause SMS Error:', error);
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Pause SMS Error:', error);
+      }
       // If SMS is already paused, just refresh status instead of showing error
       if (error.message?.includes('already paused')) {
         fetchSMSStatus();

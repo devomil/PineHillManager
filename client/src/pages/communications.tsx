@@ -1000,7 +1000,7 @@ function CommunicationsContent() {
 
   // Filter announcements
   const getFilteredAnnouncements = () => {
-    const activeAnnouncements = announcements.filter(announcement => !isExpired(announcement.expiresAt));
+    const activeAnnouncements = announcements.filter(announcement => !isExpired(announcement.expiresAt || undefined));
     
     if (selectedFilter === "all") return activeAnnouncements;
     if (selectedFilter === "important") return activeAnnouncements.filter(a => a.priority === "urgent" || a.priority === "high");
@@ -1011,7 +1011,7 @@ function CommunicationsContent() {
   };
 
   const filteredAnnouncements = getFilteredAnnouncements();
-  const expiredAnnouncements = announcements.filter(announcement => isExpired(announcement.expiresAt));
+  const expiredAnnouncements = announcements.filter(announcement => isExpired(announcement.expiresAt || undefined));
 
   if (announcementsLoading) {
     return (
@@ -1181,7 +1181,7 @@ function CommunicationsContent() {
                   <Label htmlFor="priority">Priority Level</Label>
                   <Select 
                     value={formData.priority} 
-                    onValueChange={(value: any) => setFormData(prev => ({ ...prev, priority: value }))}
+                    onValueChange={(value: 'low' | 'normal' | 'high' | 'urgent') => setFormData(prev => ({ ...prev, priority: value }))}
                   >
                     <SelectTrigger id="priority">
                       <SelectValue />
@@ -1484,11 +1484,11 @@ function CommunicationsContent() {
                         
                         {/* Message Reactions */}
                         <MessageReactions 
-                          announcementId={announcement.id} 
+                          announcementId={Number(announcement.id)} 
                         />
                         
                         {/* Announcement Responses */}
-                        <AnnouncementResponses announcementId={announcement.id} />
+                        <AnnouncementResponses announcementId={Number(announcement.id)} />
                         
                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between pt-3 md:pt-4 border-t border-gray-200 gap-2">
                           <div className="flex flex-col sm:flex-row sm:items-center text-xs sm:text-sm text-gray-500 gap-2 sm:gap-4">
