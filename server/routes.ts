@@ -589,6 +589,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const mediumGray = '#CCCCCC';
       const textColor = '#333333';
 
+      // Extract month name and year from the month parameter (e.g. "2025-09")
+      const [yearStr, monthStr] = month.split('-');
+      const year = parseInt(yearStr);
+      const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
+                          'July', 'August', 'September', 'October', 'November', 'December'];
+      const monthName = monthNames[parseInt(monthStr) - 1];
+
       // Professional header with month/year prominent
       doc.rect(0, 0, doc.page.width, 90).fill(primaryColor);
       
