@@ -387,7 +387,7 @@ export default function EnhancedMonthlyScheduler() {
   });
 
   const handleSMSToggle = () => {
-    if ((smsStatus as any)?.status?.paused) {
+    if ((smsStatus as any)?.status?.isPaused) {
       setShowSMSSummaryOption(true);
     } else {
       pauseSMSMutation.mutate();
@@ -735,13 +735,13 @@ export default function EnhancedMonthlyScheduler() {
                 SMS:
               </Label>
               <Button
-                variant={(smsStatus as any)?.status?.paused ? "secondary" : "outline"}
+                variant={(smsStatus as any)?.status?.isPaused ? "secondary" : "outline"}
                 size="sm"
                 onClick={handleSMSToggle}
                 disabled={pauseSMSMutation.isPending || resumeSMSMutation.isPending}
                 className="h-8"
               >
-                {(smsStatus as any)?.status?.paused ? (
+                {(smsStatus as any)?.status?.isPaused ? (
                   <>
                     <Play className="h-3 w-3 mr-1" />
                     Resume
@@ -753,7 +753,7 @@ export default function EnhancedMonthlyScheduler() {
                   </>
                 )}
               </Button>
-              {(smsStatus as any)?.status?.paused && (
+              {(smsStatus as any)?.status?.isPaused && (
                 <Badge variant="secondary" className="text-xs">
                   Paused
                 </Badge>
