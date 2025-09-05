@@ -1,7 +1,7 @@
 # Pine Hill Farm Employee Management System
 
 ## Overview
-The Pine Hill Farm Employee Management System is a comprehensive platform designed to streamline operations for employees, managers, and administrators. Built with React (Vite), Express.js, and PostgreSQL, its core purpose is to provide role-based access for time tracking, scheduling, communication, support ticket management, and robust accounting. The system aims to integrate essential business tools like QuickBooks, Clover POS, HSA providers, and Thrive inventory to offer an all-in-one solution for farm management, enhancing efficiency and oversight across all departments.
+The Pine Hill Farm Employee Management System is a comprehensive platform designed to streamline operations for employees, managers, and administrators. Its core purpose is to provide role-based access for time tracking, scheduling, communication, support ticket management, and robust accounting. The system aims to integrate essential business tools to offer an all-in-one solution for farm management, enhancing efficiency and oversight across all departments.
 
 ## User Preferences
 Preferred communication style: Simple, everyday language.
@@ -21,116 +21,40 @@ The frontend utilizes React 18 with TypeScript and Vite. Radix UI provides acces
 
 ### Feature Specifications
 - **Time Management**: Clock in/out with break tracking, multi-location work scheduling, and time off request management.
-- **Communication & Support**: Mobile-first SMS-integrated team messaging with complete interactive response and reaction system. Features include:
-    - **SMS Consent Compliance**: Complete TCPA-compliant consent tracking with historical audit trails for all users
-    - **Bulk Consent Management**: Role-based bulk opt-in operations with detailed compliance logging and audit trails
-    - **Consent History Tracking**: Full audit trail including previous consent states, change reasons, IP addresses, and administrative actions
-    - **Manager/Admin Testing**: Successfully tested bulk SMS opt-in for management team (December 2024)
-    - **Interactive Reaction System**: One-click thumbs-up, checkmark, X, and question mark reactions with immediate visual feedback and database persistence.
-    - **Auto-Fetching Components**: MessageReactions component automatically loads existing reactions from API with real-time updates.
-    - **SMS Quick Reactions**: Emoji/keyword detection (✅👍❌❓ + "yes", "ok", "help", etc.) with 3-word smart classification.
-    - **Smart Message Threading**: SMS responses automatically route to correct conversation thread based on timestamp comparison between direct messages and announcements (September 2024).
-    - **Direct Message Threading**: Fixed SMS responses to direct messages routing correctly to message threads instead of announcements (September 2024).
-    - **Dual Response System**: Separate storage for announcement reactions and text responses with proper UI display.
-    - **Complete API Layer**: Full CRUD operations for both message and announcement reactions via dedicated endpoints.
-    - **Real-time Integration**: WebSocket updates, message scheduling, automation rules, smart targeting with instant cache invalidation.
-    - **SMS Confirmation System**: Context-aware replies showing user names and announcement titles.
+- **Communication & Support**: Mobile-first SMS-integrated team messaging with complete interactive response and reaction system. Includes TCPA-compliant consent tracking, bulk consent management, full audit trails for consent history, interactive reaction system (thumbs-up, checkmark, X, question mark), SMS quick reactions via emoji/keyword detection, smart message threading, dual response system, complete API layer (CRUD), and real-time integration via WebSockets.
 - **Document Management**: Role-based file sharing.
-- **Inventory Management**: Dedicated `/inventory` page with comprehensive inventory tracking, real-time stock levels, categories, and analytics across all locations. Includes inventory sync capabilities and role-based access controls.
+- **Inventory Management**: Dedicated `/inventory` page with comprehensive tracking, real-time stock levels, categories, and analytics across all locations. Includes inventory sync capabilities and role-based access controls.
 - **Order Management**: Dedicated `/orders` page for comprehensive order processing with real-time analytics, payment tracking, and performance insights across all store locations.
-- **Accounting**: Comprehensive financial management with live integrations for Clover POS (5 locations), Amazon Store, HSA, and Thrive inventory. Real-time "Last 24 Hours" dashboard showing current revenue, multi-location revenue analytics, and extensive financial data tracking.
+- **Accounting**: Comprehensive financial management with live integrations for Clover POS, Amazon Store, HSA, and Thrive inventory. Features real-time revenue dashboards and multi-location analytics.
 - **Video Generation**: A professional video engine built with native Canvas API for creating animated explainer videos, integrating multiple APIs for content generation, voiceover synthesis, and imagery.
 
 ### System Design Choices
-The system follows a clear separation of concerns between frontend and backend. Authentication is session-based with robust password hashing. Data flow is designed for clarity, and performance is considered through optimized database queries and consistent timezone handling (CST). The architecture supports multi-merchant configurations for integrations like Clover POS and department-specific page access for enhanced security and user experience.
+The system follows a clear separation of concerns between frontend and backend. Authentication is session-based with robust password hashing. Data flow is designed for clarity, and performance is considered through optimized database queries and consistent timezone handling (CST). The architecture supports multi-merchant configurations and department-specific page access.
 
 **Performance Optimizations:**
-- Real-time API data fetching for accurate business metrics.
-- WebSocket connections for instant messaging updates.
-- Efficient React Query caching with proper cache invalidation and immediate reaction updates.
-- Auto-fetching component architecture eliminating prop-drilling and improving data consistency.
-- Optimized reaction queries with targeted cache invalidation for specific announcement/message IDs.
-- "Last 24 Hours" filtering for meaningful dashboard data.
-- Scheduled message processing with 30-second intervals.
-- Modular page architecture for improved load times and user experience.
-- Component-level state management reducing unnecessary re-renders.
+- Real-time API data fetching and WebSocket connections for instant updates.
+- Efficient React Query caching with targeted invalidation.
+- Auto-fetching component architecture and modular page design.
+- Component-level state management to reduce re-renders.
 
 **Architecture Decisions:**
-- **Self-Contained Component Design**: MessageReactions component redesigned to auto-fetch data via API instead of relying on props, improving maintainability and data consistency.
-- **Targeted Cache Management**: React Query cache invalidation optimized for specific announcement/message IDs rather than broad invalidation patterns.
-- **Real-time UI Feedback**: Immediate visual feedback for reactions while database operations complete in background.
-- **Separated Page Architecture**: Split combined inventory-orders functionality into dedicated `/inventory` and `/orders` pages.
-- **Department-Specific Access**: Role-based access controls allow employees to access only relevant systems (Inventory vs Orders departments).
-- **Consistent Navigation**: Header tabs, quick actions, and back buttons provide multiple navigation paths.
-- **API Preservation**: All existing endpoints maintained for backward compatibility and integration support.
-- **SMS Control Architecture**: Manual state management approach ensures reliable SMS status detection without React Query conflicts.
-- **Authentication-First Design**: All SMS control endpoints require proper authentication with comprehensive error handling.
-- **Default User Experience**: SMS notifications default to enabled to match common usage patterns.
-- **Production Deployment Ready**: All fixes tested and optimized for production deployment at pinehillmanager.co.
+- **Self-Contained Component Design**: Components like `MessageReactions` auto-fetch data via API.
+- **Targeted Cache Management**: React Query cache invalidation is optimized for specific IDs.
+- **Real-time UI Feedback**: Immediate visual feedback for user actions.
+- **Separated Page Architecture**: Dedicated pages for `inventory` and `orders`.
+- **Department-Specific Access**: Role-based access controls for relevant systems.
+- **Consistent Navigation**: Multiple navigation paths via headers, quick actions, and back buttons.
+- **Authentication-First Design**: All endpoints require proper authentication.
+- **Production Deployment Ready**: System optimized for deployment.
 
 **Page Structure:**
-- `/admin` - Main admin dashboard with quick actions and overview.
-- `/inventory` - Dedicated inventory management with sync capabilities.
-- `/orders` - Dedicated order processing and analytics.
-- `/accounting` - Financial management and integration dashboard.
-- `/communications` - SMS messaging and announcement system.
-- `/employees` - Staff management and permissions.
+- `/admin` - Main admin dashboard.
+- `/inventory` - Inventory management.
+- `/orders` - Order processing.
+- `/accounting` - Financial management.
+- `/communications` - SMS messaging and announcements.
+- `/employees` - Staff management.
 - `/shift-scheduling` - Work schedule management.
-
-## Recent Changes (September 2024)
-
-### SMS Notification Control System Enhancements
-**Issue Resolved**: Fixed SMS notification control interface with reliable pause/resume functionality for bulk schedule management.
-
-**Problems Fixed**:
-1. **State Management Issues**: Infinite loading loops and button state inconsistencies
-2. **Authentication Errors**: Silent failures when checking SMS status due to auth issues  
-3. **UI/UX Problems**: Status not updating correctly, confusing user experience
-4. **React Query Conflicts**: Query caching issues preventing real-time status updates
-
-**Fixes Implemented**:
-1. **Manual State Management**: Replaced problematic React Query with direct fetch approach for SMS status
-2. **Proper Authentication**: Fixed API authentication headers and session handling
-3. **Real-time Updates**: Status refreshes every 5 seconds and immediately after actions
-4. **User Experience**: Clear visual feedback with "Resume" button and "Paused" badge when SMS disabled
-5. **Default SMS Notifications**: Changed communication forms to default SMS notifications to "enabled" since they're more commonly used
-
-**Current Status**: ✅ Complete
-- SMS pause/resume controls work reliably
-- Real-time status detection operational  
-- Visual feedback and button states accurate
-- Default SMS setting now enabled for new communications
-
-### SMS Message Threading Fix
-**Issue Resolved**: SMS responses to direct messages were incorrectly routing to "Hello Ryan" announcement instead of proper message threads.
-
-**Root Cause**: 
-- Direct message creation had missing `recipientId` field for self-sent messages
-- `getUserMessages` function only checked `senderId`, missing received messages
-- Twilio webhook configuration pointing to production server instead of development environment
-
-**Fixes Implemented**:
-1. **Direct Message Creation Fix**: Set both `senderId` and `recipientId` to user ID for self-sent messages
-2. **Message Lookup Enhancement**: Updated `getUserMessages` to check both sent AND received messages using OR logic
-3. **Smart Routing Logic**: SMS responses now compare timestamps between latest messages and announcements to route to most recent conversation
-4. **Production Deployment**: All fixes prepared and deployed to production server at pinehillmanager.co
-
-**Current Status**: ✅ Complete
-- Announcement responses work as expected
-- Direct message responses route correctly to message threads
-- Smart timestamp-based routing operational
-- Production system updated with all fixes
-
-### System Stability & Reliability
-- All existing functionality preserved during fixes
-- SMS consent system operational with comprehensive audit trails
-- Real-time messaging and reactions working with immediate visual feedback
-- WebSocket connections stable with automatic reconnection
-- Database operations optimized for performance
-- **SMS Control System**: Robust manual state management eliminates query conflicts
-- **Authentication Layer**: Secure session-based auth with proper error handling
-- **User Experience**: Consistent UI states and real-time feedback across all communications
-- **Production Ready**: Thoroughly tested SMS notification controls ready for deployment
 
 ## External Dependencies
 
