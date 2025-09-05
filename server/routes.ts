@@ -646,21 +646,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
       const startY = 150;
       const columnWidth = (doc.page.width - 80) / 7;
-      const headerHeight = 20;
-      const weekRowHeight = 100; // More compact height for shifts
+      const headerHeight = 15;
+      const weekRowHeight = 80; // Even more compact height for shifts
       
       let currentY = startY;
 
-      // Only show weeks that have schedules to keep it compact
-      const weeksWithSchedules = weeks.filter(week => {
-        return week.some(dateStr => (schedulesByDate[dateStr] || []).length > 0);
-      });
-
-      weeksWithSchedules.forEach((week, weekIndex) => {
+      // Show all weeks in the month (not just those with schedules)
+      weeks.forEach((week, weekIndex) => {
         // No week label needed - dates are sufficient
         
-        // Day headers with blue background like UI
-        doc.rect(40, currentY, doc.page.width - 80, headerHeight).fill('#4A90A4');
+        // Day headers with green background  
+        doc.rect(40, currentY, doc.page.width - 80, headerHeight).fill('#607e66');
         week.forEach((dateStr, dayIndex) => {
           const date = new Date(dateStr + 'T00:00:00');
           const dayName = dayNames[date.getDay()];
@@ -670,14 +666,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Draw header border
           doc.rect(x, currentY, columnWidth, headerHeight).stroke('#CCCCCC');
           
-          // Day name and number
-          doc.fontSize(8)
+          // Day name and number (smaller)
+          doc.fontSize(7)
              .font('Helvetica-Bold')
              .fillColor('white')
-             .text(`${dayName}`, x + 2, currentY + 3, { width: columnWidth - 4, align: 'center' });
+             .text(`${dayName}`, x + 2, currentY + 1, { width: columnWidth - 4, align: 'center' });
           
-          doc.fontSize(8)
-             .text(`${dayNumber}`, x + 2, currentY + 12, { width: columnWidth - 4, align: 'center' });
+          doc.fontSize(7)
+             .text(`${dayNumber}`, x + 2, currentY + 9, { width: columnWidth - 4, align: 'center' });
         });
 
         currentY += headerHeight;
