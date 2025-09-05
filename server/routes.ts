@@ -642,116 +642,111 @@ export async function registerRoutes(app: Express): Promise<Server> {
         weeks.push(currentWeek);
       }
 
-      let currentY = 150;
+      // Create a single-page compact layout matching the UI exactly
       const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      const startY = 150;
       const columnWidth = (doc.page.width - 80) / 7;
-      const headerHeight = 25;
-      const rowHeight = 50; // Reduced from 60 to make more compact
+      const headerHeight = 20;
+      const weekRowHeight = 120; // Tall enough to stack multiple shifts
+      
+      let currentY = startY;
 
-      weeks.forEach((week, weekIndex) => {
-        // Week header
-        doc.fontSize(14)
+      // Only show weeks that have schedules to keep it compact
+      const weeksWithSchedules = weeks.filter(week => {
+        return week.some(dateStr => (schedulesByDate[dateStr] || []).length > 0);
+      });
+
+      weeksWithSchedules.forEach((week, weekIndex) => {
+        // Week label
+        doc.fontSize(12)
            .font('Helvetica-Bold')
            .fillColor(textColor)
            .text(`Week ${weekIndex + 1}`, 40, currentY);
         
-        currentY += 25;
-
-        // Draw header row background
-        doc.rect(40, currentY, doc.page.width - 80, headerHeight).fill(secondaryColor);
-
-        // Day headers
+        currentY += 20;
+        
+        // Day headers with blue background like UI
+        doc.rect(40, currentY, doc.page.width - 80, headerHeight).fill('#4A90A4');
         week.forEach((dateStr, dayIndex) => {
           const date = new Date(dateStr + 'T00:00:00');
           const dayName = dayNames[date.getDay()];
           const dayNumber = date.getDate();
           const x = 40 + (dayIndex * columnWidth);
           
+          // Draw header border
+          doc.rect(x, currentY, columnWidth, headerHeight).stroke('#CCCCCC');
+          
           // Day name and number
-          doc.fontSize(10)
+          doc.fontSize(8)
              .font('Helvetica-Bold')
              .fillColor('white')
-             .text(`${dayName}`, x + 5, currentY + 5, { width: columnWidth - 10, align: 'center' });
+             .text(`${dayName}`, x + 2, currentY + 3, { width: columnWidth - 4, align: 'center' });
           
-          doc.fontSize(14)
-             .text(`${dayNumber}`, x + 5, currentY + 15, { width: columnWidth - 10, align: 'center' });
+          doc.fontSize(8)
+             .text(`${dayNumber}`, x + 2, currentY + 12, { width: columnWidth - 4, align: 'center' });
         });
 
         currentY += headerHeight;
 
-        // Find max shifts for this week (only create rows if there are actual shifts)
-        let maxShifts = 0;
-        week.forEach(dateStr => {
+        // Draw the week row with all shifts stacked in each cell (like UI)
+        doc.rect(40, currentY, doc.page.width - 80, weekRowHeight).fill('white').stroke('#CCCCCC');
+        
+        week.forEach((dateStr, dayIndex) => {
           const daySchedules = schedulesByDate[dateStr] || [];
-          maxShifts = Math.max(maxShifts, daySchedules.length);
+          const x = 40 + (dayIndex * columnWidth);
+          
+          // Draw cell border
+          doc.rect(x, currentY, columnWidth, weekRowHeight).stroke('#CCCCCC');
+          
+          // Stack all shifts in this cell vertically (matching UI layout)
+          let cellY = currentY + 3;
+          daySchedules.forEach((schedule, shiftIndex) => {
+            if (cellY + 25 > currentY + weekRowHeight - 5) return; // Don't overflow cell
+            
+            const startTime = new Date(schedule.startTime).toLocaleTimeString('en-US', {
+              hour: 'numeric',
+              minute: '2-digit',
+              hour12: true
+            });
+            const endTime = new Date(schedule.endTime).toLocaleTimeString('en-US', {
+              hour: 'numeric',
+              minute: '2-digit',
+              hour12: true
+            });
+            
+            const employeeName = getEmployeeName(schedule.userId);
+            const displayName = employeeName.length > 13 ? employeeName.substring(0, 13) + '...' : employeeName;
+            const timeRange = `${startTime} - ${endTime}`;
+            const locationName = getLocationAbbreviation(schedule.locationId || 1);
+            
+            // Light background for each shift entry (alternating)
+            const shiftBg = shiftIndex % 2 === 0 ? '#F8F9FA' : 'white';
+            if (shiftIndex % 2 === 0) {
+              doc.rect(x + 1, cellY - 1, columnWidth - 2, 25).fill(shiftBg);
+            }
+            
+            // Employee name (bold)
+            doc.fontSize(7)
+               .font('Helvetica-Bold')
+               .fillColor(textColor)
+               .text(displayName, x + 2, cellY, { width: columnWidth - 4, align: 'center' });
+            
+            // Time range (blue)
+            doc.fontSize(6)
+               .font('Helvetica')
+               .fillColor('#0066CC')
+               .text(timeRange, x + 2, cellY + 9, { width: columnWidth - 4, align: 'center' });
+            
+            // Location (gray)
+            doc.fontSize(6)
+               .fillColor('#666666')
+               .text(locationName, x + 2, cellY + 17, { width: columnWidth - 4, align: 'center' });
+            
+            cellY += 27; // Move down for next shift
+          });
         });
 
-        // Only draw rows if there are actual shifts (no empty weeks)
-        if (maxShifts === 0) {
-          currentY += 20; // Small space for empty weeks
-          return;
-        }
-
-        // Draw schedule rows (only as many as needed)
-        for (let shiftIndex = 0; shiftIndex < maxShifts; shiftIndex++) {
-          // Alternating row colors
-          const rowColor = shiftIndex % 2 === 0 ? 'white' : lightGray;
-          doc.rect(40, currentY, doc.page.width - 80, rowHeight).fill(rowColor);
-
-          week.forEach((dateStr, dayIndex) => {
-            const daySchedules = schedulesByDate[dateStr] || [];
-            const schedule = daySchedules[shiftIndex];
-            const x = 40 + (dayIndex * columnWidth);
-            
-            // Draw cell border
-            doc.rect(x, currentY, columnWidth, rowHeight).stroke(mediumGray);
-
-            if (schedule) {
-              const startTime = new Date(schedule.startTime).toLocaleTimeString('en-US', {
-                hour: 'numeric',
-                minute: '2-digit',
-                hour12: true
-              });
-              const endTime = new Date(schedule.endTime).toLocaleTimeString('en-US', {
-                hour: 'numeric',
-                minute: '2-digit',
-                hour12: true
-              });
-              
-              const employeeName = getEmployeeName(schedule.userId);
-              const displayName = employeeName.length > 12 ? employeeName.substring(0, 12) + '...' : employeeName;
-              const timeRange = `${startTime} - ${endTime}`;
-              const locationName = getLocationAbbreviation(schedule.locationId || 1);
-              
-              // Employee name (bold)
-              doc.fontSize(9)
-                 .font('Helvetica-Bold')
-                 .fillColor(textColor)
-                 .text(displayName, x + 3, currentY + 5, { width: columnWidth - 6, align: 'center' });
-              
-              // Time range
-              doc.fontSize(8)
-                 .font('Helvetica')
-                 .fillColor(primaryColor)
-                 .text(timeRange, x + 3, currentY + 18, { width: columnWidth - 6, align: 'center' });
-              
-              // Location
-              doc.fontSize(7)
-                 .fillColor('#666666')
-                 .text(locationName, x + 3, currentY + 30, { width: columnWidth - 6, align: 'center' });
-            }
-          });
-
-          currentY += rowHeight;
-        }
-
-        currentY += 10; // Reduced space between weeks from 20 to 10
-
-        // Check if we need a new page (more generous with space)
-        if (currentY > doc.page.height - 100 && weekIndex < weeks.length - 1) {
-          doc.addPage();
-          currentY = 60;
-        }
+        currentY += weekRowHeight + 8; // Small gap between weeks
       });
 
       // No schedules message
