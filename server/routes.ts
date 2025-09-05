@@ -589,21 +589,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const mediumGray = '#CCCCCC';
       const textColor = '#333333';
 
-      // Add header with background
-      doc.rect(40, 40, doc.page.width - 80, 80).fill(primaryColor);
+      // Professional header with month/year prominent
+      doc.rect(0, 0, doc.page.width, 90).fill(primaryColor);
       
       // Company title
-      doc.fontSize(20)
+      doc.fontSize(28)
          .font('Helvetica-Bold')
          .fillColor('white')
-         .text('PINE HILL FARM', 40, 60, { align: 'center' });
+         .text('PINE HILL FARM', 0, 20, { align: 'center', width: doc.page.width });
          
-      doc.fontSize(16)
-         .text(`SCHEDULE FOR ${month.toUpperCase()}`, 40, 85, { align: 'center' });
+      doc.fontSize(18)
+         .font('Helvetica-Bold')
+         .fillColor('#E8F5E8')
+         .text(`${monthName.toUpperCase()} ${year} SCHEDULE`, 0, 50, { align: 'center', width: doc.page.width });
       
       if (locationId) {
         doc.fontSize(12)
-           .text(`Location: ${getLocationName(parseInt(locationId))}`, 40, 105, { align: 'center' });
+           .font('Helvetica')
+           .fillColor('#C0D9C0')
+           .text(`Location: ${getLocationName(parseInt(locationId))}`, 0, 70, { align: 'center', width: doc.page.width });
       }
 
       // Group schedules by date
@@ -642,13 +646,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         weeks.push(currentWeek);
       }
 
-      // SINGLE-PAGE calendar layout - landscape with compact dimensions
+      // PROFESSIONAL single-page calendar layout - optimized for readability
       const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-      const startY = 80; // Start higher for more room
-      const sideMargin = 15;
-      const columnWidth = (doc.page.width - (sideMargin * 2)) / 7; // ~107px per column in landscape
-      const headerHeight = 20; // Compact header
-      const cellHeight = 55; // Much smaller cells to fit 6 rows on one page
+      const startY = 120; // Professional header space
+      const sideMargin = 20;
+      const columnWidth = (doc.page.width - (sideMargin * 2)) / 7; // ~105px per column
+      const headerHeight = 24; // Readable header
+      const cellHeight = 70; // Uniform height for better layout
       
       // Employee colors matching the UI
       const employeeColors: { [key: string]: string } = {
@@ -663,48 +667,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Clean calendar grid matching UI layout
       weeks.forEach((week, weekIndex) => {
-        // Compact day headers to save space
+        // Professional day headers with clear grid
         week.forEach((dateStr, dayIndex) => {
           const date = new Date(dateStr + 'T00:00:00');
           const dayName = dayNames[date.getDay()];
           const dayNumber = date.getDate();
           const x = sideMargin + (dayIndex * columnWidth);
+          const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+          const isAlternateWeek = weekIndex % 2 === 1;
           
-          // Compact header cell
+          // Professional header cell with alternating backgrounds
+          const headerBg = isAlternateWeek ? '#F8F9FA' : 'white';
           doc.rect(x, currentY, columnWidth, headerHeight)
-             .fill('white')
-             .stroke('#CCCCCC');
+             .fill(headerBg)
+             .stroke('#666666'); // Stronger border
           
-          // Smaller fonts to save space
-          doc.fontSize(7)
-             .font('Helvetica-Bold')
-             .fillColor('#333333')
-             .text(dayName, x + 3, currentY + 2, { width: columnWidth - 6, align: 'left' });
-          
+          // Readable day name
           doc.fontSize(9)
              .font('Helvetica-Bold')
-             .fillColor('#333333')
-             .text(dayNumber.toString(), x + 3, currentY + 11, { width: columnWidth - 6, align: 'left' });
+             .fillColor(isWeekend ? '#2C5530' : '#333333')
+             .text(dayName, x + 4, currentY + 3, { width: columnWidth - 8, align: 'center' });
+          
+          // Bold, prominent date number
+          doc.fontSize(12)
+             .font('Helvetica-Bold')
+             .fillColor('#2C5530')
+             .text(dayNumber.toString(), x + 4, currentY + 13, { width: columnWidth - 8, align: 'center' });
         });
 
         currentY += headerHeight;
 
-        // Compact calendar cells to fit everything on one page
+        // Professional calendar cells with clear formatting
         week.forEach((dateStr, dayIndex) => {
           const daySchedules = schedulesByDate[dateStr] || [];
           const x = sideMargin + (dayIndex * columnWidth);
+          const isAlternateWeek = weekIndex % 2 === 1;
           
-          // Cell background and border
+          // Cell with alternating backgrounds for easier reading
+          const cellBg = isAlternateWeek ? '#FAFBFA' : 'white';
           doc.rect(x, currentY, columnWidth, cellHeight)
-             .fill('white')
-             .stroke('#CCCCCC');
+             .fill(cellBg)
+             .stroke('#666666'); // Stronger borders
           
-          // Compact shift stacking
-          let shiftY = currentY + 2;
+          // Better spaced shift entries
+          let shiftY = currentY + 4; // More padding
           daySchedules.forEach((schedule, shiftIndex) => {
-            if (shiftY + 12 > currentY + cellHeight - 2) return; // Tight fit
+            if (shiftY + 16 > currentY + cellHeight - 4) return; // Professional spacing
             
-            // 12-hour format like UI
+            // 12-hour format with proper spacing
             const startTime = new Date(schedule.startTime).toLocaleString('en-US', {
               hour: 'numeric',
               minute: '2-digit',
@@ -723,28 +733,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const timeRange = `${startTime}-${endTime}`;
             const locationName = getLocationAbbreviation(schedule.locationId || 1);
             
-            // Colored background (matching UI colors)
+            // Professional colored backgrounds with better contrast
             const backgroundColor = employeeColors[employeeName] || '#F0F0F0';
-            doc.rect(x + 1, shiftY, columnWidth - 2, 11)
+            doc.rect(x + 2, shiftY, columnWidth - 4, 14)
                .fill(backgroundColor)
-               .stroke('#CCCCCC');
+               .stroke('#999999');
             
-            // Very compact text
-            doc.fontSize(6)
+            // More readable employee names (larger, bold)
+            doc.fontSize(7)
                .font('Helvetica-Bold')
-               .fillColor('#333333')
-               .text(employeeName, x + 2, shiftY + 1, { width: columnWidth - 4, align: 'left' });
+               .fillColor('#2C2C2C')
+               .text(employeeName, x + 3, shiftY + 1, { width: columnWidth - 6, align: 'left' });
             
-            doc.fontSize(5)
+            // Clear time and location info
+            doc.fontSize(6)
                .font('Helvetica')
-               .fillColor('#666666')
-               .text(`${timeRange} • ${locationName}`, x + 2, shiftY + 7, { width: columnWidth - 4, align: 'left' });
+               .fillColor('#555555')
+               .text(`${timeRange} • ${locationName}`, x + 3, shiftY + 9, { width: columnWidth - 6, align: 'left' });
             
-            shiftY += 12; // Tight spacing
+            shiftY += 16; // Professional spacing between entries
           });
         });
 
-        currentY += cellHeight + 1; // Minimal gap between weeks
+        currentY += cellHeight + 2; // Clear separation between weeks
       });
 
       // No schedules message
