@@ -681,19 +681,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
       pdfContent += ` `.repeat(30) + `Generated on ${new Date().toLocaleDateString('en-US')} at ${new Date().toLocaleTimeString('en-US')}\n`;
       pdfContent += `=`.repeat(120) + '\n';
 
-      // Create a simple PDF using basic text layout
-      // Since we don't have a proper PDF library installed, we'll create a simple text response
-      // that can be downloaded as a PDF-like file
-      const pdfBuffer = Buffer.from(pdfContent, 'utf-8');
+      // Create actual PDF using PDFKit
+      const PDFDocument = require('pdfkit');
+      const doc = new PDFDocument({ 
+        layout: 'landscape',
+        margin: 50 
+      });
       
       // Set headers for PDF download
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename="schedule-${month}.pdf"`);
-      res.setHeader('Content-Length', pdfBuffer.length);
       
-      // For now, send as text that will be downloaded as PDF
-      // In production, you would use a proper PDF library like puppeteer, jsPDF, or PDFKit
-      res.send(pdfBuffer);
+      // Pipe PDF to response
+      doc.pipe(res);
+      
+      // Add title
+      doc.fontSize(16)
+         .font('Helvetica-Bold')
+         .text(`PINE HILL FARM - SCHEDULE FOR ${month.toUpperCase()}`, 50, 50, { align: 'center' });
+      
+      if (locationId) {
+        doc.fontSize(14)
+           .text(`LOCATION: ${getLocationName(parseInt(locationId)).toUpperCase()}`, 50, 80, { align: 'center' });
+      }
+      
+      // Add content with proper formatting
+      doc.fontSize(10)
+         .font('Courier')
+         .text(pdfContent, 50, 120);
+      
+      // Finalize PDF
+      doc.end();
       
     } catch (error) {
       console.error('Error generating PDF schedule:', error);
