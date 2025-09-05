@@ -625,6 +625,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
            .text(`Location: ${getLocationName(parseInt(locationId))}`, 0, 78, { align: 'center', width: doc.page.width });
       }
 
+      // DEBUG: Log raw data before grouping
+      console.log(`🔍 PDF DEBUG: Total schedules found for ${month}:`, filteredSchedules.length);
+      console.log(`🔍 PDF DEBUG: First 5 schedules:`, filteredSchedules.slice(0, 5).map(s => ({
+        date: s.date,
+        userId: s.userId,
+        employee: getEmployeeName(s.userId),
+        startTime: s.startTime,
+        locationId: s.locationId
+      })));
+
       // Group schedules by date
       const schedulesByDate = filteredSchedules.reduce((acc: any, schedule: any) => {
         const date = schedule.date;
@@ -632,6 +642,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         acc[date].push(schedule);
         return acc;
       }, {} as Record<string, any[]>);
+      
+      // DEBUG: Log grouped data
+      console.log(`🔍 PDF DEBUG: Schedules grouped by date:`, Object.keys(schedulesByDate).length, 'dates with data');
+      Object.entries(schedulesByDate).forEach(([date, schedules]) => {
+        console.log(`🔍 PDF DEBUG: ${date}: ${schedules.length} shifts -`, schedules.map((s: any) => getEmployeeName(s.userId)));
+      });
       
       // Get all dates in the month and organize by weeks
       const monthStartDate = new Date(month + '-01');
@@ -719,6 +735,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const x = sideMargin + (dayIndex * columnWidth);
           const isAlternateWeek = weekIndex % 2 === 1;
           
+          // DEBUG: Log schedule processing for each day
+          console.log(`🔍 PDF DEBUG: Processing ${dateStr}: ${daySchedules.length} schedules found`);
+          
           // Cell with subtle grid lines and alternating backgrounds
           const cellBg = isAlternateWeek ? lightBg : 'white';
           doc.rect(x, currentY, columnWidth, cellHeight)
@@ -728,8 +747,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           // Clean shift entry styling with uniform spacing
           let shiftY = currentY + 6; // Better top padding
+          let processedShifts = 0;
           daySchedules.forEach((schedule, shiftIndex) => {
-            if (shiftY + 20 > currentY + cellHeight - 6) return; // More generous spacing
+            // DEBUG: Check if we're cutting off data
+            if (shiftY + 20 > currentY + cellHeight - 6) {
+              console.log(`⚠️  PDF DEBUG: CUTTING OFF SHIFT ${shiftIndex + 1}/${daySchedules.length} on ${dateStr} - ${getEmployeeName(schedule.userId)} - Y position would be ${shiftY + 20}, cell limit is ${currentY + cellHeight - 6}`);
+              return; // This is the problem - early exit cutting off data!
+            }
+            processedShifts++;
             
             // 12-hour format matching your system
             const startTime = new Date(schedule.startTime).toLocaleString('en-US', {

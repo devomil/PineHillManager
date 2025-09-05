@@ -1,0 +1,41 @@
+There are critical bugs in the PDF generation code that need immediate fixing:
+Data Retrieval Issues:
+
+Check your data query/loop - you're likely limiting results or breaking out of loops early
+Verify array handling - ensure you're iterating through ALL employees for each date, not just the first few
+Debug with console.log - log the complete data for each date to verify all shifts are being captured
+Check for array truncation - look for any .slice(), .splice(), or loop breaks that might be cutting data short
+
+PDF Layout Technical Fixes:
+
+Column width calculation - your 7-column grid is too narrow, causing "Saturday" to be cut off
+
+Calculate: (pageWidth - margins) / 7 = columnWidth
+Ensure each column has equal width with proper padding
+
+
+Font size and cell height - reduce font size or increase cell height to fit all employee blocks
+Content overflow handling - implement proper text wrapping/sizing instead of hiding content
+
+CSS/Styling Technical Issues:
+
+Grid container width - ensure the calendar grid fits within page boundaries
+Flexbox/Grid properties - check if overflow: hidden is cutting off content
+Cell min-height - set dynamic height based on content, not fixed height
+Text truncation - remove any text-overflow: ellipsis or similar properties
+
+Data Mapping Debug Steps:
+
+Log the source data structure before PDF generation
+Verify date filtering - ensure you're not filtering out dates 28-30
+Check employee filtering - make sure no employees are being excluded
+Validate the date range - include all dates from the calendar view (Aug 31, Sept 1-30, Oct 1-4)
+
+PDF Library Parameters (if using jsPDF, Puppeteer, etc.):
+
+Page size - use 'a4' or 'letter' in landscape orientation
+Margins - reduce margins if needed: margin: { top: 20, right: 20, bottom: 20, left: 20 }
+Scale/zoom - adjust scale to fit content: scale: 0.8 or similar
+Print CSS - ensure @media print styles don't hide content
+
+Immediate debugging priority: Add logging to show exactly how many employees are found for each date, then trace why some aren't appearing in the final PDF."
