@@ -642,12 +642,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         weeks.push(currentWeek);
       }
 
-      // Create a single-page compact layout matching the UI exactly
-      const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-      const startY = 150;
-      const columnWidth = (doc.page.width - 80) / 7;
-      const headerHeight = 15;
-      const weekRowHeight = 130; // Taller to accommodate multiple stacked shifts
+      // ULTRA-COMPACT single-page layout matching the UI exactly
+      const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']; // Abbreviated
+      const startY = 120; // Start higher on page
+      const columnWidth = (doc.page.width - 60) / 7; // Narrower margins
+      const headerHeight = 12; // Smaller header
+      const weekRowHeight = 55; // MUCH more compact - key to fitting on 1 page
       
       let currentY = startY;
 
@@ -655,88 +655,83 @@ export async function registerRoutes(app: Express): Promise<Server> {
       weeks.forEach((week, weekIndex) => {
         // No week label needed - dates are sufficient
         
-        // Day headers with green background  
-        doc.rect(40, currentY, doc.page.width - 80, headerHeight).fill('#607e66');
+        // Compact day headers with green background  
+        doc.rect(30, currentY, doc.page.width - 60, headerHeight).fill('#607e66');
         week.forEach((dateStr, dayIndex) => {
           const date = new Date(dateStr + 'T00:00:00');
           const dayName = dayNames[date.getDay()];
           const dayNumber = date.getDate();
-          const x = 40 + (dayIndex * columnWidth);
+          const x = 30 + (dayIndex * columnWidth);
           
           // Draw header border
           doc.rect(x, currentY, columnWidth, headerHeight).stroke('#CCCCCC');
           
-          // Day name and number (smaller)
-          doc.fontSize(7)
+          // Ultra-compact day name and number
+          doc.fontSize(5)
              .font('Helvetica-Bold')
              .fillColor('white')
-             .text(`${dayName}`, x + 2, currentY + 1, { width: columnWidth - 4, align: 'center' });
-          
-          doc.fontSize(7)
-             .text(`${dayNumber}`, x + 2, currentY + 9, { width: columnWidth - 4, align: 'center' });
+             .text(`${dayName} ${dayNumber}`, x + 1, currentY + 3, { width: columnWidth - 2, align: 'center' });
         });
 
         currentY += headerHeight;
 
-        // Draw the week row with all shifts stacked in each cell (like UI)
-        doc.rect(40, currentY, doc.page.width - 80, weekRowHeight).fill('white').stroke('#CCCCCC');
+        // Draw the week row with all shifts stacked in each cell (like UI) - ULTRA COMPACT
+        doc.rect(30, currentY, doc.page.width - 60, weekRowHeight).fill('white').stroke('#CCCCCC');
         
         week.forEach((dateStr, dayIndex) => {
           const daySchedules = schedulesByDate[dateStr] || [];
-          const x = 40 + (dayIndex * columnWidth);
+          const x = 30 + (dayIndex * columnWidth);
           
           // Draw cell border
           doc.rect(x, currentY, columnWidth, weekRowHeight).stroke('#CCCCCC');
           
-          // Stack all shifts in this cell vertically (matching UI layout)
-          let cellY = currentY + 2;
+          // Ultra-compact shift stacking (matching UI layout)
+          let cellY = currentY + 1;
           daySchedules.forEach((schedule, shiftIndex) => {
-            if (cellY + 20 > currentY + weekRowHeight - 3) return; // Don't overflow cell
+            if (cellY + 12 > currentY + weekRowHeight - 2) return; // Tight overflow control
             
             const startTime = new Date(schedule.startTime).toLocaleTimeString('en-US', {
               hour: 'numeric',
               minute: '2-digit',
-              hour12: true
+              hour12: false
             });
             const endTime = new Date(schedule.endTime).toLocaleTimeString('en-US', {
               hour: 'numeric',
               minute: '2-digit',
-              hour12: true
+              hour12: false
             });
             
             const employeeName = getEmployeeName(schedule.userId);
-            const displayName = employeeName.length > 13 ? employeeName.substring(0, 13) + '...' : employeeName;
-            const timeRange = `${startTime} - ${endTime}`;
+            // Ultra-short names for space
+            const displayName = employeeName.length > 8 ? employeeName.substring(0, 8) + '..' : employeeName;
+            const timeRange = `${startTime}-${endTime}`; // No spaces
             const locationName = getLocationAbbreviation(schedule.locationId || 1);
             
-            // Light background for each shift entry (alternating)
-            const shiftBg = shiftIndex % 2 === 0 ? '#F8F9FA' : 'white';
+            // Minimal shift background
             if (shiftIndex % 2 === 0) {
-              doc.rect(x + 1, cellY - 1, columnWidth - 2, 20).fill(shiftBg);
+              doc.rect(x + 1, cellY, columnWidth - 2, 11).fill('#F8F9FA');
             }
             
-            // Employee name (bold)
-            doc.fontSize(6)
+            // Ultra-compact text stacking
+            doc.fontSize(4)
                .font('Helvetica-Bold')
                .fillColor(textColor)
-               .text(displayName, x + 2, cellY, { width: columnWidth - 4, align: 'center' });
+               .text(displayName, x + 1, cellY + 1, { width: columnWidth - 2, align: 'center' });
             
-            // Time range (blue)
-            doc.fontSize(5.5)
+            doc.fontSize(4)
                .font('Helvetica')
                .fillColor('#0066CC')
-               .text(timeRange, x + 2, cellY + 7, { width: columnWidth - 4, align: 'center' });
+               .text(timeRange, x + 1, cellY + 5, { width: columnWidth - 2, align: 'center' });
             
-            // Location (gray)
-            doc.fontSize(5)
+            doc.fontSize(3.5)
                .fillColor('#666666')
-               .text(locationName, x + 2, cellY + 13, { width: columnWidth - 4, align: 'center' });
+               .text(locationName, x + 1, cellY + 8, { width: columnWidth - 2, align: 'center' });
             
-            cellY += 22; // Move down for next shift (more compact spacing)
+            cellY += 12; // Very tight spacing to fit more shifts
           });
         });
 
-        currentY += weekRowHeight + 3; // Minimal gap between weeks
+        currentY += weekRowHeight + 1; // Ultra-minimal gap between weeks
       });
 
       // No schedules message
