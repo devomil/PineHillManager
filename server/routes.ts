@@ -660,32 +660,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
            .text(`Location: ${getLocationName(parseInt(locationId))}`, 0, 78, { align: 'center', width: doc.page.width });
       }
 
-      // CRITICAL FIX: Dynamic cell height calculation to prevent data cutoffs
-      let maxSchedulesPerDay = 0;
-      weeks.forEach(week => {
-        week.forEach(dateStr => {
-          const daySchedules = schedulesByDate[dateStr] || [];
-          maxSchedulesPerDay = Math.max(maxSchedulesPerDay, daySchedules.length);
-        });
-      });
-
-      // Professional single-page calendar layout - FIXED for all employees
+      // SINGLE-PAGE CONSTRAINT: Calculate exact dimensions to fit everything on one page
       const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
       const startY = 120; // Professional header space
+      const footerSpace = 60; // Reserve space for footer
       const sideMargin = 20;
       const columnWidth = (doc.page.width - (sideMargin * 2)) / 7; // ~105px per column
-      const headerHeight = 24; // Readable header
+      const headerHeight = 22; // Compact but readable header
       
-      // DYNAMIC cell height based on actual data - THIS FIXES THE CUTOFF ISSUE
-      const availableHeight = doc.page.height - startY - 60; // Reserve space for footer
+      // FORCE single-page layout: Calculate available space and divide evenly
+      const totalAvailableHeight = doc.page.height - startY - footerSpace;
       const totalRows = weeks.length;
-      const cellHeight = Math.floor((availableHeight - (headerHeight * totalRows)) / totalRows);
+      const totalHeadersHeight = totalRows * headerHeight;
+      const availableGridHeight = totalAvailableHeight - totalHeadersHeight;
       
-      // Ensure minimum viable cell height for readability
-      const minCellHeight = Math.max(cellHeight, 60);
-      const dynamicCellHeight = Math.max(minCellHeight, maxSchedulesPerDay * 18 + 10);
+      // CONSISTENT cell height for all weeks - guarantees single page
+      const consistentCellHeight = Math.floor(availableGridHeight / totalRows);
       
-      console.log(`📊 PDF Layout: ${maxSchedulesPerDay} max schedules per day, using ${dynamicCellHeight}px cell height`);
+      // Ensure minimum readability while maintaining single-page constraint
+      const finalCellHeight = Math.max(consistentCellHeight, 45); // Minimum for text readability
+      
+      console.log(`📊 Single-Page PDF: ${totalRows} weeks, ${finalCellHeight}px cell height, fits in ${totalAvailableHeight}px`);
       
       // Employee colors exactly matching UI calendar
       const employeeColors: { [key: string]: string } = {
@@ -731,7 +726,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         currentY += headerHeight;
 
-        // FIXED: Professional calendar cells with DYNAMIC height
+        // CONSISTENT calendar cells - all same height for perfect single-page layout
         week.forEach((dateStr, dayIndex) => {
           const daySchedules = schedulesByDate[dateStr] || [];
           const x = sideMargin + (dayIndex * columnWidth);
@@ -739,14 +734,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           // Cell with subtle grid lines and alternating backgrounds
           const cellBg = isAlternateWeek ? lightBg : 'white';
-          doc.rect(x, currentY, columnWidth, dynamicCellHeight)
+          doc.rect(x, currentY, columnWidth, finalCellHeight)
              .fill(cellBg)
              .stroke('#d1d5db')  // Light gray grid lines for better print readability
              .lineWidth(0.5);
           
-          // FIXED: All shifts now display with proper spacing
-          let shiftY = currentY + 6; // Better top padding
+          // SMART shift rendering - adapts to available cell space
+          const availableShiftSpace = finalCellHeight - 8; // Reserve padding
+          const shiftHeight = Math.min(14, Math.floor(availableShiftSpace / Math.max(daySchedules.length, 1)));
+          const fontSize = Math.min(6, shiftHeight - 4);
+          const timeFont = Math.max(4, fontSize - 1);
+          
+          let shiftY = currentY + 4; // Consistent top padding
           daySchedules.forEach((schedule, shiftIndex) => {
+            // Skip if we're running out of space
+            if (shiftY + shiftHeight > currentY + finalCellHeight - 2) return;
+            
             // 12-hour format matching your system
             const startTime = new Date(schedule.startTime).toLocaleString('en-US', {
               hour: 'numeric',
@@ -768,28 +771,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
             
             // Compact rounded employee color blocks
             const backgroundColor = employeeColors[employeeName] || lightBg;
-            doc.roundedRect(x + 3, shiftY, columnWidth - 6, 16, 3)
+            doc.roundedRect(x + 2, shiftY, columnWidth - 4, shiftHeight, 2)
                .fill(backgroundColor)
                .stroke('rgba(255,255,255,0.2)')
                .lineWidth(0.5);
             
-            // Compact but bold employee names
-            doc.fontSize(7)
+            // Adaptive text sizing for employee names
+            doc.fontSize(fontSize)
                .font('Helvetica-Bold')
                .fillColor('#ffffff')
-               .text(employeeName, x + 5, shiftY + 2, { width: columnWidth - 10, align: 'left' });
+               .text(employeeName, x + 4, shiftY + 1, { width: columnWidth - 8, align: 'left' });
             
-            // Compact time and location
-            doc.fontSize(6)
+            // Adaptive time and location text
+            doc.fontSize(timeFont)
                .font('Helvetica-Bold')
                .fillColor('rgba(255,255,255,0.9)')
-               .text(`${timeRange} • ${locationName}`, x + 5, shiftY + 10, { width: columnWidth - 10, align: 'left' });
+               .text(`${timeRange} • ${locationName}`, x + 4, shiftY + fontSize + 2, { width: columnWidth - 8, align: 'left' });
             
-            shiftY += 18; // Proper spacing for all shifts
+            shiftY += shiftHeight + 1; // Compact but readable spacing
           });
         });
 
-        currentY += dynamicCellHeight + 2; // Clear separation between weeks
+        currentY += finalCellHeight + 1; // Minimal separation between weeks
       });
 
       // No schedules message
