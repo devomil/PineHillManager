@@ -3376,17 +3376,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const cloverIntegration = new CloverIntegration(config);
           console.log(`🚀 Creating CloverIntegration for ${config.merchantName} with MID: ${config.merchantId}`);
           
-          const liveOrders = await cloverIntegration.fetchOrders({
-            filter: `createdTime>=${Math.floor(start.getTime())}`,
-            limit: 1000,
-            offset: 0
-          });
+          // Fetch ALL orders with pagination to avoid missing revenue
+          let allOrders: any[] = [];
+          let offset = 0;
+          const limit = 1000;
+          let hasMoreData = true;
           
-          if (liveOrders && liveOrders.elements && liveOrders.elements.length > 0) {
-            console.log(`Location Raw orders fetched for ${config.merchantName}: ${liveOrders.elements.length} orders`);
+          while (hasMoreData) {
+            const liveOrders = await cloverIntegration.fetchOrders({
+              filter: `createdTime>=${Math.floor(start.getTime())}`,
+              limit: limit,
+              offset: offset
+            });
             
-            // Filter orders by date on server-side (same as revenue-trends)
-            const filteredOrders = liveOrders.elements.filter((order: any) => {
+            if (liveOrders && liveOrders.elements && liveOrders.elements.length > 0) {
+              allOrders.push(...liveOrders.elements);
+              console.log(`📊 Fetched ${liveOrders.elements.length} orders for ${config.merchantName} (offset: ${offset}), total so far: ${allOrders.length}`);
+              
+              // Check if we need to fetch more data
+              if (liveOrders.elements.length < limit) {
+                hasMoreData = false;
+              } else {
+                offset += limit;
+              }
+            } else {
+              hasMoreData = false;
+            }
+          }
+          
+          if (allOrders.length > 0) {
+            console.log(`📊 Total orders fetched for ${config.merchantName}: ${allOrders.length} orders`);
+            
+            // Filter orders by date on server-side
+            const filteredOrders = allOrders.filter((order: any) => {
               const orderDate = new Date(order.createdTime);
               return orderDate >= start && orderDate <= end;
             });
@@ -4106,15 +4128,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
           try {
             // Use the same live API approach as Order Management
             const cloverIntegration = new CloverIntegration(locationConfig);
-            const liveOrders = await cloverIntegration.fetchOrders({
-              filter: `createdTime>=${Math.floor(start.getTime())}`,
-              limit: 1000,
-              offset: 0
-            });
+            // Fetch ALL orders with pagination to avoid missing revenue
+            let allOrders: any[] = [];
+            let offset = 0;
+            const limit = 1000;
+            let hasMoreData = true;
             
-            if (liveOrders && liveOrders.elements && liveOrders.elements.length > 0) {
-              // Filter orders by date on server-side (same as Order Management fix)
-              const filteredOrders = liveOrders.elements.filter((order: any) => {
+            while (hasMoreData) {
+              const liveOrders = await cloverIntegration.fetchOrders({
+                filter: `createdTime>=${Math.floor(start.getTime())}`,
+                limit: limit,
+                offset: offset
+              });
+              
+              if (liveOrders && liveOrders.elements && liveOrders.elements.length > 0) {
+                allOrders.push(...liveOrders.elements);
+                
+                // Check if we need to fetch more data
+                if (liveOrders.elements.length < limit) {
+                  hasMoreData = false;
+                } else {
+                  offset += limit;
+                }
+              } else {
+                hasMoreData = false;
+              }
+            }
+            
+            if (allOrders.length > 0) {
+              // Filter orders by date on server-side
+              const filteredOrders = allOrders.filter((order: any) => {
                 const orderDate = new Date(order.createdTime);
                 return orderDate >= start && orderDate <= end;
               });
@@ -4200,17 +4243,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
           try {
             // Use the same live API approach as Order Management
             const cloverIntegration = new CloverIntegration(locationConfig);
-            const liveOrders = await cloverIntegration.fetchOrders({
-              filter: `createdTime>=${Math.floor(start.getTime())}`,
-              limit: 1000,
-              offset: 0
-            });
+            // Fetch ALL orders with pagination to avoid missing revenue
+            let allOrders: any[] = [];
+            let offset = 0;
+            const limit = 1000;
+            let hasMoreData = true;
             
-            if (liveOrders && liveOrders.elements && liveOrders.elements.length > 0) {
-              console.log(`Raw orders fetched for ${locationConfig.merchantName}: ${liveOrders.elements.length} orders`);
+            while (hasMoreData) {
+              const liveOrders = await cloverIntegration.fetchOrders({
+                filter: `createdTime>=${Math.floor(start.getTime())}`,
+                limit: limit,
+                offset: offset
+              });
               
-              // Filter orders by date on server-side (same as Order Management fix)  
-              const filteredOrders = liveOrders.elements.filter((order: any) => {
+              if (liveOrders && liveOrders.elements && liveOrders.elements.length > 0) {
+                allOrders.push(...liveOrders.elements);
+                
+                // Check if we need to fetch more data
+                if (liveOrders.elements.length < limit) {
+                  hasMoreData = false;
+                } else {
+                  offset += limit;
+                }
+              } else {
+                hasMoreData = false;
+              }
+            }
+            
+            if (allOrders.length > 0) {
+              console.log(`Total orders fetched for ${locationConfig.merchantName}: ${allOrders.length} orders`);
+              
+              // Filter orders by date on server-side
+              const filteredOrders = allOrders.filter((order: any) => {
                 const orderDate = new Date(order.createdTime);
                 const withinRange = orderDate >= start && orderDate <= end;
                 if (!withinRange) {
@@ -4430,17 +4494,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const { CloverIntegration } = await import('./integrations/clover');
             const cloverIntegration = new CloverIntegration(locationConfig);
             console.log(`🚀 Creating CloverIntegration for ${locationConfig.merchantName} with MID: ${locationConfig.merchantId}`);
-            const liveOrders = await cloverIntegration.fetchOrders({
-              filter: `createdTime>=${Math.floor(start.getTime())}`,
-              limit: 1000,
-              offset: 0
-            });
+            // Fetch ALL orders with pagination to avoid missing revenue
+            let allOrders: any[] = [];
+            let offset = 0;
+            const limit = 1000;
+            let hasMoreData = true;
             
-            if (liveOrders && liveOrders.elements && liveOrders.elements.length > 0) {
-              console.log(`Location Raw orders fetched for ${locationConfig.merchantName}: ${liveOrders.elements.length} orders`);
+            while (hasMoreData) {
+              const liveOrders = await cloverIntegration.fetchOrders({
+                filter: `createdTime>=${Math.floor(start.getTime())}`,
+                limit: limit,
+                offset: offset
+              });
               
-              // Filter orders by date on server-side (same as Order Management fix)
-              const filteredOrders = liveOrders.elements.filter((order: any) => {
+              if (liveOrders && liveOrders.elements && liveOrders.elements.length > 0) {
+                allOrders.push(...liveOrders.elements);
+                
+                // Check if we need to fetch more data
+                if (liveOrders.elements.length < limit) {
+                  hasMoreData = false;
+                } else {
+                  offset += limit;
+                }
+              } else {
+                hasMoreData = false;
+              }
+            }
+            
+            if (allOrders.length > 0) {
+              console.log(`Total orders fetched for ${locationConfig.merchantName}: ${allOrders.length} orders`);
+              
+              // Filter orders by date on server-side
+              const filteredOrders = allOrders.filter((order: any) => {
                 const orderDate = new Date(order.createdTime);
                 const withinRange = orderDate >= start && orderDate <= end;
                 if (!withinRange) {
