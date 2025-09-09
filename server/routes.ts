@@ -3429,6 +3429,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               locationName: config.merchantName,
               platform: 'Clover POS',
               totalSales: locationRevenue.toFixed(2),
+              totalRevenue: locationRevenue.toFixed(2), // Ensure consistency between tabs
               transactionCount: locationTransactions,
               avgSale: avgSale.toFixed(2)
             });
@@ -3440,6 +3441,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               locationName: config.merchantName,
               platform: 'Clover POS',
               totalSales: '0.00',
+              totalRevenue: '0.00', // Ensure consistency between tabs
               transactionCount: 0,
               avgSale: '0.00'
             });
@@ -3452,6 +3454,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             locationName: config.merchantName,
             platform: 'Clover POS',
             totalSales: '0.00',
+            totalRevenue: '0.00', // Ensure consistency between tabs
             transactionCount: 0,
             avgSale: '0.00'
           });
@@ -3583,6 +3586,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               locationName: config.merchantName,
               platform: 'Amazon Store',
               totalSales: locationRevenue.toFixed(2),
+              totalRevenue: locationRevenue.toFixed(2), // Ensure consistency between tabs
               transactionCount: locationTransactions,
               avgSale: avgSale.toFixed(2)
             });
@@ -3594,6 +3598,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               locationName: config.merchantName,
               platform: 'Amazon Store',
               totalSales: '0.00',
+              totalRevenue: '0.00', // Ensure consistency between tabs
               transactionCount: 0,
               avgSale: '0.00'
             });
@@ -3609,6 +3614,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               locationName: config.merchantName,
               platform: 'Amazon Store',
               totalSales: '0.00',
+              totalRevenue: '0.00', // Ensure consistency between tabs
               transactionCount: 0,
               avgSale: '0.00'
             });
