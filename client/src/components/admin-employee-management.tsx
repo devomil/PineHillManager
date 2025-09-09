@@ -171,6 +171,32 @@ export default function AdminEmployeeManagement() {
 
   const { data: employees, isLoading, error } = useQuery<UserType[]>({
     queryKey: ["/api/employees"],
+    retry: (failureCount, error) => {
+      // Don't retry on 401 Unauthorized errors
+      if (error.message?.includes('401')) {
+        return false;
+      }
+      return failureCount < 3;
+    },
+    onError: (error) => {
+      if (isUnauthorizedError(error)) {
+        toast({
+          title: "Unauthorized",
+          description: "You are logged out. Logging in again...",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          window.location.href = "/api/login";
+        }, 500);
+        return;
+      }
+      console.error('Error loading employees:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load employees. Please refresh the page.",
+        variant: "destructive",
+      });
+    },
   });
 
 
@@ -450,6 +476,9 @@ export default function AdminEmployeeManagement() {
     }
   };
 
+  // Debug logging
+  console.log('Employees query state:', { isLoading, error, employeesCount: employees?.length, employees: employees?.slice(0, 2) });
+
   if (isLoading) {
     return (
       <div className="space-y-6">
@@ -459,6 +488,24 @@ export default function AdminEmployeeManagement() {
           <div className="h-64 bg-slate-200 rounded"></div>
         </div>
       </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Error Loading Employees</CardTitle>
+          <CardDescription>
+            {error.message || 'Failed to load employee data'}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button onClick={() => window.location.reload()}>
+            Retry
+          </Button>
+        </CardContent>
+      </Card>
     );
   }
 
