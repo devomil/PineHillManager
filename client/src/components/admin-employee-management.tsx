@@ -178,25 +178,6 @@ export default function AdminEmployeeManagement() {
       }
       return failureCount < 3;
     },
-    onError: (error) => {
-      if (isUnauthorizedError(error)) {
-        toast({
-          title: "Unauthorized",
-          description: "You are logged out. Logging in again...",
-          variant: "destructive",
-        });
-        setTimeout(() => {
-          window.location.href = "/api/login";
-        }, 500);
-        return;
-      }
-      console.error('Error loading employees:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load employees. Please refresh the page.",
-        variant: "destructive",
-      });
-    },
   });
 
 
@@ -491,7 +472,22 @@ export default function AdminEmployeeManagement() {
     );
   }
 
-  if (error) {
+  if (error && !employees) {
+    console.error('Error loading employees:', error);
+    
+    // Check if it's an auth error
+    if (isUnauthorizedError(error)) {
+      toast({
+        title: "Unauthorized",
+        description: "You are logged out. Logging in again...",
+        variant: "destructive",
+      });
+      setTimeout(() => {
+        window.location.href = "/api/login";
+      }, 500);
+      return <div>Redirecting to login...</div>;
+    }
+
     return (
       <Card>
         <CardHeader>
