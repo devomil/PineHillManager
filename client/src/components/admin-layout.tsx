@@ -63,9 +63,9 @@ export default function AdminLayout({ children, currentTab }: AdminLayoutProps) 
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100">
+    <div className="min-h-screen bg-background">
       {/* Clean Header */}
-      <div className="bg-white shadow-sm">
+      <div className="bg-card shadow-sm border-b border-border">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-6">
             <div className="flex items-center space-x-4">
@@ -125,7 +125,7 @@ export default function AdminLayout({ children, currentTab }: AdminLayoutProps) 
         <div className="w-full">
           {/* Desktop Navigation */}
           <div className="hidden lg:block">
-            <div className="flex items-center gap-4 xl:gap-6 mb-8 p-3 xl:p-4 bg-white rounded-lg shadow-sm border h-auto flex-wrap">
+            <div className="flex items-center gap-4 xl:gap-6 mb-8 p-3 xl:p-4 bg-card rounded-lg shadow-sm border border-border h-auto flex-wrap">
               {/* Core Operations */}
               <Button
                 variant={currentTab === "dashboard" ? "default" : "ghost"}

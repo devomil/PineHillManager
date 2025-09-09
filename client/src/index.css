@@ -7,24 +7,24 @@
 @layer base {
   :root {
     /* Default Spring Theme - will be overridden by ThemeProvider */
-    --background: 120 20% 98%;
+    --background: 140 30% 96%;
     --foreground: 142 84% 17%;
-    --card: 0 0% 100%;
+    --card: 140 40% 98%;
     --card-foreground: 142 84% 17%;
-    --popover: 0 0% 100%;
+    --popover: 140 40% 98%;
     --popover-foreground: 142 84% 17%;
     --primary: 142 76% 36%;
     --primary-foreground: 0 0% 98%;
     --secondary: 120 60% 95%;
     --secondary-foreground: 142 76% 36%;
-    --muted: 120 30% 92%;
+    --muted: 140 25% 88%;
     --muted-foreground: 142 30% 45%;
     --accent: 320 65% 85%;
     --accent-foreground: 320 65% 25%;
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 98%;
-    --border: 120 30% 85%;
-    --input: 120 30% 92%;
+    --border: 140 25% 80%;
+    --input: 140 30% 92%;
     --ring: 142 76% 36%;
     --success: 142 76% 36%;
     --warning: 48 96% 53%;

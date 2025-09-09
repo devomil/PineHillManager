@@ -14,6 +14,8 @@ export interface ThemeColors {
   foreground: string;
   card: string;
   cardForeground: string;
+  popover: string;
+  popoverForeground: string;
   
   // UI colors
   muted: string;
@@ -50,17 +52,19 @@ export const SEASONAL_THEMES: Record<SeasonalTheme, SeasonalThemeConfig> = {
       secondary: '120 60% 95%', // Light green
       secondaryForeground: '142 76% 36%',
       
-      background: '120 20% 98%', // Very light green-white
+      background: '140 30% 96%', // Soft green-tinted background
       foreground: '142 84% 17%', // Dark green
-      card: '0 0% 100%',
+      card: '140 40% 98%', // Very light green cards
       cardForeground: '142 84% 17%',
+      popover: '140 40% 98%',
+      popoverForeground: '142 84% 17%',
       
-      muted: '120 30% 92%', // Soft green-gray
+      muted: '140 25% 88%', // Soft green-gray
       mutedForeground: '142 30% 45%',
       accent: '320 65% 85%', // Light pink (cherry blossom)
       accentForeground: '320 65% 25%',
-      border: '120 30% 85%',
-      input: '120 30% 92%',
+      border: '140 25% 80%',
+      input: '140 30% 92%',
       ring: '142 76% 36%',
       
       destructive: '0 84% 60%',
@@ -79,17 +83,19 @@ export const SEASONAL_THEMES: Record<SeasonalTheme, SeasonalThemeConfig> = {
       secondary: '45 100% 95%', // Light yellow
       secondaryForeground: '45 93% 27%',
       
-      background: '45 40% 98%', // Warm white
+      background: '50 35% 94%', // Warm cream background
       foreground: '45 30% 10%', // Dark brown
-      card: '0 0% 100%',
+      card: '50 45% 97%', // Warm cream cards
       cardForeground: '45 30% 10%',
+      popover: '50 45% 97%',
+      popoverForeground: '45 30% 10%',
       
-      muted: '45 20% 90%', // Warm gray
+      muted: '50 25% 85%', // Warm beige
       mutedForeground: '45 20% 40%',
       accent: '120 50% 70%', // Bright green
       accentForeground: '120 50% 20%',
-      border: '45 20% 82%',
-      input: '45 20% 90%',
+      border: '50 25% 78%',
+      input: '50 25% 88%',
       ring: '45 93% 47%',
       
       destructive: '0 84% 60%',
@@ -105,20 +111,22 @@ export const SEASONAL_THEMES: Record<SeasonalTheme, SeasonalThemeConfig> = {
     colors: {
       primary: '25 75% 47%', // Pumpkin orange
       primaryForeground: '0 0% 98%',
-      secondary: '25 100% 95%', // Light orange
+      secondary: '30 45% 90%', // Light orange-cream
       secondaryForeground: '25 75% 27%',
       
-      background: '30 20% 96%', // Warm cream
+      background: '35 25% 92%', // Warm autumn background
       foreground: '25 30% 15%', // Dark brown
-      card: '0 0% 100%',
+      card: '35 35% 95%', // Warm autumn cards
       cardForeground: '25 30% 15%',
+      popover: '35 35% 95%',
+      popoverForeground: '25 30% 15%',
       
-      muted: '30 15% 88%', // Warm beige
+      muted: '35 20% 82%', // Warm autumn beige
       mutedForeground: '30 15% 35%',
       accent: '10 80% 65%', // Red-orange
       accentForeground: '10 80% 15%',
-      border: '30 15% 80%',
-      input: '30 15% 88%',
+      border: '35 20% 75%',
+      input: '35 20% 85%',
       ring: '25 75% 47%',
       
       destructive: '0 84% 60%',
@@ -134,20 +142,22 @@ export const SEASONAL_THEMES: Record<SeasonalTheme, SeasonalThemeConfig> = {
     colors: {
       primary: '210 100% 45%', // Deep blue
       primaryForeground: '0 0% 98%',
-      secondary: '210 100% 95%', // Light blue
+      secondary: '210 60% 92%', // Light blue
       secondaryForeground: '210 100% 25%',
       
-      background: '210 20% 98%', // Cool white
+      background: '220 15% 94%', // Cool winter background
       foreground: '210 30% 8%', // Dark blue-gray
-      card: '0 0% 100%',
+      card: '220 25% 97%', // Cool winter cards
       cardForeground: '210 30% 8%',
+      popover: '220 25% 97%',
+      popoverForeground: '210 30% 8%',
       
-      muted: '210 15% 92%', // Cool gray
+      muted: '220 15% 86%', // Cool winter gray
       mutedForeground: '210 15% 35%',
       accent: '200 80% 75%', // Ice blue
       accentForeground: '200 80% 15%',
-      border: '210 15% 85%',
-      input: '210 15% 92%',
+      border: '220 15% 80%',
+      input: '220 15% 88%',
       ring: '210 100% 45%',
       
       destructive: '0 84% 60%',
