@@ -3233,14 +3233,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           end.setHours(23, 59, 59, 999);
           
           const liveOrders = await cloverIntegration.fetchOrders({
-            filter: `modifiedTime>=${Math.floor(start.getTime())}`,
+            filter: `createdTime>=${Math.floor(start.getTime())}`,
             limit: 1000,
             offset: 0
           });
           
           if (liveOrders && liveOrders.elements) {
             const filteredOrders = liveOrders.elements.filter((order: any) => {
-              const orderDate = new Date(order.modifiedTime);
+              const orderDate = new Date(order.createdTime);
               return orderDate >= start && orderDate <= end;
             });
             
@@ -3377,7 +3377,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.log(`🚀 Creating CloverIntegration for ${config.merchantName} with MID: ${config.merchantId}`);
           
           const liveOrders = await cloverIntegration.fetchOrders({
-            filter: `modifiedTime>=${Math.floor(start.getTime())}`,
+            filter: `createdTime>=${Math.floor(start.getTime())}`,
             limit: 1000,
             offset: 0
           });
@@ -3387,7 +3387,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             
             // Filter orders by date on server-side (same as revenue-trends)
             const filteredOrders = liveOrders.elements.filter((order: any) => {
-              const orderDate = new Date(order.modifiedTime);
+              const orderDate = new Date(order.createdTime);
               return orderDate >= start && orderDate <= end;
             });
             
@@ -4107,7 +4107,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             // Use the same live API approach as Order Management
             const cloverIntegration = new CloverIntegration(locationConfig);
             const liveOrders = await cloverIntegration.fetchOrders({
-              filter: `modifiedTime>=${Math.floor(start.getTime())}`,
+              filter: `createdTime>=${Math.floor(start.getTime())}`,
               limit: 1000,
               offset: 0
             });
@@ -4115,7 +4115,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             if (liveOrders && liveOrders.elements && liveOrders.elements.length > 0) {
               // Filter orders by date on server-side (same as Order Management fix)
               const filteredOrders = liveOrders.elements.filter((order: any) => {
-                const orderDate = new Date(order.modifiedTime);
+                const orderDate = new Date(order.createdTime);
                 return orderDate >= start && orderDate <= end;
               });
               
@@ -4201,7 +4201,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             // Use the same live API approach as Order Management
             const cloverIntegration = new CloverIntegration(locationConfig);
             const liveOrders = await cloverIntegration.fetchOrders({
-              filter: `modifiedTime>=${Math.floor(start.getTime())}`,
+              filter: `createdTime>=${Math.floor(start.getTime())}`,
               limit: 1000,
               offset: 0
             });
@@ -4211,7 +4211,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               
               // Filter orders by date on server-side (same as Order Management fix)  
               const filteredOrders = liveOrders.elements.filter((order: any) => {
-                const orderDate = new Date(order.modifiedTime);
+                const orderDate = new Date(order.createdTime);
                 const withinRange = orderDate >= start && orderDate <= end;
                 if (!withinRange) {
                   console.log(`Order ${order.id} filtered out: ${orderDate.toISOString()} not in range ${start.toISOString()} - ${end.toISOString()}`);
@@ -4431,7 +4431,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const cloverIntegration = new CloverIntegration(locationConfig);
             console.log(`🚀 Creating CloverIntegration for ${locationConfig.merchantName} with MID: ${locationConfig.merchantId}`);
             const liveOrders = await cloverIntegration.fetchOrders({
-              filter: `modifiedTime>=${Math.floor(start.getTime())}`,
+              filter: `createdTime>=${Math.floor(start.getTime())}`,
               limit: 1000,
               offset: 0
             });
@@ -4441,7 +4441,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               
               // Filter orders by date on server-side (same as Order Management fix)
               const filteredOrders = liveOrders.elements.filter((order: any) => {
-                const orderDate = new Date(order.modifiedTime);
+                const orderDate = new Date(order.createdTime);
                 const withinRange = orderDate >= start && orderDate <= end;
                 if (!withinRange) {
                   console.log(`Location Order ${order.id} filtered out: ${orderDate.toISOString()} not in range ${start.toISOString()} - ${end.toISOString()}`);
