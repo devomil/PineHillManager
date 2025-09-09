@@ -57,12 +57,16 @@ Implement these changes ONE AT A TIME, testing between each:
    body { font-size: var(--mobile-font-size); line-height: 1.5; }
    ```
 
-4. ⏳ Add basic media query for mobile:
+4. ✅ Add basic media query for mobile:
    ```css
    @media (max-width: 768px) {
-     /* Start with just font-size adjustments */
+     /* Typography adjustments */
      h1 { font-size: 1.5rem; }
      h2 { font-size: 1.3rem; }
+     /* Tab navigation fixes */
+     [role="tablist"] { flex-direction: column !important; }
+     /* Grid layout fixes */
+     .grid { grid-template-columns: 1fr !important; }
    }
    ```
 
