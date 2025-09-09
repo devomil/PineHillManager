@@ -313,17 +313,42 @@ export function RevenueAnalytics() {
         </Card>
       </div>
 
-      {/* Analytics Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="overview">Revenue Overview</TabsTrigger>
-          <TabsTrigger value="locations" disabled={selectedPeriod === 'annual'}>
-            Location Comparison
-          </TabsTrigger>
-          <TabsTrigger value="trends">Performance Trends</TabsTrigger>
-        </TabsList>
+      {/* Analytics Navigation - Responsive */}
+      <div className="space-y-4">
+        {/* Mobile Dropdown */}
+        <div className="md:hidden">
+          <Select value={activeTab} onValueChange={setActiveTab}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Select view" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="overview">📊 Revenue Overview</SelectItem>
+              <SelectItem value="locations" disabled={selectedPeriod === 'annual'}>
+                🗺️ Location Comparison
+              </SelectItem>
+              <SelectItem value="trends">📈 Performance Trends</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
 
-        <TabsContent value="overview" className="space-y-6">
+        {/* Desktop Tabs */}
+        <div className="hidden md:block">
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="overview">Revenue Overview</TabsTrigger>
+              <TabsTrigger value="locations" disabled={selectedPeriod === 'annual'}>
+                Location Comparison
+              </TabsTrigger>
+              <TabsTrigger value="trends">Performance Trends</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
+      </div>
+
+      {/* Content Sections */}
+      <div className="space-y-6">
+        {activeTab === 'overview' && (
+          <div className="space-y-6">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -370,9 +395,11 @@ export function RevenueAnalytics() {
               )}
             </CardContent>
           </Card>
-        </TabsContent>
+          </div>
+        )}
 
-        <TabsContent value="locations" className="space-y-6">
+        {activeTab === 'locations' && (
+          <div className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <Card>
               <CardHeader>
@@ -496,9 +523,11 @@ export function RevenueAnalytics() {
               )}
             </CardContent>
           </Card>
-        </TabsContent>
+          </div>
+        )}
 
-        <TabsContent value="trends" className="space-y-6">
+        {activeTab === 'trends' && (
+          <div className="space-y-6">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -553,8 +582,9 @@ export function RevenueAnalytics() {
               )}
             </CardContent>
           </Card>
-        </TabsContent>
-      </Tabs>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
