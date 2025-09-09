@@ -171,6 +171,10 @@ export default function AdminEmployeeManagement() {
 
   const { data: employees, isLoading, error } = useQuery<UserType[]>({
     queryKey: ["/api/employees"],
+    queryFn: async () => {
+      const response = await apiRequest("GET", "/api/employees");
+      return response.json();
+    },
     retry: (failureCount, error) => {
       // Don't retry on 401 Unauthorized errors
       if (error.message?.includes('401')) {
@@ -457,8 +461,6 @@ export default function AdminEmployeeManagement() {
     }
   };
 
-  // Debug logging
-  console.log('Employees query state:', { isLoading, error, employeesCount: employees?.length, employees: employees?.slice(0, 2) });
 
   if (isLoading) {
     return (
