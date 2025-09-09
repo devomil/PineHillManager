@@ -97,27 +97,6 @@
   h2 { font-size: 1.3rem; }
   h3 { font-size: 1.1rem; }
   
-  /* Fix tab navigation - ensure proper display */
-  [role="tablist"] {
-    flex-wrap: wrap !important;
-    gap: 0.25rem !important;
-    z-index: 10 !important;
-    position: relative !important;
-  }
-  
-  /* Make tab buttons smaller and more compact on mobile */
-  [role="tab"] {
-    font-size: 0.75rem !important;
-    padding: 0.375rem 0.625rem !important;
-    min-height: 36px !important;
-    white-space: nowrap !important;
-  }
-  
-  /* Ensure tab content has proper spacing */
-  [role="tabpanel"] {
-    margin-top: 1rem !important;
-  }
-  
   /* Ensure proper spacing for mobile cards */
   .grid {
     grid-template-columns: 1fr !important;
@@ -133,6 +112,31 @@
   .flex.items-center.gap-4 {
     flex-wrap: wrap !important;
     gap: 0.75rem !important;
+  }
+}
+
+/* Portrait mobile screens - very narrow */
+@media (max-width: 480px) {
+  /* Force tab navigation to stack vertically for portrait */
+  [role="tablist"] {
+    flex-direction: column !important;
+    gap: 0.5rem !important;
+    width: 100% !important;
+  }
+  
+  /* Make tabs full width and easier to tap */
+  [role="tab"] {
+    width: 100% !important;
+    text-align: center !important;
+    font-size: 0.875rem !important;
+    padding: 0.75rem 1rem !important;
+    min-height: 44px !important;
+    white-space: normal !important;
+  }
+  
+  /* Ensure tab content has proper spacing */
+  [role="tabpanel"] {
+    margin-top: 1rem !important;
   }
 }
 
