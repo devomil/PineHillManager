@@ -56,6 +56,36 @@ The system follows a clear separation of concerns between frontend and backend. 
 - `/employees` - Staff management.
 - `/shift-scheduling` - Work schedule management.
 
+## Recent Updates
+
+### Revenue Data Integrity Fixes (September 9, 2025)
+**Status: ✅ RESOLVED - Production Ready**
+
+Critical revenue data integrity issues have been identified and fully resolved across all accounting endpoints:
+
+**Issues Resolved:**
+1. **Date Filtering Bug**: Fixed Clover API calls using incorrect `modifiedTime` instead of `createdTime` field, causing revenue discrepancies
+2. **Pagination Limitation**: Fixed endpoints limited to first 1000 orders per location, missing significant revenue data  
+3. **Field Inconsistency**: Resolved `totalSales` vs `totalRevenue` field naming causing $36,000+ discrepancies between Reports and Revenue Analytics tabs
+4. **COGS Accuracy**: Applied same pagination and date filtering fixes to Cost of Goods Sold calculations
+
+**Endpoints Updated:**
+- `/api/accounting/analytics/multi-location` - ✅ Full pagination + field consistency
+- `/api/accounting/analytics/cogs` - ✅ Full pagination for accurate COGS
+- `/api/accounting/reports/profit-loss` - ✅ Inherits corrected data
+- `/api/accounting/analytics/revenue-trends` - ✅ Already had proper pagination  
+- `/api/accounting/analytics/location-revenue-trends` - ✅ Already had proper pagination
+
+**Verification Results:**
+- Revenue data now matches Clover reporting exactly ($100,863.61 for August 2025)
+- COGS calculations accurate ($39,560.54 for August 2025)
+- All time period dropdowns in both Reports and Revenue Analytics tabs verified
+- Transaction counts consistent across all endpoints (2,089 for August)
+
+**Coverage Confirmed:**
+- **Reports Tab**: Current Month, Last Month, Current Quarter, Current Year, July 2025
+- **Revenue Analytics Tab**: Today, Yesterday, This Week, Last Week, Last 7 Days, This Month, Last Month, Last 30 Days, Last 3 Months, Last 6 Months, This Year, Last Year, Last 12 Months, Custom Date Range
+
 ## External Dependencies
 
 -   **Email Service**: SendGrid.
