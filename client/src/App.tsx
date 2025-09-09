@@ -1,6 +1,7 @@
 import { Router, Route, Switch } from "wouter";
 import { useAuth, AuthProvider } from "@/hooks/use-auth";
 import { useFontLoader } from "@/hooks/use-font-loader";
+import { ThemeProvider } from "@/contexts/ThemeContext";
 import AuthPage from "@/pages/auth-page";
 import HomeDashboard from "@/pages/home-dashboard";
 import AdminDashboard from "@/pages/admin-dashboard";
@@ -122,11 +123,13 @@ function AppRouter() {
 
 function App() {
   return (
-    <AuthProvider>
-      <Router>
-        <AppRouter />
-      </Router>
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <Router>
+          <AppRouter />
+        </Router>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
 

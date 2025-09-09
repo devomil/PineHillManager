@@ -6,6 +6,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 // Removed Tabs imports to prevent RovingFocusGroupItem conflicts
 import { Users, Clock, Calendar, Bell, Settings, Eye, FileText, DollarSign, Menu, QrCode, Video, User, LogOut, ChevronDown, MessageSquare, Package, ShoppingCart, ArrowLeftRight } from "lucide-react";
 import { useLocation } from "wouter";
+import { SeasonalThemeSwitcher } from "@/components/SeasonalThemeSwitcher";
 
 interface AdminLayoutProps {
   children: ReactNode;
@@ -78,6 +79,9 @@ export default function AdminLayout({ children, currentTab }: AdminLayoutProps) 
             </div>
             
             <div className="flex items-center space-x-4">
+              {/* Seasonal Theme Switcher */}
+              <SeasonalThemeSwitcher />
+              
               {/* User Profile Dropdown */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
