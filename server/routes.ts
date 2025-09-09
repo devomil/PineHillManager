@@ -3232,17 +3232,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const end = new Date(endDate as string);
           end.setHours(23, 59, 59, 999);
           
-          const liveOrders = await cloverIntegration.fetchOrders({
-            filter: `createdTime>=${Math.floor(start.getTime())}`,
-            limit: 1000,
-            offset: 0
-          });
+          // Fetch ALL orders with pagination to avoid missing revenue (same as multi-location endpoint)
+          let allOrders: any[] = [];
+          let offset = 0;
+          const limit = 1000;
+          let hasMoreData = true;
           
-          if (liveOrders && liveOrders.elements) {
-            const filteredOrders = liveOrders.elements.filter((order: any) => {
+          while (hasMoreData) {
+            const liveOrders = await cloverIntegration.fetchOrders({
+              filter: `createdTime>=${Math.floor(start.getTime())}`,
+              limit: limit,
+              offset: offset
+            });
+            
+            if (liveOrders && liveOrders.elements && liveOrders.elements.length > 0) {
+              allOrders.push(...liveOrders.elements);
+              console.log(`📊 COGS: Fetched ${liveOrders.elements.length} orders for ${config.merchantName} (offset: ${offset}), total so far: ${allOrders.length}`);
+              
+              // Check if we need to fetch more data
+              if (liveOrders.elements.length < limit) {
+                hasMoreData = false;
+              } else {
+                offset += limit;
+              }
+            } else {
+              hasMoreData = false;
+            }
+          }
+          
+          if (allOrders.length > 0) {
+            console.log(`📊 COGS: Total orders fetched for ${config.merchantName}: ${allOrders.length} orders`);
+            
+            // Filter orders by date on server-side
+            const filteredOrders = allOrders.filter((order: any) => {
               const orderDate = new Date(order.createdTime);
               return orderDate >= start && orderDate <= end;
             });
+            
+            console.log(`COGS Filtered orders for ${config.merchantName}: ${filteredOrders.length} orders`);
             
             const locationRevenue = filteredOrders.reduce((sum: number, order: any) => {
               return sum + (parseFloat(order.total || '0') / 100);
@@ -3251,7 +3278,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             totalLiveRevenue += locationRevenue;
             totalTransactions += filteredOrders.length;
             
-            console.log(`📊 ${config.merchantName}: $${locationRevenue.toFixed(2)} from ${filteredOrders.length} orders`);
+            console.log(`📊 COGS ${config.merchantName}: $${locationRevenue.toFixed(2)} from ${filteredOrders.length} orders`);
           }
         } catch (error) {
           console.log(`No live data for ${config.merchantName}`);
