@@ -1534,6 +1534,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Admin only - Toggle individual employee SMS consent
+  app.put("/api/employees/:employeeId/sms-consent", isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const { employeeId } = req.params;
+      const { consentValue, notificationTypes, notes } = req.body;
+      const adminUser = req.user;
+
+      console.log('🔧 Admin SMS consent toggle request:', {
+        adminId: adminUser.id,
+        employeeId,
+        consentValue,
+        notificationTypes,
+        notes: notes || 'Admin manual toggle'
+      });
+
+      const updatedUser = await storage.toggleSmsConsent({
+        userId: employeeId,
+        consentValue: Boolean(consentValue),
+        changedBy: adminUser.id,
+        notificationTypes: notificationTypes || (consentValue ? ['emergency', 'schedule', 'announcements'] : []),
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent'),
+        notes: notes || 'Admin manual toggle'
+      });
+
+      console.log('✅ SMS consent toggled successfully:', {
+        employeeId,
+        newConsentStatus: updatedUser.smsConsent,
+        notificationTypes: updatedUser.smsNotificationTypes
+      });
+
+      res.json({
+        success: true,
+        message: `SMS consent ${consentValue ? 'enabled' : 'disabled'} successfully`,
+        user: {
+          id: updatedUser.id,
+          firstName: updatedUser.firstName,
+          lastName: updatedUser.lastName,
+          smsConsent: updatedUser.smsConsent,
+          smsConsentDate: updatedUser.smsConsentDate,
+          smsNotificationTypes: updatedUser.smsNotificationTypes
+        }
+      });
+    } catch (error) {
+      console.error('❌ Error toggling SMS consent:', error);
+      res.status(500).json({
+        success: false,
+        message: error instanceof Error ? error.message : 'Failed to toggle SMS consent'
+      });
+    }
+  });
+
   // Bulk opt-in to SMS announcements
   app.post('/api/employees/bulk-sms-opt-in', isAuthenticated, async (req: any, res) => {
     try {

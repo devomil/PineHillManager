@@ -607,6 +607,32 @@ export interface IStorage {
   getSMSDeliveriesByMessageId(messageId: number): Promise<any[]>;
   updateSMSDeliveryStatus(deliveryId: number, status: string, deliveredAt?: Date): Promise<void>;
   
+  // SMS consent management
+  createSmsConsentRecord(record: InsertSMSConsentHistory): Promise<SMSConsentHistory>;
+  getSmsConsentHistoryByUserId(userId: string): Promise<SMSConsentHistory[]>;
+  toggleSmsConsent(options: {
+    userId: string;
+    consentValue: boolean;
+    changedBy: string;
+    notificationTypes?: string[];
+    ipAddress?: string;
+    userAgent?: string;
+    notes?: string;
+  }): Promise<User>;
+  bulkOptInSmsConsent(options: {
+    userIds: string[];
+    changedBy: string;
+    changeReason: string;
+    notificationTypes: string[];
+    ipAddress?: string;
+    userAgent?: string;
+    notes?: string;
+  }): Promise<{ 
+    successful: number; 
+    failed: number; 
+    errors: Array<{ userId: string; error: string }> 
+  }>;
+  
   // Phase 6: Advanced Features - Scheduled Messages
   createScheduledMessage(scheduledMessage: InsertScheduledMessage): Promise<ScheduledMessage>;
   getScheduledMessages(): Promise<ScheduledMessage[]>;
@@ -4829,6 +4855,58 @@ export class DatabaseStorage implements IStorage {
     }
 
     return { successful, failed, errors };
+  }
+
+  // Individual SMS consent toggle for admin
+  async toggleSmsConsent(options: {
+    userId: string;
+    consentValue: boolean;
+    changedBy: string;
+    notificationTypes?: string[];
+    ipAddress?: string;
+    userAgent?: string;
+    notes?: string;
+  }): Promise<User> {
+    const { userId, consentValue, changedBy, notificationTypes, ipAddress, userAgent, notes } = options;
+
+    // Get current user consent status
+    const user = await this.getUser(userId);
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    const previousConsent = user.smsConsent;
+    const previousNotificationTypes = user.smsNotificationTypes || ['emergency'];
+    const newNotificationTypes = notificationTypes || (consentValue ? ['emergency'] : []);
+
+    // Update user SMS consent
+    const [updatedUser] = await db
+      .update(users)
+      .set({
+        smsConsent: consentValue,
+        smsConsentDate: consentValue ? new Date() : user.smsConsentDate,
+        smsNotificationTypes: newNotificationTypes,
+        updatedAt: new Date()
+      })
+      .where(eq(users.id, userId))
+      .returning();
+
+    // Create consent history record
+    await this.createSmsConsentRecord({
+      userId,
+      consentGiven: consentValue,
+      previousConsent,
+      notificationTypes: newNotificationTypes,
+      previousNotificationTypes,
+      changeReason: 'admin_update',
+      changedBy,
+      changeMethod: 'admin_panel',
+      ipAddress,
+      userAgent,
+      notes
+    });
+
+    return updatedUser;
   }
 }
 
