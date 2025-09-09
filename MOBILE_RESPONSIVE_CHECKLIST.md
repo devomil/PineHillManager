@@ -42,17 +42,17 @@ Add these CSS foundation changes FIRST, test after each:
 
 Implement these changes ONE AT A TIME, testing between each:
 
-1. ⏳ Make images responsive:
+1. ✅ Make images responsive:
    ```css
    img { max-width: 100%; height: auto; }
    ```
 
-2. ⏳ Improve touch targets:
+2. ✅ Improve touch targets:
    ```css
    button, a, input { min-height: 44px; min-width: 44px; }
    ```
 
-3. ⏳ Fix typography:
+3. ✅ Fix typography:
    ```css
    body { font-size: var(--mobile-font-size); line-height: 1.5; }
    ```

@@ -71,6 +71,23 @@
     max-width: 100%;
     height: auto;
   }
+  
+  /* Touch-friendly button sizing for mobile */
+  button, 
+  a[role="button"], 
+  input[type="button"], 
+  input[type="submit"], 
+  .btn {
+    min-height: 44px;
+    min-width: 44px;
+    padding: 0.75rem 1rem;
+  }
+  
+  /* Mobile typography improvements */
+  body {
+    font-size: var(--mobile-font-size);
+    line-height: 1.5;
+  }
 }
 
 @layer components {
