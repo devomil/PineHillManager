@@ -29,6 +29,10 @@
     --success: 142 76% 36%;
     --warning: 48 96% 53%;
     --radius: 0.5rem;
+    
+    /* Mobile-friendly CSS variables */
+    --mobile-padding: 1rem;
+    --mobile-font-size: 16px;
   }
 
   .dark {
@@ -60,6 +64,12 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+  
+  /* Basic responsive images */
+  img {
+    max-width: 100%;
+    height: auto;
   }
 }
 
