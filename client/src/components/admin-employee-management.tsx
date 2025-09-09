@@ -1240,10 +1240,30 @@ export default function AdminEmployeeManagement() {
                   {selectedEmployee && (
                     <div className="border-t-2 border-blue-200 pt-6 mt-6 bg-blue-50 p-4 rounded-lg">
                       <div className="flex items-center justify-between mb-4">
-                        <h4 className="text-base font-semibold text-slate-900">📱 SMS Consent History</h4>
+                        <h4 className="text-base font-semibold text-slate-900">📱 SMS Consent Management</h4>
                         <Badge variant={selectedEmployee.smsConsent ? "default" : "secondary"} className="text-sm px-3 py-1">
                           {selectedEmployee.smsConsent ? "✅ Consented" : "❌ No Consent"}
                         </Badge>
+                      </div>
+
+                      {/* Admin SMS Consent Toggle */}
+                      <div className="flex items-center justify-between mb-4 p-3 bg-white rounded-lg border-2 border-orange-200">
+                        <div>
+                          <Label htmlFor="sms-consent-toggle" className="font-medium">Admin Control: SMS Consent</Label>
+                          <p className="text-sm text-slate-500">
+                            Toggle this employee's SMS notification permissions
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            id="sms-consent-toggle"
+                            checked={selectedEmployee.smsConsent || false}
+                            onCheckedChange={async (checked) => {
+                              await handleSmsConsentToggle(selectedEmployee.id, checked);
+                            }}
+                            disabled={smsConsentMutation.isPending}
+                          />
+                        </div>
                       </div>
                       
                       <div className="space-y-2 text-sm">
@@ -1286,29 +1306,6 @@ export default function AdminEmployeeManagement() {
                       />
                     </div>
 
-                    {selectedEmployee && (
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <Label htmlFor="sms-consent-toggle">SMS Consent</Label>
-                          <p className="text-sm text-slate-500">
-                            Allow this employee to receive SMS notifications
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Badge variant={selectedEmployee.smsConsent ? "default" : "secondary"} className="text-xs">
-                            {selectedEmployee.smsConsent ? "✅ Enabled" : "❌ Disabled"}
-                          </Badge>
-                          <Switch
-                            id="sms-consent-toggle"
-                            checked={selectedEmployee.smsConsent || false}
-                            onCheckedChange={async (checked) => {
-                              await handleSmsConsentToggle(selectedEmployee.id, checked);
-                            }}
-                            disabled={smsConsentMutation.isPending}
-                          />
-                        </div>
-                      </div>
-                    )}
                     
                     <div>
                       <Label htmlFor="edit-timeOffBalance">Time Off Balance (days)</Label>
