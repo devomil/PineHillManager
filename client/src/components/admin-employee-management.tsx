@@ -332,6 +332,68 @@ export default function AdminEmployeeManagement() {
     },
   });
 
+  // SMS consent toggle mutation
+  const smsConsentMutation = useMutation({
+    mutationFn: async (data: { employeeId: string; consentValue: boolean }) => {
+      const response = await apiRequest("PUT", `/api/employees/${data.employeeId}/sms-consent`, {
+        consentValue: data.consentValue,
+        notificationTypes: data.consentValue 
+          ? ['emergency', 'schedule', 'announcements', 'reminders'] 
+          : [],
+        notes: `Admin ${data.consentValue ? 'enabled' : 'disabled'} SMS consent`
+      });
+      return response.json();
+    },
+    onSuccess: (data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/employees"] });
+      queryClient.invalidateQueries({ queryKey: [`/api/employees/${variables.employeeId}/sms-consent-history`] });
+      
+      // Update the selected employee data
+      if (selectedEmployee && selectedEmployee.id === variables.employeeId) {
+        setSelectedEmployee(prev => prev ? {
+          ...prev,
+          smsConsent: variables.consentValue,
+          smsConsentDate: variables.consentValue ? new Date().toISOString() : prev.smsConsentDate,
+          smsNotificationTypes: variables.consentValue 
+            ? ['emergency', 'schedule', 'announcements', 'reminders'] 
+            : []
+        } : null);
+      }
+      
+      toast({
+        title: "SMS Consent Updated",
+        description: `SMS consent ${variables.consentValue ? 'enabled' : 'disabled'} for ${data.user?.firstName} ${data.user?.lastName}`,
+      });
+    },
+    onError: (error) => {
+      if (isUnauthorizedError(error)) {
+        toast({
+          title: "Unauthorized", 
+          description: "You are logged out. Logging in again...",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          window.location.href = "/api/login";
+        }, 500);
+        return;
+      }
+
+      toast({
+        title: "Error",
+        description: "Failed to toggle SMS consent. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleSmsConsentToggle = async (employeeId: string, consentValue: boolean) => {
+    try {
+      await smsConsentMutation.mutateAsync({ employeeId, consentValue });
+    } catch (error) {
+      console.error('Error toggling SMS consent:', error);
+    }
+  };
+
   const handleEditEmployee = (employee: UserType) => {
     setSelectedEmployee(employee);
     editForm.reset({
@@ -1178,6 +1240,30 @@ export default function AdminEmployeeManagement() {
                         onCheckedChange={(checked) => editForm.setValue("isActive", checked)}
                       />
                     </div>
+
+                    {selectedEmployee && (
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <Label htmlFor="sms-consent-toggle">SMS Consent</Label>
+                          <p className="text-sm text-slate-500">
+                            Allow this employee to receive SMS notifications
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge variant={selectedEmployee.smsConsent ? "default" : "secondary"} className="text-xs">
+                            {selectedEmployee.smsConsent ? "✅ Enabled" : "❌ Disabled"}
+                          </Badge>
+                          <Switch
+                            id="sms-consent-toggle"
+                            checked={selectedEmployee.smsConsent || false}
+                            onCheckedChange={async (checked) => {
+                              await handleSmsConsentToggle(selectedEmployee.id, checked);
+                            }}
+                            disabled={smsConsentMutation.isPending}
+                          />
+                        </div>
+                      </div>
+                    )}
                     
                     <div>
                       <Label htmlFor="edit-timeOffBalance">Time Off Balance (days)</Label>
