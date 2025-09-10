@@ -721,9 +721,9 @@ function CommunicationsContent() {
     }
   }, [messages, queryClient, toast]);
 
-  // Form state for creating communications
+  // Form state for creating communications (admin/manager only)
   const [formData, setFormData] = useState({
-    type: 'announcement' as 'announcement' | 'direct_message' | 'group_message',
+    type: 'announcement' as 'announcement' | 'group_message', // Removed direct_message from admin interface
     title: '',
     content: '',
     priority: 'normal' as 'low' | 'normal' | 'high' | 'urgent',
@@ -733,9 +733,25 @@ function CommunicationsContent() {
     scheduledFor: ''
   });
   
+  // Form state for direct messages (available to all employees)
+  const [directMessageData, setDirectMessageData] = useState({
+    title: '',
+    content: '',
+    priority: 'normal' as 'low' | 'normal' | 'high' | 'urgent',
+    targetEmployees: [] as string[],
+    smsEnabled: true
+  });
+  
+  // Dialog states
+  const [showDirectMessageDialog, setShowDirectMessageDialog] = useState(false);
+  
   // Employee search state for regular communications
   const [employeeSearchQuery, setEmployeeSearchQuery] = useState('');
   const [showEmployeeSelector, setShowEmployeeSelector] = useState(false);
+  
+  // Employee search state for direct messages
+  const [directMessageSearchQuery, setDirectMessageSearchQuery] = useState('');
+  const [showDirectMessageEmployeeSelector, setShowDirectMessageEmployeeSelector] = useState(false);
   
   // Employee search state for scheduled messages  
   const [scheduledEmployeeSearchQuery, setScheduledEmployeeSearchQuery] = useState('');
@@ -877,6 +893,45 @@ function CommunicationsContent() {
     }
   });
 
+  // Direct message mutation for all employees
+  const createDirectMessageMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const mappedData = {
+        subject: data.title,
+        content: data.content,
+        priority: data.priority,
+        messageType: 'direct_message',
+        smsEnabled: data.smsEnabled,
+        recipientMode: 'individual',
+        recipients: data.targetEmployees
+      };
+      return apiRequest('POST', '/api/messages', mappedData);
+    },
+    onSuccess: () => {
+      toast({ title: "✅ Direct message sent successfully!" });
+      queryClient.invalidateQueries({ queryKey: ["/api/messages"] });
+      setShowDirectMessageDialog(false);
+      // Reset direct message form
+      setDirectMessageData({
+        title: '',
+        content: '',
+        priority: 'normal',
+        targetEmployees: [],
+        smsEnabled: true
+      });
+      setShowDirectMessageEmployeeSelector(false);
+      setDirectMessageSearchQuery('');
+    },
+    onError: (error: any) => {
+      console.error('Direct message creation error:', error);
+      toast({ 
+        title: "❌ Failed to send direct message", 
+        description: error?.message || "Please try again",
+        variant: "destructive" 
+      });
+    }
+  });
+
   // Phase 6: Create scheduled message mutation
   const createScheduledMessageMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -935,6 +990,28 @@ function CommunicationsContent() {
     }
 
     createCommunicationMutation.mutate(formData);
+  };
+
+  const handleCreateDirectMessage = () => {
+    if (!directMessageData.title.trim() || !directMessageData.content.trim()) {
+      toast({ 
+        title: "Missing required fields", 
+        description: "Please fill in title and content",
+        variant: "destructive" 
+      });
+      return;
+    }
+
+    if (!directMessageData.targetEmployees || directMessageData.targetEmployees.length === 0) {
+      toast({ 
+        title: "No recipients selected", 
+        description: "Please select at least one employee to message",
+        variant: "destructive" 
+      });
+      return;
+    }
+
+    createDirectMessageMutation.mutate(directMessageData);
   };
 
   // Utility functions (existing from announcements page)
@@ -1053,9 +1130,139 @@ function CommunicationsContent() {
           </div>
         </div>
         
-        {/* Create Communication Button - Admin/Manager Only */}
-        {(user?.role === 'admin' || user?.role === 'manager') && (
-          <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+        {/* Send Direct Message Button - Available to ALL users */}
+        <div className="flex flex-col sm:flex-row gap-2">
+          <Dialog open={showDirectMessageDialog} onOpenChange={setShowDirectMessageDialog}>
+            <DialogTrigger asChild>
+              <Button 
+                variant="outline"
+                className="flex-1 sm:flex-none"
+                data-testid="button-send-direct-message"
+              >
+                <MessageSquare className="w-4 h-4 mr-2" />
+                Send Direct Message
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto mx-4 sm:mx-0">
+              <DialogHeader>
+                <DialogTitle>Send Direct Message</DialogTitle>
+                <DialogDescription>
+                  Send a private message to specific team members
+                </DialogDescription>
+              </DialogHeader>
+              
+              <div className="space-y-4 py-4">
+                {/* Title */}
+                <div>
+                  <Label htmlFor="dm-title">Subject</Label>
+                  <Input
+                    id="dm-title"
+                    value={directMessageData.title}
+                    onChange={(e) => setDirectMessageData(prev => ({ ...prev, title: e.target.value }))}
+                    placeholder="Enter message subject"
+                    data-testid="input-direct-message-title"
+                  />
+                </div>
+
+                {/* Content */}
+                <div>
+                  <Label htmlFor="dm-content">Message Content</Label>
+                  <Textarea
+                    id="dm-content"
+                    value={directMessageData.content}
+                    onChange={(e) => setDirectMessageData(prev => ({ ...prev, content: e.target.value }))}
+                    placeholder="Enter your message content"
+                    rows={4}
+                    data-testid="input-direct-message-content"
+                  />
+                </div>
+
+                {/* Priority */}
+                <div>
+                  <Label htmlFor="dm-priority">Priority Level</Label>
+                  <Select 
+                    value={directMessageData.priority} 
+                    onValueChange={(value: 'low' | 'normal' | 'high' | 'urgent') => setDirectMessageData(prev => ({ ...prev, priority: value }))}
+                  >
+                    <SelectTrigger id="dm-priority">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="low">
+                        <div className="flex items-center gap-2">
+                          <span>💬</span>
+                          <span>Low Priority</span>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="normal">
+                        <div className="flex items-center gap-2">
+                          <span>📢</span>
+                          <span>Normal Priority</span>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="high">
+                        <div className="flex items-center gap-2">
+                          <span>⚠️</span>
+                          <span>High Priority</span>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="urgent">
+                        <div className="flex items-center gap-2">
+                          <span>🚨</span>
+                          <span>Urgent</span>
+                        </div>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Employee Selector for Direct Messages */}
+                <EmployeeSelector
+                  employees={employees}
+                  selectedEmployees={directMessageData.targetEmployees}
+                  onEmployeesChange={(selectedIds) => setDirectMessageData(prev => ({ ...prev, targetEmployees: selectedIds }))}
+                  searchQuery={directMessageSearchQuery}
+                  onSearchChange={setDirectMessageSearchQuery}
+                  isVisible={showDirectMessageEmployeeSelector}
+                  onVisibilityChange={setShowDirectMessageEmployeeSelector}
+                />
+
+                {/* SMS Enabled */}
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="dm-smsEnabled"
+                    checked={directMessageData.smsEnabled}
+                    onChange={(e) => setDirectMessageData(prev => ({ ...prev, smsEnabled: e.target.checked }))}
+                    className="w-4 h-4"
+                  />
+                  <Label htmlFor="dm-smsEnabled">📱 Send SMS notifications</Label>
+                </div>
+              </div>
+
+              <DialogFooter>
+                <Button 
+                  variant="outline" 
+                  onClick={() => setShowDirectMessageDialog(false)}
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={handleCreateDirectMessage}
+                  disabled={createDirectMessageMutation.isPending}
+                  className="w-full sm:w-auto touch-manipulation"
+                  data-testid="button-send-message"
+                >
+                  <Send className="w-4 h-4 mr-2" />
+                  {createDirectMessageMutation.isPending ? 'Sending...' : 'Send Message'}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        
+          {/* Create Communication Button - Admin/Manager Only */}
+          {(user?.role === 'admin' || user?.role === 'manager') && (
+            <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
             <DialogTrigger asChild>
               <Button 
                 style={{
@@ -1073,7 +1280,7 @@ function CommunicationsContent() {
               <DialogHeader>
                 <DialogTitle>Create New Communication</DialogTitle>
                 <DialogDescription>
-                  Send announcements, direct messages, or group communications
+                  Send announcements or group communications to teams
                 </DialogDescription>
               </DialogHeader>
               
@@ -1090,7 +1297,6 @@ function CommunicationsContent() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="announcement">📢 Announcement</SelectItem>
-                      <SelectItem value="direct_message">💬 Direct Message</SelectItem>
                       <SelectItem value="group_message">👥 Group Message</SelectItem>
                     </SelectContent>
                   </Select>
