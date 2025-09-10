@@ -86,6 +86,67 @@ interface AnnouncementTemplate {
 // Chart colors
 const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#06B6D4'];
 
+// Utility functions
+const getPriorityColor = (priority: string) => {
+  switch (priority) {
+    case 'urgent': return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200';
+    case 'high': return 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200';
+    case 'normal': return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200';
+    case 'low': return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200';
+    default: return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200';
+  }
+};
+
+const getTargetAudienceIcon = (audience: string) => {
+  return <Users className="h-4 w-4" />;
+};
+
+const formatAudience = (audience: string) => {
+  switch (audience) {
+    case 'all': return 'All Staff';
+    case 'employees-only': return 'Employees Only';
+    case 'admins-managers': return 'Admins & Managers';
+    case 'managers-only': return 'Managers Only';
+    case 'admins-only': return 'Admins Only';
+    case 'lake-geneva': return 'Lake Geneva Team';
+    case 'watertown': return 'Watertown Team';
+    case 'watertown-retail': return 'Watertown Retail';
+    case 'watertown-spa': return 'Watertown Spa';
+    case 'online-team': return 'Online Team';
+    default: return audience.charAt(0).toUpperCase() + audience.slice(1);
+  }
+};
+
+// Function to format audience based on selected employees
+const formatMessageAudience = (message: any, employees: any[] = []) => {
+  // If specific employees are selected, show their names
+  if (message.targetEmployees && message.targetEmployees.length > 0 && message.targetAudience === 'all') {
+    const selectedEmployees = employees?.filter(emp => 
+      message.targetEmployees.includes(emp.id)
+    ) || [];
+    
+    if (selectedEmployees.length > 0) {
+      if (selectedEmployees.length === 1) {
+        return `${selectedEmployees[0].firstName} ${selectedEmployees[0].lastName}`;
+      } else if (selectedEmployees.length === 2) {
+        return `${selectedEmployees[0].firstName} ${selectedEmployees[0].lastName} & ${selectedEmployees[1].firstName} ${selectedEmployees[1].lastName}`;
+      } else if (selectedEmployees.length <= 4) {
+        return `${selectedEmployees.length} Selected Employees`;
+      } else {
+        return `${selectedEmployees.length} Employees`;
+      }
+    }
+  }
+  
+  // Default to the audience type
+  return formatAudience(message.targetAudience);
+};
+
+const isExpired = (expiresAt?: string) => {
+  if (!expiresAt) return false;
+  return isAfter(new Date(), parseISO(expiresAt));
+};
+
 // Employee Selection Component
 function EmployeeSelector({ 
   employees, 
@@ -1014,66 +1075,7 @@ function CommunicationsContent() {
     createDirectMessageMutation.mutate(directMessageData);
   };
 
-  // Utility functions (existing from announcements page)
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'urgent': return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200';
-      case 'high': return 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200';
-      case 'normal': return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200';
-      case 'low': return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200';
-      default: return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200';
-    }
-  };
-
-  const getTargetAudienceIcon = (audience: string) => {
-    return <Users className="h-4 w-4" />;
-  };
-
-  const formatAudience = (audience: string) => {
-    switch (audience) {
-      case 'all': return 'All Staff';
-      case 'employees-only': return 'Employees Only';
-      case 'admins-managers': return 'Admins & Managers';
-      case 'managers-only': return 'Managers Only';
-      case 'admins-only': return 'Admins Only';
-      case 'lake-geneva': return 'Lake Geneva Team';
-      case 'watertown': return 'Watertown Team';
-      case 'watertown-retail': return 'Watertown Retail';
-      case 'watertown-spa': return 'Watertown Spa';
-      case 'online-team': return 'Online Team';
-      default: return audience.charAt(0).toUpperCase() + audience.slice(1);
-    }
-  };
-
-  // New function to format audience based on selected employees
-  const formatMessageAudience = (message: any) => {
-    // If specific employees are selected, show their names
-    if (message.targetEmployees && message.targetEmployees.length > 0 && message.targetAudience === 'all') {
-      const selectedEmployees = employees?.filter(emp => 
-        message.targetEmployees.includes(emp.id)
-      ) || [];
-      
-      if (selectedEmployees.length > 0) {
-        if (selectedEmployees.length === 1) {
-          return `${selectedEmployees[0].firstName} ${selectedEmployees[0].lastName}`;
-        } else if (selectedEmployees.length === 2) {
-          return `${selectedEmployees[0].firstName} ${selectedEmployees[0].lastName} & ${selectedEmployees[1].firstName} ${selectedEmployees[1].lastName}`;
-        } else if (selectedEmployees.length <= 4) {
-          return `${selectedEmployees.length} Selected Employees`;
-        } else {
-          return `${selectedEmployees.length} Employees`;
-        }
-      }
-    }
-    
-    // Default to the audience type
-    return formatAudience(message.targetAudience);
-  };
-
-  const isExpired = (expiresAt?: string) => {
-    if (!expiresAt) return false;
-    return isAfter(new Date(), parseISO(expiresAt));
-  };
+  // Utility functions are now defined at top level
 
   // Filter announcements
   const getFilteredAnnouncements = () => {
@@ -2092,7 +2094,7 @@ function CommunicationsContent() {
                             </div>
                             <div className="flex items-center gap-1">
                               <Users className="h-3 w-3" />
-                              <span>{formatMessageAudience(message)}</span>
+                              <span>{formatMessageAudience(message, employees)}</span>
                             </div>
                             {message.smsEnabled && (
                               <Badge className="bg-blue-100 text-blue-800 text-xs">SMS</Badge>
@@ -2134,6 +2136,7 @@ function CommunicationsContent() {
           </div>
         </TabsContent>
       </Tabs>
+    </div>
     </div>
   );
 }
