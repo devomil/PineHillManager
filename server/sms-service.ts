@@ -239,6 +239,48 @@ export class SMSService {
   }
 
   /**
+   * Send SMS notification for direct message reply
+   */
+  async sendDirectMessageReplyNotification(
+    recipientPhone: string, 
+    senderName: string, 
+    replyContent: string, 
+    originalSubject?: string
+  ): Promise<{ success: boolean; messageId?: string; error?: string }> {
+    try {
+      // Truncate reply content for SMS if it's too long
+      const truncatedContent = replyContent.length > 100 
+        ? `${replyContent.substring(0, 97)}...` 
+        : replyContent;
+
+      // Format the SMS message
+      let smsMessage: string;
+      if (originalSubject) {
+        smsMessage = `💬 ${senderName} replied to your direct message "${originalSubject}": "${truncatedContent}"`;
+      } else {
+        smsMessage = `💬 ${senderName} replied to your direct message: "${truncatedContent}"`;
+      }
+
+      // Send the SMS
+      const result = await this.sendSMS({
+        to: recipientPhone,
+        message: smsMessage,
+        priority: 'normal'
+      });
+
+      console.log(`📱 Direct message reply SMS sent to ${recipientPhone} from ${senderName}`);
+      return result;
+
+    } catch (error) {
+      console.error('Error sending direct message reply SMS:', error);
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Unknown error' 
+      };
+    }
+  }
+
+  /**
    * Format phone number to E.164 format
    */
   private formatPhoneNumber(phone: string): string | null {

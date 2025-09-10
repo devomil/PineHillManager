@@ -258,6 +258,8 @@ export interface IStorage {
   createMessage(message: InsertMessage): Promise<Message>;
   getUserMessages(userId: string): Promise<Message[]>;
   markMessageAsRead(id: number): Promise<Message>;
+  getMessageById(id: number): Promise<Message | undefined>;
+  getDirectMessageParticipants(messageId: number): Promise<User[]>;
 
   // Responses
   createResponse(response: InsertResponse): Promise<SelectResponse>;
@@ -2624,6 +2626,60 @@ export class DatabaseStorage implements IStorage {
       })
       .returning();
     return message;
+  }
+
+  async getMessageById(id: number): Promise<Message | undefined> {
+    const [message] = await db
+      .select()
+      .from(messages)
+      .where(eq(messages.id, id));
+    return message;
+  }
+
+  async getDirectMessageParticipants(messageId: number): Promise<User[]> {
+    // First get the original message to find sender and recipient
+    const message = await this.getMessageById(messageId);
+    if (!message) {
+      return [];
+    }
+
+    const participantIds = new Set<string>();
+    
+    // Add original message participants
+    if (message.senderId) {
+      participantIds.add(message.senderId);
+    }
+    if (message.recipientId) {
+      participantIds.add(message.recipientId);
+    }
+
+    // Also check responses to include anyone who has participated in the conversation
+    const messageResponses = await db
+      .select({
+        authorId: responses.authorId
+      })
+      .from(responses)
+      .where(eq(responses.messageId, messageId));
+
+    messageResponses.forEach(response => {
+      if (response.authorId) {
+        participantIds.add(response.authorId);
+      }
+    });
+
+    // Get user details for all participants
+    if (participantIds.size === 0) {
+      return [];
+    }
+
+    const participants = await db
+      .select()
+      .from(users)
+      .where(
+        or(...Array.from(participantIds).map(id => eq(users.id, id)))
+      );
+
+    return participants;
   }
 
   // Response methods
