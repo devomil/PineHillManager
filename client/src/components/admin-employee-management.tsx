@@ -154,12 +154,12 @@ const editEmployeeSchema = z.object({
 
 // Financial form schema to handle decimal inputs and benefits
 const financialFormSchema = z.object({
-  hourlyRate: z.string().optional().transform((val) => val ? parseFloat(val) : undefined),
-  defaultEntryCost: z.string().optional().transform((val) => val ? parseFloat(val) : undefined),
+  hourlyRate: z.string().optional(),
+  defaultEntryCost: z.string().optional(),
   ymcaBenefitEnabled: z.boolean().default(false),
-  ymcaAmount: z.string().optional().transform((val) => val ? parseFloat(val) : undefined),
+  ymcaAmount: z.string().optional(),
   employeePurchaseEnabled: z.boolean().default(false),
-  employeePurchaseCap: z.string().optional().transform((val) => val ? parseFloat(val) : undefined),
+  employeePurchaseCap: z.string().optional(),
 });
 
 type AddEmployeeFormData = z.infer<typeof addEmployeeSchema>;
@@ -643,13 +643,20 @@ export default function AdminEmployeeManagement() {
       const ymcaBenefit = benefits.find((b: any) => b.type === 'ymca');
       const purchaseBenefit = benefits.find((b: any) => b.type === 'employee_purchase');
       
+      // Helper function to format decimal values for form display
+      const formatForDisplay = (value: number | string | null | undefined): string => {
+        if (value === null || value === undefined || value === '') return '';
+        const num = typeof value === 'string' ? parseFloat(value) : value;
+        return isNaN(num) ? '' : num.toFixed(2);
+      };
+      
       financialForm.reset({
-        hourlyRate: financialData.hourlyRate ? financialData.hourlyRate.toString() : "",
-        defaultEntryCost: financialData.defaultEntryCost ? financialData.defaultEntryCost.toString() : "",
+        hourlyRate: formatForDisplay(financialData.hourlyRate),
+        defaultEntryCost: formatForDisplay(financialData.defaultEntryCost),
         ymcaBenefitEnabled: ymcaBenefit?.active || false,
-        ymcaAmount: ymcaBenefit?.amount ? ymcaBenefit.amount.toString() : "",
+        ymcaAmount: formatForDisplay(ymcaBenefit?.amount),
         employeePurchaseEnabled: purchaseBenefit?.active || false,
-        employeePurchaseCap: purchaseBenefit?.cap ? purchaseBenefit.cap.toString() : "75.00",
+        employeePurchaseCap: formatForDisplay(purchaseBenefit?.cap) || "75.00",
       });
     }
   }, [financialData, selectedEmployee, financialForm]);
@@ -691,36 +698,49 @@ export default function AdminEmployeeManagement() {
   const onFinancialSubmit = (data: FinancialFormData) => {
     if (!selectedEmployee) return;
     
-    // Transform form data to match backend schema
+    // Helper function to safely parse and format decimal values
+    const formatDecimal = (value: string | undefined): number | undefined => {
+      if (!value || value === '') return undefined;
+      const parsed = parseFloat(value);
+      return isNaN(parsed) ? undefined : parsed;
+    };
+    
+    // Transform form data to match backend schema with proper decimal formatting
     const benefits: any[] = [];
     
     // Add YMCA benefit if enabled
-    if (data.ymcaBenefitEnabled) {
-      benefits.push({
-        id: `ymca-${selectedEmployee.id}`,
-        type: 'ymca',
-        name: 'YMCA Stipend',
-        cadence: 'monthly',
-        amount: data.ymcaAmount || 0,
-        active: true,
-      });
+    if (data.ymcaBenefitEnabled && data.ymcaAmount) {
+      const ymcaAmountNum = formatDecimal(data.ymcaAmount);
+      if (ymcaAmountNum !== undefined) {
+        benefits.push({
+          id: `ymca-${selectedEmployee.id}`,
+          type: 'ymca',
+          name: 'YMCA Stipend',
+          cadence: 'monthly',
+          amount: ymcaAmountNum,
+          active: true,
+        });
+      }
     }
     
     // Add employee purchase benefit if enabled
-    if (data.employeePurchaseEnabled) {
-      benefits.push({
-        id: `purchase-${selectedEmployee.id}`,
-        type: 'employee_purchase',
-        name: 'Employee Purchase Allowance',
-        cadence: 'monthly',
-        cap: data.employeePurchaseCap || 75,
-        active: true,
-      });
+    if (data.employeePurchaseEnabled && data.employeePurchaseCap) {
+      const purchaseCapNum = formatDecimal(data.employeePurchaseCap);
+      if (purchaseCapNum !== undefined) {
+        benefits.push({
+          id: `purchase-${selectedEmployee.id}`,
+          type: 'employee_purchase',
+          name: 'Employee Purchase Allowance',
+          cadence: 'monthly',
+          cap: purchaseCapNum,
+          active: true,
+        });
+      }
     }
     
     const financialData = {
-      hourlyRate: data.hourlyRate,
-      defaultEntryCost: data.defaultEntryCost,
+      hourlyRate: formatDecimal(data.hourlyRate),
+      defaultEntryCost: formatDecimal(data.defaultEntryCost),
       benefits: benefits,
     };
     
