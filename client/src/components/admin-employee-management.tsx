@@ -32,7 +32,11 @@ import {
   Settings,
   Key,
   Users,
-  User
+  User,
+  Clock,
+  Download,
+  Eye,
+  FileText
 } from "lucide-react";
 import { format } from "date-fns";
 import type { User as UserType } from "@shared/schema";
@@ -167,6 +171,13 @@ export default function AdminEmployeeManagement() {
     hireDate: "",
     role: "employee" as const,
   });
+
+  // Time Clock specific state
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>("all");
+  const [fromDate, setFromDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [toDate, setToDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [activeTab, setActiveTab] = useState("employees");
+
   const { toast } = useToast();
 
   const { data: employees, isLoading, error } = useQuery<UserType[]>({
@@ -184,6 +195,80 @@ export default function AdminEmployeeManagement() {
     },
   });
 
+  // Time Clock queries
+  const { data: timeEntries = [], isLoading: timeEntriesLoading } = useQuery({
+    queryKey: ['/api/admin/time-clock/entries', selectedEmployeeId, fromDate, toDate],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        startDate: fromDate,
+        endDate: toDate,
+      });
+      if (selectedEmployeeId !== 'all') {
+        params.set('employeeId', selectedEmployeeId);
+      }
+      const response = await apiRequest('GET', `/api/admin/time-clock/entries?${params}`);
+      return response.json();
+    },
+    enabled: activeTab === 'time-clock',
+    refetchInterval: 30000, // Refresh every 30 seconds
+  });
+
+  const { data: checkedInEmployees = [], isLoading: checkedInLoading } = useQuery({
+    queryKey: ['/api/admin/time-clock/who-checked-in'],
+    queryFn: async () => {
+      const response = await apiRequest('GET', '/api/admin/time-clock/who-checked-in');
+      return response.json();
+    },
+    enabled: activeTab === 'time-clock',
+    refetchInterval: 10000, // Refresh every 10 seconds for real-time updates
+  });
+
+
+  // Time Clock mutations
+  const exportTimeEntriesMutation = useMutation({
+    mutationFn: async () => {
+      const params = new URLSearchParams({
+        startDate: fromDate,
+        endDate: toDate,
+        format: 'csv'
+      });
+      if (selectedEmployeeId !== 'all') {
+        params.set('employeeId', selectedEmployeeId);
+      }
+      
+      const response = await fetch(`/api/admin/time-clock/export?${params}`, {
+        credentials: 'include'
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to export time entries');
+      }
+      
+      const csvData = await response.text();
+      const blob = new Blob([csvData], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `timesheet-${fromDate}-${toDate}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    },
+    onSuccess: () => {
+      toast({
+        title: "Export Successful",
+        description: "Time entries have been exported to CSV",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Export Failed",
+        description: "Failed to export time entries",
+        variant: "destructive",
+      });
+    },
+  });
 
   const addForm = useForm<AddEmployeeFormData>({
     resolver: zodResolver(addEmployeeSchema),
@@ -507,6 +592,23 @@ export default function AdminEmployeeManagement() {
     );
   }
 
+  // Helper functions for Time Clock calculations
+  const formatTime = (date: string | null) => {
+    if (!date) return '';
+    return new Date(date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
+  const formatDate = (date: string) => {
+    return new Date(date).toLocaleDateString();
+  };
+
+  const calculateHours = (totalMinutes: number) => {
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    const decimal = (totalMinutes / 60).toFixed(2);
+    return { hours, minutes, decimal };
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -514,16 +616,34 @@ export default function AdminEmployeeManagement() {
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Employee Management</h1>
           <p className="text-slate-500 mt-1">
-            Manage employee information, roles, and permissions
+            Manage employee information, roles, permissions, and time clock monitoring
           </p>
         </div>
-        <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <UserPlus className="w-4 h-4 mr-2" />
-              Add Employee
-            </Button>
-          </DialogTrigger>
+      </div>
+
+      {/* Main Tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="employees" data-testid="tab-employees">
+            <Users className="w-4 h-4 mr-2" />
+            Employee Management
+          </TabsTrigger>
+          <TabsTrigger value="time-clock" data-testid="tab-time-clock">
+            <Clock className="w-4 h-4 mr-2" />
+            Time Clock
+          </TabsTrigger>
+        </TabsList>
+
+        {/* Employee Management Tab */}
+        <TabsContent value="employees" className="space-y-6">
+          <div className="flex justify-end">
+            <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
+              <DialogTrigger asChild>
+                <Button data-testid="button-add-employee">
+                  <UserPlus className="w-4 h-4 mr-2" />
+                  Add Employee
+                </Button>
+              </DialogTrigger>
           <DialogContent className="max-w-4xl max-h-[95vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Add New Employee</DialogTitle>
@@ -1049,292 +1169,577 @@ export default function AdminEmployeeManagement() {
           </div>
         </CardContent>
       </Card>
-
-      {/* Edit Employee Dialog */}
-      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[95vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Edit Employee</DialogTitle>
-            <DialogDescription>
-              Update employee information and settings.
-            </DialogDescription>
-          </DialogHeader>
-          {selectedEmployee && (
-            <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="space-y-6">
-              <Tabs defaultValue="basic" className="w-full">
-                <TabsList className="grid w-full grid-cols-4">
-                  <TabsTrigger value="basic">Basic Info</TabsTrigger>
-                  <TabsTrigger value="work">Work Details</TabsTrigger>
-                  <TabsTrigger value="contact">Contact Info</TabsTrigger>
-                  <TabsTrigger value="settings">Settings</TabsTrigger>
-                </TabsList>
+            
+    {/* Employee List and Filters */}
+    <Card>
+      <CardHeader>
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div>
+            <CardTitle>All Employees ({filteredEmployees?.length || 0})</CardTitle>
+            <CardDescription>
+              Manage and monitor all employee accounts
+            </CardDescription>
+          </div>
+          
+          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -y-1/2 text-slate-400 w-4 h-4" />
+              <Input
+                placeholder="Search employees..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 min-w-[200px]"
+                data-testid="input-employee-search"
+              />
+            </div>
+            
+            <Select value={roleFilter} onValueChange={setRoleFilter}>
+              <SelectTrigger className="w-[140px]" data-testid="select-role-filter">
+                <SelectValue placeholder="All Roles" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Roles</SelectItem>
+                <SelectItem value="admin">Admin</SelectItem>
+                <SelectItem value="manager">Manager</SelectItem>
+                <SelectItem value="employee">Employee</SelectItem>
+              </SelectContent>
+            </Select>
+            
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-[140px]" data-testid="select-status-filter">
+                <SelectValue placeholder="All Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="inactive">Inactive</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-4">
+          {filteredEmployees?.map((employee) => (
+            <div
+              key={employee.id}
+              className="flex items-center justify-between p-4 border rounded-lg hover:bg-slate-50 transition-colors"
+              data-testid={`employee-card-${employee.id}`}
+            >
+              <div className="flex items-center space-x-4">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-medium">
+                  {employee.firstName?.[0]}{employee.lastName?.[0]}
+                </div>
                 
-                <TabsContent value="basic" className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="edit-employeeId">Employee ID</Label>
-                      <Input
-                        id="edit-employeeId"
-                        {...editForm.register("employeeId")}
-                        placeholder="EMP001"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="edit-email">Email Address *</Label>
-                      <Input
-                        id="edit-email"
-                        type="email"
-                        {...editForm.register("email")}
-                      />
-                      {editForm.formState.errors.email && (
-                        <p className="text-sm text-red-500 mt-1">
-                          {editForm.formState.errors.email.message}
-                        </p>
-                      )}
-                    </div>
+                <div>
+                  <div className="flex items-center space-x-2">
+                    <h3 className="font-medium text-slate-900">
+                      {employee.firstName} {employee.lastName}
+                    </h3>
+                    <Badge className={getRoleBadgeColor(employee.role)}>
+                      {employee.role}
+                    </Badge>
+                    {!employee.isActive && (
+                      <Badge variant="destructive">Inactive</Badge>
+                    )}
                   </div>
-                  
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="edit-firstName">First Name *</Label>
-                      <Input
-                        id="edit-firstName"
-                        {...editForm.register("firstName")}
-                      />
-                      {editForm.formState.errors.firstName && (
-                        <p className="text-sm text-red-500 mt-1">
-                          {editForm.formState.errors.firstName.message}
-                        </p>
-                      )}
-                    </div>
-                    <div>
-                      <Label htmlFor="edit-lastName">Last Name *</Label>
-                      <Input
-                        id="edit-lastName"
-                        {...editForm.register("lastName")}
-                      />
-                      {editForm.formState.errors.lastName && (
-                        <p className="text-sm text-red-500 mt-1">
-                          {editForm.formState.errors.lastName.message}
-                        </p>
-                      )}
-                    </div>
+                  <div className="flex items-center space-x-4 text-sm text-slate-500 mt-1">
+                    {employee.employeeId && (
+                      <span>ID: {employee.employeeId}</span>
+                    )}
+                    {employee.email && (
+                      <span className="flex items-center">
+                        <Mail className="w-3 h-3 mr-1" />
+                        {employee.email}
+                      </span>
+                    )}
+                    {employee.department && (
+                      <span className="flex items-center">
+                        <Building className="w-3 h-3 mr-1" />
+                        {employee.department}
+                      </span>
+                    )}
+                    {employee.phone && (
+                      <span className="flex items-center">
+                        <Phone className="w-3 h-3 mr-1" />
+                        {employee.phone}
+                      </span>
+                    )}
                   </div>
-                </TabsContent>
-
-                <TabsContent value="work" className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="edit-role">Role *</Label>
-                      <Select 
-                        value={editForm.watch("role")}
-                        onValueChange={(value) => editForm.setValue("role", value as any)}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="employee">Employee</SelectItem>
-                          <SelectItem value="manager">Manager</SelectItem>
-                          <SelectItem value="admin">Administrator</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label htmlFor="edit-department">Department</Label>
-                      <Input
-                        id="edit-department"
-                        {...editForm.register("department")}
-                      />
-                    </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="edit-position">Position</Label>
-                      <Input
-                        id="edit-position"
-                        {...editForm.register("position")}
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="edit-hireDate">Hire Date</Label>
-                      <Input
-                        id="edit-hireDate"
-                        type="date"
-                        {...editForm.register("hireDate")}
-                      />
-                    </div>
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="contact" className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="edit-phone">Phone Number</Label>
-                      <Input
-                        id="edit-phone"
-                        {...editForm.register("phone")}
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="edit-emergencyContact">Emergency Contact</Label>
-                      <Input
-                        id="edit-emergencyContact"
-                        {...editForm.register("emergencyContact")}
-                      />
-                    </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="edit-address">Address</Label>
-                      <Input
-                        id="edit-address"
-                        {...editForm.register("address")}
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="edit-emergencyPhone">Emergency Phone</Label>
-                      <Input
-                        id="edit-emergencyPhone"
-                        {...editForm.register("emergencyPhone")}
-                      />
-                    </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-3 gap-4">
-                    <div>
-                      <Label htmlFor="edit-city">City</Label>
-                      <Input
-                        id="edit-city"
-                        {...editForm.register("city")}
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="edit-state">State</Label>
-                      <Input
-                        id="edit-state"
-                        {...editForm.register("state")}
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="edit-zipCode">ZIP Code</Label>
-                      <Input
-                        id="edit-zipCode"
-                        {...editForm.register("zipCode")}
-                      />
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="edit-notes">Notes</Label>
-                    <Textarea
-                      id="edit-notes"
-                      {...editForm.register("notes")}
-                      rows={3}
-                    />
-                  </div>
-
-                  {/* SMS Consent History Section */}
-                  {selectedEmployee && (
-                    <div className="border-t-2 border-blue-200 pt-6 mt-6 bg-blue-50 p-4 rounded-lg">
-                      <div className="flex items-center justify-between mb-4">
-                        <h4 className="text-base font-semibold text-slate-900">📱 SMS Consent Management</h4>
-                        <Badge variant={selectedEmployee.smsConsent ? "default" : "secondary"} className="text-sm px-3 py-1">
-                          {selectedEmployee.smsConsent ? "✅ Consented" : "❌ No Consent"}
-                        </Badge>
-                      </div>
-
-                      {/* Admin SMS Consent Toggle */}
-                      <div className="flex items-center justify-between mb-4 p-3 bg-white rounded-lg border-2 border-orange-200">
-                        <div>
-                          <Label htmlFor="sms-consent-toggle" className="font-medium">Admin Control: SMS Consent</Label>
-                          <p className="text-sm text-slate-500">
-                            Toggle this employee's SMS notification permissions
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Switch
-                            id="sms-consent-toggle"
-                            checked={selectedEmployee.smsConsent || false}
-                            onCheckedChange={async (checked) => {
-                              await handleSmsConsentToggle(selectedEmployee.id, checked);
-                            }}
-                            disabled={smsConsentMutation.isPending}
-                          />
-                        </div>
-                      </div>
-                      
-                      <div className="space-y-2 text-sm">
-                        <div className="flex justify-between">
-                          <span className="text-slate-500">SMS Enabled:</span>
-                          <span>{selectedEmployee.smsEnabled ? "Yes" : "No"}</span>
-                        </div>
-                        {selectedEmployee.smsConsentDate && (
-                          <div className="flex justify-between">
-                            <span className="text-slate-500">Consent Date:</span>
-                            <span>{new Date(selectedEmployee.smsConsentDate).toLocaleDateString()}</span>
-                          </div>
-                        )}
-                        <div className="flex justify-between">
-                          <span className="text-slate-500">Notification Types:</span>
-                          <span className="text-right">
-                            {selectedEmployee.smsNotificationTypes?.join(", ") || "None"}
-                          </span>
-                        </div>
-                      </div>
-
-                      <SMSConsentHistoryComponent employeeId={selectedEmployee.id} />
-                    </div>
-                  )}
-                </TabsContent>
-
-                <TabsContent value="settings" className="space-y-4">
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <Label htmlFor="edit-isActive">Account Status</Label>
-                        <p className="text-sm text-slate-500">
-                          Deactivated employees cannot access the system
-                        </p>
-                      </div>
-                      <Switch
-                        id="edit-isActive"
-                        checked={editForm.watch("isActive")}
-                        onCheckedChange={(checked) => editForm.setValue("isActive", checked)}
-                      />
-                    </div>
-
-                    
-                    <div>
-                      <Label htmlFor="edit-timeOffBalance">Time Off Balance (days)</Label>
-                      <Input
-                        id="edit-timeOffBalance"
-                        type="number"
-                        {...editForm.register("timeOffBalance", { valueAsNumber: true })}
-                      />
-                    </div>
-                  </div>
-                </TabsContent>
-              </Tabs>
-              
-              <div className="flex justify-end space-x-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setEditDialogOpen(false)}
-                >
-                  Cancel
-                </Button>
-                <Button type="submit" disabled={updateEmployeeMutation.isPending}>
-                  {updateEmployeeMutation.isPending ? "Updating..." : "Update Employee"}
-                </Button>
+                </div>
               </div>
-            </form>
+              
+              <div className="flex items-center space-x-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleEditEmployee(employee)}
+                  data-testid={`button-edit-${employee.id}`}
+                >
+                  <Edit className="w-4 h-4 mr-1" />
+                  Edit
+                </Button>
+                {employee.isActive && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => deactivateEmployeeMutation.mutate(employee.id)}
+                    disabled={deactivateEmployeeMutation.isPending}
+                    data-testid={`button-deactivate-${employee.id}`}
+                  >
+                    <Trash2 className="w-4 h-4 mr-1" />
+                    Deactivate
+                  </Button>
+                )}
+              </div>
+            </div>
+          ))}
+          
+          {filteredEmployees?.length === 0 && (
+            <div className="text-center py-8">
+              <Users className="w-12 h-12 text-slate-400 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-slate-900 mb-2">No employees found</h3>
+              <p className="text-slate-500 mb-4">
+                {searchTerm || roleFilter !== "all" || statusFilter !== "all"
+                  ? "Try adjusting your search criteria"
+                  : "Get started by adding your first employee"}
+              </p>
+              {!searchTerm && roleFilter === "all" && statusFilter === "all" && (
+                <Button onClick={() => setAddDialogOpen(true)}>
+                  <UserPlus className="w-4 h-4 mr-2" />
+                  Add First Employee
+                </Button>
+              )}
+            </div>
           )}
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
+        </div>
+      </CardContent>
+    </Card>
+  </TabsContent>
+
+  {/* Time Clock Tab */}
+  <TabsContent value="time-clock" className="space-y-6">
+    {/* Time Clock Controls */}
+    <Card>
+      <CardHeader>
+        <CardTitle>Time Clock Administration</CardTitle>
+        <CardDescription>
+          Monitor employee time entries and export payroll data
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* Controls Row */}
+        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-end">
+          <div className="flex-1 min-w-[200px]">
+            <Label htmlFor="employee-select">Employee</Label>
+            <Select value={selectedEmployeeId} onValueChange={setSelectedEmployeeId}>
+              <SelectTrigger data-testid="select-employee">
+                <SelectValue placeholder="Select employee..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Employees</SelectItem>
+                {employees?.filter(emp => emp.isActive).map((employee) => (
+                  <SelectItem key={employee.id} value={employee.id}>
+                    {employee.firstName} {employee.lastName}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          
+          <div>
+            <Label htmlFor="from-date">From Date</Label>
+            <Input
+              id="from-date"
+              type="date"
+              value={fromDate}
+              onChange={(e) => setFromDate(e.target.value)}
+              data-testid="input-from-date"
+            />
+          </div>
+          
+          <div>
+            <Label htmlFor="to-date">To Date</Label>
+            <Input
+              id="to-date"
+              type="date"
+              value={toDate}
+              onChange={(e) => setToDate(e.target.value)}
+              data-testid="input-to-date"
+            />
+          </div>
+          
+          <Button
+            onClick={() => exportTimeEntriesMutation.mutate()}
+            disabled={exportTimeEntriesMutation.isPending}
+            data-testid="button-export-timesheet"
+          >
+            <Download className="w-4 h-4 mr-2" />
+            {exportTimeEntriesMutation.isPending ? "Exporting..." : "Export CSV"}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+
+    {/* Who's Checked In Card */}
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center">
+          <Eye className="w-5 h-5 mr-2" />
+          Who's Checked In Right Now
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {checkedInLoading ? (
+          <div className="flex justify-center py-4">
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+          </div>
+        ) : checkedInEmployees.length > 0 ? (
+          <div className="space-y-2">
+            {checkedInEmployees.map((entry: any) => (
+              <div key={entry.id} className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
+                <div className="flex items-center space-x-3">
+                  <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center text-white text-sm font-medium">
+                    {entry.employee?.firstName?.[0]}{entry.employee?.lastName?.[0]}
+                  </div>
+                  <div>
+                    <p className="font-medium">{entry.employee?.firstName} {entry.employee?.lastName}</p>
+                    <p className="text-sm text-slate-500">
+                      Checked in at {formatTime(entry.clockInTime)}
+                    </p>
+                  </div>
+                </div>
+                <Badge variant="outline" className="bg-green-100 text-green-800">
+                  Currently Working
+                </Badge>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-6 text-slate-500">
+            <Clock className="w-8 h-8 mx-auto mb-2 text-slate-400" />
+            <p>No employees are currently checked in</p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+
+    {/* Time Entries Table */}
+    <Card>
+      <CardHeader>
+        <CardTitle>Time Entries</CardTitle>
+        <CardDescription>
+          Detailed view of employee time clock entries
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {timeEntriesLoading ? (
+          <div className="flex justify-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          </div>
+        ) : timeEntries.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b">
+                  <th className="text-left py-3 px-4 font-medium">Date</th>
+                  <th className="text-left py-3 px-4 font-medium">Employee</th>
+                  <th className="text-left py-3 px-4 font-medium">Clock In</th>
+                  <th className="text-left py-3 px-4 font-medium">Clock Out</th>
+                  <th className="text-left py-3 px-4 font-medium">Total Hours</th>
+                  <th className="text-left py-3 px-4 font-medium">Break Time</th>
+                  <th className="text-left py-3 px-4 font-medium">Notes</th>
+                  <th className="text-left py-3 px-4 font-medium">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {timeEntries.map((entry: any, index: number) => {
+                  const { decimal: totalHours } = calculateHours(entry.totalMinutes || 0);
+                  const { decimal: breakHours } = calculateHours(entry.breakMinutes || 0);
+                  
+                  return (
+                    <tr key={entry.id} className="border-b hover:bg-slate-50" data-testid={`time-entry-${entry.id}`}>
+                      <td className="py-3 px-4">{formatDate(entry.clockInTime)}</td>
+                      <td className="py-3 px-4">
+                        {entry.employee?.firstName} {entry.employee?.lastName}
+                      </td>
+                      <td className="py-3 px-4">{formatTime(entry.clockInTime)}</td>
+                      <td className="py-3 px-4">
+                        {entry.clockOutTime ? formatTime(entry.clockOutTime) : (
+                          <Badge variant="outline" className="bg-green-100 text-green-800">
+                            Still Working
+                          </Badge>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 font-mono">{totalHours}h</td>
+                      <td className="py-3 px-4 font-mono">{breakHours}h</td>
+                      <td className="py-3 px-4 text-sm text-slate-600 max-w-xs truncate">
+                        {entry.notes || "—"}
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="flex items-center space-x-2">
+                          <Button variant="ghost" size="sm" data-testid={`button-view-${entry.id}`}>
+                            <Eye className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="text-center py-8">
+            <FileText className="w-12 h-12 text-slate-400 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-slate-900 mb-2">No time entries found</h3>
+            <p className="text-slate-500">
+              No time entries found for the selected criteria. Try adjusting the date range or employee selection.
+            </p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  </TabsContent>
+</Tabs>
+
+{/* Edit Employee Dialog */}
+<Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+  <DialogContent className="max-w-4xl max-h-[95vh] overflow-y-auto">
+    <DialogHeader>
+      <DialogTitle>Edit Employee</DialogTitle>
+      <DialogDescription>
+        Update employee information and settings.
+      </DialogDescription>
+    </DialogHeader>
+    {selectedEmployee && (
+      <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="space-y-6">
+        <Tabs defaultValue="basic" className="w-full">
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="basic">Basic Info</TabsTrigger>
+            <TabsTrigger value="work">Work Details</TabsTrigger>
+            <TabsTrigger value="contact">Contact Info</TabsTrigger>
+            <TabsTrigger value="settings">Settings</TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="basic" className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="edit-employeeId">Employee ID</Label>
+                <Input
+                  id="edit-employeeId"
+                  {...editForm.register("employeeId")}
+                  placeholder="EMP001"
+                />
+                {editForm.formState.errors.employeeId && (
+                  <p className="text-sm text-red-500 mt-1">
+                    {editForm.formState.errors.employeeId.message}
+                  </p>
+                )}
+              </div>
+              
+              <div>
+                <Label htmlFor="edit-email">Email Address *</Label>
+                <Input
+                  id="edit-email"
+                  type="email"
+                  {...editForm.register("email")}
+                  placeholder="employee@pinehill.com"
+                />
+                {editForm.formState.errors.email && (
+                  <p className="text-sm text-red-500 mt-1">
+                    {editForm.formState.errors.email.message}
+                  </p>
+                )}
+              </div>
+              
+              <div>
+                <Label htmlFor="edit-firstName">First Name *</Label>
+                <Input
+                  id="edit-firstName"
+                  {...editForm.register("firstName")}
+                />
+                {editForm.formState.errors.firstName && (
+                  <p className="text-sm text-red-500 mt-1">
+                    {editForm.formState.errors.firstName.message}
+                  </p>
+                )}
+              </div>
+              
+              <div>
+                <Label htmlFor="edit-lastName">Last Name *</Label>
+                <Input
+                  id="edit-lastName"
+                  {...editForm.register("lastName")}
+                />
+                {editForm.formState.errors.lastName && (
+                  <p className="text-sm text-red-500 mt-1">
+                    {editForm.formState.errors.lastName.message}
+                  </p>
+                )}
+              </div>
+            </div>
+          </TabsContent>
+          
+          <TabsContent value="work" className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="edit-role">Role *</Label>
+                <Select value={editForm.watch("role")} onValueChange={(value) => editForm.setValue("role", value as any)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="employee">Employee</SelectItem>
+                    <SelectItem value="manager">Manager</SelectItem>
+                    <SelectItem value="admin">Admin</SelectItem>
+                  </SelectContent>
+                </Select>
+                {editForm.formState.errors.role && (
+                  <p className="text-sm text-red-500 mt-1">
+                    {editForm.formState.errors.role.message}
+                  </p>
+                )}
+              </div>
+              
+              <div>
+                <Label htmlFor="edit-department">Department</Label>
+                <Input
+                  id="edit-department"
+                  {...editForm.register("department")}
+                  placeholder="e.g., Operations"
+                />
+              </div>
+              
+              <div>
+                <Label htmlFor="edit-position">Position</Label>
+                <Input
+                  id="edit-position"
+                  {...editForm.register("position")}
+                  placeholder="e.g., Store Manager"
+                />
+              </div>
+              
+              <div>
+                <Label htmlFor="edit-hireDate">Hire Date</Label>
+                <Input
+                  id="edit-hireDate"
+                  type="date"
+                  {...editForm.register("hireDate")}
+                />
+              </div>
+            </div>
+          </TabsContent>
+          
+          <TabsContent value="contact" className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="edit-phone">Phone</Label>
+                <Input
+                  id="edit-phone"
+                  type="tel"
+                  {...editForm.register("phone")}
+                  placeholder="+1 (555) 123-4567"
+                />
+              </div>
+              
+              <div>
+                <Label htmlFor="edit-emergencyContact">Emergency Contact</Label>
+                <Input
+                  id="edit-emergencyContact"
+                  {...editForm.register("emergencyContact")}
+                  placeholder="Full name"
+                />
+              </div>
+              
+              <div>
+                <Label htmlFor="edit-emergencyPhone">Emergency Phone</Label>
+                <Input
+                  id="edit-emergencyPhone"
+                  type="tel"
+                  {...editForm.register("emergencyPhone")}
+                  placeholder="+1 (555) 123-4567"
+                />
+              </div>
+              
+              <div>
+                <Label htmlFor="edit-address">Address</Label>
+                <Input
+                  id="edit-address"
+                  {...editForm.register("address")}
+                  placeholder="Street address"
+                />
+              </div>
+              
+              <div>
+                <Label htmlFor="edit-city">City</Label>
+                <Input
+                  id="edit-city"
+                  {...editForm.register("city")}
+                  placeholder="City"
+                />
+              </div>
+              
+              <div>
+                <Label htmlFor="edit-state">State</Label>
+                <Input
+                  id="edit-state"
+                  {...editForm.register("state")}
+                  placeholder="State"
+                />
+              </div>
+              
+              <div>
+                <Label htmlFor="edit-zipCode">ZIP Code</Label>
+                <Input
+                  id="edit-zipCode"
+                  {...editForm.register("zipCode")}
+                  placeholder="ZIP code"
+                />
+              </div>
+            </div>
+          </TabsContent>
+          
+          <TabsContent value="settings" className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="edit-isActive"
+                  checked={editForm.watch("isActive")}
+                  onCheckedChange={(checked) => editForm.setValue("isActive", checked)}
+                />
+                <Label htmlFor="edit-isActive">Active Employee</Label>
+              </div>
+
+              
+              <div>
+                <Label htmlFor="edit-timeOffBalance">Time Off Balance (days)</Label>
+                <Input
+                  id="edit-timeOffBalance"
+                  type="number"
+                  {...editForm.register("timeOffBalance", { valueAsNumber: true })}
+                />
+              </div>
+            </div>
+          </TabsContent>
+        </Tabs>
+        
+        <div className="flex justify-end space-x-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setEditDialogOpen(false)}
+          >
+            Cancel
+          </Button>
+          <Button type="submit" disabled={updateEmployeeMutation.isPending}>
+            {updateEmployeeMutation.isPending ? "Updating..." : "Update Employee"}
+          </Button>
+        </div>
+      </form>
+    )}
+  </DialogContent>
+</Dialog>
+</div>
+);
 }

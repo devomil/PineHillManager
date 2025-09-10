@@ -319,6 +319,10 @@ export interface IStorage {
   getCurrentTimeEntry(userId: string): Promise<any | undefined>;
   getTimeEntriesByDate(userId: string, date: string): Promise<any[]>;
   getTimeEntriesByDateRange(userId: string, startDate: string, endDate: string): Promise<any[]>;
+  getCurrentlyCheckedInEmployees(): Promise<any[]>;
+  updateTimeEntry(entryId: number, updateData: any): Promise<any>;
+  deleteTimeEntry(entryId: number): Promise<void>;
+  exportTimeEntries(employeeId: string, startDate: string, endDate: string, format: string): Promise<string>;
   
   // User presence system
   updateUserPresence(userId: string, status: string, locationId?: number, statusMessage?: string): Promise<any>;
@@ -2066,17 +2070,160 @@ export class DatabaseStorage implements IStorage {
     const start = new Date(startDate + 'T00:00:00');
     const end = new Date(endDate + 'T23:59:59');
     
-    return await db
-      .select()
+    let query = db
+      .select({
+        id: timeClockEntries.id,
+        userId: timeClockEntries.userId,
+        locationId: timeClockEntries.locationId,
+        clockInTime: timeClockEntries.clockInTime,
+        clockOutTime: timeClockEntries.clockOutTime,
+        breakStartTime: timeClockEntries.breakStartTime,
+        breakEndTime: timeClockEntries.breakEndTime,
+        totalBreakMinutes: timeClockEntries.totalBreakMinutes,
+        totalWorkedMinutes: timeClockEntries.totalWorkedMinutes,
+        status: timeClockEntries.status,
+        notes: timeClockEntries.notes,
+        firstName: users.firstName,
+        lastName: users.lastName,
+        email: users.email,
+      })
       .from(timeClockEntries)
+      .leftJoin(users, eq(timeClockEntries.userId, users.id))
       .where(
         and(
-          eq(timeClockEntries.userId, userId),
           gte(timeClockEntries.clockInTime, start),
           lte(timeClockEntries.clockInTime, end)
         )
+      );
+
+    // If userId is provided, filter by specific user
+    if (userId && userId !== 'all') {
+      query = query.where(eq(timeClockEntries.userId, userId));
+    }
+
+    return await query.orderBy(desc(timeClockEntries.clockInTime));
+  }
+
+  async getCurrentlyCheckedInEmployees(): Promise<any[]> {
+    return await db
+      .select({
+        id: timeClockEntries.id,
+        userId: timeClockEntries.userId,
+        firstName: users.firstName,
+        lastName: users.lastName,
+        email: users.email,
+        clockInTime: timeClockEntries.clockInTime,
+        status: timeClockEntries.status,
+        locationId: timeClockEntries.locationId,
+        breakStartTime: timeClockEntries.breakStartTime,
+      })
+      .from(timeClockEntries)
+      .leftJoin(users, eq(timeClockEntries.userId, users.id))
+      .where(
+        and(
+          or(
+            eq(timeClockEntries.status, 'clocked_in'),
+            eq(timeClockEntries.status, 'on_break')
+          ),
+          isNull(timeClockEntries.clockOutTime)
+        )
       )
-      .orderBy(desc(timeClockEntries.clockInTime));
+      .orderBy(timeClockEntries.clockInTime);
+  }
+
+  async updateTimeEntry(entryId: number, updateData: any): Promise<any> {
+    const now = new Date();
+    
+    // Recalculate total worked minutes if clock times are being updated
+    if (updateData.clockInTime || updateData.clockOutTime) {
+      const entry = await db
+        .select()
+        .from(timeClockEntries)
+        .where(eq(timeClockEntries.id, entryId))
+        .limit(1);
+      
+      if (entry.length > 0) {
+        const clockInTime = updateData.clockInTime ? new Date(updateData.clockInTime) : new Date(entry[0].clockInTime);
+        const clockOutTime = updateData.clockOutTime ? new Date(updateData.clockOutTime) : entry[0].clockOutTime ? new Date(entry[0].clockOutTime) : null;
+        
+        if (clockOutTime) {
+          const totalWorkedMinutes = Math.floor((clockOutTime.getTime() - clockInTime.getTime()) / (1000 * 60)) - (entry[0].totalBreakMinutes || 0);
+          updateData.totalWorkedMinutes = Math.max(0, totalWorkedMinutes);
+        }
+      }
+    }
+
+    const [updatedEntry] = await db
+      .update(timeClockEntries)
+      .set({
+        ...updateData,
+        updatedAt: now,
+      })
+      .where(eq(timeClockEntries.id, entryId))
+      .returning();
+
+    return updatedEntry;
+  }
+
+  async deleteTimeEntry(entryId: number): Promise<void> {
+    await db
+      .delete(timeClockEntries)
+      .where(eq(timeClockEntries.id, entryId));
+  }
+
+  async exportTimeEntries(employeeId: string, startDate: string, endDate: string, format: string): Promise<string> {
+    const entries = await this.getTimeEntriesByDateRange(employeeId, startDate, endDate);
+    
+    if (format === 'csv') {
+      // Generate CSV format
+      const headers = [
+        'Employee Name',
+        'Employee ID', 
+        'Date',
+        'Clock In Time',
+        'Clock Out Time',
+        'Break Minutes',
+        'Total Minutes',
+        'Decimal Hours',
+        'Hours:Minutes',
+        'Status',
+        'Notes'
+      ];
+      
+      let csv = headers.join(',') + '\n';
+      
+      for (const entry of entries) {
+        const clockInDate = entry.clockInTime ? new Date(entry.clockInTime).toLocaleDateString() : '';
+        const clockInTime = entry.clockInTime ? new Date(entry.clockInTime).toLocaleTimeString() : '';
+        const clockOutTime = entry.clockOutTime ? new Date(entry.clockOutTime).toLocaleTimeString() : '';
+        const totalMinutes = entry.totalWorkedMinutes || 0;
+        const decimalHours = (totalMinutes / 60).toFixed(2);
+        const hours = Math.floor(totalMinutes / 60);
+        const minutes = totalMinutes % 60;
+        const hoursMinutes = `${hours}:${minutes.toString().padStart(2, '0')}`;
+        
+        const row = [
+          `"${entry.firstName || ''} ${entry.lastName || ''}"`,
+          `"${entry.userId || ''}"`,
+          `"${clockInDate}"`,
+          `"${clockInTime}"`,
+          `"${clockOutTime}"`,
+          entry.totalBreakMinutes || 0,
+          totalMinutes,
+          decimalHours,
+          `"${hoursMinutes}"`,
+          `"${entry.status || ''}"`,
+          `"${(entry.notes || '').replace(/"/g, '""')}"`
+        ];
+        
+        csv += row.join(',') + '\n';
+      }
+      
+      return csv;
+    } else {
+      // Return JSON format
+      return JSON.stringify(entries, null, 2);
+    }
   }
 
   // User presence system implementation

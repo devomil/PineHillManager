@@ -2098,6 +2098,113 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Admin Time Clock Management Endpoints
+  app.get('/api/admin/time-clock/entries', isAuthenticated, async (req, res) => {
+    try {
+      if (req.user?.role !== 'admin' && req.user?.role !== 'manager') {
+        return res.status(403).json({ error: 'Admin or Manager access required' });
+      }
+
+      const { employeeId, startDate, endDate } = req.query;
+      
+      if (!startDate || !endDate) {
+        return res.status(400).json({ error: 'Start date and end date are required' });
+      }
+
+      const timeEntries = await storage.getTimeEntriesByDateRange(
+        employeeId as string,
+        startDate as string, 
+        endDate as string
+      );
+      
+      res.json(timeEntries);
+    } catch (error) {
+      console.error('Error fetching admin time entries:', error);
+      res.status(500).json({ error: 'Failed to fetch time entries' });
+    }
+  });
+
+  app.get('/api/admin/time-clock/who-checked-in', isAuthenticated, async (req, res) => {
+    try {
+      if (req.user?.role !== 'admin' && req.user?.role !== 'manager') {
+        return res.status(403).json({ error: 'Admin or Manager access required' });
+      }
+
+      const checkedInEmployees = await storage.getCurrentlyCheckedInEmployees();
+      res.json(checkedInEmployees);
+    } catch (error) {
+      console.error('Error fetching checked in employees:', error);
+      res.status(500).json({ error: 'Failed to fetch checked in employees' });
+    }
+  });
+
+  app.patch('/api/admin/time-clock/entries/:entryId', isAuthenticated, async (req, res) => {
+    try {
+      if (req.user?.role !== 'admin' && req.user?.role !== 'manager') {
+        return res.status(403).json({ error: 'Admin or Manager access required' });
+      }
+
+      const { entryId } = req.params;
+      const updateData = req.body;
+      
+      const updatedEntry = await storage.updateTimeEntry(parseInt(entryId), updateData);
+      res.json(updatedEntry);
+    } catch (error) {
+      console.error('Error updating time entry:', error);
+      res.status(500).json({ error: 'Failed to update time entry' });
+    }
+  });
+
+  app.delete('/api/admin/time-clock/entries/:entryId', isAuthenticated, async (req, res) => {
+    try {
+      if (req.user?.role !== 'admin' && req.user?.role !== 'manager') {
+        return res.status(403).json({ error: 'Admin or Manager access required' });
+      }
+
+      const { entryId } = req.params;
+      await storage.deleteTimeEntry(parseInt(entryId));
+      
+      res.json({ success: true, message: 'Time entry deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting time entry:', error);
+      res.status(500).json({ error: 'Failed to delete time entry' });
+    }
+  });
+
+  app.get('/api/admin/time-clock/export', isAuthenticated, async (req, res) => {
+    try {
+      if (req.user?.role !== 'admin' && req.user?.role !== 'manager') {
+        return res.status(403).json({ error: 'Admin or Manager access required' });
+      }
+
+      const { employeeId, startDate, endDate, format = 'csv' } = req.query;
+      
+      if (!startDate || !endDate) {
+        return res.status(400).json({ error: 'Start date and end date are required' });
+      }
+
+      const exportData = await storage.exportTimeEntries(
+        employeeId as string,
+        startDate as string,
+        endDate as string,
+        format as string
+      );
+      
+      // Set appropriate headers for file download
+      if (format === 'csv') {
+        res.setHeader('Content-Type', 'text/csv');
+        res.setHeader('Content-Disposition', `attachment; filename="timesheet-${startDate}-${endDate}.csv"`);
+      } else {
+        res.setHeader('Content-Type', 'application/json');
+      }
+      
+      res.send(exportData);
+    } catch (error) {
+      console.error('Error exporting time entries:', error);
+      res.status(500).json({ error: 'Failed to export time entries' });
+    }
+  });
+
   // File upload routes
   app.post('/api/upload', isAuthenticated, upload.single('file'), (req, res) => {
     try {

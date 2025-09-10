@@ -40,6 +40,7 @@ export const users = pgTable("users", {
   department: varchar("department"),
   position: varchar("position"),
   hireDate: date("hire_date"),
+  hourlyRate: decimal("hourly_rate", { precision: 8, scale: 2 }), // Hourly wage for cost calculations
 
   timeOffBalance: integer("time_off_balance").default(24),
   isActive: boolean("is_active").default(true),
