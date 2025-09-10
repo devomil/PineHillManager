@@ -324,6 +324,12 @@ export interface IStorage {
   deleteTimeEntry(entryId: number): Promise<void>;
   exportTimeEntries(employeeId: string, startDate: string, endDate: string, format: string): Promise<string>;
   
+  // Admin-specific time clock methods
+  getTimeClockEntriesForAdmin(employeeId?: string, startDate?: string, endDate?: string): Promise<any[]>;
+  getWhoIsCheckedIn(): Promise<any[]>;
+  updateTimeClockEntry(entryId: number, updateData: any): Promise<any>;
+  deleteTimeClockEntry(entryId: number): Promise<void>;
+  
   // User presence system
   updateUserPresence(userId: string, status: string, locationId?: number, statusMessage?: string): Promise<any>;
   getUserPresence(userId: string): Promise<any | undefined>;
@@ -2169,6 +2175,70 @@ export class DatabaseStorage implements IStorage {
     await db
       .delete(timeClockEntries)
       .where(eq(timeClockEntries.id, entryId));
+  }
+
+  // Admin-specific time clock methods
+  async getTimeClockEntriesForAdmin(employeeId?: string, startDate?: string, endDate?: string): Promise<any[]> {
+    const { isNull } = await import('drizzle-orm');
+    
+    let query = db
+      .select({
+        id: timeClockEntries.id,
+        userId: timeClockEntries.userId,
+        firstName: users.firstName,
+        lastName: users.lastName,
+        email: users.email,
+        employeeId: users.employeeId,
+        hourlyRate: users.hourlyRate,
+        clockInTime: timeClockEntries.clockInTime,
+        clockOutTime: timeClockEntries.clockOutTime,
+        breakStartTime: timeClockEntries.breakStartTime,
+        breakEndTime: timeClockEntries.breakEndTime,
+        totalBreakMinutes: timeClockEntries.totalBreakMinutes,
+        totalWorkedMinutes: timeClockEntries.totalWorkedMinutes,
+        status: timeClockEntries.status,
+        notes: timeClockEntries.notes,
+        locationId: timeClockEntries.locationId,
+        createdAt: timeClockEntries.createdAt,
+        updatedAt: timeClockEntries.updatedAt,
+      })
+      .from(timeClockEntries)
+      .leftJoin(users, eq(timeClockEntries.userId, users.id));
+
+    // Apply filters
+    const conditions = [];
+    
+    if (employeeId && employeeId !== 'all') {
+      conditions.push(eq(timeClockEntries.userId, employeeId));
+    }
+    
+    if (startDate) {
+      conditions.push(gte(timeClockEntries.clockInTime, new Date(startDate)));
+    }
+    
+    if (endDate) {
+      const endDateTime = new Date(endDate);
+      endDateTime.setHours(23, 59, 59, 999); // End of day
+      conditions.push(lte(timeClockEntries.clockInTime, endDateTime));
+    }
+
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions));
+    }
+
+    return await query.orderBy(desc(timeClockEntries.clockInTime));
+  }
+
+  async getWhoIsCheckedIn(): Promise<any[]> {
+    return await this.getCurrentlyCheckedInEmployees();
+  }
+
+  async updateTimeClockEntry(entryId: number, updateData: any): Promise<any> {
+    return await this.updateTimeEntry(entryId, updateData);
+  }
+
+  async deleteTimeClockEntry(entryId: number): Promise<void> {
+    return await this.deleteTimeEntry(entryId);
   }
 
   async exportTimeEntries(employeeId: string, startDate: string, endDate: string, format: string): Promise<string> {
