@@ -23,6 +23,7 @@ import {
   updateAnnouncementTemplateSchema,
   insertAutomationRuleSchema,
   updateAutomationRuleSchema,
+  updateUserFinancialsSchema,
 } from "@shared/schema";
 
 // Configure multer for file uploads
@@ -1396,6 +1397,77 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error updating employee:', error);
       res.status(500).json({ message: 'Failed to update employee' });
+    }
+  });
+
+  // Employee Financial Management - Admin/Manager only
+  app.get('/api/employees/:id/financials', isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const requestingUser = req.user;
+      
+      // Allow employees to view their own financial info, admin/manager to view any
+      if (requestingUser?.id !== id && !['admin', 'manager'].includes(requestingUser?.role || '')) {
+        return res.status(403).json({ message: 'Access denied. Insufficient permissions.' });
+      }
+
+      const employee = await storage.getUser(id);
+      if (!employee) {
+        return res.status(404).json({ message: 'Employee not found' });
+      }
+
+      // Return only financial fields
+      res.json({
+        id: employee.id,
+        firstName: employee.firstName,
+        lastName: employee.lastName,
+        hourlyRate: employee.hourlyRate,
+        defaultEntryCost: employee.defaultEntryCost,
+        benefits: employee.benefits || [],
+      });
+    } catch (error) {
+      console.error('Error fetching employee financials:', error);
+      res.status(500).json({ message: 'Failed to fetch employee financial information' });
+    }
+  });
+
+  app.put('/api/employees/:id/financials', isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const requestingUser = req.user;
+      
+      // Only admin/manager can update financial information
+      if (!['admin', 'manager'].includes(requestingUser?.role || '')) {
+        return res.status(403).json({ message: 'Access denied. Only administrators and managers can update financial information.' });
+      }
+
+      // Validate financial data using our enhanced schema
+      const financialData = updateUserFinancialsSchema.parse(req.body);
+
+      const updatedEmployee = await storage.updateEmployee(id, financialData);
+      if (!updatedEmployee) {
+        return res.status(404).json({ message: 'Employee not found' });
+      }
+
+      // Return only financial fields for security
+      res.json({
+        id: updatedEmployee.id,
+        firstName: updatedEmployee.firstName,
+        lastName: updatedEmployee.lastName,
+        hourlyRate: updatedEmployee.hourlyRate,
+        defaultEntryCost: updatedEmployee.defaultEntryCost,
+        benefits: updatedEmployee.benefits || [],
+        message: 'Employee financial information updated successfully'
+      });
+    } catch (error: any) {
+      if (error?.name === 'ZodError') {
+        return res.status(400).json({ 
+          message: 'Invalid financial data',
+          errors: error.errors 
+        });
+      }
+      console.error('Error updating employee financials:', error);
+      res.status(500).json({ message: 'Failed to update employee financial information' });
     }
   });
 

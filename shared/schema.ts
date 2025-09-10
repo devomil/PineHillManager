@@ -41,6 +41,8 @@ export const users = pgTable("users", {
   position: varchar("position"),
   hireDate: date("hire_date"),
   hourlyRate: decimal("hourly_rate", { precision: 8, scale: 2 }), // Hourly wage for cost calculations
+  defaultEntryCost: decimal("default_entry_cost", { precision: 8, scale: 2 }), // Default cost per time entry
+  benefits: jsonb("benefits"), // Array of benefit items: { id, type, name, cadence, amount, cap, startDate, endDate, active }
 
   timeOffBalance: integer("time_off_balance").default(24),
   isActive: boolean("is_active").default(true),
@@ -866,9 +868,33 @@ export const userCommunicationStatsRelations = relations(userCommunicationStats,
 }));
 
 // Create insert schemas
+// Benefits item validation schema
+export const benefitItemSchema = z.object({
+  id: z.string(),
+  type: z.enum(['ymca', 'employee_purchase', 'custom']),
+  name: z.string().min(1),
+  cadence: z.enum(['one_time', 'monthly', 'annual', 'per_shift']),
+  amount: z.number().min(0).optional(),
+  cap: z.number().min(0).optional(),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
+  active: z.boolean().default(true),
+});
+
 export const insertUserSchema = createInsertSchema(users).omit({
   createdAt: true,
   updatedAt: true,
+}).extend({
+  hourlyRate: z.number().min(0).max(200).optional(),
+  defaultEntryCost: z.number().min(0).max(100).optional(),
+  benefits: z.array(benefitItemSchema).optional(),
+});
+
+// Enhanced schema for financial updates
+export const updateUserFinancialsSchema = z.object({
+  hourlyRate: z.number().min(0).max(200).optional(),
+  defaultEntryCost: z.number().min(0).max(100).optional(),
+  benefits: z.array(benefitItemSchema).optional(),
 });
 
 export const insertTimeOffRequestSchema = createInsertSchema(timeOffRequests).omit({

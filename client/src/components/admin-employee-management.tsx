@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -152,8 +152,19 @@ const editEmployeeSchema = z.object({
   timeOffBalance: z.number().optional(),
 });
 
+// Financial form schema to handle decimal inputs and benefits
+const financialFormSchema = z.object({
+  hourlyRate: z.string().optional().transform((val) => val ? parseFloat(val) : undefined),
+  defaultEntryCost: z.string().optional().transform((val) => val ? parseFloat(val) : undefined),
+  ymcaBenefitEnabled: z.boolean().default(false),
+  ymcaAmount: z.string().optional().transform((val) => val ? parseFloat(val) : undefined),
+  employeePurchaseEnabled: z.boolean().default(false),
+  employeePurchaseCap: z.string().optional().transform((val) => val ? parseFloat(val) : undefined),
+});
+
 type AddEmployeeFormData = z.infer<typeof addEmployeeSchema>;
 type EditEmployeeFormData = z.infer<typeof editEmployeeSchema>;
+type FinancialFormData = z.infer<typeof financialFormSchema>;
 
 export default function AdminEmployeeManagement() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -195,6 +206,18 @@ export default function AdminEmployeeManagement() {
       }
       return failureCount < 3;
     },
+  });
+
+  // Financial data query - fetch when employee is selected for editing
+  const { data: financialData, isLoading: financialDataLoading, refetch: refetchFinancialData } = useQuery({
+    queryKey: ['/api/employees', selectedEmployee?.id, 'financials'],
+    queryFn: async () => {
+      if (!selectedEmployee?.id) return null;
+      const response = await apiRequest('GET', `/api/employees/${selectedEmployee.id}/financials`);
+      return response.json();
+    },
+    enabled: !!selectedEmployee?.id && editDialogOpen,
+    staleTime: 30000,
   });
 
   // Time Clock queries
@@ -361,6 +384,18 @@ export default function AdminEmployeeManagement() {
     },
   });
 
+  const financialForm = useForm<FinancialFormData>({
+    resolver: zodResolver(financialFormSchema),
+    defaultValues: {
+      hourlyRate: "",
+      defaultEntryCost: "",
+      ymcaBenefitEnabled: false,
+      ymcaAmount: "",
+      employeePurchaseEnabled: false,
+      employeePurchaseCap: "75.00",
+    },
+  });
+
   // Add new employee mutation
   const addEmployeeMutation = useMutation({
     mutationFn: async (data: AddEmployeeFormData) => {
@@ -439,6 +474,7 @@ export default function AdminEmployeeManagement() {
       setEditDialogOpen(false);
       setSelectedEmployee(null);
       editForm.reset();
+      financialForm.reset();
       toast({
         title: "Employee Updated",
         description: "Employee information has been successfully updated.",
@@ -459,6 +495,40 @@ export default function AdminEmployeeManagement() {
       toast({
         title: "Error",
         description: "Failed to update employee. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Update financial data mutation
+  const updateFinancialMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: any }) => {
+      const response = await apiRequest("PUT", `/api/employees/${id}/financials`, data);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/employees"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/employees", selectedEmployee?.id, "financials"] });
+      toast({
+        title: "Financial Information Updated",
+        description: "Employee financial information has been successfully updated.",
+      });
+    },
+    onError: (error) => {
+      if (isUnauthorizedError(error)) {
+        toast({
+          title: "Unauthorized",
+          description: "You are logged out. Logging in again...",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          window.location.href = "/api/login";
+        }, 500);
+        return;
+      }
+      toast({
+        title: "Error",
+        description: "Failed to update financial information. Please try again.",
         variant: "destructive",
       });
     },
@@ -565,6 +635,25 @@ export default function AdminEmployeeManagement() {
     }
   };
 
+  // Initialize financial form data when financial data is loaded
+  useEffect(() => {
+    if (financialData && selectedEmployee) {
+      // Extract benefits data
+      const benefits = financialData.benefits || [];
+      const ymcaBenefit = benefits.find((b: any) => b.type === 'ymca');
+      const purchaseBenefit = benefits.find((b: any) => b.type === 'employee_purchase');
+      
+      financialForm.reset({
+        hourlyRate: financialData.hourlyRate ? financialData.hourlyRate.toString() : "",
+        defaultEntryCost: financialData.defaultEntryCost ? financialData.defaultEntryCost.toString() : "",
+        ymcaBenefitEnabled: ymcaBenefit?.active || false,
+        ymcaAmount: ymcaBenefit?.amount ? ymcaBenefit.amount.toString() : "",
+        employeePurchaseEnabled: purchaseBenefit?.active || false,
+        employeePurchaseCap: purchaseBenefit?.cap ? purchaseBenefit.cap.toString() : "75.00",
+      });
+    }
+  }, [financialData, selectedEmployee, financialForm]);
+
   const handleEditEmployee = (employee: UserType) => {
     setSelectedEmployee(employee);
     editForm.reset({
@@ -597,6 +686,45 @@ export default function AdminEmployeeManagement() {
   const onEditSubmit = (data: EditEmployeeFormData) => {
     if (!selectedEmployee) return;
     updateEmployeeMutation.mutate({ id: selectedEmployee.id, data });
+  };
+
+  const onFinancialSubmit = (data: FinancialFormData) => {
+    if (!selectedEmployee) return;
+    
+    // Transform form data to match backend schema
+    const benefits: any[] = [];
+    
+    // Add YMCA benefit if enabled
+    if (data.ymcaBenefitEnabled) {
+      benefits.push({
+        id: `ymca-${selectedEmployee.id}`,
+        type: 'ymca',
+        name: 'YMCA Stipend',
+        cadence: 'monthly',
+        amount: data.ymcaAmount || 0,
+        active: true,
+      });
+    }
+    
+    // Add employee purchase benefit if enabled
+    if (data.employeePurchaseEnabled) {
+      benefits.push({
+        id: `purchase-${selectedEmployee.id}`,
+        type: 'employee_purchase',
+        name: 'Employee Purchase Allowance',
+        cadence: 'monthly',
+        cap: data.employeePurchaseCap || 75,
+        active: true,
+      });
+    }
+    
+    const financialData = {
+      hourlyRate: data.hourlyRate,
+      defaultEntryCost: data.defaultEntryCost,
+      benefits: benefits,
+    };
+    
+    updateFinancialMutation.mutate({ id: selectedEmployee.id, data: financialData });
   };
 
   const filteredEmployees = employees?.filter((employee) => {
@@ -1659,10 +1787,11 @@ export default function AdminEmployeeManagement() {
     {selectedEmployee && (
       <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="space-y-6">
         <Tabs defaultValue="basic" className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="basic">Basic Info</TabsTrigger>
             <TabsTrigger value="work">Work Details</TabsTrigger>
             <TabsTrigger value="contact">Contact Info</TabsTrigger>
+            <TabsTrigger value="compensation">Compensation</TabsTrigger>
             <TabsTrigger value="settings">Settings</TabsTrigger>
           </TabsList>
           
@@ -1841,6 +1970,142 @@ export default function AdminEmployeeManagement() {
                   placeholder="ZIP code"
                 />
               </div>
+            </div>
+          </TabsContent>
+          
+          <TabsContent value="compensation" className="space-y-4">
+            <div className="space-y-6">
+              {/* Financial Information Form */}
+              <form onSubmit={financialForm.handleSubmit(onFinancialSubmit)} className="space-y-6">
+                <div>
+                  <h3 className="text-lg font-medium text-slate-900 mb-4">Financial Information</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="edit-hourlyRate">Hourly Rate ($)</Label>
+                      <Input
+                        id="edit-hourlyRate"
+                        type="number"
+                        step="0.01"
+                        placeholder="15.00"
+                        {...financialForm.register("hourlyRate")}
+                        data-testid="input-hourly-rate"
+                      />
+                      {financialForm.formState.errors.hourlyRate && (
+                        <p className="text-sm text-red-500 mt-1">
+                          {financialForm.formState.errors.hourlyRate.message}
+                        </p>
+                      )}
+                    </div>
+                    
+                    <div>
+                      <Label htmlFor="edit-defaultEntryCost">Default Entry Cost ($)</Label>
+                      <Input
+                        id="edit-defaultEntryCost"
+                        type="number"
+                        step="0.01"
+                        placeholder="5.00"
+                        {...financialForm.register("defaultEntryCost")}
+                        data-testid="input-entry-cost"
+                      />
+                      {financialForm.formState.errors.defaultEntryCost && (
+                        <p className="text-sm text-red-500 mt-1">
+                          {financialForm.formState.errors.defaultEntryCost.message}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="text-lg font-medium text-slate-900 mb-4">Employee Benefits</h3>
+                  <div className="space-y-4">
+                    <div className="border rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center space-x-2">
+                          <Switch
+                            id="ymca-benefit"
+                            checked={financialForm.watch("ymcaBenefitEnabled")}
+                            onCheckedChange={(checked) => financialForm.setValue("ymcaBenefitEnabled", checked)}
+                            data-testid="switch-ymca-benefit"
+                          />
+                          <Label htmlFor="ymca-benefit" className="font-medium">YMCA Stipend</Label>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label htmlFor="ymca-amount">Monthly Amount ($)</Label>
+                          <Input
+                            id="ymca-amount"
+                            type="number"
+                            step="0.01"
+                            placeholder="50.00"
+                            {...financialForm.register("ymcaAmount")}
+                            disabled={!financialForm.watch("ymcaBenefitEnabled")}
+                            data-testid="input-ymca-amount"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="border rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center space-x-2">
+                          <Switch
+                            id="purchase-allowance"
+                            checked={financialForm.watch("employeePurchaseEnabled")}
+                            onCheckedChange={(checked) => financialForm.setValue("employeePurchaseEnabled", checked)}
+                            data-testid="switch-purchase-allowance"
+                          />
+                          <Label htmlFor="purchase-allowance" className="font-medium">Employee Purchase Allowance</Label>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label htmlFor="purchase-cap">Monthly Cap ($)</Label>
+                          <Input
+                            id="purchase-cap"
+                            type="number"
+                            step="0.01"
+                            placeholder="75.00"
+                            {...financialForm.register("employeePurchaseCap")}
+                            disabled={!financialForm.watch("employeePurchaseEnabled")}
+                            data-testid="input-purchase-cap"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="border rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <Label className="font-medium">Custom Benefits</Label>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          data-testid="button-add-custom-benefit"
+                        >
+                          <UserPlus className="w-4 h-4 mr-2" />
+                          Add Benefit
+                        </Button>
+                      </div>
+                      <div className="space-y-2" data-testid="custom-benefits-list">
+                        <p className="text-sm text-slate-500">No custom benefits added yet.</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Save Financial Changes Button */}
+                <div className="flex justify-end">
+                  <Button 
+                    type="submit" 
+                    disabled={updateFinancialMutation.isPending || financialDataLoading}
+                    data-testid="button-save-financial"
+                  >
+                    {updateFinancialMutation.isPending ? "Saving..." : "Save Financial Changes"}
+                  </Button>
+                </div>
+              </form>
             </div>
           </TabsContent>
           
