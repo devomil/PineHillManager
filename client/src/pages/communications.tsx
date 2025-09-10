@@ -81,6 +81,32 @@ interface AnnouncementTemplate {
   createdAt: string;
   updatedAt: string;
   isActive: boolean;
+  priority?: 'urgent' | 'high' | 'normal' | 'low';
+  smsEnabled?: boolean;
+  emoji?: string;
+}
+
+// Priority and type definitions
+const PRIORITY_OPTIONS = ['urgent', 'high', 'normal', 'low'] as const;
+type Priority = typeof PRIORITY_OPTIONS[number];
+
+// Communication Overview Interface
+interface CommunicationOverview {
+  totalMessages: number;
+  totalAnnouncements: number;
+  smsDelivered: number;
+  averageDeliveryRate: number;
+  averageEngagementRate: number;
+  totalReactions: number;
+  totalCost: number;
+}
+
+// Admin Stats Interface
+interface AdminStats {
+  totalEmployees: number;
+  pendingRequests?: number;
+  totalAdmins?: number;
+  totalManagers?: number;
 }
 
 // Chart colors
@@ -1111,40 +1137,33 @@ function CommunicationsContent() {
 
   return (
     <div className="space-y-4 md:space-y-6">
-      {/* Mobile-First Header with Create Button */}
-      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-        <div className="flex items-center gap-2">
-          {/* Connection Status Indicator */}
-          <div className="flex items-center gap-1 text-xs text-gray-500">
-            {isConnected ? (
-              <>
-                <Wifi className="w-3 h-3 text-green-500" />
-                <span className="hidden sm:inline">Real-time updates active</span>
-                <span className="sm:hidden">Live</span>
-              </>
-            ) : (
-              <>
-                <WifiOff className="w-3 h-3 text-orange-500" />
-                <span className="hidden sm:inline">Connecting...</span>
-                <span className="sm:hidden">Offline</span>
-              </>
-            )}
+      {/* Redesigned Header with Prominent Direct Message Button */}
+      <div className="space-y-4">
+        {/* Primary Action Bar - Direct Message (Available to ALL users) */}
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+          <div className="space-y-1">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+              <MessageSquare className="w-5 h-5 text-blue-600" />
+              Quick Communication
+            </h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              Send direct messages to team members instantly
+            </p>
           </div>
-        </div>
-        
-        {/* Send Direct Message Button - Available to ALL users */}
-        <div className="flex flex-col sm:flex-row gap-2">
-          <Dialog open={showDirectMessageDialog} onOpenChange={setShowDirectMessageDialog}>
-            <DialogTrigger asChild>
-              <Button 
-                variant="outline"
-                className="flex-1 sm:flex-none"
-                data-testid="button-send-direct-message"
-              >
-                <MessageSquare className="w-4 h-4 mr-2" />
-                Send Direct Message
-              </Button>
-            </DialogTrigger>
+          
+          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+            {/* Send Direct Message Button - PRIMARY BUTTON for all users */}
+            <Dialog open={showDirectMessageDialog} onOpenChange={setShowDirectMessageDialog}>
+              <DialogTrigger asChild>
+                <Button 
+                  size="lg"
+                  className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg flex-1 sm:flex-none min-w-[200px]"
+                  data-testid="button-send-direct-message"
+                >
+                  <MessageSquare className="w-5 h-5 mr-2" />
+                  Send Direct Message
+                </Button>
+              </DialogTrigger>
             <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto mx-4 sm:mx-0">
               <DialogHeader>
                 <DialogTitle>Send Direct Message</DialogTitle>
@@ -1261,23 +1280,35 @@ function CommunicationsContent() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
-        
-          {/* Create Communication Button - Admin/Manager Only */}
-          {(user?.role === 'admin' || user?.role === 'manager') && (
-            <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-            <DialogTrigger asChild>
-              <Button 
-                style={{
-                  backgroundColor: '#1e40af',
-                  borderColor: '#1e40af',
-                  color: 'white',
-                  fontWeight: '600'
-                }}
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Create Communication
-              </Button>
-            </DialogTrigger>
+          
+          </div>
+        </div>
+
+        {/* Admin/Manager Communication Tools - Separate Section */}
+        {(user?.role === 'admin' || user?.role === 'manager') && (
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 p-4 bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 rounded-lg border border-purple-200 dark:border-purple-800">
+            <div className="space-y-1">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+                <Plus className="w-5 h-5 text-purple-600" />
+                Management Communications
+              </h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Create announcements and group communications for teams
+              </p>
+            </div>
+            
+            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+              <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+                <DialogTrigger asChild>
+                  <Button 
+                    size="lg"
+                    className="bg-purple-600 hover:bg-purple-700 text-white shadow-lg flex-1 sm:flex-none min-w-[200px]"
+                    data-testid="button-create-communication"
+                  >
+                    <Plus className="w-5 h-5 mr-2" />
+                    Create Communication
+                  </Button>
+                </DialogTrigger>
             <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto mx-4 sm:mx-0">
               <DialogHeader>
                 <DialogTitle>Create New Communication</DialogTitle>
@@ -1340,7 +1371,7 @@ function CommunicationsContent() {
                             ...prev,
                             title: template.title,
                             content: template.content,
-                            priority: template.priority,
+                            priority: template.priority || 'normal',
                             smsEnabled: template.smsEnabled || false
                           }));
                         }
@@ -1352,7 +1383,7 @@ function CommunicationsContent() {
                       <SelectContent>
                         {templates.map((template) => {
                           const categoryStyle = getCategoryStyle(template.category);
-                          const priorityStyle = getPriorityStyle(template.priority);
+                          const priorityStyle = getPriorityStyle(template.priority || 'normal');
                           return (
                             <SelectItem 
                               key={template.id} 
@@ -1368,7 +1399,7 @@ function CommunicationsContent() {
                                       {template.category}
                                     </Badge>
                                     <Badge className={`text-xs ${priorityStyle.bg} ${priorityStyle.color}`}>
-                                      {getPriorityEmoji(template.priority)} {template.priority}
+                                      {getPriorityEmoji(template.priority || 'normal')} {template.priority || 'normal'}
                                     </Badge>
                                   </div>
                                 </div>
@@ -1389,7 +1420,7 @@ function CommunicationsContent() {
                   <Label htmlFor="priority">Priority Level</Label>
                   <Select 
                     value={formData.priority} 
-                    onValueChange={(value: 'low' | 'normal' | 'high' | 'urgent') => setFormData(prev => ({ ...prev, priority: value }))}
+                    onValueChange={(value: Priority) => setFormData(prev => ({ ...prev, priority: value }))}
                   >
                     <SelectTrigger id="priority">
                       <SelectValue />
@@ -1416,10 +1447,10 @@ function CommunicationsContent() {
                           <Badge className="text-xs bg-orange-100 text-orange-700">Important</Badge>
                         </div>
                       </SelectItem>
-                      <SelectItem value="emergency">
+                      <SelectItem value="urgent">
                         <div className="flex items-center gap-2">
                           <span>🚨</span>
-                          <span>Emergency</span>
+                          <span>Urgent</span>
                           <Badge className="text-xs bg-red-100 text-red-700">Urgent action required</Badge>
                         </div>
                       </SelectItem>
@@ -1524,7 +1555,29 @@ function CommunicationsContent() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
+            </div>
+          </div>
         )}
+
+        {/* Connection Status and System Info */}
+        <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
+          <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+            {isConnected ? (
+              <>
+                <Wifi className="w-4 h-4 text-green-500" />
+                <span>Real-time updates active</span>
+              </>
+            ) : (
+              <>
+                <WifiOff className="w-4 h-4 text-orange-500" />
+                <span>Connecting...</span>
+              </>
+            )}
+          </div>
+          <div className="text-xs text-gray-500">
+            Communication Hub
+          </div>
+        </div>
       </div>
 
       {/* Mobile-First Main Content with Tabs */}
@@ -1909,7 +1962,7 @@ function CommunicationsContent() {
                       <Label htmlFor="schedule-priority">Priority</Label>
                       <Select
                         value={formData.priority}
-                        onValueChange={(value) => setFormData({ ...formData, priority: value })}
+                        onValueChange={(value: Priority) => setFormData({ ...formData, priority: value as Priority })}
                       >
                         <SelectTrigger>
                           <SelectValue />
@@ -2137,7 +2190,6 @@ function CommunicationsContent() {
         </TabsContent>
       </Tabs>
     </div>
-    </div>
   );
 }
 
@@ -2168,13 +2220,19 @@ function AdminKPIDashboard() {
     staleTime: 2 * 60 * 1000,
   });
 
-  // Calculate performance metrics
-  const totalCommunications = (analyticsOverview?.totalMessages || 0) + (analyticsOverview?.totalAnnouncements || 0);
-  const avgDeliveryRate = smsMetrics?.deliveryRate || 0;
-  const totalCost = (smsMetrics?.totalCost || 0) / 100; // Convert from cents to dollars
+  // Safely extract overview data with proper typing
+  const overview: Partial<CommunicationOverview> = (analyticsOverview as any)?.overview ?? {};
+  const smsData = (smsMetrics as any)?.summary ?? {};
+  const engagementSummary = (engagementData as any)?.summary ?? {};
+  const stats: Partial<AdminStats> = (adminStats as any) ?? {};
+
+  // Calculate performance metrics with safe property access
+  const totalCommunications = (overview.totalMessages || 0) + (overview.totalAnnouncements || 0);
+  const avgDeliveryRate = smsData.deliveryRate || 0;
+  const totalCost = (smsData.totalCost || 0) / 100; // Convert from cents to dollars
   const costPerMessage = totalCommunications > 0 ? totalCost / totalCommunications : 0;
-  const activeUsers = engagementData?.topUsers?.length || 0;
-  const avgEngagement = analyticsOverview?.averageEngagementRate || 0;
+  const activeUsers = engagementSummary.topUsers?.length || 0;
+  const avgEngagement = overview.averageEngagementRate || 0;
 
   // ROI Calculation (simplified)
   const estimatedTimeSaved = totalCommunications * 2; // 2 minutes saved per automated communication
@@ -2325,19 +2383,19 @@ function AdminKPIDashboard() {
             <div className="space-y-3">
               <div className="flex justify-between items-center">
                 <span className="text-sm font-medium">System Adoption</span>
-                <span className="text-sm font-bold">{Math.min(100, (activeUsers / (adminStats?.totalEmployees || 1)) * 100).toFixed(1)}%</span>
+                <span className="text-sm font-bold">{Math.min(100, (activeUsers / (stats.totalEmployees || 1)) * 100).toFixed(1)}%</span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2">
                 <div 
                   className="bg-green-600 h-2 rounded-full transition-all duration-300"
-                  style={{ width: `${Math.min(100, (activeUsers / (adminStats?.totalEmployees || 1)) * 100)}%` }}
+                  style={{ width: `${Math.min(100, (activeUsers / (stats.totalEmployees || 1)) * 100)}%` }}
                 ></div>
               </div>
             </div>
 
             <div className="text-center pt-4 border-t">
               <p className="text-sm text-gray-600">
-                {activeUsers} of {adminStats?.totalEmployees || 'N/A'} employees actively engaged
+                {activeUsers} of {stats.totalEmployees || 'N/A'} employees actively engaged
               </p>
             </div>
           </CardContent>
