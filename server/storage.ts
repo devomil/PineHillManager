@@ -145,7 +145,6 @@ import {
   type VideoAsset,
   type InsertVideoAsset,
   // Phase 3: Enhanced Messaging
-  messageReactions,
   readReceipts,
   voiceMessages,
   messageTemplates,
@@ -181,7 +180,7 @@ import {
   type UpdateAutomationRule,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, desc, asc, gte, lte, or, sql, like } from "drizzle-orm";
+import { eq, and, desc, asc, gte, lte, or, sql, like, isNull, isNotNull } from "drizzle-orm";
 
 export interface IStorage {
   // User operations - supports both Replit Auth and traditional email/password
@@ -2179,7 +2178,7 @@ export class DatabaseStorage implements IStorage {
 
   // Admin-specific time clock methods
   async getTimeClockEntriesForAdmin(employeeId?: string, startDate?: string, endDate?: string): Promise<any[]> {
-    const { isNull } = await import('drizzle-orm');
+    // isNull is already imported from drizzle-orm
     
     let query = db
       .select({
@@ -2242,10 +2241,23 @@ export class DatabaseStorage implements IStorage {
   }
 
   async exportTimeEntries(employeeId: string, startDate: string, endDate: string, format: string): Promise<string> {
-    const entries = await this.getTimeEntriesByDateRange(employeeId, startDate, endDate);
+    // Get time entries using existing method
+    const timeEntries = await this.getTimeEntriesByDateRange(employeeId, startDate, endDate);
+    
+    // Enhance with hourly rate data by fetching user information for each entry
+    const entriesWithRates = await Promise.all(timeEntries.map(async (entry: any) => {
+      const [user] = await db.select({ hourlyRate: users.hourlyRate })
+        .from(users)
+        .where(eq(users.id, entry.userId))
+        .limit(1);
+      return {
+        ...entry,
+        hourlyRate: user?.hourlyRate || 0
+      };
+    }));
     
     if (format === 'csv') {
-      // Generate CSV format
+      // Generate CSV format with cost data
       const headers = [
         'Employee Name',
         'Employee ID', 
@@ -2256,21 +2268,30 @@ export class DatabaseStorage implements IStorage {
         'Total Minutes',
         'Decimal Hours',
         'Hours:Minutes',
+        'Hourly Rate',
+        'Entry Cost',
         'Status',
         'Notes'
       ];
       
       let csv = headers.join(',') + '\n';
+      let totalCost = 0;
+      let totalHours = 0;
       
-      for (const entry of entries) {
+      for (const entry of entriesWithRates) {
         const clockInDate = entry.clockInTime ? new Date(entry.clockInTime).toLocaleDateString() : '';
         const clockInTime = entry.clockInTime ? new Date(entry.clockInTime).toLocaleTimeString() : '';
         const clockOutTime = entry.clockOutTime ? new Date(entry.clockOutTime).toLocaleTimeString() : '';
         const totalMinutes = entry.totalWorkedMinutes || 0;
-        const decimalHours = (totalMinutes / 60).toFixed(2);
+        const decimalHours = (totalMinutes / 60);
         const hours = Math.floor(totalMinutes / 60);
         const minutes = totalMinutes % 60;
         const hoursMinutes = `${hours}:${minutes.toString().padStart(2, '0')}`;
+        const hourlyRate = parseFloat(entry.hourlyRate || '0');
+        const entryCost = decimalHours * hourlyRate;
+        
+        totalHours += decimalHours;
+        totalCost += entryCost;
         
         const row = [
           `"${entry.firstName || ''} ${entry.lastName || ''}"`,
@@ -2280,8 +2301,10 @@ export class DatabaseStorage implements IStorage {
           `"${clockOutTime}"`,
           entry.totalBreakMinutes || 0,
           totalMinutes,
-          decimalHours,
+          decimalHours.toFixed(2),
           `"${hoursMinutes}"`,
+          hourlyRate.toFixed(2),
+          entryCost.toFixed(2),
           `"${entry.status || ''}"`,
           `"${(entry.notes || '').replace(/"/g, '""')}"`
         ];
@@ -2289,10 +2312,18 @@ export class DatabaseStorage implements IStorage {
         csv += row.join(',') + '\n';
       }
       
+      // Add totals row
+      if (entriesWithRates.length > 0) {
+        const totalHoursFormatted = Math.floor(totalHours);
+        const totalMinutesFormatted = Math.round((totalHours - totalHoursFormatted) * 60);
+        csv += '\n'; // Empty line
+        csv += `"TOTALS","","","","","",${Math.round(totalHours * 60)},${totalHours.toFixed(2)},"${totalHoursFormatted}:${totalMinutesFormatted.toString().padStart(2, '0')}","",${totalCost.toFixed(2)},"",""\n`;
+      }
+      
       return csv;
     } else {
-      // Return JSON format
-      return JSON.stringify(entries, null, 2);
+      // Return JSON format with cost data
+      return JSON.stringify(entriesWithRates, null, 2);
     }
   }
 

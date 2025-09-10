@@ -177,6 +177,8 @@ export default function AdminEmployeeManagement() {
   const [fromDate, setFromDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [toDate, setToDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [activeTab, setActiveTab] = useState("employees");
+  const [editTimeEntryDialogOpen, setEditTimeEntryDialogOpen] = useState(false);
+  const [selectedTimeEntry, setSelectedTimeEntry] = useState<any>(null);
 
   const { toast } = useToast();
 
@@ -265,6 +267,73 @@ export default function AdminEmployeeManagement() {
       toast({
         title: "Export Failed",
         description: "Failed to export time entries",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Time Entry edit/delete mutations
+  const deleteTimeEntryMutation = useMutation({
+    mutationFn: async (entryId: number) => {
+      const response = await apiRequest("DELETE", `/api/admin/time-clock/entries/${entryId}`);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/time-clock/entries'] });
+      toast({
+        title: "Time Entry Deleted",
+        description: "Time entry has been successfully deleted.",
+      });
+    },
+    onError: (error) => {
+      if (isUnauthorizedError(error)) {
+        toast({
+          title: "Unauthorized",
+          description: "You are logged out. Logging in again...",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          window.location.href = "/api/login";
+        }, 500);
+        return;
+      }
+      toast({
+        title: "Error",
+        description: "Failed to delete time entry. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const updateTimeEntryMutation = useMutation({
+    mutationFn: async ({ entryId, data }: { entryId: number; data: any }) => {
+      const response = await apiRequest("PATCH", `/api/admin/time-clock/entries/${entryId}`, data);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/time-clock/entries'] });
+      setEditTimeEntryDialogOpen(false);
+      setSelectedTimeEntry(null);
+      toast({
+        title: "Time Entry Updated",
+        description: "Time entry has been successfully updated.",
+      });
+    },
+    onError: (error) => {
+      if (isUnauthorizedError(error)) {
+        toast({
+          title: "Unauthorized",
+          description: "You are logged out. Logging in again...",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          window.location.href = "/api/login";
+        }, 500);
+        return;
+      }
+      toast({
+        title: "Error",
+        description: "Failed to update time entry. Please try again.",
         variant: "destructive",
       });
     },
@@ -428,6 +497,12 @@ export default function AdminEmployeeManagement() {
     },
   });
 
+  // Handle edit time entry
+  const handleEditTimeEntry = (entry: any) => {
+    setSelectedTimeEntry(entry);
+    setEditTimeEntryDialogOpen(true);
+  };
+
   // SMS consent toggle mutation
   const smsConsentMutation = useMutation({
     mutationFn: async (data: { employeeId: string; consentValue: boolean }) => {
@@ -449,7 +524,7 @@ export default function AdminEmployeeManagement() {
         setSelectedEmployee(prev => prev ? {
           ...prev,
           smsConsent: variables.consentValue,
-          smsConsentDate: variables.consentValue ? new Date().toISOString() : prev.smsConsentDate,
+          smsConsentDate: variables.consentValue ? new Date() : prev?.smsConsentDate || null,
           smsNotificationTypes: variables.consentValue 
             ? ['emergency', 'schedule', 'announcements', 'reminders'] 
             : []
@@ -1448,6 +1523,7 @@ export default function AdminEmployeeManagement() {
                   <th className="text-left py-3 px-4 font-medium">Clock Out</th>
                   <th className="text-left py-3 px-4 font-medium">Total Hours</th>
                   <th className="text-left py-3 px-4 font-medium">Break Time</th>
+                  <th className="text-left py-3 px-4 font-medium">Cost</th>
                   <th className="text-left py-3 px-4 font-medium">Notes</th>
                   <th className="text-left py-3 px-4 font-medium">Actions</th>
                 </tr>
@@ -1473,13 +1549,34 @@ export default function AdminEmployeeManagement() {
                       </td>
                       <td className="py-3 px-4 font-mono">{totalHours}h</td>
                       <td className="py-3 px-4 font-mono">{breakHours}h</td>
+                      <td className="py-3 px-4 font-mono">
+                        {(() => {
+                          const hourlyRate = parseFloat(entry.hourlyRate || 0);
+                          const cost = hourlyRate * parseFloat(totalHours);
+                          return hourlyRate > 0 ? `$${cost.toFixed(2)}` : "—";
+                        })()}
+                      </td>
                       <td className="py-3 px-4 text-sm text-slate-600 max-w-xs truncate">
                         {entry.notes || "—"}
                       </td>
                       <td className="py-3 px-4">
                         <div className="flex items-center space-x-2">
-                          <Button variant="ghost" size="sm" data-testid={`button-view-${entry.id}`}>
-                            <Eye className="w-4 h-4" />
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            onClick={() => handleEditTimeEntry(entry)}
+                            data-testid={`button-edit-${entry.id}`}
+                          >
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => deleteTimeEntryMutation.mutate(entry.id)}
+                            disabled={deleteTimeEntryMutation.isPending}
+                            data-testid={`button-delete-${entry.id}`}
+                          >
+                            <Trash2 className="w-4 h-4" />
                           </Button>
                         </div>
                       </td>
@@ -1496,6 +1593,53 @@ export default function AdminEmployeeManagement() {
             <p className="text-slate-500">
               No time entries found for the selected criteria. Try adjusting the date range or employee selection.
             </p>
+          </div>
+        )}
+        
+        {/* Total Hours Summary */}
+        {timeEntries.length > 0 && (
+          <div className="mt-4 p-4 bg-slate-50 rounded-lg border">
+            <div className="flex justify-between items-center">
+              <h4 className="font-medium text-slate-900">Total Hours & Cost Summary</h4>
+              <div className="flex space-x-8 text-sm">
+                <div>
+                  <span className="text-slate-500">Decimal Hours: </span>
+                  <span className="font-mono font-medium">
+                    {(() => {
+                      const totalMinutes = timeEntries.reduce((sum: number, entry: any) => 
+                        sum + (entry.totalWorkedMinutes || 0), 0);
+                      return (totalMinutes / 60).toFixed(2);
+                    })()}h
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-500">Hours & Minutes: </span>
+                  <span className="font-mono font-medium">
+                    {(() => {
+                      const totalMinutes = timeEntries.reduce((sum: number, entry: any) => 
+                        sum + (entry.totalWorkedMinutes || 0), 0);
+                      const hours = Math.floor(totalMinutes / 60);
+                      const minutes = totalMinutes % 60;
+                      return `${hours}h ${minutes}m`;
+                    })()}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-500">Total Cost: </span>
+                  <span className="font-mono font-medium text-green-700">
+                    {(() => {
+                      const totalCost = timeEntries.reduce((sum: number, entry: any) => {
+                        const hourlyRate = parseFloat(entry.hourlyRate || 0);
+                        const totalMinutes = entry.totalWorkedMinutes || 0;
+                        const hours = totalMinutes / 60;
+                        return sum + (hourlyRate * hours);
+                      }, 0);
+                      return `$${totalCost.toFixed(2)}`;
+                    })()}
+                  </span>
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </CardContent>
@@ -1734,6 +1878,104 @@ export default function AdminEmployeeManagement() {
           </Button>
           <Button type="submit" disabled={updateEmployeeMutation.isPending}>
             {updateEmployeeMutation.isPending ? "Updating..." : "Update Employee"}
+          </Button>
+        </div>
+      </form>
+    )}
+  </DialogContent>
+</Dialog>
+
+{/* Edit Time Entry Dialog */}
+<Dialog open={editTimeEntryDialogOpen} onOpenChange={setEditTimeEntryDialogOpen}>
+  <DialogContent className="max-w-md">
+    <DialogHeader>
+      <DialogTitle>Edit Time Entry</DialogTitle>
+      <DialogDescription>
+        Update clock times, breaks, and notes for this time entry.
+      </DialogDescription>
+    </DialogHeader>
+    {selectedTimeEntry && (
+      <form onSubmit={(e) => {
+        e.preventDefault();
+        const formData = new FormData(e.target as HTMLFormElement);
+        const clockInTime = formData.get('clockInTime') as string;
+        const clockOutTime = formData.get('clockOutTime') as string;
+        const breakMinutes = parseInt(formData.get('breakMinutes') as string || '0');
+        const notes = formData.get('notes') as string;
+        
+        updateTimeEntryMutation.mutate({
+          entryId: selectedTimeEntry.id,
+          data: {
+            clockInTime: new Date(clockInTime).toISOString(),
+            clockOutTime: clockOutTime ? new Date(clockOutTime).toISOString() : null,
+            breakMinutes,
+            notes
+          }
+        });
+      }} className="space-y-4">
+        <div>
+          <Label htmlFor="edit-clockInTime">Clock In Time *</Label>
+          <Input
+            id="edit-clockInTime"
+            name="clockInTime"
+            type="datetime-local"
+            defaultValue={selectedTimeEntry.clockInTime ? 
+              new Date(selectedTimeEntry.clockInTime).toISOString().slice(0, 16) : ''}
+            required
+            data-testid="input-edit-clock-in-time"
+          />
+        </div>
+        
+        <div>
+          <Label htmlFor="edit-clockOutTime">Clock Out Time</Label>
+          <Input
+            id="edit-clockOutTime"
+            name="clockOutTime"
+            type="datetime-local"
+            defaultValue={selectedTimeEntry.clockOutTime ? 
+              new Date(selectedTimeEntry.clockOutTime).toISOString().slice(0, 16) : ''}
+            data-testid="input-edit-clock-out-time"
+          />
+        </div>
+        
+        <div>
+          <Label htmlFor="edit-breakMinutes">Break Time (minutes)</Label>
+          <Input
+            id="edit-breakMinutes"
+            name="breakMinutes"
+            type="number"
+            min="0"
+            defaultValue={selectedTimeEntry.breakMinutes || 0}
+            data-testid="input-edit-break-minutes"
+          />
+        </div>
+        
+        <div>
+          <Label htmlFor="edit-notes">Notes</Label>
+          <Textarea
+            id="edit-notes"
+            name="notes"
+            placeholder="Optional notes about this time entry..."
+            defaultValue={selectedTimeEntry.notes || ''}
+            data-testid="textarea-edit-notes"
+          />
+        </div>
+        
+        <div className="flex justify-end space-x-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setEditTimeEntryDialogOpen(false)}
+            data-testid="button-cancel-edit-time-entry"
+          >
+            Cancel
+          </Button>
+          <Button 
+            type="submit" 
+            disabled={updateTimeEntryMutation.isPending}
+            data-testid="button-save-time-entry"
+          >
+            {updateTimeEntryMutation.isPending ? "Saving..." : "Save Changes"}
           </Button>
         </div>
       </form>
