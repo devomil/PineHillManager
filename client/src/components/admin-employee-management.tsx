@@ -1623,10 +1623,10 @@ export default function AdminEmployeeManagement() {
               <div key={entry.id} className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
                 <div className="flex items-center space-x-3">
                   <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center text-white text-sm font-medium">
-                    {entry.employee?.firstName?.[0]}{entry.employee?.lastName?.[0]}
+                    {entry.firstName?.[0]}{entry.lastName?.[0]}
                   </div>
                   <div>
-                    <p className="font-medium">{entry.employee?.firstName} {entry.employee?.lastName}</p>
+                    <p className="font-medium">{entry.firstName} {entry.lastName}</p>
                     <p className="text-sm text-slate-500">
                       Checked in at {formatTime(entry.clockInTime)}
                     </p>
