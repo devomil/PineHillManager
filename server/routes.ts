@@ -2673,7 +2673,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Get the original message to check if this is a direct message
         const originalMessage = await storage.getMessageById(messageId);
         
-        if (originalMessage && originalMessage.messageType === 'direct') {
+        if (originalMessage && originalMessage.messageType === 'direct_message') {
           console.log(`📱 Processing SMS notifications for direct message reply to message ${messageId}`);
           
           // Get all participants in this conversation
