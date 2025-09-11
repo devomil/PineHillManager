@@ -238,11 +238,32 @@ export class SmartNotificationService {
           }
         }
       }
-      // Regular announcements follow user preferences
+      // Announcement notifications - send SMS if user has consent and opted in, regardless of work status
+      else if (context.messageType === 'announcement') {
+        if (hasSMSConsent && smsEnabled) {
+          // Check if user wants SMS for announcements
+          const allowedTypes = ['all', 'announcements'];
+          const hasMatchingType = allowedTypes.some(type => notificationTypes.includes(type));
+          
+          if (hasMatchingType) {
+            sendSMS = true;
+            reason = workStatus.isClocked 
+              ? 'Important announcement - SMS sent even while user is at work'
+              : 'User offline - announcement SMS sent';
+          } else {
+            sendSMS = false;
+            reason = 'User not opted in for announcement SMS notifications';
+          }
+        } else {
+          sendSMS = false;
+          reason = 'No SMS consent or SMS disabled for announcements';
+        }
+      }
+      // Other message types follow user preferences based on work status
       else {
         if (!workStatus.isClocked && hasSMSConsent && smsEnabled) {
           // Check if user wants SMS for this type
-          const allowedTypes = ['all', 'announcements', context.messageType];
+          const allowedTypes = ['all', context.messageType];
           const hasMatchingType = allowedTypes.some(type => notificationTypes.includes(type));
           
           if (hasMatchingType) {
