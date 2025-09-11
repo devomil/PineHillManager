@@ -1512,7 +1512,15 @@ function CommunicationsContent() {
                 <EmployeeSelector
                   employees={employees}
                   selectedEmployees={formData.targetEmployees}
-                  onEmployeesChange={(selectedIds) => setFormData(prev => ({ ...prev, targetEmployees: selectedIds }))}
+                  onEmployeesChange={(selectedIds) => {
+                    console.log('🎯 Employee selection changed:', selectedIds);
+                    setFormData(prev => ({ 
+                      ...prev, 
+                      targetEmployees: selectedIds,
+                      // Update targetAudience based on selection
+                      targetAudience: selectedIds.length > 0 ? 'specific' : 'all'
+                    }));
+                  }}
                   searchQuery={employeeSearchQuery}
                   onSearchChange={setEmployeeSearchQuery}
                   isVisible={showEmployeeSelector}
