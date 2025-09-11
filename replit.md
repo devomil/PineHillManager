@@ -58,6 +58,36 @@ The system follows a clear separation of concerns between frontend and backend. 
 
 ## Recent Updates
 
+### Bidirectional SMS Notifications for Announcement Responses (September 11, 2025)
+**Status: ✅ COMPLETED - Production Ready**
+
+Implemented comprehensive bidirectional SMS notification system for announcement responses, matching the direct message conversation experience:
+
+**Core Functionality:**
+1. **Initial Response SMS Notifications**: When employees respond to announcements, all admins/managers receive SMS notifications
+2. **Bidirectional Response-to-Response SMS**: When someone replies to a specific response, that person gets SMS notification (creates conversational SMS flow)
+3. **Professional SMS Formatting**: Context-aware messages with announcement titles and response previews
+4. **Complete SMS Consent Filtering**: Respects user SMS preferences and TCPA compliance
+
+**Technical Implementation:**
+- **Backend SMS Service**: Added `sendAnnouncementResponseNotification()` function in `server/sms-service.ts` with intelligent routing logic
+- **Enhanced Response Endpoint**: Extended `POST /api/announcements/:id/responses` with SMS notification triggers after response creation
+- **New Storage Function**: Added `getResponseById()` to support parent response lookup for bidirectional conversations
+- **Smart Routing Logic**: Differentiates between initial responses (notify admins/managers) and response-to-response (notify specific user)
+- **Error Handling**: Non-blocking SMS failures with comprehensive logging and graceful fallbacks
+
+**User Experience Impact:**
+- Eliminates missed announcement engagement by notifying relevant stakeholders via SMS
+- Creates seamless bidirectional conversation flow matching direct message patterns
+- Maintains professional communication standards with proper message formatting
+- Ensures compliance with SMS consent preferences and regulations
+
+**System Verification:**
+- Architect review confirmed PASS verdict with perfect implementation
+- All TypeScript compilation errors resolved for clean build
+- Application running successfully with new SMS notification functionality
+- Ready for immediate testing and production use
+
 ### Direct Message System Enhancements (September 10, 2025)
 **Status: ✅ COMPLETED - Production Ready**
 
