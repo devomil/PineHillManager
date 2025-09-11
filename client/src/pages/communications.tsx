@@ -145,11 +145,34 @@ const formatAudience = (audience: string) => {
 
 // Function to format audience based on selected employees
 const formatMessageAudience = (message: any, employees: any[] = []) => {
+  // Handle different formats of targetEmployees (array, string, or PostgreSQL array format)
+  let targetEmployeeIds: string[] = [];
+  
+  if (message.targetEmployees) {
+    if (Array.isArray(message.targetEmployees)) {
+      targetEmployeeIds = message.targetEmployees;
+    } else if (typeof message.targetEmployees === 'string') {
+      // Handle PostgreSQL array format like "{emp_1748972869348_lpavu3oa7}"
+      if (message.targetEmployees.startsWith('{') && message.targetEmployees.endsWith('}')) {
+        targetEmployeeIds = message.targetEmployees.slice(1, -1).split(',').map(id => id.trim());
+      } else {
+        targetEmployeeIds = [message.targetEmployees];
+      }
+    }
+  }
+  
   // If specific employees are selected, show their names
-  if (message.targetEmployees && message.targetEmployees.length > 0 && message.targetAudience === 'all') {
+  if (targetEmployeeIds.length > 0) {
     const selectedEmployees = employees?.filter(emp => 
-      message.targetEmployees.includes(emp.id)
+      targetEmployeeIds.includes(emp.id)
     ) || [];
+    
+    console.log('🎯 formatMessageAudience debug:', {
+      messageTitle: message.title,
+      targetEmployeeIds,
+      selectedEmployees: selectedEmployees.map(e => `${e.firstName} ${e.lastName}`),
+      employeesFound: selectedEmployees.length
+    });
     
     if (selectedEmployees.length > 0) {
       if (selectedEmployees.length === 1) {
