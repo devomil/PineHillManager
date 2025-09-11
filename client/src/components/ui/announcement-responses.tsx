@@ -62,6 +62,7 @@ export function AnnouncementResponses({ announcementId, className }: Announcemen
   const [responseContent, setResponseContent] = useState('');
   const [responseType, setResponseType] = useState<'reply' | 'question' | 'confirmation' | 'concern'>('reply');
   const [expandedResponses, setExpandedResponses] = useState<Set<number>>(new Set());
+  const [replyingToResponse, setReplyingToResponse] = useState<ResponseWithAuthor | null>(null);
 
   // Fetch responses for this announcement
   const { data: rawResponses = [], isLoading, error } = useQuery<ResponseWithAuthor[]>({
@@ -88,6 +89,7 @@ export function AnnouncementResponses({ announcementId, className }: Announcemen
       queryClient.invalidateQueries({ queryKey: ['/api/announcements', announcementId, 'responses'] });
       setResponseContent('');
       setShowResponseForm(false);
+      setReplyingToResponse(null);
     },
   });
 
@@ -98,7 +100,20 @@ export function AnnouncementResponses({ announcementId, className }: Announcemen
     createResponseMutation.mutate({
       content: responseContent.trim(),
       responseType,
+      parentResponseId: replyingToResponse?.id
     });
+  };
+
+  const handleReplyToResponse = (response: ResponseWithAuthor) => {
+    setReplyingToResponse(response);
+    setShowResponseForm(true);
+    setResponseType('reply'); // Default to reply type for responses
+  };
+
+  const handleCancelReply = () => {
+    setReplyingToResponse(null);
+    setShowResponseForm(false);
+    setResponseContent('');
   };
 
   const toggleResponseExpansion = (responseId: number) => {
@@ -144,7 +159,12 @@ export function AnnouncementResponses({ announcementId, className }: Announcemen
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setShowResponseForm(!showResponseForm)}
+            onClick={() => {
+              setShowResponseForm(!showResponseForm);
+              if (replyingToResponse) {
+                setReplyingToResponse(null);
+              }
+            }}
             className="text-farm-blue hover:bg-blue-50"
           >
             <Reply className="w-4 h-4 mr-1" />
@@ -157,6 +177,33 @@ export function AnnouncementResponses({ announcementId, className }: Announcemen
       {showResponseForm && user && (
         <Card className="border-farm-blue/20">
           <CardContent className="pt-4">
+            {/* Reply Context */}
+            {replyingToResponse && (
+              <div className="mb-4 p-3 bg-gray-50 rounded-md border-l-4 border-l-blue-400">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <Reply className="w-4 h-4 text-blue-600" />
+                    <span className="text-sm font-medium text-gray-900">
+                      Replying to {replyingToResponse.author?.firstName} {replyingToResponse.author?.lastName}
+                    </span>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleCancelReply}
+                    className="text-gray-500 hover:text-gray-700"
+                  >
+                    ✕
+                  </Button>
+                </div>
+                <p className="text-sm text-gray-700 italic">
+                  "{replyingToResponse.content.length > 100 ? 
+                    replyingToResponse.content.substring(0, 100) + '...' : 
+                    replyingToResponse.content}"
+                </p>
+              </div>
+            )}
             <form onSubmit={handleSubmitResponse} className="space-y-3">
               {/* Response Type Selector */}
               <div className="flex gap-2">
@@ -200,7 +247,7 @@ export function AnnouncementResponses({ announcementId, className }: Announcemen
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => setShowResponseForm(false)}
+                  onClick={handleCancelReply}
                 >
                   Cancel
                 </Button>
@@ -298,6 +345,22 @@ export function AnnouncementResponses({ announcementId, className }: Announcemen
                           </Button>
                         )}
                       </div>
+
+                      {/* Reply Button */}
+                      {user && user.id !== response.authorId && (
+                        <div className="pt-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleReplyToResponse(response)}
+                            className="text-blue-600 hover:bg-blue-50 text-xs"
+                            data-testid={`reply-to-response-${response.id}`}
+                          >
+                            <Reply className="w-3 h-3 mr-1" />
+                            Reply
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </CardContent>

@@ -1198,15 +1198,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create announcement route (handles form submission)
   app.post('/api/announcements', isAuthenticated, async (req, res) => {
     try {
+      // Validate request body with Zod schema
+      const validationResult = {
+        title: req.body.title,
+        content: req.body.content,
+        priority: req.body.priority || 'normal',
+        targetAudience: req.body.targetAudience || 'all',
+        targetEmployees: req.body.targetEmployees,
+        expiresAt: req.body.expiresAt,
+        action: req.body.action || 'publish',
+        smsEnabled: req.body.smsEnabled || false
+      };
+      
       const {
         title,
         content,
-        priority = 'normal',
+        priority,
         targetAudience,
+        targetEmployees,
         expiresAt,
-        action = 'publish',
-        smsEnabled = false
-      } = req.body;
+        action,
+        smsEnabled
+      } = validationResult;
       
       const isPublished = action === 'publish';
       
@@ -1216,6 +1229,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         title,
         priority,
         targetAudience,
+        targetEmployees,
         isPublished,
         smsEnabled,
         smsEnabledType: typeof smsEnabled,
@@ -1241,6 +1255,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Process expiration date
       const expirationDate = expiresAt ? new Date(expiresAt) : null;
       
+      // Process target employees
+      let processedTargetEmployees = null;
+      if (targetEmployees && Array.isArray(targetEmployees) && targetEmployees.length > 0) {
+        processedTargetEmployees = targetEmployees;
+        console.log('📋 Processing specific employee targeting:', targetEmployees);
+      }
+
       // Create announcement in database
       const announcement = await storage.createAnnouncement({
         title: title.trim(),
@@ -1248,6 +1269,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         authorId,
         priority,
         targetAudience: processedAudience,
+        targetEmployees: processedTargetEmployees,
         isPublished: String(isPublished) === 'true',
         expiresAt: expirationDate,
       });
@@ -1264,10 +1286,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (shouldSendSMS && announcement.isPublished) {
         console.log('🔔 Preparing to send SMS notifications...');
         try {
-          // Send smart notifications using existing system
-          const allUsers = await storage.getAllUsers();
-          const eligibleUsers = allUsers.filter(user => 
-            user.isActive && 
+          // Send smart notifications using existing system with proper audience targeting
+          let targetUsers: any[] = [];
+          
+          if (processedTargetEmployees && processedTargetEmployees.length > 0) {
+            // Specific employee targeting - get only those employees
+            console.log('🎯 Targeting specific employees:', processedTargetEmployees);
+            const allUsers = await storage.getAllUsers();
+            targetUsers = allUsers.filter(user => 
+              processedTargetEmployees.includes(user.id) &&
+              user.isActive
+            );
+            console.log(`👤 Found ${targetUsers.length} target employees from ${processedTargetEmployees.length} specified`);
+          } else {
+            // General audience targeting based on targetAudience
+            console.log('🌍 Using general audience targeting:', processedAudience);
+            const allUsers = await storage.getAllUsers();
+            
+            switch (processedAudience) {
+              case 'employees':
+                targetUsers = allUsers.filter(user => 
+                  user.isActive && 
+                  (user.role === 'employee' || !user.role)
+                );
+                break;
+              case 'managers':
+                targetUsers = allUsers.filter(user => 
+                  user.isActive && 
+                  user.role === 'manager'
+                );
+                break;
+              case 'admins':
+                targetUsers = allUsers.filter(user => 
+                  user.isActive && 
+                  user.role === 'admin'
+                );
+                break;
+              default: // 'all'
+                targetUsers = allUsers.filter(user => user.isActive);
+                break;
+            }
+          }
+          
+          // Now filter target users for SMS eligibility
+          const eligibleUsers = targetUsers.filter(user => 
             user.phone && 
             user.smsConsent &&
             user.smsEnabled &&
@@ -1275,23 +1337,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
           );
 
           console.log('👥 SMS recipient analysis:', {
-            totalUsers: allUsers.length,
+            targetUsersCount: targetUsers.length,
+            targetUserDetails: targetUsers.map(u => ({
+              id: u.id, 
+              firstName: u.firstName, 
+              role: u.role,
+              hasPhone: !!u.phone,
+              smsConsent: u.smsConsent,
+              smsEnabled: u.smsEnabled,
+              smsNotificationTypes: u.smsNotificationTypes
+            })),
             eligibleUsers: eligibleUsers.length,
-            eligibleUserIds: eligibleUsers.map(u => ({ id: u.id, phone: u.phone, firstName: u.firstName }))
+            eligibleUserIds: eligibleUsers.map(u => ({ id: u.id, phone: u.phone, firstName: u.firstName, role: u.role }))
           });
 
           if (eligibleUsers.length > 0) {
             const userIds = eligibleUsers.map(user => user.id);
             console.log('📤 Sending notifications to user IDs:', userIds);
+            console.log('📤 Full notification recipient details:', eligibleUsers.map(u => ({
+              id: u.id,
+              name: `${u.firstName} ${u.lastName}`,
+              role: u.role,
+              phone: u.phone
+            })));
             
             const notificationResult = await smartNotificationService.sendBulkSmartNotifications(
               userIds,
               {
                 messageType: 'announcement',
-                priority: priority as any,
+                priority: priority as 'emergency' | 'high' | 'normal' | 'low',
                 content: {
                   title: title,
-                  message: content
+                  message: content,
+                  metadata: {
+                    announcementId: announcement.id,
+                    targetAudience: processedAudience,
+                    targetEmployees: processedTargetEmployees,
+                    senderName: `${req.user!.firstName} ${req.user!.lastName}`,
+                    senderRole: req.user!.role
+                  }
                 },
                 targetAudience: processedAudience
               }
@@ -2540,7 +2624,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         announcementId,
         userId,
         reactionType,
-        isFromSMS: false
       });
 
       res.json(reaction);
@@ -2582,7 +2665,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/announcements/:id/responses", isAuthenticated, async (req, res) => {
     try {
       const { id } = req.params;
-      const { content, responseType = 'reply', parentResponseId } = req.body;
+      
+      // Validate response payload
+      const validationResult = {
+        content: req.body.content?.trim(),
+        responseType: req.body.responseType || 'reply',
+        parentResponseId: req.body.parentResponseId
+      };
+      
+      const { content, responseType, parentResponseId } = validationResult;
       const authorId = req.user!.id;
 
       if (!content?.trim()) {
@@ -2606,8 +2697,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         content: content.trim(),
         announcementId,
         responseType,
-        parentResponseId: parentResponseId ? parseInt(parentResponseId) : null,
-        isFromSMS: false
+        parentResponseId: parentResponseId ? parseInt(parentResponseId) : undefined,
       });
 
       console.log(`✅ Created announcement response: ${response.id} for announcement ${announcementId} by user ${authorId}`);
@@ -2682,12 +2772,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
               otherAdminsManagers.map(u => `${u.firstName} ${u.lastName} (${u.id})`));
             
             // Filter for SMS-eligible admins/managers
+            // For announcement responses, admins/managers get SMS if they have basic SMS setup,
+            // regardless of their general announcement notification preferences
             const smsEligibleAdmins = otherAdminsManagers.filter(user => 
               user.phone && 
               user.smsEnabled && 
-              user.smsConsent &&
-              user.smsNotificationTypes && 
-              user.smsNotificationTypes.includes('announcements')
+              user.smsConsent
+              // Note: Removed smsNotificationTypes check for announcement responses
+              // Admins/managers should always get SMS about employee responses
             );
             console.log(`📱 SMS-eligible admins/managers: ${smsEligibleAdmins.length}:`, 
               smsEligibleAdmins.map(u => `${u.firstName} ${u.lastName} (${u.phone}) - SMS: ${u.smsEnabled}, Consent: ${u.smsConsent}, Types: ${u.smsNotificationTypes?.join(',')}`));
@@ -2784,8 +2876,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         content: content.trim(),
         messageId,
         responseType,
-        parentResponseId: parentResponseId ? parseInt(parentResponseId) : null,
-        isFromSMS: false
+        parentResponseId: parentResponseId ? parseInt(parentResponseId) : undefined
       });
 
       console.log(`✅ Created direct message response: ${response.id} for message ${messageId} by user ${authorId}`);
