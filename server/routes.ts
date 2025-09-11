@@ -3031,6 +3031,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 responseType
               });
 
+              // Send SMS notifications to other participants in the direct message conversation
+              try {
+                if (targetMessage && targetMessage.messageType === 'direct_message') {
+                  console.log(`📱 Processing SMS notifications for direct message reply to message ${targetMessage.id}`);
+                  
+                  // Get all participants in this conversation
+                  const participants = await storage.getDirectMessageParticipants(targetMessage.id);
+                  console.log(`👥 Found ${participants.length} participants for message ${targetMessage.id}:`, 
+                    participants.map(p => `${p.firstName} ${p.lastName} (${p.id})`));
+                  
+                  // Get the author (person who just replied)
+                  const authorName = `${user.firstName} ${user.lastName}`;
+                  console.log(`✏️ Reply author: ${authorName} (${user.id})`);
+                  
+                  // Filter out the author first
+                  const otherParticipants = participants.filter(participant => participant.id !== user.id);
+                  console.log(`🚫 After removing author, ${otherParticipants.length} participants remain:`, 
+                    otherParticipants.map(p => `${p.firstName} ${p.lastName} (${p.id})`));
+                  
+                  // Filter for SMS-enabled participants
+                  const smsEligibleParticipants = otherParticipants.filter(participant => 
+                    participant.phone && participant.smsEnabled && participant.smsConsent);
+                  console.log(`📱 SMS-eligible participants: ${smsEligibleParticipants.length}:`, 
+                    smsEligibleParticipants.map(p => `${p.firstName} ${p.lastName} (${p.phone}) - SMS: ${p.smsEnabled}, Consent: ${p.smsConsent}`));
+                  
+                  // Send SMS to all participants except the author
+                  const notificationPromises = smsEligibleParticipants
+                    .map(async (participant) => {
+                      try {
+                        const result = await smsService.sendDirectMessageReplyNotification(
+                          participant.phone!,
+                          authorName,
+                          Body.trim(),
+                          targetMessage.subject || undefined
+                        );
+                        
+                        if (result.success) {
+                          console.log(`📱 SMS sent to ${participant.firstName} ${participant.lastName} (${participant.phone}) about reply from ${authorName}`);
+                        } else {
+                          console.error(`❌ Failed to send SMS to ${participant.firstName} ${participant.lastName}: ${result.error}`);
+                        }
+                        
+                        return result;
+                      } catch (error) {
+                        console.error(`❌ Error sending SMS notification to ${participant.firstName} ${participant.lastName}:`, error);
+                        return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+                      }
+                    });
+
+                  // Wait for all SMS notifications to complete
+                  const smsResults = await Promise.all(notificationPromises);
+                  const successfulSMS = smsResults.filter(result => result.success).length;
+                  const failedSMS = smsResults.filter(result => !result.success).length;
+                  
+                  console.log(`📊 Direct message reply SMS summary: ${successfulSMS} sent, ${failedSMS} failed`);
+                }
+              } catch (smsNotificationError) {
+                console.error('Error sending direct message reply SMS notifications from webhook:', smsNotificationError);
+                // Don't fail the response creation if SMS fails
+              }
+
               // Send confirmation SMS for message response
               try {
                 await smsService.sendSMS({
