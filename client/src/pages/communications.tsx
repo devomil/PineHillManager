@@ -139,6 +139,7 @@ const formatAudience = (audience: string) => {
     case 'watertown-retail': return 'Watertown Retail';
     case 'watertown-spa': return 'Watertown Spa';
     case 'online-team': return 'Online Team';
+    case 'specific': return 'Selected Recipients';  // Handle specific targeting
     default: return audience.charAt(0).toUpperCase() + audience.slice(1);
   }
 };
@@ -166,13 +167,6 @@ const formatMessageAudience = (message: any, employees: any[] = []) => {
     const selectedEmployees = employees?.filter(emp => 
       targetEmployeeIds.includes(emp.id)
     ) || [];
-    
-    console.log('🎯 formatMessageAudience debug:', {
-      messageTitle: message.title,
-      targetEmployeeIds,
-      selectedEmployees: selectedEmployees.map(e => `${e.firstName} ${e.lastName}`),
-      employeesFound: selectedEmployees.length
-    });
     
     if (selectedEmployees.length > 0) {
       if (selectedEmployees.length === 1) {

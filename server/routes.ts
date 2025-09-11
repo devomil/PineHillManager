@@ -1160,18 +1160,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         announcements.map(async (announcement) => {
           const reactions = await storage.getMessageReactions(announcement.id);
           
-          // 🐛 DEBUG: Log announcement data to see if targetEmployees is included
-          if (announcement.title === 'for Ryan Miller') {
-            console.log('🐛 DEBUG - Announcement data:', {
-              id: announcement.id,
-              title: announcement.title,
-              targetAudience: announcement.targetAudience,
-              targetEmployees: announcement.targetEmployees,
-              hasTargetEmployees: announcement.targetEmployees !== undefined,
-              targetEmployeesType: typeof announcement.targetEmployees,
-              targetEmployeesLength: announcement.targetEmployees?.length
-            });
-          }
           
           return {
             ...announcement,
@@ -1196,18 +1184,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         announcements.map(async (announcement) => {
           const reactions = await storage.getMessageReactions(announcement.id);
           
-          // 🐛 DEBUG: Log announcement data for published endpoint too
-          if (announcement.title === 'for Ryan Miller') {
-            console.log('🐛 DEBUG - Published announcement data:', {
-              id: announcement.id,
-              title: announcement.title,
-              targetAudience: announcement.targetAudience,
-              targetEmployees: announcement.targetEmployees,
-              hasTargetEmployees: announcement.targetEmployees !== undefined,
-              targetEmployeesType: typeof announcement.targetEmployees,
-              targetEmployeesLength: announcement.targetEmployees?.length
-            });
-          }
           
           return {
             ...announcement,
