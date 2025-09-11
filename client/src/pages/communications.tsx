@@ -164,6 +164,7 @@ const formatMessageAudience = (message: any, employees: any[] = []) => {
   
   // If specific employees are selected, show their names
   if (targetEmployeeIds.length > 0) {
+
     const selectedEmployees = employees?.filter(emp => 
       targetEmployeeIds.includes(emp.id)
     ) || [];
@@ -1790,7 +1791,7 @@ function CommunicationsContent() {
                             </span>
                             <span className="flex items-center">
                               {getTargetAudienceIcon(announcement.targetAudience)}
-                              <span className="ml-1">{formatAudience(announcement.targetAudience)}</span>
+                              <span className="ml-1">{formatMessageAudience(announcement, employees)}</span>
                             </span>
                           </div>
                           {announcement.expiresAt && (
@@ -1846,7 +1847,7 @@ function CommunicationsContent() {
                               </span>
                               <span className="flex items-center">
                                 {getTargetAudienceIcon(announcement.targetAudience)}
-                                <span className="ml-1">{formatAudience(announcement.targetAudience)}</span>
+                                <span className="ml-1">{formatMessageAudience(announcement, employees)}</span>
                               </span>
                             </div>
                             {announcement.expiresAt && (
