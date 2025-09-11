@@ -931,6 +931,7 @@ function CommunicationsContent() {
           content: data.content,
           priority: data.priority,
           targetAudience: data.targetAudience,
+          targetEmployees: data.targetEmployees,
           smsEnabled: data.smsEnabled,
           action: 'publish'  // Auto-publish announcements for SMS threading
         };
