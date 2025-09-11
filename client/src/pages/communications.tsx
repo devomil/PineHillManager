@@ -992,7 +992,7 @@ function CommunicationsContent() {
         recipientMode: 'individual',
         recipients: data.targetEmployees
       };
-      return apiRequest('POST', '/api/messages', mappedData);
+      return apiRequest('POST', '/api/communications/send', mappedData);
     },
     onSuccess: () => {
       toast({ title: "✅ Direct message sent successfully!" });
