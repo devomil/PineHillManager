@@ -2077,7 +2077,17 @@ export class DatabaseStorage implements IStorage {
     const start = new Date(startDate + 'T00:00:00');
     const end = new Date(endDate + 'T23:59:59');
     
-    let query = db
+    const conditions = [
+      gte(timeClockEntries.clockInTime, start),
+      lte(timeClockEntries.clockInTime, end)
+    ];
+
+    // If userId is provided, filter by specific user
+    if (userId && userId !== 'all') {
+      conditions.push(eq(timeClockEntries.userId, userId));
+    }
+
+    const query = db
       .select({
         id: timeClockEntries.id,
         userId: timeClockEntries.userId,
@@ -2096,17 +2106,7 @@ export class DatabaseStorage implements IStorage {
       })
       .from(timeClockEntries)
       .leftJoin(users, eq(timeClockEntries.userId, users.id))
-      .where(
-        and(
-          gte(timeClockEntries.clockInTime, start),
-          lte(timeClockEntries.clockInTime, end)
-        )
-      );
-
-    // If userId is provided, filter by specific user
-    if (userId && userId !== 'all') {
-      query = query.where(eq(timeClockEntries.userId, userId));
-    }
+      .where(and(...conditions));
 
     return await query.orderBy(desc(timeClockEntries.clockInTime));
   }
@@ -2744,6 +2744,14 @@ export class DatabaseStorage implements IStorage {
       .orderBy(asc(responses.createdAt));
   }
 
+  async getResponseById(id: number): Promise<SelectResponse | undefined> {
+    const [response] = await db
+      .select()
+      .from(responses)
+      .where(eq(responses.id, id));
+    return response;
+  }
+
   async markResponseAsRead(id: number): Promise<SelectResponse> {
     const [updated] = await db
       .update(responses)
@@ -2973,10 +2981,21 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getAllFinancialTransactions(limit?: number, offset?: number): Promise<FinancialTransaction[]> {
-    let query = db.select().from(financialTransactions).orderBy(desc(financialTransactions.transactionDate));
-    if (limit) query = query.limit(limit);
-    if (offset) query = query.offset(offset);
-    return await query;
+    let query = db.select().from(financialTransactions);
+    
+    if (limit && offset) {
+      return await query
+        .orderBy(desc(financialTransactions.transactionDate))
+        .limit(limit)
+        .offset(offset);
+    } else if (limit) {
+      return await query
+        .orderBy(desc(financialTransactions.transactionDate))
+        .limit(limit);
+    } else {
+      return await query
+        .orderBy(desc(financialTransactions.transactionDate));
+    }
   }
 
   async getFinancialTransactionById(id: number): Promise<FinancialTransaction | undefined> {
@@ -3111,17 +3130,21 @@ export class DatabaseStorage implements IStorage {
     return posSale;
   }
   async getAllPosSales(limit?: number, offset?: number): Promise<PosSale[]> {
-    let query = db.select().from(posSales).orderBy(desc(posSales.createdAt));
+    let query = db.select().from(posSales);
     
-    if (limit) {
-      query = query.limit(limit);
+    if (limit && offset) {
+      return await query
+        .orderBy(desc(posSales.createdAt))
+        .limit(limit)
+        .offset(offset);
+    } else if (limit) {
+      return await query
+        .orderBy(desc(posSales.createdAt))
+        .limit(limit);
+    } else {
+      return await query
+        .orderBy(desc(posSales.createdAt));
     }
-    
-    if (offset) {
-      query = query.offset(offset);
-    }
-    
-    return await query;
   }
   async getPosSaleById(id: number): Promise<PosSale | undefined> { return undefined; }
   async getPosSaleByCloverOrderId(cloverOrderId: string): Promise<PosSale | undefined> {
@@ -3174,7 +3197,7 @@ export class DatabaseStorage implements IStorage {
       query = query.limit(limit);
     }
     
-    query = query.orderBy(desc(integrationLogs.createdAt));
+    query = query.orderBy(desc(integrationLogs.timestamp));
     
     return await query;
   }
@@ -3976,66 +3999,6 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async getOrderAnalytics(filters: {
-    startDate?: string;
-    endDate?: string;
-    locationId?: number;
-    groupBy: string;
-  }): Promise<any> {
-    try {
-      const conditions = [];
-
-      if (filters.startDate) {
-        conditions.push(gte(posSales.saleDate, filters.startDate));
-      }
-
-      if (filters.endDate) {
-        conditions.push(lte(posSales.saleDate, filters.endDate));
-      }
-
-      if (filters.locationId) {
-        conditions.push(eq(posSales.locationId, filters.locationId));
-      }
-
-      let groupByColumn;
-      switch (filters.groupBy) {
-        case 'day':
-          groupByColumn = sql`DATE(${posSales.saleDate})`;
-          break;
-        case 'week':
-          groupByColumn = sql`DATE_TRUNC('week', ${posSales.saleDate})`;
-          break;
-        case 'month':
-          groupByColumn = sql`DATE_TRUNC('month', ${posSales.saleDate})`;
-          break;
-        default:
-          groupByColumn = sql`DATE(${posSales.saleDate})`;
-      }
-
-      const analytics = await db.select({
-        period: groupByColumn,
-        totalOrders: sql<number>`COUNT(*)`,
-        totalRevenue: sql<number>`SUM(CAST(${posSales.totalAmount} AS DECIMAL))`,
-        averageOrderValue: sql<number>`AVG(CAST(${posSales.totalAmount} AS DECIMAL))`
-      }).from(posSales)
-      .where(conditions.length > 0 ? and(...conditions) : undefined)
-      .groupBy(groupByColumn)
-      .orderBy(groupByColumn);
-
-      return {
-        analytics,
-        summary: {
-          totalOrders: analytics.reduce((sum, row) => sum + row.totalOrders, 0),
-          totalRevenue: analytics.reduce((sum, row) => sum + row.totalRevenue, 0),
-          averageOrderValue: analytics.length > 0 ? 
-            analytics.reduce((sum, row) => sum + row.totalRevenue, 0) / analytics.reduce((sum, row) => sum + row.totalOrders, 0) : 0
-        }
-      };
-    } catch (error) {
-      console.error('Error fetching order analytics:', error);
-      return { analytics: [], summary: { totalOrders: 0, totalRevenue: 0, averageOrderValue: 0 } };
-    }
-  }
 
   // SMS delivery methods
   async createSMSDelivery(smsDelivery: any): Promise<any> {
@@ -4153,7 +4116,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Read receipts
-  async markMessageAsRead(messageId: number, userId: string): Promise<ReadReceipt> {
+  async createMessageReadReceipt(messageId: number, userId: string): Promise<ReadReceipt> {
     try {
       // Check if read receipt already exists
       const existing = await db.select()
@@ -4297,7 +4260,6 @@ export class DatabaseStorage implements IStorage {
         smsEnabled: messages.smsEnabled,
         senderId: messages.senderId,
         sentAt: messages.sentAt,
-        createdAt: messages.createdAt,
       })
       .from(messages)
       .where(
@@ -4307,7 +4269,7 @@ export class DatabaseStorage implements IStorage {
           sql`${messages.targetAudience} = 'all'`
         )
       )
-      .orderBy(desc(messages.createdAt))
+      .orderBy(desc(messages.sentAt))
       .limit(limit)
       .offset(offset);
 
@@ -4342,7 +4304,7 @@ export class DatabaseStorage implements IStorage {
     return receipt;
   }
 
-  async markMessageAsRead(messageId: number, userId: string): Promise<void> {
+  async updateMessageReadReceipt(messageId: number, userId: string): Promise<void> {
     await db
       .update(readReceipts)
       .set({ readAt: new Date() })
@@ -4701,13 +4663,11 @@ export class DatabaseStorage implements IStorage {
     const [newDelivery] = await db
       .insert(smsDeliveries)
       .values({
-        messageId: delivery.messageId,
+        messageId: parseInt(delivery.messageId),
+        userId: delivery.phoneNumber, // Temporarily store phone in userId field
+        twilioMessageId: delivery.messageId,
         phoneNumber: delivery.phoneNumber,
-        message: delivery.message,
         status: delivery.status,
-        segments: delivery.segments,
-        cost: delivery.cost,
-        priority: delivery.priority,
         errorCode: delivery.errorCode,
         errorMessage: delivery.errorMessage,
         sentAt: delivery.sentAt,
@@ -4733,14 +4693,12 @@ export class DatabaseStorage implements IStorage {
       .insert(communicationEvents)
       .values({
         eventType: event.eventType,
-        source: event.source,
-        messageId: event.messageId,
         userId: event.userId || null,
-        channelId: event.channelId || null,
-        cost: event.cost || null,
-        priority: event.priority || null,
+        messageId: parseInt(event.messageId),
+        channelMessageId: event.channelId || null,
+        eventData: event.metadata || null,
+        source: event.source,
         eventTimestamp: event.eventTimestamp,
-        metadata: event.metadata || null,
       })
       .returning();
     
@@ -4748,7 +4706,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Update SMS delivery status (for webhooks)
-  async updateSMSDeliveryStatus(messageId: string, status: string, errorCode?: string, errorMessage?: string): Promise<void> {
+  async updateSMSDeliveryStatusByMessageId(messageId: string, status: string, errorCode?: string, errorMessage?: string): Promise<void> {
     await db
       .update(smsDeliveries)
       .set({
@@ -4757,7 +4715,7 @@ export class DatabaseStorage implements IStorage {
         errorMessage,
         updatedAt: new Date(),
       })
-      .where(eq(smsDeliveries.messageId, messageId));
+      .where(eq(smsDeliveries.twilioMessageId, messageId));
   }
 
   // Daily analytics aggregation method

@@ -281,6 +281,61 @@ export class SMSService {
   }
 
   /**
+   * Send SMS notification for announcement response
+   */
+  async sendAnnouncementResponseNotification(
+    recipientPhone: string, 
+    senderName: string, 
+    responseContent: string, 
+    announcementTitle?: string,
+    isReplyToResponse: boolean = false,
+    parentResponseAuthor?: string
+  ): Promise<{ success: boolean; messageId?: string; error?: string }> {
+    try {
+      // Truncate response content for SMS if it's too long
+      const truncatedContent = responseContent.length > 100 
+        ? `${responseContent.substring(0, 97)}...` 
+        : responseContent;
+
+      // Format the SMS message based on context
+      let smsMessage: string;
+      
+      if (isReplyToResponse && parentResponseAuthor) {
+        // Response to someone's response
+        smsMessage = `💬 ${senderName} replied to your response`;
+        if (announcementTitle) {
+          smsMessage += ` on "${announcementTitle}"`;
+        }
+        smsMessage += `: "${truncatedContent}"`;
+      } else {
+        // Initial response to announcement
+        smsMessage = `💬 ${senderName} responded to announcement`;
+        if (announcementTitle) {
+          smsMessage += ` "${announcementTitle}"`;
+        }
+        smsMessage += `: "${truncatedContent}"`;
+      }
+
+      // Send the SMS
+      const result = await this.sendSMS({
+        to: recipientPhone,
+        message: smsMessage,
+        priority: 'normal'
+      });
+
+      console.log(`📱 Announcement response SMS sent to ${recipientPhone} from ${senderName}`);
+      return result;
+
+    } catch (error) {
+      console.error('Error sending announcement response SMS:', error);
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Unknown error' 
+      };
+    }
+  }
+
+  /**
    * Format phone number to E.164 format
    */
   private formatPhoneNumber(phone: string): string | null {

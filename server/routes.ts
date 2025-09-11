@@ -2610,6 +2610,128 @@ export async function registerRoutes(app: Express): Promise<Server> {
         isFromSMS: false
       });
 
+      console.log(`✅ Created announcement response: ${response.id} for announcement ${announcementId} by user ${authorId}`);
+
+      // Send SMS notifications for announcement responses
+      try {
+        // Get the original announcement for context
+        const announcement = await storage.getAnnouncementById(announcementId);
+        
+        if (announcement) {
+          console.log(`📱 Processing SMS notifications for announcement response to announcement ${announcementId}`);
+          
+          // Get the author (person who just responded)
+          const author = await storage.getUser(authorId);
+          const authorName = author ? `${author.firstName} ${author.lastName}` : 'Someone';
+          console.log(`✏️ Response author: ${authorName} (${authorId})`);
+          
+          // Check if this is a response to another response (bidirectional logic)
+          if (parentResponseId) {
+            console.log(`🔗 This is a reply to response ID: ${parentResponseId}`);
+            
+            // Get the parent response to find who to notify
+            const parentResponse = await storage.getResponseById(parentResponseId);
+            
+            if (parentResponse) {
+              console.log(`👤 Found parent response by user: ${parentResponse.authorId}`);
+              
+              // Don't notify if replying to yourself
+              if (parentResponse.authorId !== authorId) {
+                const parentAuthor = await storage.getUser(parentResponse.authorId);
+                
+                if (parentAuthor && parentAuthor.phone && parentAuthor.smsEnabled && parentAuthor.smsConsent) {
+                  console.log(`📱 Sending SMS to parent response author: ${parentAuthor.firstName} ${parentAuthor.lastName} (${parentAuthor.phone})`);
+                  
+                  const result = await smsService.sendAnnouncementResponseNotification(
+                    parentAuthor.phone,
+                    authorName,
+                    content.trim(),
+                    announcement.title,
+                    true, // isReplyToResponse
+                    `${parentAuthor.firstName} ${parentAuthor.lastName}`
+                  );
+                  
+                  if (result.success) {
+                    console.log(`📱 SMS sent to ${parentAuthor.firstName} ${parentAuthor.lastName} about reply from ${authorName}`);
+                  } else {
+                    console.error(`❌ Failed to send SMS to ${parentAuthor.firstName} ${parentAuthor.lastName}: ${result.error}`);
+                  }
+                } else {
+                  console.log(`ℹ️ Parent response author ${parentAuthor?.firstName} ${parentAuthor?.lastName} not SMS-eligible: phone=${!!parentAuthor?.phone}, smsEnabled=${parentAuthor?.smsEnabled}, smsConsent=${parentAuthor?.smsConsent}`);
+                }
+              } else {
+                console.log(`ℹ️ Not sending SMS - user replied to their own response`);
+              }
+            } else {
+              console.warn(`⚠️ Parent response ${parentResponseId} not found`);
+            }
+          } else {
+            console.log(`📢 This is an initial response to the announcement, notifying admins/managers`);
+            
+            // Get all admins and managers who should be notified
+            const allUsers = await storage.getAllUsers();
+            const adminsAndManagers = allUsers.filter(user => 
+              user.role === 'admin' || user.role === 'manager'
+            );
+            console.log(`👥 Found ${adminsAndManagers.length} admins/managers:`, 
+              adminsAndManagers.map(u => `${u.firstName} ${u.lastName} (${u.role})`));
+            
+            // Filter out the author first
+            const otherAdminsManagers = adminsAndManagers.filter(user => user.id !== authorId);
+            console.log(`🚫 After removing author, ${otherAdminsManagers.length} admins/managers remain:`, 
+              otherAdminsManagers.map(u => `${u.firstName} ${u.lastName} (${u.id})`));
+            
+            // Filter for SMS-eligible admins/managers
+            const smsEligibleAdmins = otherAdminsManagers.filter(user => 
+              user.phone && 
+              user.smsEnabled && 
+              user.smsConsent &&
+              user.smsNotificationTypes && 
+              user.smsNotificationTypes.includes('announcements')
+            );
+            console.log(`📱 SMS-eligible admins/managers: ${smsEligibleAdmins.length}:`, 
+              smsEligibleAdmins.map(u => `${u.firstName} ${u.lastName} (${u.phone}) - SMS: ${u.smsEnabled}, Consent: ${u.smsConsent}, Types: ${u.smsNotificationTypes?.join(',')}`));
+            
+            // Send SMS to all eligible admins/managers
+            const notificationPromises = smsEligibleAdmins
+              .map(async (admin) => {
+                try {
+                  const result = await smsService.sendAnnouncementResponseNotification(
+                    admin.phone!,
+                    authorName,
+                    content.trim(),
+                    announcement.title,
+                    false // isReplyToResponse
+                  );
+                  
+                  if (result.success) {
+                    console.log(`📱 SMS sent to ${admin.firstName} ${admin.lastName} (${admin.phone}) about response from ${authorName}`);
+                  } else {
+                    console.error(`❌ Failed to send SMS to ${admin.firstName} ${admin.lastName}: ${result.error}`);
+                  }
+                  
+                  return result;
+                } catch (error) {
+                  console.error(`❌ Error sending SMS notification to ${admin.firstName} ${admin.lastName}:`, error);
+                  return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+                }
+              });
+
+            // Wait for all SMS notifications to complete
+            const smsResults = await Promise.all(notificationPromises);
+            const successfulSMS = smsResults.filter(result => result.success).length;
+            const failedSMS = smsResults.filter(result => !result.success).length;
+            
+            console.log(`📊 Announcement response SMS summary: ${successfulSMS} sent, ${failedSMS} failed`);
+          }
+        } else {
+          console.warn(`⚠️ Announcement ${announcementId} not found for SMS notifications`);
+        }
+      } catch (smsError) {
+        console.error('Error sending announcement response SMS notifications:', smsError);
+        // Don't fail the response creation if SMS fails
+      }
+
       res.json(response);
     } catch (error) {
       console.error("Error creating announcement response:", error);
