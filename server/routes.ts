@@ -2678,15 +2678,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           // Get all participants in this conversation
           const participants = await storage.getDirectMessageParticipants(messageId);
+          console.log(`👥 Found ${participants.length} participants for message ${messageId}:`, 
+            participants.map(p => `${p.firstName} ${p.lastName} (${p.id})`));
           
           // Get the author (person who just replied)
           const author = await storage.getUser(authorId);
           const authorName = author ? `${author.firstName} ${author.lastName}` : 'Someone';
+          console.log(`✏️ Reply author: ${authorName} (${authorId})`);
+          
+          // Filter out the author first
+          const otherParticipants = participants.filter(participant => participant.id !== authorId);
+          console.log(`🚫 After removing author, ${otherParticipants.length} participants remain:`, 
+            otherParticipants.map(p => `${p.firstName} ${p.lastName} (${p.id})`));
+          
+          // Filter for SMS-enabled participants
+          const smsEligibleParticipants = otherParticipants.filter(participant => 
+            participant.phone && participant.smsEnabled && participant.smsConsent);
+          console.log(`📱 SMS-eligible participants: ${smsEligibleParticipants.length}:`, 
+            smsEligibleParticipants.map(p => `${p.firstName} ${p.lastName} (${p.phone}) - SMS: ${p.smsEnabled}, Consent: ${p.smsConsent}`));
           
           // Send SMS to all participants except the author
-          const notificationPromises = participants
-            .filter(participant => participant.id !== authorId) // Don't notify the person who just replied
-            .filter(participant => participant.phone && participant.smsEnabled && participant.smsConsent) // Only send to users with SMS enabled and consent
+          const notificationPromises = smsEligibleParticipants
             .map(async (participant) => {
               try {
                 const result = await smsService.sendDirectMessageReplyNotification(
