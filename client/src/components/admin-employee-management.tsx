@@ -173,6 +173,7 @@ export default function AdminEmployeeManagement() {
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<UserType | null>(null);
+  const [financialUpdateTrigger, setFinancialUpdateTrigger] = useState(0);
   const [keepDialogOpen, setKeepDialogOpen] = useState(false);
   const [autoIncrement, setAutoIncrement] = useState(false);
   const [baseEmployeeId, setBaseEmployeeId] = useState("");
@@ -509,6 +510,7 @@ export default function AdminEmployeeManagement() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/employees"] });
       queryClient.invalidateQueries({ queryKey: ["/api/employees", selectedEmployee?.id, "financials"] });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/time-clock/entries'] });
       toast({
         title: "Financial Information Updated",
         description: "Employee financial information has been successfully updated.",
@@ -1699,9 +1701,20 @@ export default function AdminEmployeeManagement() {
                       <td className="py-3 px-4 font-mono">{breakHours}h</td>
                       <td className="py-3 px-4 font-mono">
                         {(() => {
-                          const hourlyRate = parseFloat(entry.hourlyRate || 0);
-                          const cost = hourlyRate * parseFloat(totalHours);
-                          return hourlyRate > 0 ? `$${cost.toFixed(2)}` : "—";
+                          const hourlyRateValue = entry.hourlyRate;
+                          if (!hourlyRateValue || hourlyRateValue === null || hourlyRateValue === undefined) {
+                            return "—";
+                          }
+                          const hourlyRate = parseFloat(hourlyRateValue.toString());
+                          if (isNaN(hourlyRate) || hourlyRate <= 0) {
+                            return "—";
+                          }
+                          const totalHoursNum = parseFloat(totalHours);
+                          if (isNaN(totalHoursNum)) {
+                            return "—";
+                          }
+                          const cost = hourlyRate * totalHoursNum;
+                          return `$${cost.toFixed(2)}`;
                         })()}
                       </td>
                       <td className="py-3 px-4 text-sm text-slate-600 max-w-xs truncate">
@@ -1777,7 +1790,14 @@ export default function AdminEmployeeManagement() {
                   <span className="font-mono font-medium text-green-700">
                     {(() => {
                       const totalCost = timeEntries.reduce((sum: number, entry: any) => {
-                        const hourlyRate = parseFloat(entry.hourlyRate || 0);
+                        const hourlyRateValue = entry.hourlyRate;
+                        if (!hourlyRateValue || hourlyRateValue === null || hourlyRateValue === undefined) {
+                          return sum;
+                        }
+                        const hourlyRate = parseFloat(hourlyRateValue.toString());
+                        if (isNaN(hourlyRate) || hourlyRate <= 0) {
+                          return sum;
+                        }
                         const totalMinutes = entry.totalWorkedMinutes || 0;
                         const hours = totalMinutes / 60;
                         return sum + (hourlyRate * hours);
@@ -1995,8 +2015,8 @@ export default function AdminEmployeeManagement() {
           
           <TabsContent value="compensation" className="space-y-4">
             <div className="space-y-6">
-              {/* Financial Information Form */}
-              <form onSubmit={financialForm.handleSubmit(onFinancialSubmit)} className="space-y-6">
+              {/* Financial Information - Integrated into Main Form */}
+              <div className="space-y-6">
                 <div>
                   <h3 className="text-lg font-medium text-slate-900 mb-4">Financial Information</h3>
                   <div className="grid grid-cols-2 gap-4">
@@ -2118,14 +2138,15 @@ export default function AdminEmployeeManagement() {
                 {/* Save Financial Changes Button */}
                 <div className="flex justify-end">
                   <Button 
-                    type="submit" 
+                    type="button" 
                     disabled={updateFinancialMutation.isPending || financialDataLoading}
                     data-testid="button-save-financial"
+                    onClick={financialForm.handleSubmit(onFinancialSubmit)}
                   >
                     {updateFinancialMutation.isPending ? "Saving..." : "Save Financial Changes"}
                   </Button>
                 </div>
-              </form>
+              </div>
             </div>
           </TabsContent>
           

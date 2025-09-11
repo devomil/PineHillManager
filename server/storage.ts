@@ -2103,6 +2103,7 @@ export class DatabaseStorage implements IStorage {
         firstName: users.firstName,
         lastName: users.lastName,
         email: users.email,
+        hourlyRate: users.hourlyRate,
       })
       .from(timeClockEntries)
       .leftJoin(users, eq(timeClockEntries.userId, users.id))
