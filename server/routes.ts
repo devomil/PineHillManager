@@ -2760,9 +2760,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
               console.warn(`⚠️ Parent response ${parentResponseId} not found`);
             }
           } else {
-            console.log(`📢 This is an initial response to the announcement, notifying admins/managers`);
+            console.log(`📢 This is an initial response to the announcement, notifying announcement author and other admins/managers`);
             
-            // Get all admins and managers who should be notified
+            // First, notify the announcement author (if different from response author and SMS eligible)
+            let notificationTargets = [];
+            
+            if (announcement.authorId && announcement.authorId !== authorId) {
+              const announcementAuthor = await storage.getUser(announcement.authorId);
+              if (announcementAuthor && announcementAuthor.phone && announcementAuthor.smsEnabled && announcementAuthor.smsConsent) {
+                notificationTargets.push(announcementAuthor);
+                console.log(`📢 Added announcement author to notification targets: ${announcementAuthor.firstName} ${announcementAuthor.lastName}`);
+              } else {
+                console.log(`ℹ️ Announcement author ${announcementAuthor?.firstName} ${announcementAuthor?.lastName} not SMS-eligible: phone=${!!announcementAuthor?.phone}, smsEnabled=${announcementAuthor?.smsEnabled}, smsConsent=${announcementAuthor?.smsConsent}`);
+              }
+            }
+            
+            // Then, get all admins and managers who should be notified
             const allUsers = await storage.getAllUsers();
             const adminsAndManagers = allUsers.filter(user => 
               user.role === 'admin' || user.role === 'manager'
@@ -2770,14 +2783,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
             console.log(`👥 Found ${adminsAndManagers.length} admins/managers:`, 
               adminsAndManagers.map(u => `${u.firstName} ${u.lastName} (${u.role})`));
             
-            // Filter out the author first
-            const otherAdminsManagers = adminsAndManagers.filter(user => user.id !== authorId);
-            console.log(`🚫 After removing author, ${otherAdminsManagers.length} admins/managers remain:`, 
+            // Filter out the response author and announcement author (already added above)
+            const otherAdminsManagers = adminsAndManagers.filter(user => 
+              user.id !== authorId && user.id !== announcement.authorId
+            );
+            console.log(`🚫 After removing response author and announcement author, ${otherAdminsManagers.length} admins/managers remain:`, 
               otherAdminsManagers.map(u => `${u.firstName} ${u.lastName} (${u.id})`));
             
-            // Filter for SMS-eligible admins/managers
-            // For announcement responses, admins/managers get SMS if they have basic SMS setup,
-            // regardless of their general announcement notification preferences
+            // Filter for SMS-eligible admins/managers and add them to notification targets
             const smsEligibleAdmins = otherAdminsManagers.filter(user => 
               user.phone && 
               user.smsEnabled && 
@@ -2788,8 +2801,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
             console.log(`📱 SMS-eligible admins/managers: ${smsEligibleAdmins.length}:`, 
               smsEligibleAdmins.map(u => `${u.firstName} ${u.lastName} (${u.phone}) - SMS: ${u.smsEnabled}, Consent: ${u.smsConsent}, Types: ${u.smsNotificationTypes?.join(',')}`));
             
-            // Send SMS to all eligible admins/managers
-            const notificationPromises = smsEligibleAdmins
+            // Combine all notification targets
+            notificationTargets = notificationTargets.concat(smsEligibleAdmins);
+            console.log(`📊 Total notification targets: ${notificationTargets.length}:`, 
+              notificationTargets.map(u => `${u.firstName} ${u.lastName} (${u.phone})`));
+            
+            // Send SMS to all notification targets
+            const notificationPromises = notificationTargets
               .map(async (admin) => {
                 try {
                   const result = await smsService.sendAnnouncementResponseNotification(
