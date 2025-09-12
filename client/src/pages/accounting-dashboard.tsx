@@ -889,7 +889,7 @@ function AccountingContent() {
                 </div>
               </CardHeader>
               <CardContent>
-                {cogsData ? (
+                {cogsData && (Number.parseFloat(cogsData.totalCost ?? '0') > 0 || Number.parseFloat(cogsData.laborCosts ?? '0') > 0 || Number.parseFloat(cogsData.materialCosts ?? '0') > 0) ? (
                   <div className="space-y-6">
                     {/* Main COGS Metrics */}
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -979,25 +979,8 @@ function AccountingContent() {
                 ) : (
                   <div className="text-center py-8">
                     <Package className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                    <p className="text-gray-500 mb-4">No cost data available</p>
-                    <p className="text-sm text-gray-400 mb-4">Ensure employees are clocked in and inventory costs are configured</p>
-                    <div className="flex gap-2 justify-center">
-                      <Button
-                        onClick={() => window.open('/time-clock', '_blank')}
-                        size="sm"
-                        variant="outline"
-                      >
-                        <Clock className="h-4 w-4 mr-2" />
-                        Time Clock
-                      </Button>
-                      <Button
-                        onClick={() => window.open('/inventory', '_blank')}
-                        size="sm"
-                      >
-                        <Package className="h-4 w-4 mr-2" />
-                        Inventory
-                      </Button>
-                    </div>
+                    <p className="text-gray-500 mb-4">No cost data available for today</p>
+                    <p className="text-sm text-gray-400 mb-4">Cost data will appear when there are sales with linked inventory items</p>
                   </div>
                 )}
               </CardContent>
