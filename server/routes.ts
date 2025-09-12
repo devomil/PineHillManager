@@ -3710,6 +3710,66 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Trigger sync immediately
   setTimeout(syncSeptemberData, 2000);
 
+  // Sync inventory costs from Clover using enhanced inventory endpoints
+  app.post('/api/accounting/sync-inventory', isAuthenticated, async (req, res) => {
+    try {
+      console.log('🔄 Starting manual inventory sync across all Clover locations...');
+      
+      const allCloverConfigs = await storage.getAllCloverConfigs();
+      const activeConfigs = allCloverConfigs.filter(config => config.isActive);
+
+      if (activeConfigs.length === 0) {
+        return res.status(400).json({ message: 'No active Clover configurations found' });
+      }
+
+      console.log(`📍 Found ${activeConfigs.length} active Clover locations for inventory sync`);
+
+      const syncResults = [];
+      
+      for (const config of activeConfigs) {
+        try {
+          const { CloverIntegration } = await import('./integrations/clover');
+          const cloverIntegration = new CloverIntegration(config);
+          
+          console.log(`🔄 Syncing inventory for ${config.merchantName}...`);
+          await cloverIntegration.syncInventoryItems();
+          
+          syncResults.push({
+            merchant: config.merchantName,
+            status: 'success',
+            message: 'Inventory synced successfully'
+          });
+          
+          console.log(`✅ Inventory sync completed for ${config.merchantName}`);
+          
+        } catch (error) {
+          console.error(`❌ Error syncing inventory for ${config.merchantName}:`, error);
+          
+          syncResults.push({
+            merchant: config.merchantName,
+            status: 'error',
+            message: error instanceof Error ? error.message : 'Unknown error'
+          });
+        }
+      }
+
+      console.log(`🔄 Inventory sync completed for all locations`);
+      
+      res.json({
+        message: 'Inventory sync completed',
+        results: syncResults,
+        totalLocations: activeConfigs.length
+      });
+
+    } catch (error) {
+      console.error('Error in inventory sync:', error);
+      res.status(500).json({ 
+        message: 'Failed to sync inventory', 
+        details: error instanceof Error ? error.message : 'Unknown error' 
+      });
+    }
+  });
+
   // Sync sales data from Clover to enable cost calculations
   app.post('/api/accounting/sync-sales', isAuthenticated, async (req, res) => {
     try {
@@ -3861,14 +3921,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
             try {
               const { CloverIntegration } = await import('./integrations/clover');
               const cloverIntegration = new CloverIntegration(config);
-              console.log(`🔄 Auto-syncing September 2025 for ${config.merchantName}...`);
-              await cloverIntegration.syncOrders({ 
-                startDate: '2025-09-01',
-                endDate: '2025-09-30' 
-              });
-              console.log(`✅ Auto-sync complete for ${config.merchantName}`);
+              
+              console.log(`🔄 Auto-syncing inventory costs for ${config.merchantName}...`);
+              await cloverIntegration.syncInventoryItems();
+              console.log(`✅ Inventory sync complete for ${config.merchantName}`);
             } catch (error) {
-              console.error(`❌ Auto-sync failed for ${config.merchantName}:`, error);
+              console.error(`❌ Inventory sync failed for ${config.merchantName}:`, error);
             }
           });
           

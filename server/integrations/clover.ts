@@ -211,7 +211,90 @@ export class CloverIntegration {
     return await this.makeCloverAPICall(endpoint);
   }
 
-  // Sync inventory items with cost data to database
+  // Get inventory items using dedicated inventory endpoints (more accurate cost data)
+  async fetchInventoryItems(options: {
+    limit?: number;
+    offset?: number;
+  } = {}): Promise<{ elements: any[]; href?: string }> {
+    const params = new URLSearchParams();
+    
+    if (options.limit) params.append('limit', options.limit.toString());
+    if (options.offset) params.append('offset', options.offset.toString());
+    
+    const queryString = params.toString();
+    const endpoint = queryString ? `inventory/items?${queryString}` : 'inventory/items';
+    
+    console.log(`📦 Fetching inventory items from: ${endpoint}`);
+    return await this.makeCloverAPICallWithConfig(endpoint, this.config);
+  }
+
+  // Get inventory item stocks for cost tracking
+  async fetchInventoryItemStocks(itemId: string): Promise<any> {
+    console.log(`📊 Fetching stock data for item: ${itemId}`);
+    return await this.makeCloverAPICallWithConfig(`inventory/items/${itemId}/stock`, this.config);
+  }
+
+  // Get all inventory items with their stock data using proper inventory endpoints  
+  async fetchAllInventoryItemsWithStocks(): Promise<any[]> {
+    const inventoryItems = [];
+    let offset = 0;
+    const limit = 100;
+    let hasMoreData = true;
+
+    console.log(`🔄 Using Clover Inventory API endpoints for accurate cost data...`);
+
+    while (hasMoreData) {
+      console.log(`📦 Fetching inventory items: offset=${offset}, limit=${limit}`);
+      
+      try {
+        const itemsResponse = await this.fetchInventoryItems({ limit, offset });
+        
+        if (!itemsResponse || !itemsResponse.elements || itemsResponse.elements.length === 0) {
+          hasMoreData = false;
+          break;
+        }
+
+        // Fetch stock data for each item to get accurate costs
+        for (const item of itemsResponse.elements) {
+          try {
+            const stockData = await this.fetchInventoryItemStocks(item.id);
+            item.stockInfo = stockData;
+            
+            const cost = stockData?.cost ? (parseFloat(stockData.cost) / 100).toFixed(2) : '0.00';
+            const stock = stockData?.quantity || 0;
+            
+            console.log(`📊 Item ${item.name}: Cost=$${cost}, Stock=${stock}`);
+          } catch (error) {
+            console.warn(`⚠️ Could not fetch stock data for item ${item.id}:`, error);
+            item.stockInfo = null;
+          }
+          
+          // Rate limiting between stock requests
+          await new Promise(resolve => setTimeout(resolve, 50));
+        }
+
+        inventoryItems.push(...itemsResponse.elements);
+        console.log(`✅ Fetched ${itemsResponse.elements.length} inventory items, total so far: ${inventoryItems.length}`);
+
+        if (itemsResponse.elements.length < limit) {
+          hasMoreData = false;
+        } else {
+          offset += limit;
+        }
+      } catch (error) {
+        console.error(`❌ Error fetching inventory batch at offset ${offset}:`, error);
+        hasMoreData = false;
+      }
+
+      // Rate limiting between batches
+      await new Promise(resolve => setTimeout(resolve, 200));
+    }
+
+    console.log(`🔄 Total inventory items fetched with cost data: ${inventoryItems.length}`);
+    return inventoryItems;
+  }
+
+  // Sync inventory items with cost data to database (Enhanced with inventory endpoints)
   async syncInventoryItems(config?: any): Promise<void> {
     try {
       console.log(`🏪 Starting inventory sync for merchant ${this.config.merchantId}`);
@@ -220,39 +303,14 @@ export class CloverIntegration {
         system: 'clover',
         operation: 'sync_inventory',
         status: 'in_progress',
-        message: `Starting inventory sync for merchant ${this.config.merchantId}`
+        message: `Starting enhanced inventory sync with cost data for merchant ${this.config.merchantId}`
       });
 
-      // Fetch all inventory items with cost data
-      let allItems = [];
-      let offset = 0;
-      const limit = 1000;
-      let hasMoreData = true;
+      // Use enhanced inventory endpoints for accurate cost data
+      console.log(`🔄 Using Clover Inventory API (not basic items) for accurate COGS data...`);
+      const allItems = await this.fetchAllInventoryItemsWithStocks();
 
-      while (hasMoreData) {
-        console.log(`📦 Fetching items batch: offset=${offset}, limit=${limit}`);
-        
-        const itemsResponse = await this.makeCloverAPICall(`items?limit=${limit}&offset=${offset}`);
-        
-        if (!itemsResponse || !itemsResponse.elements || itemsResponse.elements.length === 0) {
-          hasMoreData = false;
-          break;
-        }
-
-        allItems.push(...itemsResponse.elements);
-        console.log(`Fetched ${itemsResponse.elements.length} items, total so far: ${allItems.length}`);
-
-        if (itemsResponse.elements.length < limit) {
-          hasMoreData = false;
-        } else {
-          offset += limit;
-        }
-
-        // Rate limiting
-        await new Promise(resolve => setTimeout(resolve, 100));
-      }
-
-      console.log(`📦 Total items fetched: ${allItems.length}`);
+      console.log(`📦 Total items fetched with cost data: ${allItems.length}`);
 
       let syncedCount = 0;
       let updatedCount = 0;
@@ -263,14 +321,20 @@ export class CloverIntegration {
           const existingItems = await storage.getInventoryItemsBySKU(item.id);
           const existingItem = existingItems.length > 0 ? existingItems[0] : null;
 
+          // Use stock info for accurate cost data (from inventory/items/{id}/stock endpoint)
+          const stockInfo = item.stockInfo;
+          const accurateCost = stockInfo?.cost ? (parseFloat(stockInfo.cost) / 100).toString() : 
+                              item.cost ? (parseFloat(item.cost) / 100).toString() : '0.00';
+          const stockQuantity = stockInfo?.quantity || item.stockCount || 0;
+
           const itemData = {
             sku: item.id,
             itemName: item.name,
             description: item.description || '',
             category: item.categories?.elements?.[0]?.name || 'Uncategorized',
-            unitCost: item.cost ? (parseFloat(item.cost) / 100).toString() : '0.00',
+            unitCost: accurateCost,  // 👈 Enhanced cost from inventory endpoints
             unitPrice: item.price ? (parseFloat(item.price) / 100).toString() : '0.00',
-            quantityOnHand: item.stockCount ? item.stockCount.toString() : '0.000',
+            quantityOnHand: stockQuantity.toString(),
             isActive: !item.hidden,
             lastSyncAt: new Date()
           };
@@ -279,15 +343,15 @@ export class CloverIntegration {
             // Update existing item
             await storage.updateInventoryItem(existingItem.id, itemData);
             updatedCount++;
-            console.log(`Updated item: ${item.name} (Cost: $${itemData.unitCost})`);
+            console.log(`✅ Updated item: ${item.name} (Enhanced Cost: $${itemData.unitCost})`);
           } else {
             // Create new item
             await storage.createInventoryItem(itemData);
             syncedCount++;
-            console.log(`Created item: ${item.name} (Cost: $${itemData.unitCost})`);
+            console.log(`✅ Created item: ${item.name} (Enhanced Cost: $${itemData.unitCost})`);
           }
         } catch (itemError) {
-          console.error(`Error processing item ${item.id}:`, itemError);
+          console.error(`❌ Error processing item ${item.id}:`, itemError);
         }
       }
 
