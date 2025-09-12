@@ -824,7 +824,7 @@ function AccountingContent() {
                   <TrendingUp className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">${multiLocationData?.totalSummary?.totalRevenue || cogsData?.totalRevenue || profitLoss?.totalRevenue || '0.00'}</div>
+                  <div className="text-2xl font-bold">${multiLocationData?.totalSummary?.totalRevenue || (cogsData as any)?.totalRevenue || (profitLoss as any)?.totalRevenue || '0.00'}</div>
                   <p className="text-xs text-muted-foreground">Today</p>
                 </CardContent>
               </Card>
@@ -835,7 +835,7 @@ function AccountingContent() {
                   <DollarSign className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">${profitLoss?.totalExpenses || cogsData?.totalExpenses || '0.00'}</div>
+                  <div className="text-2xl font-bold">${(profitLoss as any)?.totalExpenses || (cogsData as any)?.totalExpenses || '0.00'}</div>
                   <p className="text-xs text-muted-foreground">Today</p>
                 </CardContent>
               </Card>
@@ -943,13 +943,13 @@ function AccountingContent() {
                           )}
 
                           {/* Other Costs Breakdown */}
-                          {Number.parseFloat(cogsData.breakdown?.other ?? '0') > 0 && (
+                          {Number.parseFloat((cogsData as any).breakdown?.other ?? '0') > 0 && (
                             <div className="space-y-3">
                               <div className="flex items-center gap-2">
                                 <Calculator className="h-4 w-4 text-purple-600" />
                                 <h4 className="font-semibold text-purple-600">Other Costs</h4>
                               </div>
-                              <div className="text-lg font-bold text-purple-600">${(Number.parseFloat(cogsData.breakdown.other) || 0).toFixed(2)}</div>
+                              <div className="text-lg font-bold text-purple-600">${(Number.parseFloat((cogsData as any).breakdown.other) || 0).toFixed(2)}</div>
                               <div className="text-xs text-muted-foreground">
                                 Additional production and overhead costs
                               </div>
@@ -963,8 +963,8 @@ function AccountingContent() {
                     <div className="border-t pt-4">
                       <div className="flex justify-between items-center text-sm">
                         <div className="flex items-center gap-4">
-                          <span className="text-muted-foreground">Cost Period: <span className="font-medium">{cogsData.period || 'Current'}</span></span>
-                          {cogsData.currency && (
+                          <span className="text-muted-foreground">Cost Period: <span className="font-medium">{(cogsData as any).period || 'Current'}</span></span>
+                          {(cogsData as any).currency && (
                             <span className="px-2 py-1 rounded text-xs bg-blue-100 text-blue-800">
                               Currency: {cogsData.currency}
                             </span>
@@ -1111,7 +1111,7 @@ function AccountingContent() {
                         </div>
                         <div className="flex justify-between">
                           <span className="text-sm text-gray-600">Cost of Goods:</span>
-                          <span className="font-bold text-orange-600">${monthlyCogsData?.totalCost || monthlyProfitLoss?.totalCOGS || '0.00'}</span>
+                          <span className="font-bold text-orange-600">${(monthlyCogsData as any)?.totalCost || (monthlyProfitLoss as any)?.totalCOGS || '0.00'}</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-sm text-gray-600">Expenses:</span>
@@ -1119,11 +1119,11 @@ function AccountingContent() {
                         </div>
                         <div className="flex justify-between border-t pt-2">
                           <span className="text-sm font-medium">Gross Profit:</span>
-                          <span className="font-bold text-blue-600">${monthlyCogsData?.grossProfit || monthlyProfitLoss?.grossProfit || '0.00'}</span>
+                          <span className="font-bold text-blue-600">${(monthlyCogsData as any)?.grossProfit || (monthlyProfitLoss as any)?.grossProfit || '0.00'}</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-sm font-medium">Gross Margin:</span>
-                          <span className="font-bold text-blue-600">{monthlyCogsData?.grossMargin || '0.0'}%</span>
+                          <span className="font-bold text-blue-600">{(monthlyCogsData as any)?.grossMargin || '0.0'}%</span>
                         </div>
                       </div>
                     </CardContent>
@@ -1149,7 +1149,7 @@ function AccountingContent() {
                         </div>
                         <div className="flex justify-between text-sm">
                           <span className="text-gray-600">Today:</span>
-                          <span className="font-medium text-green-600">${cogsData?.totalRevenue || profitLoss?.totalRevenue || '0.00'}</span>
+                          <span className="font-medium text-green-600">${(cogsData as any)?.totalRevenue || (profitLoss as any)?.totalRevenue || '0.00'}</span>
                         </div>
                       </div>
                     </CardContent>
@@ -1238,19 +1238,19 @@ function AccountingContent() {
                         <div className="flex items-center justify-between">
                           <span className="text-sm font-medium">Profit Goal</span>
                           <span className="text-sm text-gray-600 dark:text-gray-400">
-                            ${monthlyCogsData ? parseFloat(monthlyCogsData.grossProfit).toLocaleString() : '0'} / ${monthlyGoals.profit.toLocaleString()}
+                            ${monthlyCogsData ? parseFloat((monthlyCogsData as any).grossProfit).toLocaleString() : '0'} / ${monthlyGoals.profit.toLocaleString()}
                           </span>
                         </div>
                         <div className="relative">
                           <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-4 overflow-hidden">
                             <div 
                               className={`h-full rounded-full transition-all duration-500 ease-out ${
-                                monthlyCogsData && (parseFloat(monthlyCogsData.grossProfit) / monthlyGoals.profit) >= 1.0 ? 'bg-gradient-to-r from-green-500 to-green-600' :
-                                monthlyCogsData && (parseFloat(monthlyCogsData.grossProfit) / monthlyGoals.profit) >= 0.8 ? 'bg-gradient-to-r from-yellow-400 to-yellow-500' :
-                                monthlyCogsData && (parseFloat(monthlyCogsData.grossProfit) / monthlyGoals.profit) >= 0.5 ? 'bg-gradient-to-r from-blue-400 to-blue-500' :
+                                monthlyCogsData && (parseFloat((monthlyCogsData as any).grossProfit) / monthlyGoals.profit) >= 1.0 ? 'bg-gradient-to-r from-green-500 to-green-600' :
+                                monthlyCogsData && (parseFloat((monthlyCogsData as any).grossProfit) / monthlyGoals.profit) >= 0.8 ? 'bg-gradient-to-r from-yellow-400 to-yellow-500' :
+                                monthlyCogsData && (parseFloat((monthlyCogsData as any).grossProfit) / monthlyGoals.profit) >= 0.5 ? 'bg-gradient-to-r from-blue-400 to-blue-500' :
                                 'bg-gradient-to-r from-red-400 to-red-500'
                               }`}
-                              style={{ width: `${Math.min(100, monthlyCogsData ? (parseFloat(monthlyCogsData.grossProfit) / monthlyGoals.profit) * 100 : 0)}%` }}
+                              style={{ width: `${Math.min(100, monthlyCogsData ? (parseFloat((monthlyCogsData as any).grossProfit) / monthlyGoals.profit) * 100 : 0)}%` }}
                             />
                           </div>
                           <div className="absolute inset-0 flex items-center justify-center">
@@ -1268,9 +1268,9 @@ function AccountingContent() {
                             <AlertTriangle className="h-4 w-4 text-red-600" />
                           )}
                           <span className="text-xs">
-                            {monthlyCogsData && parseFloat(monthlyCogsData.grossProfit) >= monthlyGoals.profit 
+                            {monthlyCogsData && parseFloat((monthlyCogsData as any).grossProfit) >= monthlyGoals.profit 
                               ? 'Goal Achieved!' 
-                              : `${monthlyCogsData ? ((parseFloat(monthlyCogsData.grossProfit) / monthlyGoals.profit) * 100).toFixed(1) : '0.0'}% Complete`}
+                              : `${monthlyCogsData ? ((parseFloat((monthlyCogsData as any).grossProfit) / monthlyGoals.profit) * 100).toFixed(1) : '0.0'}% Complete`}
                           </span>
                         </div>
                       </div>
@@ -1280,29 +1280,29 @@ function AccountingContent() {
                         <div className="flex items-center justify-between">
                           <span className="text-sm font-medium">Profit Margin</span>
                           <span className="text-sm text-gray-600 dark:text-gray-400">
-                            {monthlyCogsData ? parseFloat(monthlyCogsData.grossMargin).toFixed(1) : '0.0'}% / {monthlyGoals.profitMargin}%
+                            {monthlyCogsData ? parseFloat((monthlyCogsData as any).grossMargin).toFixed(1) : '0.0'}% / {monthlyGoals.profitMargin}%
                           </span>
                         </div>
                         <div className="relative">
                           <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-4 overflow-hidden">
                             <div 
                               className={`h-full rounded-full transition-all duration-500 ease-out ${
-                                monthlyCogsData && (parseFloat(monthlyCogsData.grossMargin) / monthlyGoals.profitMargin) >= 1.0 ? 'bg-gradient-to-r from-green-500 to-green-600' :
-                                monthlyCogsData && (parseFloat(monthlyCogsData.grossMargin) / monthlyGoals.profitMargin) >= 0.8 ? 'bg-gradient-to-r from-yellow-400 to-yellow-500' :
-                                monthlyCogsData && (parseFloat(monthlyCogsData.grossMargin) / monthlyGoals.profitMargin) >= 0.5 ? 'bg-gradient-to-r from-blue-400 to-blue-500' :
+                                monthlyCogsData && (parseFloat((monthlyCogsData as any).grossMargin) / monthlyGoals.profitMargin) >= 1.0 ? 'bg-gradient-to-r from-green-500 to-green-600' :
+                                monthlyCogsData && (parseFloat((monthlyCogsData as any).grossMargin) / monthlyGoals.profitMargin) >= 0.8 ? 'bg-gradient-to-r from-yellow-400 to-yellow-500' :
+                                monthlyCogsData && (parseFloat((monthlyCogsData as any).grossMargin) / monthlyGoals.profitMargin) >= 0.5 ? 'bg-gradient-to-r from-blue-400 to-blue-500' :
                                 'bg-gradient-to-r from-red-400 to-red-500'
                               }`}
-                              style={{ width: `${Math.min(100, monthlyCogsData ? (parseFloat(monthlyCogsData.grossMargin) / monthlyGoals.profitMargin) * 100 : 0)}%` }}
+                              style={{ width: `${Math.min(100, monthlyCogsData ? (parseFloat((monthlyCogsData as any).grossMargin) / monthlyGoals.profitMargin) * 100 : 0)}%` }}
                             />
                           </div>
                           <div className="absolute inset-0 flex items-center justify-center">
                             <span className="text-xs font-semibold text-white drop-shadow">
-                              {monthlyCogsData ? parseFloat(monthlyCogsData.grossMargin).toFixed(1) : '0.0'}%
+                              {monthlyCogsData ? parseFloat((monthlyCogsData as any).grossMargin).toFixed(1) : '0.0'}%
                             </span>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          {monthlyCogsData && parseFloat(monthlyCogsData.grossMargin) >= monthlyGoals.profitMargin ? (
+                          {monthlyCogsData && parseFloat((monthlyCogsData as any).grossMargin) >= monthlyGoals.profitMargin ? (
                             <CheckCircle2 className="h-4 w-4 text-green-600 animate-pulse" />
                           ) : monthlyCogsData && parseFloat(monthlyCogsData.grossMargin) >= monthlyGoals.profitMargin * 0.8 ? (
                             <TrendingUp className="h-4 w-4 text-yellow-600 animate-bounce" />
@@ -1375,7 +1375,7 @@ function AccountingContent() {
                                 <div className="text-xs text-gray-500">{new Date().toLocaleDateString('en-US', { weekday: 'long' })}</div>
                               </div>
                               <div className="text-right">
-                                <div className="font-bold text-orange-600">${cogsData?.totalRevenue || profitLoss?.totalRevenue || '0.00'}</div>
+                                <div className="font-bold text-orange-600">${(cogsData as any)?.totalRevenue || (profitLoss as any)?.totalRevenue || '0.00'}</div>
                                 <div className="text-xs text-blue-600">current</div>
                               </div>
                             </div>
@@ -1427,7 +1427,7 @@ function AccountingContent() {
                                 <span className="text-sm">Total Expenses</span>
                               </div>
                               <div className="text-right">
-                                <div className="font-bold">${biMetrics.monthlyExpenses?.toFixed(2) || '0.00'}</div>
+                                <div className="font-bold">${biMetrics?.monthlyExpenses?.toFixed(2) || '0.00'}</div>
                                 <div className="text-xs text-gray-500">MTD</div>
                               </div>
                             </div>
@@ -1437,7 +1437,7 @@ function AccountingContent() {
                                 <span className="text-sm">Daily Avg</span>
                               </div>
                               <div className="text-right">
-                                <div className="font-bold">${(biMetrics.monthlyExpenses / biMetrics.daysElapsed)?.toFixed(2) || '0.00'}</div>
+                                <div className="font-bold">${(biMetrics?.monthlyExpenses && biMetrics?.daysElapsed ? biMetrics.monthlyExpenses / biMetrics.daysElapsed : 0)?.toFixed(2) || '0.00'}</div>
                                 <div className="text-xs text-gray-500">per day</div>
                               </div>
                             </div>
@@ -1447,8 +1447,8 @@ function AccountingContent() {
                                 <span className="text-sm">Net Profit</span>
                               </div>
                               <div className="text-right">
-                                <div className="font-bold">${(biMetrics.monthlyRevenue - biMetrics.monthlyExpenses)?.toFixed(2) || '0.00'}</div>
-                                <div className="text-xs text-green-600">{biMetrics.profitMargin?.toFixed(1)}%</div>
+                                <div className="font-bold">${(biMetrics?.monthlyRevenue && biMetrics?.monthlyExpenses ? biMetrics.monthlyRevenue - biMetrics.monthlyExpenses : 0)?.toFixed(2) || '0.00'}</div>
+                                <div className="text-xs text-green-600">{biMetrics?.profitMargin?.toFixed(1)}%</div>
                               </div>
                             </div>
                             <div className="text-center pt-2 text-xs text-gray-500 border-t">
@@ -2056,7 +2056,7 @@ function QuickExpenseDialog({
 
   // Get recent categories from localStorage
   const recentCategories = JSON.parse(localStorage.getItem('recent_expense_categories') || '[]');
-  const suggestedCategories = [...new Set([...recentCategories, ...EXPENSE_CATEGORIES])];
+  const suggestedCategories = Array.from(new Set([...recentCategories, ...EXPENSE_CATEGORIES]));
 
   // Quick expense mutation
   const quickExpenseMutation = useMutation({
