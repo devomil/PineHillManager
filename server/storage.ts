@@ -51,6 +51,11 @@ import {
   messageReactions,
   announcementReactions,
   smsConsentHistory,
+  // Monthly Accounting Archival Tables
+  monthlyClosings,
+  monthlyAccountBalances,
+  monthlyTransactionSummaries,
+  monthlyResetHistory,
   type User,
   type UpsertUser,
   type SMSConsentHistory,
@@ -178,6 +183,15 @@ import {
   type AutomationRule,
   type InsertAutomationRule,
   type UpdateAutomationRule,
+  // Monthly Accounting Archival Types
+  type MonthlyClosure,
+  type InsertMonthlyClosure,
+  type MonthlyAccountBalance,
+  type InsertMonthlyAccountBalance,
+  type MonthlyTransactionSummary,
+  type InsertMonthlyTransactionSummary,
+  type MonthlyResetHistory,
+  type InsertMonthlyResetHistory,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, asc, gte, lte, or, sql, like, isNull, isNotNull } from "drizzle-orm";
@@ -512,6 +526,44 @@ export interface IStorage {
   getCashFlow(startDate: string, endDate: string): Promise<{ cashIn: string; cashOut: string; netCash: string }>;
   getSalesSummary(startDate: string, endDate: string, locationId?: number): Promise<{ totalSales: string; totalTax: string; totalTips: string; transactionCount: number }>;
   getInventoryValuation(): Promise<{ totalCost: string; totalRetail: string; itemCount: number }>;
+
+  // Monthly Accounting Archival Operations
+  createMonthlyClosing(closing: InsertMonthlyClosure): Promise<MonthlyClosure>;
+  getMonthlyClosing(year: number, month: number): Promise<MonthlyClosure | undefined>;
+  getAllMonthlyClosings(): Promise<MonthlyClosure[]>;
+  getMonthlyClosingsInDateRange(startYear: number, startMonth: number, endYear: number, endMonth: number): Promise<MonthlyClosure[]>;
+  reopenMonth(year: number, month: number, reopenedBy: string): Promise<MonthlyClosure>;
+  
+  createMonthlyAccountBalance(balance: InsertMonthlyAccountBalance): Promise<MonthlyAccountBalance>;
+  getMonthlyAccountBalances(monthlyClosingId: number): Promise<MonthlyAccountBalance[]>;
+  getAccountBalanceHistory(accountId: number): Promise<MonthlyAccountBalance[]>;
+  
+  createMonthlyTransactionSummary(summary: InsertMonthlyTransactionSummary): Promise<MonthlyTransactionSummary>;
+  getMonthlyTransactionSummaries(monthlyClosingId: number): Promise<MonthlyTransactionSummary[]>;
+  getTransactionSummaryHistory(accountId: number): Promise<MonthlyTransactionSummary[]>;
+  
+  createMonthlyResetHistory(reset: InsertMonthlyResetHistory): Promise<MonthlyResetHistory>;
+  getMonthlyResetHistory(): Promise<MonthlyResetHistory[]>;
+  getResetHistoryForMonth(year: number, month: number): Promise<MonthlyResetHistory[]>;
+  
+  // Monthly Closing Operations
+  performMonthlyClosing(year: number, month: number, closedBy: string, notes?: string): Promise<MonthlyClosure>;
+  calculateMonthlyAccountBalances(year: number, month: number): Promise<{ accountId: number; openingBalance: string; closingBalance: string; totalDebits: string; totalCredits: string; transactionCount: number }[]>;
+  calculateMonthlyTransactionSummaries(year: number, month: number): Promise<{ accountId: number; sourceSystem: string; transactionCount: number; totalAmount: string; totalDebits: string; totalCredits: string; averageAmount: string }[]>;
+  
+  // Monthly Reset Operations
+  performMonthlyReset(year: number, month: number, resetBy: string, resetType: 'manual' | 'automated' | 'rollover', reason?: string, notes?: string): Promise<MonthlyResetHistory>;
+  rollForwardAccountBalances(fromYear: number, fromMonth: number, toYear: number, toMonth: number): Promise<void>;
+  
+  // Historical Data Access
+  getHistoricalFinancialData(year: number, month: number): Promise<{ accounts: FinancialAccount[]; transactions: FinancialTransaction[]; summary: MonthlyClosure | undefined }>;
+  getHistoricalProfitLoss(year: number, month: number): Promise<{ revenue: string; expenses: string; netIncome: string }>;
+  getHistoricalAccountBalances(year: number, month: number): Promise<MonthlyAccountBalance[]>;
+  
+  // Current Month Operations
+  getCurrentMonthTransactions(): Promise<FinancialTransaction[]>;
+  isMonthClosed(year: number, month: number): Promise<boolean>;
+  getOpeningBalancesForCurrentMonth(): Promise<{ accountId: number; openingBalance: string }[]>;
 
   // QR Code operations
   createQrCode(qrCodeData: InsertQrCode & { qrCodeData: string }): Promise<QrCode>;
@@ -5244,6 +5296,392 @@ export class DatabaseStorage implements IStorage {
     });
 
     return updatedUser;
+  }
+
+  // ============================================
+  // MONTHLY ACCOUNTING ARCHIVAL IMPLEMENTATIONS
+  // ============================================
+
+  // Monthly Closing Operations
+  async createMonthlyClosing(closing: InsertMonthlyClosure): Promise<MonthlyClosure> {
+    const [result] = await db.insert(monthlyClosings).values(closing).returning();
+    return result;
+  }
+
+  async getMonthlyClosing(year: number, month: number): Promise<MonthlyClosure | undefined> {
+    const [result] = await db
+      .select()
+      .from(monthlyClosings)
+      .where(and(
+        eq(monthlyClosings.year, year),
+        eq(monthlyClosings.month, month)
+      ))
+      .limit(1);
+    return result;
+  }
+
+  async getAllMonthlyClosings(): Promise<MonthlyClosure[]> {
+    return await db
+      .select()
+      .from(monthlyClosings)
+      .orderBy(desc(monthlyClosings.year), desc(monthlyClosings.month));
+  }
+
+  async getMonthlyClosingsInDateRange(startYear: number, startMonth: number, endYear: number, endMonth: number): Promise<MonthlyClosure[]> {
+    return await db
+      .select()
+      .from(monthlyClosings)
+      .where(
+        or(
+          and(eq(monthlyClosings.year, startYear), gte(monthlyClosings.month, startMonth)),
+          and(eq(monthlyClosings.year, endYear), lte(monthlyClosings.month, endMonth)),
+          and(gte(monthlyClosings.year, startYear + 1), lte(monthlyClosings.year, endYear - 1))
+        )
+      )
+      .orderBy(desc(monthlyClosings.year), desc(monthlyClosings.month));
+  }
+
+  async reopenMonth(year: number, month: number, reopenedBy: string): Promise<MonthlyClosure> {
+    const [result] = await db
+      .update(monthlyClosings)
+      .set({ 
+        status: 'reopened',
+        reopenedBy,
+        reopenedAt: new Date(),
+        updatedAt: new Date()
+      })
+      .where(and(
+        eq(monthlyClosings.year, year),
+        eq(monthlyClosings.month, month)
+      ))
+      .returning();
+    return result;
+  }
+
+  // Monthly Account Balance Operations
+  async createMonthlyAccountBalance(balance: InsertMonthlyAccountBalance): Promise<MonthlyAccountBalance> {
+    const [result] = await db.insert(monthlyAccountBalances).values(balance).returning();
+    return result;
+  }
+
+  async getMonthlyAccountBalances(monthlyClosingId: number): Promise<MonthlyAccountBalance[]> {
+    return await db
+      .select()
+      .from(monthlyAccountBalances)
+      .where(eq(monthlyAccountBalances.monthlyClosingId, monthlyClosingId))
+      .orderBy(monthlyAccountBalances.accountId);
+  }
+
+  async getAccountBalanceHistory(accountId: number): Promise<MonthlyAccountBalance[]> {
+    return await db
+      .select()
+      .from(monthlyAccountBalances)
+      .where(eq(monthlyAccountBalances.accountId, accountId))
+      .orderBy(desc(monthlyAccountBalances.createdAt));
+  }
+
+  // Monthly Transaction Summary Operations
+  async createMonthlyTransactionSummary(summary: InsertMonthlyTransactionSummary): Promise<MonthlyTransactionSummary> {
+    const [result] = await db.insert(monthlyTransactionSummaries).values(summary).returning();
+    return result;
+  }
+
+  async getMonthlyTransactionSummaries(monthlyClosingId: number): Promise<MonthlyTransactionSummary[]> {
+    return await db
+      .select()
+      .from(monthlyTransactionSummaries)
+      .where(eq(monthlyTransactionSummaries.monthlyClosingId, monthlyClosingId))
+      .orderBy(monthlyTransactionSummaries.accountId, monthlyTransactionSummaries.sourceSystem);
+  }
+
+  async getTransactionSummaryHistory(accountId: number): Promise<MonthlyTransactionSummary[]> {
+    return await db
+      .select()
+      .from(monthlyTransactionSummaries)
+      .where(eq(monthlyTransactionSummaries.accountId, accountId))
+      .orderBy(desc(monthlyTransactionSummaries.createdAt));
+  }
+
+  // Monthly Reset History Operations
+  async createMonthlyResetHistory(reset: InsertMonthlyResetHistory): Promise<MonthlyResetHistory> {
+    const [result] = await db.insert(monthlyResetHistory).values(reset).returning();
+    return result;
+  }
+
+  async getMonthlyResetHistory(): Promise<MonthlyResetHistory[]> {
+    return await db
+      .select()
+      .from(monthlyResetHistory)
+      .orderBy(desc(monthlyResetHistory.resetDate));
+  }
+
+  async getResetHistoryForMonth(year: number, month: number): Promise<MonthlyResetHistory[]> {
+    return await db
+      .select()
+      .from(monthlyResetHistory)
+      .where(and(
+        eq(monthlyResetHistory.year, year),
+        eq(monthlyResetHistory.month, month)
+      ))
+      .orderBy(desc(monthlyResetHistory.resetDate));
+  }
+
+  // Complex Monthly Operations
+  async performMonthlyClosing(year: number, month: number, closedBy: string, notes?: string): Promise<MonthlyClosure> {
+    // First check if month is already closed
+    const existingClosing = await this.getMonthlyClosing(year, month);
+    if (existingClosing && existingClosing.status === 'closed') {
+      throw new Error(`Month ${month}/${year} is already closed`);
+    }
+
+    // Calculate account balances for the month
+    const balances = await this.calculateMonthlyAccountBalances(year, month);
+    
+    // Calculate transaction summaries 
+    const summaries = await this.calculateMonthlyTransactionSummaries(year, month);
+
+    // Create the monthly closing record
+    const closing = await this.createMonthlyClosing({
+      year,
+      month,
+      status: 'closed',
+      closedBy,
+      notes,
+      totalAccounts: balances.length,
+      totalTransactions: summaries.reduce((sum, s) => sum + s.transactionCount, 0),
+      totalDebits: balances.reduce((sum, b) => sum + parseFloat(b.totalDebits), 0).toString(),
+      totalCredits: balances.reduce((sum, b) => sum + parseFloat(b.totalCredits), 0).toString()
+    });
+
+    // Store account balances
+    for (const balance of balances) {
+      await this.createMonthlyAccountBalance({
+        monthlyClosingId: closing.id,
+        accountId: balance.accountId,
+        openingBalance: balance.openingBalance,
+        closingBalance: balance.closingBalance,
+        totalDebits: balance.totalDebits,
+        totalCredits: balance.totalCredits,
+        transactionCount: balance.transactionCount
+      });
+    }
+
+    // Store transaction summaries
+    for (const summary of summaries) {
+      await this.createMonthlyTransactionSummary({
+        monthlyClosingId: closing.id,
+        accountId: summary.accountId,
+        sourceSystem: summary.sourceSystem,
+        transactionCount: summary.transactionCount,
+        totalAmount: summary.totalAmount,
+        totalDebits: summary.totalDebits,
+        totalCredits: summary.totalCredits,
+        averageAmount: summary.averageAmount
+      });
+    }
+
+    return closing;
+  }
+
+  async calculateMonthlyAccountBalances(year: number, month: number): Promise<{ accountId: number; openingBalance: string; closingBalance: string; totalDebits: string; totalCredits: string; transactionCount: number }[]> {
+    const startDate = new Date(year, month - 1, 1);
+    const endDate = new Date(year, month, 0);
+
+    // Get all accounts
+    const accounts = await this.getAllFinancialAccounts();
+    const results = [];
+
+    for (const account of accounts) {
+      // Calculate opening balance (transactions before this month)
+      const openingBalance = await this.getAccountBalance(account.id, startDate.toISOString().split('T')[0]);
+      
+      // Get transactions for this month
+      const monthTransactions = await db
+        .select()
+        .from(financialTransactionLines)
+        .innerJoin(financialTransactions, eq(financialTransactions.id, financialTransactionLines.transactionId))
+        .where(and(
+          eq(financialTransactionLines.accountId, account.id),
+          gte(financialTransactions.transactionDate, startDate),
+          lte(financialTransactions.transactionDate, endDate)
+        ));
+
+      const totalDebits = monthTransactions
+        .filter(t => parseFloat(t.financial_transaction_lines.debitAmount || '0') > 0)
+        .reduce((sum, t) => sum + parseFloat(t.financial_transaction_lines.debitAmount || '0'), 0);
+
+      const totalCredits = monthTransactions
+        .filter(t => parseFloat(t.financial_transaction_lines.creditAmount || '0') > 0)
+        .reduce((sum, t) => sum + parseFloat(t.financial_transaction_lines.creditAmount || '0'), 0);
+
+      const closingBalance = parseFloat(openingBalance) + totalDebits - totalCredits;
+
+      results.push({
+        accountId: account.id,
+        openingBalance,
+        closingBalance: closingBalance.toString(),
+        totalDebits: totalDebits.toString(),
+        totalCredits: totalCredits.toString(),
+        transactionCount: monthTransactions.length
+      });
+    }
+
+    return results;
+  }
+
+  async calculateMonthlyTransactionSummaries(year: number, month: number): Promise<{ accountId: number; sourceSystem: string; transactionCount: number; totalAmount: string; totalDebits: string; totalCredits: string; averageAmount: string }[]> {
+    const startDate = new Date(year, month - 1, 1);
+    const endDate = new Date(year, month, 0);
+
+    const summaries = await db
+      .select({
+        accountId: financialTransactionLines.accountId,
+        sourceSystem: financialTransactions.sourceSystem,
+        transactionCount: sql<number>`COUNT(${financialTransactionLines.id})`,
+        totalDebits: sql<string>`COALESCE(SUM(${financialTransactionLines.debitAmount}::numeric), 0)::text`,
+        totalCredits: sql<string>`COALESCE(SUM(${financialTransactionLines.creditAmount}::numeric), 0)::text`,
+        totalAmount: sql<string>`COALESCE(SUM(COALESCE(${financialTransactionLines.debitAmount}::numeric, 0) + COALESCE(${financialTransactionLines.creditAmount}::numeric, 0)), 0)::text`,
+      })
+      .from(financialTransactionLines)
+      .innerJoin(financialTransactions, eq(financialTransactions.id, financialTransactionLines.transactionId))
+      .where(and(
+        gte(financialTransactions.transactionDate, startDate),
+        lte(financialTransactions.transactionDate, endDate)
+      ))
+      .groupBy(financialTransactionLines.accountId, financialTransactions.sourceSystem);
+
+    return summaries.map(s => ({
+      ...s,
+      averageAmount: s.transactionCount > 0 ? (parseFloat(s.totalAmount) / s.transactionCount).toString() : '0'
+    }));
+  }
+
+  async performMonthlyReset(year: number, month: number, resetBy: string, resetType: 'manual' | 'automated' | 'rollover', reason?: string, notes?: string): Promise<MonthlyResetHistory> {
+    // Check if month was closed
+    const closing = await this.getMonthlyClosing(year, month);
+    if (!closing) {
+      throw new Error(`Cannot reset month ${month}/${year} - month was never closed`);
+    }
+
+    // Create reset history record
+    const resetRecord = await this.createMonthlyResetHistory({
+      year,
+      month,
+      resetBy,
+      resetType,
+      reason,
+      notes,
+      previousClosingId: closing.id
+    });
+
+    // Reopen the month if it was closed
+    if (closing.status === 'closed') {
+      await this.reopenMonth(year, month, resetBy);
+    }
+
+    return resetRecord;
+  }
+
+  async rollForwardAccountBalances(fromYear: number, fromMonth: number, toYear: number, toMonth: number): Promise<void> {
+    const fromClosing = await this.getMonthlyClosing(fromYear, fromMonth);
+    if (!fromClosing) {
+      throw new Error(`Cannot roll forward from ${fromMonth}/${fromYear} - month not closed`);
+    }
+
+    const balances = await this.getMonthlyAccountBalances(fromClosing.id);
+    
+    // TODO: Implement logic to set opening balances for the new month
+    // This would typically involve updating account opening balances or creating 
+    // journal entries to establish the new month's starting position
+  }
+
+  // Historical Data Access
+  async getHistoricalFinancialData(year: number, month: number): Promise<{ accounts: FinancialAccount[]; transactions: FinancialTransaction[]; summary: MonthlyClosure | undefined }> {
+    const startDate = new Date(year, month - 1, 1);
+    const endDate = new Date(year, month, 0);
+
+    const [accounts, transactions, summary] = await Promise.all([
+      this.getAllFinancialAccounts(),
+      this.getTransactionsByDateRange(
+        startDate.toISOString().split('T')[0],
+        endDate.toISOString().split('T')[0]
+      ),
+      this.getMonthlyClosing(year, month)
+    ]);
+
+    return { accounts, transactions, summary };
+  }
+
+  async getHistoricalProfitLoss(year: number, month: number): Promise<{ revenue: string; expenses: string; netIncome: string }> {
+    const startDate = new Date(year, month - 1, 1).toISOString().split('T')[0];
+    const endDate = new Date(year, month, 0).toISOString().split('T')[0];
+    
+    return await this.getProfitLoss(startDate, endDate);
+  }
+
+  async getHistoricalAccountBalances(year: number, month: number): Promise<MonthlyAccountBalance[]> {
+    const closing = await this.getMonthlyClosing(year, month);
+    if (!closing) {
+      return [];
+    }
+
+    return await this.getMonthlyAccountBalances(closing.id);
+  }
+
+  // Current Month Operations
+  async getCurrentMonthTransactions(): Promise<FinancialTransaction[]> {
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+
+    return await this.getTransactionsByDateRange(
+      startOfMonth.toISOString().split('T')[0],
+      endOfMonth.toISOString().split('T')[0]
+    );
+  }
+
+  async isMonthClosed(year: number, month: number): Promise<boolean> {
+    const closing = await this.getMonthlyClosing(year, month);
+    return closing?.status === 'closed';
+  }
+
+  async getOpeningBalancesForCurrentMonth(): Promise<{ accountId: number; openingBalance: string }[]> {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth() + 1;
+
+    // Get previous month's closing
+    let prevYear = currentYear;
+    let prevMonth = currentMonth - 1;
+    if (prevMonth === 0) {
+      prevMonth = 12;
+      prevYear = currentYear - 1;
+    }
+
+    const prevClosing = await this.getMonthlyClosing(prevYear, prevMonth);
+    if (!prevClosing) {
+      // No previous month closing, calculate balances up to start of current month
+      const accounts = await this.getAllFinancialAccounts();
+      const startOfMonth = new Date(currentYear, currentMonth - 1, 1);
+      const results = [];
+
+      for (const account of accounts) {
+        const balance = await this.getAccountBalance(account.id, startOfMonth.toISOString().split('T')[0]);
+        results.push({
+          accountId: account.id,
+          openingBalance: balance
+        });
+      }
+
+      return results;
+    }
+
+    // Use previous month's closing balances
+    const balances = await this.getMonthlyAccountBalances(prevClosing.id);
+    return balances.map(b => ({
+      accountId: b.accountId,
+      openingBalance: b.closingBalance
+    }));
   }
 }
 

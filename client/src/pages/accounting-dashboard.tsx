@@ -63,7 +63,8 @@ import {
   Scan,
   Upload,
   Receipt,
-  BookOpen
+  BookOpen,
+  Store
 } from 'lucide-react';
 import { apiRequest } from '@/lib/queryClient';
 import AdminLayout from '@/components/admin-layout';
@@ -156,6 +157,7 @@ type LocationSalesData = {
   locationId: string;
   locationName: string;
   totalSales: string;
+  totalRevenue?: string;
   transactionCount: number;
   avgSale: string;
 };
@@ -206,6 +208,16 @@ function AccountingContent() {
     profitMargin: '',
     notes: ''
   });
+
+  // Monthly operations state
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+  const [isHistoricalMode, setIsHistoricalMode] = useState(false);
+  const [isMonthlyCloseDialogOpen, setIsMonthlyCloseDialogOpen] = useState(false);
+  const [isMonthlyResetDialogOpen, setIsMonthlyResetDialogOpen] = useState(false);
+  const [monthlyCloseNotes, setMonthlyCloseNotes] = useState('');
+  const [monthlyResetNotes, setMonthlyResetNotes] = useState('');
+  const [monthlyResetReason, setMonthlyResetReason] = useState('');
 
   // Load goals from localStorage on component mount
   useEffect(() => {
@@ -270,29 +282,175 @@ function AccountingContent() {
     },
   });
 
-  // Analytics data - today's data (current calendar date)
+  // Analytics data - Dynamic based on historical mode
   const today = new Date().toISOString().split('T')[0];
+  const currentMonth = new Date();
+  const monthStart = isHistoricalMode 
+    ? new Date(selectedYear, selectedMonth - 1, 1).toISOString().split('T')[0]
+    : new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1).toISOString().split('T')[0];
+  const monthEnd = isHistoricalMode 
+    ? new Date(selectedYear, selectedMonth, 0).toISOString().split('T')[0]
+    : today;
   
   const { data: profitLoss } = useQuery({
-    queryKey: ['/api/accounting/analytics/profit-loss', today],
+    queryKey: ['/api/accounting/analytics/profit-loss', isHistoricalMode ? monthStart : today, isHistoricalMode ? monthEnd : today],
     queryFn: async () => {
-      const response = await apiRequest('GET', `/api/accounting/analytics/profit-loss?startDate=${today}&endDate=${today}`);
+      const startDate = isHistoricalMode ? monthStart : today;
+      const endDate = isHistoricalMode ? monthEnd : today;
+      const response = await apiRequest('GET', `/api/accounting/analytics/profit-loss?startDate=${startDate}&endDate=${endDate}`);
       return await response.json();
     },
   });
 
-  // Month-to-date analytics data
-  const currentMonth = new Date();
-  const monthStart = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1).toISOString().split('T')[0];
+  // Month-to-date or historical month analytics data
   const { data: monthlyProfitLoss } = useQuery({
-    queryKey: ['/api/accounting/analytics/profit-loss', monthStart, today],
+    queryKey: ['/api/accounting/analytics/profit-loss', monthStart, monthEnd],
     queryFn: async () => {
-      const response = await apiRequest('GET', `/api/accounting/analytics/profit-loss?startDate=${monthStart}&endDate=${today}`);
+      const response = await apiRequest('GET', `/api/accounting/analytics/profit-loss?startDate=${monthStart}&endDate=${monthEnd}`);
       return await response.json();
     },
+  });
+
+  // Monthly closings data
+  const { data: monthlyClosings } = useQuery({
+    queryKey: ['/api/accounting/monthly/closings'],
+    queryFn: async () => {
+      const response = await apiRequest('GET', '/api/accounting/monthly/closings');
+      return await response.json();
+    },
+  });
+
+  // Current month status
+  const { data: currentMonthStatus } = useQuery({
+    queryKey: ['/api/accounting/monthly/current'],
+    queryFn: async () => {
+      const response = await apiRequest('GET', '/api/accounting/monthly/current');
+      return await response.json();
+    },
+  });
+
+  // Check if selected month is closed
+  const { data: isSelectedMonthClosed } = useQuery({
+    queryKey: ['/api/accounting/monthly/is-closed', selectedYear, selectedMonth],
+    queryFn: async () => {
+      const response = await apiRequest('GET', `/api/accounting/monthly/is-closed?year=${selectedYear}&month=${selectedMonth}`);
+      return await response.json();
+    },
+    enabled: isHistoricalMode,
+  });
+
+  // Historical data for selected month
+  const { data: historicalData } = useQuery({
+    queryKey: ['/api/accounting/monthly/historical-data', selectedYear, selectedMonth],
+    queryFn: async () => {
+      const response = await apiRequest('GET', `/api/accounting/monthly/historical-data?year=${selectedYear}&month=${selectedMonth}`);
+      return await response.json();
+    },
+    enabled: isHistoricalMode,
+  });
+
+  // Historical profit & loss for selected month
+  const { data: historicalProfitLoss } = useQuery({
+    queryKey: ['/api/accounting/monthly/historical-profit-loss', selectedYear, selectedMonth],
+    queryFn: async () => {
+      const response = await apiRequest('GET', `/api/accounting/monthly/historical-profit-loss?year=${selectedYear}&month=${selectedMonth}`);
+      return await response.json();
+    },
+    enabled: isHistoricalMode,
   });
 
   // Moved calculateBIMetrics and biMetrics calculation after monthlyCogsData declaration
+
+  // Monthly operations mutations
+  const monthlyCloseMutation = useMutation({
+    mutationFn: async ({ year, month, notes }: { year: number; month: number; notes?: string }) => {
+      const response = await apiRequest('POST', '/api/accounting/monthly/close', { year, month, notes });
+      return await response.json();
+    },
+    onSuccess: (data) => {
+      toast({
+        title: 'Month Closed Successfully',
+        description: data.message,
+        variant: 'default'
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/accounting/monthly/closings'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/accounting/monthly/current'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/accounting/monthly/is-closed'] });
+      setIsMonthlyCloseDialogOpen(false);
+      setMonthlyCloseNotes('');
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Monthly Close Failed',
+        description: error.message || 'Failed to close month',
+        variant: 'destructive'
+      });
+    }
+  });
+
+  const monthlyResetMutation = useMutation({
+    mutationFn: async ({ year, month, resetType, reason, notes }: { 
+      year: number; 
+      month: number; 
+      resetType?: string; 
+      reason?: string; 
+      notes?: string; 
+    }) => {
+      const response = await apiRequest('POST', '/api/accounting/monthly/reset', { 
+        year, 
+        month, 
+        resetType: resetType || 'manual', 
+        reason, 
+        notes 
+      });
+      return await response.json();
+    },
+    onSuccess: (data) => {
+      toast({
+        title: 'Month Reset Successfully',
+        description: data.message,
+        variant: 'default'
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/accounting/monthly/closings'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/accounting/monthly/current'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/accounting/monthly/is-closed'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/accounting/monthly/reset-history'] });
+      setIsMonthlyResetDialogOpen(false);
+      setMonthlyResetNotes('');
+      setMonthlyResetReason('');
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Monthly Reset Failed',
+        description: error.message || 'Failed to reset month',
+        variant: 'destructive'
+      });
+    }
+  });
+
+  const monthlyReopenMutation = useMutation({
+    mutationFn: async ({ year, month }: { year: number; month: number }) => {
+      const response = await apiRequest('PUT', '/api/accounting/monthly/reopen', { year, month });
+      return await response.json();
+    },
+    onSuccess: (data) => {
+      toast({
+        title: 'Month Reopened Successfully',
+        description: data.message,
+        variant: 'default'
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/accounting/monthly/closings'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/accounting/monthly/current'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/accounting/monthly/is-closed'] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Month Reopen Failed',
+        description: error.message || 'Failed to reopen month',
+        variant: 'destructive'
+      });
+    }
+  });
 
   // Goal handling functions
   const handleSaveGoals = () => {
@@ -2591,7 +2749,7 @@ function ReportsSection({
             <div className="text-center p-3 bg-green-50 rounded-lg">
               <div className="text-lg md:text-xl font-bold text-green-600">
                 {revenueLoading ? '...' : formatCurrency(
-                  revenueData.locationBreakdown?.reduce((sum, location) => 
+                  revenueData.locationBreakdown?.reduce((sum: number, location: LocationSalesData) => 
                     sum + parseFloat(location.totalSales || location.totalRevenue || '0'), 0
                   ) || 0
                 )}
@@ -2613,7 +2771,7 @@ function ReportsSection({
             <div className="text-center p-3 bg-emerald-50 rounded-lg">
               <div className="text-lg md:text-xl font-bold text-emerald-600">
                 {(revenueLoading || cogsLoading) ? '...' : formatCurrency(
-                  (revenueData.locationBreakdown?.reduce((sum, location) => 
+                  (revenueData.locationBreakdown?.reduce((sum: number, location: LocationSalesData) => 
                     sum + parseFloat(location.totalSales || location.totalRevenue || '0'), 0
                   ) || 0) - (parseFloat(reportsCogsData.totalCost || '0'))
                 )}
@@ -2626,7 +2784,7 @@ function ReportsSection({
             <div className="text-center p-3 bg-teal-50 rounded-lg">
               <div className="text-lg md:text-xl font-bold text-teal-600">
                 {(revenueLoading || cogsLoading) ? '...' : (() => {
-                  const totalRevenue = revenueData.locationBreakdown?.reduce((sum, location) => 
+                  const totalRevenue = revenueData.locationBreakdown?.reduce((sum: number, location: LocationSalesData) => 
                     sum + parseFloat(location.totalSales || location.totalRevenue || '0'), 0
                   ) || 0;
                   const totalCogs = parseFloat(reportsCogsData.totalCost || '0');
@@ -2677,7 +2835,7 @@ function ReportsSection({
           data={{
             ...profitLossData,
             totalCOGS: parseFloat(reportsCogsData.totalCost || '0'),
-            grossProfit: (revenueData.locationBreakdown?.reduce((sum, location) => 
+            grossProfit: (revenueData.locationBreakdown?.reduce((sum: number, location: LocationSalesData) => 
               sum + parseFloat(location.totalSales || location.totalRevenue || '0'), 0
             ) || 0) - parseFloat(reportsCogsData.totalCost || '0')
           }} 

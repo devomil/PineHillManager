@@ -1594,6 +1594,96 @@ export const dashboardWidgets = pgTable("dashboard_widgets", {
 }));
 
 // ============================================
+// MONTHLY ACCOUNTING ARCHIVAL TABLES
+// ============================================
+
+// Monthly Closings - Records when months were closed and summary data
+export const monthlyClosings = pgTable("monthly_closings", {
+  id: serial("id").primaryKey(),
+  year: integer("year").notNull(),
+  month: integer("month").notNull(), // 1-12
+  closingDate: timestamp("closing_date").notNull().defaultNow(),
+  closedBy: varchar("closed_by").notNull().references(() => users.id),
+  totalRevenue: decimal("total_revenue", { precision: 15, scale: 2 }).notNull().default("0.00"),
+  totalExpenses: decimal("total_expenses", { precision: 15, scale: 2 }).notNull().default("0.00"),
+  netIncome: decimal("net_income", { precision: 15, scale: 2 }).notNull().default("0.00"),
+  transactionCount: integer("transaction_count").notNull().default(0),
+  accountBalanceSnapshot: jsonb("account_balance_snapshot"), // Account balances at month end
+  notes: text("notes"),
+  status: varchar("status").notNull().default("closed"), // closed, reopened
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  yearMonthIdx: unique("idx_mc_year_month").on(table.year, table.month),
+  yearIdx: index("idx_mc_year").on(table.year),
+  statusIdx: index("idx_mc_status").on(table.status),
+  closingDateIdx: index("idx_mc_closing_date").on(table.closingDate),
+}));
+
+// Monthly Account Balances - Snapshot of all account balances at month end
+export const monthlyAccountBalances = pgTable("monthly_account_balances", {
+  id: serial("id").primaryKey(),
+  monthlyClosingId: integer("monthly_closing_id").notNull().references(() => monthlyClosings.id, { onDelete: "cascade" }),
+  accountId: integer("account_id").notNull().references(() => financialAccounts.id),
+  year: integer("year").notNull(),
+  month: integer("month").notNull(),
+  openingBalance: decimal("opening_balance", { precision: 15, scale: 2 }).notNull().default("0.00"),
+  closingBalance: decimal("closing_balance", { precision: 15, scale: 2 }).notNull().default("0.00"),
+  totalDebits: decimal("total_debits", { precision: 15, scale: 2 }).notNull().default("0.00"),
+  totalCredits: decimal("total_credits", { precision: 15, scale: 2 }).notNull().default("0.00"),
+  transactionCount: integer("transaction_count").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  monthlyClosingIdIdx: index("idx_mab_monthly_closing_id").on(table.monthlyClosingId),
+  accountIdIdx: index("idx_mab_account_id").on(table.accountId),
+  yearMonthIdx: index("idx_mab_year_month").on(table.year, table.month),
+  accountYearMonthIdx: unique("idx_mab_account_year_month").on(table.accountId, table.year, table.month),
+}));
+
+// Monthly Transaction Summaries - Aggregated transaction data by account and month
+export const monthlyTransactionSummaries = pgTable("monthly_transaction_summaries", {
+  id: serial("id").primaryKey(),
+  monthlyClosingId: integer("monthly_closing_id").notNull().references(() => monthlyClosings.id, { onDelete: "cascade" }),
+  accountId: integer("account_id").notNull().references(() => financialAccounts.id),
+  year: integer("year").notNull(),
+  month: integer("month").notNull(),
+  sourceSystem: varchar("source_system").notNull(), // QB, Clover, HSA, Thrive, Manual
+  transactionCount: integer("transaction_count").notNull().default(0),
+  totalAmount: decimal("total_amount", { precision: 15, scale: 2 }).notNull().default("0.00"),
+  totalDebits: decimal("total_debits", { precision: 15, scale: 2 }).notNull().default("0.00"),
+  totalCredits: decimal("total_credits", { precision: 15, scale: 2 }).notNull().default("0.00"),
+  averageAmount: decimal("average_amount", { precision: 15, scale: 2 }).notNull().default("0.00"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  monthlyClosingIdIdx: index("idx_mts_monthly_closing_id").on(table.monthlyClosingId),
+  accountIdIdx: index("idx_mts_account_id").on(table.accountId),
+  sourceSystemIdx: index("idx_mts_source_system").on(table.sourceSystem),
+  yearMonthIdx: index("idx_mts_year_month").on(table.year, table.month),
+  accountSourceYearMonthIdx: unique("idx_mts_account_source_year_month").on(table.accountId, table.sourceSystem, table.year, table.month),
+}));
+
+// Monthly Reset History - Track when months were reset to fresh start
+export const monthlyResetHistory = pgTable("monthly_reset_history", {
+  id: serial("id").primaryKey(),
+  year: integer("year").notNull(),
+  month: integer("month").notNull(),
+  resetDate: timestamp("reset_date").notNull().defaultNow(),
+  resetBy: varchar("reset_by").notNull().references(() => users.id),
+  previousClosingId: integer("previous_closing_id").references(() => monthlyClosings.id),
+  resetType: varchar("reset_type").notNull().default("manual"), // manual, automated, rollover
+  transactionsArchived: integer("transactions_archived").notNull().default(0),
+  newStartingBalances: jsonb("new_starting_balances"), // Account starting balances after reset
+  reason: text("reason"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  yearMonthIdx: index("idx_mrh_year_month").on(table.year, table.month),
+  resetDateIdx: index("idx_mrh_reset_date").on(table.resetDate),
+  resetByIdx: index("idx_mrh_reset_by").on(table.resetBy),
+  resetTypeIdx: index("idx_mrh_reset_type").on(table.resetType),
+}));
+
+// ============================================
 // ACCOUNTING RELATIONS
 // ============================================
 
@@ -1643,6 +1733,29 @@ export const reportConfigsRelations = relations(reportConfigs, ({ one }) => ({
 
 export const dashboardWidgetsRelations = relations(dashboardWidgets, ({ one }) => ({
   user: one(users, { fields: [dashboardWidgets.userId], references: [users.id] }),
+}));
+
+// Monthly Accounting Archival Relations
+export const monthlyClosingsRelations = relations(monthlyClosings, ({ one, many }) => ({
+  closedBy: one(users, { fields: [monthlyClosings.closedBy], references: [users.id] }),
+  accountBalances: many(monthlyAccountBalances),
+  transactionSummaries: many(monthlyTransactionSummaries),
+  resetHistory: many(monthlyResetHistory, { relationName: "previousClosing" }),
+}));
+
+export const monthlyAccountBalancesRelations = relations(monthlyAccountBalances, ({ one }) => ({
+  monthlyClosing: one(monthlyClosings, { fields: [monthlyAccountBalances.monthlyClosingId], references: [monthlyClosings.id] }),
+  account: one(financialAccounts, { fields: [monthlyAccountBalances.accountId], references: [financialAccounts.id] }),
+}));
+
+export const monthlyTransactionSummariesRelations = relations(monthlyTransactionSummaries, ({ one }) => ({
+  monthlyClosing: one(monthlyClosings, { fields: [monthlyTransactionSummaries.monthlyClosingId], references: [monthlyClosings.id] }),
+  account: one(financialAccounts, { fields: [monthlyTransactionSummaries.accountId], references: [financialAccounts.id] }),
+}));
+
+export const monthlyResetHistoryRelations = relations(monthlyResetHistory, ({ one }) => ({
+  resetBy: one(users, { fields: [monthlyResetHistory.resetBy], references: [users.id] }),
+  previousClosing: one(monthlyClosings, { fields: [monthlyResetHistory.previousClosingId], references: [monthlyClosings.id], relationName: "previousClosing" }),
 }));
 
 // Phase 6: Advanced Features Relations
@@ -1755,6 +1868,30 @@ export const insertDashboardWidgetSchema = createInsertSchema(dashboardWidgets).
   updatedAt: true,
 });
 
+// Monthly Accounting Archival Insert Schemas
+export const insertMonthlyClosingSchema = createInsertSchema(monthlyClosings).omit({
+  id: true,
+  closingDate: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertMonthlyAccountBalanceSchema = createInsertSchema(monthlyAccountBalances).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertMonthlyTransactionSummarySchema = createInsertSchema(monthlyTransactionSummaries).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertMonthlyResetHistorySchema = createInsertSchema(monthlyResetHistory).omit({
+  id: true,
+  resetDate: true,
+  createdAt: true,
+});
+
 // ============================================
 // ACCOUNTING EXPORT TYPES
 // ============================================
@@ -1806,6 +1943,19 @@ export type InsertReportConfig = z.infer<typeof insertReportConfigSchema>;
 
 export type DashboardWidget = typeof dashboardWidgets.$inferSelect;
 export type InsertDashboardWidget = z.infer<typeof insertDashboardWidgetSchema>;
+
+// Monthly Accounting Archival Types
+export type MonthlyClosure = typeof monthlyClosings.$inferSelect;
+export type InsertMonthlyClosure = z.infer<typeof insertMonthlyClosingSchema>;
+
+export type MonthlyAccountBalance = typeof monthlyAccountBalances.$inferSelect;
+export type InsertMonthlyAccountBalance = z.infer<typeof insertMonthlyAccountBalanceSchema>;
+
+export type MonthlyTransactionSummary = typeof monthlyTransactionSummaries.$inferSelect;
+export type InsertMonthlyTransactionSummary = z.infer<typeof insertMonthlyTransactionSummarySchema>;
+
+export type MonthlyResetHistory = typeof monthlyResetHistory.$inferSelect;
+export type InsertMonthlyResetHistory = z.infer<typeof insertMonthlyResetHistorySchema>;
 
 // ============================================
 // QR CODE MANAGEMENT SCHEMA

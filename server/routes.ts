@@ -7529,6 +7529,324 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ============================================
+  // MONTHLY ACCOUNTING ARCHIVAL API ENDPOINTS
+  // ============================================
+
+  // Get monthly closings (history of all closed months)
+  app.get('/api/accounting/monthly/closings', isAuthenticated, async (req, res) => {
+    try {
+      const { year, month, startYear, startMonth, endYear, endMonth } = req.query;
+      
+      let closings;
+      if (year && month) {
+        // Get specific month
+        const closing = await storage.getMonthlyClosing(parseInt(year as string), parseInt(month as string));
+        closings = closing ? [closing] : [];
+      } else if (startYear && startMonth && endYear && endMonth) {
+        // Get date range
+        closings = await storage.getMonthlyClosingsInDateRange(
+          parseInt(startYear as string), 
+          parseInt(startMonth as string),
+          parseInt(endYear as string), 
+          parseInt(endMonth as string)
+        );
+      } else {
+        // Get all closings
+        closings = await storage.getAllMonthlyClosings();
+      }
+      
+      res.json(closings);
+    } catch (error) {
+      console.error('Error fetching monthly closings:', error);
+      res.status(500).json({ message: 'Failed to fetch monthly closings' });
+    }
+  });
+
+  // Perform monthly closing (Admin/Manager only)
+  app.post('/api/accounting/monthly/close', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user as any;
+      
+      // Check if user is admin or manager
+      if (user.role !== 'admin' && user.role !== 'manager') {
+        return res.status(403).json({ message: 'Access denied. Only admins and managers can close months.' });
+      }
+
+      const { year, month, notes } = req.body;
+      
+      if (!year || !month) {
+        return res.status(400).json({ message: 'Year and month are required' });
+      }
+
+      // Check if month is already closed
+      const existingClosing = await storage.getMonthlyClosing(year, month);
+      if (existingClosing && existingClosing.status === 'closed') {
+        return res.status(400).json({ 
+          message: `Month ${month}/${year} is already closed`,
+          existingClosing
+        });
+      }
+
+      const closing = await storage.performMonthlyClosing(year, month, user.id, notes);
+      
+      res.json({
+        message: `Successfully closed month ${month}/${year}`,
+        closing
+      });
+    } catch (error) {
+      console.error('Error performing monthly closing:', error);
+      res.status(500).json({ 
+        message: error instanceof Error ? error.message : 'Failed to close month'
+      });
+    }
+  });
+
+  // Reopen month (Admin/Manager only)
+  app.put('/api/accounting/monthly/reopen', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user as any;
+      
+      // Check if user is admin or manager
+      if (user.role !== 'admin' && user.role !== 'manager') {
+        return res.status(403).json({ message: 'Access denied. Only admins and managers can reopen months.' });
+      }
+
+      const { year, month } = req.body;
+      
+      if (!year || !month) {
+        return res.status(400).json({ message: 'Year and month are required' });
+      }
+
+      const reopenedClosing = await storage.reopenMonth(year, month, user.id);
+      
+      res.json({
+        message: `Successfully reopened month ${month}/${year}`,
+        closing: reopenedClosing
+      });
+    } catch (error) {
+      console.error('Error reopening month:', error);
+      res.status(500).json({ 
+        message: error instanceof Error ? error.message : 'Failed to reopen month'
+      });
+    }
+  });
+
+  // Perform monthly reset (Admin/Manager only)
+  app.post('/api/accounting/monthly/reset', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user as any;
+      
+      // Check if user is admin or manager
+      if (user.role !== 'admin' && user.role !== 'manager') {
+        return res.status(403).json({ message: 'Access denied. Only admins and managers can reset months.' });
+      }
+
+      const { year, month, resetType = 'manual', reason, notes } = req.body;
+      
+      if (!year || !month) {
+        return res.status(400).json({ message: 'Year and month are required' });
+      }
+
+      const resetRecord = await storage.performMonthlyReset(year, month, user.id, resetType, reason, notes);
+      
+      res.json({
+        message: `Successfully reset month ${month}/${year} to fresh start`,
+        resetRecord
+      });
+    } catch (error) {
+      console.error('Error performing monthly reset:', error);
+      res.status(500).json({ 
+        message: error instanceof Error ? error.message : 'Failed to reset month'
+      });
+    }
+  });
+
+  // Get monthly reset history
+  app.get('/api/accounting/monthly/reset-history', isAuthenticated, async (req, res) => {
+    try {
+      const { year, month } = req.query;
+      
+      let resetHistory;
+      if (year && month) {
+        resetHistory = await storage.getResetHistoryForMonth(parseInt(year as string), parseInt(month as string));
+      } else {
+        resetHistory = await storage.getMonthlyResetHistory();
+      }
+      
+      res.json(resetHistory);
+    } catch (error) {
+      console.error('Error fetching reset history:', error);
+      res.status(500).json({ message: 'Failed to fetch reset history' });
+    }
+  });
+
+  // Get historical financial data for a specific month
+  app.get('/api/accounting/monthly/historical-data', isAuthenticated, async (req, res) => {
+    try {
+      const { year, month } = req.query;
+      
+      if (!year || !month) {
+        return res.status(400).json({ message: 'Year and month are required' });
+      }
+
+      const historicalData = await storage.getHistoricalFinancialData(
+        parseInt(year as string), 
+        parseInt(month as string)
+      );
+      
+      res.json(historicalData);
+    } catch (error) {
+      console.error('Error fetching historical data:', error);
+      res.status(500).json({ message: 'Failed to fetch historical data' });
+    }
+  });
+
+  // Get historical profit & loss for a specific month
+  app.get('/api/accounting/monthly/historical-profit-loss', isAuthenticated, async (req, res) => {
+    try {
+      const { year, month } = req.query;
+      
+      if (!year || !month) {
+        return res.status(400).json({ message: 'Year and month are required' });
+      }
+
+      const profitLoss = await storage.getHistoricalProfitLoss(
+        parseInt(year as string), 
+        parseInt(month as string)
+      );
+      
+      res.json(profitLoss);
+    } catch (error) {
+      console.error('Error fetching historical profit & loss:', error);
+      res.status(500).json({ message: 'Failed to fetch historical profit & loss' });
+    }
+  });
+
+  // Get historical account balances for a specific month
+  app.get('/api/accounting/monthly/historical-balances', isAuthenticated, async (req, res) => {
+    try {
+      const { year, month } = req.query;
+      
+      if (!year || !month) {
+        return res.status(400).json({ message: 'Year and month are required' });
+      }
+
+      const balances = await storage.getHistoricalAccountBalances(
+        parseInt(year as string), 
+        parseInt(month as string)
+      );
+      
+      res.json(balances);
+    } catch (error) {
+      console.error('Error fetching historical account balances:', error);
+      res.status(500).json({ message: 'Failed to fetch historical account balances' });
+    }
+  });
+
+  // Get current month status and transactions
+  app.get('/api/accounting/monthly/current', isAuthenticated, async (req, res) => {
+    try {
+      const now = new Date();
+      const currentYear = now.getFullYear();
+      const currentMonth = now.getMonth() + 1;
+      
+      const [transactions, isMonthClosed, openingBalances] = await Promise.all([
+        storage.getCurrentMonthTransactions(),
+        storage.isMonthClosed(currentYear, currentMonth),
+        storage.getOpeningBalancesForCurrentMonth()
+      ]);
+      
+      res.json({
+        year: currentYear,
+        month: currentMonth,
+        isMonthClosed,
+        transactions,
+        openingBalances,
+        transactionCount: transactions.length
+      });
+    } catch (error) {
+      console.error('Error fetching current month data:', error);
+      res.status(500).json({ message: 'Failed to fetch current month data' });
+    }
+  });
+
+  // Check if a specific month is closed
+  app.get('/api/accounting/monthly/is-closed', isAuthenticated, async (req, res) => {
+    try {
+      const { year, month } = req.query;
+      
+      if (!year || !month) {
+        return res.status(400).json({ message: 'Year and month are required' });
+      }
+
+      const isClosed = await storage.isMonthClosed(parseInt(year as string), parseInt(month as string));
+      
+      res.json({
+        year: parseInt(year as string),
+        month: parseInt(month as string),
+        isClosed
+      });
+    } catch (error) {
+      console.error('Error checking month closed status:', error);
+      res.status(500).json({ message: 'Failed to check month status' });
+    }
+  });
+
+  // Get monthly account balances for a closed month
+  app.get('/api/accounting/monthly/account-balances/:closingId', isAuthenticated, async (req, res) => {
+    try {
+      const closingId = parseInt(req.params.closingId);
+      
+      if (!closingId) {
+        return res.status(400).json({ message: 'Closing ID is required' });
+      }
+
+      const balances = await storage.getMonthlyAccountBalances(closingId);
+      
+      res.json(balances);
+    } catch (error) {
+      console.error('Error fetching monthly account balances:', error);
+      res.status(500).json({ message: 'Failed to fetch account balances' });
+    }
+  });
+
+  // Get monthly transaction summaries for a closed month
+  app.get('/api/accounting/monthly/transaction-summaries/:closingId', isAuthenticated, async (req, res) => {
+    try {
+      const closingId = parseInt(req.params.closingId);
+      
+      if (!closingId) {
+        return res.status(400).json({ message: 'Closing ID is required' });
+      }
+
+      const summaries = await storage.getMonthlyTransactionSummaries(closingId);
+      
+      res.json(summaries);
+    } catch (error) {
+      console.error('Error fetching monthly transaction summaries:', error);
+      res.status(500).json({ message: 'Failed to fetch transaction summaries' });
+    }
+  });
+
+  // Get account balance history across multiple months
+  app.get('/api/accounting/monthly/account-balance-history/:accountId', isAuthenticated, async (req, res) => {
+    try {
+      const accountId = parseInt(req.params.accountId);
+      
+      if (!accountId) {
+        return res.status(400).json({ message: 'Account ID is required' });
+      }
+
+      const history = await storage.getAccountBalanceHistory(accountId);
+      
+      res.json(history);
+    } catch (error) {
+      console.error('Error fetching account balance history:', error);
+      res.status(500).json({ message: 'Failed to fetch balance history' });
+    }
+  });
+
   // Emergency SMS broadcast endpoint
   app.post('/api/sms/emergency-broadcast', isAuthenticated, async (req, res) => {
     try {
