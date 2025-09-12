@@ -3786,27 +3786,84 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log(`🧮 COGS Analysis - Calculating actual labor and material costs for ${startDate} to ${endDate}`);
       
-      // Use our new comprehensive COGS calculation
-      const cogsData = await storage.calculateCOGS(
+      // First try local database for historical data
+      const localCogsData = await storage.calculateCOGS(
         startDate as string, 
         endDate as string, 
         locationId ? parseInt(locationId as string) : undefined
       );
 
-      // Return numeric types instead of strings (fixed data consistency issue)
-      res.json({
-        totalRevenue: cogsData.totalRevenue,
-        totalCost: cogsData.totalCOGS,
-        laborCosts: cogsData.laborCosts,
-        materialCosts: cogsData.materialCosts,
-        grossProfit: cogsData.grossProfit,
-        grossMargin: cogsData.grossMargin,
-        totalItemsSold: cogsData.salesCount,
-        isEstimate: false,
-        laborBreakdown: cogsData.laborBreakdown,
-        materialBreakdown: cogsData.materialBreakdown,
-        note: `Based on actual employee time clock data and inventory costs`
+      // If local database has revenue data, use it
+      if (localCogsData.totalRevenue > 0) {
+        console.log(`📊 Using local database COGS data: $${localCogsData.totalRevenue} revenue, $${localCogsData.totalCOGS} COGS`);
+        res.json({
+          totalRevenue: localCogsData.totalRevenue,
+          totalCost: localCogsData.totalCOGS,
+          laborCosts: localCogsData.laborCosts,
+          materialCosts: localCogsData.materialCosts,
+          grossProfit: localCogsData.grossProfit,
+          grossMargin: localCogsData.grossMargin,
+          totalItemsSold: localCogsData.salesCount,
+          isEstimate: false,
+          laborBreakdown: localCogsData.laborBreakdown,
+          materialBreakdown: localCogsData.materialBreakdown,
+          note: `Based on actual employee time clock data and inventory costs`
+        });
+        return;
+      }
+
+      // If no local data, get live revenue and estimate COGS using historical ratio
+      console.log(`📊 No local COGS data found, using live API data with historical cost ratio`);
+      
+      // Get live revenue from multi-location endpoint
+      const multiLocationResponse = await fetch(`${req.protocol}://${req.get('host')}/api/accounting/analytics/multi-location?startDate=${startDate}&endDate=${endDate}`, {
+        headers: {
+          'Cookie': req.headers.cookie || ''
+        }
       });
+
+      let totalRevenue = 0;
+      if (multiLocationResponse.ok) {
+        const multiLocationData = await multiLocationResponse.json();
+        totalRevenue = multiLocationData.totalRevenue || 0;
+      }
+
+      // Calculate historical COGS ratio from local database (when we have data)
+      const historicalData = await storage.calculateCOGS('2025-07-01', '2025-08-31');
+      let historicalCOGSRatio = 0.40; // Default 40% if no historical data
+      
+      if (historicalData.totalRevenue > 0) {
+        historicalCOGSRatio = historicalData.totalCOGS / historicalData.totalRevenue;
+        console.log(`📈 Using historical COGS ratio: ${(historicalCOGSRatio * 100).toFixed(1)}% from $${historicalData.totalRevenue} revenue period`);
+      }
+
+      // Apply historical ratio to current revenue
+      const estimatedMaterialCosts = totalRevenue * historicalCOGSRatio;
+      const estimatedLaborCosts = 0; // Labor costs require time clock data
+      const totalCOGS = estimatedMaterialCosts + estimatedLaborCosts;
+      const grossProfit = totalRevenue - totalCOGS;
+      const grossMargin = totalRevenue > 0 ? ((grossProfit / totalRevenue) * 100) : 0;
+
+      res.json({
+        totalRevenue,
+        totalCost: totalCOGS,
+        laborCosts: estimatedLaborCosts,
+        materialCosts: estimatedMaterialCosts,
+        grossProfit,
+        grossMargin,
+        totalItemsSold: 0,
+        isEstimate: true,
+        laborBreakdown: [],
+        materialBreakdown: [{
+          itemId: 0,
+          itemName: "Estimated Material Costs",
+          quantitySold: 0,
+          unitCost: 0,
+          totalMaterialCost: estimatedMaterialCosts
+        }],
+        note: `Estimated using ${(historicalCOGSRatio * 100).toFixed(1)}% historical COGS ratio on live revenue data`
+      });
+
     } catch (error) {
       console.error('Error calculating COGS:', error);
       res.status(500).json({ error: 'Failed to calculate cost of goods sold', details: error instanceof Error ? error.message : 'Unknown error' });
