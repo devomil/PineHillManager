@@ -64,7 +64,8 @@ import {
   Upload,
   Receipt,
   BookOpen,
-  Store
+  Store,
+  Clock
 } from 'lucide-react';
 import { apiRequest } from '@/lib/queryClient';
 import AdminLayout from '@/components/admin-layout';
@@ -555,22 +556,39 @@ function AccountingContent() {
     },
   });
 
-  // Cost of Goods Sold analytics - Daily
+  // Cost of Goods Sold analytics - Daily (using default fetcher, proper query key)
   const { data: cogsData } = useQuery({
-    queryKey: ['/api/accounting/analytics/cogs', today],
-    queryFn: async () => {
-      const response = await apiRequest('GET', `/api/accounting/analytics/cogs?startDate=${today}&endDate=${today}`);
-      return await response.json();
-    },
+    queryKey: ['/api/accounting/analytics/cogs', { startDate: today, endDate: today }],
   });
 
   // Cost of Goods Sold analytics - Monthly (month-to-date)
   const { data: monthlyCogsData } = useQuery({
-    queryKey: ['/api/accounting/analytics/cogs', monthStart, today],
-    queryFn: async () => {
-      const response = await apiRequest('GET', `/api/accounting/analytics/cogs?startDate=${monthStart}&endDate=${today}`);
-      return await response.json();
-    },
+    queryKey: ['/api/accounting/analytics/cogs', { startDate: monthStart, endDate: today }],
+  });
+
+  // Detailed COGS Analytics - Labor Costs (using default fetcher)
+  const { data: laborCostsData } = useQuery({
+    queryKey: ['/api/accounting/cogs/labor-costs', { startDate: today, endDate: today }],
+  });
+
+  // Detailed COGS Analytics - Material Costs (using default fetcher)
+  const { data: materialCostsData } = useQuery({
+    queryKey: ['/api/accounting/cogs/material-costs', { startDate: today, endDate: today }],
+  });
+
+  // COGS By Product Analysis (using default fetcher)
+  const { data: cogsByProductData } = useQuery({
+    queryKey: ['/api/accounting/cogs/by-product', { startDate: today, endDate: today }],
+  });
+
+  // COGS By Employee Analysis (using default fetcher - admin only data)
+  const { data: cogsByEmployeeData } = useQuery({
+    queryKey: ['/api/accounting/cogs/by-employee', { startDate: today, endDate: today }],
+  });
+
+  // COGS By Location Analysis (using default fetcher)
+  const { data: cogsByLocationData } = useQuery({
+    queryKey: ['/api/accounting/cogs/by-location', { startDate: today, endDate: today }],
   });
 
   // Calculate BI metrics from real data (moved after monthlyCogsData declaration)
@@ -809,43 +827,124 @@ function AccountingContent() {
               </CardHeader>
               <CardContent>
                 {cogsData ? (
-                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div className="space-y-1">
-                      <p className="text-sm text-muted-foreground">Total Revenue</p>
-                      <p className="text-xl font-bold text-green-600">${cogsData.totalRevenue}</p>
+                  <div className="space-y-6">
+                    {/* Main COGS Metrics */}
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                      <div className="space-y-1">
+                        <p className="text-sm text-muted-foreground">Total Revenue</p>
+                        <p className="text-xl font-bold text-green-600">${cogsData.totalRevenue}</p>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-sm text-muted-foreground">Total COGS</p>
+                        <p className="text-xl font-bold text-red-600">${cogsData.totalCost}</p>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-sm text-muted-foreground">Gross Profit</p>
+                        <p className="text-xl font-bold text-blue-600">${cogsData.grossProfit}</p>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-sm text-muted-foreground">Gross Margin</p>
+                        <p className="text-xl font-bold text-purple-600">{cogsData.grossMargin}%</p>
+                      </div>
                     </div>
-                    <div className="space-y-1">
-                      <p className="text-sm text-muted-foreground">Cost of Goods</p>
-                      <p className="text-xl font-bold text-red-600">${cogsData.totalCost}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-sm text-muted-foreground">Gross Profit</p>
-                      <p className="text-xl font-bold text-blue-600">${cogsData.grossProfit}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-sm text-muted-foreground">Gross Margin</p>
-                      <p className="text-xl font-bold text-purple-600">{cogsData.grossMargin}%</p>
+
+                    {/* COGS Breakdown */}
+                    {(cogsData.laborCosts || cogsData.materialCosts) && (
+                      <div className="border-t pt-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          {/* Labor Costs Breakdown */}
+                          {cogsData.laborCosts && parseFloat(cogsData.laborCosts) > 0 && (
+                            <div className="space-y-3">
+                              <div className="flex items-center gap-2">
+                                <Clock className="h-4 w-4 text-orange-600" />
+                                <h4 className="font-semibold text-orange-600">Labor Costs</h4>
+                              </div>
+                              <div className="text-2xl font-bold text-orange-600">${cogsData.laborCosts}</div>
+                              {cogsData.laborBreakdown && cogsData.laborBreakdown.length > 0 && (
+                                <div className="space-y-2 max-h-32 overflow-y-auto">
+                                  {cogsData.laborBreakdown.slice(0, 3).map((employee, index) => (
+                                    <div key={index} className="flex justify-between text-sm">
+                                      <span className="truncate">{employee.employeeName}</span>
+                                      <span>${employee.totalLaborCost.toFixed(2)}</span>
+                                    </div>
+                                  ))}
+                                  {cogsData.laborBreakdown.length > 3 && (
+                                    <div className="text-xs text-muted-foreground">
+                                      +{cogsData.laborBreakdown.length - 3} more employees
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Material Costs Breakdown */}
+                          {cogsData.materialCosts && parseFloat(cogsData.materialCosts) > 0 && (
+                            <div className="space-y-3">
+                              <div className="flex items-center gap-2">
+                                <Package className="h-4 w-4 text-teal-600" />
+                                <h4 className="font-semibold text-teal-600">Material Costs</h4>
+                              </div>
+                              <div className="text-2xl font-bold text-teal-600">${cogsData.materialCosts}</div>
+                              {cogsData.materialBreakdown && cogsData.materialBreakdown.length > 0 && (
+                                <div className="space-y-2 max-h-32 overflow-y-auto">
+                                  {cogsData.materialBreakdown.slice(0, 3).map((item, index) => (
+                                    <div key={index} className="flex justify-between text-sm">
+                                      <span className="truncate">{item.itemName}</span>
+                                      <span>${item.totalMaterialCost.toFixed(2)}</span>
+                                    </div>
+                                  ))}
+                                  {cogsData.materialBreakdown.length > 3 && (
+                                    <div className="text-xs text-muted-foreground">
+                                      +{cogsData.materialBreakdown.length - 3} more items
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Summary Info */}
+                    <div className="border-t pt-4">
+                      <div className="flex justify-between items-center text-sm">
+                        <div className="flex items-center gap-4">
+                          <span className="text-muted-foreground">Items Sold: <span className="font-medium">{cogsData.totalItemsSold || 0}</span></span>
+                          {cogsData.isEstimate !== undefined && (
+                            <span className={`px-2 py-1 rounded text-xs ${cogsData.isEstimate ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}`}>
+                              {cogsData.isEstimate ? 'Estimated' : 'Actual Costs'}
+                            </span>
+                          )}
+                        </div>
+                        {cogsData.note && (
+                          <span className="text-xs text-muted-foreground max-w-xs truncate">{cogsData.note}</span>
+                        )}
+                      </div>
                     </div>
                   </div>
                 ) : (
                   <div className="text-center py-8">
                     <Package className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                     <p className="text-gray-500 mb-4">No cost data available</p>
-                    <p className="text-sm text-gray-400 mb-4">Use the Inventory & Orders page to sync product costs</p>
-                    <Button
-                      onClick={() => window.open('/inventory', '_blank')}
-                      size="sm"
-                    >
-                      Go to Inventory
-                    </Button>
-                  </div>
-                )}
-                
-                {cogsData && (
-                  <div className="mt-4 pt-4 border-t">
-                    <div className="flex justify-between items-center text-sm text-muted-foreground">
-                      <span>Items Sold: {cogsData.totalItemsSold}</span>
-                      <span>Unique Products: {cogsData.uniqueItems}</span>
+                    <p className="text-sm text-gray-400 mb-4">Ensure employees are clocked in and inventory costs are configured</p>
+                    <div className="flex gap-2 justify-center">
+                      <Button
+                        onClick={() => window.open('/time-clock', '_blank')}
+                        size="sm"
+                        variant="outline"
+                      >
+                        <Clock className="h-4 w-4 mr-2" />
+                        Time Clock
+                      </Button>
+                      <Button
+                        onClick={() => window.open('/inventory', '_blank')}
+                        size="sm"
+                      >
+                        <Package className="h-4 w-4 mr-2" />
+                        Inventory
+                      </Button>
                     </div>
                   </div>
                 )}

@@ -527,6 +527,109 @@ export interface IStorage {
   getSalesSummary(startDate: string, endDate: string, locationId?: number): Promise<{ totalSales: string; totalTax: string; totalTips: string; transactionCount: number }>;
   getInventoryValuation(): Promise<{ totalCost: string; totalRetail: string; itemCount: number }>;
 
+  // COGS (Cost of Goods Sold) Calculation Methods
+  calculateCOGS(startDate: string, endDate: string, locationId?: number): Promise<{
+    totalRevenue: number;
+    laborCosts: number;
+    materialCosts: number;
+    totalCOGS: number;
+    grossProfit: number;
+    grossMargin: number;
+    salesCount: number;
+    laborBreakdown: Array<{
+      employeeId: string;
+      employeeName: string;
+      hoursWorked: number;
+      hourlyRate: number;
+      totalLaborCost: number;
+      salesAllocated: number;
+    }>;
+    materialBreakdown: Array<{
+      itemId: number;
+      itemName: string;
+      quantitySold: number;
+      unitCost: number;
+      totalMaterialCost: number;
+    }>;
+  }>;
+  
+  calculateLaborCosts(startDate: string, endDate: string, locationId?: number): Promise<{
+    totalLaborCost: number;
+    totalHoursWorked: number;
+    employeeBreakdown: Array<{
+      employeeId: string;
+      employeeName: string;
+      hoursWorked: number;
+      hourlyRate: number;
+      totalCost: number;
+      shiftsWorked: number;
+    }>;
+  }>;
+  
+  calculateMaterialCosts(startDate: string, endDate: string, locationId?: number): Promise<{
+    totalMaterialCost: number;
+    totalItemsSold: number;
+    itemBreakdown: Array<{
+      itemId: number;
+      itemName: string;
+      quantitySold: number;
+      unitCost: number;
+      totalCost: number;
+      salesCount: number;
+    }>;
+  }>;
+  
+  getCOGSByProduct(startDate: string, endDate: string, locationId?: number): Promise<Array<{
+    itemId: number;
+    itemName: string;
+    quantitySold: number;
+    totalRevenue: number;
+    materialCost: number;
+    laborCostAllocated: number;
+    totalCOGS: number;
+    grossProfit: number;
+    grossMargin: number;
+  }>>;
+  
+  getCOGSByEmployee(startDate: string, endDate: string, locationId?: number): Promise<Array<{
+    employeeId: string;
+    employeeName: string;
+    hoursWorked: number;
+    salesGenerated: number;
+    laborCost: number;
+    salesAllocated: Array<{
+      saleId: number;
+      saleDate: string;
+      totalAmount: number;
+      laborCostAllocated: number;
+    }>;
+  }>>;
+  
+  getCOGSByLocation(startDate: string, endDate: string): Promise<Array<{
+    locationId: number;
+    locationName: string;
+    totalRevenue: number;
+    totalLaborCost: number;
+    totalMaterialCost: number;
+    totalCOGS: number;
+    grossProfit: number;
+    grossMargin: number;
+    salesCount: number;
+    employeeCount: number;
+  }>>;
+
+  getTimeClockEntriesForPeriod(startDate: string, endDate: string, userId?: string, locationId?: number): Promise<Array<{
+    id: number;
+    userId: string;
+    userName: string;
+    locationId: number;
+    clockInTime: Date;
+    clockOutTime: Date | null;
+    totalWorkedMinutes: number;
+    hourlyRate: number;
+    laborCost: number;
+  }>>;
+
   // Monthly Accounting Archival Operations
   createMonthlyClosing(closing: InsertMonthlyClosure): Promise<MonthlyClosure>;
   getMonthlyClosing(year: number, month: number): Promise<MonthlyClosure | undefined>;
@@ -3391,6 +3494,572 @@ export class DatabaseStorage implements IStorage {
     return result[0] || { totalSales: "0.00", totalTax: "0.00", totalTips: "0.00", transactionCount: 0 };
   }
   async getInventoryValuation(): Promise<{ totalCost: string; totalRetail: string; itemCount: number }> { return { totalCost: "0.00", totalRetail: "0.00", itemCount: 0 }; }
+
+  // ============================================
+  // COGS (COST OF GOODS SOLD) CALCULATION METHODS
+  // ============================================
+
+  async calculateCOGS(startDate: string, endDate: string, locationId?: number): Promise<{
+    totalRevenue: number;
+    laborCosts: number;
+    materialCosts: number;
+    totalCOGS: number;
+    grossProfit: number;
+    grossMargin: number;
+    salesCount: number;
+    laborBreakdown: Array<{
+      employeeId: string;
+      employeeName: string;
+      hoursWorked: number;
+      hourlyRate: number;
+      totalLaborCost: number;
+      salesAllocated: number;
+    }>;
+    materialBreakdown: Array<{
+      itemId: number;
+      itemName: string;
+      quantitySold: number;
+      unitCost: number;
+      totalMaterialCost: number;
+    }>;
+  }> {
+    try {
+      // Get total revenue from sales
+      let salesQuery = db
+        .select({
+          totalRevenue: sql<string>`COALESCE(SUM(${posSales.totalAmount}), 0)::text`,
+          salesCount: sql<number>`COUNT(*)::integer`
+        })
+        .from(posSales)
+        .where(and(
+          gte(posSales.saleDate, startDate),
+          lte(posSales.saleDate, endDate)
+        ));
+
+      if (locationId) {
+        salesQuery = salesQuery.where(eq(posSales.locationId, locationId));
+      }
+
+      const salesResult = await salesQuery;
+      const totalRevenue = parseFloat(salesResult[0]?.totalRevenue || '0');
+      const salesCount = salesResult[0]?.salesCount || 0;
+
+      // Calculate labor costs
+      const laborCostsData = await this.calculateLaborCosts(startDate, endDate, locationId);
+      const laborCosts = laborCostsData.totalLaborCost;
+      
+      // Calculate material costs
+      const materialCostsData = await this.calculateMaterialCosts(startDate, endDate, locationId);
+      const materialCosts = materialCostsData.totalMaterialCost;
+
+      // Calculate totals
+      const totalCOGS = laborCosts + materialCosts;
+      const grossProfit = totalRevenue - totalCOGS;
+      const grossMargin = totalRevenue > 0 ? ((grossProfit / totalRevenue) * 100) : 0;
+
+      return {
+        totalRevenue,
+        laborCosts,
+        materialCosts,
+        totalCOGS,
+        grossProfit,
+        grossMargin,
+        salesCount,
+        laborBreakdown: laborCostsData.employeeBreakdown,
+        materialBreakdown: materialCostsData.itemBreakdown
+      };
+
+    } catch (error) {
+      console.error('Error calculating COGS:', error);
+      throw new Error('Failed to calculate COGS');
+    }
+  }
+
+  async calculateLaborCosts(startDate: string, endDate: string, locationId?: number): Promise<{
+    totalLaborCost: number;
+    totalHoursWorked: number;
+    employeeBreakdown: Array<{
+      employeeId: string;
+      employeeName: string;
+      hoursWorked: number;
+      hourlyRate: number;
+      totalCost: number;
+      shiftsWorked: number;
+    }>;
+  }> {
+    try {
+      // Get time clock entries with employee info
+      let query = db
+        .select({
+          userId: timeClockEntries.userId,
+          firstName: users.firstName,
+          lastName: users.lastName,
+          hourlyRate: users.hourlyRate,
+          totalWorkedMinutes: timeClockEntries.totalWorkedMinutes,
+          locationId: timeClockEntries.locationId,
+          clockInTime: timeClockEntries.clockInTime
+        })
+        .from(timeClockEntries)
+        .innerJoin(users, eq(timeClockEntries.userId, users.id))
+        .where(and(
+          gte(sql`DATE(${timeClockEntries.clockInTime})`, startDate),
+          lte(sql`DATE(${timeClockEntries.clockInTime})`, endDate),
+          eq(timeClockEntries.status, 'clocked_out'),
+          isNotNull(timeClockEntries.totalWorkedMinutes)
+        ));
+
+      if (locationId) {
+        query = query.where(eq(timeClockEntries.locationId, locationId));
+      }
+
+      const timeEntries = await query;
+
+      // Group by employee and calculate costs
+      const employeeMap = new Map<string, {
+        employeeId: string;
+        employeeName: string;
+        hoursWorked: number;
+        hourlyRate: number;
+        totalCost: number;
+        shiftsWorked: number;
+      }>();
+
+      let totalLaborCost = 0;
+      let totalHoursWorked = 0;
+
+      for (const entry of timeEntries) {
+        const employeeId = entry.userId;
+        const employeeName = `${entry.firstName || ''} ${entry.lastName || ''}`.trim();
+        const hoursWorked = (entry.totalWorkedMinutes || 0) / 60;
+        const hourlyRate = parseFloat(entry.hourlyRate || '0');
+        const entryCost = hoursWorked * hourlyRate;
+
+        if (employeeMap.has(employeeId)) {
+          const existing = employeeMap.get(employeeId)!;
+          existing.hoursWorked += hoursWorked;
+          existing.totalCost += entryCost;
+          existing.shiftsWorked += 1;
+        } else {
+          employeeMap.set(employeeId, {
+            employeeId,
+            employeeName,
+            hoursWorked,
+            hourlyRate,
+            totalCost: entryCost,
+            shiftsWorked: 1
+          });
+        }
+
+        totalLaborCost += entryCost;
+        totalHoursWorked += hoursWorked;
+      }
+
+      const employeeBreakdown = Array.from(employeeMap.values());
+
+      return {
+        totalLaborCost,
+        totalHoursWorked,
+        employeeBreakdown
+      };
+
+    } catch (error) {
+      console.error('Error calculating labor costs:', error);
+      throw new Error('Failed to calculate labor costs');
+    }
+  }
+
+  async calculateMaterialCosts(startDate: string, endDate: string, locationId?: number): Promise<{
+    totalMaterialCost: number;
+    totalItemsSold: number;
+    itemBreakdown: Array<{
+      itemId: number;
+      itemName: string;
+      quantitySold: number;
+      unitCost: number;
+      totalCost: number;
+      salesCount: number;
+    }>;
+  }> {
+    try {
+      // Get sales items with inventory costs
+      let query = db
+        .select({
+          inventoryItemId: posSaleItems.inventoryItemId,
+          itemName: posSaleItems.itemName,
+          quantity: posSaleItems.quantity,
+          unitCost: inventoryItems.unitCost,
+          saleId: posSaleItems.saleId
+        })
+        .from(posSaleItems)
+        .innerJoin(posSales, eq(posSaleItems.saleId, posSales.id))
+        .leftJoin(inventoryItems, eq(posSaleItems.inventoryItemId, inventoryItems.id))
+        .where(and(
+          gte(posSales.saleDate, startDate),
+          lte(posSales.saleDate, endDate)
+        ));
+
+      if (locationId) {
+        query = query.where(eq(posSales.locationId, locationId));
+      }
+
+      const saleItems = await query;
+
+      // Group by inventory item and calculate costs
+      const itemMap = new Map<number, {
+        itemId: number;
+        itemName: string;
+        quantitySold: number;
+        unitCost: number;
+        totalCost: number;
+        salesCount: number;
+      }>();
+
+      let totalMaterialCost = 0;
+      let totalItemsSold = 0;
+
+      for (const item of saleItems) {
+        const itemId = item.inventoryItemId || 0;
+        const itemName = item.itemName;
+        const quantitySold = parseFloat(item.quantity || '0');
+        const unitCost = parseFloat(item.unitCost || '0');
+        const itemCost = quantitySold * unitCost;
+
+        if (itemMap.has(itemId)) {
+          const existing = itemMap.get(itemId)!;
+          existing.quantitySold += quantitySold;
+          existing.totalCost += itemCost;
+          existing.salesCount += 1;
+        } else {
+          itemMap.set(itemId, {
+            itemId,
+            itemName,
+            quantitySold,
+            unitCost,
+            totalCost: itemCost,
+            salesCount: 1
+          });
+        }
+
+        totalMaterialCost += itemCost;
+        totalItemsSold += quantitySold;
+      }
+
+      const itemBreakdown = Array.from(itemMap.values());
+
+      return {
+        totalMaterialCost,
+        totalItemsSold,
+        itemBreakdown
+      };
+
+    } catch (error) {
+      console.error('Error calculating material costs:', error);
+      throw new Error('Failed to calculate material costs');
+    }
+  }
+
+  async getCOGSByProduct(startDate: string, endDate: string, locationId?: number): Promise<Array<{
+    itemId: number;
+    itemName: string;
+    quantitySold: number;
+    totalRevenue: number;
+    materialCost: number;
+    laborCostAllocated: number;
+    totalCOGS: number;
+    grossProfit: number;
+    grossMargin: number;
+  }>> {
+    try {
+      // Get sales data by product
+      let query = db
+        .select({
+          inventoryItemId: posSaleItems.inventoryItemId,
+          itemName: posSaleItems.itemName,
+          quantity: posSaleItems.quantity,
+          lineTotal: posSaleItems.lineTotal,
+          unitCost: inventoryItems.unitCost,
+          saleDate: posSales.saleDate
+        })
+        .from(posSaleItems)
+        .innerJoin(posSales, eq(posSaleItems.saleId, posSales.id))
+        .leftJoin(inventoryItems, eq(posSaleItems.inventoryItemId, inventoryItems.id))
+        .where(and(
+          gte(posSales.saleDate, startDate),
+          lte(posSales.saleDate, endDate)
+        ));
+
+      if (locationId) {
+        query = query.where(eq(posSales.locationId, locationId));
+      }
+
+      const saleItems = await query;
+
+      // Get total labor costs to allocate proportionally
+      const laborCostsData = await this.calculateLaborCosts(startDate, endDate, locationId);
+      const totalLaborCost = laborCostsData.totalLaborCost;
+
+      // Calculate total revenue for labor allocation
+      const totalRevenue = saleItems.reduce((sum, item) => sum + parseFloat(item.lineTotal || '0'), 0);
+
+      // Group by product
+      const productMap = new Map<number, {
+        itemId: number;
+        itemName: string;
+        quantitySold: number;
+        totalRevenue: number;
+        materialCost: number;
+        laborCostAllocated: number;
+        totalCOGS: number;
+        grossProfit: number;
+        grossMargin: number;
+      }>();
+
+      for (const item of saleItems) {
+        const itemId = item.inventoryItemId || 0;
+        const itemName = item.itemName;
+        const quantitySold = parseFloat(item.quantity || '0');
+        const itemRevenue = parseFloat(item.lineTotal || '0');
+        const unitCost = parseFloat(item.unitCost || '0');
+        const materialCost = quantitySold * unitCost;
+        
+        // Allocate labor cost based on revenue proportion
+        const laborCostAllocated = totalRevenue > 0 ? (itemRevenue / totalRevenue) * totalLaborCost : 0;
+        
+        const totalCOGS = materialCost + laborCostAllocated;
+        const grossProfit = itemRevenue - totalCOGS;
+        const grossMargin = itemRevenue > 0 ? ((grossProfit / itemRevenue) * 100) : 0;
+
+        if (productMap.has(itemId)) {
+          const existing = productMap.get(itemId)!;
+          existing.quantitySold += quantitySold;
+          existing.totalRevenue += itemRevenue;
+          existing.materialCost += materialCost;
+          existing.laborCostAllocated += laborCostAllocated;
+          existing.totalCOGS += totalCOGS;
+          existing.grossProfit += grossProfit;
+          // Recalculate margin after aggregation
+          existing.grossMargin = existing.totalRevenue > 0 ? ((existing.grossProfit / existing.totalRevenue) * 100) : 0;
+        } else {
+          productMap.set(itemId, {
+            itemId,
+            itemName,
+            quantitySold,
+            totalRevenue: itemRevenue,
+            materialCost,
+            laborCostAllocated,
+            totalCOGS,
+            grossProfit,
+            grossMargin
+          });
+        }
+      }
+
+      return Array.from(productMap.values()).sort((a, b) => b.totalRevenue - a.totalRevenue);
+
+    } catch (error) {
+      console.error('Error calculating COGS by product:', error);
+      throw new Error('Failed to calculate COGS by product');
+    }
+  }
+
+  async getCOGSByEmployee(startDate: string, endDate: string, locationId?: number): Promise<Array<{
+    employeeId: string;
+    employeeName: string;
+    hoursWorked: number;
+    salesGenerated: number;
+    laborCost: number;
+    salesAllocated: Array<{
+      saleId: number;
+      saleDate: string;
+      totalAmount: number;
+      laborCostAllocated: number;
+    }>;
+  }>> {
+    try {
+      // Get employees with time worked
+      const laborData = await this.calculateLaborCosts(startDate, endDate, locationId);
+      
+      // Get sales data with employees (if available)
+      let salesQuery = db
+        .select({
+          id: posSales.id,
+          saleDate: posSales.saleDate,
+          totalAmount: posSales.totalAmount,
+          employeeId: posSales.employeeId
+        })
+        .from(posSales)
+        .where(and(
+          gte(posSales.saleDate, startDate),
+          lte(posSales.saleDate, endDate)
+        ));
+
+      if (locationId) {
+        salesQuery = salesQuery.where(eq(posSales.locationId, locationId));
+      }
+
+      const sales = await salesQuery;
+      const totalSalesRevenue = sales.reduce((sum, sale) => sum + parseFloat(sale.totalAmount || '0'), 0);
+
+      const result = [];
+
+      for (const employee of laborData.employeeBreakdown) {
+        // Find sales associated with this employee
+        const employeeSales = sales.filter(sale => sale.employeeId === employee.employeeId);
+        const salesGenerated = employeeSales.reduce((sum, sale) => sum + parseFloat(sale.totalAmount || '0'), 0);
+        
+        // Allocate labor cost to specific sales
+        const salesAllocated = employeeSales.map(sale => {
+          const saleRevenue = parseFloat(sale.totalAmount || '0');
+          const laborCostAllocated = salesGenerated > 0 ? (saleRevenue / salesGenerated) * employee.totalCost : 0;
+          
+          return {
+            saleId: sale.id,
+            saleDate: sale.saleDate,
+            totalAmount: saleRevenue,
+            laborCostAllocated
+          };
+        });
+
+        result.push({
+          employeeId: employee.employeeId,
+          employeeName: employee.employeeName,
+          hoursWorked: employee.hoursWorked,
+          salesGenerated,
+          laborCost: employee.totalCost,
+          salesAllocated
+        });
+      }
+
+      return result.sort((a, b) => b.salesGenerated - a.salesGenerated);
+
+    } catch (error) {
+      console.error('Error calculating COGS by employee:', error);
+      throw new Error('Failed to calculate COGS by employee');
+    }
+  }
+
+  async getCOGSByLocation(startDate: string, endDate: string): Promise<Array<{
+    locationId: number;
+    locationName: string;
+    totalRevenue: number;
+    totalLaborCost: number;
+    totalMaterialCost: number;
+    totalCOGS: number;
+    grossProfit: number;
+    grossMargin: number;
+    salesCount: number;
+    employeeCount: number;
+  }>> {
+    try {
+      // Get all locations
+      const allLocations = await this.getAllLocations();
+      const result = [];
+
+      for (const location of allLocations) {
+        // Calculate COGS for each location
+        const locationCOGS = await this.calculateCOGS(startDate, endDate, location.id);
+        
+        // Count unique employees for this location
+        const employeeCountQuery = await db
+          .select({ 
+            employeeCount: sql<number>`COUNT(DISTINCT ${timeClockEntries.userId})::integer`
+          })
+          .from(timeClockEntries)
+          .where(and(
+            eq(timeClockEntries.locationId, location.id),
+            gte(sql`DATE(${timeClockEntries.clockInTime})`, startDate),
+            lte(sql`DATE(${timeClockEntries.clockInTime})`, endDate)
+          ));
+
+        const employeeCount = employeeCountQuery[0]?.employeeCount || 0;
+
+        result.push({
+          locationId: location.id,
+          locationName: location.name,
+          totalRevenue: locationCOGS.totalRevenue,
+          totalLaborCost: locationCOGS.laborCosts,
+          totalMaterialCost: locationCOGS.materialCosts,
+          totalCOGS: locationCOGS.totalCOGS,
+          grossProfit: locationCOGS.grossProfit,
+          grossMargin: locationCOGS.grossMargin,
+          salesCount: locationCOGS.salesCount,
+          employeeCount
+        });
+      }
+
+      return result.sort((a, b) => b.totalRevenue - a.totalRevenue);
+
+    } catch (error) {
+      console.error('Error calculating COGS by location:', error);
+      throw new Error('Failed to calculate COGS by location');
+    }
+  }
+
+  async getTimeClockEntriesForPeriod(startDate: string, endDate: string, userId?: string, locationId?: number): Promise<Array<{
+    id: number;
+    userId: string;
+    userName: string;
+    locationId: number;
+    clockInTime: Date;
+    clockOutTime: Date | null;
+    totalWorkedMinutes: number;
+    hourlyRate: number;
+    laborCost: number;
+  }>> {
+    try {
+      let query = db
+        .select({
+          id: timeClockEntries.id,
+          userId: timeClockEntries.userId,
+          firstName: users.firstName,
+          lastName: users.lastName,
+          locationId: timeClockEntries.locationId,
+          clockInTime: timeClockEntries.clockInTime,
+          clockOutTime: timeClockEntries.clockOutTime,
+          totalWorkedMinutes: timeClockEntries.totalWorkedMinutes,
+          hourlyRate: users.hourlyRate
+        })
+        .from(timeClockEntries)
+        .innerJoin(users, eq(timeClockEntries.userId, users.id))
+        .where(and(
+          gte(sql`DATE(${timeClockEntries.clockInTime})`, startDate),
+          lte(sql`DATE(${timeClockEntries.clockInTime})`, endDate)
+        ));
+
+      if (userId) {
+        query = query.where(eq(timeClockEntries.userId, userId));
+      }
+
+      if (locationId) {
+        query = query.where(eq(timeClockEntries.locationId, locationId));
+      }
+
+      const entries = await query;
+
+      return entries.map(entry => {
+        const hoursWorked = (entry.totalWorkedMinutes || 0) / 60;
+        const hourlyRate = parseFloat(entry.hourlyRate || '0');
+        const laborCost = hoursWorked * hourlyRate;
+
+        return {
+          id: entry.id,
+          userId: entry.userId,
+          userName: `${entry.firstName || ''} ${entry.lastName || ''}`.trim(),
+          locationId: entry.locationId || 0,
+          clockInTime: entry.clockInTime,
+          clockOutTime: entry.clockOutTime,
+          totalWorkedMinutes: entry.totalWorkedMinutes || 0,
+          hourlyRate,
+          laborCost
+        };
+      });
+
+    } catch (error) {
+      console.error('Error getting time clock entries:', error);
+      throw new Error('Failed to get time clock entries');
+    }
+  }
+
   // ============================================
   // QR CODE MANAGEMENT METHODS
   // ============================================

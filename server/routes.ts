@@ -3766,161 +3766,212 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get cost of goods sold analysis
+  // ============================================
+  // COGS (COST OF GOODS SOLD) API ENDPOINTS
+  // ============================================
+
+  // Get comprehensive COGS analysis - replaces old 40% estimate with actual cost tracking
   app.get('/api/accounting/analytics/cogs', isAuthenticated, async (req, res) => {
     try {
-      const { startDate, endDate } = req.query;
-      
-      console.log('🧮 COGS Analysis - Getting live revenue and inventory costs...');
-      
-      // Get live revenue data (same as dashboard shows)
-      const allCloverConfigs = await storage.getAllCloverConfigs();
-      const activeConfigs = allCloverConfigs.filter(config => config.isActive);
-      
-      let totalLiveRevenue = 0;
-      let totalTransactions = 0;
-      
-      // Get live revenue from all Clover locations
-      for (const config of activeConfigs) {
-        try {
-          const { CloverIntegration } = await import('./integrations/clover');
-          const cloverIntegration = new CloverIntegration(config);
-          
-          const start = new Date(startDate as string);
-          const end = new Date(endDate as string);
-          end.setHours(23, 59, 59, 999);
-          
-          // Fetch ALL orders with pagination to avoid missing revenue (same as multi-location endpoint)
-          let allOrders: any[] = [];
-          let offset = 0;
-          const limit = 1000;
-          let hasMoreData = true;
-          
-          while (hasMoreData) {
-            const liveOrders = await cloverIntegration.fetchOrders({
-              filter: `createdTime>=${Math.floor(start.getTime())}`,
-              limit: limit,
-              offset: offset
-            });
-            
-            if (liveOrders && liveOrders.elements && liveOrders.elements.length > 0) {
-              allOrders.push(...liveOrders.elements);
-              console.log(`📊 COGS: Fetched ${liveOrders.elements.length} orders for ${config.merchantName} (offset: ${offset}), total so far: ${allOrders.length}`);
-              
-              // Check if we need to fetch more data
-              if (liveOrders.elements.length < limit) {
-                hasMoreData = false;
-              } else {
-                offset += limit;
-              }
-            } else {
-              hasMoreData = false;
-            }
-          }
-          
-          if (allOrders.length > 0) {
-            console.log(`📊 COGS: Total orders fetched for ${config.merchantName}: ${allOrders.length} orders`);
-            
-            // Filter orders by date on server-side
-            const filteredOrders = allOrders.filter((order: any) => {
-              const orderDate = new Date(order.createdTime);
-              return orderDate >= start && orderDate <= end;
-            });
-            
-            console.log(`COGS Filtered orders for ${config.merchantName}: ${filteredOrders.length} orders`);
-            
-            const locationRevenue = filteredOrders.reduce((sum: number, order: any) => {
-              return sum + (parseFloat(order.total || '0') / 100);
-            }, 0);
-            
-            totalLiveRevenue += locationRevenue;
-            totalTransactions += filteredOrders.length;
-            
-            console.log(`📊 COGS ${config.merchantName}: $${locationRevenue.toFixed(2)} from ${filteredOrders.length} orders`);
-          }
-        } catch (error) {
-          console.log(`No live data for ${config.merchantName}`);
-        }
+      // RBAC: Only admin and manager can access COGS data (contains sensitive financial info)
+      if (!req.user || !['admin', 'manager'].includes(req.user.role)) {
+        return res.status(403).json({ error: 'Admin or Manager access required for COGS data' });
       }
+
+      const { startDate, endDate, locationId } = req.query;
       
-      // Add Amazon revenue  
-      try {
-        const allAmazonConfigs = await storage.getAllAmazonConfigs();
-        const activeAmazonConfigs = allAmazonConfigs.filter(config => config.isActive);
-        
-        for (const amazonConfig of activeAmazonConfigs) {
-          const { AmazonIntegration } = await import('./integrations/amazon');
-          const amazonIntegration = new AmazonIntegration({
-            sellerId: process.env.AMAZON_SELLER_ID,
-            accessToken: process.env.AMAZON_ACCESS_TOKEN,
-            refreshToken: process.env.AMAZON_REFRESH_TOKEN,
-            clientId: process.env.AMAZON_CLIENT_ID,
-            clientSecret: process.env.AMAZON_CLIENT_SECRET,
-            merchantName: amazonConfig.merchantName
-          });
-          
-          const start = new Date(startDate as string);
-          const end = new Date(endDate as string);
-          const now = new Date();
-          const twoMinutesAgo = new Date(now.getTime() - 2 * 60 * 1000);
-          
-          if (end > twoMinutesAgo) {
-            end.setTime(twoMinutesAgo.getTime());
-          }
-          
-          const salesMetrics = await amazonIntegration.getOrderMetrics(start.toISOString(), end.toISOString());
-          if (salesMetrics && salesMetrics.payload && salesMetrics.payload.length > 0) {
-            const metrics = salesMetrics.payload[0];
-            const amazonRevenue = parseFloat(metrics.totalSales?.amount || '0');
-            const amazonTransactions = parseInt(metrics.orderItemCount || '0');
-            
-            totalLiveRevenue += amazonRevenue;
-            totalTransactions += amazonTransactions;
-            
-            console.log(`📊 Amazon Store: $${amazonRevenue.toFixed(2)} from ${amazonTransactions} orders`);
-          }
-        }
-      } catch (error) {
-        console.log('No Amazon data available');
+      if (!startDate || !endDate) {
+        return res.status(400).json({ error: 'startDate and endDate are required' });
       }
+
+      console.log(`🧮 COGS Analysis - Calculating actual labor and material costs for ${startDate} to ${endDate}`);
       
-      // Estimate cost based on average inventory costs and revenue
-      const { db } = await import('./db');
-      const { inventoryItems } = await import('@shared/schema');
-      const { sql } = await import('drizzle-orm');
-      
-      const avgCostQuery = await db
-        .select({
-          avgCost: sql<number>`AVG(CAST(${inventoryItems.unitCost} AS DECIMAL))`.as('avgCost'),
-          itemCount: sql<number>`COUNT(*)`.as('itemCount')
-        })
-        .from(inventoryItems)
-        .where(sql`${inventoryItems.unitCost} > 0 AND ${inventoryItems.isActive} = true`);
-      
-      const avgCostData = avgCostQuery[0];
-      const avgProductCost = parseFloat(avgCostData.avgCost?.toString() || '8');
-      const availableProducts = parseInt(avgCostData.itemCount?.toString() || '0');
-      
-      // Estimate cost of goods sold (conservative estimate: 40% of revenue as COGS)
-      const estimatedCOGS = totalLiveRevenue * 0.40;
-      const grossProfit = totalLiveRevenue - estimatedCOGS;
-      const grossMargin = totalLiveRevenue > 0 ? (grossProfit / totalLiveRevenue) * 100 : 0;
-      
-      console.log(`💰 Live Revenue: $${totalLiveRevenue.toFixed(2)}, Estimated COGS: $${estimatedCOGS.toFixed(2)}, Gross Profit: $${grossProfit.toFixed(2)}`);
-      
+      // Use our new comprehensive COGS calculation
+      const cogsData = await storage.calculateCOGS(
+        startDate as string, 
+        endDate as string, 
+        locationId ? parseInt(locationId as string) : undefined
+      );
+
+      // Return numeric types instead of strings (fixed data consistency issue)
       res.json({
-        totalRevenue: totalLiveRevenue.toFixed(2),
-        totalCost: estimatedCOGS.toFixed(2),
-        grossProfit: grossProfit.toFixed(2),
-        grossMargin: grossMargin.toFixed(2),
-        totalItemsSold: totalTransactions,
-        uniqueItems: availableProducts,
-        isEstimate: true,
-        note: `Based on live revenue data and ${availableProducts} products with average cost $${avgProductCost.toFixed(2)}`
+        totalRevenue: cogsData.totalRevenue,
+        totalCost: cogsData.totalCOGS,
+        laborCosts: cogsData.laborCosts,
+        materialCosts: cogsData.materialCosts,
+        grossProfit: cogsData.grossProfit,
+        grossMargin: cogsData.grossMargin,
+        totalItemsSold: cogsData.salesCount,
+        isEstimate: false,
+        laborBreakdown: cogsData.laborBreakdown,
+        materialBreakdown: cogsData.materialBreakdown,
+        note: `Based on actual employee time clock data and inventory costs`
       });
     } catch (error) {
       console.error('Error calculating COGS:', error);
-      res.status(500).json({ error: 'Failed to calculate cost of goods sold' });
+      res.status(500).json({ error: 'Failed to calculate cost of goods sold', details: error instanceof Error ? error.message : 'Unknown error' });
+    }
+  });
+
+  // Get detailed labor costs breakdown
+  app.get('/api/accounting/cogs/labor-costs', isAuthenticated, async (req, res) => {
+    try {
+      // RBAC: Only admin and manager can access sensitive labor cost data
+      if (!req.user || !['admin', 'manager'].includes(req.user.role)) {
+        return res.status(403).json({ error: 'Admin or Manager access required for labor cost data' });
+      }
+
+      const { startDate, endDate, locationId } = req.query;
+      
+      if (!startDate || !endDate) {
+        return res.status(400).json({ error: 'startDate and endDate are required' });
+      }
+
+      const laborCosts = await storage.calculateLaborCosts(
+        startDate as string, 
+        endDate as string, 
+        locationId ? parseInt(locationId as string) : undefined
+      );
+
+      res.json(laborCosts);
+    } catch (error) {
+      console.error('Error calculating labor costs:', error);
+      res.status(500).json({ error: 'Failed to calculate labor costs', details: error instanceof Error ? error.message : 'Unknown error' });
+    }
+  });
+
+  // Get detailed material costs breakdown  
+  app.get('/api/accounting/cogs/material-costs', isAuthenticated, async (req, res) => {
+    try {
+      // RBAC: Only admin and manager can access sensitive material cost data
+      if (!req.user || !['admin', 'manager'].includes(req.user.role)) {
+        return res.status(403).json({ error: 'Admin or Manager access required for material cost data' });
+      }
+
+      const { startDate, endDate, locationId } = req.query;
+      
+      if (!startDate || !endDate) {
+        return res.status(400).json({ error: 'startDate and endDate are required' });
+      }
+
+      const materialCosts = await storage.calculateMaterialCosts(
+        startDate as string, 
+        endDate as string, 
+        locationId ? parseInt(locationId as string) : undefined
+      );
+
+      res.json(materialCosts);
+    } catch (error) {
+      console.error('Error calculating material costs:', error);
+      res.status(500).json({ error: 'Failed to calculate material costs', details: error instanceof Error ? error.message : 'Unknown error' });
+    }
+  });
+
+  // Get COGS analysis by product/item
+  app.get('/api/accounting/cogs/by-product', isAuthenticated, async (req, res) => {
+    try {
+      // RBAC: Only admin and manager can access product-level COGS data
+      if (!req.user || !['admin', 'manager'].includes(req.user.role)) {
+        return res.status(403).json({ error: 'Admin or Manager access required for product COGS data' });
+      }
+
+      const { startDate, endDate, locationId } = req.query;
+      
+      if (!startDate || !endDate) {
+        return res.status(400).json({ error: 'startDate and endDate are required' });
+      }
+
+      const productCogs = await storage.getCOGSByProduct(
+        startDate as string, 
+        endDate as string, 
+        locationId ? parseInt(locationId as string) : undefined
+      );
+
+      res.json(productCogs);
+    } catch (error) {
+      console.error('Error calculating COGS by product:', error);
+      res.status(500).json({ error: 'Failed to calculate COGS by product', details: error instanceof Error ? error.message : 'Unknown error' });
+    }
+  });
+
+  // Get COGS analysis by employee
+  app.get('/api/accounting/cogs/by-employee', isAuthenticated, async (req, res) => {
+    try {
+      // CRITICAL RBAC: Employee-level COGS contains sensitive payroll data - admin only
+      if (!req.user || req.user.role !== 'admin') {
+        return res.status(403).json({ error: 'Admin access required for employee-level COGS data (contains sensitive payroll information)' });
+      }
+
+      const { startDate, endDate, locationId } = req.query;
+      
+      if (!startDate || !endDate) {
+        return res.status(400).json({ error: 'startDate and endDate are required' });
+      }
+
+      const employeeCogs = await storage.getCOGSByEmployee(
+        startDate as string, 
+        endDate as string, 
+        locationId ? parseInt(locationId as string) : undefined
+      );
+
+      res.json(employeeCogs);
+    } catch (error) {
+      console.error('Error calculating COGS by employee:', error);
+      res.status(500).json({ error: 'Failed to calculate COGS by employee', details: error instanceof Error ? error.message : 'Unknown error' });
+    }
+  });
+
+  // Get COGS analysis by location
+  app.get('/api/accounting/cogs/by-location', isAuthenticated, async (req, res) => {
+    try {
+      // RBAC: Only admin and manager can access location-level COGS data
+      if (!req.user || !['admin', 'manager'].includes(req.user.role)) {
+        return res.status(403).json({ error: 'Admin or Manager access required for location COGS data' });
+      }
+
+      const { startDate, endDate } = req.query;
+      
+      if (!startDate || !endDate) {
+        return res.status(400).json({ error: 'startDate and endDate are required' });
+      }
+
+      const locationCogs = await storage.getCOGSByLocation(
+        startDate as string, 
+        endDate as string
+      );
+
+      res.json(locationCogs);
+    } catch (error) {
+      console.error('Error calculating COGS by location:', error);
+      res.status(500).json({ error: 'Failed to calculate COGS by location', details: error instanceof Error ? error.message : 'Unknown error' });
+    }
+  });
+
+  // Get time clock entries for a period (helpful for COGS debugging)
+  app.get('/api/accounting/cogs/time-entries', isAuthenticated, async (req, res) => {
+    try {
+      // CRITICAL RBAC: Time clock data is highly sensitive personal/payroll data - admin only
+      if (!req.user || req.user.role !== 'admin') {
+        return res.status(403).json({ error: 'Admin access required for time clock data (contains sensitive employee personal/payroll information)' });
+      }
+
+      const { startDate, endDate, userId, locationId } = req.query;
+      
+      if (!startDate || !endDate) {
+        return res.status(400).json({ error: 'startDate and endDate are required' });
+      }
+
+      const timeEntries = await storage.getTimeClockEntriesForPeriod(
+        startDate as string, 
+        endDate as string,
+        userId as string | undefined,
+        locationId ? parseInt(locationId as string) : undefined
+      );
+
+      res.json(timeEntries);
+    } catch (error) {
+      console.error('Error getting time clock entries:', error);
+      res.status(500).json({ error: 'Failed to get time clock entries', details: error instanceof Error ? error.message : 'Unknown error' });
     }
   });
 
