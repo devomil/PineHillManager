@@ -3692,9 +3692,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const cloverIntegration = new CloverIntegration(config);
           
           console.log(`🔄 Syncing September 2025 sales for ${config.merchantName}...`);
-          await cloverIntegration.syncOrders({ 
+          await cloverIntegration.syncOrdersComprehensive({ 
             startDate: '2025-09-01',
-            endDate: '2025-09-30' 
+            endDate: '2025-09-30',
+            force: true
           });
           console.log(`✅ Successfully synced ${config.merchantName}`);
         } catch (error) {
@@ -3910,23 +3911,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       console.log(`🚀 Production COGS Response: Revenue=$${cogsData.totalRevenue}, COGS=$${cogsData.totalCOGS}, Items=${cogsData.totalItemsSold || 0}`);
       
-      // DEVELOPMENT FIX: If COGS is minimal but we know there should be data, auto-sync
-      if (cogsData.totalCOGS < 1000 && startDate === '2025-09-01' && endDate === '2025-09-30') {
+      // DEVELOPMENT FIX: If COGS is minimal for any period with revenue, auto-sync sales data
+      if (cogsData.totalCOGS < 100) {
         console.log(`🔄 DEVELOPMENT: COGS too low ($${cogsData.totalCOGS}), auto-syncing September data...`);
         try {
           const allCloverConfigs = await storage.getAllCloverConfigs();
           const activeConfigs = allCloverConfigs.filter(config => config.isActive);
           
           const syncPromises = activeConfigs.map(async (config) => {
+            const { CloverIntegration } = await import('./integrations/clover');
+            const cloverIntegration = new CloverIntegration(config);
+            
+            // Try inventory sync (non-blocking)
             try {
-              const { CloverIntegration } = await import('./integrations/clover');
-              const cloverIntegration = new CloverIntegration(config);
-              
               console.log(`🔄 Auto-syncing inventory costs for ${config.merchantName}...`);
               await cloverIntegration.syncInventoryItems();
               console.log(`✅ Inventory sync complete for ${config.merchantName}`);
-            } catch (error) {
-              console.error(`❌ Inventory sync failed for ${config.merchantName}:`, error);
+            } catch (inventoryError) {
+              console.error(`❌ Inventory sync failed for ${config.merchantName}:`, inventoryError);
+              console.log(`🔄 Continuing with sales sync despite inventory errors...`);
+            }
+            
+            // CRITICAL: Always run sales sync (this is needed for COGS)
+            try {
+              console.log(`💰 Auto-syncing sales data for ${config.merchantName}...`);
+              await cloverIntegration.syncDailySales();
+              console.log(`✅ Sales sync complete for ${config.merchantName}`);
+            } catch (salesError) {
+              console.error(`❌ Sales sync failed for ${config.merchantName}:`, salesError);
             }
           });
           
