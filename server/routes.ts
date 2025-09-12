@@ -9189,7 +9189,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     unprocessedTimeEntriesQuerySchema,
     processTimeEntriesSchema,
     employeePayHistoryQuerySchema
-  } = require('./payroll-validation');
+  } = await import('./payroll-validation.js');
   
   const {
     requirePayrollAccess,
@@ -9197,9 +9197,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     validatePayrollPeriodAccess,
     validatePayrollEntryAccess,
     rateLimitPayrollOperations
-  } = require('./payroll-auth');
+  } = await import('./payroll-auth.js');
   
-  const { payrollLogger } = require('./secure-logger');
+  const { payrollLogger } = await import('./secure-logger.js');
 
   // Payroll Period Management
   app.get('/api/payroll/periods', 
