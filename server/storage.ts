@@ -437,6 +437,15 @@ export interface IStorage {
   getTransactionsByDateRange(startDate: string, endDate: string): Promise<FinancialTransaction[]>;
   getTransactionsBySourceSystem(sourceSystem: string): Promise<FinancialTransaction[]>;
   updateFinancialTransaction(id: number, transaction: Partial<InsertFinancialTransaction>): Promise<FinancialTransaction>;
+  
+  // Quick expense operations
+  createQuickExpense(data: {
+    amount: number;
+    description: string;
+    category: string;
+    expenseDate: string;
+    userId: string;
+  }): Promise<FinancialTransaction>;
   deleteFinancialTransaction(id: number): Promise<void>;
 
   // Financial Transaction Lines
@@ -3208,6 +3217,104 @@ export class DatabaseStorage implements IStorage {
   async createFinancialTransaction(transaction: InsertFinancialTransaction): Promise<FinancialTransaction> {
     const [newTransaction] = await db.insert(financialTransactions).values(transaction).returning();
     return newTransaction;
+  }
+
+  async createQuickExpense(data: {
+    amount: number;
+    description: string;
+    category: string;
+    expenseDate: string;
+    userId: string;
+  }): Promise<FinancialTransaction> {
+    try {
+      console.log('🧾 Creating quick expense:', data);
+      
+      // Map category to account type and name
+      const getExpenseAccountInfo = (category: string) => {
+        const categoryMap: { [key: string]: { accountType: string; accountName: string } } = {
+          'Office Supplies': { accountType: 'expense', accountName: 'Office Supplies Expense' },
+          'Travel': { accountType: 'expense', accountName: 'Travel Expense' },
+          'Meals & Entertainment': { accountType: 'expense', accountName: 'Meals & Entertainment Expense' },
+          'Professional Services': { accountType: 'expense', accountName: 'Professional Services Expense' },
+          'Marketing & Advertising': { accountType: 'expense', accountName: 'Marketing & Advertising Expense' },
+          'Utilities': { accountType: 'expense', accountName: 'Utilities Expense' },
+          'Equipment': { accountType: 'expense', accountName: 'Equipment Expense' },
+          'Insurance': { accountType: 'expense', accountName: 'Insurance Expense' },
+          'Software & Subscriptions': { accountType: 'expense', accountName: 'Software & Subscriptions Expense' },
+          'Vehicle Expense': { accountType: 'expense', accountName: 'Vehicle Expense' },
+          'Other': { accountType: 'expense', accountName: 'General Expense' }
+        };
+        return categoryMap[category] || categoryMap['Other'];
+      };
+
+      const expenseAccountInfo = getExpenseAccountInfo(data.category);
+      
+      // Find or create the expense account
+      let expenseAccount = await this.getAccountsByName(expenseAccountInfo.accountName);
+      if (!expenseAccount || expenseAccount.length === 0) {
+        console.log(`📊 Creating new expense account: ${expenseAccountInfo.accountName}`);
+        expenseAccount = [await this.createFinancialAccount({
+          accountName: expenseAccountInfo.accountName,
+          accountType: expenseAccountInfo.accountType,
+          description: `Expense account for ${data.category}`,
+          isActive: true
+        })];
+      }
+
+      // Find or create Cash/Checking account for credit side
+      let cashAccount = await this.getAccountsByName('Checking Account');
+      if (!cashAccount || cashAccount.length === 0) {
+        console.log('💰 Creating default Checking Account');
+        cashAccount = [await this.createFinancialAccount({
+          accountName: 'Checking Account',
+          accountType: 'asset',
+          description: 'Main checking account for business expenses',
+          isActive: true
+        })];
+      }
+
+      // Create the financial transaction
+      const transaction = await this.createFinancialTransaction({
+        transactionDate: new Date(data.expenseDate),
+        description: `${data.category}: ${data.description}`,
+        totalAmount: data.amount,
+        sourceSystem: 'quick_expense',
+        reference: `EXPENSE-${Date.now()}`,
+        externalId: `quick_expense_${data.userId}_${Date.now()}`
+      });
+
+      // Create transaction lines for double-entry bookkeeping
+      // Debit the expense account (increases expense)
+      await this.createTransactionLine({
+        transactionId: transaction.id,
+        accountId: expenseAccount[0].id,
+        debitAmount: data.amount,
+        creditAmount: 0,
+        description: `${data.category}: ${data.description}`
+      });
+
+      // Credit the cash account (decreases asset)
+      await this.createTransactionLine({
+        transactionId: transaction.id,
+        accountId: cashAccount[0].id,
+        debitAmount: 0,
+        creditAmount: data.amount,
+        description: `Payment for ${data.category}: ${data.description}`
+      });
+
+      console.log('✅ Quick expense created successfully:', {
+        transactionId: transaction.id,
+        amount: data.amount,
+        category: data.category,
+        expenseAccount: expenseAccount[0].accountName,
+        cashAccount: cashAccount[0].accountName
+      });
+
+      return transaction;
+    } catch (error) {
+      console.error('❌ Error creating quick expense:', error);
+      throw new Error(`Failed to create quick expense: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   }
 
   async getAllFinancialTransactions(limit?: number, offset?: number): Promise<FinancialTransaction[]> {

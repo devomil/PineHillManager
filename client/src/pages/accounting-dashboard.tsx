@@ -142,6 +142,14 @@ const journalEntryFormSchema = z.object({
   }, 'Total debits must equal total credits'),
 });
 
+const quickExpenseFormSchema = z.object({
+  amount: z.string().min(1, 'Amount is required')
+    .refine((val) => !isNaN(parseFloat(val)) && parseFloat(val) > 0, 'Amount must be a positive number'),
+  description: z.string().min(1, 'Description is required').max(255, 'Description must be less than 255 characters'),
+  category: z.string().min(1, 'Category is required'),
+  expenseDate: z.string().min(1, 'Date is required'),
+});
+
 type CloverLocation = {
   id: number;
   merchantId: string;
@@ -180,6 +188,45 @@ type MonthlyGoals = {
   setDate: string;
 };
 
+type QuickExpense = {
+  amount: number;
+  description: string;
+  category: string;
+  expenseDate: string;
+  accountId?: number;
+};
+
+// Predefined expense categories for quick selection
+const EXPENSE_CATEGORIES = [
+  'Office Supplies',
+  'Travel & Transportation',
+  'Meals & Entertainment',
+  'Utilities',
+  'Rent & Facilities',
+  'Marketing & Advertising',
+  'Professional Services',
+  'Software & Technology',
+  'Insurance',
+  'Maintenance & Repairs',
+  'Bank Fees',
+  'Other Business Expenses'
+];
+
+const CATEGORY_ACCOUNT_MAPPING: Record<string, string> = {
+  'Office Supplies': 'Office Expenses',
+  'Travel & Transportation': 'Travel Expenses',
+  'Meals & Entertainment': 'Meals and Entertainment',
+  'Utilities': 'Utilities',
+  'Rent & Facilities': 'Rent Expense',
+  'Marketing & Advertising': 'Advertising Expenses',
+  'Professional Services': 'Professional Fees',
+  'Software & Technology': 'Computer and Internet Expenses',
+  'Insurance': 'Insurance Expense',
+  'Maintenance & Repairs': 'Repairs and Maintenance',
+  'Bank Fees': 'Bank Service Charges',
+  'Other Business Expenses': 'Other Expenses'
+};
+
 function AccountingContent() {
   const [activeSection, setActiveSection] = useState('overview');
   const queryClient = useQueryClient();
@@ -199,6 +246,12 @@ function AccountingContent() {
   
   // Check if user can manage accounts (Admin or Manager only)
   const canManageAccounts = user?.role === 'admin' || user?.role === 'manager';
+  const canAddExpenses = user?.role === 'admin' || user?.role === 'manager' || user?.role === 'owner';
+
+  // Quick expense state
+  const [isQuickExpenseDialogOpen, setIsQuickExpenseDialogOpen] = useState(false);
+  const [recentExpenseCategories, setRecentExpenseCategories] = useState<string[]>([]);
+  const [expenseDescriptionSuggestions, setExpenseDescriptionSuggestions] = useState<string[]>([]);
 
   // Goal setting state
   const [isGoalDialogOpen, setIsGoalDialogOpen] = useState(false);
@@ -1480,28 +1533,40 @@ function AccountingContent() {
                         Manage your financial account structure and create journal entries
                       </CardDescription>
                     </div>
-                    {canManageAccounts && (
-                      <div className="flex gap-2">
+                    <div className="flex gap-2">
+                      {canAddExpenses && (
                         <Button
-                          onClick={() => {
-                            setEditingAccount(null);
-                            setIsAccountDialogOpen(true);
-                          }}
-                          className="flex items-center gap-2"
+                          onClick={() => setIsQuickExpenseDialogOpen(true)}
+                          className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white shadow-md"
+                          data-testid="button-add-expense"
                         >
-                          <Plus className="h-4 w-4" />
-                          Add Account
+                          <Receipt className="h-4 w-4" />
+                          Add Expense
                         </Button>
-                        <Button
-                          onClick={() => setIsJournalEntryDialogOpen(true)}
-                          variant="outline"
-                          className="flex items-center gap-2"
-                        >
-                          <FileText className="h-4 w-4" />
-                          Journal Entry
-                        </Button>
-                      </div>
-                    )}
+                      )}
+                      {canManageAccounts && (
+                        <>
+                          <Button
+                            onClick={() => {
+                              setEditingAccount(null);
+                              setIsAccountDialogOpen(true);
+                            }}
+                            className="flex items-center gap-2"
+                          >
+                            <Plus className="h-4 w-4" />
+                            Add Account
+                          </Button>
+                          <Button
+                            onClick={() => setIsJournalEntryDialogOpen(true)}
+                            variant="outline"
+                            className="flex items-center gap-2"
+                          >
+                            <FileText className="h-4 w-4" />
+                            Journal Entry
+                          </Button>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent>
@@ -1737,6 +1802,13 @@ function AccountingContent() {
           accounts={accounts}
         />
 
+        {/* Quick Expense Dialog */}
+        <QuickExpenseDialog
+          isOpen={isQuickExpenseDialogOpen}
+          onClose={() => setIsQuickExpenseDialogOpen(false)}
+          accounts={accounts}
+        />
+
         {/* PDF Scanning Dialog */}
         <PdfScanningDialog
           isOpen={isPdfScanDialogOpen}
@@ -1968,6 +2040,266 @@ function AccountManagementDialog({
               </Button>
               <Button type="submit" disabled={accountMutation.isPending}>
                 {accountMutation.isPending ? 'Saving...' : (editingAccount ? 'Update Account' : 'Create Account')}
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// Quick Expense Dialog Component
+function QuickExpenseDialog({ 
+  isOpen, 
+  onClose, 
+  accounts 
+}: { 
+  isOpen: boolean; 
+  onClose: () => void; 
+  accounts: FinancialAccount[];
+}) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  
+  const form = useForm({
+    resolver: zodResolver(quickExpenseFormSchema),
+    defaultValues: {
+      amount: '',
+      description: '',
+      category: '',
+      expenseDate: new Date().toISOString().split('T')[0],
+    },
+  });
+
+  // Get recent categories from localStorage
+  const recentCategories = JSON.parse(localStorage.getItem('recent_expense_categories') || '[]');
+  const suggestedCategories = [...new Set([...recentCategories, ...EXPENSE_CATEGORIES])];
+
+  // Quick expense mutation
+  const quickExpenseMutation = useMutation({
+    mutationFn: async (data: {
+      amount: string;
+      description: string;
+      category: string;
+      expenseDate: string;
+    }) => {
+      const response = await apiRequest('POST', '/api/accounting/expenses/quick', {
+        amount: parseFloat(data.amount),
+        description: data.description,
+        category: data.category,
+        expenseDate: data.expenseDate,
+      });
+      return await response.json();
+    },
+    onSuccess: (data) => {
+      // Add category to recent categories
+      const category = form.getValues('category');
+      const updatedCategories = [category, ...recentCategories.filter((c: string) => c !== category)].slice(0, 5);
+      localStorage.setItem('recent_expense_categories', JSON.stringify(updatedCategories));
+
+      // Invalidate relevant queries
+      queryClient.invalidateQueries({ queryKey: ['/api/accounting/accounts'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/accounting/transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/accounting/reports'] });
+      
+      const today = new Date().toISOString().split('T')[0];
+      queryClient.invalidateQueries({ queryKey: ['/api/accounting/analytics/profit-loss', today] });
+
+      onClose();
+      form.reset();
+      
+      toast({
+        title: "Expense Added Successfully",
+        description: `$${data.amount} expense for ${data.description} has been recorded.`,
+        variant: "default",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to Add Expense",
+        description: error.message || "There was an error adding the expense. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const onSubmit = (data: any) => {
+    quickExpenseMutation.mutate(data);
+  };
+
+  // Auto-suggest category based on description
+  const suggestCategory = (description: string) => {
+    const desc = description.toLowerCase();
+    if (desc.includes('office') || desc.includes('supplies') || desc.includes('paper') || desc.includes('pen')) {
+      return 'Office Supplies';
+    }
+    if (desc.includes('travel') || desc.includes('gas') || desc.includes('fuel') || desc.includes('uber') || desc.includes('taxi')) {
+      return 'Travel & Transportation';
+    }
+    if (desc.includes('meal') || desc.includes('lunch') || desc.includes('dinner') || desc.includes('restaurant')) {
+      return 'Meals & Entertainment';
+    }
+    if (desc.includes('phone') || desc.includes('internet') || desc.includes('software') || desc.includes('subscription')) {
+      return 'Software & Technology';
+    }
+    if (desc.includes('rent') || desc.includes('lease')) {
+      return 'Rent & Facilities';
+    }
+    return '';
+  };
+
+  const handleDescriptionChange = (description: string) => {
+    const suggested = suggestCategory(description);
+    if (suggested && !form.getValues('category')) {
+      form.setValue('category', suggested);
+    }
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-green-700">
+            <Receipt className="h-5 w-5" />
+            Quick Expense Entry
+          </DialogTitle>
+          <DialogDescription>
+            Add a business expense quickly and easily
+          </DialogDescription>
+        </DialogHeader>
+        
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <FormField
+              control={form.control}
+              name="amount"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Amount</FormLabel>
+                  <FormControl>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2.5 text-sm text-gray-500">$</span>
+                      <Input 
+                        type="number" 
+                        step="0.01"
+                        placeholder="0.00"
+                        className="pl-8"
+                        data-testid="input-expense-amount"
+                        {...field} 
+                      />
+                    </div>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            
+            <FormField
+              control={form.control}
+              name="description"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Description</FormLabel>
+                  <FormControl>
+                    <Input 
+                      placeholder="What was this expense for?"
+                      data-testid="input-expense-description"
+                      {...field}
+                      onChange={(e) => {
+                        field.onChange(e);
+                        handleDescriptionChange(e.target.value);
+                      }}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            
+            <FormField
+              control={form.control}
+              name="category"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Category</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger data-testid="select-expense-category">
+                        <SelectValue placeholder="Select category" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {recentCategories.length > 0 && (
+                        <>
+                          <div className="px-2 py-1 text-xs font-medium text-gray-500">Recent</div>
+                          {recentCategories.map((category: string) => (
+                            <SelectItem key={`recent-${category}`} value={category}>
+                              <div className="flex items-center gap-2">
+                                <Clock className="h-3 w-3 text-gray-400" />
+                                {category}
+                              </div>
+                            </SelectItem>
+                          ))}
+                          <div className="px-2 py-1 text-xs font-medium text-gray-500 border-t">All Categories</div>
+                        </>
+                      )}
+                      {EXPENSE_CATEGORIES.map((category) => (
+                        <SelectItem key={category} value={category}>
+                          {category}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            
+            <FormField
+              control={form.control}
+              name="expenseDate"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Date</FormLabel>
+                  <FormControl>
+                    <Input 
+                      type="date" 
+                      data-testid="input-expense-date"
+                      {...field} 
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            
+            <DialogFooter className="gap-2">
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={onClose}
+                disabled={quickExpenseMutation.isPending}
+              >
+                Cancel
+              </Button>
+              <Button 
+                type="submit" 
+                disabled={quickExpenseMutation.isPending}
+                className="bg-green-600 hover:bg-green-700"
+                data-testid="button-submit-expense"
+              >
+                {quickExpenseMutation.isPending ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Adding...
+                  </>
+                ) : (
+                  <>
+                    <Receipt className="h-4 w-4 mr-2" />
+                    Add Expense
+                  </>
+                )}
               </Button>
             </DialogFooter>
           </form>

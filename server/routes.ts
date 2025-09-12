@@ -4446,6 +4446,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Quick Expense Creation Route (streamlined for owners)
+  app.post('/api/accounting/expenses/quick', isAuthenticated, async (req, res) => {
+    try {
+      const { amount, description, category, expenseDate } = req.body;
+      const userId = req.user?.id;
+
+      // Validate required fields
+      if (!amount || !description || !category || !expenseDate) {
+        return res.status(400).json({ 
+          error: 'Missing required fields: amount, description, category, expenseDate' 
+        });
+      }
+
+      // Validate user has permission to add expenses
+      if (!userId || !['admin', 'manager', 'owner'].includes(req.user?.role || '')) {
+        return res.status(403).json({ 
+          error: 'Permission denied. Only admins, managers, and owners can add expenses.' 
+        });
+      }
+
+      // Create the expense transaction
+      const expense = await storage.createQuickExpense({
+        amount: parseFloat(amount),
+        description,
+        category,
+        expenseDate,
+        userId
+      });
+
+      res.status(201).json({
+        success: true,
+        message: 'Expense added successfully',
+        expense: expense,
+        amount: parseFloat(amount),
+        description,
+        category,
+        expenseDate
+      });
+    } catch (error) {
+      console.error('Error creating quick expense:', error);
+      res.status(500).json({ 
+        error: 'Failed to create expense',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
   app.post('/api/accounting/transactions', isAuthenticated, async (req, res) => {
     try {
       const { 
