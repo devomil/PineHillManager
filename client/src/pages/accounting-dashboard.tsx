@@ -1120,7 +1120,7 @@ function AccountingContent() {
                         </div>
                         <div className="flex justify-between">
                           <span className="text-sm text-gray-600">Cost of Goods:</span>
-                          <span className="font-bold text-orange-600">${(monthlyCogsData as any)?.totalCost || (monthlyProfitLoss as any)?.totalCOGS || '0.00'}</span>
+                          <span className="font-bold text-orange-600">${Number.parseFloat((monthlyCogsData as any)?.totalCost || (monthlyProfitLoss as any)?.totalCOGS || '0').toFixed(2)}</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-sm text-gray-600">Expenses:</span>
@@ -1128,11 +1128,11 @@ function AccountingContent() {
                         </div>
                         <div className="flex justify-between border-t pt-2">
                           <span className="text-sm font-medium">Gross Profit:</span>
-                          <span className="font-bold text-blue-600">${(monthlyCogsData as any)?.grossProfit || (monthlyProfitLoss as any)?.grossProfit || '0.00'}</span>
+                          <span className="font-bold text-blue-600">${Number.parseFloat((monthlyCogsData as any)?.grossProfit || (monthlyProfitLoss as any)?.grossProfit || '0').toFixed(2)}</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-sm font-medium">Gross Margin:</span>
-                          <span className="font-bold text-blue-600">{(monthlyCogsData as any)?.grossMargin || '0.0'}%</span>
+                          <span className="font-bold text-blue-600">{Number.parseFloat((monthlyCogsData as any)?.grossMargin || '0').toFixed(2)}%</span>
                         </div>
                       </div>
                     </CardContent>
