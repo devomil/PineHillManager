@@ -2051,7 +2051,8 @@ export class DatabaseStorage implements IStorage {
           or(
             eq(timeClockEntries.status, 'clocked_in'),
             eq(timeClockEntries.status, 'on_break')
-          )
+          ),
+          isNull(timeClockEntries.clockOutTime)
         )
       )
       .orderBy(desc(timeClockEntries.clockInTime))
