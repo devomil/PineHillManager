@@ -897,12 +897,38 @@ export class CloverIntegration {
                 const quantity = lineItem.quantity || 1;
                 const lineTotal = itemAmount * quantity;
                 
+                // CRITICAL FIX: Try to link to inventory item for COGS calculation
+                let inventoryItemId = null;
+                let costBasis = '0.00';
+                
+                try {
+                  // Map Clover line item to inventory item by SKU (Clover item ID)
+                  const cloverItemId = lineItem.item?.id || lineItem.id;
+                  if (cloverItemId) {
+                    const inventoryItems = await storage.getInventoryItemsBySKU(cloverItemId);
+                    const inventoryItem = inventoryItems.length > 0 ? inventoryItems[0] : null;
+                    
+                    if (inventoryItem) {
+                      inventoryItemId = inventoryItem.id;
+                      // Use standard cost for COGS, fallback to unit cost
+                      costBasis = inventoryItem.standardCost || inventoryItem.unitCost || '0.00';
+                      console.log(`🔗 COGS: Linked "${lineItem.name}" to inventory item ${inventoryItemId} (Cost: $${costBasis})`);
+                    } else {
+                      console.log(`⚠️ COGS: No inventory match for item "${lineItem.name}" (SKU: ${cloverItemId})`);
+                    }
+                  }
+                } catch (error) {
+                  console.log(`❌ COGS: Error linking item "${lineItem.name}":`, error);
+                }
+                
                 const itemData = {
                   saleId: createdSale.id,
+                  inventoryItemId: inventoryItemId, // FIXED: Include inventory item ID for COGS
                   itemName: lineItem.name,
                   quantity: quantity.toString(),
                   unitPrice: itemAmount.toString(),
                   lineTotal: lineTotal.toString(),
+                  costBasis: costBasis, // FIXED: Include cost for COGS calculation
                   discountAmount: lineItem.discountAmount ? (parseFloat(lineItem.discountAmount) / 100).toString() : '0.00'
                 };
 
