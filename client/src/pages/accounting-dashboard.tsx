@@ -365,6 +365,24 @@ function AccountingContent() {
     },
   });
 
+  // Cost of Goods Sold analytics - Today (top level, always executes)
+  const { data: cogsData } = useQuery({
+    queryKey: ['/api/accounting/analytics/cogs', today, today],
+    queryFn: async () => {
+      const response = await apiRequest('GET', `/api/accounting/analytics/cogs?startDate=${today}&endDate=${today}`);
+      return await response.json();
+    },
+  });
+
+  // Cost of Goods Sold analytics - Monthly (top level, always executes)
+  const { data: monthlyCogsData } = useQuery({
+    queryKey: ['/api/accounting/analytics/cogs', monthStart, today],
+    queryFn: async () => {
+      const response = await apiRequest('GET', `/api/accounting/analytics/cogs?startDate=${monthStart}&endDate=${today}`);
+      return await response.json();
+    },
+  });
+
   // Monthly closings data
   const { data: monthlyClosings } = useQuery({
     queryKey: ['/api/accounting/monthly/closings'],
@@ -609,15 +627,6 @@ function AccountingContent() {
     },
   });
 
-  // Cost of Goods Sold analytics - Today (using default fetcher, proper query key)
-  const { data: cogsData } = useQuery({
-    queryKey: ['/api/accounting/analytics/cogs', { startDate: today, endDate: today }],
-  });
-
-  // Cost of Goods Sold analytics - Monthly (month-to-date)
-  const { data: monthlyCogsData } = useQuery({
-    queryKey: ['/api/accounting/analytics/cogs', { startDate: monthStart, endDate: today }],
-  });
 
   // Detailed COGS Analytics - Labor Costs (using default fetcher)
   const { data: laborCostsData } = useQuery({
