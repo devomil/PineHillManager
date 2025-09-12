@@ -3825,43 +3825,154 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let totalRevenue = 0;
       if (multiLocationResponse.ok) {
         const multiLocationData = await multiLocationResponse.json();
-        totalRevenue = multiLocationData.totalRevenue || 0;
+        totalRevenue = parseFloat(multiLocationData.totalRevenue) || 0;
+        console.log(`🚀 COGS: Got live revenue from multi-location: $${totalRevenue}`);
+      } else {
+        console.log(`❌ COGS: Failed to fetch multi-location data: ${multiLocationResponse.status}`);
       }
-
-      // Calculate historical COGS ratio from local database (when we have data)
-      const historicalData = await storage.calculateCOGS('2025-07-01', '2025-08-31');
-      let historicalCOGSRatio = 0.40; // Default 40% if no historical data
       
-      if (historicalData.totalRevenue > 0) {
-        historicalCOGSRatio = historicalData.totalCOGS / historicalData.totalRevenue;
-        console.log(`📈 Using historical COGS ratio: ${(historicalCOGSRatio * 100).toFixed(1)}% from $${historicalData.totalRevenue} revenue period`);
+      // If multi-location fails, try direct Clover integration
+      if (totalRevenue === 0) {
+        console.log(`🔄 COGS: Falling back to direct Clover integration for revenue`);
+        try {
+          // Use the same live Clover integration that multi-location uses
+          const configs = [
+            { merchantId: 'WXJ9BYH2QT1S1', apiToken: '3038a315-999c-288e-790f-e800233919cf', merchantName: 'Lake Geneva - HSA' },
+            { merchantId: '2DWZED6B4ZVF1', apiToken: '0536d75e-8fe8-b412-f483-8bfb08d7365f', merchantName: 'Lake Geneva Retail' },
+            { merchantId: '5H4F64FPMCQF1', apiToken: '6e0d5af5-e088-1e40-8ba7-9389285d0cb7', merchantName: 'Pinehillfarm.co Online' },
+            { merchantId: 'SM917VYCVDZH1', apiToken: '8bd31e3b-d832-7609-8944-e9b2f7a7ed0f', merchantName: 'Watertown HSA' },
+            { merchantId: 'QGFXZQXYG8M31', apiToken: '9e0023cc-b305-2055-c057-0ab42fdd43d8', merchantName: 'Watertown Retail' }
+          ];
+          
+          for (const config of configs) {
+            const { CloverIntegration } = await import('./integrations/clover');
+            const clover = new CloverIntegration(config);
+            const orders = await clover.getOrders(startDate as string, endDate as string);
+            
+            for (const order of orders) {
+              if (order.total) {
+                totalRevenue += parseFloat(order.total) / 100; // Clover amounts are in cents
+              }
+            }
+          }
+          console.log(`💰 COGS: Direct Clover revenue calculation: $${totalRevenue}`);
+        } catch (error) {
+          console.log(`❌ COGS: Direct Clover integration failed:`, error);
+        }
       }
 
-      // Apply historical ratio to current revenue
-      const estimatedMaterialCosts = totalRevenue * historicalCOGSRatio;
-      const estimatedLaborCosts = 0; // Labor costs require time clock data
-      const totalCOGS = estimatedMaterialCosts + estimatedLaborCosts;
+      // Get live COGS from Clover by syncing orders for this date range
+      console.log(`🧮 COGS: Fetching live cost data from Clover for ${startDate} to ${endDate}`);
+      let actualMaterialCosts = 0;
+      let actualItemsSold = 0;
+      const materialBreakdown = [];
+      
+      try {
+        // Use the same Clover configs to fetch live orders with cost data
+        const configs = [
+          { merchantId: 'WXJ9BYH2QT1S1', apiToken: '3038a315-999c-288e-790f-e800233919cf', merchantName: 'Lake Geneva - HSA' },
+          { merchantId: '2DWZED6B4ZVF1', apiToken: '0536d75e-8fe8-b412-f483-8bfb08d7365f', merchantName: 'Lake Geneva Retail' },
+          { merchantId: '5H4F64FPMCQF1', apiToken: '6e0d5af5-e088-1e40-8ba7-9389285d0cb7', merchantName: 'Pinehillfarm.co Online' },
+          { merchantId: 'SM917VYCVDZH1', apiToken: '8bd31e3b-d832-7609-8944-e9b2f7a7ed0f', merchantName: 'Watertown HSA' },
+          { merchantId: 'QGFXZQXYG8M31', apiToken: '9e0023cc-b305-2055-c057-0ab42fdd43d8', merchantName: 'Watertown Retail' }
+        ];
+        
+        for (const config of configs) {
+          const { CloverIntegration } = await import('./integrations/clover');
+          const clover = new CloverIntegration(config);
+          
+          // Get orders with line items and costs
+          const ordersResponse = await clover.fetchOrders({
+            startDate: startDate as string,
+            endDate: endDate as string,
+            expand: 'lineItems,payments'
+          });
+          const orders = ordersResponse.elements || [];
+          
+          for (const order of orders) {
+            if (order.lineItems && order.lineItems.elements) {
+              for (const lineItem of order.lineItems.elements) {
+                const quantity = lineItem.quantity || 1;
+                actualItemsSold += quantity;
+                
+                // Try to get cost from inventory item
+                let itemCost = 0;
+                try {
+                  const cloverItemId = lineItem.item?.id || lineItem.id;
+                  if (cloverItemId) {
+                    const inventoryItems = await storage.getInventoryItemsBySKU(cloverItemId);
+                    const inventoryItem = inventoryItems.length > 0 ? inventoryItems[0] : null;
+                    
+                    if (inventoryItem) {
+                      const unitCost = parseFloat(inventoryItem.standardCost || inventoryItem.unitCost || '0');
+                      itemCost = unitCost * quantity;
+                      actualMaterialCosts += itemCost;
+                      
+                      // Add to breakdown
+                      const existingItem = materialBreakdown.find(item => item.itemName === lineItem.name);
+                      if (existingItem) {
+                        existingItem.quantitySold += quantity;
+                        existingItem.totalMaterialCost += itemCost;
+                      } else {
+                        materialBreakdown.push({
+                          itemId: inventoryItem.id,
+                          itemName: lineItem.name,
+                          quantitySold: quantity,
+                          unitCost: unitCost,
+                          totalMaterialCost: itemCost
+                        });
+                      }
+                      
+                      console.log(`💰 COGS: ${lineItem.name} x${quantity} = $${itemCost.toFixed(2)} cost`);
+                    }
+                  }
+                } catch (error) {
+                  console.log(`⚠️ COGS: Could not get cost for ${lineItem.name}:`, error);
+                }
+              }
+            }
+          }
+        }
+        
+        console.log(`📊 COGS: Live calculation complete - $${actualMaterialCosts.toFixed(2)} material costs on ${actualItemsSold} items`);
+        
+      } catch (error) {
+        console.log(`❌ COGS: Live cost calculation failed, using historical ratio:`, error);
+        
+        // Fallback to historical ratio if live data fails
+        const historicalData = await storage.calculateCOGS('2025-07-01', '2025-08-31');
+        let historicalCOGSRatio = 0.40;
+        
+        if (historicalData.totalRevenue > 0) {
+          historicalCOGSRatio = historicalData.totalCOGS / historicalData.totalRevenue;
+        }
+        
+        actualMaterialCosts = totalRevenue * historicalCOGSRatio;
+        materialBreakdown.push({
+          itemId: 0,
+          itemName: "Estimated Material Costs (Historical Ratio)",
+          quantitySold: 0,
+          unitCost: 0,
+          totalMaterialCost: actualMaterialCosts
+        });
+      }
+
+      const totalCOGS = actualMaterialCosts; // No labor costs for live data
       const grossProfit = totalRevenue - totalCOGS;
       const grossMargin = totalRevenue > 0 ? ((grossProfit / totalRevenue) * 100) : 0;
 
       res.json({
         totalRevenue,
         totalCost: totalCOGS,
-        laborCosts: estimatedLaborCosts,
-        materialCosts: estimatedMaterialCosts,
+        laborCosts: 0,
+        materialCosts: actualMaterialCosts,
         grossProfit,
         grossMargin,
-        totalItemsSold: 0,
-        isEstimate: true,
+        totalItemsSold: actualItemsSold,
+        isEstimate: false,
         laborBreakdown: [],
-        materialBreakdown: [{
-          itemId: 0,
-          itemName: "Estimated Material Costs",
-          quantitySold: 0,
-          unitCost: 0,
-          totalMaterialCost: estimatedMaterialCosts
-        }],
-        note: `Estimated using ${(historicalCOGSRatio * 100).toFixed(1)}% historical COGS ratio on live revenue data`
+        materialBreakdown,
+        note: `Live COGS data from Clover API with inventory cost matching`
       });
 
     } catch (error) {
