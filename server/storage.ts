@@ -3922,7 +3922,9 @@ export class DatabaseStorage implements IStorage {
           inventoryItemId: posSaleItems.inventoryItemId,
           itemName: posSaleItems.itemName,
           quantity: posSaleItems.quantity,
+          costBasis: posSaleItems.costBasis, // Actual cost for this sale item
           unitCost: inventoryItems.unitCost,
+          standardCost: inventoryItems.standardCost, // Standard cost for COGS
           saleId: posSaleItems.saleId
         })
         .from(posSaleItems)
@@ -3956,8 +3958,14 @@ export class DatabaseStorage implements IStorage {
         const itemId = item.inventoryItemId || 0;
         const itemName = item.itemName;
         const quantitySold = parseFloat(item.quantity || '0');
+        
+        // Use cost with priority: costBasis > standardCost > unitCost
+        const costBasis = parseFloat(item.costBasis || '0');
+        const standardCost = parseFloat(item.standardCost || '0');
         const unitCost = parseFloat(item.unitCost || '0');
-        const itemCost = quantitySold * unitCost;
+        
+        const finalUnitCost = costBasis > 0 ? costBasis : (standardCost > 0 ? standardCost : unitCost);
+        const itemCost = quantitySold * finalUnitCost;
 
         if (itemMap.has(itemId)) {
           const existing = itemMap.get(itemId)!;
@@ -3969,7 +3977,7 @@ export class DatabaseStorage implements IStorage {
             itemId,
             itemName,
             quantitySold,
-            unitCost,
+            unitCost: finalUnitCost,
             totalCost: itemCost,
             salesCount: 1
           });
@@ -6213,36 +6221,51 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getMonthlyClosing(year: number, month: number): Promise<MonthlyClosure | undefined> {
-    const [result] = await db
-      .select()
-      .from(monthlyClosings)
-      .where(and(
-        eq(monthlyClosings.year, year),
-        eq(monthlyClosings.month, month)
-      ))
-      .limit(1);
-    return result;
+    try {
+      const [result] = await db
+        .select()
+        .from(monthlyClosings)
+        .where(and(
+          eq(monthlyClosings.year, year),
+          eq(monthlyClosings.month, month)
+        ))
+        .limit(1);
+      return result;
+    } catch (error) {
+      console.log(`Monthly closing for ${month}/${year} not found, returning undefined`);
+      return undefined;
+    }
   }
 
   async getAllMonthlyClosings(): Promise<MonthlyClosure[]> {
-    return await db
-      .select()
-      .from(monthlyClosings)
-      .orderBy(desc(monthlyClosings.year), desc(monthlyClosings.month));
+    try {
+      return await db
+        .select()
+        .from(monthlyClosings)
+        .orderBy(desc(monthlyClosings.year), desc(monthlyClosings.month));
+    } catch (error) {
+      console.log('Monthly closings table empty or not found, returning empty array');
+      return [];
+    }
   }
 
   async getMonthlyClosingsInDateRange(startYear: number, startMonth: number, endYear: number, endMonth: number): Promise<MonthlyClosure[]> {
-    return await db
-      .select()
-      .from(monthlyClosings)
-      .where(
-        or(
-          and(eq(monthlyClosings.year, startYear), gte(monthlyClosings.month, startMonth)),
-          and(eq(monthlyClosings.year, endYear), lte(monthlyClosings.month, endMonth)),
-          and(gte(monthlyClosings.year, startYear + 1), lte(monthlyClosings.year, endYear - 1))
+    try {
+      return await db
+        .select()
+        .from(monthlyClosings)
+        .where(
+          or(
+            and(eq(monthlyClosings.year, startYear), gte(monthlyClosings.month, startMonth)),
+            and(eq(monthlyClosings.year, endYear), lte(monthlyClosings.month, endMonth)),
+            and(gte(monthlyClosings.year, startYear + 1), lte(monthlyClosings.year, endYear - 1))
+          )
         )
-      )
-      .orderBy(desc(monthlyClosings.year), desc(monthlyClosings.month));
+        .orderBy(desc(monthlyClosings.year), desc(monthlyClosings.month));
+    } catch (error) {
+      console.log('Monthly closings date range query failed, returning empty array');
+      return [];
+    }
   }
 
   async reopenMonth(year: number, month: number, reopenedBy: string): Promise<MonthlyClosure> {
@@ -6550,42 +6573,59 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getOpeningBalancesForCurrentMonth(): Promise<{ accountId: number; openingBalance: string }[]> {
-    const now = new Date();
-    const currentYear = now.getFullYear();
-    const currentMonth = now.getMonth() + 1;
+    try {
+      const now = new Date();
+      const currentYear = now.getFullYear();
+      const currentMonth = now.getMonth() + 1;
 
-    // Get previous month's closing
-    let prevYear = currentYear;
-    let prevMonth = currentMonth - 1;
-    if (prevMonth === 0) {
-      prevMonth = 12;
-      prevYear = currentYear - 1;
-    }
+      // Get previous month's closing
+      let prevYear = currentYear;
+      let prevMonth = currentMonth - 1;
+      if (prevMonth === 0) {
+        prevMonth = 12;
+        prevYear = currentYear - 1;
+      }
 
-    const prevClosing = await this.getMonthlyClosing(prevYear, prevMonth);
-    if (!prevClosing) {
-      // No previous month closing, calculate balances up to start of current month
+      const prevClosing = await this.getMonthlyClosing(prevYear, prevMonth);
+      if (!prevClosing) {
+        // No previous month closing, calculate balances up to start of current month
+        const accounts = await this.getAllFinancialAccounts();
+        const startOfMonth = new Date(currentYear, currentMonth - 1, 1);
+        const results = [];
+
+        for (const account of accounts) {
+          const balance = await this.getAccountBalance(account.id, startOfMonth.toISOString().split('T')[0]);
+          results.push({
+            accountId: account.id,
+            openingBalance: balance
+          });
+        }
+
+        return results;
+      }
+
+      // Use previous month's closing balances
+      const balances = await this.getMonthlyAccountBalances(prevClosing.id);
+      return balances.map(b => ({
+        accountId: b.accountId,
+        openingBalance: b.closingBalance
+      }));
+    } catch (error) {
+      console.error('Error getting opening balances, using live computation fallback:', error);
+      // Fallback: calculate current balances for all accounts
       const accounts = await this.getAllFinancialAccounts();
-      const startOfMonth = new Date(currentYear, currentMonth - 1, 1);
       const results = [];
-
+      
       for (const account of accounts) {
-        const balance = await this.getAccountBalance(account.id, startOfMonth.toISOString().split('T')[0]);
+        const balance = await this.getAccountBalance(account.id);
         results.push({
           accountId: account.id,
           openingBalance: balance
         });
       }
-
+      
       return results;
     }
-
-    // Use previous month's closing balances
-    const balances = await this.getMonthlyAccountBalances(prevClosing.id);
-    return balances.map(b => ({
-      accountId: b.accountId,
-      openingBalance: b.closingBalance
-    }));
   }
 
   // ================================

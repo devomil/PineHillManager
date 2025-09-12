@@ -1458,6 +1458,7 @@ export const inventoryItems = pgTable("inventory_items", {
   category: varchar("category"),
   unitOfMeasure: varchar("unit_of_measure"),
   unitCost: decimal("unit_cost", { precision: 10, scale: 2 }),
+  standardCost: decimal("standard_cost", { precision: 10, scale: 2 }), // Standard cost for COGS calculation
   unitPrice: decimal("unit_price", { precision: 10, scale: 2 }),
   quantityOnHand: decimal("quantity_on_hand", { precision: 10, scale: 3 }).default("0.000"),
   reorderPoint: decimal("reorder_point", { precision: 10, scale: 3 }).default("0.000"),
@@ -1509,6 +1510,7 @@ export const posSaleItems = pgTable("pos_sale_items", {
   quantity: decimal("quantity", { precision: 10, scale: 3 }).notNull(),
   unitPrice: decimal("unit_price", { precision: 10, scale: 2 }).notNull(),
   lineTotal: decimal("line_total", { precision: 10, scale: 2 }).notNull(),
+  costBasis: decimal("cost_basis", { precision: 10, scale: 2 }), // Actual cost basis for COGS calculation
   discountAmount: decimal("discount_amount", { precision: 10, scale: 2 }).default("0.00"),
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => ({
