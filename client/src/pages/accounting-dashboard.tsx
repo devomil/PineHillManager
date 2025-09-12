@@ -824,7 +824,7 @@ function AccountingContent() {
                   <TrendingUp className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">${cogsData?.totalRevenue || profitLoss?.totalRevenue || '0.00'}</div>
+                  <div className="text-2xl font-bold">${multiLocationData?.totalSummary?.totalRevenue || cogsData?.totalRevenue || profitLoss?.totalRevenue || '0.00'}</div>
                   <p className="text-xs text-muted-foreground">Today</p>
                 </CardContent>
               </Card>
@@ -835,7 +835,7 @@ function AccountingContent() {
                   <DollarSign className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">${cogsData?.totalExpenses || profitLoss?.totalExpenses || '0.00'}</div>
+                  <div className="text-2xl font-bold">${profitLoss?.totalExpenses || cogsData?.totalExpenses || '0.00'}</div>
                   <p className="text-xs text-muted-foreground">Today</p>
                 </CardContent>
               </Card>
@@ -846,7 +846,7 @@ function AccountingContent() {
                   <BarChart3 className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">${cogsData?.grossProfit || (parseFloat(cogsData?.totalRevenue || '0') - parseFloat(cogsData?.totalExpenses || '0')).toFixed(2) || '0.00'}</div>
+                  <div className="text-2xl font-bold">${profitLoss?.netIncome || ((parseFloat(multiLocationData?.totalSummary?.totalRevenue || '0') - parseFloat(profitLoss?.totalExpenses || '0')).toFixed(2)) || '0.00'}</div>
                   <p className="text-xs text-muted-foreground">Today</p>
                 </CardContent>
               </Card>
