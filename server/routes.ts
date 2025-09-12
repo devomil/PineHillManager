@@ -4672,7 +4672,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       try {
         // Fetch revenue data from integrations (Clover + Amazon)
-        const revenueResponse = await fetch(`${req.protocol}://${req.get('host')}/api/accounting/analytics/multi-location?startDate=${startDate}&endDate=${endDate}`);
+        const revenueResponse = await fetch(`${req.protocol}://${req.get('host')}/api/accounting/analytics/multi-location?startDate=${startDate}&endDate=${endDate}`, {
+          headers: {
+            'Cookie': req.headers.cookie || ''
+          }
+        });
         if (revenueResponse.ok) {
           const revenueData = await revenueResponse.json();
           
@@ -4685,7 +4689,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         // Fetch COGS data from integrations
-        const cogsResponse = await fetch(`${req.protocol}://${req.get('host')}/api/accounting/analytics/cogs?startDate=${startDate}&endDate=${endDate}`);
+        const cogsResponse = await fetch(`${req.protocol}://${req.get('host')}/api/accounting/analytics/cogs?startDate=${startDate}&endDate=${endDate}`, {
+          headers: {
+            'Cookie': req.headers.cookie || ''
+          }
+        });
         if (cogsResponse.ok) {
           const cogsData = await cogsResponse.json();
           if (cogsData.items && cogsData.items.length > 0) {
@@ -7466,7 +7474,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
 
         // Fetch COGS data from integrations
-        const cogsResponse = await fetch(`${req.protocol}://${req.get('host')}/api/accounting/analytics/cogs?startDate=${startDate}&endDate=${endDate}`);
+        const cogsResponse = await fetch(`${req.protocol}://${req.get('host')}/api/accounting/analytics/cogs?startDate=${startDate}&endDate=${endDate}`, {
+          headers: {
+            'Cookie': req.headers.cookie || ''
+          }
+        });
         if (cogsResponse.ok) {
           const cogsData = await cogsResponse.json();
           if (cogsData.items && cogsData.items.length > 0) {
