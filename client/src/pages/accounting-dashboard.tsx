@@ -600,18 +600,18 @@ function AccountingContent() {
     },
   });
 
-  // Multi-location analytics
+  // Multi-location analytics - Monthly
   const { data: multiLocationData } = useQuery<MultiLocationAnalytics>({
-    queryKey: ['/api/accounting/analytics/multi-location', today],
+    queryKey: ['/api/accounting/analytics/multi-location', monthStart, monthEnd],
     queryFn: async () => {
-      const response = await apiRequest('GET', `/api/accounting/analytics/multi-location?startDate=${today}&endDate=${today}`);
+      const response = await apiRequest('GET', `/api/accounting/analytics/multi-location?startDate=${monthStart}&endDate=${monthEnd}`);
       return await response.json();
     },
   });
 
-  // Cost of Goods Sold analytics - Daily (using default fetcher, proper query key)
+  // Cost of Goods Sold analytics - Monthly (using default fetcher, proper query key)
   const { data: cogsData } = useQuery({
-    queryKey: ['/api/accounting/analytics/cogs', { startDate: today, endDate: today }],
+    queryKey: ['/api/accounting/analytics/cogs', { startDate: monthStart, endDate: monthEnd }],
   });
 
   // Cost of Goods Sold analytics - Monthly (month-to-date)
