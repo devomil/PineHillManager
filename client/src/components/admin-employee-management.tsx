@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
@@ -36,7 +37,8 @@ import {
   Clock,
   Download,
   Eye,
-  FileText
+  FileText,
+  LogOut
 } from "lucide-react";
 import { format } from "date-fns";
 import type { User as UserType } from "@shared/schema";
@@ -291,6 +293,35 @@ export default function AdminEmployeeManagement() {
       toast({
         title: "Export Failed",
         description: "Failed to export time entries",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Admin Clock-Out mutation
+  const adminClockOutMutation = useMutation({
+    mutationFn: async ({ userId, employeeName }: { userId: string; employeeName: string }) => {
+      const response = await apiRequest("POST", `/api/admin/time-clock/clock-out/${userId}`, {
+        notes: `Clocked out by admin via employee management panel`
+      });
+      return response.json();
+    },
+    onSuccess: (data, variables) => {
+      // Invalidate relevant queries to refresh the UI
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/time-clock/who-checked-in'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/time-clock/entries'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/user/presence'] });
+      
+      toast({
+        title: "Employee Clocked Out",
+        description: `${variables.employeeName} has been successfully clocked out.`,
+      });
+    },
+    onError: (error: any) => {
+      console.error('Admin clock-out error:', error);
+      toast({
+        title: "Clock-Out Failed",
+        description: error.message || "Failed to clock out employee. Please try again.",
         variant: "destructive",
       });
     },
@@ -1634,9 +1665,47 @@ export default function AdminEmployeeManagement() {
                     </p>
                   </div>
                 </div>
-                <Badge variant="outline" className="bg-green-100 text-green-800">
-                  Currently Working
-                </Badge>
+                <div className="flex items-center space-x-2">
+                  <Badge variant="outline" className="bg-green-100 text-green-800">
+                    Currently Working
+                  </Badge>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 px-2 text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300"
+                        data-testid={`button-clockout-${entry.userId}`}
+                        disabled={adminClockOutMutation.isPending}
+                      >
+                        <LogOut className="w-3 h-3 mr-1" />
+                        Clock Out
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Clock Out Employee</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Are you sure you want to clock out <strong>{entry.firstName} {entry.lastName}</strong>? 
+                          This will end their current work session and cannot be undone.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={() => adminClockOutMutation.mutate({ 
+                            userId: entry.userId, 
+                            employeeName: `${entry.firstName} ${entry.lastName}` 
+                          })}
+                          className="bg-red-600 hover:bg-red-700"
+                          disabled={adminClockOutMutation.isPending}
+                        >
+                          {adminClockOutMutation.isPending ? "Clocking Out..." : "Clock Out"}
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
               </div>
             ))}
           </div>

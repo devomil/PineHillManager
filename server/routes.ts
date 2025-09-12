@@ -2101,7 +2101,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Time clock API endpoints
-  app.post('/api/time-clock/clock-in', async (req, res) => {
+  app.post('/api/time-clock/clock-in', isAuthenticated, async (req, res) => {
     try {
       console.log('Clock-in request body:', req.body);
       
@@ -2112,14 +2112,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'Location ID is required' });
       }
       
-      // Get authenticated user from session or use fallback for testing
-      let userId = "40154188"; // Your actual user ID from database
-      
-      if (req.isAuthenticated() && req.user) {
-        userId = req.user.id;
-        console.log('Authenticated user:', req.user);
+      if (!req.user) {
+        return res.status(401).json({ message: 'Authentication required' });
       }
       
+      const userId = req.user.id;
       const ipAddress = req.ip;
       const deviceInfo = req.get('User-Agent');
 
@@ -2133,16 +2130,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/time-clock/clock-out', async (req, res) => {
+  app.post('/api/time-clock/clock-out', isAuthenticated, async (req, res) => {
     try {
       const { notes } = req.body;
-      // Get authenticated user from session or use fallback for testing
-      let userId = "40154188"; // Your actual user ID from database
       
-      if (req.isAuthenticated() && req.user) {
-        userId = req.user.id;
+      if (!req.user) {
+        return res.status(401).json({ message: 'Authentication required' });
       }
       
+      const userId = req.user.id;
       console.log('Clock-out request for user:', userId, 'with notes:', notes);
       const timeEntry = await storage.clockOut(userId, notes);
       console.log('Clock-out successful:', timeEntry);
@@ -2153,15 +2149,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/time-clock/start-break', async (req, res) => {
+  app.post('/api/time-clock/start-break', isAuthenticated, async (req, res) => {
     try {
-      // Get authenticated user from session or use fallback for testing
-      let userId = "40154188"; // Your actual user ID from database
-      
-      if (req.isAuthenticated() && req.user) {
-        userId = req.user.id;
+      if (!req.user) {
+        return res.status(401).json({ message: 'Authentication required' });
       }
       
+      const userId = req.user.id;
       console.log('Start break request for user:', userId);
       const timeEntry = await storage.startBreak(userId);
       console.log('Start break successful:', timeEntry);
@@ -2172,15 +2166,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/time-clock/end-break', async (req, res) => {
+  app.post('/api/time-clock/end-break', isAuthenticated, async (req, res) => {
     try {
-      // Get authenticated user from session or use fallback for testing
-      let userId = "40154188"; // Your actual user ID from database
-      
-      if (req.isAuthenticated() && req.user) {
-        userId = req.user.id;
+      if (!req.user) {
+        return res.status(401).json({ message: 'Authentication required' });
       }
       
+      const userId = req.user.id;
       console.log('End break request for user:', userId);
       const timeEntry = await storage.endBreak(userId);
       console.log('End break successful:', timeEntry);
@@ -2191,21 +2183,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/time-clock/current', async (req, res) => {
+  app.get('/api/time-clock/current', isAuthenticated, async (req, res) => {
     try {
-      console.log('Time clock current request - isAuthenticated:', req.isAuthenticated());
-      console.log('Time clock current request - user:', req.user ? 'present' : 'missing');
-      
-      // Get authenticated user from session or use fallback for testing
-      let userId = "40154188"; // Your actual user ID from database
-      
-      if (req.isAuthenticated() && req.user) {
-        userId = req.user.id;
-        console.log('Using authenticated user:', userId);
-      } else {
-        console.log('Using fallback user for testing:', userId);
+      if (!req.user) {
+        return res.status(401).json({ message: 'Authentication required' });
       }
       
+      const userId = req.user.id;
       console.log('Getting current time entry for user:', userId);
       const currentEntry = await storage.getCurrentTimeEntry(userId);
       console.log('Current entry result:', currentEntry);
@@ -2216,15 +2200,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/time-clock/today', async (req, res) => {
+  app.get('/api/time-clock/today', isAuthenticated, async (req, res) => {
     try {
-      // Get authenticated user from session or use fallback for testing
-      let userId = "40154188"; // Your actual user ID from database
-      
-      if (req.isAuthenticated() && req.user) {
-        userId = req.user.id;
+      if (!req.user) {
+        return res.status(401).json({ message: 'Authentication required' });
       }
       
+      const userId = req.user.id;
       const today = new Date().toISOString().split('T')[0];
       const entries = await storage.getTimeEntriesByDate(userId, today);
       res.json(entries);
@@ -2234,15 +2216,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/time-clock/week', async (req, res) => {
+  app.get('/api/time-clock/week', isAuthenticated, async (req, res) => {
     try {
-      // Get authenticated user from session or use fallback for testing
-      let userId = "40154188"; // Your actual user ID from database
-      
-      if (req.isAuthenticated() && req.user) {
-        userId = req.user.id;
+      if (!req.user) {
+        return res.status(401).json({ message: 'Authentication required' });
       }
       
+      const userId = req.user.id;
       const today = new Date();
       const startOfWeek = new Date(today.setDate(today.getDate() - today.getDay()));
       const endOfWeek = new Date(today.setDate(startOfWeek.getDate() + 6));
@@ -2262,13 +2242,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/admin/time-clock/entries', isAuthenticated, async (req, res) => {
     try {
       if (req.user?.role !== 'admin' && req.user?.role !== 'manager') {
-        return res.status(403).json({ error: 'Admin or Manager access required' });
+        return res.status(403).json({ message: 'Admin or Manager access required' });
       }
 
       const { employeeId, startDate, endDate } = req.query;
       
       if (!startDate || !endDate) {
-        return res.status(400).json({ error: 'Start date and end date are required' });
+        return res.status(400).json({ message: 'Start date and end date are required' });
       }
 
       const timeEntries = await storage.getTimeEntriesByDateRange(
@@ -2280,28 +2260,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(timeEntries);
     } catch (error) {
       console.error('Error fetching admin time entries:', error);
-      res.status(500).json({ error: 'Failed to fetch time entries' });
+      res.status(500).json({ message: 'Failed to fetch time entries' });
     }
   });
 
   app.get('/api/admin/time-clock/who-checked-in', isAuthenticated, async (req, res) => {
     try {
       if (req.user?.role !== 'admin' && req.user?.role !== 'manager') {
-        return res.status(403).json({ error: 'Admin or Manager access required' });
+        return res.status(403).json({ message: 'Admin or Manager access required' });
       }
 
       const checkedInEmployees = await storage.getCurrentlyCheckedInEmployees();
       res.json(checkedInEmployees);
     } catch (error) {
       console.error('Error fetching checked in employees:', error);
-      res.status(500).json({ error: 'Failed to fetch checked in employees' });
+      res.status(500).json({ message: 'Failed to fetch checked in employees' });
     }
   });
 
   app.patch('/api/admin/time-clock/entries/:entryId', isAuthenticated, async (req, res) => {
     try {
       if (req.user?.role !== 'admin' && req.user?.role !== 'manager') {
-        return res.status(403).json({ error: 'Admin or Manager access required' });
+        return res.status(403).json({ message: 'Admin or Manager access required' });
       }
 
       const { entryId } = req.params;
@@ -2311,14 +2291,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(updatedEntry);
     } catch (error) {
       console.error('Error updating time entry:', error);
-      res.status(500).json({ error: 'Failed to update time entry' });
+      res.status(500).json({ message: 'Failed to update time entry' });
     }
   });
 
   app.delete('/api/admin/time-clock/entries/:entryId', isAuthenticated, async (req, res) => {
     try {
       if (req.user?.role !== 'admin' && req.user?.role !== 'manager') {
-        return res.status(403).json({ error: 'Admin or Manager access required' });
+        return res.status(403).json({ message: 'Admin or Manager access required' });
       }
 
       const { entryId } = req.params;
@@ -2327,14 +2307,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ success: true, message: 'Time entry deleted successfully' });
     } catch (error) {
       console.error('Error deleting time entry:', error);
-      res.status(500).json({ error: 'Failed to delete time entry' });
+      res.status(500).json({ message: 'Failed to delete time entry' });
     }
   });
 
   app.get('/api/admin/time-clock/export', isAuthenticated, async (req, res) => {
     try {
       if (req.user?.role !== 'admin' && req.user?.role !== 'manager') {
-        return res.status(403).json({ error: 'Admin or Manager access required' });
+        return res.status(403).json({ message: 'Admin or Manager access required' });
       }
 
       const { employeeId, startDate, endDate, format = 'csv' } = req.query;
@@ -2361,7 +2341,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.send(exportData);
     } catch (error) {
       console.error('Error exporting time entries:', error);
-      res.status(500).json({ error: 'Failed to export time entries' });
+      res.status(500).json({ message: 'Failed to export time entries' });
+    }
+  });
+
+  // Admin Clock-Out Employee Endpoint
+  app.post('/api/admin/time-clock/clock-out/:userId', isAuthenticated, async (req, res) => {
+    try {
+      if (!req.user || (req.user.role !== 'admin' && req.user.role !== 'manager')) {
+        return res.status(403).json({ error: 'Admin or Manager access required' });
+      }
+
+      const { userId } = req.params;
+      const { notes } = req.body;
+      
+      if (!userId) {
+        return res.status(400).json({ error: 'User ID is required' });
+      }
+
+      console.log(`Admin ${req.user.id} (${req.user.firstName} ${req.user.lastName}) clocking out employee ${userId}`);
+      
+      // Clock out the specified employee
+      const timeEntry = await storage.clockOut(userId, notes || `Clocked out by ${req.user.firstName} ${req.user.lastName} (${req.user.role})`);
+      
+      console.log('Admin clock-out successful:', timeEntry);
+      res.json({ 
+        success: true, 
+        message: 'Employee clocked out successfully',
+        timeEntry 
+      });
+    } catch (error) {
+      console.error('Error in admin clock-out:', error);
+      res.status(400).json({ message: error instanceof Error ? error.message : 'Failed to clock out employee' });
     }
   });
 
