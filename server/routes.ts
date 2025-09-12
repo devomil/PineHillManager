@@ -3961,6 +3961,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const grossProfit = totalRevenue - totalCOGS;
       const grossMargin = totalRevenue > 0 ? ((grossProfit / totalRevenue) * 100) : 0;
 
+      console.log(`🚀 COGS API Response: Revenue=$${totalRevenue}, COGS=$${totalCOGS}, Items=${actualItemsSold}`);
+      
       res.json({
         totalRevenue,
         totalCost: totalCOGS,
