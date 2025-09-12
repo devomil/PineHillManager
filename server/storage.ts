@@ -2041,13 +2041,15 @@ export class DatabaseStorage implements IStorage {
 
   async getCurrentTimeEntry(userId: string): Promise<any | undefined> {
     const today = new Date().toISOString().split('T')[0];
+    const todayStart = new Date(today + 'T00:00:00');
+    
     const [entry] = await db
       .select()
       .from(timeClockEntries)
       .where(
         and(
           eq(timeClockEntries.userId, userId),
-          gte(timeClockEntries.clockInTime, new Date(today + 'T00:00:00')),
+          gte(timeClockEntries.clockInTime, todayStart),
           or(
             eq(timeClockEntries.status, 'clocked_in'),
             eq(timeClockEntries.status, 'on_break')
@@ -2119,6 +2121,8 @@ export class DatabaseStorage implements IStorage {
 
   async getCurrentlyCheckedInEmployees(): Promise<any[]> {
     const today = new Date().toISOString().split('T')[0];
+    const todayStart = new Date(today + 'T00:00:00');
+    
     return await db
       .select({
         id: timeClockEntries.id,
@@ -2135,7 +2139,7 @@ export class DatabaseStorage implements IStorage {
       .leftJoin(users, eq(timeClockEntries.userId, users.id))
       .where(
         and(
-          gte(timeClockEntries.clockInTime, new Date(today + 'T00:00:00')),
+          gte(timeClockEntries.clockInTime, todayStart),
           or(
             eq(timeClockEntries.status, 'clocked_in'),
             eq(timeClockEntries.status, 'on_break')
