@@ -889,81 +889,70 @@ function AccountingContent() {
                 </div>
               </CardHeader>
               <CardContent>
-                {cogsData ? (
+                {cogsData && Number.parseFloat(cogsData.totalCost ?? '0') > 0 ? (
                   <div className="space-y-6">
                     {/* Main COGS Metrics */}
-                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                       <div className="space-y-1">
-                        <p className="text-sm text-muted-foreground">Total Revenue</p>
-                        <p className="text-xl font-bold text-green-600">${cogsData.totalRevenue}</p>
+                        <p className="text-sm text-muted-foreground">Total Cost of Goods Sold</p>
+                        <p className="text-xl font-bold text-red-600">${(Number.parseFloat(cogsData.totalCost ?? '0') || 0).toFixed(2)}</p>
+                        <p className="text-xs text-muted-foreground">Period: {cogsData.period || 'Today'}</p>
                       </div>
                       <div className="space-y-1">
-                        <p className="text-sm text-muted-foreground">Total COGS</p>
-                        <p className="text-xl font-bold text-red-600">${cogsData.totalCost}</p>
+                        <p className="text-sm text-muted-foreground">Labor Costs</p>
+                        <p className="text-xl font-bold text-orange-600">${(Number.parseFloat(cogsData.breakdown?.labor ?? '0') || 0).toFixed(2)}</p>
+                        <p className="text-xs text-muted-foreground">{((Number.parseFloat(cogsData.breakdown?.labor ?? '0') || 0) / (Number.parseFloat(cogsData.totalCost ?? '0') || 1) * 100).toFixed(1)}% of COGS</p>
                       </div>
                       <div className="space-y-1">
-                        <p className="text-sm text-muted-foreground">Gross Profit</p>
-                        <p className="text-xl font-bold text-blue-600">${cogsData.grossProfit}</p>
-                      </div>
-                      <div className="space-y-1">
-                        <p className="text-sm text-muted-foreground">Gross Margin</p>
-                        <p className="text-xl font-bold text-purple-600">{cogsData.grossMargin}%</p>
+                        <p className="text-sm text-muted-foreground">Material Costs</p>
+                        <p className="text-xl font-bold text-teal-600">${(Number.parseFloat(cogsData.breakdown?.materials ?? '0') || 0).toFixed(2)}</p>
+                        <p className="text-xs text-muted-foreground">{((Number.parseFloat(cogsData.breakdown?.materials ?? '0') || 0) / (Number.parseFloat(cogsData.totalCost ?? '0') || 1) * 100).toFixed(1)}% of COGS</p>
                       </div>
                     </div>
 
                     {/* COGS Breakdown */}
-                    {(cogsData.laborCosts || cogsData.materialCosts) && (
+                    {(Number.parseFloat(cogsData.breakdown?.labor ?? '0') > 0 || Number.parseFloat(cogsData.breakdown?.materials ?? '0') > 0 || Number.parseFloat(cogsData.breakdown?.other ?? '0') > 0) && (
                       <div className="border-t pt-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                           {/* Labor Costs Breakdown */}
-                          {cogsData.laborCosts && parseFloat(cogsData.laborCosts) > 0 && (
+                          {Number.parseFloat(cogsData.breakdown?.labor ?? '0') > 0 && (
                             <div className="space-y-3">
                               <div className="flex items-center gap-2">
                                 <Clock className="h-4 w-4 text-orange-600" />
-                                <h4 className="font-semibold text-orange-600">Labor Costs</h4>
+                                <h4 className="font-semibold text-orange-600">Labor Costs Detail</h4>
                               </div>
-                              <div className="text-2xl font-bold text-orange-600">${cogsData.laborCosts}</div>
-                              {cogsData.laborBreakdown && cogsData.laborBreakdown.length > 0 && (
-                                <div className="space-y-2 max-h-32 overflow-y-auto">
-                                  {cogsData.laborBreakdown.slice(0, 3).map((employee, index) => (
-                                    <div key={index} className="flex justify-between text-sm">
-                                      <span className="truncate">{employee.employeeName}</span>
-                                      <span>${employee.totalLaborCost.toFixed(2)}</span>
-                                    </div>
-                                  ))}
-                                  {cogsData.laborBreakdown.length > 3 && (
-                                    <div className="text-xs text-muted-foreground">
-                                      +{cogsData.laborBreakdown.length - 3} more employees
-                                    </div>
-                                  )}
-                                </div>
-                              )}
+                              <div className="text-lg font-bold text-orange-600">${(Number.parseFloat(cogsData.breakdown.labor) || 0).toFixed(2)}</div>
+                              <div className="text-xs text-muted-foreground">
+                                Employee time and wages allocated to cost of goods
+                              </div>
                             </div>
                           )}
 
                           {/* Material Costs Breakdown */}
-                          {cogsData.materialCosts && parseFloat(cogsData.materialCosts) > 0 && (
+                          {Number.parseFloat(cogsData.breakdown?.materials ?? '0') > 0 && (
                             <div className="space-y-3">
                               <div className="flex items-center gap-2">
                                 <Package className="h-4 w-4 text-teal-600" />
-                                <h4 className="font-semibold text-teal-600">Material Costs</h4>
+                                <h4 className="font-semibold text-teal-600">Material Costs Detail</h4>
                               </div>
-                              <div className="text-2xl font-bold text-teal-600">${cogsData.materialCosts}</div>
-                              {cogsData.materialBreakdown && cogsData.materialBreakdown.length > 0 && (
-                                <div className="space-y-2 max-h-32 overflow-y-auto">
-                                  {cogsData.materialBreakdown.slice(0, 3).map((item, index) => (
-                                    <div key={index} className="flex justify-between text-sm">
-                                      <span className="truncate">{item.itemName}</span>
-                                      <span>${item.totalMaterialCost.toFixed(2)}</span>
-                                    </div>
-                                  ))}
-                                  {cogsData.materialBreakdown.length > 3 && (
-                                    <div className="text-xs text-muted-foreground">
-                                      +{cogsData.materialBreakdown.length - 3} more items
-                                    </div>
-                                  )}
-                                </div>
-                              )}
+                              <div className="text-lg font-bold text-teal-600">${(Number.parseFloat(cogsData.breakdown.materials) || 0).toFixed(2)}</div>
+                              <div className="text-xs text-muted-foreground">
+                                Inventory and raw materials used in production
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Other Costs Breakdown */}
+                          {Number.parseFloat(cogsData.breakdown?.other ?? '0') > 0 && (
+                            <div className="space-y-3">
+                              <div className="flex items-center gap-2">
+                                <Calculator className="h-4 w-4 text-purple-600" />
+                                <h4 className="font-semibold text-purple-600">Other Costs</h4>
+                              </div>
+                              <div className="text-lg font-bold text-purple-600">${(Number.parseFloat(cogsData.breakdown.other) || 0).toFixed(2)}</div>
+                              <div className="text-xs text-muted-foreground">
+                                Additional production and overhead costs
+                              </div>
                             </div>
                           )}
                         </div>
@@ -974,16 +963,16 @@ function AccountingContent() {
                     <div className="border-t pt-4">
                       <div className="flex justify-between items-center text-sm">
                         <div className="flex items-center gap-4">
-                          <span className="text-muted-foreground">Items Sold: <span className="font-medium">{cogsData.totalItemsSold || 0}</span></span>
-                          {cogsData.isEstimate !== undefined && (
-                            <span className={`px-2 py-1 rounded text-xs ${cogsData.isEstimate ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}`}>
-                              {cogsData.isEstimate ? 'Estimated' : 'Actual Costs'}
+                          <span className="text-muted-foreground">Cost Period: <span className="font-medium">{cogsData.period || 'Current'}</span></span>
+                          {cogsData.currency && (
+                            <span className="px-2 py-1 rounded text-xs bg-blue-100 text-blue-800">
+                              Currency: {cogsData.currency}
                             </span>
                           )}
                         </div>
-                        {cogsData.note && (
-                          <span className="text-xs text-muted-foreground max-w-xs truncate">{cogsData.note}</span>
-                        )}
+                        <div className="text-xs text-muted-foreground">
+                          Last updated: {new Date().toLocaleTimeString()}
+                        </div>
                       </div>
                     </div>
                   </div>
