@@ -889,29 +889,29 @@ function AccountingContent() {
                 </div>
               </CardHeader>
               <CardContent>
-                {cogsData && Number.parseFloat(cogsData.totalCost ?? '0') > 0 ? (
+                {cogsData ? (
                   <div className="space-y-6">
                     {/* Main COGS Metrics */}
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                       <div className="space-y-1">
                         <p className="text-sm text-muted-foreground">Total Cost of Goods Sold</p>
-                        <p className="text-xl font-bold text-red-600">${(Number.parseFloat(cogsData.totalCost ?? '0') || 0).toFixed(2)}</p>
+                        <p className="text-xl font-bold text-red-600">${(Number.parseFloat(cogsData.totalCOGS ?? cogsData.totalCost ?? '0') || 0).toFixed(2)}</p>
                         <p className="text-xs text-muted-foreground">Period: {cogsData.period || 'Today'}</p>
                       </div>
                       <div className="space-y-1">
                         <p className="text-sm text-muted-foreground">Labor Costs</p>
-                        <p className="text-xl font-bold text-orange-600">${(Number.parseFloat(cogsData.breakdown?.labor ?? '0') || 0).toFixed(2)}</p>
-                        <p className="text-xs text-muted-foreground">{((Number.parseFloat(cogsData.breakdown?.labor ?? '0') || 0) / (Number.parseFloat(cogsData.totalCost ?? '0') || 1) * 100).toFixed(1)}% of COGS</p>
+                        <p className="text-xl font-bold text-orange-600">${(Number.parseFloat(cogsData.laborCosts ?? cogsData.breakdown?.labor ?? '0') || 0).toFixed(2)}</p>
+                        <p className="text-xs text-muted-foreground">{((Number.parseFloat(cogsData.laborCosts ?? cogsData.breakdown?.labor ?? '0') || 0) / (Number.parseFloat(cogsData.totalCOGS ?? cogsData.totalCost ?? '1') || 1) * 100).toFixed(1)}% of COGS</p>
                       </div>
                       <div className="space-y-1">
                         <p className="text-sm text-muted-foreground">Material Costs</p>
-                        <p className="text-xl font-bold text-teal-600">${(Number.parseFloat(cogsData.breakdown?.materials ?? '0') || 0).toFixed(2)}</p>
-                        <p className="text-xs text-muted-foreground">{((Number.parseFloat(cogsData.breakdown?.materials ?? '0') || 0) / (Number.parseFloat(cogsData.totalCost ?? '0') || 1) * 100).toFixed(1)}% of COGS</p>
+                        <p className="text-xl font-bold text-teal-600">${(Number.parseFloat(cogsData.materialCosts ?? cogsData.breakdown?.materials ?? '0') || 0).toFixed(2)}</p>
+                        <p className="text-xs text-muted-foreground">{((Number.parseFloat(cogsData.materialCosts ?? cogsData.breakdown?.materials ?? '0') || 0) / (Number.parseFloat(cogsData.totalCOGS ?? cogsData.totalCost ?? '1') || 1) * 100).toFixed(1)}% of COGS</p>
                       </div>
                     </div>
 
-                    {/* COGS Breakdown */}
-                    {(Number.parseFloat(cogsData.breakdown?.labor ?? '0') > 0 || Number.parseFloat(cogsData.breakdown?.materials ?? '0') > 0 || Number.parseFloat(cogsData.breakdown?.other ?? '0') > 0) && (
+                    {/* COGS Breakdown - Always show if data exists */}
+                    {(cogsData.laborCosts || cogsData.materialCosts || cogsData.breakdown?.labor || cogsData.breakdown?.materials || cogsData.breakdown?.other) && (
                       <div className="border-t pt-4">
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                           {/* Labor Costs Breakdown */}

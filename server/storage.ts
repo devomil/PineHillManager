@@ -3964,6 +3964,7 @@ export class DatabaseStorage implements IStorage {
         const standardCost = parseFloat(item.standardCost || '0');
         const unitCost = parseFloat(item.unitCost || '0');
         
+        // Enhanced cost fallback logic - use coalesce approach from production
         const finalUnitCost = costBasis > 0 ? costBasis : (standardCost > 0 ? standardCost : unitCost);
         const itemCost = quantitySold * finalUnitCost;
 
