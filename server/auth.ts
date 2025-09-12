@@ -8,6 +8,7 @@ import { storage } from "./storage";
 import { User as SelectUser } from "@shared/schema";
 import connectPg from "connect-pg-simple";
 import MemoryStore from "memorystore";
+import { authLogger } from "./secure-logger";
 
 declare global {
   namespace Express {
@@ -24,7 +25,7 @@ async function comparePasswords(supplied: string, stored: string) {
   try {
     return await bcrypt.compare(supplied, stored);
   } catch (error) {
-    console.error("Password comparison error:", error);
+    authLogger.error("Password comparison error", error instanceof Error ? error : new Error(String(error)));
     return false;
   }
 }
@@ -45,12 +46,12 @@ export function getSession() {
     });
     
     sessionStore.on('error', (err) => {
-      console.error('PostgreSQL session store error:', err);
+      authLogger.error('PostgreSQL session store error', err);
     });
     
-    console.log("Using PostgreSQL session store");
+    authLogger.info('Using PostgreSQL session store');
   } catch (error) {
-    console.warn("PostgreSQL session store failed, using memory store:", error instanceof Error ? error.message : String(error));
+    authLogger.warn('PostgreSQL session store failed, using memory store', { error: error instanceof Error ? error.message : String(error) });
     const MemStore = MemoryStore(session);
     sessionStore = new MemStore({
       checkPeriod: 86400000, // prune expired entries every 24h
@@ -87,35 +88,35 @@ export function setupAuth(app: Express) {
       },
       async (email, password, done) => {
         try {
-          console.log("Authenticating user with email:", email);
+          authLogger.auth('Authentication attempt', { email });
           const user = await storage.getUserByEmail(email);
-          console.log("User found:", user ? "Yes" : "No");
+          authLogger.auth('User lookup result', { email, userExists: !!user });
           
           if (!user || !user.password) {
-            console.log("User not found or no password");
+            authLogger.auth('Authentication failed: user not found or no password', { email });
             return done(null, false, { message: "Invalid email or password" });
           }
 
-          console.log("Comparing passwords...");
+          authLogger.debug('Verifying password');
           const isValidPassword = await comparePasswords(password, user.password);
-          console.log("Password valid:", isValidPassword);
+          authLogger.auth('Password verification completed', { email, valid: isValidPassword });
           
           if (!isValidPassword) {
             return done(null, false, { message: "Invalid email or password" });
           }
 
           if (!user.isActive) {
-            console.log("User account is inactive");
+            authLogger.auth('Authentication failed: inactive account', { email });
             return done(null, false, { message: "Account is deactivated" });
           }
 
           // Update last login
           await storage.updateUserProfile(user.id, { lastLogin: new Date() });
 
-          console.log("Authentication successful for user:", user.email);
+          authLogger.auth('Authentication successful', { email, userId: user.id });
           return done(null, user);
         } catch (error) {
-          console.error("Authentication error in strategy:", error);
+          authLogger.error('Authentication error in strategy', error instanceof Error ? error : new Error(String(error)));
           return done(error);
         }
       }
@@ -123,18 +124,18 @@ export function setupAuth(app: Express) {
   );
 
   passport.serializeUser((user, done) => {
-    console.log('Serializing user:', user.id);
+    authLogger.debug('Serializing user session', { userId: user.id });
     done(null, user.id);
   });
   
   passport.deserializeUser(async (id: string, done) => {
     try {
-      console.log('Deserializing user ID:', id);
+      authLogger.debug('Deserializing user session', { userId: id });
       const user = await storage.getUser(id);
-      console.log('Deserialized user:', user);
+      authLogger.debug('User session deserialized successfully', { userId: id, userExists: !!user });
       done(null, user);
     } catch (error) {
-      console.error('Deserialization error:', error);
+      authLogger.error('User session deserialization error', error instanceof Error ? error : new Error(String(error)), { userId: id });
       done(error);
     }
   });
@@ -179,31 +180,31 @@ export function setupAuth(app: Express) {
         });
       });
     } catch (error) {
-      console.error("Registration error:", error);
+      authLogger.error('User registration error', error instanceof Error ? error : new Error(String(error)));
       res.status(500).json({ error: "Registration failed" });
     }
   });
 
   // Login endpoint
   app.post("/api/login", (req, res, next) => {
-    console.log("Login attempt for email:", req.body.email);
+    authLogger.auth('Login attempt initiated', { email: req.body.email });
     
     passport.authenticate("local", (err: any, user: any, info: any) => {
       if (err) {
-        console.error("Authentication error:", err);
+        authLogger.error('Authentication error during login', err);
         return res.status(500).json({ error: "Authentication error" });
       }
       if (!user) {
-        console.log("Login failed:", info?.message);
+        authLogger.auth('Login failed', { email: req.body.email, reason: info?.message });
         return res.status(401).json({ error: info?.message || "Invalid credentials" });
       }
 
       req.login(user, (loginErr) => {
         if (loginErr) {
-          console.error("Session login error:", loginErr);
+          authLogger.error('Session login error', loginErr, { userId: user.id });
           return res.status(500).json({ error: "Login failed" });
         }
-        console.log("Login successful for user:", user.email);
+        authLogger.auth('Login successful', { email: req.body.email, userId: user.id });
         res.json({
           id: user.id,
           email: user.email,
@@ -219,21 +220,21 @@ export function setupAuth(app: Express) {
   app.post("/api/logout", (req, res, next) => {
     req.logout((err) => {
       if (err) {
-        console.error("Logout error:", err);
+        authLogger.error("Logout error", err);
         return next(err);
       }
       
       // Destroy the session completely
       req.session.destroy((destroyErr) => {
         if (destroyErr) {
-          console.error("Session destroy error:", destroyErr);
+          authLogger.error('Session destroy error during logout', destroyErr);
           return res.status(500).json({ error: "Logout failed" });
         }
         
         // Clear the session cookie
         res.clearCookie('pine-hill-session');
         res.clearCookie('connect.sid');
-        console.log("User logged out successfully");
+        authLogger.auth('User logged out successfully');
         res.sendStatus(200);
       });
     });
@@ -269,11 +270,11 @@ export function setupAuth(app: Express) {
       await storage.createPasswordResetToken(user.id, resetToken);
 
       // In production, send email here
-      console.log(`Password reset token for ${email}: ${resetToken}`);
+      authLogger.info('Password reset token generated', { email });
       
       res.json({ message: "If that email exists, a reset link has been sent" });
     } catch (error) {
-      console.error("Password reset error:", error);
+      authLogger.error('Password reset error', error instanceof Error ? error : new Error(String(error)));
       res.status(500).json({ error: "Password reset failed" });
     }
   });
@@ -302,7 +303,7 @@ export function setupAuth(app: Express) {
 
       res.json({ message: "Password reset successful" });
     } catch (error) {
-      console.error("Password reset error:", error);
+      authLogger.error('Password reset completion error', error instanceof Error ? error : new Error(String(error)));
       res.status(500).json({ error: "Password reset failed" });
     }
   });
@@ -339,7 +340,7 @@ export function setupAuth(app: Express) {
 
       res.json({ message: "Password changed successfully" });
     } catch (error) {
-      console.error("Change password error:", error);
+      authLogger.error('Password change error', error instanceof Error ? error : new Error(String(error)));
       res.status(500).json({ error: "Password change failed" });
     }
   });
@@ -348,20 +349,23 @@ export function setupAuth(app: Express) {
 // Authentication middleware for protected routes
 function isAuthenticated(req: any, res: any, next: any) {
   try {
-    console.log('Auth middleware called for:', req.method, req.path);
-    console.log('Auth check - isAuthenticated():', req.isAuthenticated());
-    console.log('Auth check - session user:', req.user);
-    console.log('Auth check - session:', req.session);
+    authLogger.debug('Authentication middleware check', { 
+      method: req.method, 
+      path: req.path,
+      authenticated: req.isAuthenticated(),
+      hasUser: !!req.user,
+      userId: req.user?.id
+    });
     
     if (req.isAuthenticated() && req.user) {
-      console.log('Authentication successful for user:', req.user.id);
+      authLogger.debug('Authentication middleware: access granted', { userId: req.user.id });
       return next();
     }
     
-    console.log('Authentication failed, returning 401');
+    authLogger.auth('Authentication middleware: access denied', { method: req.method, path: req.path });
     res.status(401).json({ error: "Authentication required" });
   } catch (error) {
-    console.error('Authentication middleware error:', error);
+    authLogger.error('Authentication middleware error', error instanceof Error ? error : new Error(String(error)));
     res.status(500).json({ error: "Authentication error" });
   }
 }
@@ -377,11 +381,19 @@ function requireRole(roles: string | string[]) {
     const allowedRoles = Array.isArray(roles) ? roles : [roles];
     
     if (!allowedRoles.includes(userRole)) {
-      console.log(`Access denied for user ${req.user.id} with role ${userRole}. Required: ${allowedRoles.join(', ')}`);
+      authLogger.security('Access denied: insufficient role', {
+        userId: req.user.id,
+        userRole,
+        requiredRoles: allowedRoles
+      });
       return res.status(403).json({ error: "Insufficient permissions" });
     }
 
-    console.log(`Access granted for user ${req.user.id} with role ${userRole}`);
+    authLogger.debug('Access granted', {
+      userId: req.user.id,
+      userRole,
+      requiredRoles: allowedRoles
+    });
     next();
   };
 }

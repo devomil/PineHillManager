@@ -9173,6 +9173,496 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ================================
+  // PAYROLL API ENDPOINTS
+  // ================================
+  
+  // Import payroll security modules
+  const { 
+    createPayrollValidation, 
+    createQueryValidation,
+    payrollPeriodsQuerySchema,
+    createPayrollPeriodSchema,
+    updatePayrollPeriodSchema,
+    calculatePayrollSchema,
+    payrollEntriesQuerySchema,
+    unprocessedTimeEntriesQuerySchema,
+    processTimeEntriesSchema,
+    employeePayHistoryQuerySchema
+  } = require('./payroll-validation');
+  
+  const {
+    requirePayrollAccess,
+    requireEmployeePayrollAccess,
+    validatePayrollPeriodAccess,
+    validatePayrollEntryAccess,
+    rateLimitPayrollOperations
+  } = require('./payroll-auth');
+  
+  const { payrollLogger } = require('./secure-logger');
+
+  // Payroll Period Management
+  app.get('/api/payroll/periods', 
+    isAuthenticated,
+    requirePayrollAccess(['admin', 'manager']),
+    createQueryValidation(payrollPeriodsQuerySchema),
+    async (req, res) => {
+      try {
+        const { status, limit, offset } = req.validatedQuery;
+        const periods = await storage.getPayrollPeriods(status, limit, offset);
+        
+        payrollLogger.info('Payroll periods retrieved', {
+          userId: req.user.id,
+          count: periods.length,
+          filters: { status }
+        });
+        
+        res.json(periods);
+      } catch (error) {
+        payrollLogger.error('Error fetching payroll periods', error instanceof Error ? error : new Error(String(error)), {
+          userId: req.user?.id
+        });
+        res.status(500).json({ message: 'Failed to fetch payroll periods' });
+      }
+    }
+  );
+
+  app.post('/api/payroll/periods',
+    isAuthenticated,
+    requirePayrollAccess(['admin', 'manager']),
+    rateLimitPayrollOperations(5, 300000), // 5 operations per 5 minutes
+    createPayrollValidation(createPayrollPeriodSchema),
+    async (req, res) => {
+      try {
+        const validatedData = req.validatedData;
+        
+        const period = await storage.createPayrollPeriod({
+          ...validatedData,
+          status: 'draft',
+          createdBy: req.user.id,
+        });
+        
+        payrollLogger.info('Payroll period created', {
+          userId: req.user.id,
+          periodId: period.id,
+          startDate: validatedData.startDate,
+          endDate: validatedData.endDate,
+          payPeriodType: validatedData.payPeriodType
+        });
+        
+        res.status(201).json(period);
+      } catch (error) {
+        payrollLogger.error('Error creating payroll period', error instanceof Error ? error : new Error(String(error)), {
+          userId: req.user?.id,
+          requestData: req.validatedData
+        });
+        res.status(500).json({ message: 'Failed to create payroll period' });
+      }
+    }
+  );
+
+  app.get('/api/payroll/periods/:id',
+    isAuthenticated,
+    requirePayrollAccess(['admin', 'manager']),
+    validatePayrollPeriodAccess,
+    async (req, res) => {
+      try {
+        const periodId = req.periodId;
+        const period = await storage.getPayrollPeriod(periodId);
+        
+        if (!period) {
+          payrollLogger.warn('Payroll period not found', {
+            userId: req.user.id,
+            periodId
+          });
+          return res.status(404).json({ error: 'Payroll period not found' });
+        }
+        
+        payrollLogger.info('Payroll period retrieved', {
+          userId: req.user.id,
+          periodId,
+          status: period.status
+        });
+        
+        res.json(period);
+      } catch (error) {
+        payrollLogger.error('Error fetching payroll period', error instanceof Error ? error : new Error(String(error)), {
+          userId: req.user?.id,
+          periodId: req.periodId
+        });
+        res.status(500).json({ message: 'Failed to fetch payroll period' });
+      }
+    }
+  );
+
+  app.patch('/api/payroll/periods/:id', isAuthenticated, async (req, res) => {
+    try {
+      if (!req.user || !['admin', 'manager'].includes(req.user.role)) {
+        return res.status(403).json({ error: 'Admin or Manager access required' });
+      }
+
+      const periodId = parseInt(req.params.id);
+      const updates = req.body;
+      
+      const updatedPeriod = await storage.updatePayrollPeriod(periodId, updates);
+      res.json(updatedPeriod);
+    } catch (error) {
+      console.error('Error updating payroll period:', error);
+      res.status(500).json({ message: 'Failed to update payroll period' });
+    }
+  });
+
+  app.delete('/api/payroll/periods/:id', isAuthenticated, async (req, res) => {
+    try {
+      if (!req.user || !['admin', 'manager'].includes(req.user.role)) {
+        return res.status(403).json({ error: 'Admin or Manager access required' });
+      }
+
+      const periodId = parseInt(req.params.id);
+      await storage.deletePayrollPeriod(periodId);
+      res.json({ message: 'Payroll period deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting payroll period:', error);
+      res.status(500).json({ message: 'Failed to delete payroll period' });
+    }
+  });
+
+  // Payroll Calculations
+  app.post('/api/payroll/calculate', isAuthenticated, async (req, res) => {
+    try {
+      if (!req.user || !['admin', 'manager'].includes(req.user.role)) {
+        return res.status(403).json({ error: 'Admin or Manager access required' });
+      }
+
+      const { startDate, endDate, userId } = req.body;
+      
+      if (!startDate || !endDate) {
+        return res.status(400).json({ error: 'Start date and end date are required' });
+      }
+
+      const payrollData = await storage.calculatePayrollForDateRange(startDate, endDate, userId);
+      res.json(payrollData);
+    } catch (error) {
+      console.error('Error calculating payroll:', error);
+      res.status(500).json({ message: 'Failed to calculate payroll' });
+    }
+  });
+
+  app.post('/api/payroll/calculate-employee', isAuthenticated, async (req, res) => {
+    try {
+      const { startDate, endDate, userId } = req.body;
+      
+      if (!startDate || !endDate || !userId) {
+        return res.status(400).json({ error: 'Start date, end date, and user ID are required' });
+      }
+
+      // Check if user can access this employee's data
+      if (req.user?.role !== 'admin' && req.user?.role !== 'manager' && req.user?.id !== userId) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
+      const payrollData = await storage.calculatePayrollForEmployee(userId, startDate, endDate);
+      res.json(payrollData);
+    } catch (error) {
+      console.error('Error calculating employee payroll:', error);
+      res.status(500).json({ message: 'Failed to calculate employee payroll' });
+    }
+  });
+
+  app.post('/api/payroll/periods/:id/calculate', isAuthenticated, async (req, res) => {
+    try {
+      if (!req.user || !['admin', 'manager'].includes(req.user.role)) {
+        return res.status(403).json({ error: 'Admin or Manager access required' });
+      }
+
+      const periodId = parseInt(req.params.id);
+      const payrollData = await storage.calculatePayrollForPeriod(periodId);
+      res.json(payrollData);
+    } catch (error) {
+      console.error('Error calculating payroll for period:', error);
+      res.status(500).json({ message: 'Failed to calculate payroll for period' });
+    }
+  });
+
+  // Payroll Entry Management
+  app.get('/api/payroll/entries', isAuthenticated, async (req, res) => {
+    try {
+      const { payrollPeriodId, userId } = req.query;
+      
+      // If userId is provided and user is not admin/manager, they can only see their own entries
+      if (userId && req.user?.role !== 'admin' && req.user?.role !== 'manager' && req.user?.id !== userId) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
+      const entries = await storage.getPayrollEntries(
+        payrollPeriodId ? parseInt(payrollPeriodId as string) : undefined,
+        userId as string
+      );
+      res.json(entries);
+    } catch (error) {
+      console.error('Error fetching payroll entries:', error);
+      res.status(500).json({ message: 'Failed to fetch payroll entries' });
+    }
+  });
+
+  app.post('/api/payroll/entries', isAuthenticated, async (req, res) => {
+    try {
+      if (!req.user || !['admin', 'manager'].includes(req.user.role)) {
+        return res.status(403).json({ error: 'Admin or Manager access required' });
+      }
+
+      const entryData = req.body;
+      const entry = await storage.createPayrollEntry(entryData);
+      res.json(entry);
+    } catch (error) {
+      console.error('Error creating payroll entry:', error);
+      res.status(500).json({ message: 'Failed to create payroll entry' });
+    }
+  });
+
+  app.get('/api/payroll/entries/:id', isAuthenticated, async (req, res) => {
+    try {
+      const entryId = parseInt(req.params.id);
+      const entry = await storage.getPayrollEntry(entryId);
+      
+      if (!entry) {
+        return res.status(404).json({ error: 'Payroll entry not found' });
+      }
+
+      // Check if user can access this entry
+      if (req.user?.role !== 'admin' && req.user?.role !== 'manager' && req.user?.id !== entry.userId) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+      
+      res.json(entry);
+    } catch (error) {
+      console.error('Error fetching payroll entry:', error);
+      res.status(500).json({ message: 'Failed to fetch payroll entry' });
+    }
+  });
+
+  app.patch('/api/payroll/entries/:id', isAuthenticated, async (req, res) => {
+    try {
+      if (!req.user || !['admin', 'manager'].includes(req.user.role)) {
+        return res.status(403).json({ error: 'Admin or Manager access required' });
+      }
+
+      const entryId = parseInt(req.params.id);
+      const updates = req.body;
+      
+      const updatedEntry = await storage.updatePayrollEntry(entryId, updates);
+      res.json(updatedEntry);
+    } catch (error) {
+      console.error('Error updating payroll entry:', error);
+      res.status(500).json({ message: 'Failed to update payroll entry' });
+    }
+  });
+
+  app.post('/api/payroll/entries/:id/approve', isAuthenticated, async (req, res) => {
+    try {
+      if (!req.user || !['admin', 'manager'].includes(req.user.role)) {
+        return res.status(403).json({ error: 'Admin or Manager access required' });
+      }
+
+      const entryId = parseInt(req.params.id);
+      const approvedEntry = await storage.approvePayrollEntry(entryId, req.user.id);
+      res.json(approvedEntry);
+    } catch (error) {
+      console.error('Error approving payroll entry:', error);
+      res.status(500).json({ message: 'Failed to approve payroll entry' });
+    }
+  });
+
+  app.delete('/api/payroll/entries/:id', isAuthenticated, async (req, res) => {
+    try {
+      if (!req.user || !['admin', 'manager'].includes(req.user.role)) {
+        return res.status(403).json({ error: 'Admin or Manager access required' });
+      }
+
+      const entryId = parseInt(req.params.id);
+      await storage.deletePayrollEntry(entryId);
+      res.json({ message: 'Payroll entry deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting payroll entry:', error);
+      res.status(500).json({ message: 'Failed to delete payroll entry' });
+    }
+  });
+
+  // Payroll Processing
+  app.post('/api/payroll/periods/:id/process', isAuthenticated, async (req, res) => {
+    try {
+      if (!req.user || !['admin', 'manager'].includes(req.user.role)) {
+        return res.status(403).json({ error: 'Admin or Manager access required' });
+      }
+
+      const periodId = parseInt(req.params.id);
+      const processedPeriod = await storage.processPayrollPeriod(periodId, req.user.id);
+      res.json(processedPeriod);
+    } catch (error) {
+      console.error('Error processing payroll period:', error);
+      res.status(500).json({ message: 'Failed to process payroll period' });
+    }
+  });
+
+  app.post('/api/payroll/periods/:id/generate-journal', isAuthenticated, async (req, res) => {
+    try {
+      if (!req.user || !['admin', 'manager'].includes(req.user.role)) {
+        return res.status(403).json({ error: 'Admin or Manager access required' });
+      }
+
+      const periodId = parseInt(req.params.id);
+      const journalEntries = await storage.generatePayrollJournalEntries(periodId);
+      res.json(journalEntries);
+    } catch (error) {
+      console.error('Error generating payroll journal entries:', error);
+      res.status(500).json({ message: 'Failed to generate payroll journal entries' });
+    }
+  });
+
+  app.post('/api/payroll/periods/:id/mark-paid', isAuthenticated, async (req, res) => {
+    try {
+      if (!req.user || !['admin', 'manager'].includes(req.user.role)) {
+        return res.status(403).json({ error: 'Admin or Manager access required' });
+      }
+
+      const periodId = parseInt(req.params.id);
+      const paidPeriod = await storage.markPayrollPeriodAsPaid(periodId);
+      res.json(paidPeriod);
+    } catch (error) {
+      console.error('Error marking payroll period as paid:', error);
+      res.status(500).json({ message: 'Failed to mark payroll period as paid' });
+    }
+  });
+
+  // Payroll Reports and Analytics
+  app.get('/api/payroll/reports/monthly', isAuthenticated, async (req, res) => {
+    try {
+      if (!req.user || !['admin', 'manager'].includes(req.user.role)) {
+        return res.status(403).json({ error: 'Admin or Manager access required' });
+      }
+
+      const { year, month } = req.query;
+      
+      if (!year || !month) {
+        return res.status(400).json({ error: 'Year and month are required' });
+      }
+
+      const summary = await storage.getPayrollSummaryByMonth(parseInt(year as string), parseInt(month as string));
+      res.json(summary);
+    } catch (error) {
+      console.error('Error fetching monthly payroll summary:', error);
+      res.status(500).json({ message: 'Failed to fetch monthly payroll summary' });
+    }
+  });
+
+  app.get('/api/payroll/analytics', isAuthenticated, async (req, res) => {
+    try {
+      if (!req.user || !['admin', 'manager'].includes(req.user.role)) {
+        return res.status(403).json({ error: 'Admin or Manager access required' });
+      }
+
+      const { startDate, endDate } = req.query;
+      
+      if (!startDate || !endDate) {
+        return res.status(400).json({ error: 'Start date and end date are required' });
+      }
+
+      const analytics = await storage.getPayrollAnalytics(startDate as string, endDate as string);
+      res.json(analytics);
+    } catch (error) {
+      console.error('Error fetching payroll analytics:', error);
+      res.status(500).json({ message: 'Failed to fetch payroll analytics' });
+    }
+  });
+
+  app.get('/api/payroll/employees/:userId/history',
+    isAuthenticated,
+    requireEmployeePayrollAccess,
+    createQueryValidation(employeePayHistoryQuerySchema),
+    async (req, res) => {
+      try {
+        const userId = req.params.userId;
+        const { limit, offset, startDate, endDate } = req.validatedQuery;
+
+        const history = await storage.getEmployeePayHistory(
+          userId, 
+          limit,
+          offset,
+          startDate,
+          endDate
+        );
+        
+        payrollLogger.info('Employee pay history retrieved', {
+          requestingUserId: req.user.id,
+          targetUserId: userId,
+          recordCount: history.length,
+          dateRange: { startDate, endDate }
+        });
+        
+        res.json(history);
+    } catch (error) {
+      console.error('Error fetching employee pay history:', error);
+      res.status(500).json({ message: 'Failed to fetch employee pay history' });
+    }
+  });
+
+  // Time Clock Integration
+  app.get('/api/payroll/unprocessed-time-entries', isAuthenticated, async (req, res) => {
+    try {
+      if (!req.user || !['admin', 'manager'].includes(req.user.role)) {
+        return res.status(403).json({ error: 'Admin or Manager access required' });
+      }
+
+      const { startDate, endDate } = req.query;
+      
+      if (!startDate || !endDate) {
+        return res.status(400).json({ error: 'Start date and end date are required' });
+      }
+
+      const timeEntries = await storage.getUnprocessedTimeEntries(startDate as string, endDate as string);
+      res.json(timeEntries);
+    } catch (error) {
+      console.error('Error fetching unprocessed time entries:', error);
+      res.status(500).json({ message: 'Failed to fetch unprocessed time entries' });
+    }
+  });
+
+  app.post('/api/payroll/process-time-entries', isAuthenticated, async (req, res) => {
+    try {
+      if (!req.user || !['admin', 'manager'].includes(req.user.role)) {
+        return res.status(403).json({ error: 'Admin or Manager access required' });
+      }
+
+      const { timeEntryIds, payrollEntryId } = req.body;
+      
+      if (!timeEntryIds || !payrollEntryId) {
+        return res.status(400).json({ error: 'Time entry IDs and payroll entry ID are required' });
+      }
+
+      await storage.markTimeEntriesAsProcessed(timeEntryIds, payrollEntryId);
+      res.json({ message: 'Time entries processed successfully' });
+    } catch (error) {
+      console.error('Error processing time entries:', error);
+      res.status(500).json({ message: 'Failed to process time entries' });
+    }
+  });
+
+  // Payroll Validation
+  app.get('/api/payroll/periods/:id/validate', isAuthenticated, async (req, res) => {
+    try {
+      if (!req.user || !['admin', 'manager'].includes(req.user.role)) {
+        return res.status(403).json({ error: 'Admin or Manager access required' });
+      }
+
+      const periodId = parseInt(req.params.id);
+      const validation = await storage.validatePayrollCalculations(periodId);
+      res.json(validation);
+    } catch (error) {
+      console.error('Error validating payroll calculations:', error);
+      res.status(500).json({ message: 'Failed to validate payroll calculations' });
+    }
+  });
+
   const httpServer = createServer(app);
 
   // WebSocket server for real-time updates

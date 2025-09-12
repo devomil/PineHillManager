@@ -56,6 +56,11 @@ import {
   monthlyAccountBalances,
   monthlyTransactionSummaries,
   monthlyResetHistory,
+  // Payroll Tables
+  payrollPeriods,
+  payrollEntries,
+  payrollTimeEntries,
+  payrollJournalEntries,
   type User,
   type UpsertUser,
   type SMSConsentHistory,
@@ -192,6 +197,14 @@ import {
   type InsertMonthlyTransactionSummary,
   type MonthlyResetHistory,
   type InsertMonthlyResetHistory,
+  // Payroll Types
+  type PayrollPeriod,
+  type InsertPayrollPeriod,
+  type PayrollEntry,
+  type InsertPayrollEntry,
+  type PayrollTimeEntry,
+  type InsertPayrollTimeEntry,
+  type PayrollJournalEntry,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, asc, gte, lte, or, sql, like, isNull, isNotNull } from "drizzle-orm";
@@ -848,6 +861,121 @@ export interface IStorage {
   addAnnouncementReaction(reaction: InsertAnnouncementReaction): Promise<AnnouncementReaction>;
   removeAnnouncementReaction(announcementId: number, userId: string, reactionType: string): Promise<void>;
   getAnnouncementReactions(announcementId: number): Promise<AnnouncementReaction[]>;
+
+  // ================================
+  // PAYROLL OPERATIONS
+  // ================================
+
+  // Payroll Period Management
+  createPayrollPeriod(period: InsertPayrollPeriod): Promise<PayrollPeriod>;
+  getPayrollPeriods(status?: string): Promise<PayrollPeriod[]>;
+  getPayrollPeriod(id: number): Promise<PayrollPeriod | undefined>;
+  updatePayrollPeriod(id: number, updates: Partial<InsertPayrollPeriod>): Promise<PayrollPeriod>;
+  deletePayrollPeriod(id: number): Promise<void>;
+  getPayrollPeriodsForDateRange(startDate: string, endDate: string): Promise<PayrollPeriod[]>;
+
+  // Payroll Calculation Methods
+  calculatePayrollForPeriod(periodId: number): Promise<{ 
+    totalGrossPay: number; 
+    totalNetPay: number; 
+    totalTaxes: number; 
+    totalDeductions: number; 
+    employeeCount: number;
+    entries: PayrollEntry[];
+  }>;
+  calculatePayrollForEmployee(userId: string, startDate: string, endDate: string): Promise<{
+    regularHours: number;
+    overtimeHours: number;
+    doubleTimeHours: number;
+    totalHours: number;
+    regularPay: number;
+    overtimePay: number;
+    doubleTimePay: number;
+    grossPay: number;
+    netPay: number;
+    timeEntries: any[];
+  }>;
+  calculatePayrollForDateRange(startDate: string, endDate: string, userId?: string): Promise<{
+    totalGrossPay: number;
+    totalNetPay: number;
+    totalHours: number;
+    employeePayroll: Array<{
+      userId: string;
+      firstName: string;
+      lastName: string;
+      regularHours: number;
+      overtimeHours: number;
+      grossPay: number;
+      netPay: number;
+    }>;
+  }>;
+
+  // Payroll Entry Management
+  createPayrollEntry(entry: InsertPayrollEntry): Promise<PayrollEntry>;
+  getPayrollEntries(payrollPeriodId?: number, userId?: string): Promise<PayrollEntry[]>;
+  getPayrollEntry(id: number): Promise<PayrollEntry | undefined>;
+  updatePayrollEntry(id: number, updates: Partial<InsertPayrollEntry>): Promise<PayrollEntry>;
+  deletePayrollEntry(id: number): Promise<void>;
+  approvePayrollEntry(id: number, approvedBy: string): Promise<PayrollEntry>;
+  getPayrollEntriesForEmployee(userId: string, limit?: number): Promise<PayrollEntry[]>;
+
+  // Payroll Time Entry Links
+  createPayrollTimeEntry(entry: InsertPayrollTimeEntry): Promise<PayrollTimeEntry>;
+  getPayrollTimeEntries(payrollEntryId: number): Promise<PayrollTimeEntry[]>;
+  deletePayrollTimeEntry(id: number): Promise<void>;
+
+  // Payroll Processing
+  processPayrollPeriod(periodId: number, processedBy: string): Promise<PayrollPeriod>;
+  generatePayrollJournalEntries(periodId: number): Promise<PayrollJournalEntry[]>;
+  markPayrollPeriodAsPaid(periodId: number): Promise<PayrollPeriod>;
+
+  // Payroll Reports and Analytics
+  getPayrollSummaryByMonth(year: number, month: number): Promise<{
+    totalGrossPay: string;
+    totalNetPay: string;
+    totalTaxes: string;
+    totalDeductions: string;
+    employeeCount: number;
+    avgHoursPerEmployee: number;
+    overtimePercentage: number;
+    departmentBreakdown: Array<{ department: string; totalPay: string; employeeCount: number }>;
+  }>;
+  getPayrollAnalytics(startDate: string, endDate: string): Promise<{
+    totalPayroll: string;
+    avgPayPerEmployee: string;
+    overtimeHours: number;
+    regularHours: number;
+    topEarners: Array<{ userId: string; name: string; totalPay: string }>;
+    departmentCosts: Array<{ department: string; cost: string; percentage: number }>;
+  }>;
+  getEmployeePayHistory(userId: string, limit?: number): Promise<Array<{
+    periodId: number;
+    startDate: string;
+    endDate: string;
+    totalHours: number;
+    grossPay: string;
+    netPay: string;
+    status: string;
+  }>>;
+
+  // Integration with Time Clock
+  getUnprocessedTimeEntries(startDate: string, endDate: string): Promise<any[]>;
+  markTimeEntriesAsProcessed(timeEntryIds: number[], payrollEntryId: number): Promise<void>;
+  calculateHoursFromTimeEntries(timeEntries: any[]): Promise<{
+    regularHours: number;
+    overtimeHours: number;
+    doubleTimeHours: number;
+    totalHours: number;
+    totalBreakMinutes: number;
+  }>;
+
+  // Payroll Validation
+  validatePayrollCalculations(periodId: number): Promise<{
+    isValid: boolean;
+    errors: string[];
+    warnings: string[];
+    summary: { totalEmployees: number; totalHours: number; totalPay: string };
+  }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -6458,6 +6586,885 @@ export class DatabaseStorage implements IStorage {
       accountId: b.accountId,
       openingBalance: b.closingBalance
     }));
+  }
+
+  // ================================
+  // PAYROLL OPERATIONS IMPLEMENTATION
+  // ================================
+
+  // Payroll Period Management
+  async createPayrollPeriod(period: InsertPayrollPeriod): Promise<PayrollPeriod> {
+    const [created] = await db
+      .insert(payrollPeriods)
+      .values({
+        ...period,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .returning();
+    return created;
+  }
+
+  async getPayrollPeriods(status?: string): Promise<PayrollPeriod[]> {
+    let query = db.select().from(payrollPeriods);
+    
+    if (status) {
+      query = query.where(eq(payrollPeriods.status, status));
+    }
+    
+    return await query.orderBy(desc(payrollPeriods.startDate));
+  }
+
+  async getPayrollPeriod(id: number): Promise<PayrollPeriod | undefined> {
+    const [period] = await db
+      .select()
+      .from(payrollPeriods)
+      .where(eq(payrollPeriods.id, id));
+    return period;
+  }
+
+  async updatePayrollPeriod(id: number, updates: Partial<InsertPayrollPeriod>): Promise<PayrollPeriod> {
+    const [updated] = await db
+      .update(payrollPeriods)
+      .set({
+        ...updates,
+        updatedAt: new Date(),
+      })
+      .where(eq(payrollPeriods.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deletePayrollPeriod(id: number): Promise<void> {
+    await db.delete(payrollPeriods).where(eq(payrollPeriods.id, id));
+  }
+
+  async getPayrollPeriodsForDateRange(startDate: string, endDate: string): Promise<PayrollPeriod[]> {
+    return await db
+      .select()
+      .from(payrollPeriods)
+      .where(
+        and(
+          gte(payrollPeriods.startDate, startDate),
+          lte(payrollPeriods.endDate, endDate)
+        )
+      )
+      .orderBy(desc(payrollPeriods.startDate));
+  }
+
+  // Core Payroll Calculation Methods
+  async calculateHoursFromTimeEntries(timeEntries: any[]): Promise<{
+    regularHours: number;
+    overtimeHours: number;
+    doubleTimeHours: number;
+    totalHours: number;
+    totalBreakMinutes: number;
+  }> {
+    let totalMinutes = 0;
+    let totalBreakMinutes = 0;
+
+    for (const entry of timeEntries) {
+      if (entry.clockOutTime && entry.totalWorkedMinutes) {
+        totalMinutes += entry.totalWorkedMinutes;
+        totalBreakMinutes += entry.totalBreakMinutes || 0;
+      }
+    }
+
+    const totalHours = totalMinutes / 60;
+    
+    // Calculate overtime (over 40 hours per week)
+    let regularHours = Math.min(totalHours, 40);
+    let overtimeHours = Math.max(totalHours - 40, 0);
+    let doubleTimeHours = 0;
+
+    // Double time after 60 hours (if applicable)
+    if (totalHours > 60) {
+      doubleTimeHours = totalHours - 60;
+      overtimeHours = 20; // Hours 40-60
+    }
+
+    return {
+      regularHours: Number(regularHours.toFixed(2)),
+      overtimeHours: Number(overtimeHours.toFixed(2)),
+      doubleTimeHours: Number(doubleTimeHours.toFixed(2)),
+      totalHours: Number(totalHours.toFixed(2)),
+      totalBreakMinutes: totalBreakMinutes
+    };
+  }
+
+  async calculatePayrollForEmployee(userId: string, startDate: string, endDate: string): Promise<{
+    regularHours: number;
+    overtimeHours: number;
+    doubleTimeHours: number;
+    totalHours: number;
+    regularPay: number;
+    overtimePay: number;
+    doubleTimePay: number;
+    grossPay: number;
+    netPay: number;
+    timeEntries: any[];
+  }> {
+    // Get user's hourly rate
+    const user = await this.getUser(userId);
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    const hourlyRate = parseFloat(user.hourlyRate || '0');
+    if (hourlyRate === 0) {
+      throw new Error('User does not have a valid hourly rate');
+    }
+
+    // Get time entries for date range
+    const timeEntries = await this.getTimeEntriesByDateRange(userId, startDate, endDate);
+
+    // Calculate hours breakdown
+    const hoursBreakdown = await this.calculateHoursFromTimeEntries(timeEntries);
+
+    // Calculate pay amounts
+    const regularPay = hoursBreakdown.regularHours * hourlyRate;
+    const overtimePay = hoursBreakdown.overtimeHours * (hourlyRate * 1.5); // 1.5x overtime
+    const doubleTimePay = hoursBreakdown.doubleTimeHours * (hourlyRate * 2.0); // 2x double time
+    const grossPay = regularPay + overtimePay + doubleTimePay;
+
+    // Basic tax estimation (this would be more complex in real implementation)
+    const federalTaxRate = 0.12; // 12% federal
+    const stateTaxRate = 0.05; // 5% state  
+    const socialSecurityRate = 0.062; // 6.2%
+    const medicareRate = 0.0145; // 1.45%
+
+    const federalTax = grossPay * federalTaxRate;
+    const stateTax = grossPay * stateTaxRate;
+    const socialSecurityTax = grossPay * socialSecurityRate;
+    const medicareTax = grossPay * medicareRate;
+    const totalTaxes = federalTax + stateTax + socialSecurityTax + medicareTax;
+    
+    const netPay = grossPay - totalTaxes;
+
+    return {
+      regularHours: hoursBreakdown.regularHours,
+      overtimeHours: hoursBreakdown.overtimeHours,
+      doubleTimeHours: hoursBreakdown.doubleTimeHours,
+      totalHours: hoursBreakdown.totalHours,
+      regularPay: Number(regularPay.toFixed(2)),
+      overtimePay: Number(overtimePay.toFixed(2)),
+      doubleTimePay: Number(doubleTimePay.toFixed(2)),
+      grossPay: Number(grossPay.toFixed(2)),
+      netPay: Number(netPay.toFixed(2)),
+      timeEntries: timeEntries
+    };
+  }
+
+  async calculatePayrollForDateRange(startDate: string, endDate: string, userId?: string): Promise<{
+    totalGrossPay: number;
+    totalNetPay: number;
+    totalHours: number;
+    employeePayroll: Array<{
+      userId: string;
+      firstName: string;
+      lastName: string;
+      regularHours: number;
+      overtimeHours: number;
+      grossPay: number;
+      netPay: number;
+    }>;
+  }> {
+    let users: User[];
+
+    if (userId) {
+      const user = await this.getUser(userId);
+      users = user ? [user] : [];
+    } else {
+      users = await this.getAllUsers();
+    }
+
+    // Filter users with hourly rates
+    const hourlyUsers = users.filter(user => user.hourlyRate && parseFloat(user.hourlyRate) > 0);
+
+    const employeePayroll = [];
+    let totalGrossPay = 0;
+    let totalNetPay = 0;
+    let totalHours = 0;
+
+    for (const user of hourlyUsers) {
+      try {
+        const payrollData = await this.calculatePayrollForEmployee(user.id, startDate, endDate);
+        
+        employeePayroll.push({
+          userId: user.id,
+          firstName: user.firstName || '',
+          lastName: user.lastName || '',
+          regularHours: payrollData.regularHours,
+          overtimeHours: payrollData.overtimeHours,
+          grossPay: payrollData.grossPay,
+          netPay: payrollData.netPay,
+        });
+
+        totalGrossPay += payrollData.grossPay;
+        totalNetPay += payrollData.netPay;
+        totalHours += payrollData.totalHours;
+      } catch (error) {
+        console.error(`Error calculating payroll for user ${user.id}:`, error);
+        // Continue with other employees
+      }
+    }
+
+    return {
+      totalGrossPay: Number(totalGrossPay.toFixed(2)),
+      totalNetPay: Number(totalNetPay.toFixed(2)),
+      totalHours: Number(totalHours.toFixed(2)),
+      employeePayroll
+    };
+  }
+
+  async calculatePayrollForPeriod(periodId: number): Promise<{ 
+    totalGrossPay: number; 
+    totalNetPay: number; 
+    totalTaxes: number; 
+    totalDeductions: number; 
+    employeeCount: number;
+    entries: PayrollEntry[];
+  }> {
+    const period = await this.getPayrollPeriod(periodId);
+    if (!period) {
+      throw new Error('Payroll period not found');
+    }
+
+    const payrollData = await this.calculatePayrollForDateRange(
+      period.startDate, 
+      period.endDate
+    );
+
+    // Get existing entries for this period
+    const entries = await this.getPayrollEntries(periodId);
+
+    // Calculate totals - for now using basic tax calculations
+    const totalGrossPay = payrollData.totalGrossPay;
+    const totalTaxes = totalGrossPay * 0.25; // 25% total tax rate estimate
+    const totalDeductions = 0; // Would include insurance, 401k, etc.
+    const totalNetPay = totalGrossPay - totalTaxes - totalDeductions;
+
+    // Update period totals
+    await this.updatePayrollPeriod(periodId, {
+      totalGrossPay: totalGrossPay.toString(),
+      totalNetPay: totalNetPay.toString(),
+      totalTaxes: totalTaxes.toString(),
+      totalDeductions: totalDeductions.toString(),
+    });
+
+    return {
+      totalGrossPay,
+      totalNetPay,
+      totalTaxes,
+      totalDeductions,
+      employeeCount: payrollData.employeePayroll.length,
+      entries
+    };
+  }
+
+  // Payroll Entry Management
+  async createPayrollEntry(entry: InsertPayrollEntry): Promise<PayrollEntry> {
+    const [created] = await db
+      .insert(payrollEntries)
+      .values({
+        ...entry,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .returning();
+    return created;
+  }
+
+  async getPayrollEntries(payrollPeriodId?: number, userId?: string): Promise<PayrollEntry[]> {
+    let query = db
+      .select({
+        id: payrollEntries.id,
+        payrollPeriodId: payrollEntries.payrollPeriodId,
+        userId: payrollEntries.userId,
+        locationId: payrollEntries.locationId,
+        regularHours: payrollEntries.regularHours,
+        overtimeHours: payrollEntries.overtimeHours,
+        doubleTimeHours: payrollEntries.doubleTimeHours,
+        totalHours: payrollEntries.totalHours,
+        regularRate: payrollEntries.regularRate,
+        overtimeRate: payrollEntries.overtimeRate,
+        doubleTimeRate: payrollEntries.doubleTimeRate,
+        regularPay: payrollEntries.regularPay,
+        overtimePay: payrollEntries.overtimePay,
+        doubleTimePay: payrollEntries.doubleTimePay,
+        grossPay: payrollEntries.grossPay,
+        federalTax: payrollEntries.federalTax,
+        stateTax: payrollEntries.stateTax,
+        socialSecurityTax: payrollEntries.socialSecurityTax,
+        medicareTax: payrollEntries.medicareTax,
+        unemploymentTax: payrollEntries.unemploymentTax,
+        totalTaxes: payrollEntries.totalTaxes,
+        healthInsurance: payrollEntries.healthInsurance,
+        dentalInsurance: payrollEntries.dentalInsurance,
+        visionInsurance: payrollEntries.visionInsurance,
+        retirement401k: payrollEntries.retirement401k,
+        otherDeductions: payrollEntries.otherDeductions,
+        totalDeductions: payrollEntries.totalDeductions,
+        netPay: payrollEntries.netPay,
+        timeEntryIds: payrollEntries.timeEntryIds,
+        adjustments: payrollEntries.adjustments,
+        notes: payrollEntries.notes,
+        isApproved: payrollEntries.isApproved,
+        approvedBy: payrollEntries.approvedBy,
+        approvedAt: payrollEntries.approvedAt,
+        createdAt: payrollEntries.createdAt,
+        updatedAt: payrollEntries.updatedAt,
+        // Include user details
+        firstName: users.firstName,
+        lastName: users.lastName,
+        email: users.email,
+        employeeId: users.employeeId,
+      })
+      .from(payrollEntries)
+      .leftJoin(users, eq(payrollEntries.userId, users.id));
+
+    const conditions = [];
+    
+    if (payrollPeriodId) {
+      conditions.push(eq(payrollEntries.payrollPeriodId, payrollPeriodId));
+    }
+    
+    if (userId) {
+      conditions.push(eq(payrollEntries.userId, userId));
+    }
+    
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions));
+    }
+    
+    return await query.orderBy(desc(payrollEntries.createdAt));
+  }
+
+  async getPayrollEntry(id: number): Promise<PayrollEntry | undefined> {
+    const [entry] = await db
+      .select()
+      .from(payrollEntries)
+      .where(eq(payrollEntries.id, id));
+    return entry;
+  }
+
+  async updatePayrollEntry(id: number, updates: Partial<InsertPayrollEntry>): Promise<PayrollEntry> {
+    const [updated] = await db
+      .update(payrollEntries)
+      .set({
+        ...updates,
+        updatedAt: new Date(),
+      })
+      .where(eq(payrollEntries.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deletePayrollEntry(id: number): Promise<void> {
+    await db.delete(payrollEntries).where(eq(payrollEntries.id, id));
+  }
+
+  async approvePayrollEntry(id: number, approvedBy: string): Promise<PayrollEntry> {
+    const [approved] = await db
+      .update(payrollEntries)
+      .set({
+        isApproved: true,
+        approvedBy: approvedBy,
+        approvedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(payrollEntries.id, id))
+      .returning();
+    return approved;
+  }
+
+  async getPayrollEntriesForEmployee(userId: string, limit?: number): Promise<PayrollEntry[]> {
+    let query = db
+      .select()
+      .from(payrollEntries)
+      .where(eq(payrollEntries.userId, userId))
+      .orderBy(desc(payrollEntries.createdAt));
+    
+    if (limit) {
+      query = query.limit(limit);
+    }
+    
+    return await query;
+  }
+
+  // Payroll Time Entry Links
+  async createPayrollTimeEntry(entry: InsertPayrollTimeEntry): Promise<PayrollTimeEntry> {
+    const [created] = await db
+      .insert(payrollTimeEntries)
+      .values({
+        ...entry,
+        createdAt: new Date(),
+      })
+      .returning();
+    return created;
+  }
+
+  async getPayrollTimeEntries(payrollEntryId: number): Promise<PayrollTimeEntry[]> {
+    return await db
+      .select()
+      .from(payrollTimeEntries)
+      .where(eq(payrollTimeEntries.payrollEntryId, payrollEntryId))
+      .orderBy(payrollTimeEntries.timeClockEntryId);
+  }
+
+  async deletePayrollTimeEntry(id: number): Promise<void> {
+    await db.delete(payrollTimeEntries).where(eq(payrollTimeEntries.id, id));
+  }
+
+  // Payroll Processing
+  async processPayrollPeriod(periodId: number, processedBy: string): Promise<PayrollPeriod> {
+    const [processed] = await db
+      .update(payrollPeriods)
+      .set({
+        status: 'processed',
+        processedBy: processedBy,
+        processedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(payrollPeriods.id, periodId))
+      .returning();
+    return processed;
+  }
+
+  async generatePayrollJournalEntries(periodId: number): Promise<PayrollJournalEntry[]> {
+    const period = await this.getPayrollPeriod(periodId);
+    if (!period) {
+      throw new Error('Payroll period not found');
+    }
+
+    const entries = await this.getPayrollEntries(periodId);
+    const journalEntries: PayrollJournalEntry[] = [];
+
+    // Calculate totals
+    let totalGrossPay = 0;
+    let totalTaxes = 0;
+    let totalDeductions = 0;
+    let totalNetPay = 0;
+
+    for (const entry of entries) {
+      totalGrossPay += parseFloat(entry.grossPay);
+      totalTaxes += parseFloat(entry.totalTaxes);
+      totalDeductions += parseFloat(entry.totalDeductions);
+      totalNetPay += parseFloat(entry.netPay);
+    }
+
+    // Create journal entries
+    const journalData = [
+      // Debit: Payroll Expense
+      {
+        payrollPeriodId: periodId,
+        entryType: 'gross_wages',
+        account: 'Payroll Expense',
+        debitAmount: totalGrossPay.toString(),
+        creditAmount: '0.00',
+        description: `Payroll expense for period ${period.startDate} to ${period.endDate}`,
+      },
+      // Credit: Taxes Payable
+      {
+        payrollPeriodId: periodId,
+        entryType: 'taxes_payable',
+        account: 'Payroll Taxes Payable',
+        debitAmount: '0.00',
+        creditAmount: totalTaxes.toString(),
+        description: `Payroll taxes payable for period ${period.startDate} to ${period.endDate}`,
+      },
+      // Credit: Deductions Payable (if any)
+      {
+        payrollPeriodId: periodId,
+        entryType: 'deductions_payable',
+        account: 'Employee Deductions Payable',
+        debitAmount: '0.00',
+        creditAmount: totalDeductions.toString(),
+        description: `Employee deductions payable for period ${period.startDate} to ${period.endDate}`,
+      },
+      // Credit: Net Pay Liability
+      {
+        payrollPeriodId: periodId,
+        entryType: 'net_pay_liability',
+        account: 'Wages Payable',
+        debitAmount: '0.00',
+        creditAmount: totalNetPay.toString(),
+        description: `Net wages payable for period ${period.startDate} to ${period.endDate}`,
+      },
+    ];
+
+    for (const entryData of journalData) {
+      const [created] = await db
+        .insert(payrollJournalEntries)
+        .values({
+          ...entryData,
+          createdAt: new Date(),
+        })
+        .returning();
+      journalEntries.push(created);
+    }
+
+    return journalEntries;
+  }
+
+  async markPayrollPeriodAsPaid(periodId: number): Promise<PayrollPeriod> {
+    const [paid] = await db
+      .update(payrollPeriods)
+      .set({
+        status: 'paid',
+        updatedAt: new Date(),
+      })
+      .where(eq(payrollPeriods.id, periodId))
+      .returning();
+    return paid;
+  }
+
+  // Integration with Time Clock
+  async getUnprocessedTimeEntries(startDate: string, endDate: string): Promise<any[]> {
+    const start = new Date(startDate + 'T00:00:00');
+    const end = new Date(endDate + 'T23:59:59');
+
+    // Get time entries that haven't been processed into payroll yet
+    const processedEntryIds = await db
+      .select({ timeClockEntryId: payrollTimeEntries.timeClockEntryId })
+      .from(payrollTimeEntries);
+
+    const processedIds = processedEntryIds.map(p => p.timeClockEntryId);
+
+    let query = db
+      .select({
+        id: timeClockEntries.id,
+        userId: timeClockEntries.userId,
+        firstName: users.firstName,
+        lastName: users.lastName,
+        hourlyRate: users.hourlyRate,
+        clockInTime: timeClockEntries.clockInTime,
+        clockOutTime: timeClockEntries.clockOutTime,
+        totalWorkedMinutes: timeClockEntries.totalWorkedMinutes,
+        totalBreakMinutes: timeClockEntries.totalBreakMinutes,
+        status: timeClockEntries.status,
+        locationId: timeClockEntries.locationId,
+      })
+      .from(timeClockEntries)
+      .leftJoin(users, eq(timeClockEntries.userId, users.id))
+      .where(
+        and(
+          gte(timeClockEntries.clockInTime, start),
+          lte(timeClockEntries.clockInTime, end),
+          eq(timeClockEntries.status, 'clocked_out'),
+          isNotNull(timeClockEntries.clockOutTime)
+        )
+      );
+
+    if (processedIds.length > 0) {
+      query = query.where(
+        and(
+          gte(timeClockEntries.clockInTime, start),
+          lte(timeClockEntries.clockInTime, end),
+          eq(timeClockEntries.status, 'clocked_out'),
+          isNotNull(timeClockEntries.clockOutTime),
+          sql`${timeClockEntries.id} NOT IN (${processedIds.join(',')})`
+        )
+      );
+    }
+
+    return await query.orderBy(timeClockEntries.clockInTime);
+  }
+
+  async markTimeEntriesAsProcessed(timeEntryIds: number[], payrollEntryId: number): Promise<void> {
+    for (const timeEntryId of timeEntryIds) {
+      // Get the time entry to calculate hours and pay
+      const [timeEntry] = await db
+        .select()
+        .from(timeClockEntries)
+        .leftJoin(users, eq(timeClockEntries.userId, users.id))
+        .where(eq(timeClockEntries.id, timeEntryId));
+
+      if (timeEntry) {
+        const hoursWorked = (timeEntry.time_clock_entries.totalWorkedMinutes || 0) / 60;
+        const hourlyRate = parseFloat(timeEntry.users?.hourlyRate || '0');
+        
+        let payType = 'regular';
+        let actualRate = hourlyRate;
+        
+        // Determine pay type and rate
+        if (hoursWorked > 60) {
+          payType = 'double_time';
+          actualRate = hourlyRate * 2;
+        } else if (hoursWorked > 40) {
+          payType = 'overtime';
+          actualRate = hourlyRate * 1.5;
+        }
+
+        await this.createPayrollTimeEntry({
+          payrollEntryId: payrollEntryId,
+          timeClockEntryId: timeEntryId,
+          hoursWorked: hoursWorked.toString(),
+          hourlyRate: actualRate.toString(),
+          payAmount: (hoursWorked * actualRate).toString(),
+          payType: payType,
+        });
+      }
+    }
+  }
+
+  // Payroll Reports and Analytics
+  async getPayrollSummaryByMonth(year: number, month: number): Promise<{
+    totalGrossPay: string;
+    totalNetPay: string;
+    totalTaxes: string;
+    totalDeductions: string;
+    employeeCount: number;
+    avgHoursPerEmployee: number;
+    overtimePercentage: number;
+    departmentBreakdown: Array<{ department: string; totalPay: string; employeeCount: number }>;
+  }> {
+    const startDate = new Date(year, month - 1, 1);
+    const endDate = new Date(year, month, 0);
+
+    const periods = await db
+      .select()
+      .from(payrollPeriods)
+      .where(
+        and(
+          gte(payrollPeriods.startDate, startDate.toISOString().split('T')[0]),
+          lte(payrollPeriods.endDate, endDate.toISOString().split('T')[0])
+        )
+      );
+
+    if (periods.length === 0) {
+      return {
+        totalGrossPay: '0.00',
+        totalNetPay: '0.00',
+        totalTaxes: '0.00',
+        totalDeductions: '0.00',
+        employeeCount: 0,
+        avgHoursPerEmployee: 0,
+        overtimePercentage: 0,
+        departmentBreakdown: [],
+      };
+    }
+
+    // Calculate totals from all periods in the month
+    let totalGrossPay = 0;
+    let totalNetPay = 0;
+    let totalTaxes = 0;
+    let totalDeductions = 0;
+    let totalHours = 0;
+    let totalOvertimeHours = 0;
+    const uniqueEmployees = new Set();
+    const departmentTotals = new Map();
+
+    for (const period of periods) {
+      const entries = await this.getPayrollEntries(period.id);
+      
+      for (const entry of entries) {
+        totalGrossPay += parseFloat(entry.grossPay);
+        totalNetPay += parseFloat(entry.netPay);
+        totalTaxes += parseFloat(entry.totalTaxes);
+        totalDeductions += parseFloat(entry.totalDeductions);
+        totalHours += parseFloat(entry.totalHours);
+        totalOvertimeHours += parseFloat(entry.overtimeHours);
+        uniqueEmployees.add(entry.userId);
+
+        // Get user department for breakdown
+        const user = await this.getUser(entry.userId);
+        const department = user?.department || 'Unknown';
+        
+        if (!departmentTotals.has(department)) {
+          departmentTotals.set(department, { totalPay: 0, employees: new Set() });
+        }
+        
+        const deptData = departmentTotals.get(department);
+        deptData.totalPay += parseFloat(entry.grossPay);
+        deptData.employees.add(entry.userId);
+      }
+    }
+
+    const departmentBreakdown = Array.from(departmentTotals.entries()).map(([dept, data]) => ({
+      department: dept,
+      totalPay: data.totalPay.toFixed(2),
+      employeeCount: data.employees.size,
+    }));
+
+    return {
+      totalGrossPay: totalGrossPay.toFixed(2),
+      totalNetPay: totalNetPay.toFixed(2),
+      totalTaxes: totalTaxes.toFixed(2),
+      totalDeductions: totalDeductions.toFixed(2),
+      employeeCount: uniqueEmployees.size,
+      avgHoursPerEmployee: uniqueEmployees.size > 0 ? Number((totalHours / uniqueEmployees.size).toFixed(2)) : 0,
+      overtimePercentage: totalHours > 0 ? Number(((totalOvertimeHours / totalHours) * 100).toFixed(2)) : 0,
+      departmentBreakdown,
+    };
+  }
+
+  async getPayrollAnalytics(startDate: string, endDate: string): Promise<{
+    totalPayroll: string;
+    avgPayPerEmployee: string;
+    overtimeHours: number;
+    regularHours: number;
+    topEarners: Array<{ userId: string; name: string; totalPay: string }>;
+    departmentCosts: Array<{ department: string; cost: string; percentage: number }>;
+  }> {
+    const payrollData = await this.calculatePayrollForDateRange(startDate, endDate);
+    
+    const topEarners = payrollData.employeePayroll
+      .sort((a, b) => b.grossPay - a.grossPay)
+      .slice(0, 5)
+      .map(emp => ({
+        userId: emp.userId,
+        name: `${emp.firstName} ${emp.lastName}`,
+        totalPay: emp.grossPay.toFixed(2),
+      }));
+
+    // Calculate department costs
+    const departmentTotals = new Map();
+    let totalOvertimeHours = 0;
+    let totalRegularHours = 0;
+
+    for (const emp of payrollData.employeePayroll) {
+      const user = await this.getUser(emp.userId);
+      const department = user?.department || 'Unknown';
+      
+      if (!departmentTotals.has(department)) {
+        departmentTotals.set(department, 0);
+      }
+      
+      departmentTotals.set(department, departmentTotals.get(department) + emp.grossPay);
+      totalOvertimeHours += emp.overtimeHours;
+      totalRegularHours += emp.regularHours;
+    }
+
+    const departmentCosts = Array.from(departmentTotals.entries()).map(([dept, cost]) => ({
+      department: dept,
+      cost: cost.toFixed(2),
+      percentage: payrollData.totalGrossPay > 0 ? Number(((cost / payrollData.totalGrossPay) * 100).toFixed(2)) : 0,
+    }));
+
+    return {
+      totalPayroll: payrollData.totalGrossPay.toFixed(2),
+      avgPayPerEmployee: payrollData.employeePayroll.length > 0 ? 
+        (payrollData.totalGrossPay / payrollData.employeePayroll.length).toFixed(2) : '0.00',
+      overtimeHours: Number(totalOvertimeHours.toFixed(2)),
+      regularHours: Number(totalRegularHours.toFixed(2)),
+      topEarners,
+      departmentCosts,
+    };
+  }
+
+  async getEmployeePayHistory(userId: string, limit?: number): Promise<Array<{
+    periodId: number;
+    startDate: string;
+    endDate: string;
+    totalHours: number;
+    grossPay: string;
+    netPay: string;
+    status: string;
+  }>> {
+    let query = db
+      .select({
+        periodId: payrollPeriods.id,
+        startDate: payrollPeriods.startDate,
+        endDate: payrollPeriods.endDate,
+        totalHours: payrollEntries.totalHours,
+        grossPay: payrollEntries.grossPay,
+        netPay: payrollEntries.netPay,
+        status: payrollPeriods.status,
+      })
+      .from(payrollEntries)
+      .innerJoin(payrollPeriods, eq(payrollEntries.payrollPeriodId, payrollPeriods.id))
+      .where(eq(payrollEntries.userId, userId))
+      .orderBy(desc(payrollPeriods.endDate));
+
+    if (limit) {
+      query = query.limit(limit);
+    }
+
+    const results = await query;
+
+    return results.map(r => ({
+      periodId: r.periodId,
+      startDate: r.startDate,
+      endDate: r.endDate,
+      totalHours: parseFloat(r.totalHours),
+      grossPay: r.grossPay,
+      netPay: r.netPay,
+      status: r.status,
+    }));
+  }
+
+  // Payroll Validation
+  async validatePayrollCalculations(periodId: number): Promise<{
+    isValid: boolean;
+    errors: string[];
+    warnings: string[];
+    summary: { totalEmployees: number; totalHours: number; totalPay: string };
+  }> {
+    const errors: string[] = [];
+    const warnings: string[] = [];
+
+    const period = await this.getPayrollPeriod(periodId);
+    if (!period) {
+      errors.push('Payroll period not found');
+      return {
+        isValid: false,
+        errors,
+        warnings,
+        summary: { totalEmployees: 0, totalHours: 0, totalPay: '0.00' }
+      };
+    }
+
+    const entries = await this.getPayrollEntries(periodId);
+    
+    let totalEmployees = 0;
+    let totalHours = 0;
+    let totalPay = 0;
+
+    for (const entry of entries) {
+      totalEmployees++;
+      
+      const hours = parseFloat(entry.totalHours);
+      const grossPay = parseFloat(entry.grossPay);
+      
+      totalHours += hours;
+      totalPay += grossPay;
+
+      // Validation checks
+      if (hours > 80) {
+        warnings.push(`Employee ${entry.firstName} ${entry.lastName} has ${hours} hours (>80 hours)`);
+      }
+
+      if (hours > 100) {
+        errors.push(`Employee ${entry.firstName} ${entry.lastName} has ${hours} hours (>100 hours - likely error)`);
+      }
+
+      if (grossPay < 0) {
+        errors.push(`Employee ${entry.firstName} ${entry.lastName} has negative gross pay: $${grossPay}`);
+      }
+
+      const user = await this.getUser(entry.userId);
+      if (!user?.hourlyRate || parseFloat(user.hourlyRate) <= 0) {
+        errors.push(`Employee ${entry.firstName} ${entry.lastName} has invalid hourly rate`);
+      }
+
+      // Check overtime calculations
+      const overtimeHours = parseFloat(entry.overtimeHours);
+      if (hours > 40 && overtimeHours === 0) {
+        warnings.push(`Employee ${entry.firstName} ${entry.lastName} has ${hours} hours but no overtime calculated`);
+      }
+    }
+
+    return {
+      isValid: errors.length === 0,
+      errors,
+      warnings,
+      summary: {
+        totalEmployees,
+        totalHours: Number(totalHours.toFixed(2)),
+        totalPay: totalPay.toFixed(2)
+      }
+    };
   }
 }
 

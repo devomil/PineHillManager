@@ -2239,3 +2239,159 @@ export type UpdateAnnouncementTemplate = z.infer<typeof updateAnnouncementTempla
 export type AutomationRule = typeof automationRules.$inferSelect;
 export type InsertAutomationRule = z.infer<typeof insertAutomationRuleSchema>;
 export type UpdateAutomationRule = z.infer<typeof updateAutomationRuleSchema>;
+
+// Payroll Tables
+export const payrollPeriods = pgTable("payroll_periods", {
+  id: serial("id").primaryKey(),
+  periodType: varchar("period_type").notNull(), // weekly, bi-weekly, monthly
+  startDate: date("start_date").notNull(),
+  endDate: date("end_date").notNull(),
+  payDate: date("pay_date").notNull(),
+  status: varchar("status").notNull().default("draft"), // draft, calculated, processed, paid
+  totalGrossPay: decimal("total_gross_pay", { precision: 10, scale: 2 }).default("0.00"),
+  totalNetPay: decimal("total_net_pay", { precision: 10, scale: 2 }).default("0.00"),
+  totalDeductions: decimal("total_deductions", { precision: 10, scale: 2 }).default("0.00"),
+  totalTaxes: decimal("total_taxes", { precision: 10, scale: 2 }).default("0.00"),
+  notes: text("notes"),
+  processedBy: varchar("processed_by").references(() => users.id),
+  processedAt: timestamp("processed_at"),
+  createdBy: varchar("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  periodTypeIdx: index("idx_payroll_periods_type").on(table.periodType),
+  statusIdx: index("idx_payroll_periods_status").on(table.status),
+  startDateIdx: index("idx_payroll_periods_start_date").on(table.startDate),
+  endDateIdx: index("idx_payroll_periods_end_date").on(table.endDate),
+}));
+
+export const payrollEntries = pgTable("payroll_entries", {
+  id: serial("id").primaryKey(),
+  payrollPeriodId: integer("payroll_period_id").notNull().references(() => payrollPeriods.id),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  locationId: integer("location_id").references(() => locations.id),
+  
+  // Hours breakdown
+  regularHours: decimal("regular_hours", { precision: 8, scale: 2 }).default("0.00"),
+  overtimeHours: decimal("overtime_hours", { precision: 8, scale: 2 }).default("0.00"),
+  doubleTimeHours: decimal("double_time_hours", { precision: 8, scale: 2 }).default("0.00"),
+  totalHours: decimal("total_hours", { precision: 8, scale: 2 }).default("0.00"),
+  
+  // Pay rates
+  regularRate: decimal("regular_rate", { precision: 8, scale: 2 }).notNull(),
+  overtimeRate: decimal("overtime_rate", { precision: 8, scale: 2 }).notNull(),
+  doubleTimeRate: decimal("double_time_rate", { precision: 8, scale: 2 }).notNull(),
+  
+  // Pay calculations
+  regularPay: decimal("regular_pay", { precision: 10, scale: 2 }).default("0.00"),
+  overtimePay: decimal("overtime_pay", { precision: 10, scale: 2 }).default("0.00"),
+  doubleTimePay: decimal("double_time_pay", { precision: 10, scale: 2 }).default("0.00"),
+  grossPay: decimal("gross_pay", { precision: 10, scale: 2 }).default("0.00"),
+  
+  // Deductions and taxes
+  federalTax: decimal("federal_tax", { precision: 10, scale: 2 }).default("0.00"),
+  stateTax: decimal("state_tax", { precision: 10, scale: 2 }).default("0.00"),
+  socialSecurityTax: decimal("social_security_tax", { precision: 10, scale: 2 }).default("0.00"),
+  medicareTax: decimal("medicare_tax", { precision: 10, scale: 2 }).default("0.00"),
+  unemploymentTax: decimal("unemployment_tax", { precision: 10, scale: 2 }).default("0.00"),
+  totalTaxes: decimal("total_taxes", { precision: 10, scale: 2 }).default("0.00"),
+  
+  // Other deductions
+  healthInsurance: decimal("health_insurance", { precision: 10, scale: 2 }).default("0.00"),
+  dentalInsurance: decimal("dental_insurance", { precision: 10, scale: 2 }).default("0.00"),
+  visionInsurance: decimal("vision_insurance", { precision: 10, scale: 2 }).default("0.00"),
+  retirement401k: decimal("retirement_401k", { precision: 10, scale: 2 }).default("0.00"),
+  otherDeductions: decimal("other_deductions", { precision: 10, scale: 2 }).default("0.00"),
+  totalDeductions: decimal("total_deductions", { precision: 10, scale: 2 }).default("0.00"),
+  
+  // Final calculations
+  netPay: decimal("net_pay", { precision: 10, scale: 2 }).default("0.00"),
+  
+  // Additional info
+  timeEntryIds: text("time_entry_ids").array(), // Array of time clock entry IDs used in calculation
+  adjustments: jsonb("adjustments"), // Manual adjustments with reasons
+  notes: text("notes"),
+  isApproved: boolean("is_approved").default(false),
+  approvedBy: varchar("approved_by").references(() => users.id),
+  approvedAt: timestamp("approved_at"),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  payrollPeriodIdx: index("idx_payroll_entries_period").on(table.payrollPeriodId),
+  userIdIdx: index("idx_payroll_entries_user").on(table.userId),
+  locationIdx: index("idx_payroll_entries_location").on(table.locationId),
+  approvedIdx: index("idx_payroll_entries_approved").on(table.isApproved),
+  createdAtIdx: index("idx_payroll_entries_created_at").on(table.createdAt),
+}));
+
+export const payrollTimeEntries = pgTable("payroll_time_entries", {
+  id: serial("id").primaryKey(),
+  payrollEntryId: integer("payroll_entry_id").notNull().references(() => payrollEntries.id),
+  timeClockEntryId: integer("time_clock_entry_id").notNull().references(() => timeClockEntries.id),
+  hoursWorked: decimal("hours_worked", { precision: 8, scale: 2 }).notNull(),
+  hourlyRate: decimal("hourly_rate", { precision: 8, scale: 2 }).notNull(),
+  payAmount: decimal("pay_amount", { precision: 10, scale: 2 }).notNull(),
+  payType: varchar("pay_type").notNull(), // regular, overtime, double_time
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  payrollEntryIdx: index("idx_payroll_time_entries_payroll").on(table.payrollEntryId),
+  timeClockEntryIdx: index("idx_payroll_time_entries_time_clock").on(table.timeClockEntryId),
+  payTypeIdx: index("idx_payroll_time_entries_pay_type").on(table.payType),
+}));
+
+// Payroll journal entries for accounting integration
+export const payrollJournalEntries = pgTable("payroll_journal_entries", {
+  id: serial("id").primaryKey(),
+  payrollPeriodId: integer("payroll_period_id").notNull().references(() => payrollPeriods.id),
+  transactionId: integer("transaction_id").references(() => financialTransactions.id),
+  entryType: varchar("entry_type").notNull(), // gross_wages, taxes_payable, deductions_payable, net_pay_liability
+  account: varchar("account").notNull(), // Account name/code
+  debitAmount: decimal("debit_amount", { precision: 12, scale: 2 }).default("0.00"),
+  creditAmount: decimal("credit_amount", { precision: 12, scale: 2 }).default("0.00"),
+  description: text("description").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  payrollPeriodIdx: index("idx_payroll_journal_entries_period").on(table.payrollPeriodId),
+  transactionIdx: index("idx_payroll_journal_entries_transaction").on(table.transactionId),
+  entryTypeIdx: index("idx_payroll_journal_entries_type").on(table.entryType),
+}));
+
+// Payroll schemas for validation
+export const insertPayrollPeriodSchema = createInsertSchema(payrollPeriods).omit({
+  id: true,
+  totalGrossPay: true,
+  totalNetPay: true,
+  totalDeductions: true,
+  totalTaxes: true,
+  processedBy: true,
+  processedAt: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertPayrollEntrySchema = createInsertSchema(payrollEntries).omit({
+  id: true,
+  isApproved: true,
+  approvedBy: true,
+  approvedAt: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertPayrollTimeEntrySchema = createInsertSchema(payrollTimeEntries).omit({
+  id: true,
+  createdAt: true,
+});
+
+// Payroll types
+export type PayrollPeriod = typeof payrollPeriods.$inferSelect;
+export type InsertPayrollPeriod = z.infer<typeof insertPayrollPeriodSchema>;
+
+export type PayrollEntry = typeof payrollEntries.$inferSelect;
+export type InsertPayrollEntry = z.infer<typeof insertPayrollEntrySchema>;
+
+export type PayrollTimeEntry = typeof payrollTimeEntries.$inferSelect;
+export type InsertPayrollTimeEntry = z.infer<typeof insertPayrollTimeEntrySchema>;
+
+export type PayrollJournalEntry = typeof payrollJournalEntries.$inferSelect;
