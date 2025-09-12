@@ -331,6 +331,10 @@ export interface IStorage {
   updateTimeClockEntry(entryId: number, updateData: any): Promise<any>;
   deleteTimeClockEntry(entryId: number): Promise<void>;
   
+  // Orphaned time entry management
+  getOrphanedTimeEntries(): Promise<any[]>;
+  fixOrphanedTimeEntries(): Promise<number>;
+  
   // User presence system
   updateUserPresence(userId: string, status: string, locationId?: number, statusMessage?: string): Promise<any>;
   getUserPresence(userId: string): Promise<any | undefined>;
@@ -2113,6 +2117,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getCurrentlyCheckedInEmployees(): Promise<any[]> {
+    const today = new Date().toISOString().split('T')[0];
     return await db
       .select({
         id: timeClockEntries.id,
@@ -2129,6 +2134,7 @@ export class DatabaseStorage implements IStorage {
       .leftJoin(users, eq(timeClockEntries.userId, users.id))
       .where(
         and(
+          gte(timeClockEntries.clockInTime, new Date(today + 'T00:00:00')),
           or(
             eq(timeClockEntries.status, 'clocked_in'),
             eq(timeClockEntries.status, 'on_break')
@@ -2137,6 +2143,69 @@ export class DatabaseStorage implements IStorage {
         )
       )
       .orderBy(timeClockEntries.clockInTime);
+  }
+
+  // Method to identify and fix orphaned time entries from previous days
+  async getOrphanedTimeEntries(): Promise<any[]> {
+    const today = new Date().toISOString().split('T')[0];
+    return await db
+      .select({
+        id: timeClockEntries.id,
+        userId: timeClockEntries.userId,
+        firstName: users.firstName,
+        lastName: users.lastName,
+        clockInTime: timeClockEntries.clockInTime,
+        status: timeClockEntries.status,
+      })
+      .from(timeClockEntries)
+      .leftJoin(users, eq(timeClockEntries.userId, users.id))
+      .where(
+        and(
+          lte(timeClockEntries.clockInTime, new Date(today + 'T00:00:00')), // Before today
+          or(
+            eq(timeClockEntries.status, 'clocked_in'),
+            eq(timeClockEntries.status, 'on_break')
+          ),
+          isNull(timeClockEntries.clockOutTime)
+        )
+      )
+      .orderBy(desc(timeClockEntries.clockInTime));
+  }
+
+  // Method to automatically clock out orphaned entries
+  async fixOrphanedTimeEntries(): Promise<number> {
+    const orphanedEntries = await this.getOrphanedTimeEntries();
+    let fixedCount = 0;
+
+    for (const entry of orphanedEntries) {
+      try {
+        // Set clock out time to end of that day (11:59 PM)
+        const clockInDate = new Date(entry.clockInTime);
+        const endOfDay = new Date(clockInDate);
+        endOfDay.setHours(23, 59, 59, 999);
+
+        // Calculate total worked minutes (assume 8 hour day if no break info)
+        const clockInTime = new Date(entry.clockInTime);
+        const totalWorkedMinutes = Math.floor((endOfDay.getTime() - clockInTime.getTime()) / (1000 * 60));
+
+        await db
+          .update(timeClockEntries)
+          .set({
+            clockOutTime: endOfDay,
+            status: 'clocked_out',
+            totalWorkedMinutes: totalWorkedMinutes,
+            notes: 'Auto-clocked out by system - orphaned entry cleanup',
+            updatedAt: new Date(),
+          })
+          .where(eq(timeClockEntries.id, entry.id));
+
+        fixedCount++;
+      } catch (error) {
+        console.error(`Failed to fix orphaned entry ${entry.id}:`, error);
+      }
+    }
+
+    return fixedCount;
   }
 
   async updateTimeEntry(entryId: number, updateData: any): Promise<any> {
