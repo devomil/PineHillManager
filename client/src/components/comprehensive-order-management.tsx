@@ -258,6 +258,17 @@ export function ComprehensiveOrderManagement() {
     }).format(amount / 100); // Convert from cents
   };
 
+  const formatCurrencyDirect = (amount: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD'
+    }).format(amount); // Already in dollars
+  };
+
+  const formatPercentage = (value: number) => {
+    return `${value.toFixed(1)}%`;
+  };
+
   const formatDate = (timestamp: number) => {
     return new Date(timestamp).toLocaleString();
   };
@@ -489,11 +500,16 @@ export function ComprehensiveOrderManagement() {
                     <TableHeader>
                       <TableRow>
                         <TableHead>Order ID</TableHead>
-                        <TableHead>Date</TableHead>
                         <TableHead>Location</TableHead>
                         <TableHead>Total</TableHead>
+                        <TableHead>Discounts</TableHead>
+                        <TableHead>Refunds</TableHead>
+                        <TableHead>Gross Tax</TableHead>
+                        <TableHead>Net COGS</TableHead>
+                        <TableHead>Net Profit</TableHead>
+                        <TableHead>Net Sale</TableHead>
+                        <TableHead>Net Margin</TableHead>
                         <TableHead>Payment Status</TableHead>
-                        <TableHead>State</TableHead>
                         <TableHead>Actions</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -501,15 +517,20 @@ export function ComprehensiveOrderManagement() {
                       {ordersData?.orders.map((order) => (
                         <TableRow key={order.id}>
                           <TableCell className="font-mono text-sm">{order.id}</TableCell>
-                          <TableCell>{formatDate(order.createdTime)}</TableCell>
                           <TableCell>{order.locationName}</TableCell>
                           <TableCell className="font-semibold">{formatCurrency(order.total)}</TableCell>
-                          <TableCell>{getPaymentStateBadge(order.paymentState)}</TableCell>
-                          <TableCell>
-                            <Badge variant={order.state === 'locked' ? 'default' : 'outline'}>
-                              {order.state}
-                            </Badge>
+                          <TableCell className="text-red-600">{formatCurrencyDirect(order.totalDiscounts || 0)}</TableCell>
+                          <TableCell className="text-orange-600">{formatCurrencyDirect(order.totalRefunds || 0)}</TableCell>
+                          <TableCell>{formatCurrencyDirect(order.grossTax || 0)}</TableCell>
+                          <TableCell className="text-blue-600">{formatCurrencyDirect(order.netCOGS || 0)}</TableCell>
+                          <TableCell className={`font-semibold ${(order.netProfit || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {formatCurrencyDirect(order.netProfit || 0)}
                           </TableCell>
+                          <TableCell className="font-medium">{formatCurrencyDirect(order.netSale || 0)}</TableCell>
+                          <TableCell className={`font-semibold ${(order.netMargin || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {formatPercentage(order.netMargin || 0)}
+                          </TableCell>
+                          <TableCell>{getPaymentStateBadge(order.paymentState)}</TableCell>
                           <TableCell>
                             <Button
                               variant="outline"

@@ -4562,6 +4562,104 @@ export class DatabaseStorage implements IStorage {
   // ORDER MANAGEMENT IMPLEMENTATIONS
   // ================================
 
+  // Helper method to calculate detailed financial metrics for an order
+  async calculateOrderFinancialMetrics(order: any, locationId: number): Promise<{
+    grossTax: number;
+    totalDiscounts: number;
+    totalRefunds: number;
+    netCOGS: number;
+    netSale: number;
+    netProfit: number;
+    netMargin: number;
+  }> {
+    try {
+      // Parse order total (Clover amounts are in cents)
+      const orderTotal = parseFloat(order.total || '0') / 100;
+      const grossTax = parseFloat(order.taxAmount || '0') / 100;
+      
+      // Calculate total discounts from order discounts array
+      let totalDiscounts = 0;
+      if (order.discounts && order.discounts.elements) {
+        totalDiscounts = order.discounts.elements.reduce((sum: number, discount: any) => {
+          return sum + (parseFloat(discount.amount || '0') / 100);
+        }, 0);
+      }
+
+      // Calculate refunds (from refunds or payments with negative amounts)
+      let totalRefunds = 0;
+      if (order.refunds && order.refunds.elements) {
+        totalRefunds = order.refunds.elements.reduce((sum: number, refund: any) => {
+          return sum + (parseFloat(refund.amount || '0') / 100);
+        }, 0);
+      }
+
+      // Also check for refund payments
+      if (order.payments && order.payments.elements) {
+        order.payments.elements.forEach((payment: any) => {
+          if (payment.result === 'SUCCESS' && parseFloat(payment.amount || '0') < 0) {
+            totalRefunds += Math.abs(parseFloat(payment.amount) / 100);
+          }
+        });
+      }
+
+      // Calculate COGS by looking up actual costs for line items
+      let netCOGS = 0;
+      if (order.lineItems && order.lineItems.elements) {
+        for (const lineItem of order.lineItems.elements) {
+          const quantity = lineItem.unitQty || 1;
+          
+          // Try to find inventory item by SKU/item ID to get actual cost
+          try {
+            const inventoryItems = await this.getInventoryItemsBySKU(lineItem.item?.id || lineItem.id);
+            if (inventoryItems.length > 0) {
+              const inventoryItem = inventoryItems[0];
+              const unitCost = parseFloat(inventoryItem.unitCost || '0');
+              netCOGS += unitCost * quantity;
+            } else {
+              // Fallback: estimate COGS as 60% of line item price if no inventory record found
+              const lineItemPrice = parseFloat(lineItem.price || '0') / 100;
+              netCOGS += lineItemPrice * 0.6 * quantity;
+            }
+          } catch (error) {
+            // Fallback for items not in inventory
+            const lineItemPrice = parseFloat(lineItem.price || '0') / 100;
+            netCOGS += lineItemPrice * 0.6 * quantity;
+          }
+        }
+      }
+
+      // Calculate net sale (total - tax - discounts + refunds)
+      const netSale = orderTotal - grossTax - totalDiscounts + totalRefunds;
+      
+      // Calculate net profit (net sale - COGS)
+      const netProfit = netSale - netCOGS;
+      
+      // Calculate net margin (net profit / net sale * 100), handle division by zero
+      const netMargin = netSale > 0 ? (netProfit / netSale) * 100 : 0;
+
+      return {
+        grossTax,
+        totalDiscounts,
+        totalRefunds,
+        netCOGS,
+        netSale,
+        netProfit,
+        netMargin
+      };
+    } catch (error) {
+      console.error('Error calculating financial metrics for order:', order.id, error);
+      return {
+        grossTax: 0,
+        totalDiscounts: 0,
+        totalRefunds: 0,
+        netCOGS: 0,
+        netSale: 0,
+        netProfit: 0,
+        netMargin: 0
+      };
+    }
+  }
+
   // NEW: Fetch orders directly from Clover API
   async getOrdersFromCloverAPI(filters: {
     startDate?: string;
@@ -4605,7 +4703,7 @@ export class DatabaseStorage implements IStorage {
           const options: any = {
             limit: Math.min(filters.limit || 50, 100), // Clover limit
             offset: filters.offset || 0,
-            expand: 'lineItems,payments',
+            expand: 'lineItems,payments,discounts,refunds',
             orderBy: 'modifiedTime DESC'
           };
           
@@ -4638,17 +4736,50 @@ export class DatabaseStorage implements IStorage {
               console.log(`Expected range: ${new Date(options.modifiedTimeMin).toISOString()} to ${new Date(options.modifiedTimeMax).toISOString()}`);
             }
             
-            const ordersWithLocation = response.elements.map(order => ({
-              ...order,
-              locationId: config.id,
-              locationName: config.merchantName,
-              merchantId: config.merchantId
-            }));
+            // Enhance orders with financial calculations
+            const enhancedOrders = [];
+            for (const order of response.elements) {
+              try {
+                // Calculate financial metrics for this order
+                const financialMetrics = await this.calculateOrderFinancialMetrics(order, config.id);
+                
+                // Enhance the order with financial data
+                const enhancedOrder = {
+                  ...order,
+                  locationId: config.id,
+                  locationName: config.merchantName,
+                  grossTax: financialMetrics.grossTax,
+                  totalDiscounts: financialMetrics.totalDiscounts,
+                  totalRefunds: financialMetrics.totalRefunds,
+                  netCOGS: financialMetrics.netCOGS,
+                  netSale: financialMetrics.netSale,
+                  netProfit: financialMetrics.netProfit,
+                  netMargin: financialMetrics.netMargin
+                };
+                
+                enhancedOrders.push(enhancedOrder);
+              } catch (error) {
+                console.error('Error enhancing order with financial metrics:', order.id, error);
+                // Still add the order but without enhanced financial data
+                enhancedOrders.push({
+                  ...order,
+                  locationId: config.id,
+                  locationName: config.merchantName,
+                  grossTax: 0,
+                  totalDiscounts: 0,
+                  totalRefunds: 0,
+                  netCOGS: 0,
+                  netSale: 0,
+                  netProfit: 0,
+                  netMargin: 0
+                });
+              }
+            }
             
             // Apply server-side date filtering since Clover API doesn't respect modifiedTime.min/max properly
-            let filteredOrders = ordersWithLocation;
+            let filteredOrders = enhancedOrders;
             if (options.modifiedTimeMin || options.modifiedTimeMax) {
-              filteredOrders = ordersWithLocation.filter(order => {
+              filteredOrders = enhancedOrders.filter(order => {
                 const orderModifiedTime = order.modifiedTime;
                 if (!orderModifiedTime) return false;
                 
