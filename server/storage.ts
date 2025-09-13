@@ -5050,60 +5050,171 @@ export class DatabaseStorage implements IStorage {
     groupBy: string;
   }): Promise<any> {
     try {
-      // Build conditions for filtering
-      const conditions = [];
-
-      if (filters.startDate) {
-        conditions.push(gte(posSales.saleDate, filters.startDate));
+      const { startDate, endDate, locationId, groupBy = 'day' } = filters;
+      
+      console.log('🔥 Enhanced Order Analytics - Using enhanced order data for aggregation:', filters);
+      
+      // Use the enhanced order data from getOrdersFromCloverAPI
+      const orderData = await this.getOrdersFromCloverAPI({
+        startDate,
+        endDate,
+        locationId,
+        search: undefined,
+        state: 'all',
+        limit: 10000, // Get all orders for analytics
+        offset: 0
+      });
+      
+      const { orders } = orderData;
+      console.log(`📊 Aggregating ${orders.length} enhanced orders for analytics`);
+      
+      if (orders.length === 0) {
+        return {
+          analytics: [],
+          summary: { 
+            totalOrders: 0, 
+            totalRevenue: 0, 
+            averageOrderValue: 0,
+            totalDiscounts: 0,
+            totalRefunds: 0,
+            totalTax: 0,
+            totalCOGS: 0,
+            totalProfit: 0
+          }
+        };
       }
-
-      if (filters.endDate) {
-        conditions.push(lte(posSales.saleDate, filters.endDate));
+      
+      // Group orders by date and optionally by location
+      const groupedData = new Map<string, {
+        date: string;
+        locationId?: string;
+        locationName?: string;
+        totalOrders: number;
+        totalRevenue: number;
+        totalDiscounts: number;
+        totalRefunds: number;
+        totalTax: number;
+        totalCOGS: number;
+        totalProfit: number;
+        netSale: number;
+      }>();
+      
+      for (const order of orders) {
+        // Parse the order date from createdTime or modifiedTime
+        let orderDate: Date;
+        if (order.createdTime) {
+          orderDate = new Date(order.createdTime);
+        } else if (order.modifiedTime) {
+          orderDate = new Date(order.modifiedTime);
+        } else {
+          console.warn(`Order ${order.id} has no valid date, skipping`);
+          continue;
+        }
+        
+        // Create grouping key based on groupBy parameter
+        let groupKey: string;
+        if (groupBy === 'day') {
+          groupKey = orderDate.toISOString().split('T')[0]; // YYYY-MM-DD
+          if (locationId && locationId !== 'all') {
+            groupKey += `_${order.locationName || 'unknown'}`;
+          }
+        } else {
+          // Default to daily grouping
+          groupKey = orderDate.toISOString().split('T')[0];
+        }
+        
+        // Initialize group if it doesn't exist
+        if (!groupedData.has(groupKey)) {
+          groupedData.set(groupKey, {
+            date: orderDate.toISOString().split('T')[0],
+            locationId: order.locationId,
+            locationName: order.locationName,
+            totalOrders: 0,
+            totalRevenue: 0,
+            totalDiscounts: 0,
+            totalRefunds: 0,
+            totalTax: 0,
+            totalCOGS: 0,
+            totalProfit: 0,
+            netSale: 0
+          });
+        }
+        
+        const group = groupedData.get(groupKey)!;
+        
+        // Skip refunded/voided orders for positive metrics
+        const isRefund = order.total < 0 || order.state === 'refunded';
+        
+        if (isRefund) {
+          group.totalRefunds += Math.abs(order.totalRefunds || 0);
+        } else {
+          group.totalOrders += 1;
+          
+          // Aggregate the enhanced financial metrics (already calculated per order)
+          group.totalRevenue += order.total / 100; // Convert cents to dollars
+          group.totalDiscounts += order.totalDiscounts || 0;
+          group.totalTax += order.grossTax || 0;
+          group.totalCOGS += order.netCOGS || 0;
+          group.totalProfit += order.netProfit || 0;
+          group.netSale += order.netSale || 0;
+        }
+        
+        console.log(`📊 Order ${order.id}: Revenue $${(order.total/100).toFixed(2)}, Discounts $${(order.totalDiscounts || 0).toFixed(2)}, Profit $${(order.netProfit || 0).toFixed(2)}`);
       }
-
-      if (filters.locationId && filters.locationId !== 'all') {
-        const locationIdNum = typeof filters.locationId === 'string' ? parseInt(filters.locationId) : filters.locationId;
-        conditions.push(eq(posSales.locationId, locationIdNum));
-      }
-
-      // Get daily analytics data
-      let query = db.select({
-        period: sql<string>`DATE(${posSales.saleDate})`,
-        totalOrders: sql<number>`COUNT(*)`,
-        totalRevenue: sql<number>`COALESCE(SUM(${posSales.totalAmount}::decimal), 0)`,
-        averageOrderValue: sql<number>`COALESCE(AVG(${posSales.totalAmount}::decimal), 0)`
-      }).from(posSales);
-
-      if (conditions.length > 0) {
-        query = query.where(and(...conditions));
-      }
-
-      const analytics = await query
-        .groupBy(sql`DATE(${posSales.saleDate})`)
-        .orderBy(sql`DATE(${posSales.saleDate})`);
-
-      // Get summary totals
-      let summaryQuery = db.select({
-        totalOrders: sql<number>`COUNT(*)`,
-        totalRevenue: sql<number>`COALESCE(SUM(${posSales.totalAmount}::decimal), 0)`,
-        averageOrderValue: sql<number>`COALESCE(AVG(${posSales.totalAmount}::decimal), 0)`
-      }).from(posSales);
-
-      if (conditions.length > 0) {
-        summaryQuery = summaryQuery.where(and(...conditions));
-      }
-
-      const summary = await summaryQuery;
-
-      return {
-        analytics,
-        summary: summary[0] || { totalOrders: 0, totalRevenue: 0, averageOrderValue: 0 }
+      
+      // Convert grouped data to analytics array
+      const analytics = Array.from(groupedData.values())
+        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+        .map(group => ({
+          period: group.date,
+          location: group.locationName || 'All Locations',
+          totalOrders: group.totalOrders,
+          totalRevenue: parseFloat(group.totalRevenue.toFixed(2)),
+          totalDiscounts: parseFloat(group.totalDiscounts.toFixed(2)),
+          totalRefunds: parseFloat(group.totalRefunds.toFixed(2)),
+          totalTax: parseFloat(group.totalTax.toFixed(2)),
+          totalCOGS: parseFloat(group.totalCOGS.toFixed(2)),
+          totalProfit: parseFloat(group.totalProfit.toFixed(2)),
+          netSale: parseFloat(group.netSale.toFixed(2)),
+          averageOrderValue: group.totalOrders > 0 ? parseFloat((group.totalRevenue / group.totalOrders).toFixed(2)) : 0,
+          profitMargin: group.totalRevenue > 0 ? parseFloat(((group.totalProfit / group.totalRevenue) * 100).toFixed(2)) : 0
+        }));
+      
+      // Calculate summary totals
+      const summary = {
+        totalOrders: analytics.reduce((sum, day) => sum + day.totalOrders, 0),
+        totalRevenue: parseFloat(analytics.reduce((sum, day) => sum + day.totalRevenue, 0).toFixed(2)),
+        totalDiscounts: parseFloat(analytics.reduce((sum, day) => sum + day.totalDiscounts, 0).toFixed(2)),
+        totalRefunds: parseFloat(analytics.reduce((sum, day) => sum + day.totalRefunds, 0).toFixed(2)),
+        totalTax: parseFloat(analytics.reduce((sum, day) => sum + day.totalTax, 0).toFixed(2)),
+        totalCOGS: parseFloat(analytics.reduce((sum, day) => sum + day.totalCOGS, 0).toFixed(2)),
+        totalProfit: parseFloat(analytics.reduce((sum, day) => sum + day.totalProfit, 0).toFixed(2)),
+        averageOrderValue: 0
       };
+      
+      summary.averageOrderValue = summary.totalOrders > 0 
+        ? parseFloat((summary.totalRevenue / summary.totalOrders).toFixed(2)) 
+        : 0;
+      
+      console.log(`📊 Enhanced Order Analytics Summary:`, summary);
+      console.log(`📊 Analytics periods: ${analytics.length}`);
+      
+      return { analytics, summary };
+      
     } catch (error) {
-      console.error('Error fetching order analytics:', error);
+      console.error('Error fetching enhanced order analytics:', error);
       return {
         analytics: [],
-        summary: { totalOrders: 0, totalRevenue: 0, averageOrderValue: 0 }
+        summary: { 
+          totalOrders: 0, 
+          totalRevenue: 0, 
+          averageOrderValue: 0,
+          totalDiscounts: 0,
+          totalRefunds: 0,
+          totalTax: 0,
+          totalCOGS: 0,
+          totalProfit: 0
+        }
       };
     }
   }

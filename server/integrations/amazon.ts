@@ -94,7 +94,7 @@ export class AmazonIntegration {
       
       console.log(`Making Amazon API call to: ${url}`);
       console.log(`Using seller ID: ${this.config.sellerId}`);
-      console.log(`Using access token: ${this.config.accessToken?.substring(0, 8)}...${this.config.accessToken?.slice(-4)}`);
+      console.log(`Using access token: ${this.config.accessToken ? '[MASKED-' + this.config.accessToken.substring(0, 6) + '...]' : 'MISSING'}`);
       
       const response = await fetch(url, {
         method,

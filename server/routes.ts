@@ -7583,7 +7583,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Daily Sales Report endpoint - Aggregates sales data by date with location filtering
+  // Daily Sales Report endpoint - Uses enhanced order analytics for accurate financial reporting
   app.get('/api/accounting/reports/daily-sales', isAuthenticated, async (req, res) => {
     try {
       const { startDate, endDate, locationId } = req.query;
@@ -7592,323 +7592,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: 'Start date and end date are required' });
       }
 
-      console.log(`🔥 DAILY SALES REPORT: ${startDate} to ${endDate}, locationId: ${locationId}`);
+      console.log(`🔥 ENHANCED DAILY SALES REPORT: ${startDate} to ${endDate}, locationId: ${locationId}`);
       
       const startDateStr = startDate as string;
       const endDateStr = endDate as string;
       
-      // Get location configurations
+      // Get location configurations for response metadata
       const allActiveCloverLocations = await storage.getAllCloverConfigs();
       const activeCloverConfigs = allActiveCloverLocations.filter(config => config.isActive);
       const allActiveAmazonLocations = await storage.getAllAmazonConfigs();
       const activeAmazonConfigs = allActiveAmazonLocations.filter(config => config.isActive);
 
-      // Filter locations if specific location requested
-      const filteredCloverConfigs = locationId && locationId !== 'ALL' 
-        ? activeCloverConfigs.filter(config => config.id.toString() === locationId)
-        : activeCloverConfigs;
-      const filteredAmazonConfigs = locationId && locationId !== 'ALL'
-        ? activeAmazonConfigs.filter(config => config.id.toString() === locationId)
-        : activeAmazonConfigs;
-      
-      // Map to store daily aggregates: date -> salesData
-      const dailySalesMap = new Map();
-      
-      // Process Clover locations
-      const { CloverIntegration } = await import('./integrations/clover');
-      
-      for (const config of filteredCloverConfigs) {
-        try {
-          const cloverIntegration = new CloverIntegration(config);
-          console.log(`📊 Processing Clover location: ${config.merchantName}`);
-          
-          // Get date range for iteration
-          const start = new Date(startDateStr);
-          const end = new Date(endDateStr);
-          end.setHours(23, 59, 59, 999);
-
-          // Fetch orders with comprehensive data (payments, line items, discounts)
-          let allOrders = [];
-          let offset = 0;
-          const limit = 1000;
-          let hasMoreData = true;
-          
-          while (hasMoreData) {
-            // Use a broader date range and filter in code to avoid URL encoding issues
-            const startTime = Math.floor(start.getTime());
-            const endTime = Math.floor(end.getTime());
-            
-            const liveOrders = await cloverIntegration.fetchOrders({
-              filter: `createdTime>=${startTime}`,
-              expand: 'lineItems,payments,discounts',
-              limit: limit,
-              offset: offset
-            });
-            
-            if (liveOrders && liveOrders.elements && liveOrders.elements.length > 0) {
-              allOrders.push(...liveOrders.elements);
-              if (liveOrders.elements.length < limit) {
-                hasMoreData = false;
-              } else {
-                offset += limit;
-              }
-            } else {
-              hasMoreData = false;
-            }
-          }
-
-          // Group orders by date and aggregate (filter by end date in code)
-          for (const order of allOrders) {
-            const orderDate = new Date(order.createdTime);
-            
-            // Skip orders outside our date range
-            if (orderDate < start || orderDate > end) {
-              continue;
-            }
-            
-            const dateKey = orderDate.toISOString().split('T')[0]; // YYYY-MM-DD format
-            
-            if (!dailySalesMap.has(dateKey)) {
-              dailySalesMap.set(dateKey, {
-                date: dateKey,
-                total: 0,
-                netSales: 0,
-                discounts: 0,
-                refunds: 0,
-                netCOGS: 0,
-                netSalesTax: 0,
-                netProfit: 0,
-                orderCount: 0
-              });
-            }
-
-            const dayData = dailySalesMap.get(dateKey);
-            const orderTotal = parseFloat(order.total || '0') / 100; // Convert cents to dollars
-            const taxAmount = parseFloat(order.taxAmount || '0') / 100;
-            const discountAmount = parseFloat(order.discountAmount || '0') / 100;
-            
-            // Check if this is a refund (negative total or specific status)
-            const isRefund = orderTotal < 0 || order.state === 'refunded';
-            
-            if (isRefund) {
-              dayData.refunds += Math.abs(orderTotal);
-            } else {
-              dayData.total += orderTotal;
-              dayData.netSales += orderTotal;
-              dayData.orderCount += 1;
-            }
-            
-            // Extract discounts from order-level AND line-item level
-            let totalDiscounts = discountAmount; // Start with order-level discount
-            
-            // Add line-item discounts from expanded lineItems data
-            if (order.lineItems && order.lineItems.elements) {
-              for (const lineItem of order.lineItems.elements) {
-                const lineItemDiscount = parseFloat(lineItem.discountAmount || '0') / 100;
-                totalDiscounts += lineItemDiscount;
-              }
-            }
-            
-            // Add discounts from expanded discounts data if available
-            if (order.discounts && order.discounts.elements) {
-              for (const discount of order.discounts.elements) {
-                const discountValue = parseFloat(discount.amount || '0') / 100;
-                totalDiscounts += discountValue;
-              }
-            }
-            
-            dayData.discounts += totalDiscounts;
-            console.log(`💰 Order ${order.id}: Total discounts $${totalDiscounts.toFixed(2)} (order: $${discountAmount.toFixed(2)}, line items + discount expansion: $${(totalDiscounts - discountAmount).toFixed(2)})`);
-            // Extract tax amount from order and payments
-            let totalTax = taxAmount; // Start with order-level tax
-            
-            // Add tax from payment details if payments are expanded
-            if (order.payments && order.payments.elements) {
-              for (const payment of order.payments.elements) {
-                const paymentTax = parseFloat(payment.taxAmount || '0') / 100;
-                // Only add payment tax if it's different from order tax to avoid double counting
-                if (paymentTax > 0 && Math.abs(paymentTax - taxAmount) > 0.01) {
-                  totalTax += paymentTax;
-                }
-              }
-            }
-            
-            dayData.netSalesTax += totalTax;
-            console.log(`📊 Order ${order.id}: Total tax $${totalTax.toFixed(2)} (order: $${taxAmount.toFixed(2)}, payments: $${(totalTax - taxAmount).toFixed(2)})`);
-            
-            // Calculate actual COGS from cost basis data in database
-            let orderCOGS = 0;
-            try {
-              // Get the POS sale record for this Clover order
-              const existingSale = await storage.getPosSaleByCloverOrderId(order.id);
-              if (existingSale) {
-                // Get line items with cost basis data
-                const saleItems = await storage.getSaleItems(existingSale.id);
-                orderCOGS = saleItems.reduce((total, item) => {
-                  const itemCostBasis = parseFloat(item.costBasis || '0');
-                  const itemQuantity = parseFloat(item.quantity || '1');
-                  return total + (itemCostBasis * itemQuantity);
-                }, 0);
-                console.log(`📊 Order ${order.id}: Using actual COGS $${orderCOGS.toFixed(2)} from ${saleItems.length} line items`);
-              } else {
-                // Fallback to 40% if order not found in database (shouldn't happen after sync)
-                orderCOGS = orderTotal > 0 ? orderTotal * 0.4 : 0;
-                console.log(`⚠️ Order ${order.id}: Using 40% fallback COGS $${orderCOGS.toFixed(2)} (order not synced to database)`);
-              }
-            } catch (error) {
-              console.error(`❌ Error calculating COGS for order ${order.id}:`, error);
-              // Fallback to 40% on error
-              orderCOGS = orderTotal > 0 ? orderTotal * 0.4 : 0;
-            }
-            dayData.netCOGS += orderCOGS;
-            
-            // Net Profit = Net Sales - COGS - Discounts
-            dayData.netProfit = dayData.netSales - dayData.netCOGS - dayData.discounts;
-          }
-
-          console.log(`📊 Processed ${allOrders.length} Clover orders for ${config.merchantName} using actual COGS data from database`);
-          
-        } catch (error) {
-          console.error(`❌ Error processing Clover location ${config.merchantName}:`, error);
-        }
-      }
-
-      // Process Amazon locations
-      const { AmazonIntegration } = await import('./integrations/amazon');
-      
-      for (const config of filteredAmazonConfigs) {
-        try {
-          console.log(`📊 Processing Amazon location: ${config.merchantName}`);
-          
-          const amazonIntegration = new AmazonIntegration({
-            sellerId: process.env.AMAZON_SELLER_ID,
-            accessToken: process.env.AMAZON_ACCESS_TOKEN,
-            refreshToken: process.env.AMAZON_REFRESH_TOKEN,
-            clientId: process.env.AMAZON_CLIENT_ID,
-            clientSecret: process.env.AMAZON_CLIENT_SECRET,
-            merchantName: config.merchantName
-          });
-
-          const startDateISO = new Date(startDateStr + 'T00:00:00.000Z').toISOString();
-          let endDateISO = new Date(endDateStr + 'T23:59:59.999Z').toISOString();
-          
-          // Ensure end date is at least 2 minutes before current time
-          const now = new Date();
-          const twoMinutesAgo = new Date(now.getTime() - 2 * 60 * 1000);
-          const endDate = new Date(endDateISO);
-          if (endDate > twoMinutesAgo) {
-            endDateISO = twoMinutesAgo.toISOString();
-          }
-
-          const amazonOrders = await amazonIntegration.getOrders(startDateISO, endDateISO);
-          
-          if (amazonOrders && amazonOrders.payload && amazonOrders.payload.Orders) {
-            const orders = amazonOrders.payload.Orders;
-            
-            // Group Amazon orders by date
-            for (const order of orders) {
-              const orderDate = new Date(order.PurchaseDate);
-              const dateKey = orderDate.toISOString().split('T')[0];
-              
-              if (!dailySalesMap.has(dateKey)) {
-                dailySalesMap.set(dateKey, {
-                  date: dateKey,
-                  total: 0,
-                  netSales: 0,
-                  discounts: 0,
-                  refunds: 0,
-                  netCOGS: 0,
-                  netSalesTax: 0,
-                  netProfit: 0,
-                  orderCount: 0
-                });
-              }
-
-              const dayData = dailySalesMap.get(dateKey);
-              const orderTotal = parseFloat(order.OrderTotal?.Amount || '0');
-              
-              // Only count shipped/delivered orders
-              if (order.OrderStatus === 'Shipped' || order.OrderStatus === 'Delivered') {
-                dayData.total += orderTotal;
-                dayData.netSales += orderTotal;
-                dayData.orderCount += 1;
-                
-                // Amazon COGS (40% fallback - no cost basis tracking for Amazon yet)
-                const orderCOGS = orderTotal * 0.4;
-                console.log(`🛒 Amazon Order: Using 40% COGS fallback $${orderCOGS.toFixed(2)} (no cost basis tracking for Amazon)`);
-                dayData.netCOGS += orderCOGS;
-                
-                // Amazon typically handles tax differently - for now use 0
-                // dayData.netSalesTax += 0; // Would need to parse order details for tax
-                
-                // Net Profit = Net Sales - COGS
-                dayData.netProfit = dayData.netSales - dayData.netCOGS - dayData.discounts;
-              }
-            }
-            
-            console.log(`📊 Processed ${orders.length} Amazon orders for ${config.merchantName}`);
-          }
-          
-        } catch (error) {
-          console.error(`Error processing Amazon location ${config.merchantName}:`, error);
-        }
-      }
-
-      // Convert map to sorted array of daily sales data
-      const dailySales = Array.from(dailySalesMap.values())
-        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-        .map(day => ({
-          date: day.date,
-          total: day.total.toFixed(2),
-          netSales: day.netSales.toFixed(2),
-          discounts: day.discounts.toFixed(2),
-          refunds: day.refunds.toFixed(2),
-          netCOGS: day.netCOGS.toFixed(2),
-          netSalesTax: day.netSalesTax.toFixed(2),
-          netProfit: day.netProfit.toFixed(2),
-          orderCount: day.orderCount,
-          netProfitMargin: day.netSales > 0 ? ((day.netProfit / day.netSales) * 100).toFixed(2) : '0.00'
-        }));
-
-      // Calculate totals
-      const totals = dailySales.reduce((acc, day) => ({
-        total: acc.total + parseFloat(day.total),
-        netSales: acc.netSales + parseFloat(day.netSales),
-        discounts: acc.discounts + parseFloat(day.discounts),
-        refunds: acc.refunds + parseFloat(day.refunds),
-        netCOGS: acc.netCOGS + parseFloat(day.netCOGS),
-        netSalesTax: acc.netSalesTax + parseFloat(day.netSalesTax),
-        netProfit: acc.netProfit + parseFloat(day.netProfit),
-        orderCount: acc.orderCount + day.orderCount
-      }), {
-        total: 0,
-        netSales: 0,
-        discounts: 0,
-        refunds: 0,
-        netCOGS: 0,
-        netSalesTax: 0,
-        netProfit: 0,
-        orderCount: 0
+      // Use enhanced order analytics to get aggregated data
+      const analyticsData = await storage.getOrderAnalytics({
+        startDate: startDateStr,
+        endDate: endDateStr,
+        locationId: locationId && locationId !== 'ALL' ? locationId : undefined,
+        groupBy: 'day'
       });
 
+      console.log(`📊 Enhanced Analytics Retrieved: ${analyticsData.analytics.length} daily periods`);
+
+      // Transform analytics data to match daily sales report format
+      const dailySales = analyticsData.analytics.map((day: any) => ({
+        date: day.period,
+        total: day.totalRevenue.toFixed(2),
+        netSales: day.netSale.toFixed(2),
+        discounts: day.totalDiscounts.toFixed(2),
+        refunds: day.totalRefunds.toFixed(2),
+        netCOGS: day.totalCOGS.toFixed(2),
+        netSalesTax: day.totalTax.toFixed(2),
+        netProfit: day.totalProfit.toFixed(2),
+        orderCount: day.totalOrders,
+        netProfitMargin: day.profitMargin.toFixed(2)
+      }));
+
+      // Transform summary data to match expected format
+      const totals = {
+        total: analyticsData.summary.totalRevenue.toFixed(2),
+        netSales: analyticsData.summary.totalRevenue.toFixed(2), // netSale might not be in summary
+        discounts: analyticsData.summary.totalDiscounts.toFixed(2),
+        refunds: analyticsData.summary.totalRefunds.toFixed(2),
+        netCOGS: analyticsData.summary.totalCOGS.toFixed(2),
+        netSalesTax: analyticsData.summary.totalTax.toFixed(2),
+        netProfit: analyticsData.summary.totalProfit.toFixed(2),
+        orderCount: analyticsData.summary.totalOrders,
+        netProfitMargin: analyticsData.summary.totalRevenue > 0 
+          ? ((analyticsData.summary.totalProfit / analyticsData.summary.totalRevenue) * 100).toFixed(2) 
+          : '0.00'
+      };
+
+      // Determine location name for response
       const locationName = locationId && locationId !== 'ALL' 
-        ? [...filteredCloverConfigs, ...filteredAmazonConfigs]
+        ? [...activeCloverConfigs, ...activeAmazonConfigs]
             .find(config => config.id.toString() === locationId)?.merchantName || 'Unknown Location'
         : 'All Locations';
 
+      console.log(`📊 Enhanced Daily Sales Report Generated: ${dailySales.length} days, ${totals.orderCount} total orders, $${totals.total} total revenue`);
+
       res.json({
         dailySales,
-        totals: {
-          ...totals,
-          total: totals.total.toFixed(2),
-          netSales: totals.netSales.toFixed(2),
-          discounts: totals.discounts.toFixed(2),
-          refunds: totals.refunds.toFixed(2),
-          netCOGS: totals.netCOGS.toFixed(2),
-          netSalesTax: totals.netSalesTax.toFixed(2),
-          netProfit: totals.netProfit.toFixed(2),
-          netProfitMargin: totals.netSales > 0 ? ((totals.netProfit / totals.netSales) * 100).toFixed(2) : '0.00'
-        },
+        totals,
         period: `${startDateStr} to ${endDateStr}`,
         location: locationName,
         currency: 'USD',
@@ -7919,7 +7663,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ]
       });
     } catch (error) {
-      console.error('Error generating daily sales report:', error);
+      console.error('Error generating enhanced daily sales report:', error);
       res.status(500).json({ error: 'Failed to generate daily sales report' });
     }
   });
