@@ -7698,21 +7698,78 @@ export async function registerRoutes(app: Express): Promise<Server> {
               dayData.orderCount += 1;
             }
             
-            dayData.discounts += discountAmount;
-            dayData.netSalesTax += taxAmount;
+            // Extract discounts from order-level AND line-item level
+            let totalDiscounts = discountAmount; // Start with order-level discount
             
-            // Calculate COGS (40% of net sales as per system configuration)
-            const orderCOGS = orderTotal > 0 ? orderTotal * 0.4 : 0;
+            // Add line-item discounts from expanded lineItems data
+            if (order.lineItems && order.lineItems.elements) {
+              for (const lineItem of order.lineItems.elements) {
+                const lineItemDiscount = parseFloat(lineItem.discountAmount || '0') / 100;
+                totalDiscounts += lineItemDiscount;
+              }
+            }
+            
+            // Add discounts from expanded discounts data if available
+            if (order.discounts && order.discounts.elements) {
+              for (const discount of order.discounts.elements) {
+                const discountValue = parseFloat(discount.amount || '0') / 100;
+                totalDiscounts += discountValue;
+              }
+            }
+            
+            dayData.discounts += totalDiscounts;
+            console.log(`💰 Order ${order.id}: Total discounts $${totalDiscounts.toFixed(2)} (order: $${discountAmount.toFixed(2)}, line items + discount expansion: $${(totalDiscounts - discountAmount).toFixed(2)})`);
+            // Extract tax amount from order and payments
+            let totalTax = taxAmount; // Start with order-level tax
+            
+            // Add tax from payment details if payments are expanded
+            if (order.payments && order.payments.elements) {
+              for (const payment of order.payments.elements) {
+                const paymentTax = parseFloat(payment.taxAmount || '0') / 100;
+                // Only add payment tax if it's different from order tax to avoid double counting
+                if (paymentTax > 0 && Math.abs(paymentTax - taxAmount) > 0.01) {
+                  totalTax += paymentTax;
+                }
+              }
+            }
+            
+            dayData.netSalesTax += totalTax;
+            console.log(`📊 Order ${order.id}: Total tax $${totalTax.toFixed(2)} (order: $${taxAmount.toFixed(2)}, payments: $${(totalTax - taxAmount).toFixed(2)})`);
+            
+            // Calculate actual COGS from cost basis data in database
+            let orderCOGS = 0;
+            try {
+              // Get the POS sale record for this Clover order
+              const existingSale = await storage.getPosSaleByCloverOrderId(order.id);
+              if (existingSale) {
+                // Get line items with cost basis data
+                const saleItems = await storage.getSaleItems(existingSale.id);
+                orderCOGS = saleItems.reduce((total, item) => {
+                  const itemCostBasis = parseFloat(item.costBasis || '0');
+                  const itemQuantity = parseFloat(item.quantity || '1');
+                  return total + (itemCostBasis * itemQuantity);
+                }, 0);
+                console.log(`📊 Order ${order.id}: Using actual COGS $${orderCOGS.toFixed(2)} from ${saleItems.length} line items`);
+              } else {
+                // Fallback to 40% if order not found in database (shouldn't happen after sync)
+                orderCOGS = orderTotal > 0 ? orderTotal * 0.4 : 0;
+                console.log(`⚠️ Order ${order.id}: Using 40% fallback COGS $${orderCOGS.toFixed(2)} (order not synced to database)`);
+              }
+            } catch (error) {
+              console.error(`❌ Error calculating COGS for order ${order.id}:`, error);
+              // Fallback to 40% on error
+              orderCOGS = orderTotal > 0 ? orderTotal * 0.4 : 0;
+            }
             dayData.netCOGS += orderCOGS;
             
             // Net Profit = Net Sales - COGS - Discounts
             dayData.netProfit = dayData.netSales - dayData.netCOGS - dayData.discounts;
           }
 
-          console.log(`📊 Processed ${allOrders.length} Clover orders for ${config.merchantName}`);
+          console.log(`📊 Processed ${allOrders.length} Clover orders for ${config.merchantName} using actual COGS data from database`);
           
         } catch (error) {
-          console.error(`Error processing Clover location ${config.merchantName}:`, error);
+          console.error(`❌ Error processing Clover location ${config.merchantName}:`, error);
         }
       }
 
@@ -7776,8 +7833,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 dayData.netSales += orderTotal;
                 dayData.orderCount += 1;
                 
-                // Amazon COGS (40% of net sales)
+                // Amazon COGS (40% fallback - no cost basis tracking for Amazon yet)
                 const orderCOGS = orderTotal * 0.4;
+                console.log(`🛒 Amazon Order: Using 40% COGS fallback $${orderCOGS.toFixed(2)} (no cost basis tracking for Amazon)`);
                 dayData.netCOGS += orderCOGS;
                 
                 // Amazon typically handles tax differently - for now use 0

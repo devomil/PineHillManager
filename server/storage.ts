@@ -3611,7 +3611,10 @@ export class DatabaseStorage implements IStorage {
         .orderBy(desc(posSales.createdAt));
     }
   }
-  async getPosSaleById(id: number): Promise<PosSale | undefined> { return undefined; }
+  async getPosSaleById(id: number): Promise<PosSale | undefined> {
+    const [sale] = await db.select().from(posSales).where(eq(posSales.id, id));
+    return sale;
+  }
   async getPosSaleByCloverOrderId(cloverOrderId: string): Promise<PosSale | undefined> {
     const [sale] = await db.select().from(posSales).where(eq(posSales.cloverOrderId, cloverOrderId));
     return sale;
@@ -3623,8 +3626,18 @@ export class DatabaseStorage implements IStorage {
   async getSalesByDateRange(startDate: string, endDate: string): Promise<PosSale[]> { return []; }
   async getSalesByLocation(locationId: number, startDate?: string, endDate?: string): Promise<PosSale[]> { return []; }
   async getUnpostedSales(): Promise<PosSale[]> { return []; }
-  async updatePosSale(id: number, sale: Partial<InsertPosSale>): Promise<PosSale> { throw new Error("Not implemented yet"); }
-  async markSaleAsPostedToQB(id: number, qbTransactionId: string): Promise<PosSale> { throw new Error("Not implemented yet"); }
+  async updatePosSale(id: number, sale: Partial<InsertPosSale>): Promise<PosSale> {
+    const [updated] = await db.update(posSales).set({ ...sale, updatedAt: new Date() }).where(eq(posSales.id, id)).returning();
+    return updated;
+  }
+  async markSaleAsPostedToQB(id: number, qbTransactionId: string): Promise<PosSale> {
+    const [updated] = await db.update(posSales).set({ 
+      isPostedToQB: true, 
+      qbTransactionId: qbTransactionId,
+      updatedAt: new Date() 
+    }).where(eq(posSales.id, id)).returning();
+    return updated;
+  }
   async createPosSaleItem(item: InsertPosSaleItem): Promise<PosSaleItem> {
     const [saleItem] = await db.insert(posSaleItems).values(item).returning();
     return saleItem;
