@@ -7634,8 +7634,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           let hasMoreData = true;
           
           while (hasMoreData) {
+            // Use a broader date range and filter in code to avoid URL encoding issues
+            const startTime = Math.floor(start.getTime());
+            const endTime = Math.floor(end.getTime());
+            
             const liveOrders = await cloverIntegration.fetchOrders({
-              filter: `createdTime>=${Math.floor(start.getTime())}&createdTime<=${Math.floor(end.getTime())}`,
+              filter: `createdTime>=${startTime}`,
               expand: 'lineItems,payments,discounts',
               limit: limit,
               offset: offset
@@ -7653,9 +7657,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
           }
 
-          // Group orders by date and aggregate
+          // Group orders by date and aggregate (filter by end date in code)
           for (const order of allOrders) {
             const orderDate = new Date(order.createdTime);
+            
+            // Skip orders outside our date range
+            if (orderDate < start || orderDate > end) {
+              continue;
+            }
+            
             const dateKey = orderDate.toISOString().split('T')[0]; // YYYY-MM-DD format
             
             if (!dailySalesMap.has(dateKey)) {
