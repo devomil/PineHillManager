@@ -2987,6 +2987,7 @@ function ReportsSection({
   const [selectedPeriod, setSelectedPeriod] = useState('current_month');
   const [selectedYear, setSelectedYear] = useState('2025');
   const [reportType, setReportType] = useState('profit_loss');
+  const [selectedLocation, setSelectedLocation] = useState('all');
 
   // Get period dates based on selection
   const getPeriodDates = () => {
@@ -3068,6 +3069,32 @@ function ReportsSection({
     },
   });
 
+  // Fetch locations data for filtering
+  const { data: reportLocations = [] } = useQuery({
+    queryKey: ['/api/accounting/config/clover/all'],
+    queryFn: async () => {
+      const response = await apiRequest('GET', '/api/accounting/config/clover/all');
+      return await response.json();
+    },
+  });
+
+  // Fetch daily sales report data with location filtering
+  const { data: dailySalesData = {}, isLoading: dailySalesLoading } = useQuery({
+    queryKey: ['/api/accounting/reports/daily-sales', startDateStr, endDateStr, selectedLocation],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        startDate: startDateStr,
+        endDate: endDateStr
+      });
+      if (selectedLocation !== 'all') {
+        params.set('locationId', selectedLocation);
+      }
+      const response = await apiRequest('GET', `/api/accounting/reports/daily-sales?${params.toString()}`);
+      return await response.json();
+    },
+    enabled: reportType === 'daily_sales'
+  });
+
   const formatCurrency = (amount: number | string) => {
     const num = typeof amount === 'string' ? parseFloat(amount) : amount;
     return new Intl.NumberFormat('en-US', {
@@ -3107,7 +3134,7 @@ function ReportsSection({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="space-y-2">
               <Label htmlFor="report-type">Report Type</Label>
               <Select value={reportType} onValueChange={setReportType}>
@@ -3118,6 +3145,7 @@ function ReportsSection({
                   <SelectItem value="profit_loss">Profit & Loss</SelectItem>
                   <SelectItem value="expense_detail">Expense Detail</SelectItem>
                   <SelectItem value="revenue_breakdown">Revenue Breakdown</SelectItem>
+                  <SelectItem value="daily_sales">Daily Sales Report</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -3146,6 +3174,22 @@ function ReportsSection({
                   <SelectItem value="2024">2024</SelectItem>
                   <SelectItem value="2025">2025</SelectItem>
                   <SelectItem value="2026">2026</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="location">Location</Label>
+              <Select value={selectedLocation} onValueChange={setSelectedLocation}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select location" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Locations</SelectItem>
+                  {reportLocations.map((location: any) => (
+                    <SelectItem key={location.merchantId} value={location.merchantId}>
+                      {location.merchantName}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -3281,6 +3325,14 @@ function ReportsSection({
           data={revenueData} 
           period={formatPeriodLabel()} 
           loading={revenueLoading}
+        />
+      )}
+
+      {reportType === 'daily_sales' && (
+        <DailySalesReport 
+          data={dailySalesData} 
+          period={formatPeriodLabel()} 
+          loading={dailySalesLoading}
         />
       )}
     </div>
@@ -3799,6 +3851,169 @@ function TransactionsSection({
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+// Daily Sales Report Component
+function DailySalesReport({ 
+  data, 
+  period, 
+  loading 
+}: { 
+  data: any; 
+  period: string; 
+  loading: boolean;
+}) {
+  const formatCurrency = (amount: number | string) => {
+    const num = typeof amount === 'string' ? parseFloat(amount) : amount;
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+    }).format(num || 0);
+  };
+
+  const formatPercentage = (value: string | number) => {
+    return `${value}%`;
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Calendar className="h-5 w-5 text-blue-600" />
+          Daily Sales Report - {period}
+        </CardTitle>
+        <CardDescription>
+          Daily aggregated sales data with revenue, costs, and profit analysis ({data.location || 'All Locations'})
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {loading ? (
+          <div className="flex items-center justify-center h-40">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {/* Summary Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="text-center p-4 bg-green-50 rounded-lg">
+                <div className="text-2xl font-bold text-green-600">
+                  {formatCurrency(data.totals?.netSales || 0)}
+                </div>
+                <div className="text-sm text-gray-600">Total Net Sales</div>
+              </div>
+              <div className="text-center p-4 bg-blue-50 rounded-lg">
+                <div className="text-2xl font-bold text-blue-600">
+                  {data.totals?.orderCount || 0}
+                </div>
+                <div className="text-sm text-gray-600">Total Orders</div>
+              </div>
+              <div className="text-center p-4 bg-purple-50 rounded-lg">
+                <div className="text-2xl font-bold text-purple-600">
+                  {formatCurrency(data.totals?.netProfit || 0)}
+                </div>
+                <div className="text-sm text-gray-600">Net Profit</div>
+              </div>
+              <div className="text-center p-4 bg-orange-50 rounded-lg">
+                <div className="text-2xl font-bold text-orange-600">
+                  {formatPercentage(data.totals?.netProfitMargin || '0.00')}
+                </div>
+                <div className="text-sm text-gray-600">Profit Margin</div>
+              </div>
+            </div>
+
+            {/* Daily Sales Table */}
+            {data.dailySales && data.dailySales.length > 0 ? (
+              <div>
+                <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                  <FileText className="h-5 w-5 text-blue-600" />
+                  Daily Sales Breakdown
+                </h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse">
+                    <thead>
+                      <tr className="border-b bg-gray-50">
+                        <th className="text-left p-3 font-medium">Date</th>
+                        <th className="text-right p-3 font-medium">Total</th>
+                        <th className="text-right p-3 font-medium">Net Sales</th>
+                        <th className="text-right p-3 font-medium">Discounts</th>
+                        <th className="text-right p-3 font-medium">Refunds</th>
+                        <th className="text-right p-3 font-medium">Net COGS</th>
+                        <th className="text-right p-3 font-medium">Sales Tax</th>
+                        <th className="text-right p-3 font-medium">Net Profit</th>
+                        <th className="text-right p-3 font-medium">Orders</th>
+                        <th className="text-right p-3 font-medium">Margin</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.dailySales.map((day: any, index: number) => (
+                        <tr key={day.date} className={`border-b ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
+                          <td className="p-3 font-medium">{new Date(day.date).toLocaleDateString('en-US', { 
+                            weekday: 'short', 
+                            month: 'short', 
+                            day: 'numeric' 
+                          })}</td>
+                          <td className="p-3 text-right">{formatCurrency(day.total)}</td>
+                          <td className="p-3 text-right text-green-600 font-medium">{formatCurrency(day.netSales)}</td>
+                          <td className="p-3 text-right text-orange-600">{formatCurrency(day.discounts)}</td>
+                          <td className="p-3 text-right text-red-600">{formatCurrency(day.refunds)}</td>
+                          <td className="p-3 text-right text-purple-600">{formatCurrency(day.netCOGS)}</td>
+                          <td className="p-3 text-right text-blue-600">{formatCurrency(day.netSalesTax)}</td>
+                          <td className={`p-3 text-right font-medium ${parseFloat(day.netProfit) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {formatCurrency(day.netProfit)}
+                          </td>
+                          <td className="p-3 text-right">{day.orderCount}</td>
+                          <td className={`p-3 text-right text-sm ${parseFloat(day.netProfitMargin) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {formatPercentage(day.netProfitMargin)}
+                          </td>
+                        </tr>
+                      ))}
+                      {/* Totals Row */}
+                      <tr className="border-t-2 bg-gray-100 font-bold">
+                        <td className="p-3">Total</td>
+                        <td className="p-3 text-right">{formatCurrency(data.totals?.total || 0)}</td>
+                        <td className="p-3 text-right text-green-600">{formatCurrency(data.totals?.netSales || 0)}</td>
+                        <td className="p-3 text-right text-orange-600">{formatCurrency(data.totals?.discounts || 0)}</td>
+                        <td className="p-3 text-right text-red-600">{formatCurrency(data.totals?.refunds || 0)}</td>
+                        <td className="p-3 text-right text-purple-600">{formatCurrency(data.totals?.netCOGS || 0)}</td>
+                        <td className="p-3 text-right text-blue-600">{formatCurrency(data.totals?.netSalesTax || 0)}</td>
+                        <td className={`p-3 text-right ${parseFloat(data.totals?.netProfit || '0') >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {formatCurrency(data.totals?.netProfit || 0)}
+                        </td>
+                        <td className="p-3 text-right">{data.totals?.orderCount || 0}</td>
+                        <td className={`p-3 text-right text-sm ${parseFloat(data.totals?.netProfitMargin || '0') >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {formatPercentage(data.totals?.netProfitMargin || '0.00')}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <p className="text-gray-500 mb-4">No sales data found for this period.</p>
+                <p className="text-sm text-gray-400">
+                  Try selecting a different date range or check your integration settings.
+                </p>
+              </div>
+            )}
+
+            {/* Location Information */}
+            {data.availableLocations && data.availableLocations.length > 0 && (
+              <div className="mt-4 p-3 bg-blue-50 rounded-lg">
+                <p className="text-sm text-blue-700">
+                  <strong>Available Locations:</strong> {data.availableLocations.map((loc: any) => loc.name).join(', ')}
+                </p>
+                <p className="text-xs text-blue-600 mt-1">
+                  Use the location filter above to view specific location data
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
