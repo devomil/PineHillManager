@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { format, addDays } from "date-fns";
+import { apiRequest } from '@/lib/queryClient';
 
 interface Order {
   id: string;
@@ -327,22 +328,10 @@ export function ComprehensiveOrderManagement() {
 
   const handleOrderClick = async (order: Order) => {
     try {
-      const response = await fetch(`/api/orders/${order.id}`, {
-        credentials: 'include'
-      });
-      if (response.ok) {
-        const detailedOrder = await response.json();
-        setSelectedOrder(detailedOrder);
-        
-        setShowOrderDetails(true);
-      } else {
-        console.error('Failed to fetch order details:', response.status, response.statusText);
-        toast({
-          title: "Error",
-          description: "Failed to load order details",
-          variant: "destructive",
-        });
-      }
+      const response = await apiRequest('GET', `/api/orders/${order.id}`);
+      const detailedOrder = await response.json();
+      setSelectedOrder(detailedOrder);
+      setShowOrderDetails(true);
     } catch (error) {
       console.error('🔧 [ORDER DIALOG DEBUG] Exception:', error);
       toast({
