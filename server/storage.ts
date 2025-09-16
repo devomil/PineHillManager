@@ -4904,12 +4904,12 @@ export class DatabaseStorage implements IStorage {
             orderBy: 'modifiedTime DESC'
           };
           
-          // Add date filter if provided - Use separate range parameters instead of filter
+          // Add date filter if provided - Use createdTime for when orders were actually placed
           if (filters.startDate) {
-            options.modifiedTimeMin = Math.floor(new Date(filters.startDate + 'T00:00:00.000Z').getTime());
+            options.createdTimeMin = Math.floor(new Date(filters.startDate + 'T00:00:00.000Z').getTime());
           }
           if (filters.endDate) {
-            options.modifiedTimeMax = Math.floor(new Date(filters.endDate + 'T23:59:59.999Z').getTime());
+            options.createdTimeMax = Math.floor(new Date(filters.endDate + 'T23:59:59.999Z').getTime());
           }
           
           // Add state filter
@@ -4928,9 +4928,11 @@ export class DatabaseStorage implements IStorage {
             if (response.elements.length > 0) {
               const firstOrder = response.elements[0];
               const lastOrder = response.elements[response.elements.length - 1];
-              console.log(`First order modified: ${new Date(firstOrder.modifiedTime).toISOString()}`);
-              console.log(`Last order modified: ${new Date(lastOrder.modifiedTime).toISOString()}`);
-              console.log(`Expected range: ${new Date(options.modifiedTimeMin).toISOString()} to ${new Date(options.modifiedTimeMax).toISOString()}`);
+              console.log(`First order created: ${new Date(firstOrder.createdTime).toISOString()}`);
+              console.log(`Last order created: ${new Date(lastOrder.createdTime).toISOString()}`);
+              if (options.createdTimeMin && options.createdTimeMax) {
+                console.log(`Expected range: ${new Date(options.createdTimeMin).toISOString()} to ${new Date(options.createdTimeMax).toISOString()}`);
+              }
             }
             
             // Enhance orders with financial calculations
