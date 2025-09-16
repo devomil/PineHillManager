@@ -258,8 +258,9 @@ export function ComprehensiveOrderManagement() {
   });
 
   // Fetch available locations for filtering
-  const { data: locations } = useQuery<any[]>({
-    queryKey: ['/api/accounting/config/clover/all']
+  const { data: locations, error: locationsError } = useQuery<any[]>({
+    queryKey: ['/api/accounting/config/clover/all'],
+    // Let React Query use the default authenticated queryFn
   });
 
   // Order sync mutation
@@ -328,8 +329,20 @@ export function ComprehensiveOrderManagement() {
 
   const handleOrderClick = async (order: Order) => {
     try {
+      console.log('🔧 [ORDER DIALOG DEBUG] Fetching details for order:', order.id);
       const response = await apiRequest('GET', `/api/orders/${order.id}`);
       const detailedOrder = await response.json();
+      
+      console.log('🔧 [ORDER DIALOG DEBUG] Received detailed order:', {
+        orderId: detailedOrder.id,
+        hasLineItems: !!detailedOrder.lineItems,
+        lineItemsLength: detailedOrder.lineItems?.length || 0,
+        hasPayments: !!detailedOrder.payments,
+        paymentsLength: detailedOrder.payments?.length || 0,
+        sampleLineItem: detailedOrder.lineItems?.[0],
+        samplePayment: detailedOrder.payments?.[0]
+      });
+      
       setSelectedOrder(detailedOrder);
       setShowOrderDetails(true);
     } catch (error) {
