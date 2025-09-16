@@ -84,6 +84,8 @@ export class CloverIntegration {
     modifiedTime?: string;
     modifiedTimeMin?: number;
     modifiedTimeMax?: number;
+    createdTimeMin?: number;
+    createdTimeMax?: number;
   } = {}): Promise<{ elements: CloverOrder[]; href: string }> {
     const params = new URLSearchParams();
     
@@ -95,6 +97,8 @@ export class CloverIntegration {
     if (options.modifiedTime) params.append('modifiedTime', options.modifiedTime);
     if (options.modifiedTimeMin) params.append('modifiedTime.min', options.modifiedTimeMin.toString());
     if (options.modifiedTimeMax) params.append('modifiedTime.max', options.modifiedTimeMax.toString());
+    if (options.createdTimeMin) params.append('createdTime.min', options.createdTimeMin.toString());
+    if (options.createdTimeMax) params.append('createdTime.max', options.createdTimeMax.toString());
 
     const queryString = params.toString();
     const endpoint = queryString ? `orders?${queryString}` : 'orders';

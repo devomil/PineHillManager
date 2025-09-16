@@ -4905,21 +4905,16 @@ export class DatabaseStorage implements IStorage {
           };
           
           // Add date filter if provided - Use createdTime for when orders were actually placed
-          // Use Central Time (America/Chicago) for Pine Hill Farm's business operations
+          // Create timestamps in milliseconds as required by Clover API
           if (filters.startDate) {
-            // Create start of day in Central Time, then convert to UTC timestamp
-            const startOfDay = new Date(filters.startDate + 'T00:00:00.000');
-            // Adjust for Central Time offset (CT is UTC-6 in standard time, UTC-5 in daylight time)
-            const offsetHours = 6; // Use 6 for CST (standard time) - adjust seasonally if needed
-            startOfDay.setHours(startOfDay.getHours() + offsetHours);
-            options.createdTimeMin = Math.floor(startOfDay.getTime());
+            // Create start of day (00:00:00) for the given date
+            const startOfDay = new Date(filters.startDate + 'T00:00:00.000Z');
+            options.createdTimeMin = startOfDay.getTime();
           }
           if (filters.endDate) {
-            // Create end of day in Central Time, then convert to UTC timestamp  
-            const endOfDay = new Date(filters.endDate + 'T23:59:59.999');
-            const offsetHours = 6; // Use 6 for CST (standard time)
-            endOfDay.setHours(endOfDay.getHours() + offsetHours);
-            options.createdTimeMax = Math.floor(endOfDay.getTime());
+            // Create end of day (23:59:59.999) for the given date
+            const endOfDay = new Date(filters.endDate + 'T23:59:59.999Z');
+            options.createdTimeMax = endOfDay.getTime();
           }
           
           // Add state filter
@@ -5019,22 +5014,22 @@ export class DatabaseStorage implements IStorage {
               }
             }
             
-            // Apply server-side date filtering since Clover API doesn't respect modifiedTime.min/max properly
+            // Apply server-side date filtering since Clover API doesn't respect createdTime.min/max properly
             let filteredOrders = enhancedOrders;
-            if (options.modifiedTimeMin || options.modifiedTimeMax) {
+            if (options.createdTimeMin || options.createdTimeMax) {
               filteredOrders = enhancedOrders.filter(order => {
-                const orderModifiedTime = order.modifiedTime;
-                if (!orderModifiedTime) return false;
+                const orderCreatedTime = order.createdTime;
+                if (!orderCreatedTime) return false;
                 
-                const orderTime = parseInt(orderModifiedTime.toString());
+                const orderTime = parseInt(orderCreatedTime.toString());
                 
                 // Check minimum time
-                if (options.modifiedTimeMin && orderTime < options.modifiedTimeMin) {
+                if (options.createdTimeMin && orderTime < options.createdTimeMin) {
                   return false;
                 }
                 
                 // Check maximum time  
-                if (options.modifiedTimeMax && orderTime > options.modifiedTimeMax) {
+                if (options.createdTimeMax && orderTime > options.createdTimeMax) {
                   return false;
                 }
                 
