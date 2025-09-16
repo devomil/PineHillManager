@@ -312,8 +312,10 @@ export function ComprehensiveOrderManagement() {
       if (response.ok) {
         const detailedOrder = await response.json();
         setSelectedOrder(detailedOrder);
+        
         setShowOrderDetails(true);
       } else {
+        console.error('Failed to fetch order details:', response.status, response.statusText);
         toast({
           title: "Error",
           description: "Failed to load order details",
@@ -321,6 +323,7 @@ export function ComprehensiveOrderManagement() {
         });
       }
     } catch (error) {
+      console.error('🔧 [ORDER DIALOG DEBUG] Exception:', error);
       toast({
         title: "Error",
         description: "Failed to load order details",
