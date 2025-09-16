@@ -135,6 +135,22 @@ export function ComprehensiveOrderManagement() {
     'last-6-months', 'this-year', 'last-year', 'last-12-months'
   ];
 
+  // Fetch available locations for filtering - MOVED HERE TO FIX INITIALIZATION ERROR
+  const { data: locations, error: locationsError, isLoading: locationsLoading } = useQuery<any[]>({
+    queryKey: ['/api/accounting/config/clover/all'],
+    queryFn: async () => {
+      const response = await fetch('/api/accounting/config/clover/all', {
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        }
+      });
+      if (!response.ok) throw new Error('Failed to fetch locations');
+      return await response.json();
+    },
+  });
+
   // 🔧 AUDIT: Function to test a specific date range option
   const testDateRangeOption = async (optionValue: string) => {
     console.log(`🔧 [AUDIT] Testing date range option: ${optionValue}`);
@@ -452,21 +468,7 @@ export function ComprehensiveOrderManagement() {
     }
   });
 
-  // Fetch available locations for filtering
-  const { data: locations, error: locationsError, isLoading: locationsLoading } = useQuery<any[]>({
-    queryKey: ['/api/accounting/config/clover/all'],
-    queryFn: async () => {
-      const response = await fetch('/api/accounting/config/clover/all', {
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        }
-      });
-      if (!response.ok) throw new Error('Failed to fetch locations');
-      return await response.json();
-    },
-  });
+  // NOTE: locations query moved to top of component to fix initialization error
 
   // Log locations data for debugging
   useEffect(() => {
