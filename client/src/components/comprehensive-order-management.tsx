@@ -122,16 +122,211 @@ export function ComprehensiveOrderManagement() {
     const start = addDays(end, -29); // Last 30 days includes today
     return { from: start, to: end };
   });
+
+  // 🔧 AUDIT: Testing state to track systematic testing
+  const [auditMode, setAuditMode] = useState(false);
+  const [auditResults, setAuditResults] = useState<{[key: string]: any}>({});
+  const [currentTestIndex, setCurrentTestIndex] = useState(0);
   
-  // 🔧 DEBUG: Log date range for debugging
+  // 🔧 AUDIT: All date range options to test systematically
+  const dateRangeOptions = [
+    'today', 'yesterday', 'this-week', 'last-week', 'last-7-days',
+    'this-month', 'last-month', 'last-30-days', 'last-3-months', 
+    'last-6-months', 'this-year', 'last-year', 'last-12-months'
+  ];
+
+  // 🔧 AUDIT: Function to test a specific date range option
+  const testDateRangeOption = async (optionValue: string) => {
+    console.log(`🔧 [AUDIT] Testing date range option: ${optionValue}`);
+    
+    // Get the date range from the options
+    const { getDateRangeOptions, formatDateForAPI } = await import('@/lib/date-ranges');
+    const options = getDateRangeOptions();
+    const option = options.find(opt => opt.value === optionValue);
+    
+    if (!option) {
+      console.error(`🔧 [AUDIT ERROR] Date range option not found: ${optionValue}`);
+      return;
+    }
+
+    const startDate = formatDateForAPI(option.startDate);
+    const endDate = formatDateForAPI(option.endDate);
+    
+    console.log(`🔧 [AUDIT] ${optionValue} - Setting dates:`, { startDate, endDate });
+    
+    // Simulate the date range picker callback
+    setDateRangeValue(optionValue);
+    setDateRange({
+      from: option.startDate,
+      to: option.endDate
+    });
+    
+    // Store initial test result
+    setAuditResults(prev => ({
+      ...prev,
+      [optionValue]: {
+        startDate,
+        endDate,
+        dateRangeValid: !!(option.startDate && option.endDate),
+        daysDifference: Math.ceil((option.endDate.getTime() - option.startDate.getTime()) / (1000 * 60 * 60 * 24)),
+        timestamp: new Date().toISOString()
+      }
+    }));
+  };
+  
+  // 🔧 DEBUG: Enhanced date range debugging for systematic testing
   useEffect(() => {
-    console.log('🔧 [ORDER DATE RANGE] Current filter:', {
+    console.log('🔧 [DATE RANGE AUDIT] Current selection:', {
       dateRangeValue,
       from: dateRange.from?.toISOString().split('T')[0],
       to: dateRange.to?.toISOString().split('T')[0],
-      searchingForProblematicOrders: ['NS8NSG9CNXEEJ', '48GWSVFSYPDN4']
+      dateRangeValid: !!(dateRange.from && dateRange.to),
+      daysDifference: dateRange.from && dateRange.to ? 
+        Math.ceil((dateRange.to.getTime() - dateRange.from.getTime()) / (1000 * 60 * 60 * 24)) : 0
     });
   }, [dateRange, dateRangeValue]);
+
+  // 🔧 DEBUG: Log locations data for each date range test
+  useEffect(() => {
+    if (locations && locations.length > 0) {
+      console.log('🔧 [LOCATIONS AUDIT] Available for date range:', {
+        dateRangeValue,
+        locationsCount: locations.length,
+        locationNames: locations.map(l => l.merchantName),
+        allActive: locations.every(l => l.isActive)
+      });
+    }
+  }, [locations, dateRangeValue]);
+
+  // 🔧 DEBUG: Log orders data quality for each date range
+  useEffect(() => {
+    if (ordersData) {
+      const auditInfo = {
+        dateRangeValue,
+        totalOrders: ordersData.orders.length,
+        paginationInfo: ordersData.pagination,
+        ordersSample: ordersData.orders.slice(0, 3).map(order => ({
+          id: order.id,
+          locationName: order.locationName,
+          total: order.total,
+          hasLineItems: !!(order.lineItems && Array.isArray(order.lineItems)),
+          hasPayments: !!(order.payments && Array.isArray(order.payments)),
+          netProfit: order.netProfit,
+          netMargin: order.netMargin
+        })),
+        uniqueLocations: [...new Set(ordersData.orders.map(o => o.locationName))]
+      };
+      
+      console.log('🔧 [ORDERS AUDIT] Data quality for date range:', auditInfo);
+      
+      // Update audit results with orders data
+      if (auditMode) {
+        setAuditResults(prev => ({
+          ...prev,
+          [dateRangeValue]: {
+            ...prev[dateRangeValue],
+            ordersData: auditInfo,
+            dataComplete: true
+          }
+        }));
+      }
+    }
+  }, [ordersData, dateRangeValue, auditMode]);
+
+  // 🔧 AUDIT: Function to start systematic testing
+  const startAudit = async () => {
+    console.log('🔧 [AUDIT] Starting systematic date range testing...');
+    setAuditMode(true);
+    setCurrentTestIndex(0);
+    setAuditResults({});
+    
+    // Test each date range option with a delay
+    for (let i = 0; i < dateRangeOptions.length; i++) {
+      const option = dateRangeOptions[i];
+      console.log(`🔧 [AUDIT] Testing option ${i + 1}/${dateRangeOptions.length}: ${option}`);
+      
+      await testDateRangeOption(option);
+      setCurrentTestIndex(i);
+      
+      // Wait for data to load between tests
+      await new Promise(resolve => setTimeout(resolve, 3000));
+    }
+    
+    console.log('🔧 [AUDIT] All tests completed!');
+    console.log('🔧 [AUDIT RESULTS]', auditResults);
+    setAuditMode(false);
+  };
+
+  // 🔧 AUDIT: Comprehensive date range testing results
+  const [comprehensiveResults, setComprehensiveResults] = useState<{[key: string]: any}>({});
+
+  // 🔧 AUDIT: Function to test a single date range comprehensively
+  const testSingleDateRange = async (optionValue: string) => {
+    console.log(`🔧 [COMPREHENSIVE AUDIT] Testing ${optionValue}...`);
+    
+    // Import date range functions
+    const { getDateRangeOptions, formatDateForAPI } = await import('@/lib/date-ranges');
+    const options = getDateRangeOptions();
+    const option = options.find(opt => opt.value === optionValue);
+    
+    if (!option) {
+      console.error(`🔧 [AUDIT ERROR] Option ${optionValue} not found`);
+      return;
+    }
+
+    const startDate = formatDateForAPI(option.startDate);
+    const endDate = formatDateForAPI(option.endDate);
+    const daysDiff = Math.ceil((option.endDate.getTime() - option.startDate.getTime()) / (1000 * 60 * 60 * 24));
+    
+    console.log(`🔧 [AUDIT] ${optionValue} - Date Range: ${startDate} to ${endDate} (${daysDiff} days)`);
+    
+    // Set the date range and trigger data loading
+    setDateRangeValue(optionValue);
+    setDateRange({
+      from: option.startDate,
+      to: option.endDate
+    });
+    
+    // Store results
+    setComprehensiveResults(prev => ({
+      ...prev,
+      [optionValue]: {
+        startDate,
+        endDate,
+        daysDifference: daysDiff,
+        dateRangeCalculatedCorrectly: !!(option.startDate && option.endDate),
+        testTimestamp: new Date().toISOString(),
+        status: 'testing'
+      }
+    }));
+  };
+
+  // 🔧 AUDIT: Auto-start systematic audit
+  useEffect(() => {
+    // Only start audit once when component is fully loaded
+    const shouldStartAudit = dateRangeValue === 'last-30-days' && !auditMode && 
+                            dateRangeOptions.length > 0 && Object.keys(comprehensiveResults).length === 0;
+    
+    if (shouldStartAudit) {
+      console.log('🔧 [AUDIT] Starting comprehensive date range audit...');
+      setTimeout(async () => {
+        setAuditMode(true);
+        
+        // Test each date range option
+        for (let i = 0; i < dateRangeOptions.length; i++) {
+          const option = dateRangeOptions[i];
+          setCurrentTestIndex(i);
+          await testSingleDateRange(option);
+          
+          // Wait for data to load
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+        
+        console.log('🔧 [AUDIT] All date range options tested!');
+        setAuditMode(false);
+      }, 3000);
+    }
+  }, [dateRangeValue, auditMode, dateRangeOptions.length, comprehensiveResults]);
   
   const [filters, setFilters] = useState({
     search: "",
@@ -439,6 +634,16 @@ export function ComprehensiveOrderManagement() {
           >
             <RefreshCw className={`h-4 w-4 ${syncOrdersMutation.isPending ? 'animate-spin' : ''}`} />
             <span>Sync Orders</span>
+          </Button>
+          <Button
+            onClick={startAudit}
+            disabled={auditMode}
+            variant="outline"
+            className="flex items-center space-x-2"
+            data-testid="button-audit-date-ranges"
+          >
+            <CheckCircle className={`h-4 w-4 ${auditMode ? 'animate-pulse' : ''}`} />
+            <span>{auditMode ? `Testing ${currentTestIndex + 1}/${dateRangeOptions.length}` : 'Audit Date Ranges'}</span>
           </Button>
         </div>
       </div>
