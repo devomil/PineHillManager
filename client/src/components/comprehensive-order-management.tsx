@@ -365,7 +365,11 @@ export function ComprehensiveOrderManagement() {
         lineItemsType: typeof detailedOrder.lineItems,
         paymentsType: typeof detailedOrder.payments,
         lineItemsKeys: detailedOrder.lineItems ? Object.keys(detailedOrder.lineItems) : null,
-        paymentsKeys: detailedOrder.payments ? Object.keys(detailedOrder.payments) : null
+        paymentsKeys: detailedOrder.payments ? Object.keys(detailedOrder.payments) : null,
+        lineItemsElements: detailedOrder.lineItems?.elements,
+        paymentsElements: detailedOrder.payments?.elements,
+        elementsLength: detailedOrder.lineItems?.elements?.length || 0,
+        paymentsElementsLength: detailedOrder.payments?.elements?.length || 0
       });
       
       // Extract line items from Clover API format with better handling
