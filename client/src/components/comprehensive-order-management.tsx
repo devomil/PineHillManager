@@ -258,10 +258,24 @@ export function ComprehensiveOrderManagement() {
   });
 
   // Fetch available locations for filtering
-  const { data: locations, error: locationsError } = useQuery<any[]>({
+  const { data: locations, error: locationsError, isLoading: locationsLoading } = useQuery<any[]>({
     queryKey: ['/api/accounting/config/clover/all'],
     // Let React Query use the default authenticated queryFn
   });
+
+  // Log locations data for debugging
+  useEffect(() => {
+    console.log('📁 [LOCATIONS DEBUG] Locations query result:', {
+      locations,
+      locationsCount: locations?.length || 0,
+      locationsError: locationsError?.message,
+      locationsLoading,
+      sampleLocation: locations?.[0]
+    });
+    if (locationsError) {
+      console.error('📁 [LOCATIONS DEBUG] Locations API error:', locationsError);
+    }
+  }, [locations, locationsError, locationsLoading]);
 
   // Order sync mutation
   const syncOrdersMutation = useMutation({
@@ -333,17 +347,63 @@ export function ComprehensiveOrderManagement() {
       const response = await apiRequest('GET', `/api/orders/${order.id}`);
       const detailedOrder = await response.json();
       
-      console.log('🔧 [ORDER DIALOG DEBUG] Received detailed order:', {
+      console.log('🔧 [ORDER DIALOG DEBUG] Raw detailed order from API:', {
         orderId: detailedOrder.id,
-        hasLineItems: !!detailedOrder.lineItems,
-        lineItemsLength: detailedOrder.lineItems?.length || 0,
-        hasPayments: !!detailedOrder.payments,
-        paymentsLength: detailedOrder.payments?.length || 0,
-        sampleLineItem: detailedOrder.lineItems?.[0],
-        samplePayment: detailedOrder.payments?.[0]
+        rawLineItems: detailedOrder.lineItems,
+        rawPayments: detailedOrder.payments,
+        rawRefunds: detailedOrder.refunds,
+        lineItemsType: typeof detailedOrder.lineItems,
+        paymentsType: typeof detailedOrder.payments,
+        lineItemsKeys: detailedOrder.lineItems ? Object.keys(detailedOrder.lineItems) : null,
+        paymentsKeys: detailedOrder.payments ? Object.keys(detailedOrder.payments) : null
       });
       
-      setSelectedOrder(detailedOrder);
+      // Extract line items from Clover API format
+      const extractedLineItems = detailedOrder.lineItems?.elements || detailedOrder.lineItems || [];
+      console.log('🔧 [EXTRACTION DEBUG] Line items extraction:', {
+        original: detailedOrder.lineItems,
+        hasElements: !!detailedOrder.lineItems?.elements,
+        elementsLength: detailedOrder.lineItems?.elements?.length || 0,
+        extracted: extractedLineItems,
+        extractedLength: extractedLineItems.length,
+        isArray: Array.isArray(extractedLineItems)
+      });
+      
+      // Extract payments from Clover API format
+      const extractedPayments = detailedOrder.payments?.elements || detailedOrder.payments || [];
+      console.log('🔧 [EXTRACTION DEBUG] Payments extraction:', {
+        original: detailedOrder.payments,
+        hasElements: !!detailedOrder.payments?.elements,
+        elementsLength: detailedOrder.payments?.elements?.length || 0,
+        extracted: extractedPayments,
+        extractedLength: extractedPayments.length,
+        isArray: Array.isArray(extractedPayments)
+      });
+      
+      // Extract refunds from Clover API format  
+      const extractedRefunds = detailedOrder.refunds?.elements ? 
+        { elements: detailedOrder.refunds.elements } : 
+        detailedOrder.refunds;
+      
+      // Create processed order with extracted data
+      const processedOrder = {
+        ...detailedOrder,
+        lineItems: extractedLineItems,
+        payments: extractedPayments,
+        refunds: extractedRefunds
+      };
+      
+      console.log('🔧 [ORDER DIALOG DEBUG] Processed order with extracted data:', {
+        orderId: processedOrder.id,
+        hasLineItems: !!processedOrder.lineItems,
+        lineItemsLength: processedOrder.lineItems?.length || 0,
+        hasPayments: !!processedOrder.payments,
+        paymentsLength: processedOrder.payments?.length || 0,
+        sampleLineItem: processedOrder.lineItems?.[0],
+        samplePayment: processedOrder.payments?.[0]
+      });
+      
+      setSelectedOrder(processedOrder);
       setShowOrderDetails(true);
     } catch (error) {
       console.error('🔧 [ORDER DIALOG DEBUG] Exception:', error);
@@ -445,11 +505,22 @@ export function ComprehensiveOrderManagement() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Locations</SelectItem>
-                  {(locations || []).map((location: any) => (
-                    <SelectItem key={location.id} value={location.id.toString()}>
-                      {location.merchantName}
-                    </SelectItem>
-                  ))}
+                  {locationsLoading ? (
+                    <SelectItem value="loading" disabled>Loading locations...</SelectItem>
+                  ) : locationsError ? (
+                    <SelectItem value="error" disabled>Error loading locations</SelectItem>
+                  ) : (locations || []).length === 0 ? (
+                    <SelectItem value="empty" disabled>No locations available</SelectItem>
+                  ) : (
+                    (locations || []).map((location: any) => {
+                      console.log('📁 [LOCATIONS DEBUG] Rendering location:', location);
+                      return (
+                        <SelectItem key={location.id} value={location.id.toString()}>
+                          {location.merchantName || location.name || `Location ${location.id}`}
+                        </SelectItem>
+                      );
+                    })
+                  )}
                 </SelectContent>
               </Select>
               <Select
@@ -710,16 +781,7 @@ export function ComprehensiveOrderManagement() {
           <DialogHeader>
             <DialogTitle>Order Details</DialogTitle>
             <DialogDescription>
-              {selectedOrder && (
-                <div className="space-y-1">
-                  <div>{`Order ${selectedOrder.id} from ${selectedOrder.locationName}`}</div>
-                  {selectedOrder.formattedDate && (
-                    <div className="text-sm text-muted-foreground">
-                      📅 {selectedOrder.orderDate} at {selectedOrder.orderTime}
-                    </div>
-                  )}
-                </div>
-              )}
+              {selectedOrder && `Order ${selectedOrder.id} from ${selectedOrder.locationName}${selectedOrder.formattedDate ? ` - 📅 ${selectedOrder.orderDate} at ${selectedOrder.orderTime}` : ''}`}
             </DialogDescription>
           </DialogHeader>
           {selectedOrder && (
