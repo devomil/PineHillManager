@@ -318,8 +318,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { startDate, endDate, reason } = req.body;
       const timeOffData = {
         userId,
-        startDate: new Date(startDate),
-        endDate: new Date(endDate),
+        startDate: new Date(startDate).toISOString().split('T')[0],
+        endDate: new Date(endDate).toISOString().split('T')[0],
         reason,
         status: 'pending' as const,
         requestedAt: new Date()
@@ -341,7 +341,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       let requests;
-      if (req.user.role === 'admin' || req.user.role === 'manager') {
+      if (req.user?.role === 'admin' || req.user?.role === 'manager') {
         // Admins/managers see all requests
         requests = await storage.getAllTimeOffRequests();
       } else {
@@ -648,15 +648,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get all dates in the month and organize by weeks
       const monthStartDate = new Date(month + '-01');
       const monthEndDate = new Date(monthStartDate.getFullYear(), monthStartDate.getMonth() + 1, 0);
-      const allDates = [];
+      const allDates: string[] = [];
       
       for (let d = new Date(monthStartDate); d <= monthEndDate; d.setDate(d.getDate() + 1)) {
         allDates.push(new Date(d).toISOString().split('T')[0]);
       }
       
       // Organize into weeks (Sunday to Saturday)
-      const weeks = [];
-      let currentWeek = [];
+      const weeks: string[][] = [];
+      let currentWeek: string[] = [];
       
       allDates.forEach(dateStr => {
         const date = new Date(dateStr + 'T00:00:00');
@@ -815,7 +815,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const timeFont = Math.min(6, Math.max(4, fontSize - 1)); // Improved time text size
           
           let shiftY = currentY + 4; // Consistent top padding
-          daySchedules.forEach((schedule, shiftIndex) => {
+          daySchedules.forEach((schedule: any, shiftIndex: number) => {
             // Skip if we're running out of space
             if (shiftY + shiftHeight > currentY + finalCellHeight - 2) return;
             
@@ -908,73 +908,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  app.get('/api/my-coverage-requests', isAuthenticated, async (req, res) => {
-        
-        // Header row with day names and dates
-        let headerRow = '';
-        week.forEach((dateStr, dayIndex) => {
-          const date = new Date(dateStr + 'T00:00:00');
-          const dayName = dayNames[date.getDay()].substring(0, 3);
-          const dayNumber = date.getDate();
-          headerRow += `${dayName} ${dayNumber.toString().padStart(2, '0')}`.padEnd(17) + '|';
-        });
-        pdfContent += headerRow + '\n';
-        pdfContent += '─'.repeat(120) + '\n';
-        
-        // Find max number of shifts for any day in this week
-        let maxShifts = 0;
-        week.forEach(dateStr => {
-          const daySchedules = schedulesByDate[dateStr] || [];
-          maxShifts = Math.max(maxShifts, daySchedules.length);
-        });
-        
-        // Generate rows for each shift slot
-        for (let shiftIndex = 0; shiftIndex < Math.max(maxShifts, 1); shiftIndex++) {
-          let shiftRow = '';
-          week.forEach(dateStr => {
-            const daySchedules = schedulesByDate[dateStr] || [];
-            const schedule = daySchedules[shiftIndex];
-            
-            if (schedule) {
-              const startTime = new Date(schedule.startTime).toLocaleTimeString('en-US', {
-                hour: 'numeric',
-                minute: '2-digit',
-                hour12: true
-              });
-              const endTime = new Date(schedule.endTime).toLocaleTimeString('en-US', {
-                hour: 'numeric',
-                minute: '2-digit',
-                hour12: true
-              });
-              
-              const employeeName = getEmployeeName(schedule.userId);
-              const shortName = employeeName.length > 10 ? employeeName.substring(0, 10) : employeeName;
-              const timeRange = `${startTime}-${endTime}`;
-              const locationAbbrev = getLocationAbbreviation(schedule.locationId || 1);
-              const cellContent = `${shortName}\n${timeRange}\n${locationAbbrev}`;
-              
-              shiftRow += cellContent.padEnd(17) + '|';
-            } else {
-              shiftRow += ''.padEnd(17) + '|';
-            }
-          });
-          pdfContent += shiftRow + '\n';
-        }
-        
-        pdfContent += '─'.repeat(120) + '\n\n';
-      });
-      
-  // Shift coverage requests routes
-  app.get('/api/shift-coverage-requests', isAuthenticated, async (req, res) => {
-    try {
-      const { status } = req.query;
-      const coverageRequests = await storage.getShiftCoverageRequests(status as string);
-      res.json(coverageRequests);
-    } catch (error) {
-      console.error('Error fetching shift coverage requests:', error);
-      res.status(500).json({ message: 'Failed to fetch shift coverage requests' });
-    }
-  });
 
   app.get('/api/my-coverage-requests', isAuthenticated, async (req, res) => {
     try {
@@ -3145,8 +3078,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         let targetAnnouncement = null;
 
         if (messages.length > 0 && announcements.length > 0) {
-          const latestMessageTime = new Date(messages[0].sentAt).getTime();
-          const latestAnnouncementTime = new Date(announcements[0].createdAt).getTime();
+          const latestMessageTime = messages[0].sentAt ? new Date(messages[0].sentAt).getTime() : 0;
+          const latestAnnouncementTime = announcements[0].createdAt ? new Date(announcements[0].createdAt).getTime() : 0;
           
           if (latestMessageTime > latestAnnouncementTime) {
             isRespondingToMessage = true;
@@ -3178,13 +3111,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
               });
 
               // Remove existing reaction and add new one
-              await storage.removeMessageReaction(targetMessage.id, user.id, detectedReactionType);
+              await storage.removeMessageReaction(targetMessage!.id, user.id, detectedReactionType);
               const reaction = await storage.addMessageReaction({
-                messageId: targetMessage.id,
+                messageId: targetMessage!.id,
                 userId: user.id,
-                reactionType: detectedReactionType,
-                isFromSMS: true,
-                smsMessageSid: MessageSid
+                reactionType: detectedReactionType
               });
 
               console.log('✅ Created SMS message reaction:', {
