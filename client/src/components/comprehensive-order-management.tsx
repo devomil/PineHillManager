@@ -26,7 +26,8 @@ import {
   CheckCircle
 } from "lucide-react";
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { format, addDays } from "date-fns";
+import { format, addDays, startOfDay, endOfDay } from "date-fns";
+import { fromZonedTime } from "date-fns-tz";
 import { apiRequest } from '@/lib/queryClient';
 
 interface Order {
@@ -157,25 +158,26 @@ export function ComprehensiveOrderManagement() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Fetch orders with filtering
+  // Fetch orders with filtering - use timezone-aware epoch timestamps
   const ordersQueryParams = new URLSearchParams();
-  if (dateRange.from) {
-    // Use UTC methods to avoid timezone conversion issues
-    const year = dateRange.from.getUTCFullYear();
-    const month = String(dateRange.from.getUTCMonth() + 1).padStart(2, '0');
-    const day = String(dateRange.from.getUTCDate()).padStart(2, '0');
-    const startDateFormatted = `${year}-${month}-${day}`;
-    ordersQueryParams.set('startDate', startDateFormatted);
-    console.log('Setting startDate param:', startDateFormatted, 'from date object:', dateRange.from.toISOString());
-  }
-  if (dateRange.to) {
-    // Use UTC methods to avoid timezone conversion issues
-    const year = dateRange.to.getUTCFullYear();
-    const month = String(dateRange.to.getUTCMonth() + 1).padStart(2, '0');
-    const day = String(dateRange.to.getUTCDate()).padStart(2, '0');
-    const endDateFormatted = `${year}-${month}-${day}`;
-    ordersQueryParams.set('endDate', endDateFormatted);
-    console.log('Setting endDate param:', endDateFormatted, 'from date object:', dateRange.to.toISOString());
+  if (dateRange.from && dateRange.to) {
+    // Convert to Central Time epoch boundaries for accurate filtering
+    const BUSINESS_TIMEZONE = 'America/Chicago';
+    
+    // Calculate timezone-aware boundaries
+    const startEpoch = fromZonedTime(startOfDay(dateRange.from), BUSINESS_TIMEZONE).getTime();
+    const endEpoch = fromZonedTime(endOfDay(dateRange.to), BUSINESS_TIMEZONE).getTime();
+    
+    ordersQueryParams.set('createdTimeMin', startEpoch.toString());
+    ordersQueryParams.set('createdTimeMax', endEpoch.toString());
+    
+    console.log('🌍 [TZ-AWARE FILTERING] Sending epoch timestamps:', {
+      startEpoch,
+      endEpoch,
+      startUTC: new Date(startEpoch).toISOString(),
+      endUTC: new Date(endEpoch).toISOString(),
+      range: `${dateRange.from.toLocaleDateString()} - ${dateRange.to.toLocaleDateString()}`
+    });
   }
   ordersQueryParams.set('search', filters.search);
   ordersQueryParams.set('locationId', filters.locationId);
