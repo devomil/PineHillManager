@@ -195,7 +195,7 @@ export function ComprehensiveOrderManagement() {
     },
     refetchInterval: 30000, // Refresh every 30 seconds for real-time updates
     staleTime: 0, // Always consider data stale to force fresh requests
-    cacheTime: 0, // Don't cache the data
+    gcTime: 0, // Don't cache the data
   });
 
   // Log API errors and success for debugging
@@ -260,7 +260,17 @@ export function ComprehensiveOrderManagement() {
   // Fetch available locations for filtering
   const { data: locations, error: locationsError, isLoading: locationsLoading } = useQuery<any[]>({
     queryKey: ['/api/accounting/config/clover/all'],
-    // Let React Query use the default authenticated queryFn
+    queryFn: async () => {
+      const response = await fetch('/api/accounting/config/clover/all', {
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        }
+      });
+      if (!response.ok) throw new Error('Failed to fetch locations');
+      return await response.json();
+    },
   });
 
   // Log locations data for debugging
@@ -358,26 +368,31 @@ export function ComprehensiveOrderManagement() {
         paymentsKeys: detailedOrder.payments ? Object.keys(detailedOrder.payments) : null
       });
       
-      // Extract line items from Clover API format
-      const extractedLineItems = detailedOrder.lineItems?.elements || detailedOrder.lineItems || [];
-      console.log('🔧 [EXTRACTION DEBUG] Line items extraction:', {
-        original: detailedOrder.lineItems,
-        hasElements: !!detailedOrder.lineItems?.elements,
-        elementsLength: detailedOrder.lineItems?.elements?.length || 0,
-        extracted: extractedLineItems,
-        extractedLength: extractedLineItems.length,
-        isArray: Array.isArray(extractedLineItems)
-      });
+      // Extract line items from Clover API format with better handling
+      let extractedLineItems = [];
+      if (Array.isArray(detailedOrder.lineItems)) {
+        extractedLineItems = detailedOrder.lineItems;
+      } else if (detailedOrder.lineItems?.elements && Array.isArray(detailedOrder.lineItems.elements)) {
+        extractedLineItems = detailedOrder.lineItems.elements;
+      } else if (detailedOrder.lineItems?.href && detailedOrder.lineItems?.data && Array.isArray(detailedOrder.lineItems.data)) {
+        extractedLineItems = detailedOrder.lineItems.data;
+      }
       
-      // Extract payments from Clover API format
-      const extractedPayments = detailedOrder.payments?.elements || detailedOrder.payments || [];
-      console.log('🔧 [EXTRACTION DEBUG] Payments extraction:', {
-        original: detailedOrder.payments,
-        hasElements: !!detailedOrder.payments?.elements,
-        elementsLength: detailedOrder.payments?.elements?.length || 0,
-        extracted: extractedPayments,
-        extractedLength: extractedPayments.length,
-        isArray: Array.isArray(extractedPayments)
+      // Extract payments from Clover API format with better handling
+      let extractedPayments = [];
+      if (Array.isArray(detailedOrder.payments)) {
+        extractedPayments = detailedOrder.payments;
+      } else if (detailedOrder.payments?.elements && Array.isArray(detailedOrder.payments.elements)) {
+        extractedPayments = detailedOrder.payments.elements;
+      } else if (detailedOrder.payments?.href && detailedOrder.payments?.data && Array.isArray(detailedOrder.payments.data)) {
+        extractedPayments = detailedOrder.payments.data;
+      }
+      
+      console.log('🔧 [EXTRACTION DEBUG] Improved extraction results:', {
+        lineItemsLength: extractedLineItems.length,
+        paymentsLength: extractedPayments.length,
+        sampleLineItem: extractedLineItems[0],
+        samplePayment: extractedPayments[0]
       });
       
       // Extract refunds from Clover API format  
@@ -393,14 +408,11 @@ export function ComprehensiveOrderManagement() {
         refunds: extractedRefunds
       };
       
-      console.log('🔧 [ORDER DIALOG DEBUG] Processed order with extracted data:', {
+      console.log('🔧 [ORDER DIALOG DEBUG] Final processed order:', {
         orderId: processedOrder.id,
-        hasLineItems: !!processedOrder.lineItems,
         lineItemsLength: processedOrder.lineItems?.length || 0,
-        hasPayments: !!processedOrder.payments,
         paymentsLength: processedOrder.payments?.length || 0,
-        sampleLineItem: processedOrder.lineItems?.[0],
-        samplePayment: processedOrder.payments?.[0]
+        hasActualData: processedOrder.lineItems?.length > 0 || processedOrder.payments?.length > 0
       });
       
       setSelectedOrder(processedOrder);
