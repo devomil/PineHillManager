@@ -5846,19 +5846,81 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // SPECIFIC ROUTES MUST COME BEFORE PARAMETERIZED ROUTES
+
+  // Get voided items from orders
+  app.get('/api/orders/voided-items', isAuthenticated, async (req, res) => {
+    try {
+      const {
+        startDate,
+        endDate,
+        locationId,
+      } = req.query as Record<string, string>;
+
+      console.log('🔧 [VOIDED ITEMS] Route handler called');
+      // For now, return empty voided items structure
+      // This can be enhanced later with real Clover API integration
+      res.json({
+        voidedItems: [],
+        totals: {
+          totalVoidedAmount: 0,
+          totalVoidedItems: 0
+        }
+      });
+    } catch (error) {
+      console.error('Error fetching voided items:', error);
+      res.status(500).json({ error: 'Failed to fetch voided items' });
+    }
+  });
+
+  // Get order analytics
+  app.get('/api/orders/analytics', isAuthenticated, async (req, res) => {
+    try {
+      const {
+        startDate,
+        endDate,
+        locationId,
+        groupBy = 'day'
+      } = req.query as Record<string, string>;
+
+      console.log('🔧 [ANALYTICS] Route handler called');
+      // For now, return basic analytics structure
+      // This can be enhanced later with real calculations from order data
+      res.json({
+        analytics: [],
+        summary: {
+          totalOrders: 0,
+          totalRevenue: 0,
+          averageOrderValue: 0
+        }
+      });
+    } catch (error) {
+      console.error('Error fetching order analytics:', error);
+      res.status(500).json({ error: 'Failed to fetch analytics' });
+    }
+  });
+
+  // PARAMETERIZED ROUTES MUST COME AFTER SPECIFIC ROUTES
+
   // Get detailed order information
   app.get('/api/orders/:orderId', isAuthenticated, async (req, res) => {
     try {
       const { orderId } = req.params;
+      console.log('🔧 [ORDER DETAILS] Route handler called with orderId:', orderId);
+      console.log('🔧 [ORDER DETAILS] Request URL:', req.originalUrl, 'Params:', req.params);
+      
       const order = await storage.getOrderDetails(orderId);
+      console.log('🔧 [ORDER DETAILS] Storage returned:', order ? 'ORDER FOUND' : 'NULL - NO ORDER');
 
       if (!order) {
+        console.log('🔧 [ORDER DETAILS] Returning 404 - Order not found for ID:', orderId);
         return res.status(404).json({ error: 'Order not found' });
       }
 
+      console.log('🔧 [ORDER DETAILS] Successfully returning order data');
       res.json(order);
     } catch (error) {
-      console.error('Error fetching order details:', error);
+      console.error('🔧 [ORDER DETAILS] Exception occurred:', error);
       res.status(500).json({ error: 'Failed to fetch order details' });
     }
   });
@@ -5887,56 +5949,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get voided items from orders
-  app.get('/api/orders/voided-items', isAuthenticated, async (req, res) => {
-    try {
-      const {
-        startDate,
-        endDate,
-        locationId,
-      } = req.query as Record<string, string>;
-
-      // For now, return empty voided items structure
-      // This can be enhanced later with real Clover API integration
-      res.json({
-        voidedItems: [],
-        totals: {
-          totalVoidedAmount: 0,
-          totalVoidedItems: 0
-        }
-      });
-    } catch (error) {
-      console.error('Error fetching voided items:', error);
-      res.status(500).json({ error: 'Failed to fetch voided items' });
-    }
-  });
-
-  // Get order analytics
-  app.get('/api/orders/analytics', isAuthenticated, async (req, res) => {
-    try {
-      const {
-        startDate,
-        endDate,
-        locationId,
-        groupBy = 'day'
-      } = req.query as Record<string, string>;
-
-      // For now, return basic analytics structure
-      // This can be enhanced later with real calculations from order data
-      res.json({
-        analytics: [],
-        summary: {
-          totalOrders: 0,
-          totalRevenue: 0,
-          averageOrderValue: 0
-        }
-      });
-    } catch (error) {
-      console.error('Error fetching order analytics:', error);
-      res.status(500).json({ error: 'Failed to fetch analytics' });
-    }
-  });
-
   // Order sync endpoint
   app.post('/api/orders/sync', isAuthenticated, async (req, res) => {
     try {
@@ -5953,24 +5965,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get voided line items with totals
-  app.get('/api/orders/voided-items', isAuthenticated, async (req, res) => {
-    try {
-      const { startDate, endDate, locationId } = req.query as Record<string, string>;
-
-      const result = await storage.getVoidedLineItems({
-        startDate,
-        endDate,
-        locationId: locationId ? parseInt(locationId) : undefined
-      });
-
-      res.json(result);
-    } catch (error) {
-      console.error('Error fetching voided items:', error);
-      res.status(500).json({ error: 'Failed to fetch voided items' });
-    }
-  });
-
   // Update order information
   app.put('/api/orders/:orderId', isAuthenticated, async (req, res) => {
     try {
@@ -5982,25 +5976,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error updating order:', error);
       res.status(500).json({ error: 'Failed to update order' });
-    }
-  });
-
-  // Get order analytics
-  app.get('/api/orders/analytics', isAuthenticated, async (req, res) => {
-    try {
-      const { startDate, endDate, locationId, groupBy = 'day' } = req.query as Record<string, string>;
-
-      const analytics = await storage.getOrderAnalytics({
-        startDate,
-        endDate,
-        locationId: locationId ? parseInt(locationId) : undefined,
-        groupBy
-      });
-
-      res.json(analytics);
-    } catch (error) {
-      console.error('Error fetching order analytics:', error);
-      res.status(500).json({ error: 'Failed to fetch order analytics' });
     }
   });
 
