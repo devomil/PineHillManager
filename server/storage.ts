@@ -4577,27 +4577,65 @@ export class DatabaseStorage implements IStorage {
       const orderTotal = parseFloat(order.total || '0') / 100;
       const grossTax = parseFloat(order.taxAmount || '0') / 100;
       
+      // DEBUG: Log raw order data
+      console.log(`[FINANCIAL CALC DEBUG] Order ${order.id} Raw Data:`, {
+        rawTotal: order.total,
+        rawTaxAmount: order.taxAmount,
+        orderTotal,
+        grossTax,
+        discountsCount: order.discounts?.elements?.length || 0,
+        refundsCount: order.refunds?.elements?.length || 0,
+        lineItemsCount: order.lineItems?.elements?.length || 0
+      });
+      
       // Calculate total discounts from order discounts array
       let totalDiscounts = 0;
       if (order.discounts && order.discounts.elements) {
+        // DEBUG: Log raw discount data
+        order.discounts.elements.forEach((discount: any, index: number) => {
+          console.log(`[DISCOUNT DEBUG] Order ${order.id} Discount ${index}:`, {
+            rawAmount: discount.amount,
+            parsedAmount: parseFloat(discount.amount || '0') / 100,
+            absAmount: Math.abs(parseFloat(discount.amount || '0') / 100)
+          });
+        });
+        
         totalDiscounts = order.discounts.elements.reduce((sum: number, discount: any) => {
-          return sum + (parseFloat(discount.amount || '0') / 100);
+          const discountAmount = Math.abs(parseFloat(discount.amount || '0') / 100);
+          return sum + discountAmount;
         }, 0);
       }
 
       // Calculate refunds (from refunds or payments with negative amounts)
       let totalRefunds = 0;
       if (order.refunds && order.refunds.elements) {
+        // DEBUG: Log raw refund data
+        order.refunds.elements.forEach((refund: any, index: number) => {
+          console.log(`[REFUND DEBUG] Order ${order.id} Refund ${index}:`, {
+            rawAmount: refund.amount,
+            parsedAmount: parseFloat(refund.amount || '0') / 100,
+            absAmount: Math.abs(parseFloat(refund.amount || '0') / 100)
+          });
+        });
+        
         totalRefunds = order.refunds.elements.reduce((sum: number, refund: any) => {
-          return sum + (parseFloat(refund.amount || '0') / 100);
+          const refundAmount = Math.abs(parseFloat(refund.amount || '0') / 100);
+          return sum + refundAmount;
         }, 0);
       }
 
       // Also check for refund payments
       if (order.payments && order.payments.elements) {
-        order.payments.elements.forEach((payment: any) => {
-          if (payment.result === 'SUCCESS' && parseFloat(payment.amount || '0') < 0) {
-            totalRefunds += Math.abs(parseFloat(payment.amount) / 100);
+        order.payments.elements.forEach((payment: any, index: number) => {
+          const paymentAmount = parseFloat(payment.amount || '0');
+          if (payment.result === 'SUCCESS' && paymentAmount < 0) {
+            const refundAmount = Math.abs(paymentAmount / 100);
+            console.log(`[PAYMENT REFUND DEBUG] Order ${order.id} Payment ${index}:`, {
+              rawAmount: payment.amount,
+              parsedAmount: paymentAmount,
+              refundAmount
+            });
+            totalRefunds += refundAmount;
           }
         });
       }
@@ -4605,37 +4643,98 @@ export class DatabaseStorage implements IStorage {
       // Calculate COGS by looking up actual costs for line items
       let netCOGS = 0;
       if (order.lineItems && order.lineItems.elements) {
-        for (const lineItem of order.lineItems.elements) {
+        console.log(`[COGS DEBUG] Order ${order.id} Processing ${order.lineItems.elements.length} line items`);
+        
+        for (const [index, lineItem] of order.lineItems.elements.entries()) {
           const quantity = lineItem.unitQty || 1;
+          const lineItemPrice = parseFloat(lineItem.price || '0') / 100; // Convert from cents to dollars
+          
+          console.log(`[COGS DEBUG] Line Item ${index}:`, {
+            itemId: lineItem.item?.id || lineItem.id,
+            itemName: lineItem.name || lineItem.item?.name,
+            rawPrice: lineItem.price,
+            lineItemPrice,
+            quantity
+          });
           
           // Try to find inventory item by SKU/item ID to get actual cost
           try {
             const inventoryItems = await this.getInventoryItemsBySKU(lineItem.item?.id || lineItem.id);
             if (inventoryItems.length > 0) {
               const inventoryItem = inventoryItems[0];
-              const unitCost = parseFloat(inventoryItem.unitCost || '0');
-              netCOGS += unitCost * quantity;
+              const rawUnitCost = inventoryItem.unitCost || '0';
+              let unitCost = parseFloat(rawUnitCost);
+              
+              // CRITICAL FIX: Check if unit cost seems to be in cents (> $100) and convert
+              if (unitCost > 100) {
+                console.log(`[COGS DEBUG] Unit cost ${unitCost} seems to be in cents, converting to dollars`);
+                unitCost = unitCost / 100;
+              }
+              
+              const itemCOGS = unitCost * quantity;
+              netCOGS += itemCOGS;
+              
+              console.log(`[COGS DEBUG] Found inventory item:`, {
+                rawUnitCost,
+                adjustedUnitCost: unitCost,
+                quantity,
+                itemCOGS,
+                runningNetCOGS: netCOGS
+              });
             } else {
               // Fallback: estimate COGS as 60% of line item price if no inventory record found
-              const lineItemPrice = parseFloat(lineItem.price || '0') / 100;
-              netCOGS += lineItemPrice * 0.6 * quantity;
+              const fallbackCOGS = lineItemPrice * 0.6 * quantity;
+              netCOGS += fallbackCOGS;
+              
+              console.log(`[COGS DEBUG] No inventory found, using 60% fallback:`, {
+                lineItemPrice,
+                quantity,
+                fallbackCOGS,
+                runningNetCOGS: netCOGS
+              });
             }
           } catch (error) {
             // Fallback for items not in inventory
-            const lineItemPrice = parseFloat(lineItem.price || '0') / 100;
-            netCOGS += lineItemPrice * 0.6 * quantity;
+            const fallbackCOGS = lineItemPrice * 0.6 * quantity;
+            netCOGS += fallbackCOGS;
+            
+            console.log(`[COGS DEBUG] Error finding inventory, using 60% fallback:`, {
+              error: error.message,
+              lineItemPrice,
+              quantity,
+              fallbackCOGS,
+              runningNetCOGS: netCOGS
+            });
           }
         }
       }
 
-      // Calculate net sale (total - tax - discounts + refunds)
-      const netSale = orderTotal - grossTax - totalDiscounts + totalRefunds;
+      // Calculate net sale (total - tax - discounts - refunds)
+      const netSale = orderTotal - grossTax - totalDiscounts - totalRefunds;
       
       // Calculate net profit (net sale - COGS)
       const netProfit = netSale - netCOGS;
       
       // Calculate net margin (net profit / net sale * 100), handle division by zero
       const netMargin = netSale > 0 ? (netProfit / netSale) * 100 : 0;
+
+      // DEBUG: Log final calculations
+      console.log(`[FINANCIAL CALC DEBUG] Order ${order.id} Final Results:`, {
+        orderTotal,
+        grossTax,
+        totalDiscounts,
+        totalRefunds,
+        netCOGS,
+        netSale,
+        netProfit,
+        netMargin: `${netMargin.toFixed(2)}%`,
+        calculationBreakdown: {
+          formula: 'netSale = orderTotal - grossTax - totalDiscounts - totalRefunds',
+          calculation: `${netSale.toFixed(2)} = ${orderTotal.toFixed(2)} - ${grossTax.toFixed(2)} - ${totalDiscounts.toFixed(2)} - ${totalRefunds.toFixed(2)}`,
+          profitFormula: 'netProfit = netSale - netCOGS',
+          profitCalculation: `${netProfit.toFixed(2)} = ${netSale.toFixed(2)} - ${netCOGS.toFixed(2)}`
+        }
+      });
 
       return {
         grossTax,
