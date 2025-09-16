@@ -5794,6 +5794,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ORDER MANAGEMENT API ENDPOINTS
   // ================================
 
+  // TRACER MIDDLEWARE - Add this temporarily to debug route conflicts
+  app.use('/api/orders', (req, res, next) => {
+    console.log('🔧 TRACE /api/orders*', req.method, req.originalUrl, req.url);
+    next();
+  });
+
   // Get orders with comprehensive filtering using Clover API
   app.get('/api/orders', isAuthenticated, async (req, res) => {
     try {
