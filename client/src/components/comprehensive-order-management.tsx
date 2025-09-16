@@ -180,6 +180,7 @@ export function ComprehensiveOrderManagement() {
       // Add cache-busting parameter to force fresh data
       const cacheBustUrl = `${ordersUrl}&_t=${Date.now()}`;
       const response = await fetch(cacheBustUrl, {
+        credentials: 'include',
         cache: 'no-cache',
         headers: {
           'Cache-Control': 'no-cache',
@@ -224,7 +225,9 @@ export function ComprehensiveOrderManagement() {
   const { data: analyticsData, isLoading: analyticsLoading } = useQuery<OrderAnalyticsResponse>({
     queryKey: [analyticsUrl],
     queryFn: async () => {
-      const response = await fetch(analyticsUrl);
+      const response = await fetch(analyticsUrl, {
+        credentials: 'include'
+      });
       if (!response.ok) {
         throw new Error(`Failed to fetch order analytics: ${response.status} ${response.statusText}`);
       }
@@ -243,7 +246,9 @@ export function ComprehensiveOrderManagement() {
   const { data: voidedData, isLoading: voidedLoading } = useQuery<VoidedItemsResponse>({
     queryKey: [voidedUrl],
     queryFn: async () => {
-      const response = await fetch(voidedUrl);
+      const response = await fetch(voidedUrl, {
+        credentials: 'include'
+      });
       if (!response.ok) {
         throw new Error(`Failed to fetch voided items: ${response.status} ${response.statusText}`);
       }
@@ -261,6 +266,7 @@ export function ComprehensiveOrderManagement() {
     mutationFn: async (syncOptions: { startDate?: string; endDate?: string }) => {
       const response = await fetch('/api/orders/sync', {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(syncOptions)
       });
@@ -321,7 +327,9 @@ export function ComprehensiveOrderManagement() {
 
   const handleOrderClick = async (order: Order) => {
     try {
-      const response = await fetch(`/api/orders/${order.id}`);
+      const response = await fetch(`/api/orders/${order.id}`, {
+        credentials: 'include'
+      });
       if (response.ok) {
         const detailedOrder = await response.json();
         setSelectedOrder(detailedOrder);
