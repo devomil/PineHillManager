@@ -5195,14 +5195,28 @@ export class DatabaseStorage implements IStorage {
             merchantName: config.merchantName
           });
           
-          const cloverIntegration = new (await import('../integrations/clover')).CloverIntegration(config);
+          // Make direct API call to avoid circular dependency
+          const baseUrl = config.baseUrl || 'https://api.clover.com';
+          const url = `${baseUrl}/v3/merchants/${config.merchantId}/orders?limit=1000&expand=lineItems,payments,discounts,refunds`;
           
-          // Use the same method as getOrders to fetch a batch of orders
-          // and look for our specific order
-          const cloverOrders = await cloverIntegration.getOrders({
-            limit: 1000,  // Get a large batch
-            expand: 'lineItems,payments,discounts,refunds'
+          console.log(`🔧 [ORDER DETAILS DEBUG] Making direct Clover API call to: ${url}`);
+          
+          const response = await fetch(url, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${config.apiToken}`,
+              'Accept': 'application/json',
+              'Content-Type': 'application/json'
+            }
           });
+
+          if (!response.ok) {
+            const errorBody = await response.text();
+            console.log(`🔧 [ORDER DETAILS DEBUG] API error: ${response.status} ${response.statusText} - ${errorBody}`);
+            throw new Error(`Clover API error: ${response.status} ${response.statusText}`);
+          }
+
+          const cloverOrders = await response.json();
           
           // Look for our specific order in the batch
           const targetOrder = cloverOrders.elements?.find((order: any) => order.id === orderId);
