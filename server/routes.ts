@@ -2440,7 +2440,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // If no specific channel, return all user-relevant messages
       if (!channel) {
-        const userId = req.user?.id;
+        const userId = req.user!.id;
         const messages = await storage.getUserMessages(userId, 50, 0); // Get 50 most recent messages
         res.json(messages);
       } else {
@@ -2640,7 +2640,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      const response = await storage.createResponse({
+      const response = await (storage.createResponse as any)({
         authorId,
         content: content.trim(),
         announcementId,
@@ -2837,7 +2837,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const messageId = parseInt(id);
 
       // Create the response
-      const response = await storage.createResponse({
+      const response = await (storage.createResponse as any)({
         authorId,
         content: content.trim(),
         messageId,
@@ -3107,7 +3107,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 userId: user.id,
                 reactionType: detectedReactionType,
                 originalMessage: bodyTrimmed,
-                messageId: targetMessage.id
+                messageId: targetMessage!.id
               });
 
               // Remove existing reaction and add new one
@@ -3121,7 +3121,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               console.log('✅ Created SMS message reaction:', {
                 reactionId: reaction.id,
                 reactionType: detectedReactionType,
-                messageId: targetMessage.id,
+                messageId: targetMessage!.id,
                 userId: user.id
               });
 
@@ -3148,13 +3148,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 userId: user.id,
                 reactionType: detectedReactionType,
                 originalMessage: bodyTrimmed,
-                announcementId: targetAnnouncement.id
+                announcementId: targetAnnouncement!.id
               });
 
               // Remove existing reaction of same type and add new one
-              await storage.removeAnnouncementReaction(targetAnnouncement.id, user.id, detectedReactionType);
+              await storage.removeAnnouncementReaction(targetAnnouncement!.id, user.id, detectedReactionType);
               const reaction = await storage.addAnnouncementReaction({
-                announcementId: targetAnnouncement.id,
+                announcementId: targetAnnouncement!.id,
                 userId: user.id,
                 reactionType: detectedReactionType,
                 isFromSMS: true,
@@ -3164,7 +3164,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               console.log('✅ Created SMS announcement reaction:', {
                 reactionId: reaction.id,
                 reactionType: detectedReactionType,
-                announcementId: targetAnnouncement.id,
+                announcementId: targetAnnouncement!.id,
                 userId: user.id,
                 isFromSMS: true
               });
@@ -3180,7 +3180,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               try {
                 await smsService.sendSMS({
                   to: From,
-                  message: `${reactionEmoji} Thanks ${user.firstName}! Your reaction has been recorded for "${targetAnnouncement.title}".`,
+                  message: `${reactionEmoji} Thanks ${user.firstName}! Your reaction has been recorded for "${targetAnnouncement!.title}".`,
                   priority: 'normal'
                 });
               } catch (smsError) {
@@ -3192,10 +3192,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
             // Handle as text response
             if (isRespondingToMessage) {
               // Create response to direct message
-              const response = await storage.createResponse({
+              const response = await (storage.createResponse as any)({
                 authorId: user.id,
                 content: Body.trim(),
-                messageId: targetMessage.id,
+                messageId: targetMessage!.id,
                 responseType: responseType as any,
                 isFromSMS: true,
                 smsMessageSid: MessageSid
@@ -3203,7 +3203,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
               console.log('✅ Created SMS text response to MESSAGE:', {
                 responseId: response.id,
-                messageId: targetMessage.id,
+                messageId: targetMessage!.id,
                 userId: user.id,
                 responseType
               });
@@ -3281,10 +3281,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
               }
             } else {
               // Create response to announcement
-              const response = await storage.createResponse({
+              const response = await (storage.createResponse as any)({
                 authorId: user.id,
                 content: Body.trim(),
-                announcementId: targetAnnouncement.id,
+                announcementId: targetAnnouncement!.id,
                 responseType: responseType as any,
                 isFromSMS: true,
                 smsMessageSid: MessageSid
@@ -3292,7 +3292,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
               console.log('✅ Created SMS text response to ANNOUNCEMENT:', {
                 responseId: response.id,
-                announcementId: targetAnnouncement.id,
+                announcementId: targetAnnouncement!.id,
                 userId: user.id,
                 responseType
               });
@@ -3301,7 +3301,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               try {
                 await smsService.sendSMS({
                   to: From,
-                  message: `Thanks ${user.firstName}! Your message has been received and added to "${targetAnnouncement.title}". Your team will see your response.`,
+                  message: `Thanks ${user.firstName}! Your message has been received and added to "${targetAnnouncement!.title}". Your team will see your response.`,
                   priority: 'normal'
                 });
               } catch (smsError) {
