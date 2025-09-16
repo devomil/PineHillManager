@@ -4905,11 +4905,21 @@ export class DatabaseStorage implements IStorage {
           };
           
           // Add date filter if provided - Use createdTime for when orders were actually placed
+          // Use Central Time (America/Chicago) for Pine Hill Farm's business operations
           if (filters.startDate) {
-            options.createdTimeMin = Math.floor(new Date(filters.startDate + 'T00:00:00.000Z').getTime());
+            // Create start of day in Central Time, then convert to UTC timestamp
+            const startOfDay = new Date(filters.startDate + 'T00:00:00.000');
+            // Adjust for Central Time offset (CT is UTC-6 in standard time, UTC-5 in daylight time)
+            const offsetHours = 6; // Use 6 for CST (standard time) - adjust seasonally if needed
+            startOfDay.setHours(startOfDay.getHours() + offsetHours);
+            options.createdTimeMin = Math.floor(startOfDay.getTime());
           }
           if (filters.endDate) {
-            options.createdTimeMax = Math.floor(new Date(filters.endDate + 'T23:59:59.999Z').getTime());
+            // Create end of day in Central Time, then convert to UTC timestamp  
+            const endOfDay = new Date(filters.endDate + 'T23:59:59.999');
+            const offsetHours = 6; // Use 6 for CST (standard time)
+            endOfDay.setHours(endOfDay.getHours() + offsetHours);
+            options.createdTimeMax = Math.floor(endOfDay.getTime());
           }
           
           // Add state filter
