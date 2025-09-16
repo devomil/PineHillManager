@@ -42,6 +42,19 @@ interface Order {
   merchantId: string;
   lineItems?: OrderLineItem[];
   payments?: OrderPayment[];
+  // Enhanced financial data from getOrderDetails
+  grossTax?: number;
+  totalDiscounts?: number;
+  totalRefunds?: number;
+  netCOGS?: number;
+  netSale?: number;
+  netProfit?: number;
+  netMargin?: number;
+  // Formatted date fields
+  formattedDate?: string;
+  orderDate?: string;
+  orderTime?: string;
+  refunds?: { elements?: any[] };
 }
 
 interface OrderLineItem {
@@ -687,7 +700,16 @@ export function ComprehensiveOrderManagement() {
           <DialogHeader>
             <DialogTitle>Order Details</DialogTitle>
             <DialogDescription>
-              {selectedOrder && `Order ${selectedOrder.id} from ${selectedOrder.locationName}`}
+              {selectedOrder && (
+                <div className="space-y-1">
+                  <div>{`Order ${selectedOrder.id} from ${selectedOrder.locationName}`}</div>
+                  {selectedOrder.formattedDate && (
+                    <div className="text-sm text-muted-foreground">
+                      📅 {selectedOrder.orderDate} at {selectedOrder.orderTime}
+                    </div>
+                  )}
+                </div>
+              )}
             </DialogDescription>
           </DialogHeader>
           {selectedOrder && (

@@ -5177,106 +5177,87 @@ export class DatabaseStorage implements IStorage {
 
   async getOrderDetails(orderId: string): Promise<any | null> {
     try {
-      console.log('🔧 [LOCATION DEBUG] getOrderDetails called for orderId:', orderId);
+      console.log('🔧 [ORDER DETAILS DEBUG] getOrderDetails called for orderId:', orderId);
       
-      // First check if this order exists in our POS sales data to determine the location
-      const orderLocationData = await db.select({
-        locationId: posSales.locationId,
-        merchantId: sql<string>`COALESCE(${cloverConfig.merchantId}, '')`,
-        merchantName: sql<string>`COALESCE(${cloverConfig.merchantName}, 'Unknown Location')`
-      }).from(posSales)
-      .leftJoin(cloverConfig, eq(posSales.locationId, cloverConfig.id))
-      .where(eq(posSales.cloverOrderId, orderId))
-      .limit(1);
-
-      if (orderLocationData.length === 0) {
-        console.log('🔧 [LOCATION DEBUG] Order not found in POS sales data, trying all configurations');
-        
-        // If not found in POS sales, we need to try all Clover configurations
-        // Get all Clover configurations
-        const allConfigs = await db.select().from(cloverConfig);
-        
-        for (const config of allConfigs) {
-          try {
-            const cloverIntegration = new (await import('../integrations/clover')).CloverIntegration(config);
-            const cloverOrder = await cloverIntegration.getOrderDetails(orderId, 'lineItems,payments,discounts,refunds');
+      // Get all Clover configurations to try finding the order
+      const allConfigs = await db.select().from(cloverConfig);
+      
+      let foundOrder = null;
+      let foundConfig = null;
+      
+      // Try each configuration to find the order
+      for (const config of allConfigs) {
+        try {
+          console.log('🔧 [ORDER DETAILS DEBUG] Trying config:', {
+            configId: config.id,
+            merchantId: config.merchantId,
+            merchantName: config.merchantName
+          });
+          
+          const cloverIntegration = new (await import('../integrations/clover')).CloverIntegration(config);
+          const cloverOrder = await cloverIntegration.getOrderDetails(orderId, 'lineItems,payments,discounts,refunds');
+          
+          if (cloverOrder) {
+            console.log('🔧 [ORDER DETAILS DEBUG] Found order in Clover API via config:', {
+              configId: config.id,
+              merchantId: config.merchantId,
+              merchantName: config.merchantName,
+              orderId: cloverOrder.id
+            });
             
-            if (cloverOrder) {
-              console.log('🔧 [LOCATION DEBUG] Found order in Clover API via config:', {
-                configId: config.id,
-                merchantId: config.merchantId,
-                merchantName: config.merchantName,
-                orderId: cloverOrder.id
-              });
-              
-              // Add the correct location name from our configuration
-              cloverOrder.locationName = config.merchantName || 'Unknown Location';
-              cloverOrder.merchantId = config.merchantId;
-              
-              console.log('🔧 [LOCATION DEBUG] Final order details with correct location:', {
-                orderId: cloverOrder.id,
-                locationName: cloverOrder.locationName,
-                merchantId: cloverOrder.merchantId
-              });
-              
-              return cloverOrder;
-            }
-          } catch (configError) {
-            // Continue trying other configurations
-            console.log(`🔧 [LOCATION DEBUG] Config ${config.id} failed for order ${orderId}:`, configError.message);
-            continue;
+            foundOrder = cloverOrder;
+            foundConfig = config;
+            break;
           }
+        } catch (configError) {
+          console.log(`🔧 [ORDER DETAILS DEBUG] Config ${config.id} failed for order ${orderId}:`, configError.message);
+          continue;
         }
-        
-        // If no configuration worked, return null
-        console.log('🔧 [LOCATION DEBUG] Order not found in any Clover configuration');
-        return null;
       }
-
-      const locationData = orderLocationData[0];
-      console.log('🔧 [LOCATION DEBUG] Found order location data:', {
-        locationId: locationData.locationId,
-        merchantId: locationData.merchantId,
-        merchantName: locationData.merchantName
-      });
-
-      // Get the specific Clover configuration for this location
-      const config = await db.select().from(cloverConfig).where(eq(cloverConfig.id, locationData.locationId!)).limit(1);
       
-      if (config.length === 0) {
-        console.error('🔧 [LOCATION DEBUG] No Clover config found for locationId:', locationData.locationId);
+      if (!foundOrder || !foundConfig) {
+        console.log('🔧 [ORDER DETAILS DEBUG] Order not found in any Clover configuration');
         return null;
       }
-
-      const cloverConfig = config[0];
-      console.log('🔧 [LOCATION DEBUG] Using Clover config:', {
-        configId: cloverConfig.id,
-        merchantId: cloverConfig.merchantId,
-        merchantName: cloverConfig.merchantName
-      });
-
-      // Use the Clover API to get the actual order details
-      const cloverIntegration = new (await import('../integrations/clover')).CloverIntegration(cloverConfig);
-      const cloverOrder = await cloverIntegration.getOrderDetails(orderId, 'lineItems,payments,discounts,refunds');
-
-      if (!cloverOrder) {
-        console.log('🔧 [LOCATION DEBUG] Order not found in Clover API');
-        return null;
-      }
-
+      
       // Ensure the location name is correctly set from our configuration
-      cloverOrder.locationName = cloverConfig.merchantName || 'Unknown Location';
-      cloverOrder.merchantId = cloverConfig.merchantId;
-
-      console.log('🔧 [LOCATION DEBUG] Final order details with correct location:', {
-        orderId: cloverOrder.id,
-        locationName: cloverOrder.locationName,
-        merchantId: cloverOrder.merchantId
+      foundOrder.locationName = foundConfig.merchantName || 'Unknown Location';
+      foundOrder.merchantId = foundConfig.merchantId;
+      
+      // Calculate financial metrics for this order
+      console.log('🔧 [ORDER DETAILS DEBUG] Calculating financial metrics for order:', foundOrder.id);
+      const financialMetrics = await this.calculateOrderFinancialMetrics(foundOrder, foundConfig.id);
+      
+      // Add financial calculations to the order object
+      foundOrder.grossTax = financialMetrics.grossTax;
+      foundOrder.totalDiscounts = financialMetrics.totalDiscounts;
+      foundOrder.totalRefunds = financialMetrics.totalRefunds;
+      foundOrder.netCOGS = financialMetrics.netCOGS;
+      foundOrder.netSale = financialMetrics.netSale;
+      foundOrder.netProfit = financialMetrics.netProfit;
+      foundOrder.netMargin = financialMetrics.netMargin;
+      
+      // Format order date/time for frontend display
+      if (foundOrder.createdTime) {
+        foundOrder.formattedDate = new Date(foundOrder.createdTime).toLocaleString();
+        foundOrder.orderDate = new Date(foundOrder.createdTime).toLocaleDateString();
+        foundOrder.orderTime = new Date(foundOrder.createdTime).toLocaleTimeString();
+      }
+      
+      console.log('🔧 [ORDER DETAILS DEBUG] Final enriched order details:', {
+        orderId: foundOrder.id,
+        locationName: foundOrder.locationName,
+        merchantId: foundOrder.merchantId,
+        netSale: foundOrder.netSale,
+        netProfit: foundOrder.netProfit,
+        totalDiscounts: foundOrder.totalDiscounts,
+        totalRefunds: foundOrder.totalRefunds,
+        formattedDate: foundOrder.formattedDate
       });
-
-      return cloverOrder;
+      
+      return foundOrder;
     } catch (error) {
-      console.error('🔧 [LOCATION DEBUG] Error fetching order details:', error);
+      console.error('🔧 [ORDER DETAILS DEBUG] Error fetching order details:', error);
       return null;
     }
   }
