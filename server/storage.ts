@@ -725,8 +725,10 @@ export interface IStorage {
 
   // Order filtering and retrieval using Clover API
   getOrdersFromCloverAPI(filters: {
-    startDate?: string;
-    endDate?: string;
+    createdTimeMin?: number;    // NEW: Direct epoch milliseconds
+    createdTimeMax?: number;    // NEW: Direct epoch milliseconds  
+    startDate?: string;         // Legacy fallback
+    endDate?: string;           // Legacy fallback
     locationId?: number | string;
     search?: string;
     state?: string;
@@ -4856,8 +4858,10 @@ export class DatabaseStorage implements IStorage {
 
   // NEW: Fetch orders directly from Clover API
   async getOrdersFromCloverAPI(filters: {
-    startDate?: string;
-    endDate?: string;
+    createdTimeMin?: number;    // NEW: Direct epoch milliseconds
+    createdTimeMax?: number;    // NEW: Direct epoch milliseconds  
+    startDate?: string;         // Legacy fallback
+    endDate?: string;           // Legacy fallback
     locationId?: number | string;
     search?: string;
     state?: string;
@@ -4904,17 +4908,29 @@ export class DatabaseStorage implements IStorage {
             orderBy: 'modifiedTime DESC'
           };
           
-          // Add date filter if provided - Use createdTime for when orders were actually placed
-          // Create timestamps in milliseconds as required by Clover API
-          if (filters.startDate) {
-            // Create start of day (00:00:00) for the given date
+          // Add date filter - prioritize epoch milliseconds for precise timezone-aware filtering
+          if (filters.createdTimeMin && filters.createdTimeMax) {
+            // Use precise epoch milliseconds (already timezone-adjusted from frontend)
+            options.createdTimeMin = filters.createdTimeMin;
+            options.createdTimeMax = filters.createdTimeMax;
+            console.log('🌍 [STORAGE] Using precise epoch filtering:', {
+              createdTimeMin: options.createdTimeMin,
+              createdTimeMax: options.createdTimeMax,
+              startUTC: new Date(options.createdTimeMin).toISOString(),
+              endUTC: new Date(options.createdTimeMax).toISOString()
+            });
+          } else if (filters.startDate && filters.endDate) {
+            // Fallback to legacy date string conversion
             const startOfDay = new Date(filters.startDate + 'T00:00:00.000Z');
-            options.createdTimeMin = startOfDay.getTime();
-          }
-          if (filters.endDate) {
-            // Create end of day (23:59:59.999) for the given date
             const endOfDay = new Date(filters.endDate + 'T23:59:59.999Z');
+            options.createdTimeMin = startOfDay.getTime();
             options.createdTimeMax = endOfDay.getTime();
+            console.log('📅 [STORAGE] Using legacy date conversion:', {
+              startDate: filters.startDate,
+              endDate: filters.endDate,
+              createdTimeMin: options.createdTimeMin,
+              createdTimeMax: options.createdTimeMax
+            });
           }
           
           // Add state filter

@@ -5804,8 +5804,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/orders', isAuthenticated, async (req, res) => {
     try {
       const {
-        startDate,
-        endDate,
+        createdTimeMin,
+        createdTimeMax,
+        startDate,  // Legacy fallback
+        endDate,    // Legacy fallback
         locationId,
         search,
         state,
@@ -5815,14 +5817,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const offset = (parseInt(page) - 1) * parseInt(limit);
 
+      // Parse epoch milliseconds robustly (new timezone-aware system)
+      const ctMin = req.query.createdTimeMin != null ? Number(String(req.query.createdTimeMin)) : undefined;
+      const ctMax = req.query.createdTimeMax != null ? Number(String(req.query.createdTimeMax)) : undefined;
+      
+      // Use epoch milliseconds directly for precise time filtering
+      let createdTimeMinMs: number | undefined;
+      let createdTimeMaxMs: number | undefined;
+      
+      if (ctMin && ctMax && !isNaN(ctMin) && !isNaN(ctMax)) {
+        createdTimeMinMs = ctMin;
+        createdTimeMaxMs = ctMax;
+        
+        console.log('🌍 [TZ-AWARE BACKEND] Using epoch milliseconds for filtering:', {
+          createdTimeMin: createdTimeMinMs,
+          createdTimeMax: createdTimeMaxMs,
+          startUTC: new Date(createdTimeMinMs).toISOString(),
+          endUTC: new Date(createdTimeMaxMs).toISOString(),
+          rangeDescription: `${new Date(createdTimeMinMs).toLocaleDateString()} - ${new Date(createdTimeMaxMs).toLocaleDateString()}`
+        });
+      }
+
       console.log('Fetching orders with filters:', {
-        startDate, endDate, locationId, search, state, page, limit
+        createdTimeMinMs, createdTimeMaxMs, startDate, endDate, locationId, search, state, page, limit
       });
 
-      // Use new Clover API method for direct order fetching
+      // Use new Clover API method for direct order fetching with precise epoch filtering
       const result = await storage.getOrdersFromCloverAPI({
-        startDate,
-        endDate,
+        createdTimeMin: createdTimeMinMs,
+        createdTimeMax: createdTimeMaxMs,
+        startDate: createdTimeMinMs || createdTimeMaxMs ? undefined : startDate,  // Legacy fallback only if no epochs
+        endDate: createdTimeMinMs || createdTimeMaxMs ? undefined : endDate,      // Legacy fallback only if no epochs
         locationId: locationId && locationId !== 'all' ? locationId : undefined,
         search,
         state,
