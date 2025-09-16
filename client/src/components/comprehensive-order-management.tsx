@@ -353,24 +353,8 @@ export function ComprehensiveOrderManagement() {
 
   const handleOrderClick = async (order: Order) => {
     try {
-      console.log('🔧 [ORDER DIALOG DEBUG] Fetching details for order:', order.id);
       const response = await apiRequest('GET', `/api/orders/${order.id}`);
       const detailedOrder = await response.json();
-      
-      console.log('🔧 [ORDER DIALOG DEBUG] Raw detailed order from API:', {
-        orderId: detailedOrder.id,
-        rawLineItems: detailedOrder.lineItems,
-        rawPayments: detailedOrder.payments,
-        rawRefunds: detailedOrder.refunds,
-        lineItemsType: typeof detailedOrder.lineItems,
-        paymentsType: typeof detailedOrder.payments,
-        lineItemsKeys: detailedOrder.lineItems ? Object.keys(detailedOrder.lineItems) : null,
-        paymentsKeys: detailedOrder.payments ? Object.keys(detailedOrder.payments) : null,
-        lineItemsElements: detailedOrder.lineItems?.elements,
-        paymentsElements: detailedOrder.payments?.elements,
-        elementsLength: detailedOrder.lineItems?.elements?.length || 0,
-        paymentsElementsLength: detailedOrder.payments?.elements?.length || 0
-      });
       
       // Extract line items from Clover API format with better handling
       let extractedLineItems = [];
@@ -392,12 +376,6 @@ export function ComprehensiveOrderManagement() {
         extractedPayments = detailedOrder.payments.data;
       }
       
-      console.log('🔧 [EXTRACTION DEBUG] Improved extraction results:', {
-        lineItemsLength: extractedLineItems.length,
-        paymentsLength: extractedPayments.length,
-        sampleLineItem: extractedLineItems[0],
-        samplePayment: extractedPayments[0]
-      });
       
       // Extract refunds from Clover API format  
       const extractedRefunds = detailedOrder.refunds?.elements ? 
@@ -412,17 +390,11 @@ export function ComprehensiveOrderManagement() {
         refunds: extractedRefunds
       };
       
-      console.log('🔧 [ORDER DIALOG DEBUG] Final processed order:', {
-        orderId: processedOrder.id,
-        lineItemsLength: processedOrder.lineItems?.length || 0,
-        paymentsLength: processedOrder.payments?.length || 0,
-        hasActualData: processedOrder.lineItems?.length > 0 || processedOrder.payments?.length > 0
-      });
       
       setSelectedOrder(processedOrder);
       setShowOrderDetails(true);
     } catch (error) {
-      console.error('🔧 [ORDER DIALOG DEBUG] Exception:', error);
+      console.error('Failed to load order details:', error);
       toast({
         title: "Error",
         description: "Failed to load order details",
