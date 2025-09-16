@@ -1,0 +1,22 @@
+Orders Report,,,,,,,,,
+"Orders Report from Sep 15, 2025 at 12:00 AM EDT to Sep 16, 2025 at 12:00 AM EDT",,,,,,,,,
+"Sales Channels: Shopventory Invoicing, Lake Geneva- Retail",,,,,,,,,
+All Orders,,,,,,,,,
+Locations: PHF Lake Geneva,,,,,,,,,
+,,,,,,,,,
+Order,Location,Order Total,Total Discounts,Refunds,Gross Sales Tax,Net COGS,Net Profit,Net Sales,Net Profit Margin
+G6STTKXFZK8P4,PHF Lake Geneva,$48.53,,,$2.53,$13.50,$32.50,$46.00,70.65%
+WHHRV1KD4QDJT,PHF Lake Geneva,$92.71,,,$4.83,$40.80,$47.08,$87.88,53.57%
+EPV23HZW57T90,PHF Lake Geneva,$42.15,,,$2.20,$19.46,$20.49,$39.95,51.29%
+SDSHHK9J2FXQJ,PHF Lake Geneva,$8.39,,,$0.44,$3.75,$4.20,$7.95,52.83%
+BETG00FSFXD94,PHF Lake Geneva,$27.38,,,$1.43,$11.00,$14.95,$25.95,57.61%
+JSK7V0JSHA0XM,PHF Lake Geneva,$16.67,,,$0.87,$7.92,$7.88,$15.80,49.87%
+NHPB23TQWY5ZW,PHF Lake Geneva,$16.77,,,$0.87,,,$15.90,
+8448EGVM0GH0W,PHF Lake Geneva,$14.66,-$2.00,,$0.76,$7.50,$6.40,$13.90,46.04%
+HDGBH8R6JPT1C,PHF Lake Geneva,$11.59,,,$0.60,$5.00,$5.99,$10.99,54.50%
+TEM1JMJHY1KHJ,PHF Lake Geneva,$20.97,-$3.00,,$1.09,$11.66,$8.22,$19.88,41.35%
+F4NT0RY06ZKRY,PHF Lake Geneva,$123.33,-$3.00,,$6.43,$40.00,$76.90,$116.90,65.78%
+Total,,$423.15,-$8.00,,$22.05,$160.59,$224.61,$401.10,
+,,,,,,,,,
+,,,,,,,,,
+Drive your business forward with data using Thrive.,,,,,,,,,

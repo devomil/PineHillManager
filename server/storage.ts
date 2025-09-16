@@ -4573,9 +4573,48 @@ export class DatabaseStorage implements IStorage {
     netMargin: number;
   }> {
     try {
+      // SPECIFIC ORDER DEBUGGING - Track problematic orders
+      const problematicOrders = ['NMXJ9X9KQX16Y', '144M3D8KYBZRY', 'NS8NSG9CNXEEJ'];
+      const isProblematicOrder = problematicOrders.includes(order.id);
+      
+      if (isProblematicOrder) {
+        console.log(`\n========================================`);
+        console.log(`[PROBLEMATIC ORDER DEBUG] ${order.id}`);
+        console.log(`========================================`);
+        console.log(`Full Order Data:`, JSON.stringify(order, null, 2));
+      }
+      
       // Parse order total (Clover amounts are in cents)
       const orderTotal = parseFloat(order.total || '0') / 100;
-      const grossTax = parseFloat(order.taxAmount || '0') / 100;
+      
+      // IMPROVED TAX CALCULATION: Handle missing or null tax amounts
+      let grossTax = 0;
+      if (order.taxAmount !== null && order.taxAmount !== undefined && order.taxAmount !== '') {
+        grossTax = parseFloat(order.taxAmount) / 100;
+      } else if (order.tax !== null && order.tax !== undefined && order.tax !== '') {
+        // Fallback: some orders might use 'tax' instead of 'taxAmount'
+        grossTax = parseFloat(order.tax) / 100;
+      } else {
+        // Final fallback: check if we can calculate tax from payments
+        if (order.payments && order.payments.elements) {
+          const taxFromPayments = order.payments.elements.reduce((sum: number, payment: any) => {
+            const taxAmount = parseFloat(payment.taxAmount || '0');
+            return sum + taxAmount;
+          }, 0) / 100;
+          grossTax = taxFromPayments;
+        }
+      }
+      
+      // Log tax calculation details for debugging
+      if (isProblematicOrder || grossTax === 0) {
+        console.log(`[TAX DEBUG] Order ${order.id} Tax Calculation:`, {
+          rawTaxAmount: order.taxAmount,
+          rawTax: order.tax,
+          calculatedGrossTax: grossTax,
+          hasPayments: !!(order.payments && order.payments.elements),
+          taxCalculationMethod: order.taxAmount ? 'taxAmount' : order.tax ? 'tax' : grossTax > 0 ? 'payments' : 'none'
+        });
+      }
       
       // DEBUG: Log raw order data
       console.log(`[FINANCIAL CALC DEBUG] Order ${order.id} Raw Data:`, {
@@ -4587,6 +4626,19 @@ export class DatabaseStorage implements IStorage {
         refundsCount: order.refunds?.elements?.length || 0,
         lineItemsCount: order.lineItems?.elements?.length || 0
       });
+      
+      if (isProblematicOrder) {
+        console.log(`[PROBLEMATIC ORDER] ${order.id} - Order Total Conversion:`, {
+          rawTotal: order.total,
+          dividedBy100: parseFloat(order.total || '0') / 100,
+          finalOrderTotal: orderTotal
+        });
+        console.log(`[PROBLEMATIC ORDER] ${order.id} - Tax Conversion:`, {
+          rawTaxAmount: order.taxAmount,
+          dividedBy100: parseFloat(order.taxAmount || '0') / 100,
+          finalGrossTax: grossTax
+        });
+      }
       
       // Calculate total discounts from order discounts array
       let totalDiscounts = 0;
@@ -4646,7 +4698,23 @@ export class DatabaseStorage implements IStorage {
         console.log(`[COGS DEBUG] Order ${order.id} Processing ${order.lineItems.elements.length} line items`);
         
         for (const [index, lineItem] of order.lineItems.elements.entries()) {
-          const quantity = lineItem.unitQty || 1;
+          // CRITICAL FIX: Clover quantities appear to be stored 1000x too high
+          let quantity = lineItem.unitQty || 1;
+          
+          // Add intelligent unit conversion - if quantity > 100, divide by 1000
+          if (quantity > 100) {
+            console.log(`[QUANTITY FIX] Order ${order.id} Line Item ${index}: Converting quantity ${quantity} to ${quantity / 1000}`);
+            if (isProblematicOrder) {
+              console.log(`[PROBLEMATIC ORDER] ${order.id} - CRITICAL QUANTITY FIX Line Item ${index}:`, {
+                originalQuantity: quantity,
+                convertedQuantity: quantity / 1000,
+                itemName: lineItem.name || lineItem.item?.name,
+                itemId: lineItem.item?.id || lineItem.id
+              });
+            }
+            quantity = quantity / 1000;
+          }
+          
           const lineItemPrice = parseFloat(lineItem.price || '0') / 100; // Convert from cents to dollars
           
           console.log(`[COGS DEBUG] Line Item ${index}:`, {
@@ -4654,8 +4722,21 @@ export class DatabaseStorage implements IStorage {
             itemName: lineItem.name || lineItem.item?.name,
             rawPrice: lineItem.price,
             lineItemPrice,
-            quantity
+            rawQuantity: lineItem.unitQty,
+            adjustedQuantity: quantity
           });
+          
+          if (isProblematicOrder) {
+            console.log(`[PROBLEMATIC ORDER] ${order.id} - Line Item ${index} Details:`, {
+              itemId: lineItem.item?.id || lineItem.id,
+              itemName: lineItem.name || lineItem.item?.name,
+              rawPrice: lineItem.price,
+              priceInDollars: lineItemPrice,
+              rawQuantity: lineItem.unitQty,
+              finalQuantity: quantity,
+              quantityWasConverted: lineItem.unitQty > 100
+            });
+          }
           
           // Try to find inventory item by SKU/item ID to get actual cost
           try {
@@ -4735,6 +4816,20 @@ export class DatabaseStorage implements IStorage {
           profitCalculation: `${netProfit.toFixed(2)} = ${netSale.toFixed(2)} - ${netCOGS.toFixed(2)}`
         }
       });
+
+      if (isProblematicOrder) {
+        console.log(`\n[PROBLEMATIC ORDER] ${order.id} - FINAL CALCULATION SUMMARY:`);
+        console.log(`========================================================`);
+        console.log(`Order Total: $${orderTotal.toFixed(2)} (from raw: ${order.total})`);
+        console.log(`Gross Tax: $${grossTax.toFixed(2)} (from raw: ${order.taxAmount})`);
+        console.log(`Total Discounts: $${totalDiscounts.toFixed(2)}`);
+        console.log(`Total Refunds: $${totalRefunds.toFixed(2)}`);
+        console.log(`Net COGS: $${netCOGS.toFixed(2)}`);
+        console.log(`Net Sale: $${netSale.toFixed(2)} = $${orderTotal.toFixed(2)} - $${grossTax.toFixed(2)} - $${totalDiscounts.toFixed(2)} - $${totalRefunds.toFixed(2)}`);
+        console.log(`Net Profit: $${netProfit.toFixed(2)} = $${netSale.toFixed(2)} - $${netCOGS.toFixed(2)}`);
+        console.log(`Net Margin: ${netMargin.toFixed(2)}%`);
+        console.log(`========================================================\n`);
+      }
 
       return {
         grossTax,
