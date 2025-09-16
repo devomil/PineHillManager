@@ -109,6 +109,16 @@ export function ComprehensiveOrderManagement() {
     return { from: start, to: end };
   });
   
+  // 🔧 DEBUG: Log date range for debugging
+  useEffect(() => {
+    console.log('🔧 [ORDER DATE RANGE] Current filter:', {
+      dateRangeValue,
+      from: dateRange.from?.toISOString().split('T')[0],
+      to: dateRange.to?.toISOString().split('T')[0],
+      searchingForProblematicOrders: ['NS8NSG9CNXEEJ', '48GWSVFSYPDN4']
+    });
+  }, [dateRange, dateRangeValue]);
+  
   const [filters, setFilters] = useState({
     search: "",
     locationId: "all",
@@ -154,13 +164,23 @@ export function ComprehensiveOrderManagement() {
   const { data: ordersData, isLoading: ordersLoading, error: ordersError } = useQuery<OrdersResponse>({
     queryKey: [ordersUrl],
     queryFn: async () => {
-      const response = await fetch(ordersUrl);
+      // Add cache-busting parameter to force fresh data
+      const cacheBustUrl = `${ordersUrl}&_t=${Date.now()}`;
+      const response = await fetch(cacheBustUrl, {
+        cache: 'no-cache',
+        headers: {
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
+        }
+      });
       if (!response.ok) {
         throw new Error(`Failed to fetch orders: ${response.status} ${response.statusText}`);
       }
       return response.json();
     },
     refetchInterval: 30000, // Refresh every 30 seconds for real-time updates
+    staleTime: 0, // Always consider data stale to force fresh requests
+    cacheTime: 0, // Don't cache the data
   });
 
   // Log API errors and success for debugging
@@ -700,28 +720,82 @@ export function ComprehensiveOrderManagement() {
                 <div>
                   <h4 className="text-lg font-semibold mb-4">Order Items</h4>
                   {selectedOrder.lineItems && selectedOrder.lineItems.length > 0 ? (
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Item Name</TableHead>
-                          <TableHead>Quantity</TableHead>
-                          <TableHead>Unit Price</TableHead>
-                          <TableHead>Total</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {selectedOrder.lineItems.map((item) => (
-                          <TableRow key={item.id}>
-                            <TableCell>{item.name}</TableCell>
-                            <TableCell>{item.quantity}</TableCell>
-                            <TableCell>{formatCurrency(item.price)}</TableCell>
-                            <TableCell className="font-semibold">
-                              {formatCurrency(item.price * item.quantity)}
-                            </TableCell>
+                    <div className="space-y-4">
+                      {/* Order Financial Summary */}
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-muted rounded-lg">
+                        <div>
+                          <label className="text-sm font-medium text-muted-foreground">Total Discounts</label>
+                          <p className="text-lg font-semibold text-red-600">
+                            -{formatCurrencyDirect(selectedOrder.totalDiscounts || 0)}
+                          </p>
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium text-muted-foreground">Total Refunds</label>
+                          <p className="text-lg font-semibold text-red-600">
+                            -{formatCurrencyDirect(selectedOrder.totalRefunds || 0)}
+                          </p>
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium text-muted-foreground">Net Sale</label>
+                          <p className="text-lg font-semibold text-green-600">
+                            {formatCurrencyDirect(selectedOrder.netSale || 0)}
+                          </p>
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium text-muted-foreground">Net Profit</label>
+                          <p className={`text-lg font-semibold ${(selectedOrder.netProfit || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {formatCurrencyDirect(selectedOrder.netProfit || 0)}
+                          </p>
+                        </div>
+                      </div>
+                      
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Item Name</TableHead>
+                            <TableHead>Quantity</TableHead>
+                            <TableHead>Unit Price</TableHead>
+                            <TableHead>Total</TableHead>
+                            <TableHead>Status</TableHead>
                           </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
+                        </TableHeader>
+                        <TableBody>
+                          {selectedOrder.lineItems.map((item) => {
+                            // Check if this item has refunds
+                            const isRefunded = selectedOrder.refunds?.elements?.some((refund: any) => 
+                              refund.lineItems?.elements?.some((refundItem: any) => refundItem.id === item.id)
+                            );
+                            
+                            return (
+                              <TableRow key={item.id} className={isRefunded ? 'bg-red-50' : ''}>
+                                <TableCell>
+                                  <div>
+                                    {item.name}
+                                    {isRefunded && (
+                                      <Badge variant="destructive" className="ml-2 text-xs">
+                                        Refunded
+                                      </Badge>
+                                    )}
+                                  </div>
+                                </TableCell>
+                                <TableCell>{item.quantity || 1}</TableCell>
+                                <TableCell>{formatCurrency(item.price)}</TableCell>
+                                <TableCell className={`font-semibold ${isRefunded ? 'line-through text-red-600' : ''}`}>
+                                  {formatCurrency(item.price * (item.quantity || 1))}
+                                </TableCell>
+                                <TableCell>
+                                  {isRefunded ? (
+                                    <Badge variant="destructive">Refunded</Badge>
+                                  ) : (
+                                    <Badge variant="default">Completed</Badge>
+                                  )}
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </div>
                   ) : (
                     <p className="text-muted-foreground">No line items available</p>
                   )}

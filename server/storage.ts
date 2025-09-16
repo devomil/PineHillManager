@@ -4881,6 +4881,9 @@ export class DatabaseStorage implements IStorage {
           continue;
         }
         
+        // 🔧 DEBUG: Log configuration mapping for problematic merchants
+        console.log(`🔧 [LOCATION MAPPING] Config ID: ${config.id}, Merchant ID: ${config.merchantId}, Merchant Name: "${config.merchantName}"`);
+        
         // Map database fields to CloverConfig interface
         const cloverConfig = {
           id: config.id,
@@ -4933,15 +4936,39 @@ export class DatabaseStorage implements IStorage {
             // Enhance orders with financial calculations
             const enhancedOrders = [];
             for (const order of response.elements) {
+              // 🔧 DEBUG: Track specific problematic orders
+              const isProblematicOrder = ['NS8NSG9CNXEEJ', '48GWSVFSYPDN4'].includes(order.id);
+              if (isProblematicOrder) {
+                console.log(`🔧 [PROBLEMATIC ORDER] ${order.id} - Assigning location:`, {
+                  configId: config.id,
+                  merchantId: config.merchantId,
+                  merchantName: config.merchantName,
+                  originalLocationName: order.locationName || 'none'
+                });
+              }
+              
               try {
                 // Calculate financial metrics for this order
                 const financialMetrics = await this.calculateOrderFinancialMetrics(order, config.id);
                 
-                // Enhance the order with financial data
+                // 🔧 DEBUG: Log financial metrics for problematic orders
+                if (isProblematicOrder) {
+                  console.log(`🔧 [FINANCIAL METRICS] ${order.id}:`, {
+                    totalDiscounts: financialMetrics.totalDiscounts,
+                    totalRefunds: financialMetrics.totalRefunds,
+                    netSale: financialMetrics.netSale,
+                    netProfit: financialMetrics.netProfit,
+                    rawOrderTotal: order.total,
+                    rawDiscountsCount: order.discounts?.elements?.length || 0,
+                    rawRefundsCount: order.refunds?.elements?.length || 0
+                  });
+                }
+                
+                // Enhance the order with financial data - FORCE correct location assignment
                 const enhancedOrder = {
                   ...order,
                   locationId: config.id,
-                  locationName: config.merchantName,
+                  locationName: config.merchantName, // This should be "Watertown Retail" for QGFXZQXYG8M31
                   grossTax: financialMetrics.grossTax,
                   totalDiscounts: financialMetrics.totalDiscounts,
                   totalRefunds: financialMetrics.totalRefunds,
@@ -4950,6 +4977,16 @@ export class DatabaseStorage implements IStorage {
                   netProfit: financialMetrics.netProfit,
                   netMargin: financialMetrics.netMargin
                 };
+                
+                // 🔧 DEBUG: Confirm final order data for problematic orders
+                if (isProblematicOrder) {
+                  console.log(`🔧 [ENHANCED ORDER] ${order.id} - Final assignment:`, {
+                    locationId: enhancedOrder.locationId,
+                    locationName: enhancedOrder.locationName,
+                    totalDiscounts: enhancedOrder.totalDiscounts,
+                    totalRefunds: enhancedOrder.totalRefunds
+                  });
+                }
                 
                 enhancedOrders.push(enhancedOrder);
               } catch (error) {
