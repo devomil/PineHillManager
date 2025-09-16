@@ -5179,7 +5179,8 @@ export class DatabaseStorage implements IStorage {
     try {
       console.log('🔧 [ORDER DETAILS DEBUG] getOrderDetails called for orderId:', orderId);
       
-      // Get all Clover configurations to try finding the order
+      // Instead of making separate API calls, use the same method as getOrders
+      // to fetch orders and then find the specific one we need
       const allConfigs = await db.select().from(cloverConfig);
       
       let foundOrder = null;
@@ -5195,17 +5196,26 @@ export class DatabaseStorage implements IStorage {
           });
           
           const cloverIntegration = new (await import('../integrations/clover')).CloverIntegration(config);
-          const cloverOrder = await cloverIntegration.getOrderDetails(orderId, 'lineItems,payments,discounts,refunds');
           
-          if (cloverOrder) {
-            console.log('🔧 [ORDER DETAILS DEBUG] Found order in Clover API via config:', {
+          // Use the same method as getOrders to fetch a batch of orders
+          // and look for our specific order
+          const cloverOrders = await cloverIntegration.getOrders({
+            limit: 1000,  // Get a large batch
+            expand: 'lineItems,payments,discounts,refunds'
+          });
+          
+          // Look for our specific order in the batch
+          const targetOrder = cloverOrders.elements?.find((order: any) => order.id === orderId);
+          
+          if (targetOrder) {
+            console.log('🔧 [ORDER DETAILS DEBUG] Found order in batch via config:', {
               configId: config.id,
               merchantId: config.merchantId,
               merchantName: config.merchantName,
-              orderId: cloverOrder.id
+              orderId: targetOrder.id
             });
             
-            foundOrder = cloverOrder;
+            foundOrder = targetOrder;
             foundConfig = config;
             break;
           }
