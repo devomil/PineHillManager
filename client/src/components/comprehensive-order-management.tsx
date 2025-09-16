@@ -811,7 +811,7 @@ export function ComprehensiveOrderManagement() {
                   </div>
                   <div>
                     <label className="text-sm font-medium text-muted-foreground">Tax Amount</label>
-                    <p className="text-lg">{formatCurrency(selectedOrder.taxAmount)}</p>
+                    <p className="text-lg">{formatCurrencyDirect(selectedOrder.grossTax || 0)}</p>
                   </div>
                   <div>
                     <label className="text-sm font-medium text-muted-foreground">Payment State</label>
