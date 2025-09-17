@@ -146,6 +146,13 @@ interface SyncOptions {
   maxRetries?: number;
   retryDelay?: number;
   forceFullSync?: boolean;
+  // Enhanced historical data options
+  historicalSyncDepthDays?: number; // How many days back to sync for full sync
+  historicalSyncMode?: 'incremental' | 'full' | 'backfill'; // Sync mode for historical data
+  enableLargeDatasetOptimization?: boolean; // Enable optimizations for large datasets
+  parallelMerchantSync?: boolean; // Allow parallel merchant syncing
+  prioritizeRecentData?: boolean; // Process recent data first
+  maxConcurrentRequests?: number; // Limit concurrent API requests
 }
 
 interface SyncResult {
@@ -816,26 +823,184 @@ export class CloverSyncService {
   }
 
   /**
-   * Calculate sync time range based on cursor and options
+   * Calculate sync time range based on cursor and options with enhanced historical support
    */
   private calculateSyncTimeRange(syncCursor: any, options: SyncOptions): { startTimestamp: number; endTimestamp: number } {
     const now = Date.now();
     let startTimestamp: number;
     let endTimestamp = now;
 
-    if (options.forceFullSync || !syncCursor.lastModifiedMs) {
-      // Full sync - start from configured start date or 30 days ago
-      startTimestamp = options.startDate?.getTime() || (now - (30 * 24 * 60 * 60 * 1000));
+    if (options.forceFullSync || options.historicalSyncMode === 'full' || !syncCursor.lastModifiedMs) {
+      // Full sync - use historical sync depth or configured start date
+      const historicalDepthMs = (options.historicalSyncDepthDays || 365) * 24 * 60 * 60 * 1000; // Default 1 year
+      startTimestamp = options.startDate?.getTime() || (now - historicalDepthMs);
+      console.log(`📅 Full historical sync: going back ${options.historicalSyncDepthDays || 365} days`);
+    } else if (options.historicalSyncMode === 'backfill') {
+      // Backfill mode - sync missing historical data
+      startTimestamp = this.calculateBackfillStartTime(syncCursor, options);
+      console.log(`🔄 Backfill sync: filling gaps in historical data`);
     } else {
-      // Incremental sync - start from last modified time
-      startTimestamp = parseInt(syncCursor.lastModifiedMs);
+      // Incremental sync - start from last modified time with buffer
+      const incrementalBuffer = 60 * 60 * 1000; // 1 hour buffer to catch late updates
+      startTimestamp = parseInt(syncCursor.lastModifiedMs) - incrementalBuffer;
+      console.log(`⏩ Incremental sync with 1-hour buffer`);
     }
 
     if (options.endDate) {
       endTimestamp = options.endDate.getTime();
     }
 
+    // Validate time range
+    if (startTimestamp >= endTimestamp) {
+      console.warn(`⚠️ Invalid time range: start ${new Date(startTimestamp).toISOString()} >= end ${new Date(endTimestamp).toISOString()}`);
+      startTimestamp = endTimestamp - (24 * 60 * 60 * 1000); // Default to last 24 hours
+    }
+
     return { startTimestamp, endTimestamp };
+  }
+
+  /**
+   * Calculate start time for backfill operations
+   */
+  private calculateBackfillStartTime(syncCursor: any, options: SyncOptions): number {
+    const now = Date.now();
+    
+    // If we have a cursor but want to ensure historical coverage
+    if (syncCursor.lastModifiedMs) {
+      const lastSyncTime = parseInt(syncCursor.lastModifiedMs);
+      const maxHistoricalDepth = (options.historicalSyncDepthDays || 730) * 24 * 60 * 60 * 1000; // Default 2 years
+      const earliestAllowedTime = now - maxHistoricalDepth;
+      
+      // Go back further than last sync to ensure we have comprehensive coverage
+      return Math.max(earliestAllowedTime, lastSyncTime - (7 * 24 * 60 * 60 * 1000)); // 1 week buffer
+    }
+    
+    // No previous sync - do full historical sync
+    const historicalDepthMs = (options.historicalSyncDepthDays || 365) * 24 * 60 * 60 * 1000;
+    return now - historicalDepthMs;
+  }
+
+  /**
+   * Enhanced historical sync for comprehensive data coverage
+   */
+  async syncHistoricalData(options: {
+    merchantId?: number;
+    startDate: Date;
+    endDate: Date;
+    batchSize?: number;
+    enableOptimization?: boolean;
+  }): Promise<SyncResult[]> {
+    console.log(`🏛️ Starting historical data sync from ${options.startDate.toISOString()} to ${options.endDate.toISOString()}`);
+    
+    const historicalOptions: SyncOptions = {
+      ...options,
+      historicalSyncMode: 'full',
+      historicalSyncDepthDays: Math.ceil((options.endDate.getTime() - options.startDate.getTime()) / (24 * 60 * 60 * 1000)),
+      enableLargeDatasetOptimization: options.enableOptimization !== false,
+      batchSize: options.batchSize || 500, // Larger batches for historical data
+      maxConcurrentRequests: 3, // Limit concurrent requests to avoid rate limits
+      prioritizeRecentData: false // Historical sync doesn't need to prioritize recent data
+    };
+
+    if (options.merchantId) {
+      // Sync specific merchant
+      const result = await this.syncMerchant(options.merchantId, historicalOptions);
+      return [result];
+    } else {
+      // Sync all merchants with optimizations
+      return await this.syncAllMerchantsHistorical(historicalOptions);
+    }
+  }
+
+  /**
+   * Optimized historical sync for all merchants
+   */
+  private async syncAllMerchantsHistorical(options: SyncOptions): Promise<SyncResult[]> {
+    const merchants = await storage.getAllCloverConfigs();
+    const activeMerchants = merchants.filter(m => m.isActive);
+    
+    console.log(`🏪 Syncing historical data for ${activeMerchants.length} merchants`);
+    
+    if (options.parallelMerchantSync && activeMerchants.length > 1) {
+      // Parallel sync with concurrency control
+      const concurrency = Math.min(options.maxConcurrentRequests || 2, activeMerchants.length);
+      const results: SyncResult[] = [];
+      
+      for (let i = 0; i < activeMerchants.length; i += concurrency) {
+        const batch = activeMerchants.slice(i, i + concurrency);
+        const batchPromises = batch.map(merchant => 
+          this.syncMerchant(merchant.id, options).catch(error => ({
+            success: false,
+            ordersProcessed: 0,
+            ordersCreated: 0,
+            ordersUpdated: 0,
+            lineItemsProcessed: 0,
+            paymentsProcessed: 0,
+            errors: [{ orderId: 'MERCHANT_ERROR', error: error.message }],
+            duration: 0
+          } as SyncResult))
+        );
+        
+        const batchResults = await Promise.all(batchPromises);
+        results.push(...batchResults);
+        
+        // Add delay between batches to respect rate limits
+        if (i + concurrency < activeMerchants.length) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      }
+      
+      return results;
+    } else {
+      // Sequential sync for safety
+      return await this.syncAllMerchants(options);
+    }
+  }
+
+  /**
+   * Get historical sync configuration recommendations
+   */
+  getHistoricalSyncRecommendations(dataVolumeEstimate: 'low' | 'medium' | 'high', timeRangeMonths: number): SyncOptions {
+    const baseConfig: SyncOptions = {
+      historicalSyncMode: 'full',
+      enableLargeDatasetOptimization: true,
+      prioritizeRecentData: false
+    };
+
+    if (dataVolumeEstimate === 'high' || timeRangeMonths > 24) {
+      // High volume or long time range
+      return {
+        ...baseConfig,
+        batchSize: 200, // Smaller batches to avoid timeouts
+        maxConcurrentRequests: 2,
+        parallelMerchantSync: false,
+        historicalSyncDepthDays: Math.min(timeRangeMonths * 30, 1095), // Max 3 years
+        maxRetries: 5,
+        retryDelay: 2000
+      };
+    } else if (dataVolumeEstimate === 'medium' || timeRangeMonths > 6) {
+      // Medium volume
+      return {
+        ...baseConfig,
+        batchSize: 500,
+        maxConcurrentRequests: 3,
+        parallelMerchantSync: true,
+        historicalSyncDepthDays: timeRangeMonths * 30,
+        maxRetries: 3,
+        retryDelay: 1000
+      };
+    } else {
+      // Low volume
+      return {
+        ...baseConfig,
+        batchSize: 1000,
+        maxConcurrentRequests: 5,
+        parallelMerchantSync: true,
+        historicalSyncDepthDays: timeRangeMonths * 30,
+        maxRetries: 2,
+        retryDelay: 500
+      };
+    }
   }
 
   /**

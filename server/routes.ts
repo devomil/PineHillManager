@@ -27,6 +27,7 @@ import {
   updateAutomationRuleSchema,
   updateUserFinancialsSchema,
 } from "@shared/schema";
+import { z } from "zod";
 
 // Configure multer for file uploads
 const uploadsDir = path.join(process.cwd(), 'uploads');
@@ -40,6 +41,67 @@ const upload = multer({
     fileSize: 5 * 1024 * 1024, // 5MB limit
   },
 });
+
+// ================================
+// QUERY PARAMETER VALIDATION SCHEMAS
+// ================================
+
+// Analytics query parameters validation
+const analyticsQuerySchema = z.object({
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
+  locationId: z.string().optional(),
+  merchantId: z.string().optional(),
+  groupBy: z.enum(['day', 'week', 'month', 'quarter', 'year']).default('day'),
+  timezone: z.string().default('UTC'),
+  trendType: z.enum(['revenue', 'orders', 'profit', 'aov', 'all']).optional(),
+  granularity: z.enum(['daily', 'weekly', 'monthly']).optional(),
+  aggregationLevel: z.enum(['daily', 'weekly', 'monthly']).optional(),
+  metrics: z.string().optional(),
+  useCache: z.enum(['true', 'false']).default('false'),
+  limit: z.string().optional()
+});
+
+// Year-over-year comparison parameters
+const yoyComparisonSchema = z.object({
+  currentPeriodStart: z.string(),
+  currentPeriodEnd: z.string(),
+  comparisonPeriodStart: z.string(),
+  comparisonPeriodEnd: z.string(),
+  locationId: z.string().optional(),
+  merchantId: z.string().optional(),
+  groupBy: z.enum(['day', 'week', 'month']).default('month')
+});
+
+// Utility function for safe merchant ID parsing
+const parseMerchantId = (merchantId: string | undefined): number | undefined => {
+  if (!merchantId || merchantId === 'all') return undefined;
+  const parsed = Number(merchantId);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    throw new Error(`Invalid merchantId: '${merchantId}'. Must be a positive number.`);
+  }
+  return parsed;
+};
+
+// Utility function to validate date strings
+const validateDateString = (dateStr: string, paramName: string): string => {
+  const date = new Date(dateStr);
+  if (isNaN(date.getTime())) {
+    throw new Error(`Invalid ${paramName}: '${dateStr}'. Must be a valid date string.`);
+  }
+  return dateStr;
+};
+
+// Utility function to get default date range (last 30 days)
+const getDefaultDateRange = () => {
+  const endDate = new Date();
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - 30);
+  return {
+    startDate: startDate.toISOString().split('T')[0],
+    endDate: endDate.toISOString().split('T')[0]
+  };
+};
 
 export async function registerRoutes(app: Express): Promise<Server> {
 
@@ -6367,30 +6429,380 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get order analytics
+  // Get order analytics (enhanced for historical data)
   app.get('/api/orders/analytics', isAuthenticated, async (req, res) => {
     try {
+      // Parse and validate query parameters
+      const queryResult = analyticsQuerySchema.safeParse(req.query);
+      if (!queryResult.success) {
+        return res.status(400).json({ 
+          error: 'Invalid query parameters', 
+          details: queryResult.error.format() 
+        });
+      }
+
+      const query = queryResult.data;
+      console.log('🔧 [ANALYTICS] Enhanced route handler called with historical support');
+      
+      // Use defaults if startDate/endDate not provided (backward compatibility)
+      let { startDate, endDate } = query;
+      if (!startDate || !endDate) {
+        const defaults = getDefaultDateRange();
+        startDate = startDate || defaults.startDate;
+        endDate = endDate || defaults.endDate;
+        console.log('🔧 [ANALYTICS] Using default date range:', { startDate, endDate });
+      }
+
+      // Validate dates and merchantId
+      try {
+        validateDateString(startDate, 'startDate');
+        validateDateString(endDate, 'endDate');
+        const merchantId = query.merchantId ? parseMerchantId(query.merchantId) : undefined;
+
+        // Use the enhanced historical analytics method
+        const result = await storage.getHistoricalAnalytics({
+          startDate,
+          endDate,
+          locationId: query.locationId !== 'all' ? query.locationId : undefined,
+          merchantId,
+          groupBy: query.groupBy,
+          timezone: query.timezone
+        });
+
+        res.json(result);
+      } catch (validationError: any) {
+        return res.status(400).json({ error: validationError.message });
+      }
+    } catch (error) {
+      console.error('Error fetching enhanced analytics:', error);
+      res.status(500).json({ error: 'Failed to fetch analytics' });
+    }
+  });
+
+  // ================================
+  // HISTORICAL ANALYTICS ENDPOINTS
+  // ================================
+
+  // Historical analytics with extended date range support
+  app.get('/api/orders/analytics/historical', isAuthenticated, async (req, res) => {
+    try {
+      // Parse and validate query parameters
+      const queryResult = analyticsQuerySchema.safeParse(req.query);
+      if (!queryResult.success) {
+        return res.status(400).json({ 
+          error: 'Invalid query parameters', 
+          details: queryResult.error.format() 
+        });
+      }
+
+      const query = queryResult.data;
+      if (!query.startDate || !query.endDate) {
+        return res.status(400).json({ error: 'startDate and endDate are required' });
+      }
+
+      console.log(`📊 [HISTORICAL ANALYTICS] Processing request: ${query.startDate} to ${query.endDate}, groupBy: ${query.groupBy}`);
+
+      // Validate dates and merchantId
+      try {
+        validateDateString(query.startDate, 'startDate');
+        validateDateString(query.endDate, 'endDate');
+        const merchantId = query.merchantId ? parseMerchantId(query.merchantId) : undefined;
+
+        const result = await storage.getHistoricalAnalytics({
+          startDate: query.startDate,
+          endDate: query.endDate,
+          locationId: query.locationId !== 'all' ? query.locationId : undefined,
+          merchantId,
+          groupBy: query.groupBy,
+          timezone: query.timezone
+        });
+
+        res.json(result);
+      } catch (validationError: any) {
+        return res.status(400).json({ error: validationError.message });
+      }
+    } catch (error) {
+      console.error('Error fetching historical analytics:', error);
+      res.status(500).json({ error: 'Failed to fetch historical analytics' });
+    }
+  });
+
+  // Year-over-year comparison endpoint
+  app.get('/api/orders/analytics/year-over-year', isAuthenticated, async (req, res) => {
+    try {
+      // Parse and validate query parameters
+      const queryResult = yoyComparisonSchema.safeParse(req.query);
+      if (!queryResult.success) {
+        return res.status(400).json({ 
+          error: 'Invalid query parameters', 
+          details: queryResult.error.format() 
+        });
+      }
+
+      const query = queryResult.data;
+      console.log(`📈 [YEAR-OVER-YEAR] Comparing ${query.currentPeriodStart}-${query.currentPeriodEnd} vs ${query.comparisonPeriodStart}-${query.comparisonPeriodEnd}`);
+
+      // Validate dates and merchantId
+      try {
+        validateDateString(query.currentPeriodStart, 'currentPeriodStart');
+        validateDateString(query.currentPeriodEnd, 'currentPeriodEnd');
+        validateDateString(query.comparisonPeriodStart, 'comparisonPeriodStart');
+        validateDateString(query.comparisonPeriodEnd, 'comparisonPeriodEnd');
+        const merchantId = query.merchantId ? parseMerchantId(query.merchantId) : undefined;
+
+        const result = await storage.getYearOverYearComparison({
+          currentPeriodStart: query.currentPeriodStart,
+          currentPeriodEnd: query.currentPeriodEnd,
+          comparisonPeriodStart: query.comparisonPeriodStart,
+          comparisonPeriodEnd: query.comparisonPeriodEnd,
+          locationId: query.locationId !== 'all' ? query.locationId : undefined,
+          merchantId,
+          groupBy: query.groupBy
+        });
+
+        res.json(result);
+      } catch (validationError: any) {
+        return res.status(400).json({ error: validationError.message });
+      }
+    } catch (error) {
+      console.error('Error fetching year-over-year comparison:', error);
+      res.status(500).json({ error: 'Failed to fetch year-over-year comparison' });
+    }
+  });
+
+  // Historical trends analysis endpoint
+  app.get('/api/orders/analytics/trends', isAuthenticated, async (req, res) => {
+    try {
+      // Parse and validate query parameters
+      const queryResult = analyticsQuerySchema.extend({
+        trendType: z.enum(['revenue', 'orders', 'profit', 'aov', 'all']).default('revenue'),
+        granularity: z.enum(['daily', 'weekly', 'monthly']).default('monthly')
+      }).safeParse(req.query);
+      
+      if (!queryResult.success) {
+        return res.status(400).json({ 
+          error: 'Invalid query parameters', 
+          details: queryResult.error.format() 
+        });
+      }
+
+      const query = queryResult.data;
+      if (!query.startDate || !query.endDate) {
+        return res.status(400).json({ error: 'startDate and endDate are required' });
+      }
+
+      console.log(`📊 [TRENDS ANALYSIS] Analyzing ${query.trendType} trends: ${query.startDate} to ${query.endDate}, granularity: ${query.granularity}`);
+
+      // Validate dates and merchantId
+      try {
+        validateDateString(query.startDate, 'startDate');
+        validateDateString(query.endDate, 'endDate');
+        const merchantId = query.merchantId ? parseMerchantId(query.merchantId) : undefined;
+
+        const result = await storage.getHistoricalTrends({
+          startDate: query.startDate,
+          endDate: query.endDate,
+          locationId: query.locationId !== 'all' ? query.locationId : undefined,
+          merchantId,
+          trendType: query.trendType!,
+          granularity: query.granularity!
+        });
+
+        res.json(result);
+      } catch (validationError: any) {
+        return res.status(400).json({ error: validationError.message });
+      }
+    } catch (error) {
+      console.error('Error fetching historical trends:', error);
+      res.status(500).json({ error: 'Failed to fetch historical trends' });
+    }
+  });
+
+  // Long-term financial performance endpoint
+  app.get('/api/orders/analytics/long-term', isAuthenticated, async (req, res) => {
+    try {
+      // Parse and validate query parameters
+      const queryResult = analyticsQuerySchema.pick({
+        startDate: true,
+        endDate: true,
+        locationId: true,
+        merchantId: true
+      }).safeParse(req.query);
+      
+      if (!queryResult.success) {
+        return res.status(400).json({ 
+          error: 'Invalid query parameters', 
+          details: queryResult.error.format() 
+        });
+      }
+
+      const query = queryResult.data;
+      if (!query.startDate || !query.endDate) {
+        return res.status(400).json({ error: 'startDate and endDate are required' });
+      }
+
+      console.log(`💼 [LONG-TERM ANALYSIS] Processing: ${query.startDate} to ${query.endDate}`);
+
+      // Validate dates and merchantId
+      try {
+        validateDateString(query.startDate, 'startDate');
+        validateDateString(query.endDate, 'endDate');
+        const merchantId = query.merchantId ? parseMerchantId(query.merchantId) : undefined;
+
+        const result = await storage.getLongTermFinancialPerformance({
+          startDate: query.startDate,
+          endDate: query.endDate,
+          locationId: query.locationId !== 'all' ? query.locationId : undefined,
+          merchantId
+        });
+
+        res.json(result);
+      } catch (validationError: any) {
+        return res.status(400).json({ error: validationError.message });
+      }
+    } catch (error) {
+      console.error('Error fetching long-term financial performance:', error);
+      res.status(500).json({ error: 'Failed to fetch long-term financial performance' });
+    }
+  });
+
+  // Optimized historical data endpoint for large datasets
+  app.get('/api/orders/analytics/optimized', isAuthenticated, async (req, res) => {
+    try {
+      // Parse and validate query parameters
+      const queryResult = analyticsQuerySchema.extend({
+        aggregationLevel: z.enum(['daily', 'weekly', 'monthly']).default('monthly'),
+        metrics: z.string().default('revenue,orders'),
+        useCache: z.enum(['true', 'false']).default('false'),
+        limit: z.string().default('10000')
+      }).safeParse(req.query);
+      
+      if (!queryResult.success) {
+        return res.status(400).json({ 
+          error: 'Invalid query parameters', 
+          details: queryResult.error.format() 
+        });
+      }
+
+      const query = queryResult.data;
+      if (!query.startDate || !query.endDate) {
+        return res.status(400).json({ error: 'startDate and endDate are required' });
+      }
+
+      console.log(`⚡ [OPTIMIZED ANALYTICS] Processing: ${query.startDate} to ${query.endDate}, metrics: ${query.metrics}, aggregation: ${query.aggregationLevel}`);
+
+      // Validate dates, merchantId, and parse additional parameters
+      try {
+        validateDateString(query.startDate, 'startDate');
+        validateDateString(query.endDate, 'endDate');
+        const merchantId = query.merchantId ? parseMerchantId(query.merchantId) : undefined;
+        
+        // Validate metrics array
+        const validMetrics = ['revenue', 'orders', 'profit', 'items', 'customers'];
+        const metricsArray = query.metrics!.split(',').map(m => m.trim());
+        const invalidMetrics = metricsArray.filter(m => !validMetrics.includes(m));
+        if (invalidMetrics.length > 0) {
+          throw new Error(`Invalid metrics: ${invalidMetrics.join(', ')}. Valid options: ${validMetrics.join(', ')}`);
+        }
+        
+        // Parse and validate limit
+        const limit = Number(query.limit!);
+        if (!Number.isFinite(limit) || limit <= 0 || limit > 50000) {
+          throw new Error(`Invalid limit: '${query.limit}'. Must be a positive number between 1 and 50000.`);
+        }
+
+        const result = await storage.getOptimizedHistoricalData({
+          startDate: query.startDate,
+          endDate: query.endDate,
+          locationId: query.locationId !== 'all' ? query.locationId : undefined,
+          merchantId,
+          aggregationLevel: query.aggregationLevel!,
+          metrics: metricsArray as ('revenue' | 'orders' | 'profit' | 'items' | 'customers')[],
+          useCache: query.useCache === 'true',
+          limit
+        });
+
+        res.json(result);
+      } catch (validationError: any) {
+        return res.status(400).json({ error: validationError.message });
+      }
+    } catch (error) {
+      console.error('Error fetching optimized historical data:', error);
+      res.status(500).json({ error: 'Failed to fetch optimized historical data' });
+    }
+  });
+
+  // Historical sync management endpoint
+  app.post('/api/orders/analytics/sync-historical', isAuthenticated, async (req, res) => {
+    try {
       const {
+        merchantId,
         startDate,
         endDate,
-        locationId,
-        groupBy = 'day'
-      } = req.query as Record<string, string>;
+        batchSize,
+        enableOptimization = true
+      } = req.body;
 
-      console.log('🔧 [ANALYTICS] Route handler called');
-      // For now, return basic analytics structure
-      // This can be enhanced later with real calculations from order data
+      if (!startDate || !endDate) {
+        return res.status(400).json({ error: 'startDate and endDate are required' });
+      }
+
+      console.log(`🔄 [HISTORICAL SYNC] Starting sync: ${startDate} to ${endDate}`);
+
+      const results = await cloverSyncService.syncHistoricalData({
+        merchantId,
+        startDate: new Date(startDate),
+        endDate: new Date(endDate),
+        batchSize,
+        enableOptimization
+      });
+
       res.json({
-        analytics: [],
+        success: true,
+        results,
         summary: {
-          totalOrders: 0,
-          totalRevenue: 0,
-          averageOrderValue: 0
+          totalMerchants: results.length,
+          totalOrdersProcessed: results.reduce((sum, r) => sum + r.ordersProcessed, 0),
+          totalOrdersCreated: results.reduce((sum, r) => sum + r.ordersCreated, 0),
+          totalErrors: results.reduce((sum, r) => sum + r.errors.length, 0)
         }
       });
     } catch (error) {
-      console.error('Error fetching order analytics:', error);
-      res.status(500).json({ error: 'Failed to fetch analytics' });
+      console.error('Error syncing historical data:', error);
+      res.status(500).json({ error: 'Failed to sync historical data' });
+    }
+  });
+
+  // Historical sync recommendations endpoint
+  app.get('/api/orders/analytics/sync-recommendations', isAuthenticated, async (req, res) => {
+    try {
+      const {
+        dataVolumeEstimate = 'medium',
+        timeRangeMonths = '12'
+      } = req.query as Record<string, string>;
+
+      console.log(`💡 [SYNC RECOMMENDATIONS] Getting recommendations for ${dataVolumeEstimate} volume, ${timeRangeMonths} months`);
+
+      const recommendations = cloverSyncService.getHistoricalSyncRecommendations(
+        dataVolumeEstimate as 'low' | 'medium' | 'high',
+        parseInt(timeRangeMonths)
+      );
+
+      res.json({
+        recommendations,
+        explanation: {
+          dataVolumeEstimate,
+          timeRangeMonths: parseInt(timeRangeMonths),
+          reasoning: {
+            batchSize: recommendations.batchSize! > 500 ? 'Large batches for efficiency' : 'Smaller batches to avoid timeouts',
+            parallelSync: recommendations.parallelMerchantSync ? 'Parallel processing enabled for speed' : 'Sequential processing for safety',
+            retryStrategy: `${recommendations.maxRetries} retries with ${recommendations.retryDelay}ms delay`
+          }
+        }
+      });
+    } catch (error) {
+      console.error('Error getting sync recommendations:', error);
+      res.status(500).json({ error: 'Failed to get sync recommendations' });
     }
   });
 
