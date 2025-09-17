@@ -1031,6 +1031,8 @@ export interface IStorage {
   getMerchantByExternalId(merchantId: string, channel: string): Promise<Merchant | undefined>;
   updateMerchant(id: number, updates: Partial<InsertMerchant>): Promise<Merchant>;
   deleteMerchant(id: number): Promise<void>;
+  // Atomic upsert method using unique constraint (merchantId, channel)
+  upsertMerchant(merchant: InsertMerchant): Promise<{ merchant: Merchant; operation: 'created' | 'updated' }>;
 
   // POS Location Management
   createPosLocation(location: InsertPosLocation): Promise<PosLocation>;
@@ -1072,6 +1074,8 @@ export interface IStorage {
   getOrderByExternalId(externalOrderId: string, channel: string): Promise<Order | undefined>;
   updateOrder(id: number, updates: Partial<InsertOrder>): Promise<Order>;
   deleteOrder(id: number): Promise<void>;
+  // Atomic upsert method using unique constraint (merchantId, externalOrderId, channel)
+  upsertOrder(order: InsertOrder): Promise<{ order: Order; operation: 'created' | 'updated' }>;
   syncOrders(merchantId: number, channel: string, orders: InsertOrder[]): Promise<{ created: number; updated: number }>;
 
   // Order Line Items Management
@@ -8561,6 +8565,112 @@ export class DatabaseStorage implements IStorage {
       }
     };
   }
+
+  // ================================
+  // MERCHANT MANAGEMENT STORAGE OPERATIONS (Required for Order FK References)
+  // ================================
+
+  async createMerchant(merchant: InsertMerchant): Promise<Merchant> {
+    try {
+      const [result] = await db.insert(merchants).values(merchant).returning();
+      return result;
+    } catch (error) {
+      console.error('Error creating merchant:', error);
+      throw error;
+    }
+  }
+
+  async getMerchants(channel?: string): Promise<Merchant[]> {
+    try {
+      if (channel) {
+        return await db.select().from(merchants).where(eq(merchants.channel, channel));
+      }
+      return await db.select().from(merchants);
+    } catch (error) {
+      console.error('Error getting merchants:', error);
+      throw error;
+    }
+  }
+
+  async getMerchant(id: number): Promise<Merchant | undefined> {
+    try {
+      const [result] = await db.select().from(merchants).where(eq(merchants.id, id));
+      return result;
+    } catch (error) {
+      console.error('Error getting merchant:', error);
+      throw error;
+    }
+  }
+
+  async getMerchantByExternalId(merchantId: string, channel: string): Promise<Merchant | undefined> {
+    try {
+      const [result] = await db.select().from(merchants)
+        .where(and(eq(merchants.merchantId, merchantId), eq(merchants.channel, channel)));
+      return result;
+    } catch (error) {
+      console.error('Error getting merchant by external ID:', error);
+      throw error;
+    }
+  }
+
+  async updateMerchant(id: number, updates: Partial<InsertMerchant>): Promise<Merchant> {
+    try {
+      const [result] = await db.update(merchants)
+        .set({ ...updates, updatedAt: new Date() })
+        .where(eq(merchants.id, id))
+        .returning();
+      return result;
+    } catch (error) {
+      console.error('Error updating merchant:', error);
+      throw error;
+    }
+  }
+
+  async deleteMerchant(id: number): Promise<void> {
+    try {
+      await db.delete(merchants).where(eq(merchants.id, id));
+    } catch (error) {
+      console.error('Error deleting merchant:', error);
+      throw error;
+    }
+  }
+
+  // Atomic upsert method using unique constraint (merchantId, channel)
+  async upsertMerchant(merchant: InsertMerchant): Promise<{ merchant: Merchant; operation: 'created' | 'updated' }> {
+    try {
+      console.log(`💾 Atomic upsert for merchant ${merchant.merchantId} on channel ${merchant.channel}`);
+      
+      // Prepare the merchant data with updatedAt timestamp for updates
+      const merchantData = { ...merchant };
+      const updateData = { ...merchant, updatedAt: new Date() };
+      
+      // Use Drizzle's onConflictDoUpdate for atomic upsert
+      const [result] = await db
+        .insert(merchants)
+        .values(merchantData)
+        .onConflictDoUpdate({
+          target: [merchants.merchantId, merchants.channel],
+          set: updateData,
+        })
+        .returning();
+
+      // Assert that we got a result (should never be null but defensive programming)
+      if (!result) {
+        throw new Error(`Atomic upsert failed: No result returned for merchant ${merchant.merchantId}`);
+      }
+
+      // Determine if this was a create or update operation
+      const isNew = result.createdAt.getTime() === result.updatedAt.getTime();
+      const operation = isNew ? 'created' : 'updated';
+
+      console.log(`✅ Merchant ${merchant.merchantId} was ${operation} (DB ID: ${result.id})`);
+      return { merchant: result, operation };
+    } catch (error) {
+      console.error(`❌ Merchant upsert failed for ${merchant.merchantId}:`, error);
+      throw error;
+    }
+  }
+
   // ================================
   // ORDER MANAGEMENT STORAGE OPERATIONS (Required for Sync Service)
   // ================================
@@ -8573,6 +8683,46 @@ export class DatabaseStorage implements IStorage {
     } catch (error) {
       console.error('Error creating order:', error);
       throw error;
+    }
+  }
+
+  // Atomic upsert method using unique constraint (merchantId, externalOrderId, channel)
+  async upsertOrder(order: InsertOrder): Promise<{ order: Order; operation: 'created' | 'updated' }> {
+    try {
+      console.log(`💾 Atomic upsert for order ${order.externalOrderId} on merchant ${order.merchantId}, channel ${order.channel}`);
+      
+      // Prepare the order data with updatedAt timestamp for updates
+      const orderData = { ...order };
+      const updateData = { ...order, updatedAt: new Date() };
+      
+      // Use Drizzle's onConflictDoUpdate for atomic upsert
+      const [result] = await db
+        .insert(orders)
+        .values(orderData)
+        .onConflictDoUpdate({
+          target: [orders.merchantId, orders.externalOrderId, orders.channel],
+          set: updateData,
+        })
+        .returning();
+
+      // Assert that we got a result (should never be null but defensive programming)
+      if (!result) {
+        throw new Error(`Atomic upsert failed: No result returned for order ${order.externalOrderId}`);
+      }
+
+      // Determine if this was a create or update operation
+      // If the createdAt and updatedAt timestamps are the same (within 1 second), it was created
+      const wasCreated = !result.updatedAt || 
+        Math.abs(new Date(result.createdAt).getTime() - new Date(result.updatedAt).getTime()) < 1000;
+      
+      const operation = wasCreated ? 'created' : 'updated';
+      
+      console.log(`✅ Atomic upsert completed: order ${order.externalOrderId} was ${operation}`);
+      
+      return { order: result, operation };
+    } catch (error) {
+      console.error(`❌ Atomic upsert failed for order ${order.externalOrderId}:`, error);
+      throw new Error(`Atomic upsert failed for order ${order.externalOrderId}: ${error instanceof Error ? error.message : 'Database operation failed'}`);
     }
   }
 

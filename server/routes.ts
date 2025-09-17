@@ -6247,6 +6247,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ORDER MANAGEMENT API ENDPOINTS
   // ================================
 
+  // Add global trace logger to see all requests
+  app.use((req, res, next) => {
+    if (req.originalUrl.includes('/api/orders')) {
+      console.log('🔍 [GLOBAL TRACE]', req.method, req.originalUrl, 'Query:', req.query);
+    }
+    next();
+  });
+
   // TRACER MIDDLEWARE - Add this temporarily to debug route conflicts
   app.use('/api/orders', (req, res, next) => {
     console.log('🔧 TRACE /api/orders*', req.method, req.originalUrl, req.url);
@@ -6291,22 +6299,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      console.log('🚀 [ORDERS API] Fetching orders with database queries (optimized):', {
-        createdTimeMinMs, createdTimeMaxMs, startDate, endDate, locationId, search, state, page, limit
+      // Normalize and sanitize filters before invoking storage
+      const normalizeEpoch = (v: string | undefined) => v ? (Number(v) < 1e12 ? Number(v) * 1000 : Number(v)) : undefined;
+      const createdMinMs = normalizeEpoch(createdTimeMin);
+      const createdMaxMs = normalizeEpoch(createdTimeMax);
+      const normalizedStartDate = createdMinMs ? new Date(createdMinMs).toISOString().slice(0,10) : startDate;
+      const normalizedEndDate = createdMaxMs ? new Date(createdMaxMs).toISOString().slice(0,10) : endDate;
+      const stateParam = state && state !== 'all' ? String(state) : undefined;
+      const limitNum = Number.isFinite(Number(limit)) && Number(limit) > 0 ? Number(limit) : 20;
+      const offsetNum = Number.isFinite(Number(offset)) && Number(offset) >= 0 ? Number(offset) : 0;
+      const locationIdNum = locationId && locationId !== 'all' ? Number(locationId) : undefined;
+
+      console.log('🚀 [ORDERS API] Fetching orders with database queries (optimized)');
+      console.log('Orders API filters:', { 
+        startDate: normalizedStartDate, endDate: normalizedEndDate, locationId: locationIdNum, 
+        state: stateParam, limit: limitNum, offset: offsetNum, search 
       });
 
       // Use optimized database queries instead of slow live Clover API calls
-      const dbResult = await storage.getOrders({
-        createdTimeMin: createdTimeMinMs,
-        createdTimeMax: createdTimeMaxMs,
-        startDate: createdTimeMinMs || createdTimeMaxMs ? undefined : startDate,  // Legacy fallback only if no epochs
-        endDate: createdTimeMinMs || createdTimeMaxMs ? undefined : endDate,      // Legacy fallback only if no epochs
-        locationId: locationId && locationId !== 'all' ? parseInt(locationId) : undefined,
+      const dbResult = await storage.getOrdersWithFiltering({
+        startDate: normalizedStartDate,
+        endDate: normalizedEndDate,
+        locationId: locationIdNum,
         search,
-        orderState: state,
-        limit: parseInt(limit),
-        offset
+        state: stateParam,
+        limit: limitNum,
+        offset: offsetNum
       });
+
+      console.log('Orders API result:', { total: dbResult.total, returned: dbResult.orders.length });
 
       // Also fetch Amazon orders if date range is provided (with timeout)
       let amazonOrders: any[] = [];

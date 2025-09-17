@@ -428,12 +428,62 @@ export class CloverSyncService {
   private async processOrder(cloverOrder: CloverOrder, merchantDbId: number, merchantConfig: any): Promise<{ op: 'created' | 'updated' }> {
     console.log(`🔄 Processing order ${cloverOrder.id}`);
 
-    // Use atomic upsert instead of check-then-create/update pattern
-    console.log(`💾 Using atomic upsert for order ${cloverOrder.id}`);
+    // ARCHITECT'S FIX: Resolve merchant record - merchantDbId is cloverConfig.id, not merchants.id
+    console.log(`🔍 Resolving merchant ID: cloverConfig.id=${merchantDbId}, clover merchant ID=${merchantConfig.merchantId}`);
     
-    // Map Clover order to our schema
+    // Get or create merchant record in merchants table using Clover merchant data
+    let actualMerchantId: number;
+    try {
+      // Check if merchant exists in merchants table
+      let merchantRecord = await storage.getMerchantByExternalId(merchantConfig.merchantId, 'clover');
+      
+      if (!merchantRecord) {
+        console.log(`🏪 Creating new merchant record for ${merchantConfig.merchantName} (${merchantConfig.merchantId})`);
+        
+        // Create merchant data from clover config
+        const merchantData = {
+          merchantId: merchantConfig.merchantId, // External Clover merchant ID
+          name: merchantConfig.merchantName || 'Unknown Merchant',
+          legalName: merchantConfig.merchantName || 'Unknown Merchant',
+          channel: 'clover' as const,
+          contactEmail: null,
+          contactPhone: null,
+          address: null,
+          city: null,
+          state: null,
+          zipCode: null,
+          country: 'US',
+          timezone: 'America/Chicago',
+          currency: 'USD',
+          isActive: true,
+          settings: {
+            cloverConfigId: merchantDbId, // Link back to clover config
+            baseUrl: merchantConfig.baseUrl || 'https://api.clover.com'
+          }
+        };
+        
+        // Use upsert to handle race conditions
+        const upsertResult = await storage.upsertMerchant(merchantData);
+        merchantRecord = upsertResult.merchant;
+        console.log(`✅ Merchant record ${upsertResult.operation}: ${merchantRecord.name} (DB ID: ${merchantRecord.id})`);
+      } else {
+        console.log(`✅ Using existing merchant record: ${merchantRecord.name} (DB ID: ${merchantRecord.id})`);
+      }
+      
+      actualMerchantId = merchantRecord.id;
+      console.log(`🎯 Using merchants.id=${actualMerchantId} for order foreign key (not cloverConfig.id=${merchantDbId})`);
+      
+    } catch (merchantError) {
+      console.error(`❌ CRITICAL: Failed to resolve merchant record for ${merchantConfig.merchantName}:`, merchantError);
+      throw new Error(`Merchant resolution failed for ${merchantConfig.merchantName}: ${merchantError instanceof Error ? merchantError.message : 'Unknown error'}`);
+    }
+
+    // Use atomic upsert instead of check-then-create/update pattern
+    console.log(`💾 Using atomic upsert for order ${cloverOrder.id} with resolved merchantId=${actualMerchantId}`);
+    
+    // Map Clover order to our schema with CORRECT merchant ID
     const orderData: InsertOrder = {
-      merchantId: merchantDbId,
+      merchantId: actualMerchantId, // FIXED: Use merchants.id, not cloverConfig.id
       externalOrderId: cloverOrder.id,
       channel: 'clover',
       orderNumber: cloverOrder.orderNumber || null,
@@ -458,39 +508,27 @@ export class CloverSyncService {
       testMode: cloverOrder.testMode || false
     };
 
-    // Use proper storage layer transaction with upsert functionality
+    // Use atomic upsert instead of check-then-create/update pattern
     let orderId: number;
     let operationType: 'created' | 'updated';
 
-    console.log(`💾 Performing order upsert for ${cloverOrder.id}`);
+    console.log(`💾 Performing atomic upsert for ${cloverOrder.id}`);
     
     try {
-      // Check if order exists to determine operation type
-      const existingOrder = await storage.getOrderByExternalId(cloverOrder.id, 'clover');
+      // Use atomic upsert with unique constraint (merchantId, externalOrderId, channel)
+      const upsertResult = await storage.upsertOrder(orderData);
+      orderId = upsertResult.order.id;
+      operationType = upsertResult.operation;
       
-      if (existingOrder) {
-        // Update existing order
-        console.log(`🔄 Updating existing order ${cloverOrder.id} (DB ID: ${existingOrder.id})`);
-        const updatedOrder = await storage.updateOrder(existingOrder.id, orderData);
-        orderId = updatedOrder.id;
-        operationType = 'updated';
-        console.log(`✅ Successfully updated order ${cloverOrder.id}`);
-      } else {
-        // Create new order
-        console.log(`➕ Creating new order ${cloverOrder.id}`);
-        const newOrder = await storage.createOrder(orderData);
-        orderId = newOrder.id;
-        operationType = 'created';
-        console.log(`✅ Successfully created order ${cloverOrder.id} (DB ID: ${orderId})`);
-      }
+      console.log(`✅ Atomic upsert completed: order ${cloverOrder.id} was ${operationType} (DB ID: ${orderId})`);
     } catch (dbError) {
-      console.error(`❌ Database operation failed for order ${cloverOrder.id}:`, dbError);
+      console.error(`❌ Atomic upsert failed for order ${cloverOrder.id}:`, dbError);
       throw new Error(`Order persistence failed for ${cloverOrder.id}: ${dbError instanceof Error ? dbError.message : 'Database operation failed'}`);
     }
 
     // ARCHITECT'S FIX: Verify order was actually persisted
     try {
-      const verificationOrder = await storage.getOrderById(orderId);
+      const verificationOrder = await storage.getOrder(orderId);
       if (!verificationOrder) {
         throw new Error(`Order persistence verification failed for ${cloverOrder.id}: Order not found in database after upsert`);
       }
