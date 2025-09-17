@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState, useEffect, useMemo } from "react";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,7 +29,8 @@ import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, R
 import { format, addDays, startOfDay, endOfDay } from "date-fns";
 import { fromZonedTime } from "date-fns-tz";
 import { getDateRangeByValue } from '@/lib/date-ranges';
-import { apiRequest } from '@/lib/queryClient';
+import { apiRequest, queryClient } from '@/lib/queryClient';
+import { useDebounce } from '@/hooks/use-debounce';
 
 interface Order {
   id: string;
@@ -125,6 +126,10 @@ export function ComprehensiveOrderManagement() {
     return { from: start, to: end };
   });
 
+  // Debounced search to prevent excessive API calls
+  const [searchInput, setSearchInput] = useState("");
+  const debouncedSearch = useDebounce(searchInput, 400);
+
 
   // Fetch available locations for filtering - MOVED HERE TO FIX INITIALIZATION ERROR
   const { data: locations, error: locationsError, isLoading: locationsLoading } = useQuery<any[]>({
@@ -146,18 +151,75 @@ export function ComprehensiveOrderManagement() {
 
   
   const [filters, setFilters] = useState({
-    search: "",
     locationId: "all",
     state: "all", 
+    search: "",
     page: 1,
     limit: 20
   });
 
-  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  // Update filters when debounced search changes
+  useEffect(() => {
+    setFilters(prev => ({ ...prev, search: debouncedSearch, page: 1 }));
+  }, [debouncedSearch]);
+
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [showOrderDetails, setShowOrderDetails] = useState(false);
 
+  // Order details query - only fetch when dialog is open
+  const { data: selectedOrder, isLoading: orderDetailsLoading, error: orderDetailsError } = useQuery<Order>({
+    queryKey: ['/api/orders', selectedOrderId, 'detail'],
+    queryFn: async () => {
+      if (!selectedOrderId) throw new Error('No order ID provided');
+      const response = await fetch(`/api/orders/${selectedOrderId}`, {
+        credentials: 'include'
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to fetch order details: ${response.status} ${response.statusText}`);
+      }
+      const detailedOrder = await response.json();
+      
+      // Extract line items from Clover API format with better handling
+      let extractedLineItems = [];
+      if (Array.isArray(detailedOrder.lineItems)) {
+        extractedLineItems = detailedOrder.lineItems;
+      } else if (detailedOrder.lineItems?.elements && Array.isArray(detailedOrder.lineItems.elements)) {
+        extractedLineItems = detailedOrder.lineItems.elements;
+      } else if (detailedOrder.lineItems?.href && detailedOrder.lineItems?.data && Array.isArray(detailedOrder.lineItems.data)) {
+        extractedLineItems = detailedOrder.lineItems.data;
+      }
+      
+      // Extract payments from Clover API format with better handling
+      let extractedPayments = [];
+      if (Array.isArray(detailedOrder.payments)) {
+        extractedPayments = detailedOrder.payments;
+      } else if (detailedOrder.payments?.elements && Array.isArray(detailedOrder.payments.elements)) {
+        extractedPayments = detailedOrder.payments.elements;
+      } else if (detailedOrder.payments?.href && detailedOrder.payments?.data && Array.isArray(detailedOrder.payments.data)) {
+        extractedPayments = detailedOrder.payments.data;
+      }
+      
+      // Extract refunds from Clover API format  
+      const extractedRefunds = detailedOrder.refunds?.elements ? 
+        { elements: detailedOrder.refunds.elements } : 
+        detailedOrder.refunds;
+      
+      // Create processed order with extracted data
+      return {
+        ...detailedOrder,
+        lineItems: extractedLineItems,
+        payments: extractedPayments,
+        refunds: extractedRefunds
+      };
+    },
+    enabled: !!selectedOrderId && showOrderDetails,
+    staleTime: 10 * 60 * 1000, // Order details are fairly stable - 10 minutes
+    gcTime: 30 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    retry: 3,
+  });
+
   const { toast } = useToast();
-  const queryClient = useQueryClient();
 
   // Fetch orders with filtering - use pre-calculated timezone-aware epoch timestamps
   const ordersQueryParams = new URLSearchParams();
@@ -202,41 +264,81 @@ export function ComprehensiveOrderManagement() {
 
   const ordersUrl = `/api/orders?${ordersQueryParams.toString()}`;
   
+  // Memoize date parameters for consistent usage across all queries
+  const dateParams = useMemo(() => {
+    const selectedDateRange = getDateRangeByValue(dateRangeValue);
+    if (selectedDateRange) {
+      return {
+        startEpoch: selectedDateRange.startEpoch,
+        endEpoch: selectedDateRange.endEpoch,
+        startDate: format(selectedDateRange.startDate, 'yyyy-MM-dd'),
+        endDate: format(selectedDateRange.endDate, 'yyyy-MM-dd')
+      };
+    } else if (dateRange.from && dateRange.to) {
+      const BUSINESS_TIMEZONE = 'America/Chicago';
+      const startEpoch = fromZonedTime(startOfDay(dateRange.from), BUSINESS_TIMEZONE).getTime();
+      const endEpoch = fromZonedTime(endOfDay(dateRange.to), BUSINESS_TIMEZONE).getTime();
+      return {
+        startEpoch,
+        endEpoch,
+        startDate: format(dateRange.from, 'yyyy-MM-dd'),
+        endDate: format(dateRange.to, 'yyyy-MM-dd')
+      };
+    }
+    return null;
+  }, [dateRangeValue, dateRange]);
+
+  // Use structured query key for better caching and invalidation
+  const ordersQueryKey = ['/api/orders', {
+    createdTimeMin: dateParams?.startEpoch ? String(dateParams.startEpoch) : '',
+    createdTimeMax: dateParams?.endEpoch ? String(dateParams.endEpoch) : '',
+    search: filters.search || '',
+    locationId: filters.locationId,
+    state: filters.state,
+    page: filters.page,
+    limit: filters.limit
+  }];
+
   const { data: ordersData, isLoading: ordersLoading, error: ordersError } = useQuery<OrdersResponse>({
-    queryKey: [ordersUrl],
+    queryKey: ordersQueryKey,
     queryFn: async () => {
-      // Add cache-busting parameter to force fresh data
-      const cacheBustUrl = `${ordersUrl}&_t=${Date.now()}`;
-      const response = await fetch(cacheBustUrl, {
-        credentials: 'include',
-        cache: 'no-cache',
-        headers: {
-          'Cache-Control': 'no-cache',
-          'Pragma': 'no-cache'
-        }
+      // Use clean URL without cache-busting
+      const response = await fetch(ordersUrl, {
+        credentials: 'include'
       });
       if (!response.ok) {
         throw new Error(`Failed to fetch orders: ${response.status} ${response.statusText}`);
       }
       return response.json();
     },
-    refetchInterval: 30000, // Refresh every 30 seconds for real-time updates
-    staleTime: 0, // Always consider data stale to force fresh requests
-    gcTime: 0, // Don't cache the data
+    staleTime: 2 * 60 * 1000, // Consider data fresh for 2 minutes
+    gcTime: 30 * 60 * 1000, // Keep in cache for 30 minutes
+    refetchOnWindowFocus: false, // Don't refetch when window gains focus
+    refetchOnReconnect: false, // Don't refetch on reconnect
+    placeholderData: keepPreviousData, // Prevent UI flicker during pagination/filtering
+    enabled: !!dateParams, // Only fetch when date params are available
   });
 
-  // Prepare analytics query parameters
+  // Prepare analytics query with unified date handling
   const analyticsQueryParams = new URLSearchParams();
-  if (dateRange.from) analyticsQueryParams.set('startDate', format(dateRange.from, 'yyyy-MM-dd'));
-  if (dateRange.to) analyticsQueryParams.set('endDate', format(dateRange.to, 'yyyy-MM-dd'));
+  if (dateParams?.startDate) analyticsQueryParams.set('startDate', dateParams.startDate);
+  if (dateParams?.endDate) analyticsQueryParams.set('endDate', dateParams.endDate);
   analyticsQueryParams.set('locationId', filters.locationId);
   analyticsQueryParams.set('groupBy', 'day');
 
   const analyticsUrl = `/api/orders/analytics?${analyticsQueryParams.toString()}`;
 
+  // Use structured query key for analytics
+  const analyticsQueryKey = ['/api/orders/analytics', {
+    startDate: dateParams?.startDate,
+    endDate: dateParams?.endDate,
+    locationId: filters.locationId,
+    groupBy: 'day'
+  }];
+
   // Fetch order analytics
   const { data: analyticsData, isLoading: analyticsLoading } = useQuery<OrderAnalyticsResponse>({
-    queryKey: [analyticsUrl],
+    queryKey: analyticsQueryKey,
     queryFn: async () => {
       const response = await fetch(analyticsUrl, {
         credentials: 'include'
@@ -245,20 +347,30 @@ export function ComprehensiveOrderManagement() {
         throw new Error(`Failed to fetch order analytics: ${response.status} ${response.statusText}`);
       }
       return response.json();
-    }
+    },
+    enabled: !!dateParams,
+    staleTime: 5 * 60 * 1000, // 5 minutes for analytics
+    refetchOnWindowFocus: false,
   });
 
-  // Prepare voided items query parameters
+  // Prepare voided items query with unified date handling
   const voidedQueryParams = new URLSearchParams();
-  if (dateRange.from) voidedQueryParams.set('startDate', format(dateRange.from, 'yyyy-MM-dd'));
-  if (dateRange.to) voidedQueryParams.set('endDate', format(dateRange.to, 'yyyy-MM-dd'));
+  if (dateParams?.startDate) voidedQueryParams.set('startDate', dateParams.startDate);
+  if (dateParams?.endDate) voidedQueryParams.set('endDate', dateParams.endDate);
   voidedQueryParams.set('locationId', filters.locationId);
 
   const voidedUrl = `/api/orders/voided-items?${voidedQueryParams.toString()}`;
 
+  // Use structured query key for voided items
+  const voidedQueryKey = ['/api/orders/voided-items', {
+    startDate: dateParams?.startDate,
+    endDate: dateParams?.endDate,
+    locationId: filters.locationId
+  }];
+
   // Fetch voided items
   const { data: voidedData, isLoading: voidedLoading } = useQuery<VoidedItemsResponse>({
-    queryKey: [voidedUrl],
+    queryKey: voidedQueryKey,
     queryFn: async () => {
       const response = await fetch(voidedUrl, {
         credentials: 'include'
@@ -267,7 +379,10 @@ export function ComprehensiveOrderManagement() {
         throw new Error(`Failed to fetch voided items: ${response.status} ${response.statusText}`);
       }
       return response.json();
-    }
+    },
+    enabled: !!dateParams,
+    staleTime: 5 * 60 * 1000, // 5 minutes for voided items
+    refetchOnWindowFocus: false,
   });
 
   // All useEffects AFTER useQuery declarations to avoid initialization errors
@@ -318,8 +433,10 @@ export function ComprehensiveOrderManagement() {
         title: "Order Sync Complete",
         description: data.message,
       });
+      // Invalidate all order-related queries using structured format
       queryClient.invalidateQueries({ queryKey: ['/api/orders'] });
       queryClient.invalidateQueries({ queryKey: ['/api/orders/analytics'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/orders/voided-items'] });
     },
     onError: (error) => {
       toast({
@@ -365,62 +482,15 @@ export function ComprehensiveOrderManagement() {
     }
   };
 
-  const handleOrderClick = async (order: Order) => {
-    try {
-      const response = await apiRequest('GET', `/api/orders/${order.id}`);
-      const detailedOrder = await response.json();
-      
-      // Extract line items from Clover API format with better handling
-      let extractedLineItems = [];
-      if (Array.isArray(detailedOrder.lineItems)) {
-        extractedLineItems = detailedOrder.lineItems;
-      } else if (detailedOrder.lineItems?.elements && Array.isArray(detailedOrder.lineItems.elements)) {
-        extractedLineItems = detailedOrder.lineItems.elements;
-      } else if (detailedOrder.lineItems?.href && detailedOrder.lineItems?.data && Array.isArray(detailedOrder.lineItems.data)) {
-        extractedLineItems = detailedOrder.lineItems.data;
-      }
-      
-      // Extract payments from Clover API format with better handling
-      let extractedPayments = [];
-      if (Array.isArray(detailedOrder.payments)) {
-        extractedPayments = detailedOrder.payments;
-      } else if (detailedOrder.payments?.elements && Array.isArray(detailedOrder.payments.elements)) {
-        extractedPayments = detailedOrder.payments.elements;
-      } else if (detailedOrder.payments?.href && detailedOrder.payments?.data && Array.isArray(detailedOrder.payments.data)) {
-        extractedPayments = detailedOrder.payments.data;
-      }
-      
-      
-      // Extract refunds from Clover API format  
-      const extractedRefunds = detailedOrder.refunds?.elements ? 
-        { elements: detailedOrder.refunds.elements } : 
-        detailedOrder.refunds;
-      
-      // Create processed order with extracted data
-      const processedOrder = {
-        ...detailedOrder,
-        lineItems: extractedLineItems,
-        payments: extractedPayments,
-        refunds: extractedRefunds
-      };
-      
-      
-      setSelectedOrder(processedOrder);
-      setShowOrderDetails(true);
-    } catch (error) {
-      console.error('Failed to load order details:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load order details",
-        variant: "destructive",
-      });
-    }
+  const handleOrderClick = (order: Order) => {
+    setSelectedOrderId(order.id);
+    setShowOrderDetails(true);
   };
 
   const handleSyncOrders = () => {
     syncOrdersMutation.mutate({
-      startDate: dateRange.from ? format(dateRange.from, 'yyyy-MM-dd') : undefined,
-      endDate: dateRange.to ? format(dateRange.to, 'yyyy-MM-dd') : undefined
+      startDate: dateParams?.startDate,
+      endDate: dateParams?.endDate
     });
   };
 
@@ -494,9 +564,10 @@ export function ComprehensiveOrderManagement() {
             <div className="flex flex-1 gap-2">
               <Input
                 placeholder="Search orders..."
-                value={filters.search}
-                onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value, page: 1 }))}
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
                 className="flex-1"
+                data-testid="input-search-orders"
               />
               <Select
                 value={filters.locationId}
@@ -778,15 +849,55 @@ export function ComprehensiveOrderManagement() {
       </Tabs>
 
       {/* Order Details Dialog */}
-      <Dialog open={showOrderDetails} onOpenChange={setShowOrderDetails}>
+      <Dialog open={showOrderDetails} onOpenChange={(open) => {
+        setShowOrderDetails(open);
+        if (!open) {
+          setSelectedOrderId(null);
+        }
+      }}>
         <DialogContent className="max-w-4xl max-h-[80vh]">
           <DialogHeader>
             <DialogTitle>Order Details</DialogTitle>
             <DialogDescription>
-              {selectedOrder && `Order ${selectedOrder.id} from ${selectedOrder.locationName}${selectedOrder.formattedDate ? ` - 📅 ${selectedOrder.orderDate} at ${selectedOrder.orderTime}` : ''}`}
+              {orderDetailsLoading ? (
+                'Loading order details...'
+              ) : orderDetailsError ? (
+                'Failed to load order details'
+              ) : selectedOrder ? (
+                `Order ${selectedOrder.id} from ${selectedOrder.locationName}${selectedOrder.formattedDate ? ` - 📅 ${selectedOrder.orderDate} at ${selectedOrder.orderTime}` : ''}`
+              ) : (
+                'Select an order to view details'
+              )}
             </DialogDescription>
           </DialogHeader>
-          {selectedOrder && (
+          
+          {orderDetailsLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <RefreshCw className="h-8 w-8 animate-spin" />
+              <span className="ml-2">Loading order details...</span>
+            </div>
+          ) : orderDetailsError ? (
+            <div className="flex items-center justify-center py-12 text-red-600">
+              <AlertCircle className="h-8 w-8" />
+              <div className="ml-2">
+                <p className="font-semibold">Failed to load order details</p>
+                <p className="text-sm">{orderDetailsError instanceof Error ? orderDetailsError.message : 'Unknown error'}</p>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="mt-2"
+                  onClick={() => {
+                    if (selectedOrderId) {
+                      queryClient.invalidateQueries({ queryKey: ['/api/orders', selectedOrderId, 'detail'] });
+                    }
+                  }}
+                >
+                  <RefreshCw className="h-4 w-4 mr-1" />
+                  Retry
+                </Button>
+              </div>
+            </div>
+          ) : selectedOrder ? (
             <ScrollArea className="max-h-[60vh]">
               <div className="space-y-6">
                 {/* Order Summary */}
@@ -930,6 +1041,10 @@ export function ComprehensiveOrderManagement() {
                 </div>
               </div>
             </ScrollArea>
+          ) : (
+            <div className="flex items-center justify-center py-12 text-muted-foreground">
+              <p>No order details available</p>
+            </div>
           )}
         </DialogContent>
       </Dialog>
