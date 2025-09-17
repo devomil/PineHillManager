@@ -4972,9 +4972,10 @@ export class DatabaseStorage implements IStorage {
               
               try {
                 // TEMPORARILY SIMPLIFIED: Skip expensive COGS calculations for faster loading
-                const orderTotal = parseFloat(order.total || '0') / 100;
+                // Frontend expects order.total in CENTS, but grossTax and other financial metrics in DOLLARS
+                const orderTotalInDollars = parseFloat(order.total || '0') / 100;
                 
-                // Calculate tax properly 
+                // Calculate tax properly (send as dollars to match frontend expectation)
                 let grossTax = 0;
                 if (order.taxAmount !== null && order.taxAmount !== undefined && order.taxAmount !== '') {
                   grossTax = parseFloat(order.taxAmount) / 100;
@@ -4983,12 +4984,12 @@ export class DatabaseStorage implements IStorage {
                 }
                 
                 const financialMetrics = {
-                  grossTax: grossTax,
-                  totalDiscounts: 0,
-                  totalRefunds: 0,
-                  netCOGS: 0,
-                  netSale: orderTotal,
-                  netProfit: 0,
+                  grossTax: grossTax, // In dollars
+                  totalDiscounts: 0, // In dollars
+                  totalRefunds: 0, // In dollars
+                  netCOGS: 0, // In dollars
+                  netSale: orderTotalInDollars, // In dollars
+                  netProfit: 0, // In dollars
                   netMargin: 0
                 };
                 // const financialMetrics = await this.calculateOrderFinancialMetrics(order, config.id);
