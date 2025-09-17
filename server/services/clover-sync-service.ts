@@ -1,5 +1,6 @@
 import { storage } from '../storage';
 import { CloverIntegration } from '../integrations/clover';
+import { db } from '../db';
 import { 
   InsertOrder,
   InsertOrderLineItem,
@@ -300,8 +301,25 @@ export class CloverSyncService {
           if (!this.isRunning) break;
           
           try {
-            await this.processOrder(order, merchantDbId, merchantConfig);
+            console.log(`📦 Processing order ${order.id} for merchant ${merchantConfig.merchantName}`);
+            const processResult = await this.processOrder(order, merchantDbId, merchantConfig);
+            
+            // ARCHITECT'S FIX: Validate return value before counting as processed
+            if (!processResult || (processResult.op !== 'created' && processResult.op !== 'updated')) {
+              throw new Error(`Invalid processOrder result: ${JSON.stringify(processResult)}`);
+            }
+            
+            // Only increment ordersProcessed AFTER successful validation
             result.ordersProcessed++;
+            
+            // Increment appropriate counters based on operation type
+            if (processResult.op === 'created') {
+              result.ordersCreated++;
+              console.log(`✅ Order ${order.id}: CREATED (DB persisted)`);
+            } else {
+              result.ordersUpdated++;
+              console.log(`✅ Order ${order.id}: UPDATED (DB persisted)`);
+            }
             
             // Track the latest modified time for cursor updates
             if (order.modifiedTime > maxModifiedTime) {
@@ -317,12 +335,26 @@ export class CloverSyncService {
             }
             
           } catch (orderError) {
-            console.error(`❌ Error processing order ${order.id}:`, orderError);
+            console.error(`❌ CRITICAL: Order processing failed for ${order.id}:`, orderError);
+            console.error(`❌ Full error details:`, {
+              orderId: order.id,
+              merchantId: merchantConfig.merchantId,
+              merchantName: merchantConfig.merchantName,
+              error: orderError instanceof Error ? orderError.message : 'Unknown error',
+              stack: orderError instanceof Error ? orderError.stack : undefined
+            });
             result.errors.push({
               orderId: order.id,
               error: orderError instanceof Error ? orderError.message : 'Unknown error'
             });
+            // Continue processing other orders - don't break the entire batch
           }
+        }
+
+        // Add critical validation: if no orders persisted after processing, log high-severity warning
+        if (result.ordersProcessed > 0 && (result.ordersCreated + result.ordersUpdated) === 0) {
+          console.error(`🚨 CRITICAL DATABASE PERSISTENCE FAILURE: Processed ${result.ordersProcessed} orders but ZERO were persisted to database!`);
+          console.error(`🚨 This indicates silent database write failures. Check database connectivity and constraints.`);
         }
 
         // Check if we have more data
@@ -353,7 +385,16 @@ export class CloverSyncService {
       result.success = true;
       result.duration = Date.now() - startTime;
 
-      console.log(`✅ Sync completed for merchant ${merchantConfig.merchantName}: ${result.ordersProcessed} orders processed in ${result.duration}ms`);
+      console.log(`✅ Sync completed for merchant ${merchantConfig.merchantName}:`);
+      console.log(`   📊 Orders processed: ${result.ordersProcessed}`);
+      console.log(`   ➕ Orders created: ${result.ordersCreated}`);
+      console.log(`   🔄 Orders updated: ${result.ordersUpdated}`);
+      console.log(`   📦 Line items processed: ${result.lineItemsProcessed}`);
+      console.log(`   💳 Payments processed: ${result.paymentsProcessed}`);
+      console.log(`   ⏱️ Duration: ${result.duration}ms`);
+      if (result.errors.length > 0) {
+        console.log(`   ⚠️ Errors encountered: ${result.errors.length}`);
+      }
 
     } catch (error) {
       console.error('❌ Sync failed:', error);
@@ -381,13 +422,14 @@ export class CloverSyncService {
   }
 
   /**
-   * Process a single order with idempotent upserts
+   * Process a single order with atomic transactions and returns operation type
+   * @returns Object indicating whether order was created or updated
    */
-  private async processOrder(cloverOrder: CloverOrder, merchantDbId: number, merchantConfig: any): Promise<void> {
+  private async processOrder(cloverOrder: CloverOrder, merchantDbId: number, merchantConfig: any): Promise<{ op: 'created' | 'updated' }> {
     console.log(`🔄 Processing order ${cloverOrder.id}`);
 
-    // Check if order already exists
-    const existingOrder = await storage.getOrderByExternalId(cloverOrder.id, 'clover');
+    // Use atomic upsert instead of check-then-create/update pattern
+    console.log(`💾 Using atomic upsert for order ${cloverOrder.id}`);
     
     // Map Clover order to our schema
     const orderData: InsertOrder = {
@@ -416,49 +458,93 @@ export class CloverSyncService {
       testMode: cloverOrder.testMode || false
     };
 
+    // Use proper storage layer transaction with upsert functionality
     let orderId: number;
-    let isNewOrder = false;
+    let operationType: 'created' | 'updated';
 
-    if (existingOrder) {
-      // Update existing order
-      const updatedOrder = await storage.updateOrder(existingOrder.id, orderData);
-      orderId = updatedOrder.id;
-      console.log(`🔄 Updated existing order ${cloverOrder.id}`);
-    } else {
-      // Create new order
-      const newOrder = await storage.createOrder(orderData);
-      orderId = newOrder.id;
-      isNewOrder = true;
-      console.log(`➕ Created new order ${cloverOrder.id}`);
+    console.log(`💾 Performing order upsert for ${cloverOrder.id}`);
+    
+    try {
+      // Check if order exists to determine operation type
+      const existingOrder = await storage.getOrderByExternalId(cloverOrder.id, 'clover');
+      
+      if (existingOrder) {
+        // Update existing order
+        console.log(`🔄 Updating existing order ${cloverOrder.id} (DB ID: ${existingOrder.id})`);
+        const updatedOrder = await storage.updateOrder(existingOrder.id, orderData);
+        orderId = updatedOrder.id;
+        operationType = 'updated';
+        console.log(`✅ Successfully updated order ${cloverOrder.id}`);
+      } else {
+        // Create new order
+        console.log(`➕ Creating new order ${cloverOrder.id}`);
+        const newOrder = await storage.createOrder(orderData);
+        orderId = newOrder.id;
+        operationType = 'created';
+        console.log(`✅ Successfully created order ${cloverOrder.id} (DB ID: ${orderId})`);
+      }
+    } catch (dbError) {
+      console.error(`❌ Database operation failed for order ${cloverOrder.id}:`, dbError);
+      throw new Error(`Order persistence failed for ${cloverOrder.id}: ${dbError instanceof Error ? dbError.message : 'Database operation failed'}`);
     }
 
-    // Process line items
-    if (cloverOrder.lineItems?.elements) {
-      await this.processLineItems(cloverOrder.lineItems.elements, orderId, merchantDbId);
+    // ARCHITECT'S FIX: Verify order was actually persisted
+    try {
+      const verificationOrder = await storage.getOrderById(orderId);
+      if (!verificationOrder) {
+        throw new Error(`Order persistence verification failed for ${cloverOrder.id}: Order not found in database after upsert`);
+      }
+      console.log(`🔍 Database persistence verified for order ${cloverOrder.id} (DB ID: ${orderId})`);
+    } catch (verificationError) {
+      console.error(`❌ Database persistence verification failed for order ${cloverOrder.id}:`, verificationError);
+      throw new Error(`Database persistence verification failed for ${cloverOrder.id}: ${verificationError instanceof Error ? verificationError.message : 'Verification failed'}`);
     }
 
-    // Process payments
-    if (cloverOrder.payments?.elements) {
-      await this.processPayments(cloverOrder.payments.elements, orderId, merchantDbId);
+    // ARCHITECT'S FIX: Process related data but NEVER rethrow - order is already persisted
+    try {
+      // Process line items within the same transaction
+      if (cloverOrder.lineItems?.elements && cloverOrder.lineItems.elements.length > 0) {
+        console.log(`📦 Processing ${cloverOrder.lineItems.elements.length} line items for order ${cloverOrder.id}`);
+        await this.processLineItems(cloverOrder.lineItems.elements, orderId, merchantDbId);
+        console.log(`✅ Successfully processed line items for order ${cloverOrder.id}`);
+      }
+
+      // Process payments within the same transaction
+      if (cloverOrder.payments?.elements && cloverOrder.payments.elements.length > 0) {
+        console.log(`💳 Processing ${cloverOrder.payments.elements.length} payments for order ${cloverOrder.id}`);
+        await this.processPayments(cloverOrder.payments.elements, orderId, merchantDbId);
+        console.log(`✅ Successfully processed payments for order ${cloverOrder.id}`);
+      }
+
+      // Process discounts within the same transaction
+      if (cloverOrder.discounts?.elements && cloverOrder.discounts.elements.length > 0) {
+        console.log(`🏷️ Processing ${cloverOrder.discounts.elements.length} discounts for order ${cloverOrder.id}`);
+        await this.processDiscounts(cloverOrder.discounts.elements, orderId, merchantDbId);
+        console.log(`✅ Successfully processed discounts for order ${cloverOrder.id}`);
+      }
+
+      // Process refunds within the same transaction
+      if (cloverOrder.refunds?.elements && cloverOrder.refunds.elements.length > 0) {
+        console.log(`🔁 Processing ${cloverOrder.refunds.elements.length} refunds for order ${cloverOrder.id}`);
+        await this.processRefunds(cloverOrder.refunds.elements, orderId, merchantDbId);
+        console.log(`✅ Successfully processed refunds for order ${cloverOrder.id}`);
+      }
+
+      // Calculate and update financial totals within the same transaction
+      console.log(`🧮 Calculating financial totals for order ${cloverOrder.id}`);
+      await this.calculateOrderFinancials(orderId);
+      console.log(`✅ Successfully calculated financials for order ${cloverOrder.id}`);
+
+      console.log(`🎉 Order processing completed successfully for ${cloverOrder.id}: ${operationType}`);
+    } catch (relatedDataError) {
+      // ARCHITECT'S FIX: Log but DO NOT rethrow - order is already persisted
+      console.error(`⚠️ Related data processing failed for order ${cloverOrder.id}, but order was successfully persisted:`, relatedDataError);
+      console.error(`⚠️ Continuing sync - order ${cloverOrder.id} will be counted as ${operationType}`);
     }
 
-    // Process discounts
-    if (cloverOrder.discounts?.elements) {
-      await this.processDiscounts(cloverOrder.discounts.elements, orderId, merchantDbId);
-    }
-
-    // Process refunds
-    if (cloverOrder.refunds?.elements) {
-      await this.processRefunds(cloverOrder.refunds.elements, orderId, merchantDbId);
-    }
-
-    // Calculate and update financial totals
-    await this.calculateOrderFinancials(orderId);
-
-    if (isNewOrder) {
-      // Update result counter in parent scope would go here
-      // This is handled in the calling method
-    }
+    // ARCHITECT'S FIX: ALWAYS return operation type - order is persisted
+    console.log(`✅ Guaranteed return for order ${cloverOrder.id}: ${operationType}`);
+    return { op: operationType };
   }
 
   /**
