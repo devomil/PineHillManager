@@ -58,6 +58,10 @@ app.use((req, res, next) => {
   const { startMessageScheduler } = await import('./messageScheduler');
   startMessageScheduler();
 
+  // Import and initialize the sync scheduler
+  const { startSyncScheduler } = await import('./services/sync-scheduler');
+  startSyncScheduler();
+
   // Setup Vite integration for React app
   if (process.env.NODE_ENV === "development") {
     const { setupVite } = await import("./vite");
@@ -89,5 +93,6 @@ app.use((req, res, next) => {
   }, () => {
     log(`Server with Vite integration serving on port ${port}`);
     log(`📅 Message scheduler initialized`, "scheduler");
+    log(`🔄 Sync scheduler initialized`, "sync-scheduler");
   });
 })();

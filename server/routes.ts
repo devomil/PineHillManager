@@ -7,6 +7,7 @@ import { storage } from "./storage";
 import { performanceMiddleware, getPerformanceMetrics, resetPerformanceMetrics } from "./performance-middleware";
 import { notificationService } from "./notificationService";
 import { cloverSyncService } from "./services/clover-sync-service";
+import { syncScheduler } from "./services/sync-scheduler";
 import { sendSupportTicketNotification } from "./emailService";
 import { smsService } from "./sms-service";
 import { smartNotificationService } from './smart-notifications';
@@ -383,6 +384,155 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error getting sync stats:', error);
       res.status(500).json({ message: 'Failed to get sync stats' });
+    }
+  });
+
+  // ================================
+  // SYNC SCHEDULER ENDPOINTS
+  // ================================
+
+  // Get scheduler status and configuration
+  app.get('/api/sync/scheduler/status', isAuthenticated, async (req, res) => {
+    try {
+      const status = syncScheduler.getStatus();
+      res.json({
+        scheduler: status,
+        cloverSyncService: {
+          isRunning: cloverSyncService.isRunningSync(),
+        },
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error('Error getting scheduler status:', error);
+      res.status(500).json({ message: 'Failed to get scheduler status' });
+    }
+  });
+
+  // Start the sync scheduler
+  app.post('/api/sync/scheduler/start', isAuthenticated, async (req, res) => {
+    try {
+      if (req.user?.role !== 'admin') {
+        return res.status(403).json({ error: 'Admin access required' });
+      }
+
+      syncScheduler.start();
+      
+      res.json({ 
+        success: true, 
+        message: 'Sync scheduler started',
+        status: syncScheduler.getStatus()
+      });
+    } catch (error) {
+      console.error('Error starting sync scheduler:', error);
+      res.status(500).json({ message: 'Failed to start sync scheduler' });
+    }
+  });
+
+  // Stop the sync scheduler
+  app.post('/api/sync/scheduler/stop', isAuthenticated, async (req, res) => {
+    try {
+      if (req.user?.role !== 'admin') {
+        return res.status(403).json({ error: 'Admin access required' });
+      }
+
+      syncScheduler.stop();
+      
+      res.json({ 
+        success: true, 
+        message: 'Sync scheduler stopped',
+        status: syncScheduler.getStatus()
+      });
+    } catch (error) {
+      console.error('Error stopping sync scheduler:', error);
+      res.status(500).json({ message: 'Failed to stop sync scheduler' });
+    }
+  });
+
+  // Update scheduler configuration
+  app.patch('/api/sync/scheduler/config', isAuthenticated, async (req, res) => {
+    try {
+      if (req.user?.role !== 'admin') {
+        return res.status(403).json({ error: 'Admin access required' });
+      }
+
+      const {
+        enabled,
+        incrementalIntervalMinutes,
+        fullSyncHour,
+        businessStartHour,
+        businessEndHour,
+        timezone,
+        skipWeekends
+      } = req.body;
+
+      // Validate input
+      const updates: any = {};
+      if (typeof enabled === 'boolean') updates.enabled = enabled;
+      if (typeof incrementalIntervalMinutes === 'number' && incrementalIntervalMinutes > 0) {
+        updates.incrementalIntervalMinutes = incrementalIntervalMinutes;
+      }
+      if (typeof fullSyncHour === 'number' && fullSyncHour >= 0 && fullSyncHour <= 23) {
+        updates.fullSyncHour = fullSyncHour;
+      }
+      if (typeof businessStartHour === 'number' && businessStartHour >= 0 && businessStartHour <= 23) {
+        updates.businessStartHour = businessStartHour;
+      }
+      if (typeof businessEndHour === 'number' && businessEndHour >= 0 && businessEndHour <= 23) {
+        updates.businessEndHour = businessEndHour;
+      }
+      if (typeof timezone === 'string') updates.timezone = timezone;
+      if (typeof skipWeekends === 'boolean') updates.skipWeekends = skipWeekends;
+
+      if (Object.keys(updates).length === 0) {
+        return res.status(400).json({ error: 'No valid configuration updates provided' });
+      }
+
+      syncScheduler.updateConfig(updates);
+      
+      res.json({ 
+        success: true, 
+        message: 'Scheduler configuration updated',
+        config: syncScheduler.getStatus().config,
+        updatesApplied: updates
+      });
+    } catch (error) {
+      console.error('Error updating scheduler config:', error);
+      res.status(500).json({ message: 'Failed to update scheduler configuration' });
+    }
+  });
+
+  // Trigger manual sync through scheduler
+  app.post('/api/sync/scheduler/trigger', isAuthenticated, async (req, res) => {
+    try {
+      if (req.user?.role !== 'admin') {
+        return res.status(403).json({ error: 'Admin access required' });
+      }
+
+      const { type = 'incremental' } = req.body;
+      
+      if (type !== 'incremental' && type !== 'full') {
+        return res.status(400).json({ error: 'Invalid sync type. Use "incremental" or "full"' });
+      }
+
+      const result = await syncScheduler.triggerManualSync(type);
+      
+      if (result.success) {
+        res.json({
+          success: true,
+          message: result.message,
+          type,
+          triggeredAt: new Date().toISOString()
+        });
+      } else {
+        res.status(409).json({
+          success: false,
+          message: result.message,
+          type
+        });
+      }
+    } catch (error) {
+      console.error('Error triggering manual sync:', error);
+      res.status(500).json({ message: 'Failed to trigger manual sync' });
     }
   });
 
