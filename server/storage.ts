@@ -4973,7 +4973,19 @@ export class DatabaseStorage implements IStorage {
               try {
                 // TEMPORARILY SIMPLIFIED: Skip expensive COGS calculations for faster loading
                 // Frontend expects order.total in CENTS, but grossTax and other financial metrics in DOLLARS
-                const orderTotalInDollars = parseFloat(order.total || '0') / 100;
+                let orderTotalInDollars = parseFloat(order.total || '0') / 100;
+                
+                // 🔧 FIX: If order.total is 0 but has line items, calculate from line items
+                if (orderTotalInDollars === 0 && order.lineItems?.elements?.length > 0) {
+                  let calculatedTotal = 0;
+                  for (const lineItem of order.lineItems.elements) {
+                    const lineItemPrice = parseFloat(lineItem.price || '0') / 100;
+                    const quantity = parseInt(lineItem.unitQty || '1');
+                    calculatedTotal += lineItemPrice * quantity;
+                  }
+                  orderTotalInDollars = calculatedTotal;
+                  console.log(`🔧 [ZERO TOTAL FIX] Order ${order.id}: Calculated total from line items: $${calculatedTotal.toFixed(2)}`);
+                }
                 
                 // Calculate tax properly (send as dollars to match frontend expectation)
                 let grossTax = 0;
