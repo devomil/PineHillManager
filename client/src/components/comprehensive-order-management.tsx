@@ -264,7 +264,7 @@ export function ComprehensiveOrderManagement() {
 
   const ordersUrl = `/api/orders?${ordersQueryParams.toString()}`;
   
-  // Memoize date parameters for consistent usage across all queries
+  // Memoize date parameters for consistent usage across all queries - always return valid dates
   const dateParams = useMemo(() => {
     const selectedDateRange = getDateRangeByValue(dateRangeValue);
     if (selectedDateRange) {
@@ -285,13 +285,49 @@ export function ComprehensiveOrderManagement() {
         endDate: format(dateRange.to, 'yyyy-MM-dd')
       };
     }
-    return null;
+    
+    // CRITICAL FIX: Always provide a fallback to "last-30-days" to prevent null dateParams
+    console.log('🔄 [DATERANGE] Using fallback to last-30-days');
+    const fallbackRange = getDateRangeByValue('last-30-days');
+    if (!fallbackRange) {
+      // Final fallback if even last-30-days fails
+      const today = new Date();
+      const BUSINESS_TIMEZONE = 'America/Chicago';
+      const thirtyDaysAgo = subDays(today, 29);
+      const startEpoch = fromZonedTime(startOfDay(thirtyDaysAgo), BUSINESS_TIMEZONE).getTime();
+      const endEpoch = fromZonedTime(endOfDay(today), BUSINESS_TIMEZONE).getTime();
+      return {
+        startEpoch,
+        endEpoch,
+        startDate: format(thirtyDaysAgo, 'yyyy-MM-dd'),
+        endDate: format(today, 'yyyy-MM-dd')
+      };
+    }
+    return {
+      startEpoch: fallbackRange.startEpoch,
+      endEpoch: fallbackRange.endEpoch,
+      startDate: format(fallbackRange.startDate, 'yyyy-MM-dd'),
+      endDate: format(fallbackRange.endDate, 'yyyy-MM-dd')
+    };
   }, [dateRangeValue, dateRange]);
+
+  // Construct orders URL using dateParams as single source of truth
+  const ordersUrl = useMemo(() => {
+    const params = new URLSearchParams();
+    params.set('createdTimeMin', dateParams.startEpoch.toString());
+    params.set('createdTimeMax', dateParams.endEpoch.toString());
+    params.set('search', filters.search);
+    params.set('locationId', filters.locationId);
+    params.set('state', filters.state);
+    params.set('page', filters.page.toString());
+    params.set('limit', filters.limit.toString());
+    return `/api/orders?${params.toString()}`;
+  }, [dateParams, filters]);
 
   // Use structured query key for better caching and invalidation
   const ordersQueryKey = ['/api/orders', {
-    createdTimeMin: dateParams?.startEpoch ? String(dateParams.startEpoch) : '',
-    createdTimeMax: dateParams?.endEpoch ? String(dateParams.endEpoch) : '',
+    createdTimeMin: String(dateParams.startEpoch),
+    createdTimeMax: String(dateParams.endEpoch),
     search: filters.search || '',
     locationId: filters.locationId,
     state: filters.state,
@@ -316,7 +352,9 @@ export function ComprehensiveOrderManagement() {
     refetchOnWindowFocus: false, // Don't refetch when window gains focus
     refetchOnReconnect: false, // Don't refetch on reconnect
     placeholderData: keepPreviousData, // Prevent UI flicker during pagination/filtering
-    enabled: !!dateParams, // Only fetch when date params are available
+    enabled: true, // Always enabled since dateParams is guaranteed to be valid
+    onSuccess: (data) => console.log('📊 [ORDERS API] Success:', { count: data?.orders?.length || 0, url: ordersUrl }),
+    onError: (error) => console.error('❌ [ORDERS API] Error:', { error: error.message, url: ordersUrl })
   });
 
   // Prepare analytics query with unified date handling
