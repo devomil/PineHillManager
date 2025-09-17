@@ -5855,52 +5855,75 @@ export async function registerRoutes(app: Express): Promise<Server> {
         offset
       });
 
-      // Also fetch Amazon orders if date range is provided
+      // Also fetch Amazon orders if date range is provided (with timeout)
       let amazonOrders: any[] = [];
       
       if ((createdTimeMinMs && createdTimeMaxMs) || (startDate && endDate)) {
         try {
-          // Get Amazon configuration
-          const amazonConfig = await storage.getAllAmazonConfigs();
+          console.log('🛒 [AMAZON ORDERS] Starting Amazon order fetch with timeout');
           
-          if (amazonConfig && amazonConfig.length > 0) {
-            console.log('🛒 [AMAZON ORDERS] Fetching Amazon orders for date range');
+          // Add timeout wrapper for Amazon integration
+          const amazonFetchWithTimeout = async (): Promise<any[]> => {
+            const timeoutPromise = new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('Amazon API timeout')), 10000) // 10 second timeout
+            );
             
-            // Convert epoch milliseconds to ISO date strings for Amazon API
-            let amazonStartDate: string;
-            let amazonEndDate: string;
-            
-            if (createdTimeMinMs && createdTimeMaxMs) {
-              amazonStartDate = new Date(createdTimeMinMs).toISOString();
-              amazonEndDate = new Date(createdTimeMaxMs).toISOString();
-            } else {
-              // Fallback for legacy date strings
-              amazonStartDate = new Date(startDate + 'T00:00:00.000Z').toISOString();
-              amazonEndDate = new Date(endDate + 'T23:59:59.999Z').toISOString();
-            }
-            
-            const { AmazonIntegration } = await import('./integrations/amazon');
-            const amazonIntegration = new AmazonIntegration(amazonConfig[0]);
-            
-            const amazonResponse = await amazonIntegration.getOrders(amazonStartDate, amazonEndDate);
-            
-            if (amazonResponse && amazonResponse.payload && amazonResponse.payload.Orders) {
-              // Transform Amazon orders to match Clover format
-              amazonOrders = amazonResponse.payload.Orders.map((order: any) => ({
-                ...order,
-                locationName: 'Amazon Store',
-                locationId: 'amazon',
-                merchantId: 'amazon',
-                // Add Amazon-specific identifiers
-                isAmazonOrder: true
-              }));
+            const fetchPromise = async (): Promise<any[]> => {
+              // Get Amazon configuration
+              const amazonConfig = await storage.getAllAmazonConfigs();
               
-              console.log(`🛒 [AMAZON ORDERS] Retrieved ${amazonOrders.length} Amazon orders`);
-            }
-          }
+              if (!amazonConfig || amazonConfig.length === 0) {
+                console.log('🛒 [AMAZON ORDERS] No Amazon configuration found');
+                return [];
+              }
+              
+              console.log('🛒 [AMAZON ORDERS] Fetching Amazon orders for date range');
+              
+              // Convert epoch milliseconds to ISO date strings for Amazon API
+              let amazonStartDate: string;
+              let amazonEndDate: string;
+              
+              if (createdTimeMinMs && createdTimeMaxMs) {
+                amazonStartDate = new Date(createdTimeMinMs).toISOString();
+                amazonEndDate = new Date(createdTimeMaxMs).toISOString();
+              } else {
+                // Fallback for legacy date strings
+                amazonStartDate = new Date(startDate + 'T00:00:00.000Z').toISOString();
+                amazonEndDate = new Date(endDate + 'T23:59:59.999Z').toISOString();
+              }
+              
+              const { AmazonIntegration } = await import('./integrations/amazon');
+              const amazonIntegration = new AmazonIntegration(amazonConfig[0]);
+              
+              const amazonResponse = await amazonIntegration.getOrders(amazonStartDate, amazonEndDate);
+              
+              if (amazonResponse && amazonResponse.payload && amazonResponse.payload.Orders) {
+                // Transform Amazon orders to match Clover format
+                const transformedOrders = amazonResponse.payload.Orders.map((order: any) => ({
+                  ...order,
+                  locationName: 'Amazon Store',
+                  locationId: 'amazon',
+                  merchantId: 'amazon',
+                  // Add Amazon-specific identifiers
+                  isAmazonOrder: true
+                }));
+                
+                console.log(`🛒 [AMAZON ORDERS] Retrieved ${transformedOrders.length} Amazon orders`);
+                return transformedOrders;
+              }
+              
+              return [];
+            };
+            
+            return Promise.race([fetchPromise(), timeoutPromise]) as Promise<any[]>;
+          };
+          
+          amazonOrders = await amazonFetchWithTimeout();
+          
         } catch (error) {
-          console.error('Error fetching Amazon orders:', error);
-          // Don't fail the entire request if Amazon fails
+          console.error('Error fetching Amazon orders (with timeout):', error);
+          // Don't fail the entire request if Amazon fails - continue with just Clover orders
+          amazonOrders = [];
         }
       }
 
