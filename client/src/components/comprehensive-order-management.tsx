@@ -28,6 +28,7 @@ import {
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { format, addDays, startOfDay, endOfDay } from "date-fns";
 import { fromZonedTime } from "date-fns-tz";
+import { getDateRangeByValue } from '@/lib/date-ranges';
 import { apiRequest } from '@/lib/queryClient';
 
 interface Order {
@@ -158,20 +159,34 @@ export function ComprehensiveOrderManagement() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Fetch orders with filtering - use timezone-aware epoch timestamps
+  // Fetch orders with filtering - use pre-calculated timezone-aware epoch timestamps
   const ordersQueryParams = new URLSearchParams();
-  if (dateRange.from && dateRange.to) {
-    // Convert to Central Time epoch boundaries for accurate filtering
-    const BUSINESS_TIMEZONE = 'America/Chicago';
+  
+  // Use pre-calculated epoch values to avoid double timezone conversion
+  const selectedDateRange = getDateRangeByValue(dateRangeValue);
+  if (selectedDateRange) {
+    // Use pre-calculated timezone-aware epoch milliseconds
+    ordersQueryParams.set('createdTimeMin', selectedDateRange.startEpoch.toString());
+    ordersQueryParams.set('createdTimeMax', selectedDateRange.endEpoch.toString());
     
-    // Calculate timezone-aware boundaries
+    console.log('🌍 [TZ-AWARE FILTERING] Using pre-calculated epoch timestamps:', {
+      dateRangeValue,
+      startEpoch: selectedDateRange.startEpoch,
+      endEpoch: selectedDateRange.endEpoch,
+      startUTC: new Date(selectedDateRange.startEpoch).toISOString(),
+      endUTC: new Date(selectedDateRange.endEpoch).toISOString(),
+      range: `${selectedDateRange.startDate.toLocaleDateString()} - ${selectedDateRange.endDate.toLocaleDateString()}`
+    });
+  } else if (dateRange.from && dateRange.to) {
+    // Fallback for custom date ranges only
+    const BUSINESS_TIMEZONE = 'America/Chicago';
     const startEpoch = fromZonedTime(startOfDay(dateRange.from), BUSINESS_TIMEZONE).getTime();
     const endEpoch = fromZonedTime(endOfDay(dateRange.to), BUSINESS_TIMEZONE).getTime();
     
     ordersQueryParams.set('createdTimeMin', startEpoch.toString());
     ordersQueryParams.set('createdTimeMax', endEpoch.toString());
     
-    console.log('🌍 [TZ-AWARE FILTERING] Sending epoch timestamps:', {
+    console.log('🌍 [TZ-AWARE FILTERING] Custom range fallback:', {
       startEpoch,
       endEpoch,
       startUTC: new Date(startEpoch).toISOString(),
