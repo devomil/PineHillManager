@@ -26,7 +26,7 @@ import {
   CheckCircle
 } from "lucide-react";
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { format, addDays, startOfDay, endOfDay } from "date-fns";
+import { format, addDays, startOfDay, endOfDay, subDays } from "date-fns";
 import { fromZonedTime } from "date-fns-tz";
 import { getDateRangeByValue } from '@/lib/date-ranges';
 import { apiRequest, queryClient } from '@/lib/queryClient';
@@ -352,9 +352,7 @@ export function ComprehensiveOrderManagement() {
     refetchOnWindowFocus: false, // Don't refetch when window gains focus
     refetchOnReconnect: false, // Don't refetch on reconnect
     placeholderData: keepPreviousData, // Prevent UI flicker during pagination/filtering
-    enabled: true, // Always enabled since dateParams is guaranteed to be valid
-    onSuccess: (data) => console.log('📊 [ORDERS API] Success:', { count: data?.orders?.length || 0, url: ordersUrl }),
-    onError: (error) => console.error('❌ [ORDERS API] Error:', { error: error.message, url: ordersUrl })
+    enabled: true // Always enabled since dateParams is guaranteed to be valid
   });
 
   // Prepare analytics query with unified date handling
