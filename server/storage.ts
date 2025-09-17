@@ -4975,16 +4975,39 @@ export class DatabaseStorage implements IStorage {
                 // Frontend expects order.total in CENTS, but grossTax and other financial metrics in DOLLARS
                 let orderTotalInDollars = parseFloat(order.total || '0') / 100;
                 
-                // 🔧 FIX: If order.total is 0 but has line items, calculate from line items
-                if (orderTotalInDollars === 0 && order.lineItems?.elements?.length > 0) {
-                  let calculatedTotal = 0;
-                  for (const lineItem of order.lineItems.elements) {
-                    const lineItemPrice = parseFloat(lineItem.price || '0') / 100;
-                    const quantity = parseInt(lineItem.unitQty || '1');
-                    calculatedTotal += lineItemPrice * quantity;
+                // ✅ PROPER CLOVER TOTAL NORMALIZATION: Use payments/refunds from Clover when total=0
+                if (orderTotalInDollars === 0 && (order.lineItems?.elements?.length > 0 || order.payments?.elements?.length > 0)) {
+                  let normalizedTotal = 0;
+                  
+                  // Method 1: Sum successful payments minus refunds (most accurate for financial reporting)
+                  if (order.payments?.elements?.length > 0) {
+                    for (const payment of order.payments.elements) {
+                      if (payment.result === 'SUCCESS') {
+                        const paymentAmount = parseFloat(payment.amount || '0') / 100;
+                        normalizedTotal += paymentAmount;
+                      }
+                    }
+                    // Subtract any refunds
+                    if (order.refunds?.elements?.length > 0) {
+                      for (const refund of order.refunds.elements) {
+                        const refundAmount = parseFloat(refund.amount || '0') / 100;
+                        normalizedTotal -= refundAmount;
+                      }
+                    }
+                  } else {
+                    // Method 2: Calculate from line items if no payment data available
+                    for (const lineItem of order.lineItems.elements) {
+                      const lineItemPrice = parseFloat(lineItem.price || '0') / 100;
+                      const quantity = parseInt(lineItem.unitQty || '1');
+                      normalizedTotal += lineItemPrice * quantity;
+                    }
                   }
-                  orderTotalInDollars = calculatedTotal;
-                  console.log(`🔧 [ZERO TOTAL FIX] Order ${order.id}: Calculated total from line items: $${calculatedTotal.toFixed(2)}`);
+                  
+                  orderTotalInDollars = normalizedTotal;
+                  console.log(`🔧 [CLOVER TOTAL NORMALIZATION] Order ${order.id}: Normalized total from Clover data: $${normalizedTotal.toFixed(2)}`);
+                  
+                  // ✅ CRITICAL: Update the order object that gets returned to frontend
+                  order.total = Math.round(normalizedTotal * 100); // Convert back to cents for Clover format
                 }
                 
                 // Calculate tax properly (send as dollars to match frontend expectation)
