@@ -6282,11 +6282,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const ctMin = req.query.createdTimeMin != null ? Number(String(req.query.createdTimeMin)) : undefined;
       const ctMax = req.query.createdTimeMax != null ? Number(String(req.query.createdTimeMax)) : undefined;
       
+      // DEBUG: Log parameter parsing
+      console.log('🔧 [ROUTE DEBUG] Raw query parameters:', {
+        createdTimeMinRaw: req.query.createdTimeMin,
+        createdTimeMaxRaw: req.query.createdTimeMax,
+        ctMin,
+        ctMax,
+        ctMinValid: ctMin != null && !isNaN(ctMin),
+        ctMaxValid: ctMax != null && !isNaN(ctMax)
+      });
+      
       // Use epoch milliseconds directly for precise time filtering
       let createdTimeMinMs: number | undefined;
       let createdTimeMaxMs: number | undefined;
       
-      if (ctMin && ctMax && !isNaN(ctMin) && !isNaN(ctMax)) {
+      if (ctMin != null && ctMax != null && !isNaN(ctMin) && !isNaN(ctMax)) {
         createdTimeMinMs = ctMin;
         createdTimeMaxMs = ctMax;
         
