@@ -4975,31 +4975,43 @@ export class DatabaseStorage implements IStorage {
                 // Frontend expects order.total in CENTS, but grossTax and other financial metrics in DOLLARS
                 let orderTotalInDollars = parseFloat(order.total || '0') / 100;
                 
-                // ✅ PROPER CLOVER TOTAL NORMALIZATION: Use payments/refunds from Clover when total=0
-                if (orderTotalInDollars === 0 && (order.lineItems?.elements?.length > 0 || order.payments?.elements?.length > 0)) {
+                // ✅ PROPER CLOVER TOTAL NORMALIZATION: Handle both payment shapes from Clover API
+                if (orderTotalInDollars === 0 && (order.lineItems?.elements?.length > 0 || order.payments)) {
                   let normalizedTotal = 0;
                   
+                  // Normalize payments/refunds to handle both Clover API shapes
+                  const payments = Array.isArray(order.payments) ? order.payments : (order.payments?.elements ?? []);
+                  const refunds = Array.isArray(order.refunds) ? order.refunds : (order.refunds?.elements ?? []);
+                  
+                  console.log(`🔧 [PAYMENT STRUCTURE DEBUG] Order ${order.id}: payments type=${Array.isArray(order.payments) ? 'array' : 'object'}, count=${payments.length}, refunds count=${refunds.length}`);
+                  
                   // Method 1: Sum successful payments minus refunds (most accurate for financial reporting)
-                  if (order.payments?.elements?.length > 0) {
-                    for (const payment of order.payments.elements) {
+                  if (payments.length > 0) {
+                    console.log(`🔧 [PAYMENT DEBUG] Order ${order.id} has ${payments.length} payments:`, 
+                      payments.map(p => ({ result: p.result, amount: p.amount, success: p.result === 'SUCCESS' })));
+                    for (const payment of payments) {
                       if (payment.result === 'SUCCESS') {
                         const paymentAmount = parseFloat(payment.amount || '0') / 100;
                         normalizedTotal += paymentAmount;
+                        console.log(`🔧 [PAYMENT DEBUG] Added payment: $${paymentAmount}, running total: $${normalizedTotal}`);
                       }
                     }
                     // Subtract any refunds
-                    if (order.refunds?.elements?.length > 0) {
-                      for (const refund of order.refunds.elements) {
+                    if (refunds.length > 0) {
+                      for (const refund of refunds) {
                         const refundAmount = parseFloat(refund.amount || '0') / 100;
                         normalizedTotal -= refundAmount;
+                        console.log(`🔧 [REFUND DEBUG] Subtracted refund: $${refundAmount}, running total: $${normalizedTotal}`);
                       }
                     }
                   } else {
                     // Method 2: Calculate from line items if no payment data available
+                    console.log(`🔧 [LINEITEM FALLBACK] Order ${order.id}: No payments found, calculating from ${order.lineItems.elements.length} line items`);
                     for (const lineItem of order.lineItems.elements) {
                       const lineItemPrice = parseFloat(lineItem.price || '0') / 100;
                       const quantity = parseInt(lineItem.unitQty || '1');
                       normalizedTotal += lineItemPrice * quantity;
+                      console.log(`🔧 [LINEITEM DEBUG] Added ${lineItem.name}: $${lineItemPrice} x ${quantity} = $${lineItemPrice * quantity}, running total: $${normalizedTotal}`);
                     }
                   }
                   
