@@ -5041,16 +5041,8 @@ export class DatabaseStorage implements IStorage {
                   grossTax = parseFloat(order.tax) / 100;
                 }
                 
-                const financialMetrics = {
-                  grossTax: grossTax, // In dollars
-                  totalDiscounts: 0, // In dollars
-                  totalRefunds: 0, // In dollars
-                  netCOGS: 0, // In dollars
-                  netSale: orderTotalInDollars, // In dollars
-                  netProfit: 0, // In dollars
-                  netMargin: 0
-                };
-                // const financialMetrics = await this.calculateOrderFinancialMetrics(order, config.id);
+                // Calculate actual financial metrics for this order
+                const financialMetrics = await this.calculateOrderFinancialMetrics(order, config.id);
                 
                 // 🔧 DEBUG: Log financial metrics for problematic orders
                 if (isProblematicOrder) {
