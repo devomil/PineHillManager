@@ -1457,9 +1457,9 @@ export const inventoryItems = pgTable("inventory_items", {
   description: text("description"),
   category: varchar("category"),
   unitOfMeasure: varchar("unit_of_measure"),
-  unitCost: decimal("unit_cost", { precision: 10, scale: 2 }),
-  standardCost: decimal("standard_cost", { precision: 10, scale: 2 }), // Standard cost for COGS calculation
-  unitPrice: decimal("unit_price", { precision: 10, scale: 2 }),
+  unitCost: decimal("unit_cost", { precision: 10, scale: 2 }).default("0.00"),
+  standardCost: decimal("standard_cost", { precision: 10, scale: 2 }).default("0.00"), // Standard cost for COGS calculation
+  unitPrice: decimal("unit_price", { precision: 10, scale: 2 }).default("0.00"),
   quantityOnHand: decimal("quantity_on_hand", { precision: 10, scale: 3 }).default("0.000"),
   reorderPoint: decimal("reorder_point", { precision: 10, scale: 3 }).default("0.000"),
   isActive: boolean("is_active").default(true),
@@ -1485,7 +1485,7 @@ export const posSales = pgTable("pos_sales", {
   tipAmount: decimal("tip_amount", { precision: 10, scale: 2 }).default("0.00"),
   paymentMethod: varchar("payment_method"), // cash, card, mobile
   cardType: varchar("card_type"), // visa, mastercard, amex, etc.
-  locationId: integer("location_id").references(() => locations.id),
+  locationId: integer("location_id").references(() => posLocations.id),
   employeeId: varchar("employee_id").references(() => users.id),
   customerCount: integer("customer_count").default(1),
   status: varchar("status").default("completed"), // completed, refunded, voided
@@ -2242,6 +2242,555 @@ export type AutomationRule = typeof automationRules.$inferSelect;
 export type InsertAutomationRule = z.infer<typeof insertAutomationRuleSchema>;
 export type UpdateAutomationRule = z.infer<typeof updateAutomationRuleSchema>;
 
+// ============================================
+// ORDER MANAGEMENT SCHEMA EXTENSION
+// ============================================
+
+// Merchants for multi-location businesses
+export const merchants = pgTable("merchants", {
+  id: serial("id").primaryKey(),
+  merchantId: varchar("merchant_id").notNull(), // External system merchant ID
+  name: varchar("name").notNull(), // Business/merchant name
+  legalName: varchar("legal_name"), // Legal business name
+  channel: varchar("channel").notNull(), // 'clover', 'amazon'
+  contactEmail: varchar("contact_email"),
+  contactPhone: varchar("contact_phone"),
+  address: text("address"),
+  city: varchar("city"),
+  state: varchar("state"),
+  zipCode: varchar("zip_code"),
+  country: varchar("country").default("US"),
+  timezone: varchar("timezone").default("America/Chicago"),
+  currency: varchar("currency").default("USD"),
+  isActive: boolean("is_active").default(true),
+  settings: jsonb("settings"), // Merchant-specific settings and configuration
+  lastSyncAt: timestamp("last_sync_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  merchantIdChannelIdx: index("idx_merchants_merchant_id_channel").on(table.merchantId, table.channel),
+  channelIdx: index("idx_merchants_channel").on(table.channel),
+  activeIdx: index("idx_merchants_active").on(table.isActive),
+  uniqueMerchantChannel: unique("unique_merchant_channel").on(table.merchantId, table.channel),
+}));
+
+// POS Locations for location-based analytics
+export const posLocations = pgTable("pos_locations", {
+  id: serial("id").primaryKey(),
+  merchantId: integer("merchant_id").notNull().references(() => merchants.id),
+  channel: varchar("channel").notNull(), // 'clover', 'amazon'
+  externalLocationId: varchar("external_location_id").notNull(), // Location ID from external system
+  name: varchar("name").notNull(), // Location name
+  address: text("address"), // Full address
+  city: varchar("city"),
+  state: varchar("state"),
+  zipCode: varchar("zip_code"),
+  country: varchar("country").default("US"),
+  timezone: varchar("timezone").default("America/Chicago"), // Location timezone
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  merchantChannelIdx: index("idx_pos_locations_merchant_channel").on(table.merchantId, table.channel),
+  externalLocationChannelIdx: index("idx_pos_locations_external_channel").on(table.externalLocationId, table.channel),
+  activeIdx: index("idx_pos_locations_active").on(table.isActive),
+  uniqueExternalLocationChannel: unique("unique_external_location_channel").on(table.externalLocationId, table.channel),
+}));
+
+// Items/Products for inventory management
+export const items = pgTable("items", {
+  id: serial("id").primaryKey(),
+  merchantId: integer("merchant_id").notNull().references(() => merchants.id),
+  externalItemId: varchar("external_item_id").notNull(), // Item ID from external system (Clover/Amazon)
+  channel: varchar("channel").notNull(), // 'clover', 'amazon'
+  sku: varchar("sku"),
+  name: varchar("name").notNull(),
+  description: text("description"),
+  category: varchar("category"),
+  subcategory: varchar("subcategory"),
+  brand: varchar("brand"),
+  
+  // Pricing
+  unitPrice: decimal("unit_price", { precision: 10, scale: 2 }).default("0.00"), // Current selling price
+  unitCost: decimal("unit_cost", { precision: 10, scale: 2 }).default("0.00"), // Current cost price
+  msrp: decimal("msrp", { precision: 10, scale: 2 }), // Manufacturer suggested retail price
+  
+  // Inventory
+  quantityOnHand: decimal("quantity_on_hand", { precision: 10, scale: 3 }).default("0.000"),
+  reorderPoint: decimal("reorder_point", { precision: 10, scale: 3 }).default("0.000"),
+  
+  // Physical properties
+  weight: decimal("weight", { precision: 8, scale: 3 }), // Weight in pounds/kg
+  dimensions: jsonb("dimensions"), // {length, width, height, unit}
+  
+  // Tax and pricing configuration
+  taxable: boolean("taxable").default(true),
+  taxCategory: varchar("tax_category"), // Tax category for different tax rates
+  priceType: varchar("price_type").default("fixed"), // 'fixed', 'variable', 'per_unit'
+  
+  // Status and metadata
+  isActive: boolean("is_active").default(true),
+  isDeleted: boolean("is_deleted").default(false),
+  itemType: varchar("item_type").default("product"), // 'product', 'service', 'fee', 'discount'
+  metadata: jsonb("metadata"), // Additional item metadata
+  
+  lastSyncAt: timestamp("last_sync_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  merchantExternalIdx: index("idx_items_merchant_external").on(table.merchantId, table.externalItemId),
+  channelIdx: index("idx_items_channel").on(table.channel),
+  skuIdx: index("idx_items_sku").on(table.sku),
+  categoryIdx: index("idx_items_category").on(table.category),
+  activeIdx: index("idx_items_active").on(table.isActive),
+  nameIdx: index("idx_items_name").on(table.name),
+  uniqueMerchantChannelItem: unique("unique_merchant_channel_item").on(table.merchantId, table.channel, table.externalItemId),
+}));
+
+// Orders from all channels
+export const orders = pgTable("orders", {
+  id: serial("id").primaryKey(),
+  merchantId: integer("merchant_id").notNull().references(() => merchants.id),
+  locationId: integer("location_id").references(() => posLocations.id),
+  externalOrderId: varchar("external_order_id").notNull(), // Order ID from external system
+  channel: varchar("channel").notNull(), // 'clover', 'amazon'
+  
+  // Order identification
+  orderNumber: varchar("order_number"), // Human-readable order number
+  customerReference: varchar("customer_reference"), // Customer reference number
+  
+  // Timestamps
+  createdTime: timestamp("created_time").notNull(), // When order was created
+  modifiedTime: timestamp("modified_time"), // When order was last modified
+  orderDate: date("order_date").notNull(), // Date of the order
+  
+  // Order status
+  orderState: varchar("order_state").notNull(), // 'open', 'locked', 'closed'
+  paymentState: varchar("payment_state"), // 'open', 'paid', 'partially_paid', 'refunded'
+  fulfillmentStatus: varchar("fulfillment_status"), // 'pending', 'shipped', 'delivered', 'cancelled'
+  
+  // Customer information
+  customerId: varchar("customer_id"), // External customer ID
+  customerName: varchar("customer_name"),
+  customerEmail: varchar("customer_email"),
+  customerPhone: varchar("customer_phone"),
+  
+  // Financial totals
+  subtotal: decimal("subtotal", { precision: 12, scale: 2 }).default("0.00"), // Sum of line items before tax/discount
+  taxAmount: decimal("tax_amount", { precision: 12, scale: 2 }).default("0.00"), // Total tax
+  tipAmount: decimal("tip_amount", { precision: 12, scale: 2 }).default("0.00"), // Total tips
+  discountAmount: decimal("discount_amount", { precision: 12, scale: 2 }).default("0.00"), // Total discounts
+  shippingAmount: decimal("shipping_amount", { precision: 12, scale: 2 }).default("0.00"), // Shipping costs
+  total: decimal("total", { precision: 12, scale: 2 }).notNull(), // Final order total
+  
+  // Cost calculations
+  orderCogs: decimal("order_cogs", { precision: 12, scale: 2 }).default("0.00"), // Total Cost of Goods Sold
+  orderGrossMargin: decimal("order_gross_margin", { precision: 12, scale: 2 }).default("0.00"), // Gross profit
+  
+  // Order type and source
+  orderType: varchar("order_type").default("sale"), // 'sale', 'refund', 'exchange'
+  orderSource: varchar("order_source"), // 'in_store', 'online', 'phone', 'mobile'
+  deviceId: varchar("device_id"), // POS device ID for in-store orders
+  
+  // Employee/staff
+  employeeId: varchar("employee_id").references(() => users.id), // Staff who processed the order
+  
+  // Shipping address
+  shippingAddress: jsonb("shipping_address"), // Full shipping address object
+  billingAddress: jsonb("billing_address"), // Full billing address object
+  
+  // Additional metadata
+  notes: text("notes"), // Order notes
+  tags: text("tags").array(), // Order tags for categorization
+  metadata: jsonb("metadata"), // Additional order data
+  
+  // Sync and audit
+  lastSyncAt: timestamp("last_sync_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  merchantExternalIdx: index("idx_orders_merchant_external").on(table.merchantId, table.externalOrderId),
+  channelIdx: index("idx_orders_channel").on(table.channel),
+  orderDateIdx: index("idx_orders_date").on(table.orderDate),
+  createdTimeIdx: index("idx_orders_created_time").on(table.createdTime),
+  modifiedTimeIdx: index("idx_orders_modified_time").on(table.modifiedTime),
+  customerIdx: index("idx_orders_customer").on(table.customerId),
+  locationIdx: index("idx_orders_location").on(table.locationId),
+  employeeIdx: index("idx_orders_employee").on(table.employeeId),
+  orderStateIdx: index("idx_orders_state").on(table.orderState),
+  paymentStateIdx: index("idx_orders_payment_state").on(table.paymentState),
+  orderTypeIdx: index("idx_orders_type").on(table.orderType),
+  uniqueMerchantOrderChannel: unique("unique_merchant_order_channel").on(table.merchantId, table.externalOrderId, table.channel),
+}));
+
+// Order line items
+export const orderLineItems = pgTable("order_line_items", {
+  id: serial("id").primaryKey(),
+  orderId: integer("order_id").notNull().references(() => orders.id, { onDelete: 'cascade' }),
+  itemId: integer("item_id").references(() => items.id),
+  externalLineItemId: varchar("external_line_item_id"), // Line item ID from external system
+  
+  // Item details (snapshot at time of sale)
+  itemName: varchar("item_name").notNull(),
+  itemSku: varchar("item_sku"),
+  itemCategory: varchar("item_category"),
+  
+  // Quantity and pricing
+  quantity: decimal("quantity", { precision: 10, scale: 3 }).notNull(),
+  unitPrice: decimal("unit_price", { precision: 10, scale: 2 }).notNull(), // Price per unit
+  unitCostAtSale: decimal("unit_cost_at_sale", { precision: 10, scale: 2 }), // Cost at time of sale
+  lineSubtotal: decimal("line_subtotal", { precision: 10, scale: 2 }).notNull(), // quantity * unitPrice
+  
+  // Financial calculations
+  lineCogs: decimal("line_cogs", { precision: 10, scale: 2 }).default("0.00"), // Cost of goods sold for this line
+  lineMargin: decimal("line_margin", { precision: 10, scale: 2 }).default("0.00"), // Gross margin for this line
+  
+  // Discounts and adjustments
+  discountAmount: decimal("discount_amount", { precision: 10, scale: 2 }).default("0.00"),
+  discountPercentage: decimal("discount_percentage", { precision: 5, scale: 2 }), // Discount percentage applied
+  
+  // Tax information
+  taxAmount: decimal("tax_amount", { precision: 10, scale: 2 }).default("0.00"),
+  taxRate: decimal("tax_rate", { precision: 5, scale: 4 }), // Tax rate applied
+  taxable: boolean("taxable").default(true),
+  
+  // Line item metadata
+  notes: text("notes"),
+  lineNumber: integer("line_number").default(1), // Order of items in the order
+  isRefunded: boolean("is_refunded").default(false),
+  refundQuantity: decimal("refund_quantity", { precision: 10, scale: 3 }).default("0.000"),
+  
+  // Product variations/modifiers
+  modifiers: jsonb("modifiers"), // Item modifiers or variations
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  orderIdIdx: index("idx_order_line_items_order").on(table.orderId),
+  itemIdIdx: index("idx_order_line_items_item").on(table.itemId),
+  itemNameIdx: index("idx_order_line_items_item_name").on(table.itemName),
+  itemSkuIdx: index("idx_order_line_items_item_sku").on(table.itemSku),
+  categoryIdx: index("idx_order_line_items_category").on(table.itemCategory),
+  refundedIdx: index("idx_order_line_items_refunded").on(table.isRefunded),
+  uniqueExternalLineItem: unique("unique_external_line_item").on(table.externalLineItemId),
+}));
+
+// Payment information for orders
+export const payments = pgTable("payments", {
+  id: serial("id").primaryKey(),
+  orderId: integer("order_id").notNull().references(() => orders.id, { onDelete: 'cascade' }),
+  externalPaymentId: varchar("external_payment_id"), // Payment ID from external system
+  
+  // Payment details
+  paymentMethod: varchar("payment_method").notNull(), // 'cash', 'credit', 'debit', 'gift_card', 'check', 'mobile'
+  paymentType: varchar("payment_type"), // 'sale', 'refund', 'partial_refund'
+  amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
+  tipAmount: decimal("tip_amount", { precision: 12, scale: 2 }).default("0.00"),
+  taxAmount: decimal("tax_amount", { precision: 12, scale: 2 }).default("0.00"),
+  cashbackAmount: decimal("cashback_amount", { precision: 12, scale: 2 }).default("0.00"),
+  
+  // Payment status and processing
+  paymentStatus: varchar("payment_status").notNull().default("pending"), // 'pending', 'approved', 'declined', 'voided'
+  result: varchar("result"), // 'success', 'failure', 'pending'
+  
+  // Card transaction details
+  cardType: varchar("card_type"), // 'visa', 'mastercard', 'amex', 'discover'
+  cardLast4: varchar("card_last_4"), // Last 4 digits of card
+  cardFirst6: varchar("card_first_6"), // First 6 digits of card
+  cardEntryType: varchar("card_entry_type"), // 'swiped', 'keyed', 'contactless', 'chip'
+  
+  // Processing details
+  transactionId: varchar("transaction_id"), // Gateway transaction ID
+  authCode: varchar("auth_code"), // Authorization code
+  gatewayResponseCode: varchar("gateway_response_code"),
+  gatewayResponseMessage: text("gateway_response_message"),
+  
+  // Timestamps
+  processedAt: timestamp("processed_at"),
+  createdTime: timestamp("created_time").notNull(),
+  
+  // Additional metadata
+  metadata: jsonb("metadata"), // Additional payment metadata
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  orderIdIdx: index("idx_payments_order").on(table.orderId),
+  paymentMethodIdx: index("idx_payments_method").on(table.paymentMethod),
+  paymentStatusIdx: index("idx_payments_status").on(table.paymentStatus),
+  createdTimeIdx: index("idx_payments_created_time").on(table.createdTime),
+  transactionIdIdx: index("idx_payments_transaction_id").on(table.transactionId),
+  uniqueExternalPayment: unique("unique_external_payment").on(table.externalPaymentId),
+}));
+
+// Tax details for orders and line items
+export const taxes = pgTable("taxes", {
+  id: serial("id").primaryKey(),
+  orderId: integer("order_id").references(() => orders.id, { onDelete: 'cascade' }),
+  lineItemId: integer("line_item_id").references(() => orderLineItems.id, { onDelete: 'cascade' }),
+  
+  // Tax identification
+  taxName: varchar("tax_name").notNull(), // 'State Tax', 'City Tax', 'VAT'
+  taxType: varchar("tax_type").notNull(), // 'sales_tax', 'vat', 'gst', 'custom'
+  taxRate: decimal("tax_rate", { precision: 5, scale: 4 }).notNull(), // Tax rate as decimal (0.0825 for 8.25%)
+  taxAmount: decimal("tax_amount", { precision: 10, scale: 2 }).notNull(),
+  
+  // Tax basis
+  taxableAmount: decimal("taxable_amount", { precision: 10, scale: 2 }).notNull(), // Amount tax was calculated on
+  
+  // Tax authority
+  taxJurisdiction: varchar("tax_jurisdiction"), // 'state', 'city', 'county', 'federal'
+  taxAuthorityName: varchar("tax_authority_name"), // Name of tax authority
+  
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  orderIdIdx: index("idx_taxes_order").on(table.orderId),
+  lineItemIdIdx: index("idx_taxes_line_item").on(table.lineItemId),
+  taxTypeIdx: index("idx_taxes_type").on(table.taxType),
+  taxNameIdx: index("idx_taxes_name").on(table.taxName),
+}));
+
+// Discounts applied to orders and line items
+export const discounts = pgTable("discounts", {
+  id: serial("id").primaryKey(),
+  orderId: integer("order_id").references(() => orders.id, { onDelete: 'cascade' }),
+  lineItemId: integer("line_item_id").references(() => orderLineItems.id, { onDelete: 'cascade' }),
+  
+  // Discount identification
+  discountName: varchar("discount_name").notNull(),
+  discountType: varchar("discount_type").notNull(), // 'percentage', 'fixed_amount', 'buy_x_get_y'
+  discountValue: decimal("discount_value", { precision: 10, scale: 4 }), // Percentage or fixed amount
+  discountAmount: decimal("discount_amount", { precision: 10, scale: 2 }).notNull(), // Actual discount applied
+  
+  // Discount configuration
+  discountCode: varchar("discount_code"), // Coupon/promo code used
+  discountReason: varchar("discount_reason"), // 'coupon', 'loyalty', 'employee', 'manager_comp'
+  
+  // Discount constraints
+  minimumAmount: decimal("minimum_amount", { precision: 10, scale: 2 }), // Minimum order for discount
+  maximumAmount: decimal("maximum_amount", { precision: 10, scale: 2 }), // Maximum discount amount
+  
+  // Applied by
+  appliedBy: varchar("applied_by").references(() => users.id), // Employee who applied discount
+  
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  orderIdIdx: index("idx_discounts_order").on(table.orderId),
+  lineItemIdIdx: index("idx_discounts_line_item").on(table.lineItemId),
+  discountTypeIdx: index("idx_discounts_type").on(table.discountType),
+  discountCodeIdx: index("idx_discounts_code").on(table.discountCode),
+  appliedByIdx: index("idx_discounts_applied_by").on(table.appliedBy),
+}));
+
+// Refunds for orders and line items
+export const refunds = pgTable("refunds", {
+  id: serial("id").primaryKey(),
+  orderId: integer("order_id").notNull().references(() => orders.id),
+  originalPaymentId: integer("original_payment_id").references(() => payments.id),
+  externalRefundId: varchar("external_refund_id"), // Refund ID from external system
+  
+  // Refund details
+  refundAmount: decimal("refund_amount", { precision: 12, scale: 2 }).notNull(),
+  refundReason: varchar("refund_reason"), // 'customer_request', 'damaged', 'wrong_item', 'defective'
+  refundType: varchar("refund_type").notNull(), // 'full', 'partial', 'exchange'
+  refundMethod: varchar("refund_method"), // 'original_payment', 'cash', 'store_credit'
+  
+  // Refund status
+  refundStatus: varchar("refund_status").notNull().default("pending"), // 'pending', 'processed', 'failed', 'cancelled'
+  
+  // Processing details
+  processedBy: varchar("processed_by").references(() => users.id), // Employee who processed refund
+  processedAt: timestamp("processed_at"),
+  
+  // Refund timestamps
+  refundDate: date("refund_date").notNull(),
+  createdTime: timestamp("created_time").notNull(),
+  
+  // Additional details
+  notes: text("notes"),
+  customerNotified: boolean("customer_notified").default(false),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  orderIdIdx: index("idx_refunds_order").on(table.orderId),
+  refundDateIdx: index("idx_refunds_date").on(table.refundDate),
+  refundStatusIdx: index("idx_refunds_status").on(table.refundStatus),
+  processedByIdx: index("idx_refunds_processed_by").on(table.processedBy),
+  createdTimeIdx: index("idx_refunds_created_time").on(table.createdTime),
+  uniqueExternalRefund: unique("unique_external_refund").on(table.externalRefundId),
+}));
+
+// Tender types for payments (cash, card types, etc.)
+export const tenders = pgTable("tenders", {
+  id: serial("id").primaryKey(),
+  paymentId: integer("payment_id").notNull().references(() => payments.id, { onDelete: 'cascade' }),
+  
+  // Tender details
+  tenderType: varchar("tender_type").notNull(), // 'cash', 'credit_card', 'debit_card', 'gift_card', 'check'
+  amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
+  
+  // Card details (if applicable)
+  cardType: varchar("card_type"), // 'visa', 'mastercard', 'amex', 'discover'
+  cardLast4: varchar("card_last_4"),
+  cardFirst6: varchar("card_first_6"),
+  
+  // Gift card details (if applicable)
+  giftCardNumber: varchar("gift_card_number"),
+  giftCardBalance: decimal("gift_card_balance", { precision: 12, scale: 2 }),
+  
+  // Check details (if applicable)
+  checkNumber: varchar("check_number"),
+  
+  // Cash details
+  cashReceived: decimal("cash_received", { precision: 12, scale: 2 }),
+  changeGiven: decimal("change_given", { precision: 12, scale: 2 }),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  paymentIdIdx: index("idx_tenders_payment").on(table.paymentId),
+  tenderTypeIdx: index("idx_tenders_type").on(table.tenderType),
+}));
+
+// Item cost history for accurate COGS calculations
+export const itemCostHistory = pgTable("item_cost_history", {
+  id: serial("id").primaryKey(),
+  itemId: integer("item_id").notNull().references(() => items.id),
+  merchantId: integer("merchant_id").notNull().references(() => merchants.id),
+  
+  // Cost tracking
+  unitCost: decimal("unit_cost", { precision: 10, scale: 2 }).notNull(),
+  costMethod: varchar("cost_method").notNull().default("avg"), // 'avg', 'fifo', 'lifo', 'specific'
+  
+  // Effective date range
+  effectiveFrom: timestamp("effective_from").notNull(),
+  effectiveTo: timestamp("effective_to"), // NULL means current/active cost
+  
+  // Cost basis information
+  quantityReceived: decimal("quantity_received", { precision: 10, scale: 3 }), // For FIFO/LIFO tracking
+  sourceDocument: varchar("source_document"), // 'purchase_order', 'inventory_adjustment', 'manual'
+  sourceDocumentId: varchar("source_document_id"), // Reference to source document
+  
+  // Audit trail
+  createdBy: varchar("created_by").references(() => users.id),
+  reason: text("reason"), // Reason for cost change
+  notes: text("notes"),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  itemIdEffectiveIdx: index("idx_item_cost_history_item_effective").on(table.itemId, table.effectiveFrom),
+  merchantIdIdx: index("idx_item_cost_history_merchant").on(table.merchantId),
+  effectiveFromIdx: index("idx_item_cost_history_effective_from").on(table.effectiveFrom),
+  effectiveToIdx: index("idx_item_cost_history_effective_to").on(table.effectiveTo),
+  costMethodIdx: index("idx_item_cost_history_method").on(table.costMethod),
+  // Ensure no overlapping date ranges for same item
+  uniqueItemEffectiveRange: unique("unique_item_effective_range").on(table.itemId, table.effectiveFrom),
+}));
+
+// Sync cursors for incremental data synchronization
+export const syncCursors = pgTable("sync_cursors", {
+  id: serial("id").primaryKey(),
+  system: varchar("system").notNull(), // 'clover', 'amazon'
+  merchantId: integer("merchant_id").references(() => merchants.id), // NULL for system-wide cursors
+  dataType: varchar("data_type").notNull(), // 'orders', 'items', 'customers', 'payments'
+  
+  // Sync tracking
+  lastModifiedMs: varchar("last_modified_ms"), // Last modification timestamp from external system
+  lastSyncAt: timestamp("last_sync_at"), // When we last synced this cursor
+  lastRunAt: timestamp("last_run_at"), // When sync process last ran (even if no data)
+  
+  // Sync state and progress
+  backfillState: varchar("backfill_state").default("none"), // 'none', 'in_progress', 'completed', 'failed'
+  backfillStartDate: timestamp("backfill_start_date"), // Start date for historical backfill
+  backfillEndDate: timestamp("backfill_end_date"), // End date for historical backfill
+  backfillProgress: decimal("backfill_progress", { precision: 5, scale: 2 }).default("0.00"), // Progress percentage
+  
+  // Error handling
+  lastError: text("last_error"), // Last sync error message
+  errorCount: integer("error_count").default(0), // Consecutive error count
+  lastSuccessAt: timestamp("last_success_at"), // Last successful sync
+  
+  // Sync configuration
+  isActive: boolean("is_active").default(true), // Whether this cursor should be processed
+  syncFrequency: integer("sync_frequency").default(300), // Sync frequency in seconds
+  batchSize: integer("batch_size").default(100), // Records to process per batch
+  
+  // Metadata
+  metadata: jsonb("metadata"), // Additional sync metadata
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  systemMerchantDataIdx: index("idx_sync_cursors_system_merchant_data").on(table.system, table.merchantId, table.dataType),
+  systemDataTypeIdx: index("idx_sync_cursors_system_data_type").on(table.system, table.dataType),
+  lastSyncIdx: index("idx_sync_cursors_last_sync").on(table.lastSyncAt),
+  backfillStateIdx: index("idx_sync_cursors_backfill_state").on(table.backfillState),
+  activeIdx: index("idx_sync_cursors_active").on(table.isActive),
+  // Ensure unique cursor per system/merchant/dataType combination
+  uniqueSystemMerchantDataType: unique("unique_system_merchant_data_type").on(table.system, table.merchantId, table.dataType),
+}));
+
+// Daily sales aggregation for fast reporting
+export const dailySales = pgTable("daily_sales", {
+  id: serial("id").primaryKey(),
+  merchantId: integer("merchant_id").notNull().references(() => merchants.id),
+  locationId: integer("location_id").references(() => posLocations.id),
+  channel: varchar("channel").notNull(), // 'clover', 'amazon'
+  date: date("date").notNull(), // Sales date
+  
+  // Sales metrics
+  orderCount: integer("order_count").default(0), // Number of orders
+  itemCount: integer("item_count").default(0), // Number of items sold
+  customerCount: integer("customer_count").default(0), // Unique customers served
+  
+  // Revenue metrics
+  grossSales: decimal("gross_sales", { precision: 12, scale: 2 }).default("0.00"), // Total before discounts
+  discounts: decimal("discounts", { precision: 12, scale: 2 }).default("0.00"), // Total discounts
+  netSales: decimal("net_sales", { precision: 12, scale: 2 }).default("0.00"), // After discounts, before tax
+  taxAmount: decimal("tax_amount", { precision: 12, scale: 2 }).default("0.00"), // Total tax collected
+  tipAmount: decimal("tip_amount", { precision: 12, scale: 2 }).default("0.00"), // Total tips
+  totalRevenue: decimal("total_revenue", { precision: 12, scale: 2 }).default("0.00"), // Final total
+  
+  // Cost and margin metrics
+  totalCogs: decimal("total_cogs", { precision: 12, scale: 2 }).default("0.00"), // Cost of goods sold
+  grossMargin: decimal("gross_margin", { precision: 12, scale: 2 }).default("0.00"), // Revenue - COGS
+  grossMarginPercent: decimal("gross_margin_percent", { precision: 5, scale: 2 }), // Margin as percentage
+  
+  // Refund metrics
+  refundCount: integer("refund_count").default(0), // Number of refunds
+  refundAmount: decimal("refund_amount", { precision: 12, scale: 2 }).default("0.00"), // Total refunded
+  
+  // Payment method breakdown
+  paymentsBreakdown: jsonb("payments_breakdown"), // {cash: 0.00, credit: 0.00, debit: 0.00, etc.}
+  
+  // Time-based metrics
+  avgOrderValue: decimal("avg_order_value", { precision: 10, scale: 2 }), // Average order size
+  avgItemsPerOrder: decimal("avg_items_per_order", { precision: 8, scale: 2 }), // Average items per order
+  
+  // Performance indicators
+  peakHour: integer("peak_hour"), // Hour with most sales (0-23)
+  peakHourRevenue: decimal("peak_hour_revenue", { precision: 12, scale: 2 }), // Revenue in peak hour
+  
+  // Category breakdown (top categories)
+  topCategories: jsonb("top_categories"), // Array of {category, revenue, count}
+  
+  // Aggregation metadata
+  lastUpdatedAt: timestamp("last_updated_at").defaultNow(),
+  dataCompleteness: decimal("data_completeness", { precision: 5, scale: 2 }).default("100.00"), // Data quality score
+  
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  merchantDateChannelIdx: index("idx_daily_sales_merchant_date_channel").on(table.merchantId, table.date, table.channel),
+  dateLocationChannelIdx: index("idx_daily_sales_date_location_channel").on(table.date, table.locationId, table.channel),
+  channelDateIdx: index("idx_daily_sales_channel_date").on(table.channel, table.date),
+  locationDateIdx: index("idx_daily_sales_location_date").on(table.locationId, table.date),
+  revenueIdx: index("idx_daily_sales_revenue").on(table.totalRevenue),
+  marginIdx: index("idx_daily_sales_margin").on(table.grossMargin),
+  lastUpdatedIdx: index("idx_daily_sales_last_updated").on(table.lastUpdatedAt),
+  // Ensure unique daily record per merchant/location/channel/date
+  uniqueDailySalesRecord: unique("unique_daily_sales_record").on(table.merchantId, table.locationId, table.channel, table.date),
+}));
+
 // Payroll Tables
 export const payrollPeriods = pgTable("payroll_periods", {
   id: serial("id").primaryKey(),
@@ -2385,6 +2934,145 @@ export const insertPayrollTimeEntrySchema = createInsertSchema(payrollTimeEntrie
   id: true,
   createdAt: true,
 });
+
+// ============================================
+// ORDER MANAGEMENT INSERT SCHEMAS
+// ============================================
+
+// Merchant schemas
+export const insertMerchantSchema = createInsertSchema(merchants).omit({
+  id: true,
+  lastSyncAt: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+// Items schemas
+export const insertItemSchema = createInsertSchema(items).omit({
+  id: true,
+  lastSyncAt: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+// Orders schemas
+export const insertOrderSchema = createInsertSchema(orders).omit({
+  id: true,
+  lastSyncAt: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+// Order line items schemas
+export const insertOrderLineItemSchema = createInsertSchema(orderLineItems).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+// Payments schemas
+export const insertPaymentSchema = createInsertSchema(payments).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+// Taxes schemas
+export const insertTaxSchema = createInsertSchema(taxes).omit({
+  id: true,
+  createdAt: true,
+});
+
+// Discounts schemas
+export const insertDiscountSchema = createInsertSchema(discounts).omit({
+  id: true,
+  createdAt: true,
+});
+
+// Refunds schemas
+export const insertRefundSchema = createInsertSchema(refunds).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+// Tenders schemas
+export const insertTenderSchema = createInsertSchema(tenders).omit({
+  id: true,
+  createdAt: true,
+});
+
+// Item cost history schemas
+export const insertItemCostHistorySchema = createInsertSchema(itemCostHistory).omit({
+  id: true,
+  createdAt: true,
+});
+
+// Sync cursors schemas
+export const insertSyncCursorSchema = createInsertSchema(syncCursors).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+// Daily sales schemas
+export const insertDailySalesSchema = createInsertSchema(dailySales).omit({
+  id: true,
+  lastUpdatedAt: true,
+  createdAt: true,
+});
+
+// ============================================
+// ORDER MANAGEMENT TYPES
+// ============================================
+
+// Merchant types
+export type Merchant = typeof merchants.$inferSelect;
+export type InsertMerchant = z.infer<typeof insertMerchantSchema>;
+
+// Items types
+export type Item = typeof items.$inferSelect;
+export type InsertItem = z.infer<typeof insertItemSchema>;
+
+// Orders types
+export type Order = typeof orders.$inferSelect;
+export type InsertOrder = z.infer<typeof insertOrderSchema>;
+
+// Order line items types
+export type OrderLineItem = typeof orderLineItems.$inferSelect;
+export type InsertOrderLineItem = z.infer<typeof insertOrderLineItemSchema>;
+
+// Payments types
+export type Payment = typeof payments.$inferSelect;
+export type InsertPayment = z.infer<typeof insertPaymentSchema>;
+
+// Taxes types
+export type Tax = typeof taxes.$inferSelect;
+export type InsertTax = z.infer<typeof insertTaxSchema>;
+
+// Discounts types
+export type Discount = typeof discounts.$inferSelect;
+export type InsertDiscount = z.infer<typeof insertDiscountSchema>;
+
+// Refunds types
+export type Refund = typeof refunds.$inferSelect;
+export type InsertRefund = z.infer<typeof insertRefundSchema>;
+
+// Tenders types
+export type Tender = typeof tenders.$inferSelect;
+export type InsertTender = z.infer<typeof insertTenderSchema>;
+
+// Item cost history types
+export type ItemCostHistory = typeof itemCostHistory.$inferSelect;
+export type InsertItemCostHistory = z.infer<typeof insertItemCostHistorySchema>;
+
+// Sync cursors types
+export type SyncCursor = typeof syncCursors.$inferSelect;
+export type InsertSyncCursor = z.infer<typeof insertSyncCursorSchema>;
+
+// Daily sales types
+export type DailySales = typeof dailySales.$inferSelect;
+export type InsertDailySales = z.infer<typeof insertDailySalesSchema>;
 
 // Payroll types
 export type PayrollPeriod = typeof payrollPeriods.$inferSelect;

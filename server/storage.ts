@@ -205,6 +205,47 @@ import {
   type PayrollTimeEntry,
   type InsertPayrollTimeEntry,
   type PayrollJournalEntry,
+  // Order Management Tables
+  merchants,
+  posLocations,
+  items,
+  orders,
+  orderLineItems,
+  payments,
+  taxes,
+  discounts,
+  refunds,
+  tenders,
+  itemCostHistory,
+  syncCursors,
+  dailySales,
+  // Order Management Types
+  type Merchant,
+  type InsertMerchant,
+  type PosLocation,
+  type InsertPosLocation,
+  type Item,
+  type InsertItem,
+  type Order,
+  type InsertOrder,
+  type OrderLineItem,
+  type InsertOrderLineItem,
+  type Payment,
+  type InsertPayment,
+  type Tax,
+  type InsertTax,
+  type Discount,
+  type InsertDiscount,
+  type Refund,
+  type InsertRefund,
+  type Tender,
+  type InsertTender,
+  type ItemCostHistory,
+  type InsertItemCostHistory,
+  type SyncCursor,
+  type InsertSyncCursor,
+  type DailySales,
+  type InsertDailySales,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, asc, gte, lte, or, sql, like, isNull, isNotNull } from "drizzle-orm";
@@ -978,6 +1019,204 @@ export interface IStorage {
     warnings: string[];
     summary: { totalEmployees: number; totalHours: number; totalPay: string };
   }>;
+
+  // ================================
+  // DATABASE-BACKED ORDER MANAGEMENT OPERATIONS
+  // ================================
+
+  // Merchant Management
+  createMerchant(merchant: InsertMerchant): Promise<Merchant>;
+  getMerchants(channel?: string): Promise<Merchant[]>;
+  getMerchant(id: number): Promise<Merchant | undefined>;
+  getMerchantByExternalId(merchantId: string, channel: string): Promise<Merchant | undefined>;
+  updateMerchant(id: number, updates: Partial<InsertMerchant>): Promise<Merchant>;
+  deleteMerchant(id: number): Promise<void>;
+
+  // POS Location Management
+  createPosLocation(location: InsertPosLocation): Promise<PosLocation>;
+  getPosLocations(merchantId?: number, channel?: string): Promise<PosLocation[]>;
+  getPosLocation(id: number): Promise<PosLocation | undefined>;
+  getPosLocationByExternalId(externalLocationId: string, channel: string): Promise<PosLocation | undefined>;
+  updatePosLocation(id: number, updates: Partial<InsertPosLocation>): Promise<PosLocation>;
+  deletePosLocation(id: number): Promise<void>;
+
+  // Item Management
+  createItem(item: InsertItem): Promise<Item>;
+  getItems(merchantId: number, filters?: { 
+    channel?: string; 
+    category?: string; 
+    isActive?: boolean; 
+    search?: string; 
+  }): Promise<Item[]>;
+  getItem(id: number): Promise<Item | undefined>;
+  getItemByExternalId(merchantId: number, externalItemId: string, channel: string): Promise<Item | undefined>;
+  updateItem(id: number, updates: Partial<InsertItem>): Promise<Item>;
+  deleteItem(id: number): Promise<void>;
+  syncItems(merchantId: number, channel: string, items: InsertItem[]): Promise<{ created: number; updated: number }>;
+
+  // Order Management
+  createOrder(order: InsertOrder): Promise<Order>;
+  getOrders(filters: {
+    merchantId?: number;
+    locationId?: number;
+    channel?: string;
+    startDate?: string;
+    endDate?: string;
+    orderState?: string;
+    paymentState?: string;
+    customerId?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<{ orders: Order[]; total: number }>;
+  getOrder(id: number): Promise<Order | undefined>;
+  getOrderByExternalId(externalOrderId: string, channel: string): Promise<Order | undefined>;
+  updateOrder(id: number, updates: Partial<InsertOrder>): Promise<Order>;
+  deleteOrder(id: number): Promise<void>;
+  syncOrders(merchantId: number, channel: string, orders: InsertOrder[]): Promise<{ created: number; updated: number }>;
+
+  // Order Line Items Management
+  createOrderLineItem(lineItem: InsertOrderLineItem): Promise<OrderLineItem>;
+  getOrderLineItems(orderId: number): Promise<OrderLineItem[]>;
+  getOrderLineItem(id: number): Promise<OrderLineItem | undefined>;
+  updateOrderLineItem(id: number, updates: Partial<InsertOrderLineItem>): Promise<OrderLineItem>;
+  deleteOrderLineItem(id: number): Promise<void>;
+  syncOrderLineItems(orderId: number, lineItems: InsertOrderLineItem[]): Promise<{ created: number; updated: number }>;
+
+  // Payment Management
+  createPayment(payment: InsertPayment): Promise<Payment>;
+  getPayments(orderId: number): Promise<Payment[]>;
+  getPayment(id: number): Promise<Payment | undefined>;
+  updatePayment(id: number, updates: Partial<InsertPayment>): Promise<Payment>;
+  deletePayment(id: number): Promise<void>;
+
+  // Tax Management
+  createTax(tax: InsertTax): Promise<Tax>;
+  getTaxes(orderId?: number, lineItemId?: number): Promise<Tax[]>;
+  getTax(id: number): Promise<Tax | undefined>;
+  updateTax(id: number, updates: Partial<InsertTax>): Promise<Tax>;
+  deleteTax(id: number): Promise<void>;
+
+  // Discount Management
+  createDiscount(discount: InsertDiscount): Promise<Discount>;
+  getDiscounts(orderId?: number, lineItemId?: number): Promise<Discount[]>;
+  getDiscount(id: number): Promise<Discount | undefined>;
+  updateDiscount(id: number, updates: Partial<InsertDiscount>): Promise<Discount>;
+  deleteDiscount(id: number): Promise<void>;
+
+  // Refund Management
+  createRefund(refund: InsertRefund): Promise<Refund>;
+  getRefunds(orderId?: number): Promise<Refund[]>;
+  getRefund(id: number): Promise<Refund | undefined>;
+  updateRefund(id: number, updates: Partial<InsertRefund>): Promise<Refund>;
+  deleteRefund(id: number): Promise<void>;
+  getRefundAnalytics(filters: {
+    startDate?: string;
+    endDate?: string;
+    merchantId?: number;
+    locationId?: number;
+    channel?: string;
+  }): Promise<{
+    totalRefunds: number;
+    totalRefundAmount: number;
+    refundsByReason: Array<{ reason: string; count: number; amount: number }>;
+  }>;
+
+  // Tender Management
+  createTender(tender: InsertTender): Promise<Tender>;
+  getTenders(paymentId: number): Promise<Tender[]>;
+  getTender(id: number): Promise<Tender | undefined>;
+  updateTender(id: number, updates: Partial<InsertTender>): Promise<Tender>;
+  deleteTender(id: number): Promise<void>;
+
+  // Item Cost History Management
+  createItemCostHistory(costHistory: InsertItemCostHistory): Promise<ItemCostHistory>;
+  getItemCostHistory(itemId: number): Promise<ItemCostHistory[]>;
+  getCurrentItemCost(itemId: number, date?: Date): Promise<ItemCostHistory | undefined>;
+  updateItemCost(itemId: number, newCost: number, costMethod?: string, reason?: string): Promise<ItemCostHistory>;
+
+  // Sync Cursor Management
+  createSyncCursor(cursor: InsertSyncCursor): Promise<SyncCursor>;
+  getSyncCursors(system?: string, merchantId?: number): Promise<SyncCursor[]>;
+  getSyncCursor(system: string, merchantId: number | null, dataType: string): Promise<SyncCursor | undefined>;
+  updateSyncCursor(id: number, updates: Partial<InsertSyncCursor>): Promise<SyncCursor>;
+  deleteSyncCursor(id: number): Promise<void>;
+  updateSyncProgress(system: string, merchantId: number | null, dataType: string, updates: {
+    lastModifiedMs?: string;
+    lastSyncAt?: Date;
+    lastRunAt?: Date;
+    lastError?: string | null;
+    errorCount?: number;
+    lastSuccessAt?: Date;
+  }): Promise<SyncCursor>;
+
+  // Daily Sales Aggregation Management
+  createDailySales(dailySales: InsertDailySales): Promise<DailySales>;
+  getDailySales(filters: {
+    startDate?: string;
+    endDate?: string;
+    merchantId?: number;
+    locationId?: number;
+    channel?: string;
+  }): Promise<DailySales[]>;
+  getDailySalesById(id: number): Promise<DailySales | undefined>;
+  updateDailySales(id: number, updates: Partial<InsertDailySales>): Promise<DailySales>;
+  deleteDailySales(id: number): Promise<void>;
+  aggregateDailySales(date: string, merchantId: number, locationId?: number, channel?: string): Promise<DailySales>;
+  
+  // Sales Analytics and Reporting
+  getSalesAnalytics(filters: {
+    startDate?: string;
+    endDate?: string;
+    merchantId?: number;
+    locationId?: number;
+    channel?: string;
+    groupBy?: 'day' | 'week' | 'month' | 'location' | 'channel';
+  }): Promise<{
+    totalRevenue: number;
+    totalOrders: number;
+    totalItems: number;
+    averageOrderValue: number;
+    totalCogs: number;
+    grossMargin: number;
+    grossMarginPercent: number;
+    breakdown: Array<{
+      period: string;
+      revenue: number;
+      orders: number;
+      items: number;
+      cogs: number;
+      margin: number;
+    }>;
+  }>;
+  
+  getTopItems(filters: {
+    startDate?: string;
+    endDate?: string;
+    merchantId?: number;
+    locationId?: number;
+    channel?: string;
+    limit?: number;
+  }): Promise<Array<{
+    itemId: number;
+    itemName: string;
+    totalQuantity: number;
+    totalRevenue: number;
+    totalMargin: number;
+    avgPrice: number;
+  }>>;
+  
+  getRevenueByPaymentMethod(filters: {
+    startDate?: string;
+    endDate?: string;
+    merchantId?: number;
+    locationId?: number;
+    channel?: string;
+  }): Promise<Array<{
+    paymentMethod: string;
+    totalAmount: number;
+    orderCount: number;
+    percentage: number;
+  }>>;
 }
 
 export class DatabaseStorage implements IStorage {
