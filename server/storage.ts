@@ -1078,6 +1078,7 @@ export interface IStorage {
   createOrderLineItem(lineItem: InsertOrderLineItem): Promise<OrderLineItem>;
   getOrderLineItems(orderId: number): Promise<OrderLineItem[]>;
   getOrderLineItem(id: number): Promise<OrderLineItem | undefined>;
+  getOrderLineItemByExternalId(externalLineItemId: string): Promise<OrderLineItem | undefined>;
   updateOrderLineItem(id: number, updates: Partial<InsertOrderLineItem>): Promise<OrderLineItem>;
   deleteOrderLineItem(id: number): Promise<void>;
   syncOrderLineItems(orderId: number, lineItems: InsertOrderLineItem[]): Promise<{ created: number; updated: number }>;
@@ -1085,7 +1086,9 @@ export interface IStorage {
   // Payment Management
   createPayment(payment: InsertPayment): Promise<Payment>;
   getPayments(orderId: number): Promise<Payment[]>;
+  getOrderPayments(orderId: number): Promise<Payment[]>; // Alias for getPayments
   getPayment(id: number): Promise<Payment | undefined>;
+  getPaymentByExternalId(externalPaymentId: string): Promise<Payment | undefined>;
   updatePayment(id: number, updates: Partial<InsertPayment>): Promise<Payment>;
   deletePayment(id: number): Promise<void>;
 
@@ -1099,14 +1102,18 @@ export interface IStorage {
   // Discount Management
   createDiscount(discount: InsertDiscount): Promise<Discount>;
   getDiscounts(orderId?: number, lineItemId?: number): Promise<Discount[]>;
+  getOrderDiscounts(orderId: string): Promise<Discount[]>; // Helper for order-specific discounts
   getDiscount(id: number): Promise<Discount | undefined>;
+  getDiscountByExternalId(externalDiscountId: string): Promise<Discount | undefined>;
   updateDiscount(id: number, updates: Partial<InsertDiscount>): Promise<Discount>;
   deleteDiscount(id: number): Promise<void>;
 
   // Refund Management
   createRefund(refund: InsertRefund): Promise<Refund>;
   getRefunds(orderId?: number): Promise<Refund[]>;
+  getOrderRefunds(orderId: number): Promise<Refund[]>; // Alias for order-specific refunds
   getRefund(id: number): Promise<Refund | undefined>;
+  getRefundByExternalId(externalRefundId: string): Promise<Refund | undefined>;
   updateRefund(id: number, updates: Partial<InsertRefund>): Promise<Refund>;
   deleteRefund(id: number): Promise<void>;
   getRefundAnalytics(filters: {
@@ -1132,6 +1139,7 @@ export interface IStorage {
   createItemCostHistory(costHistory: InsertItemCostHistory): Promise<ItemCostHistory>;
   getItemCostHistory(itemId: number): Promise<ItemCostHistory[]>;
   getCurrentItemCost(itemId: number, date?: Date): Promise<ItemCostHistory | undefined>;
+  getLatestItemCost(itemId: string, merchantId: number): Promise<ItemCostHistory | undefined>;
   updateItemCost(itemId: number, newCost: number, costMethod?: string, reason?: string): Promise<ItemCostHistory>;
 
   // Sync Cursor Management
@@ -1159,9 +1167,11 @@ export interface IStorage {
     channel?: string;
   }): Promise<DailySales[]>;
   getDailySalesById(id: number): Promise<DailySales | undefined>;
+  getDailySalesByMerchantAndDate(merchantId: number, date: string): Promise<DailySales | undefined>;
   updateDailySales(id: number, updates: Partial<InsertDailySales>): Promise<DailySales>;
   deleteDailySales(id: number): Promise<void>;
   aggregateDailySales(date: string, merchantId: number, locationId?: number, channel?: string): Promise<DailySales>;
+  getOrdersByMerchantAndDateRange(merchantId: number, startDate: Date, endDate: Date): Promise<Order[]>;
   
   // Sales Analytics and Reporting
   getSalesAnalytics(filters: {
@@ -8372,6 +8382,404 @@ export class DatabaseStorage implements IStorage {
         totalPay: totalPay.toFixed(2)
       }
     };
+  }
+  // ================================
+  // ORDER MANAGEMENT STORAGE OPERATIONS (Required for Sync Service)
+  // ================================
+
+  // Basic Order CRUD Operations
+  async createOrder(order: InsertOrder): Promise<Order> {
+    try {
+      const [result] = await db.insert(orders).values(order).returning();
+      return result;
+    } catch (error) {
+      console.error('Error creating order:', error);
+      throw error;
+    }
+  }
+
+  async getOrderByExternalId(externalOrderId: string, channel: string): Promise<Order | undefined> {
+    try {
+      const [result] = await db
+        .select()
+        .from(orders)
+        .where(and(
+          eq(orders.externalOrderId, externalOrderId),
+          eq(orders.channel, channel)
+        ))
+        .limit(1);
+      return result;
+    } catch (error) {
+      console.error('Error getting order by external ID:', error);
+      return undefined;
+    }
+  }
+
+  async updateOrder(id: number, updates: Partial<InsertOrder>): Promise<Order> {
+    try {
+      const [result] = await db
+        .update(orders)
+        .set({ ...updates, updatedAt: new Date() })
+        .where(eq(orders.id, id))
+        .returning();
+      return result;
+    } catch (error) {
+      console.error('Error updating order:', error);
+      throw error;
+    }
+  }
+
+  async getOrdersByMerchantAndDateRange(merchantId: number, startDate: Date, endDate: Date): Promise<Order[]> {
+    try {
+      return await db
+        .select()
+        .from(orders)
+        .where(and(
+          eq(orders.merchantId, merchantId),
+          gte(orders.orderDate, startDate.toISOString().split('T')[0]),
+          lte(orders.orderDate, endDate.toISOString().split('T')[0])
+        ))
+        .orderBy(asc(orders.createdTime));
+    } catch (error) {
+      console.error('Error getting orders by merchant and date range:', error);
+      return [];
+    }
+  }
+
+  // Order Line Items Operations
+  async getOrderLineItemByExternalId(externalLineItemId: string): Promise<OrderLineItem | undefined> {
+    try {
+      const [result] = await db
+        .select()
+        .from(orderLineItems)
+        .where(eq(orderLineItems.externalLineItemId, externalLineItemId))
+        .limit(1);
+      return result;
+    } catch (error) {
+      console.error('Error getting order line item by external ID:', error);
+      return undefined;
+    }
+  }
+
+  // Payment Operations  
+  async getOrderPayments(orderId: number): Promise<Payment[]> {
+    return this.getPayments(orderId);
+  }
+
+  async getPaymentByExternalId(externalPaymentId: string): Promise<Payment | undefined> {
+    try {
+      const [result] = await db
+        .select()
+        .from(payments)
+        .where(eq(payments.externalPaymentId, externalPaymentId))
+        .limit(1);
+      return result;
+    } catch (error) {
+      console.error('Error getting payment by external ID:', error);
+      return undefined;
+    }
+  }
+
+  // Discount Operations
+  async getOrderDiscounts(orderId: string): Promise<Discount[]> {
+    try {
+      return await db
+        .select()
+        .from(discounts)
+        .where(eq(discounts.orderId, parseInt(orderId)))
+        .orderBy(asc(discounts.createdAt));
+    } catch (error) {
+      console.error('Error getting order discounts:', error);
+      return [];
+    }
+  }
+
+  async getDiscountByExternalId(externalDiscountId: string): Promise<Discount | undefined> {
+    try {
+      const [result] = await db
+        .select()
+        .from(discounts)
+        .where(eq(discounts.externalDiscountId, externalDiscountId))
+        .limit(1);
+      return result;
+    } catch (error) {
+      console.error('Error getting discount by external ID:', error);
+      return undefined;
+    }
+  }
+
+  // Refund Operations
+  async getOrderRefunds(orderId: number): Promise<Refund[]> {
+    return this.getRefunds(orderId);
+  }
+
+  async getRefundByExternalId(externalRefundId: string): Promise<Refund | undefined> {
+    try {
+      const [result] = await db
+        .select()
+        .from(refunds)
+        .where(eq(refunds.externalRefundId, externalRefundId))
+        .limit(1);
+      return result;
+    } catch (error) {
+      console.error('Error getting refund by external ID:', error);
+      return undefined;
+    }
+  }
+
+  // Item Cost History Operations
+  async getLatestItemCost(itemId: string, merchantId: number): Promise<ItemCostHistory | undefined> {
+    try {
+      const [result] = await db
+        .select()
+        .from(itemCostHistory)
+        .where(and(
+          eq(itemCostHistory.itemId, itemId),
+          eq(itemCostHistory.merchantId, merchantId)
+        ))
+        .orderBy(desc(itemCostHistory.effectiveDate))
+        .limit(1);
+      return result;
+    } catch (error) {
+      console.error('Error getting latest item cost:', error);
+      return undefined;
+    }
+  }
+
+  // Daily Sales Operations
+  async getDailySalesByMerchantAndDate(merchantId: number, date: string): Promise<DailySales | undefined> {
+    try {
+      const [result] = await db
+        .select()
+        .from(dailySales)
+        .where(and(
+          eq(dailySales.merchantId, merchantId),
+          eq(dailySales.date, date)
+        ))
+        .limit(1);
+      return result;
+    } catch (error) {
+      console.error('Error getting daily sales by merchant and date:', error);
+      return undefined;
+    }
+  }
+
+  // ================================
+  // MISSING BASIC CRUD OPERATIONS
+  // ================================
+
+  // These methods need to be implemented but were missing from the class
+  async createOrderLineItem(lineItem: InsertOrderLineItem): Promise<OrderLineItem> {
+    try {
+      const [result] = await db.insert(orderLineItems).values(lineItem).returning();
+      return result;
+    } catch (error) {
+      console.error('Error creating order line item:', error);
+      throw error;
+    }
+  }
+
+  async getOrderLineItems(orderId: number): Promise<OrderLineItem[]> {
+    try {
+      return await db
+        .select()
+        .from(orderLineItems)
+        .where(eq(orderLineItems.orderId, orderId))
+        .orderBy(asc(orderLineItems.createdAt));
+    } catch (error) {
+      console.error('Error getting order line items:', error);
+      return [];
+    }
+  }
+
+  async updateOrderLineItem(id: number, updates: Partial<InsertOrderLineItem>): Promise<OrderLineItem> {
+    try {
+      const [result] = await db
+        .update(orderLineItems)
+        .set({ ...updates, updatedAt: new Date() })
+        .where(eq(orderLineItems.id, id))
+        .returning();
+      return result;
+    } catch (error) {
+      console.error('Error updating order line item:', error);
+      throw error;
+    }
+  }
+
+  async createPayment(payment: InsertPayment): Promise<Payment> {
+    try {
+      const [result] = await db.insert(payments).values(payment).returning();
+      return result;
+    } catch (error) {
+      console.error('Error creating payment:', error);
+      throw error;
+    }
+  }
+
+  async getPayments(orderId: number): Promise<Payment[]> {
+    try {
+      return await db
+        .select()
+        .from(payments)
+        .where(eq(payments.orderId, orderId))
+        .orderBy(asc(payments.createdTime));
+    } catch (error) {
+      console.error('Error getting payments:', error);
+      return [];
+    }
+  }
+
+  async updatePayment(id: number, updates: Partial<InsertPayment>): Promise<Payment> {
+    try {
+      const [result] = await db
+        .update(payments)
+        .set({ ...updates, updatedAt: new Date() })
+        .where(eq(payments.id, id))
+        .returning();
+      return result;
+    } catch (error) {
+      console.error('Error updating payment:', error);
+      throw error;
+    }
+  }
+
+  async createDiscount(discount: InsertDiscount): Promise<Discount> {
+    try {
+      const [result] = await db.insert(discounts).values(discount).returning();
+      return result;
+    } catch (error) {
+      console.error('Error creating discount:', error);
+      throw error;
+    }
+  }
+
+  async updateDiscount(id: number, updates: Partial<InsertDiscount>): Promise<Discount> {
+    try {
+      const [result] = await db
+        .update(discounts)
+        .set({ ...updates, updatedAt: new Date() })
+        .where(eq(discounts.id, id))
+        .returning();
+      return result;
+    } catch (error) {
+      console.error('Error updating discount:', error);
+      throw error;
+    }
+  }
+
+  async createRefund(refund: InsertRefund): Promise<Refund> {
+    try {
+      const [result] = await db.insert(refunds).values(refund).returning();
+      return result;
+    } catch (error) {
+      console.error('Error creating refund:', error);
+      throw error;
+    }
+  }
+
+  async updateRefund(id: number, updates: Partial<InsertRefund>): Promise<Refund> {
+    try {
+      const [result] = await db
+        .update(refunds)
+        .set({ ...updates, updatedAt: new Date() })
+        .where(eq(refunds.id, id))
+        .returning();
+      return result;
+    } catch (error) {
+      console.error('Error updating refund:', error);
+      throw error;
+    }
+  }
+
+  // Sync Cursor Operations (if not already implemented)
+  async createSyncCursor(cursor: InsertSyncCursor): Promise<SyncCursor> {
+    try {
+      const [result] = await db.insert(syncCursors).values(cursor).returning();
+      return result;
+    } catch (error) {
+      console.error('Error creating sync cursor:', error);
+      throw error;
+    }
+  }
+
+  async getSyncCursor(system: string, merchantId: number | null, dataType: string): Promise<SyncCursor | undefined> {
+    try {
+      const [result] = await db
+        .select()
+        .from(syncCursors)
+        .where(and(
+          eq(syncCursors.system, system),
+          merchantId ? eq(syncCursors.merchantId, merchantId) : isNull(syncCursors.merchantId),
+          eq(syncCursors.dataType, dataType)
+        ))
+        .limit(1);
+      return result;
+    } catch (error) {
+      console.error('Error getting sync cursor:', error);
+      return undefined;
+    }
+  }
+
+  async updateSyncCursor(id: number, updates: Partial<InsertSyncCursor>): Promise<SyncCursor> {
+    try {
+      const [result] = await db
+        .update(syncCursors)
+        .set({ ...updates, updatedAt: new Date() })
+        .where(eq(syncCursors.id, id))
+        .returning();
+      return result;
+    } catch (error) {
+      console.error('Error updating sync cursor:', error);
+      throw error;
+    }
+  }
+
+  async getSyncCursors(system?: string, merchantId?: number): Promise<SyncCursor[]> {
+    try {
+      let query = db.select().from(syncCursors);
+      
+      const conditions = [];
+      if (system) {
+        conditions.push(eq(syncCursors.system, system));
+      }
+      if (merchantId) {
+        conditions.push(eq(syncCursors.merchantId, merchantId));
+      }
+      
+      if (conditions.length > 0) {
+        query = query.where(and(...conditions));
+      }
+      
+      return await query.orderBy(desc(syncCursors.createdAt));
+    } catch (error) {
+      console.error('Error getting sync cursors:', error);
+      return [];
+    }
+  }
+
+  // Daily Sales Operations
+  async createDailySales(dailySales: InsertDailySales): Promise<DailySales> {
+    try {
+      const [result] = await db.insert(dailySales).values(dailySales).returning();
+      return result;
+    } catch (error) {
+      console.error('Error creating daily sales:', error);
+      throw error;
+    }
+  }
+
+  async updateDailySales(id: number, updates: Partial<InsertDailySales>): Promise<DailySales> {
+    try {
+      const [result] = await db
+        .update(dailySales)
+        .set({ ...updates, lastUpdatedAt: new Date() })
+        .where(eq(dailySales.id, id))
+        .returning();
+      return result;
+    } catch (error) {
+      console.error('Error updating daily sales:', error);
+      throw error;
+    }
   }
 }
 

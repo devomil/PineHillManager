@@ -6,6 +6,7 @@ import { setupAuth, isAuthenticated } from "./auth";
 import { storage } from "./storage";
 import { performanceMiddleware, getPerformanceMetrics, resetPerformanceMetrics } from "./performance-middleware";
 import { notificationService } from "./notificationService";
+import { cloverSyncService } from "./services/clover-sync-service";
 import { sendSupportTicketNotification } from "./emailService";
 import { smsService } from "./sms-service";
 import { smartNotificationService } from './smart-notifications';
@@ -140,6 +141,248 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error aggregating daily analytics:', error);
       res.status(500).json({ message: 'Failed to aggregate daily analytics' });
+    }
+  });
+
+  // ================================
+  // CLOVER SYNC SERVICE ENDPOINTS
+  // ================================
+
+  // Trigger manual sync for all merchants
+  app.post('/api/sync/clover/all', isAuthenticated, async (req, res) => {
+    try {
+      if (req.user?.role !== 'admin') {
+        return res.status(403).json({ error: 'Admin access required' });
+      }
+
+      if (cloverSyncService.isRunningSync()) {
+        return res.status(409).json({ error: 'Sync already in progress' });
+      }
+
+      const options = {
+        forceFullSync: req.body.forceFullSync || false,
+        batchSize: req.body.batchSize || 100,
+        startDate: req.body.startDate ? new Date(req.body.startDate) : undefined,
+        endDate: req.body.endDate ? new Date(req.body.endDate) : undefined
+      };
+
+      // Start sync asynchronously
+      cloverSyncService.syncAllMerchants(options)
+        .then((results) => {
+          console.log('✅ Bulk sync completed:', results);
+        })
+        .catch((error) => {
+          console.error('❌ Bulk sync failed:', error);
+        });
+
+      res.json({ 
+        success: true, 
+        message: 'Sync started for all merchants',
+        options 
+      });
+    } catch (error) {
+      console.error('Error starting sync:', error);
+      res.status(500).json({ message: 'Failed to start sync' });
+    }
+  });
+
+  // Trigger manual sync for specific merchant
+  app.post('/api/sync/clover/merchant/:merchantId', isAuthenticated, async (req, res) => {
+    try {
+      if (req.user?.role !== 'admin') {
+        return res.status(403).json({ error: 'Admin access required' });
+      }
+
+      const merchantDbId = parseInt(req.params.merchantId);
+      if (!merchantDbId) {
+        return res.status(400).json({ error: 'Invalid merchant ID' });
+      }
+
+      if (cloverSyncService.isRunningSync()) {
+        return res.status(409).json({ error: 'Sync already in progress' });
+      }
+
+      const options = {
+        forceFullSync: req.body.forceFullSync || false,
+        batchSize: req.body.batchSize || 100,
+        startDate: req.body.startDate ? new Date(req.body.startDate) : undefined,
+        endDate: req.body.endDate ? new Date(req.body.endDate) : undefined
+      };
+
+      // Start sync asynchronously
+      cloverSyncService.syncMerchant(merchantDbId, options)
+        .then((result) => {
+          console.log(`✅ Sync completed for merchant ${merchantDbId}:`, result);
+        })
+        .catch((error) => {
+          console.error(`❌ Sync failed for merchant ${merchantDbId}:`, error);
+        });
+
+      res.json({ 
+        success: true, 
+        message: `Sync started for merchant ${merchantDbId}`,
+        merchantId: merchantDbId,
+        options 
+      });
+    } catch (error) {
+      console.error('Error starting merchant sync:', error);
+      res.status(500).json({ message: 'Failed to start merchant sync' });
+    }
+  });
+
+  // Get sync status for all merchants
+  app.get('/api/sync/clover/status', isAuthenticated, async (req, res) => {
+    try {
+      const syncStatus = await cloverSyncService.getSyncStatus();
+      
+      res.json({
+        isRunning: cloverSyncService.isRunningSync(),
+        merchants: syncStatus,
+        lastUpdated: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error('Error getting sync status:', error);
+      res.status(500).json({ message: 'Failed to get sync status' });
+    }
+  });
+
+  // Stop running sync
+  app.post('/api/sync/clover/stop', isAuthenticated, async (req, res) => {
+    try {
+      if (req.user?.role !== 'admin') {
+        return res.status(403).json({ error: 'Admin access required' });
+      }
+
+      if (!cloverSyncService.isRunningSync()) {
+        return res.status(400).json({ error: 'No sync currently running' });
+      }
+
+      cloverSyncService.stopSync();
+
+      res.json({ 
+        success: true, 
+        message: 'Sync stop requested' 
+      });
+    } catch (error) {
+      console.error('Error stopping sync:', error);
+      res.status(500).json({ message: 'Failed to stop sync' });
+    }
+  });
+
+  // Get sync cursor details for specific merchant
+  app.get('/api/sync/clover/cursor/:merchantId', isAuthenticated, async (req, res) => {
+    try {
+      const merchantDbId = parseInt(req.params.merchantId);
+      if (!merchantDbId) {
+        return res.status(400).json({ error: 'Invalid merchant ID' });
+      }
+
+      const cursor = await storage.getSyncCursor('clover', merchantDbId, 'orders');
+      
+      res.json({
+        merchantId: merchantDbId,
+        cursor: cursor || null,
+        hasData: !!cursor
+      });
+    } catch (error) {
+      console.error('Error getting sync cursor:', error);
+      res.status(500).json({ message: 'Failed to get sync cursor' });
+    }
+  });
+
+  // Reset sync cursor for merchant (force full sync next time)
+  app.post('/api/sync/clover/reset-cursor/:merchantId', isAuthenticated, async (req, res) => {
+    try {
+      if (req.user?.role !== 'admin') {
+        return res.status(403).json({ error: 'Admin access required' });
+      }
+
+      const merchantDbId = parseInt(req.params.merchantId);
+      if (!merchantDbId) {
+        return res.status(400).json({ error: 'Invalid merchant ID' });
+      }
+
+      const cursor = await storage.getSyncCursor('clover', merchantDbId, 'orders');
+      
+      if (cursor) {
+        await storage.updateSyncCursor(cursor.id, {
+          lastModifiedMs: null,
+          lastSyncAt: null,
+          lastSuccessAt: null,
+          errorCount: 0,
+          lastError: null
+        });
+      }
+
+      res.json({ 
+        success: true, 
+        message: `Sync cursor reset for merchant ${merchantDbId}`,
+        merchantId: merchantDbId
+      });
+    } catch (error) {
+      console.error('Error resetting sync cursor:', error);
+      res.status(500).json({ message: 'Failed to reset sync cursor' });
+    }
+  });
+
+  // Get sync statistics and performance metrics
+  app.get('/api/sync/clover/stats', isAuthenticated, async (req, res) => {
+    try {
+      const { days = 7 } = req.query;
+      const daysNum = parseInt(days as string);
+      
+      // Get sync cursors for all merchants
+      const syncCursors = await storage.getSyncCursors('clover');
+      
+      // Get recent order counts by date
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - daysNum);
+      
+      const merchants = await storage.getAllCloverConfigs();
+      let totalOrders = 0;
+      let totalRevenue = 0;
+      const merchantStats = [];
+
+      for (const merchant of merchants) {
+        const orders = await storage.getOrdersByMerchantAndDateRange(
+          merchant.id, 
+          startDate, 
+          new Date()
+        );
+        
+        const merchantRevenue = orders.reduce((sum, order) => sum + parseFloat(order.total || '0'), 0);
+        totalOrders += orders.length;
+        totalRevenue += merchantRevenue;
+
+        const cursor = syncCursors.find((c: any) => c.merchantId === merchant.id && c.dataType === 'orders');
+        
+        merchantStats.push({
+          merchantId: merchant.id,
+          merchantName: merchant.merchantName,
+          orders: orders.length,
+          revenue: merchantRevenue.toFixed(2),
+          lastSync: cursor?.lastSyncAt,
+          errorCount: cursor?.errorCount || 0
+        });
+      }
+
+      res.json({
+        period: `Last ${daysNum} days`,
+        summary: {
+          totalOrders,
+          totalRevenue: totalRevenue.toFixed(2),
+          activeMerchants: merchants.filter(m => m.isActive).length,
+          totalMerchants: merchants.length
+        },
+        merchantStats,
+        syncStatus: {
+          isRunning: cloverSyncService.isRunningSync(),
+          cursorsConfigured: syncCursors.length
+        }
+      });
+    } catch (error) {
+      console.error('Error getting sync stats:', error);
+      res.status(500).json({ message: 'Failed to get sync stats' });
     }
   });
 
@@ -3374,10 +3617,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           eventType: 'sms_delivery_status',
           source: 'sms',
           messageId: MessageSid,
-          userId: null,
-          channelId: null,
-          cost: null,
-          priority: null,
+          userId: undefined,
+          channelId: undefined,
+          cost: undefined,
+          priority: undefined,
           eventTimestamp: new Date(),
           metadata: { 
             status: MessageStatus, 
@@ -3465,7 +3708,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { messageId } = req.params;
       const userId = req.user.id;
 
-      const receipt = await storage.markMessageAsRead(parseInt(messageId), userId);
+      const receipt = await storage.markMessageAsRead(parseInt(messageId));
       res.json(receipt);
     } catch (error) {
       console.error("Error marking message as read:", error);
@@ -3622,15 +3865,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const { CloverIntegration } = await import('./integrations/clover');
           const cloverIntegration = new CloverIntegration(config);
           
-          console.log(`🔄 Syncing September 2025 sales for ${config.merchantName}...`);
+          console.log(`🔄 Syncing September 2025 sales for ${config.merchantName || 'Unknown Merchant'}...`);
           await cloverIntegration.syncOrdersComprehensive({ 
             startDate: '2025-09-01',
-            endDate: '2025-09-30',
-            force: true
+            endDate: '2025-09-30'
           });
-          console.log(`✅ Successfully synced ${config.merchantName}`);
+          console.log(`✅ Successfully synced ${config.merchantName || 'Unknown Merchant'}`);
         } catch (error) {
-          console.error(`❌ Error syncing sales for ${config.merchantName}:`, error);
+          console.error(`❌ Error syncing sales for ${config.merchantName || 'Unknown Merchant'}:`, error);
         }
       }
       console.log('🔄 September 2025 data sync complete!');
@@ -3719,7 +3961,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const cloverIntegration = new CloverIntegration(config);
           
           console.log(`💰 Syncing sales for ${config.merchantName}...`);
-          await cloverIntegration.syncOrders({ 
+          await cloverIntegration.syncOrdersComprehensive({ 
             startDate: today,
             endDate: today 
           });
@@ -3840,7 +4082,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const cogsData = await storage.calculateCOGS(startDate as string, endDate as string);
       
-      console.log(`🚀 Production COGS Response: Revenue=$${cogsData.totalRevenue}, COGS=$${cogsData.totalCOGS}, Items=${cogsData.totalItemsSold || 0}`);
+      console.log(`🚀 Production COGS Response: Revenue=$${cogsData.totalRevenue}, COGS=$${cogsData.totalCOGS}, Items=${cogsData.salesCount || 0}`);
       
       // DEVELOPMENT FIX: If COGS is minimal for any period with revenue, auto-sync sales data
       if (cogsData.totalCOGS < 100) {
@@ -3878,7 +4120,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           // Recalculate COGS with new data
           const updatedCogsData = await storage.calculateCOGS(startDate as string, endDate as string);
-          console.log(`🚀 Updated COGS: Revenue=$${updatedCogsData.totalRevenue}, COGS=$${updatedCogsData.totalCOGS}, Items=${updatedCogsData.totalItemsSold || 0}`);
+          console.log(`🚀 Updated COGS: Revenue=$${updatedCogsData.totalRevenue}, COGS=$${updatedCogsData.totalCOGS}, Items=${updatedCogsData.salesCount || 0}`);
           res.json(updatedCogsData);
           return;
         } catch (error) {
@@ -4251,7 +4493,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 throw new Error('No sales metrics data');
               }
             } catch (salesError) {
-              console.log('Sales API failed, trying Financial Events API:', salesError.message);
+              console.log('Sales API failed, trying Financial Events API:', salesError instanceof Error ? salesError.message : String(salesError));
               // Fall back to Financial Events API
               try {
                 console.log('🔍 Trying Amazon Financial Events API...');
@@ -4259,9 +4501,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 
                 if (financialEvents && financialEvents.payload && financialEvents.payload.FinancialEvents && financialEvents.payload.FinancialEvents.ShipmentEventList) {
                   const shipmentEvents = financialEvents.payload.FinancialEvents.ShipmentEventList;
-                  locationRevenue = shipmentEvents.reduce((sum, event) => {
+                  locationRevenue = shipmentEvents.reduce((sum: number, event: any) => {
                     const charges = event.ShipmentItemList?.[0]?.ItemChargeList || [];
-                    const itemRevenue = charges.reduce((itemSum, charge) => {
+                    const itemRevenue = charges.reduce((itemSum: number, charge: any) => {
                       if (charge.ChargeType === 'Principal') {
                         return itemSum + parseFloat(charge.ChargeAmount?.CurrencyAmount || '0');
                       }
@@ -4275,9 +4517,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   throw new Error('No financial events data');
                 }
               } catch (finError) {
-                console.log('Financial Events API also failed, falling back to Orders API:', finError.message);
+                console.log('Financial Events API also failed, falling back to Orders API:', finError instanceof Error ? finError.message : String(finError));
                 // Final fallback to Orders API calculation
-                locationRevenue = orders.reduce((sum, order) => {
+                locationRevenue = orders.reduce((sum: number, order: any) => {
                   // Only count shipped orders like Amazon Seller Central
                   if (order.OrderStatus === 'Shipped' || order.OrderStatus === 'Delivered') {
                     const orderTotal = parseFloat(order.OrderTotal?.Amount || '0');
@@ -4289,7 +4531,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 
                 // Only calculate transactions from Orders API if Sales API didn't work
                 if (!salesApiSuccess) {
-                  locationTransactions = orders.filter(order => 
+                  locationTransactions = orders.filter((order: any) => 
                     order.OrderStatus === 'Shipped' || order.OrderStatus === 'Delivered'
                   ).length;
                 }
@@ -4326,7 +4568,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           // Only add zero data if it's not a rate limit error
           // Rate limit errors shouldn't override potentially successful cached data
-          if (!error.message.includes('429')) {
+          if (!(error instanceof Error) || !error.message.includes('429')) {
             amazonLocationBreakdown.push({
               locationId: `amazon_${config.id}`,
               locationName: config.merchantName,
@@ -4607,9 +4849,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           await storage.createTransactionLine({
             transactionId: transaction.id,
             accountId: line.accountId,
-            amount: line.amount,
-            description: line.description || '',
-            debitCredit: line.debitCredit || 'debit'
+            debitAmount: line.debitCredit === 'debit' ? line.amount : undefined,
+            creditAmount: line.debitCredit === 'credit' ? line.amount : undefined,
+            description: line.description || ''
           });
         }
       }
@@ -4713,8 +4955,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         qbItemId: qbItemId || null,
         thriveItemId: thriveItemId || null,
         isActive: true,
-        createdAt: new Date(),
-        updatedAt: new Date()
+        lastSyncAt: new Date()
       });
 
       res.status(201).json(item);
@@ -5110,7 +5351,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           for (const locationConfig of activeLocations) {
             try {
               // Skip Lake Geneva locations before July
-              if (locationConfig.merchantName.includes('Lake Geneva') && month < 7) {
+              if (locationConfig.merchantName?.includes('Lake Geneva') && month < 7) {
                 continue;
               }
               
@@ -5386,7 +5627,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               const orders = amazonOrders.payload.Orders;
               console.log(`Amazon Filtered orders for ${amazonConfig.merchantName}: ${orders.length} orders`);
               
-              revenue = orders.reduce((sum, order) => {
+              revenue = orders.reduce((sum: number, order: any) => {
                 // Only count shipped orders like Amazon Seller Central
                 if (order.OrderStatus === 'Shipped' || order.OrderStatus === 'Delivered') {
                   const orderTotal = parseFloat(order.OrderTotal?.Amount || '0');
@@ -5394,7 +5635,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 }
                 return sum;
               }, 0);
-              transactions = orders.filter(order => 
+              transactions = orders.filter((order: any) => 
                 order.OrderStatus === 'Shipped' || order.OrderStatus === 'Delivered'
               ).length;
               
@@ -6122,8 +6363,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const successCount = syncResults.filter(r => r.success).length;
-      const totalNew = syncResults.reduce((sum, r) => sum + (r.newOrders || 0), 0);
-      const totalUpdated = syncResults.reduce((sum, r) => sum + (r.updatedOrders || 0), 0);
+      const totalNew = syncResults.reduce((sum, r) => sum + (r.success ? (r as any).newOrders || 0 : 0), 0);
+      const totalUpdated = syncResults.reduce((sum, r) => sum + (r.success ? (r as any).updatedOrders || 0 : 0), 0);
       
       res.json({
         success: true,
@@ -9492,7 +9733,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     unprocessedTimeEntriesQuerySchema,
     processTimeEntriesSchema,
     employeePayHistoryQuerySchema
-  } = await import('./payroll-validation.js');
+  } = await import('./payroll-validation.ts');
   
   const {
     requirePayrollAccess,
@@ -9500,9 +9741,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     validatePayrollPeriodAccess,
     validatePayrollEntryAccess,
     rateLimitPayrollOperations
-  } = await import('./payroll-auth.js');
+  } = await import('./payroll-auth.ts');
   
-  const { payrollLogger } = await import('./secure-logger.js');
+  const { payrollLogger } = await import('./secure-logger.ts');
 
   // Payroll Period Management
   app.get('/api/payroll/periods', 
