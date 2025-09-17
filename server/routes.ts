@@ -6343,8 +6343,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         state: stateParam, limit: limitNum, offset: offsetNum, search 
       });
 
-      // Use optimized database queries instead of slow live Clover API calls
-      const dbResult = await storage.getOrdersWithFiltering({
+      // Use Clover API method with financial calculations for comprehensive order data
+      const dbResult = await storage.getOrdersFromCloverAPI({
+        createdTimeMin: createdTimeMinMs,
+        createdTimeMax: createdTimeMaxMs,
         startDate: normalizedStartDate,
         endDate: normalizedEndDate,
         locationId: locationIdNum,
