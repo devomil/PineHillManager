@@ -6229,19 +6229,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      console.log('Fetching orders with filters:', {
+      console.log('🚀 [ORDERS API] Fetching orders with database queries (optimized):', {
         createdTimeMinMs, createdTimeMaxMs, startDate, endDate, locationId, search, state, page, limit
       });
 
-      // Use new Clover API method for direct order fetching with precise epoch filtering
-      const cloverResult = await storage.getOrdersFromCloverAPI({
+      // Use optimized database queries instead of slow live Clover API calls
+      const dbResult = await storage.getOrders({
         createdTimeMin: createdTimeMinMs,
         createdTimeMax: createdTimeMaxMs,
         startDate: createdTimeMinMs || createdTimeMaxMs ? undefined : startDate,  // Legacy fallback only if no epochs
         endDate: createdTimeMinMs || createdTimeMaxMs ? undefined : endDate,      // Legacy fallback only if no epochs
-        locationId: locationId && locationId !== 'all' ? locationId : undefined,
+        locationId: locationId && locationId !== 'all' ? parseInt(locationId) : undefined,
         search,
-        state,
+        orderState: state,
         limit: parseInt(limit),
         offset
       });
@@ -6318,9 +6318,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Combine Clover and Amazon orders
-      const allOrders = [...cloverResult.orders, ...amazonOrders];
-      const totalItems = cloverResult.total + amazonOrders.length;
+      // Combine database and Amazon orders
+      const allOrders = [...dbResult.orders, ...amazonOrders];
+      const totalItems = dbResult.total + amazonOrders.length;
+
+      console.log(`🚀 [ORDERS API] Database query completed, returning ${allOrders.length} orders out of ${totalItems} total`);
 
       res.json({
         orders: allOrders,
@@ -6328,7 +6330,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           currentPage: parseInt(page),
           totalPages: Math.ceil(totalItems / parseInt(limit)),
           totalItems,
-          hasMore: cloverResult.hasMore || amazonOrders.length > 0,
+          hasMore: (parseInt(page) * parseInt(limit)) < totalItems,
           limit: parseInt(limit)
         }
       });

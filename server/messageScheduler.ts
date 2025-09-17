@@ -39,8 +39,8 @@ async function processScheduledMessages() {
           }
         } else {
           // Default to all staff if no specific targets
-          const allEmployees = await storage.getUsers();
-          targetEmployees = allEmployees.filter(emp => emp.smsEnabled && emp.phone);
+          const allEmployees = await storage.getAllUsers();
+          targetEmployees = allEmployees.filter((emp: any) => emp.smsEnabled && emp.phone);
         }
 
         console.log(`📱 Sending to ${targetEmployees.length} employee(s)`);
@@ -54,7 +54,7 @@ async function processScheduledMessages() {
               const result = await smsService.sendSMS({ 
                 to: employee.phone!, 
                 message: messageText, 
-                priority: message.priority || 'normal' 
+                priority: (message.priority as any) || 'normal' 
               });
               console.log(`📤 SMS ${result.success ? 'sent' : 'failed'} to ${employee.firstName} ${employee.lastName} (${employee.phone})`);
               if (!result.success) {

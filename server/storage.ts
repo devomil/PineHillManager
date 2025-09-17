@@ -8398,6 +8398,184 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
+  // Get orders with comprehensive filtering from database
+  async getOrders(filters: {
+    merchantId?: number;
+    locationId?: number;
+    channel?: string;
+    startDate?: string;
+    endDate?: string;
+    createdTimeMin?: number;
+    createdTimeMax?: number;
+    orderState?: string;
+    paymentState?: string;
+    customerId?: string;
+    search?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<{ orders: Order[]; total: number }> {
+    try {
+      console.log('🚀 [DATABASE QUERY] Starting optimized database query for orders');
+      const startTime = Date.now();
+
+      // Build the WHERE conditions
+      const conditions = [];
+      
+      if (filters.merchantId) {
+        conditions.push(eq(orders.merchantId, filters.merchantId));
+      }
+      
+      if (filters.locationId) {
+        conditions.push(eq(orders.locationId, filters.locationId));
+      }
+      
+      if (filters.channel) {
+        conditions.push(eq(orders.channel, filters.channel));
+      }
+      
+      if (filters.orderState) {
+        conditions.push(eq(orders.orderState, filters.orderState));
+      }
+      
+      if (filters.paymentState) {
+        conditions.push(eq(orders.paymentState, filters.paymentState));
+      }
+      
+      if (filters.customerId) {
+        conditions.push(eq(orders.customerId, filters.customerId));
+      }
+
+      // Date filtering - prefer epoch milliseconds for precise timezone-aware filtering
+      if (filters.createdTimeMin && filters.createdTimeMax) {
+        const startDate = new Date(filters.createdTimeMin);
+        const endDate = new Date(filters.createdTimeMax);
+        conditions.push(gte(orders.createdTime, startDate));
+        conditions.push(lte(orders.createdTime, endDate));
+        
+        console.log('🌍 [DATABASE] Using epoch milliseconds for filtering:', {
+          createdTimeMin: filters.createdTimeMin,
+          createdTimeMax: filters.createdTimeMax,
+          startUTC: startDate.toISOString(),
+          endUTC: endDate.toISOString()
+        });
+      } else if (filters.startDate && filters.endDate) {
+        // Fallback to date strings
+        const startDate = new Date(filters.startDate + 'T00:00:00.000Z');
+        const endDate = new Date(filters.endDate + 'T23:59:59.999Z');
+        conditions.push(gte(orders.createdTime, startDate));
+        conditions.push(lte(orders.createdTime, endDate));
+      }
+
+      // Search functionality
+      if (filters.search) {
+        conditions.push(
+          or(
+            like(orders.customerName, `%${filters.search}%`),
+            like(orders.customerEmail, `%${filters.search}%`),
+            like(orders.externalOrderId, `%${filters.search}%`),
+            like(orders.orderNumber, `%${filters.search}%`)
+          )
+        );
+      }
+
+      const whereCondition = conditions.length > 0 ? and(...conditions) : undefined;
+      
+      // Get total count
+      let countQuery = db
+        .select({ count: sql<number>`COUNT(*)::integer` })
+        .from(orders);
+      
+      if (whereCondition) {
+        countQuery = countQuery.where(whereCondition);
+      }
+      
+      const [{ count: total }] = await countQuery;
+      
+      // Get orders with pagination (select specific columns to avoid missing field errors)
+      let ordersQuery = db
+        .select({
+          id: orders.id,
+          merchantId: orders.merchantId,
+          locationId: orders.locationId,
+          externalOrderId: orders.externalOrderId,
+          channel: orders.channel,
+          orderNumber: orders.orderNumber,
+          customerReference: orders.customerReference,
+          createdTime: orders.createdTime,
+          modifiedTime: orders.modifiedTime,
+          orderDate: orders.orderDate,
+          orderState: orders.orderState,
+          paymentState: orders.paymentState,
+          fulfillmentStatus: orders.fulfillmentStatus,
+          customerId: orders.customerId,
+          customerName: orders.customerName,
+          customerEmail: orders.customerEmail,
+          customerPhone: orders.customerPhone,
+          subtotal: orders.subtotal,
+          taxAmount: orders.taxAmount,
+          tipAmount: orders.tipAmount,
+          discountAmount: orders.discountAmount,
+          shippingAmount: orders.shippingAmount,
+          total: orders.total,
+          orderCogs: orders.orderCogs,
+          orderGrossMargin: orders.orderGrossMargin,
+          orderType: orders.orderType,
+          orderSource: orders.orderSource,
+          deviceId: orders.deviceId,
+          employeeId: orders.employeeId,
+          notes: orders.notes,
+          tags: orders.tags,
+          lastSyncAt: orders.lastSyncAt,
+          createdAt: orders.createdAt,
+          updatedAt: orders.updatedAt
+        })
+        .from(orders)
+        .orderBy(desc(orders.createdTime));
+      
+      if (whereCondition) {
+        ordersQuery = ordersQuery.where(whereCondition);
+      }
+      
+      if (filters.limit) {
+        ordersQuery = ordersQuery.limit(filters.limit);
+      }
+      
+      if (filters.offset) {
+        ordersQuery = ordersQuery.offset(filters.offset);
+      }
+      
+      const orderResults = await ordersQuery;
+      
+      const queryTime = Date.now() - startTime;
+      console.log(`🚀 [DATABASE QUERY] Completed in ${queryTime}ms, found ${orderResults.length} orders`);
+      
+      return {
+        orders: orderResults,
+        total
+      };
+    } catch (error) {
+      console.error('Error getting orders from database:', error);
+      return {
+        orders: [],
+        total: 0
+      };
+    }
+  }
+
+  async getOrder(id: number): Promise<Order | undefined> {
+    try {
+      const [result] = await db
+        .select()
+        .from(orders)
+        .where(eq(orders.id, id))
+        .limit(1);
+      return result;
+    } catch (error) {
+      console.error('Error getting order:', error);
+      return undefined;
+    }
+  }
+
   async getOrderByExternalId(externalOrderId: string, channel: string): Promise<Order | undefined> {
     try {
       const [result] = await db
