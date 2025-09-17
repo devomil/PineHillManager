@@ -4982,20 +4982,19 @@ export class DatabaseStorage implements IStorage {
                   // Normalize payments/refunds to handle both Clover API shapes
                   const payments = Array.isArray(order.payments) ? order.payments : (order.payments?.elements ?? []);
                   const refunds = Array.isArray(order.refunds) ? order.refunds : (order.refunds?.elements ?? []);
+                  const lineItems = order.lineItems?.elements || [];
                   
-                  console.log(`🔧 [PAYMENT STRUCTURE DEBUG] Order ${order.id}: payments type=${Array.isArray(order.payments) ? 'array' : 'object'}, count=${payments.length}, refunds count=${refunds.length}`);
+                  console.log(`🔧 [DATA STRUCTURE DEBUG] Order ${order.id}: payments type=${Array.isArray(order.payments) ? 'array' : 'object'}, payments count=${payments.length}, refunds count=${refunds.length}, lineItems count=${lineItems.length}`);
                   
-                  // Method 1: Sum successful payments minus refunds (most accurate for financial reporting)
-                  if (payments.length > 0) {
-                    console.log(`🔧 [PAYMENT DEBUG] Order ${order.id} has ${payments.length} payments:`, 
-                      payments.map(p => ({ result: p.result, amount: p.amount, success: p.result === 'SUCCESS' })));
-                    for (const payment of payments) {
-                      if (payment.result === 'SUCCESS') {
-                        const paymentAmount = parseFloat(payment.amount || '0') / 100;
-                        normalizedTotal += paymentAmount;
-                        console.log(`🔧 [PAYMENT DEBUG] Added payment: $${paymentAmount}, running total: $${normalizedTotal}`);
-                      }
-                    }
+                  // Check if payments have valid amounts
+                  const paymentSum = payments.filter(p => p.result === 'SUCCESS').reduce((sum, p) => sum + (parseFloat(p.amount || '0') / 100), 0);
+                  console.log(`🔧 [PAYMENT ANALYSIS] Order ${order.id}: Payment sum = $${paymentSum.toFixed(2)}`);
+                  
+                  // Method 1: Use payment data if payments have valid amounts > 0
+                  if (payments.length > 0 && paymentSum > 0) {
+                    console.log(`🔧 [PAYMENT METHOD] Order ${order.id}: Using payment data (sum = $${paymentSum.toFixed(2)})`);
+                    normalizedTotal = paymentSum;
+                    
                     // Subtract any refunds
                     if (refunds.length > 0) {
                       for (const refund of refunds) {
@@ -5004,14 +5003,26 @@ export class DatabaseStorage implements IStorage {
                         console.log(`🔧 [REFUND DEBUG] Subtracted refund: $${refundAmount}, running total: $${normalizedTotal}`);
                       }
                     }
-                  } else {
-                    // Method 2: Calculate from line items if no payment data available
-                    console.log(`🔧 [LINEITEM FALLBACK] Order ${order.id}: No payments found, calculating from ${order.lineItems.elements.length} line items`);
-                    for (const lineItem of order.lineItems.elements) {
+                  } 
+                  // Method 2: Fallback to line items when payments are zero or missing
+                  else if (lineItems.length > 0) {
+                    console.log(`🔧 [LINEITEM FALLBACK] Order ${order.id}: Payments are zero/missing, calculating from ${lineItems.length} line items`);
+                    for (const lineItem of lineItems) {
                       const lineItemPrice = parseFloat(lineItem.price || '0') / 100;
                       const quantity = parseInt(lineItem.unitQty || '1');
-                      normalizedTotal += lineItemPrice * quantity;
-                      console.log(`🔧 [LINEITEM DEBUG] Added ${lineItem.name}: $${lineItemPrice} x ${quantity} = $${lineItemPrice * quantity}, running total: $${normalizedTotal}`);
+                      const lineTotal = lineItemPrice * quantity;
+                      normalizedTotal += lineTotal;
+                      console.log(`🔧 [LINEITEM DEBUG] Added "${lineItem.name}": $${lineItemPrice} x ${quantity} = $${lineTotal.toFixed(2)}, running total: $${normalizedTotal.toFixed(2)}`);
+                    }
+                  } 
+                  // Method 3: Last resort - use Clover's reported total if > 0
+                  else {
+                    const cloverTotal = parseFloat(order.total || '0') / 100;
+                    if (cloverTotal > 0) {
+                      normalizedTotal = cloverTotal;
+                      console.log(`🔧 [CLOVER FALLBACK] Order ${order.id}: Using Clover's reported total: $${cloverTotal.toFixed(2)}`);
+                    } else {
+                      console.log(`🔧 [NO DATA] Order ${order.id}: No payment, lineItem, or total data available`);
                     }
                   }
                   
