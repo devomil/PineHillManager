@@ -97,8 +97,25 @@ export class CloverIntegration {
     if (options.modifiedTime) params.append('modifiedTime', options.modifiedTime);
     if (options.modifiedTimeMin) params.append('modifiedTime.min', options.modifiedTimeMin.toString());
     if (options.modifiedTimeMax) params.append('modifiedTime.max', options.modifiedTimeMax.toString());
-    if (options.createdTimeMin) params.append('createdTime.min', options.createdTimeMin.toString());
-    if (options.createdTimeMax) params.append('createdTime.max', options.createdTimeMax.toString());
+    // Convert millisecond timestamps to Unix seconds for Clover API
+    if (options.createdTimeMin) {
+      const unixSeconds = Math.floor(options.createdTimeMin / 1000);
+      params.append('createdTime.min', unixSeconds.toString());
+      console.log('🔧 [CLOVER API] Converting createdTimeMin:', { 
+        milliseconds: options.createdTimeMin, 
+        unixSeconds, 
+        isoDate: new Date(options.createdTimeMin).toISOString() 
+      });
+    }
+    if (options.createdTimeMax) {
+      const unixSeconds = Math.floor(options.createdTimeMax / 1000);
+      params.append('createdTime.max', unixSeconds.toString());
+      console.log('🔧 [CLOVER API] Converting createdTimeMax:', { 
+        milliseconds: options.createdTimeMax, 
+        unixSeconds, 
+        isoDate: new Date(options.createdTimeMax).toISOString() 
+      });
+    }
 
     const queryString = params.toString();
     const endpoint = queryString ? `orders?${queryString}` : 'orders';
