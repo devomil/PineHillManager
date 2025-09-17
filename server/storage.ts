@@ -4972,12 +4972,22 @@ export class DatabaseStorage implements IStorage {
               
               try {
                 // TEMPORARILY SIMPLIFIED: Skip expensive COGS calculations for faster loading
+                const orderTotal = parseFloat(order.total || '0') / 100;
+                
+                // Calculate tax properly 
+                let grossTax = 0;
+                if (order.taxAmount !== null && order.taxAmount !== undefined && order.taxAmount !== '') {
+                  grossTax = parseFloat(order.taxAmount) / 100;
+                } else if (order.tax !== null && order.tax !== undefined && order.tax !== '') {
+                  grossTax = parseFloat(order.tax) / 100;
+                }
+                
                 const financialMetrics = {
-                  grossTax: this.calculateGrossTax(order),
+                  grossTax: grossTax,
                   totalDiscounts: 0,
                   totalRefunds: 0,
                   netCOGS: 0,
-                  netSale: this.parseCloverAmount(order.total),
+                  netSale: orderTotal,
                   netProfit: 0,
                   netMargin: 0
                 };
