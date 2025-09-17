@@ -5843,7 +5843,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       // Use new Clover API method for direct order fetching with precise epoch filtering
-      const result = await storage.getOrdersFromCloverAPI({
+      const cloverResult = await storage.getOrdersFromCloverAPI({
         createdTimeMin: createdTimeMinMs,
         createdTimeMax: createdTimeMaxMs,
         startDate: createdTimeMinMs || createdTimeMaxMs ? undefined : startDate,  // Legacy fallback only if no epochs
@@ -5855,13 +5855,66 @@ export async function registerRoutes(app: Express): Promise<Server> {
         offset
       });
 
+      // Also fetch Amazon orders if date range is provided
+      let amazonOrders: any[] = [];
+      
+      if ((createdTimeMinMs && createdTimeMaxMs) || (startDate && endDate)) {
+        try {
+          // Get Amazon configuration
+          const amazonConfig = await storage.getAllAmazonConfigs();
+          
+          if (amazonConfig && amazonConfig.length > 0) {
+            console.log('🛒 [AMAZON ORDERS] Fetching Amazon orders for date range');
+            
+            // Convert epoch milliseconds to ISO date strings for Amazon API
+            let amazonStartDate: string;
+            let amazonEndDate: string;
+            
+            if (createdTimeMinMs && createdTimeMaxMs) {
+              amazonStartDate = new Date(createdTimeMinMs).toISOString();
+              amazonEndDate = new Date(createdTimeMaxMs).toISOString();
+            } else {
+              // Fallback for legacy date strings
+              amazonStartDate = new Date(startDate + 'T00:00:00.000Z').toISOString();
+              amazonEndDate = new Date(endDate + 'T23:59:59.999Z').toISOString();
+            }
+            
+            const { AmazonIntegration } = await import('./integrations/amazon');
+            const amazonIntegration = new AmazonIntegration(amazonConfig[0]);
+            
+            const amazonResponse = await amazonIntegration.getOrders(amazonStartDate, amazonEndDate);
+            
+            if (amazonResponse && amazonResponse.payload && amazonResponse.payload.Orders) {
+              // Transform Amazon orders to match Clover format
+              amazonOrders = amazonResponse.payload.Orders.map((order: any) => ({
+                ...order,
+                locationName: 'Amazon Store',
+                locationId: 'amazon',
+                merchantId: 'amazon',
+                // Add Amazon-specific identifiers
+                isAmazonOrder: true
+              }));
+              
+              console.log(`🛒 [AMAZON ORDERS] Retrieved ${amazonOrders.length} Amazon orders`);
+            }
+          }
+        } catch (error) {
+          console.error('Error fetching Amazon orders:', error);
+          // Don't fail the entire request if Amazon fails
+        }
+      }
+
+      // Combine Clover and Amazon orders
+      const allOrders = [...cloverResult.orders, ...amazonOrders];
+      const totalItems = cloverResult.total + amazonOrders.length;
+
       res.json({
-        orders: result.orders,
+        orders: allOrders,
         pagination: {
           currentPage: parseInt(page),
-          totalPages: Math.ceil(result.total / parseInt(limit)),
-          totalItems: result.total,
-          hasMore: result.hasMore,
+          totalPages: Math.ceil(totalItems / parseInt(limit)),
+          totalItems,
+          hasMore: cloverResult.hasMore || amazonOrders.length > 0,
           limit: parseInt(limit)
         }
       });

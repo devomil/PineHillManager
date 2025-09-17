@@ -4902,7 +4902,7 @@ export class DatabaseStorage implements IStorage {
         try {
           // Build Clover API options
           const options: any = {
-            limit: Math.min(filters.limit || 50, 100), // Clover limit
+            limit: filters.limit <= 50 ? 1000 : Math.min(filters.limit || 50, 1000), // Use high limit for comprehensive fetching
             offset: filters.offset || 0,
             expand: 'lineItems,payments,discounts,refunds',
             orderBy: 'modifiedTime DESC'
