@@ -6299,12 +6299,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // Normalize and sanitize filters before invoking storage
-      const normalizeEpoch = (v: string | undefined) => v ? (Number(v) < 1e12 ? Number(v) * 1000 : Number(v)) : undefined;
-      const createdMinMs = normalizeEpoch(createdTimeMin);
-      const createdMaxMs = normalizeEpoch(createdTimeMax);
-      const normalizedStartDate = createdMinMs ? new Date(createdMinMs).toISOString().slice(0,10) : startDate;
-      const normalizedEndDate = createdMaxMs ? new Date(createdMaxMs).toISOString().slice(0,10) : endDate;
+      // Use the properly parsed epoch milliseconds for date conversion
+      let normalizedStartDate = createdTimeMinMs ? new Date(createdTimeMinMs).toISOString().slice(0,10) : startDate;
+      let normalizedEndDate = createdTimeMaxMs ? new Date(createdTimeMaxMs).toISOString().slice(0,10) : endDate;
+      
+      // Fix for single-day filtering: If start and end represent the same calendar day
+      // (common for "yesterday", "today" filters), use the same date for both
+      if (createdTimeMinMs && createdTimeMaxMs) {
+        const startDateOnly = new Date(createdTimeMinMs).toISOString().slice(0,10);
+        const endDateOnly = new Date(createdTimeMaxMs).toISOString().slice(0,10);
+        
+        // Calculate the time difference in hours to detect single-day ranges
+        const timeDiffHours = (createdTimeMaxMs - createdTimeMinMs) / (1000 * 60 * 60);
+        
+        // If the range is about 24 hours (23-25 hours to account for timezone shifts)
+        // and end date is one day after start, it's likely a single-day filter
+        if (timeDiffHours >= 23 && timeDiffHours <= 25) {
+          const dayDiff = (new Date(endDateOnly).getTime() - new Date(startDateOnly).getTime()) / (1000 * 60 * 60 * 24);
+          if (dayDiff <= 1) {
+            // Use start date for both start and end to filter single day
+            normalizedEndDate = normalizedStartDate;
+          }
+        }
+      }
+      
+      console.log('🔧 [DATE CONVERSION DEBUG] Epoch to date conversion:', {
+        createdTimeMinMs,
+        createdTimeMaxMs,
+        normalizedStartDate,
+        normalizedEndDate,
+        legacyStartDate: startDate,
+        legacyEndDate: endDate,
+        isSingleDayFilter: normalizedStartDate === normalizedEndDate
+      });
       const stateParam = state && state !== 'all' ? String(state) : undefined;
       const limitNum = Number.isFinite(Number(limit)) && Number(limit) > 0 ? Number(limit) : 20;
       const offsetNum = Number.isFinite(Number(offset)) && Number(offset) >= 0 ? Number(offset) : 0;
