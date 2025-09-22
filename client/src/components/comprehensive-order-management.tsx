@@ -261,8 +261,6 @@ export function ComprehensiveOrderManagement() {
   ordersQueryParams.set('state', filters.state);
   ordersQueryParams.set('page', filters.page.toString());
   ordersQueryParams.set('limit', filters.limit.toString());
-
-  const ordersUrl = `/api/orders?${ordersQueryParams.toString()}`;
   
   // Memoize date parameters for consistent usage across all queries - always return valid dates
   const dateParams = useMemo(() => {
