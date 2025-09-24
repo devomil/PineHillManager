@@ -8838,29 +8838,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
             console.log(`❌ Direct ID lookup failed: ${idError?.message || 'Unknown error'}`);
           }
           
-          // Strategy 2: Try barcode/code search if direct ID failed
+          // Strategy 2: Try fetching all items and filter locally (more reliable)
           if (!item) {
             try {
-              const codeResults = await cloverIntegration.fetchItems({ filter: `code='${escapedSku}'` });
-              if (codeResults.elements && codeResults.elements.length > 0) {
-                item = codeResults.elements[0];
-                console.log(`✅ Found item by barcode/code: ${item.name}`);
+              console.log(`🔍 Fetching all items to search for: ${sku}`);
+              const allItemsResults = await cloverIntegration.fetchItems({ limit: 100 });
+              if (allItemsResults.elements && allItemsResults.elements.length > 0) {
+                // Search by code/barcode first
+                let foundItem = allItemsResults.elements.find((el: any) => 
+                  el.code && el.code.toLowerCase().includes((sku as string).toLowerCase())
+                );
+                
+                // If not found by code, search by name
+                if (!foundItem) {
+                  foundItem = allItemsResults.elements.find((el: any) => 
+                    el.name && el.name.toLowerCase().includes((sku as string).toLowerCase())
+                  );
+                }
+                
+                if (foundItem) {
+                  item = foundItem;
+                  console.log(`✅ Found item by local search: ${item.name}`);
+                }
               }
-            } catch (codeError: any) {
-              console.log(`❌ Barcode search failed: ${codeError?.message || 'Unknown error'}`);
-            }
-          }
-          
-          // Strategy 3: Try partial name search as fallback
-          if (!item) {
-            try {
-              const nameResults = await cloverIntegration.fetchItems({ filter: `name LIKE '%${escapedSku}%'` });
-              if (nameResults.elements && nameResults.elements.length > 0) {
-                item = nameResults.elements[0];
-                console.log(`✅ Found item by name search: ${item.name}`);
-              }
-            } catch (nameError: any) {
-              console.log(`❌ Name search failed: ${nameError?.message || 'Unknown error'}`);
+            } catch (searchError: any) {
+              console.log(`❌ Local search failed: ${searchError?.message || 'Unknown error'}`);
             }
           }
           

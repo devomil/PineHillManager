@@ -1052,7 +1052,9 @@ const AdjustmentHistory = () => {
     return <div className="text-center py-4">Loading adjustment history...</div>;
   }
 
-  if (!historyData?.history || historyData.history.length === 0) {
+  const historyList = (historyData as any)?.history || [];
+  
+  if (!historyList || historyList.length === 0) {
     return (
       <div className="text-center py-8 text-gray-500">
         <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
@@ -1064,7 +1066,7 @@ const AdjustmentHistory = () => {
 
   return (
     <div className="space-y-4">
-      {historyData.history.map((adjustment: any, index: number) => (
+      {historyList.map((adjustment: any, index: number) => (
         <div 
           key={adjustment.id || index} 
           className="border rounded-lg p-4 bg-gray-50 dark:bg-gray-800"
