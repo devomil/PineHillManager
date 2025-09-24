@@ -70,9 +70,12 @@ declare global {
       label?: {
         framework?: {
           init: (callback: () => void) => void;
-          getPrintersAsync: () => Promise<Array<{ name: string; printerType: string; isConnected: boolean }>>;
-          openLabelXml: (xml: string) => any;
-          renderLabel: (xml: string, renderParamsXml: string, printerName: string) => Promise<string>;
+          getPrinters: () => Array<{ name: string; printerType: string; isConnected: boolean }>;
+          openLabelXml: (xml: string) => {
+            setObjectText: (objectName: string, text: string) => void;
+            render: () => string;
+            print: (printerName: string) => void;
+          };
         };
       };
     };
@@ -144,15 +147,9 @@ export function DymoLabelPrinter({ productData, onPrintComplete }: DymoLabelPrin
       }
     };
 
-    // Load DYMO Connect Framework script if not already loaded
+    // Check if DYMO Connect Framework is available
     if (!window.dymo) {
-      const script = document.createElement('script');
-      script.src = 'https://github.com/dymosoftware/dymo-connect-framework/releases/latest/download/DYMO.Connect.Framework.js';
-      script.onload = initializeDymo;
-      script.onerror = () => {
-        setFrameworkError('Failed to load DYMO Connect Framework. Please check your internet connection.');
-      };
-      document.head.appendChild(script);
+      setFrameworkError('DYMO Connect Framework not detected. Please install DYMO Connect for Desktop and ensure it is running.');
     } else {
       initializeDymo();
     }
@@ -160,8 +157,8 @@ export function DymoLabelPrinter({ productData, onPrintComplete }: DymoLabelPrin
 
   const loadPrinters = async () => {
     try {
-      if (window.dymo?.label?.framework?.getPrintersAsync) {
-        const printerList = await window.dymo.label.framework.getPrintersAsync();
+      if (window.dymo?.label?.framework?.getPrinters) {
+        const printerList = window.dymo.label.framework.getPrinters();
         setPrinters(printerList);
         if (printerList.length > 0) {
           setSelectedPrinter(printerList[0].name);
@@ -177,55 +174,8 @@ export function DymoLabelPrinter({ productData, onPrintComplete }: DymoLabelPrin
     }
   };
 
-  const generateLabelXml = (template: LabelTemplate, data: LabelData): string => {
-    const replaceVariables = (content: string): string => {
-      return content
-        .replace('{productName}', data.productName)
-        .replace('{sku}', data.sku)
-        .replace('{price}', data.price)
-        .replace('{description}', data.description)
-        .replace('{customText}', data.customText || '');
-    };
-
-    let elementsXml = '';
-    template.elements.forEach(element => {
-      const content = element.content ? replaceVariables(element.content) : '';
-      
-      switch (element.type) {
-        case 'text':
-          elementsXml += `
-            <TextObject>
-              <Name>TEXT_${element.id}</Name>
-              <Text>${content}</Text>
-              <Font>
-                <FamilyName>${element.fontFamily || 'Arial'}</FamilyName>
-                <Size>${element.fontSize || 12}</Size>
-              </Font>
-              <Bounds X="${element.x}" Y="${element.y}" Width="${element.width}" Height="${element.height}" />
-            </TextObject>`;
-          break;
-        case 'barcode':
-          elementsXml += `
-            <BarcodeObject>
-              <Name>BARCODE_${element.id}</Name>
-              <Text>${content}</Text>
-              <Type>${element.barcodeType || 'CODE128'}</Type>
-              <Bounds X="${element.x}" Y="${element.y}" Width="${element.width}" Height="${element.height}" />
-            </BarcodeObject>`;
-          break;
-        case 'image':
-          if (element.imageUrl) {
-            elementsXml += `
-              <ImageObject>
-                <Name>IMAGE_${element.id}</Name>
-                <ImageLocation>${element.imageUrl}</ImageLocation>
-                <Bounds X="${element.x}" Y="${element.y}" Width="${element.width}" Height="${element.height}" />
-              </ImageObject>`;
-          }
-          break;
-      }
-    });
-
+  const generateLabelXml = (): string => {
+    // Simple DYMO label template for 30252 Address label
     return `<?xml version="1.0" encoding="utf-8"?>
       <DieCutLabel Version="8.0" Units="twips">
         <PaperOrientation>Landscape</PaperOrientation>
@@ -233,26 +183,54 @@ export function DymoLabelPrinter({ productData, onPrintComplete }: DymoLabelPrin
         <PaperName>30252 Address</PaperName>
         <DrawCommands/>
         <ObjectInfo>
-          ${elementsXml}
+          <TextObject>
+            <Name>ProductName</Name>
+            <Text>Product Name</Text>
+            <Font>
+              <FamilyName>Arial</FamilyName>
+              <Size>12</Size>
+            </Font>
+            <Bounds X="120" Y="60" Width="4320" Height="540" />
+          </TextObject>
+        </ObjectInfo>
+        <ObjectInfo>
+          <BarcodeObject>
+            <Name>ProductSKU</Name>
+            <Text>123456789</Text>
+            <Type>Code128Auto</Type>
+            <Bounds X="120" Y="1020" Width="2160" Height="840" />
+          </BarcodeObject>
+        </ObjectInfo>
+        <ObjectInfo>
+          <TextObject>
+            <Name>ProductPrice</Name>
+            <Text>$0.00</Text>
+            <Font>
+              <FamilyName>Arial</FamilyName>
+              <Size>10</Size>
+            </Font>
+            <Bounds X="2400" Y="1140" Width="1800" Height="360" />
+          </TextObject>
         </ObjectInfo>
       </DieCutLabel>`;
   };
 
   const generatePreview = async () => {
-    if (!isInitialized || !selectedPrinter) return;
+    if (!isInitialized) return;
 
     try {
-      const template = templates.find(t => t.id === selectedTemplate);
-      if (!template) return;
-
-      const labelXml = generateLabelXml(template, labelData);
+      const labelXml = generateLabelXml();
       
-      if (window.dymo?.label?.framework?.renderLabel) {
-        const imageData = await window.dymo.label.framework.renderLabel(
-          labelXml, 
-          '', 
-          selectedPrinter
-        );
+      if (window.dymo?.label?.framework?.openLabelXml) {
+        const label = window.dymo.label.framework.openLabelXml(labelXml);
+        
+        // Set object text with current label data
+        label.setObjectText('ProductName', labelData.productName || 'Sample Product');
+        label.setObjectText('ProductSKU', labelData.sku || '123456789');
+        label.setObjectText('ProductPrice', labelData.price || '$0.00');
+        
+        // Generate preview image
+        const imageData = label.render();
         setPreviewImage(`data:image/png;base64,${imageData}`);
       }
     } catch (error) {
@@ -277,16 +255,18 @@ export function DymoLabelPrinter({ productData, onPrintComplete }: DymoLabelPrin
 
     setIsPrinting(true);
     try {
-      const template = templates.find(t => t.id === selectedTemplate);
-      if (!template) {
-        throw new Error('Template not found');
-      }
-
-      const labelXml = generateLabelXml(template, labelData);
+      const labelXml = generateLabelXml();
       
       if (window.dymo?.label?.framework?.openLabelXml) {
         const label = window.dymo.label.framework.openLabelXml(labelXml);
-        await label.print(selectedPrinter);
+        
+        // Set object text with current label data
+        label.setObjectText('ProductName', labelData.productName || 'Sample Product');
+        label.setObjectText('ProductSKU', labelData.sku || '123456789');
+        label.setObjectText('ProductPrice', labelData.price || '$0.00');
+        
+        // Print the label
+        label.print(selectedPrinter);
         
         toast({
           title: "Print Successful",
