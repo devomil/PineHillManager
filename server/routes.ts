@@ -8138,15 +8138,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const { CloverIntegration } = await import('./integrations/clover');
           const cloverIntegration = new CloverIntegration(locationConfig);
           
+          // Fetch all items without problematic filters (more reliable)
           const items = await cloverIntegration.fetchItems({
-            limit: limit ? parseInt(limit as string) : 100,
-            offset: offset ? parseInt(offset as string) : 0,
-            filter: filter as string
+            limit: 1000, // Get a large batch to filter locally
+            offset: offset ? parseInt(offset as string) : 0
           });
 
           if (items && items.elements) {
+            let filteredItems = items.elements;
+            
+            // Apply local filtering if filter is provided
+            if (filter) {
+              const filterLower = (filter as string).toLowerCase();
+              
+              // Handle different filter formats: "name:XXX" or just "XXX"
+              let searchTerm = filterLower;
+              if (filterLower.startsWith('name:')) {
+                searchTerm = filterLower.replace('name:', '');
+              }
+              
+              // Filter items locally by name or code
+              filteredItems = items.elements.filter((item: any) => {
+                const nameMatch = item.name && item.name.toLowerCase().includes(searchTerm);
+                const codeMatch = item.code && item.code.toLowerCase().includes(searchTerm);
+                return nameMatch || codeMatch;
+              });
+              
+              console.log(`🔍 Local search for "${searchTerm}": found ${filteredItems.length} items out of ${items.elements.length} total`);
+            }
+            
             // Add location info to each item
-            const itemsWithLocation = items.elements.map((item: any) => ({
+            const itemsWithLocation = filteredItems.map((item: any) => ({
               ...item,
               locationId: locationConfig.id,
               locationName: locationConfig.merchantName,
