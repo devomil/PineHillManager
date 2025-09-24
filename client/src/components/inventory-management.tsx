@@ -533,9 +533,15 @@ export function InventoryManagement() {
                     </div>
                   </div>
                   
-                  <div>
-                    <label className="text-sm font-medium">Description</label>
-                    <Input placeholder="Product description (optional)" data-testid="input-product-description" />
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-sm font-medium">Quantity</label>
+                      <Input type="number" placeholder="1" min="0" step="1" data-testid="input-product-quantity" />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium">Description</label>
+                      <Input placeholder="Product description (optional)" data-testid="input-product-description" />
+                    </div>
                   </div>
                   
                   <div className="flex gap-2">
