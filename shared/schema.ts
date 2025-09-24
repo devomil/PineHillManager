@@ -3085,3 +3085,247 @@ export type PayrollTimeEntry = typeof payrollTimeEntries.$inferSelect;
 export type InsertPayrollTimeEntry = z.infer<typeof insertPayrollTimeEntrySchema>;
 
 export type PayrollJournalEntry = typeof payrollJournalEntries.$inferSelect;
+
+// ===== COMPREHENSIVE PRODUCT DATABASE SYSTEM =====
+// Enhanced inventory management with historical tracking, multi-location support, and fast search
+
+// Product identifiers for comprehensive search (SKU, barcode, alt codes)
+export const productIdentifiers = pgTable("product_identifiers", {
+  id: serial("id").primaryKey(),
+  productId: integer("product_id").notNull().references(() => items.id, { onDelete: 'cascade' }),
+  type: varchar("type").notNull(), // 'barcode', 'sku', 'altCode', 'upc'
+  value: varchar("value").notNull(), // The actual identifier value
+  source: varchar("source").notNull().default("clover"), // 'clover', 'manual', 'import'
+  isPrimary: boolean("is_primary").default(false), // Is this the primary identifier of this type
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  productIdIdx: index("idx_product_identifiers_product_id").on(table.productId),
+  typeValueIdx: index("idx_product_identifiers_type_value").on(table.type, table.value),
+  valueSearchIdx: index("idx_product_identifiers_value_search").on(table.value),
+  primaryTypeIdx: index("idx_product_identifiers_primary_type").on(table.isPrimary, table.type),
+  // Ensure unique identifier per type for each product
+  uniqueProductTypeValue: unique("unique_product_type_value").on(table.productId, table.type, table.value),
+}));
+
+// Product locations for multi-location inventory management
+export const productLocations = pgTable("product_locations", {
+  id: serial("id").primaryKey(),
+  productId: integer("product_id").notNull().references(() => items.id, { onDelete: 'cascade' }),
+  locationId: integer("location_id").notNull().references(() => posLocations.id, { onDelete: 'cascade' }),
+  merchantId: integer("merchant_id").notNull().references(() => merchants.id, { onDelete: 'cascade' }),
+  isActive: boolean("is_active").default(true), // Is this product active at this location
+  reorderPoint: integer("reorder_point").default(0), // Minimum stock level before reorder
+  reorderQty: integer("reorder_qty").default(0), // Quantity to reorder
+  maxStockLevel: integer("max_stock_level"), // Maximum stock level
+  preferredVendor: varchar("preferred_vendor"), // Preferred supplier for this location
+  locationSpecificSku: varchar("location_specific_sku"), // Location-specific SKU if different
+  notes: text("notes"), // Location-specific notes
+  lastSyncedAt: timestamp("last_synced_at"), // Last time this location data was synced
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  productLocationIdx: index("idx_product_locations_product_location").on(table.productId, table.locationId),
+  locationProductIdx: index("idx_product_locations_location_product").on(table.locationId, table.productId),
+  merchantIdx: index("idx_product_locations_merchant").on(table.merchantId),
+  activeIdx: index("idx_product_locations_active").on(table.isActive),
+  reorderIdx: index("idx_product_locations_reorder").on(table.reorderPoint),
+  lastSyncIdx: index("idx_product_locations_last_sync").on(table.lastSyncedAt),
+  // Ensure unique product per location
+  uniqueProductLocation: unique("unique_product_location").on(table.productId, table.locationId),
+}));
+
+// Stock movements for complete inventory audit trail
+export const stockMovements = pgTable("stock_movements", {
+  id: serial("id").primaryKey(),
+  productId: integer("product_id").notNull().references(() => items.id, { onDelete: 'cascade' }),
+  locationId: integer("location_id").notNull().references(() => posLocations.id, { onDelete: 'cascade' }),
+  merchantId: integer("merchant_id").notNull().references(() => merchants.id, { onDelete: 'cascade' }),
+  occurredAt: timestamp("occurred_at").notNull().defaultNow(),
+  qtyChange: integer("qty_change").notNull(), // Positive for increases, negative for decreases
+  balanceAfter: integer("balance_after").notNull(), // Stock level after this movement
+  reason: varchar("reason").notNull(), // 'sale', 'refund', 'receipt', 'adjustment', 'transfer_out', 'transfer_in', 'stocktake', 'sync'
+  refType: varchar("ref_type"), // 'order', 'payment', 'manual', 'sync', 'transfer'
+  refId: varchar("ref_id"), // Reference to order ID, payment ID, etc.
+  unitCost: decimal("unit_cost", { precision: 10, scale: 4 }), // Cost per unit at time of movement
+  totalCost: decimal("total_cost", { precision: 10, scale: 2 }), // Total cost impact of movement
+  userId: varchar("user_id").references(() => users.id), // User who initiated the movement
+  note: text("note"), // Human-readable note about the movement
+  metadata: jsonb("metadata"), // Additional movement metadata
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  productLocationOccurredIdx: index("idx_stock_movements_product_location_occurred").on(table.productId, table.locationId, table.occurredAt),
+  locationOccurredIdx: index("idx_stock_movements_location_occurred").on(table.locationId, table.occurredAt),
+  reasonIdx: index("idx_stock_movements_reason").on(table.reason),
+  refTypeRefIdIdx: index("idx_stock_movements_ref_type_ref_id").on(table.refType, table.refId),
+  userIdx: index("idx_stock_movements_user").on(table.userId),
+  occurredAtIdx: index("idx_stock_movements_occurred_at").on(table.occurredAt),
+  // Ensure idempotency for reference-based movements
+  uniqueRefMovement: unique("unique_ref_movement").on(table.refType, table.refId, table.productId, table.locationId),
+}));
+
+// Current stock levels for fast lookups
+export const stockLevels = pgTable("stock_levels", {
+  id: serial("id").primaryKey(),
+  productId: integer("product_id").notNull().references(() => items.id, { onDelete: 'cascade' }),
+  locationId: integer("location_id").notNull().references(() => posLocations.id, { onDelete: 'cascade' }),
+  onHand: integer("on_hand").notNull().default(0), // Current quantity on hand
+  allocated: integer("allocated").default(0), // Quantity allocated to orders  
+  available: integer("available").notNull().default(0), // Available quantity (on_hand - allocated)
+  inTransit: integer("in_transit").default(0), // Quantity in transit to this location
+  lastMovementAt: timestamp("last_movement_at"), // Timestamp of last stock movement
+  lastCountAt: timestamp("last_count_at"), // Timestamp of last physical count
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  productLocationIdx: index("idx_stock_levels_product_location").on(table.productId, table.locationId),
+  locationIdx: index("idx_stock_levels_location").on(table.locationId),
+  onHandIdx: index("idx_stock_levels_on_hand").on(table.onHand),
+  availableIdx: index("idx_stock_levels_available").on(table.available),
+  lastMovementIdx: index("idx_stock_levels_last_movement").on(table.lastMovementAt),
+  lowStockIdx: index("idx_stock_levels_low_stock").on(table.onHand, table.locationId), // For low stock alerts
+  // Ensure unique stock level per product per location
+  uniqueProductLocationStock: unique("unique_product_location_stock").on(table.productId, table.locationId),
+}));
+
+// Daily stock snapshots for reporting and analytics
+export const stockSnapshotsDaily = pgTable("stock_snapshots_daily", {
+  id: serial("id").primaryKey(),
+  productId: integer("product_id").notNull().references(() => items.id, { onDelete: 'cascade' }),
+  locationId: integer("location_id").notNull().references(() => posLocations.id, { onDelete: 'cascade' }),
+  date: date("date").notNull(), // Snapshot date
+  openingQty: integer("opening_qty").notNull(), // Stock at start of day
+  inQty: integer("in_qty").default(0), // Total quantity received during day
+  outQty: integer("out_qty").default(0), // Total quantity sold/removed during day
+  adjustmentQty: integer("adjustment_qty").default(0), // Net adjustments during day
+  closingQty: integer("closing_qty").notNull(), // Stock at end of day
+  averageCost: decimal("average_cost", { precision: 10, scale: 4 }), // Average unit cost for the day
+  totalValue: decimal("total_value", { precision: 10, scale: 2 }), // Total inventory value at end of day
+  turnoverVelocity: decimal("turnover_velocity", { precision: 8, scale: 4 }), // Stock turnover rate
+  daysSinceLastSale: integer("days_since_last_sale"), // Days since last sale for aging analysis
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  productLocationDateIdx: index("idx_stock_snapshots_product_location_date").on(table.productId, table.locationId, table.date),
+  locationDateIdx: index("idx_stock_snapshots_location_date").on(table.locationId, table.date),
+  dateIdx: index("idx_stock_snapshots_date").on(table.date),
+  turnoverIdx: index("idx_stock_snapshots_turnover").on(table.turnoverVelocity),
+  agingIdx: index("idx_stock_snapshots_aging").on(table.daysSinceLastSale),
+  // Ensure unique snapshot per product per location per day
+  uniqueProductLocationDateSnapshot: unique("unique_product_location_date_snapshot").on(table.productId, table.locationId, table.date),
+}));
+
+// Enhanced sync cursors with location-specific tracking
+export const inventorySyncCursors = pgTable("inventory_sync_cursors", {
+  id: serial("id").primaryKey(),
+  merchantId: integer("merchant_id").notNull().references(() => merchants.id, { onDelete: 'cascade' }),
+  locationId: integer("location_id").references(() => posLocations.id, { onDelete: 'cascade' }), // NULL for merchant-level cursors
+  entity: varchar("entity").notNull(), // 'items', 'inventory', 'stock_levels'
+  cursor: varchar("cursor"), // Last processed cursor/token from API
+  lastProcessedId: varchar("last_processed_id"), // Last processed item/record ID
+  lastSyncAt: timestamp("last_sync_at"),
+  nextSyncAt: timestamp("next_sync_at"), // When next sync should run
+  status: varchar("status").default("idle"), // 'idle', 'running', 'completed', 'failed'
+  errorMessage: text("error_message"), // Last error message if failed
+  itemsProcessed: integer("items_processed").default(0), // Count of items processed in last sync
+  totalItemsEstimate: integer("total_items_estimate"), // Estimated total items to process
+  syncDurationMs: integer("sync_duration_ms"), // Duration of last sync in milliseconds
+  consecutiveFailures: integer("consecutive_failures").default(0), // Count of consecutive failures
+  isActive: boolean("is_active").default(true), // Is this sync cursor active
+  metadata: jsonb("metadata"), // Additional sync metadata
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  merchantLocationEntityIdx: index("idx_inventory_sync_merchant_location_entity").on(table.merchantId, table.locationId, table.entity),
+  entityStatusIdx: index("idx_inventory_sync_entity_status").on(table.entity, table.status),
+  nextSyncIdx: index("idx_inventory_sync_next_sync").on(table.nextSyncAt),
+  activeIdx: index("idx_inventory_sync_active").on(table.isActive),
+  lastSyncIdx: index("idx_inventory_sync_last_sync").on(table.lastSyncAt),
+  failuresIdx: index("idx_inventory_sync_failures").on(table.consecutiveFailures),
+  // Ensure unique cursor per merchant/location/entity combination
+  uniqueMerchantLocationEntity: unique("unique_merchant_location_entity").on(table.merchantId, table.locationId, table.entity),
+}));
+
+// Relations for the new product database tables
+export const productIdentifiersRelations = relations(productIdentifiers, ({ one }) => ({
+  product: one(items, { fields: [productIdentifiers.productId], references: [items.id] }),
+}));
+
+export const productLocationsRelations = relations(productLocations, ({ one }) => ({
+  product: one(items, { fields: [productLocations.productId], references: [items.id] }),
+  location: one(posLocations, { fields: [productLocations.locationId], references: [posLocations.id] }),
+  merchant: one(merchants, { fields: [productLocations.merchantId], references: [merchants.id] }),
+}));
+
+export const stockMovementsRelations = relations(stockMovements, ({ one }) => ({
+  product: one(items, { fields: [stockMovements.productId], references: [items.id] }),
+  location: one(posLocations, { fields: [stockMovements.locationId], references: [posLocations.id] }),
+  merchant: one(merchants, { fields: [stockMovements.merchantId], references: [merchants.id] }),
+  user: one(users, { fields: [stockMovements.userId], references: [users.id] }),
+}));
+
+export const stockLevelsRelations = relations(stockLevels, ({ one }) => ({
+  product: one(items, { fields: [stockLevels.productId], references: [items.id] }),
+  location: one(posLocations, { fields: [stockLevels.locationId], references: [posLocations.id] }),
+}));
+
+export const stockSnapshotsDailyRelations = relations(stockSnapshotsDaily, ({ one }) => ({
+  product: one(items, { fields: [stockSnapshotsDaily.productId], references: [items.id] }),
+  location: one(posLocations, { fields: [stockSnapshotsDaily.locationId], references: [posLocations.id] }),
+}));
+
+export const inventorySyncCursorsRelations = relations(inventorySyncCursors, ({ one }) => ({
+  merchant: one(merchants, { fields: [inventorySyncCursors.merchantId], references: [merchants.id] }),
+  location: one(posLocations, { fields: [inventorySyncCursors.locationId], references: [posLocations.id] }),
+}));
+
+// Insert schemas for the new product database tables
+export const insertProductIdentifierSchema = createInsertSchema(productIdentifiers).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertProductLocationSchema = createInsertSchema(productLocations).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertStockMovementSchema = createInsertSchema(stockMovements).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertStockLevelSchema = createInsertSchema(stockLevels).omit({
+  id: true,
+  updatedAt: true,
+});
+
+export const insertStockSnapshotDailySchema = createInsertSchema(stockSnapshotsDaily).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertInventorySyncCursorSchema = createInsertSchema(inventorySyncCursors).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+// Type definitions for the new product database tables
+export type ProductIdentifier = typeof productIdentifiers.$inferSelect;
+export type InsertProductIdentifier = z.infer<typeof insertProductIdentifierSchema>;
+
+export type ProductLocation = typeof productLocations.$inferSelect;
+export type InsertProductLocation = z.infer<typeof insertProductLocationSchema>;
+
+export type StockMovement = typeof stockMovements.$inferSelect;
+export type InsertStockMovement = z.infer<typeof insertStockMovementSchema>;
+
+export type StockLevel = typeof stockLevels.$inferSelect;
+export type InsertStockLevel = z.infer<typeof insertStockLevelSchema>;
+
+export type StockSnapshotDaily = typeof stockSnapshotsDaily.$inferSelect;
+export type InsertStockSnapshotDaily = z.infer<typeof insertStockSnapshotDailySchema>;
+
+export type InventorySyncCursor = typeof inventorySyncCursors.$inferSelect;
+export type InsertInventorySyncCursor = z.infer<typeof insertInventorySyncCursorSchema>;
