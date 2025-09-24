@@ -575,6 +575,22 @@ export function InventoryManagement() {
               </CardContent>
             </Card>
           )}
+
+          {/* Adjustment History Section */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileText className="h-5 w-5" />
+                Recent Stock Adjustments
+              </CardTitle>
+              <CardDescription>
+                History of inventory adjustments and transfers
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <AdjustmentHistory />
+            </CardContent>
+          </Card>
         </div>
       )}
 
@@ -1024,3 +1040,77 @@ function StockAdjustmentForm({
     </div>
   );
 }
+
+// Adjustment History Component
+const AdjustmentHistory = () => {
+  const { data: historyData, isLoading } = useQuery({
+    queryKey: ['/api/inventory/actions/history'],
+    staleTime: 30000, // 30 seconds
+  });
+
+  if (isLoading) {
+    return <div className="text-center py-4">Loading adjustment history...</div>;
+  }
+
+  if (!historyData?.history || historyData.history.length === 0) {
+    return (
+      <div className="text-center py-8 text-gray-500">
+        <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
+        <p>No stock adjustments found</p>
+        <p className="text-sm">Adjustments will appear here after you make them</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {historyData.history.map((adjustment: any, index: number) => (
+        <div 
+          key={adjustment.id || index} 
+          className="border rounded-lg p-4 bg-gray-50 dark:bg-gray-800"
+        >
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <Badge variant={adjustment.type === 'increase' ? 'default' : 'secondary'}>
+                {adjustment.type === 'increase' ? '+' : '-'}{adjustment.quantity}
+              </Badge>
+              <span className="font-medium">{adjustment.itemName}</span>
+            </div>
+            <div className="text-sm text-gray-500">
+              {new Date(adjustment.createdAt).toLocaleDateString()} {new Date(adjustment.createdAt).toLocaleTimeString()}
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <div>
+              <span className="text-gray-600">Location:</span>
+              <span className="ml-2">{adjustment.fromLocationName}</span>
+            </div>
+            <div>
+              <span className="text-gray-600">Reason:</span>
+              <span className="ml-2">{adjustment.reason}</span>
+            </div>
+            {adjustment.notes && (
+              <div className="col-span-2">
+                <span className="text-gray-600">Notes:</span>
+                <span className="ml-2">{adjustment.notes}</span>
+              </div>
+            )}
+            <div className="col-span-2 flex items-center gap-4">
+              <div>
+                <span className="text-gray-600">User:</span>
+                <span className="ml-2">{adjustment.user}</span>
+              </div>
+              {adjustment.cloverUpdated && (
+                <Badge variant="outline" className="text-green-600 border-green-600">
+                  <CheckCircle className="h-3 w-3 mr-1" />
+                  Synced with Clover
+                </Badge>
+              )}
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};

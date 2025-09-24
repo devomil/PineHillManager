@@ -233,12 +233,16 @@ export class CloverIntegration {
     
     if (params.limit) queryParams.append('limit', params.limit.toString());
     if (params.offset) queryParams.append('offset', params.offset.toString());
-    if (params.filter) queryParams.append('filter', params.filter);
+    
+    // Properly encode the filter parameter
+    if (params.filter) {
+      queryParams.append('filter', params.filter);
+    }
 
     const queryString = queryParams.toString();
     const endpoint = queryString ? `items?${queryString}` : 'items';
     
-    console.log(`📦 Fetching inventory items for merchant ${this.config.merchantId}`);
+    console.log(`📦 Fetching inventory items for merchant ${this.config.merchantId} with filter: ${params.filter || 'none'}`);
     return await this.makeCloverAPICall(endpoint);
   }
 

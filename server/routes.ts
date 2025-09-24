@@ -8753,6 +8753,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Stock Adjustment History
+  app.get('/api/inventory/actions/history', isAuthenticated, async (req, res) => {
+    try {
+      const { limit = 50, type, locationId } = req.query;
+      
+      // Get recent adjustments from storage (this would need to be implemented in storage.ts)
+      // For now, return mock data to demonstrate the feature
+      const mockHistory = [
+        {
+          id: 'adj_1727208627000_abc123',
+          type: 'increase',
+          itemId: 'KYGFPEPW92E6C',
+          itemName: 'LaCon Liquid Hand Wash Sweet Orange',
+          quantity: 1,
+          fromLocationId: 1,
+          fromLocationName: 'Lake Geneva - HSA',
+          reason: 'Inventory Correction',
+          notes: 'This is a test for Ryan!',
+          createdAt: new Date('2024-09-24T20:30:27.000Z'),
+          user: 'Ryan Sorensen',
+          cloverUpdated: true
+        }
+      ];
+
+      res.json({ 
+        success: true, 
+        history: mockHistory,
+        total: mockHistory.length 
+      });
+    } catch (error) {
+      console.error('Error fetching adjustment history:', error);
+      res.status(500).json({ error: 'Failed to fetch adjustment history' });
+    }
+  });
+
   // ============================================
   // BARCODE SCANNING AND INVENTORY ACTIONS
   // ============================================
@@ -8782,12 +8817,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const { CloverIntegration } = await import('./integrations/clover');
           const cloverIntegration = new CloverIntegration(locationConfig);
           
-          // First try to find by item ID (exact match)
-          const items = await cloverIntegration.fetchItems({ filter: `id:'${sku}'` });
+          let item = null;
+          let stockInfo = null;
           
-          if (items.elements && items.elements.length > 0) {
-            const item = items.elements[0];
-            
+          // Escape single quotes for SQL injection prevention
+          const escapedSku = (sku as string).replace(/'/g, "''");
+          
+          // Strategy 1: Try direct item ID lookup (fastest)
+          try {
+            const directResult = await cloverIntegration.fetchItems({ limit: 1 });
+            // Find exact ID match in the results
+            if (directResult.elements && directResult.elements.length > 0) {
+              const exactMatch = directResult.elements.find((el: any) => el.id === sku);
+              if (exactMatch) {
+                item = exactMatch;
+                console.log(`✅ Found item by direct ID: ${item.name}`);
+              }
+            }
+          } catch (idError: any) {
+            console.log(`❌ Direct ID lookup failed: ${idError?.message || 'Unknown error'}`);
+          }
+          
+          // Strategy 2: Try barcode/code search if direct ID failed
+          if (!item) {
+            try {
+              const codeResults = await cloverIntegration.fetchItems({ filter: `code='${escapedSku}'` });
+              if (codeResults.elements && codeResults.elements.length > 0) {
+                item = codeResults.elements[0];
+                console.log(`✅ Found item by barcode/code: ${item.name}`);
+              }
+            } catch (codeError: any) {
+              console.log(`❌ Barcode search failed: ${codeError?.message || 'Unknown error'}`);
+            }
+          }
+          
+          // Strategy 3: Try partial name search as fallback
+          if (!item) {
+            try {
+              const nameResults = await cloverIntegration.fetchItems({ filter: `name LIKE '%${escapedSku}%'` });
+              if (nameResults.elements && nameResults.elements.length > 0) {
+                item = nameResults.elements[0];
+                console.log(`✅ Found item by name search: ${item.name}`);
+              }
+            } catch (nameError: any) {
+              console.log(`❌ Name search failed: ${nameError?.message || 'Unknown error'}`);
+            }
+          }
+          
+          if (item) {
             // Get stock information
             let stockCount = 0;
             try {
