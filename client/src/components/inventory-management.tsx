@@ -6,6 +6,9 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { 
   Package, 
   Search, 
@@ -20,7 +23,10 @@ import {
   RefreshCw,
   QrCode,
   Plus,
-  Camera
+  Camera,
+  Settings,
+  ArrowLeftRight,
+  FileText
 } from 'lucide-react';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
@@ -44,11 +50,20 @@ interface InventoryItem {
 
 interface ItemStock {
   id: string;
-  item: { id: string; name: string; };
+  item: { id: string; name: string; price?: number; };
   quantity: number;
   locationId: number;
   locationName: string;
   merchantId: string;
+}
+
+interface SelectedStockItem {
+  itemId: string;
+  itemName: string;
+  currentStock: number;
+  locationName: string;
+  locationId?: number;
+  unitPrice?: number;
 }
 
 interface Category {
@@ -72,6 +87,13 @@ export function InventoryManagement() {
     price: number;
     description?: string;
   } | undefined>(undefined);
+  
+  // Stock Adjustment States
+  const [stockSearchTerm, setStockSearchTerm] = useState('');
+  const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
+  const [selectedStockItem, setSelectedStockItem] = useState<SelectedStockItem | null>(null);
+  const [showAdjustmentDialog, setShowAdjustmentDialog] = useState(false);
+  
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -120,6 +142,52 @@ export function InventoryManagement() {
     if (stockCount === 0) return { status: 'out-of-stock', color: 'bg-red-100 text-red-800' };
     if (stockCount < 10) return { status: 'low-stock', color: 'bg-yellow-100 text-yellow-800' };
     return { status: 'in-stock', color: 'bg-green-100 text-green-800' };
+  };
+
+  const handleStockSearch = async () => {
+    if (!stockSearchTerm.trim()) return;
+    
+    try {
+      const params = new URLSearchParams();
+      params.append('sku', stockSearchTerm);
+      if (selectedLocation && selectedLocation !== 'all') {
+        params.append('locationId', selectedLocation);
+      }
+
+      const response = await apiRequest('GET', `/api/accounting/inventory/items/lookup?${params.toString()}`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        setSelectedStockItem({
+          itemId: data.id || stockSearchTerm,
+          itemName: data.name || 'Unknown Item',
+          currentStock: data.stockCount || 0,
+          locationName: data.locationName || '',
+          locationId: data.locationId,
+          unitPrice: data.price || 0
+        });
+        setShowAdjustmentDialog(true);
+        setStockSearchTerm('');
+        
+        toast({
+          title: "Product Found!",
+          description: `${data.name} - Stock: ${data.stockCount || 0}`,
+        });
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Product Not Found",
+          description: `No product found for "${stockSearchTerm}"`,
+        });
+      }
+    } catch (error) {
+      console.error('Error searching product:', error);
+      toast({
+        variant: "destructive",
+        title: "Search Error",
+        description: "Failed to search for product",
+      });
+    }
   };
 
   const formatPrice = (price: number) => {
@@ -384,13 +452,72 @@ export function InventoryManagement() {
 
       {activeTab === 'stocks' && (
         <div className="space-y-4">
+          {/* Stock Adjustment Controls */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <BarChart3 className="h-5 w-5" />
+                Stock Adjustments
+              </CardTitle>
+              <CardDescription>
+                Scan barcodes or search products to adjust inventory levels and transfer between locations
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex gap-4 mb-4">
+                {/* Search/Scan Input */}
+                <div className="flex-1">
+                  <Input
+                    placeholder="Scan barcode or search product name..."
+                    value={stockSearchTerm}
+                    onChange={(e) => setStockSearchTerm(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && handleStockSearch()}
+                    data-testid="input-stock-search"
+                  />
+                </div>
+                <Button onClick={handleStockSearch} disabled={!stockSearchTerm.trim()}>
+                  <Search className="h-4 w-4 mr-2" />
+                  Search
+                </Button>
+                <Button onClick={() => setShowBarcodeScanner(!showBarcodeScanner)} variant="outline">
+                  <QrCode className="h-4 w-4 mr-2" />
+                  {showBarcodeScanner ? 'Hide Scanner' : 'Scan Barcode'}
+                </Button>
+              </div>
+
+              {/* Barcode Scanner */}
+              {showBarcodeScanner && (
+                <div className="mb-4 p-4 border rounded-lg bg-gray-50">
+                  <BarcodeScanner 
+                    mode="adjustment"
+                    selectedLocation={selectedLocation}
+                    onItemScanned={(item) => {
+                      if (item && item.found) {
+                        setSelectedStockItem({
+                          itemId: item.barcode,
+                          itemName: item.itemName || '',
+                          currentStock: item.currentStock || 0,
+                          locationName: item.locationName || '',
+                          unitPrice: item.unitPrice || 0
+                        });
+                        setShowAdjustmentDialog(true);
+                        setShowBarcodeScanner(false);
+                      }
+                    }}
+                  />
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Stock Levels Table */}
           {stocksLoading ? (
             <div className="text-center py-8">Loading stock levels...</div>
           ) : (
             <Card>
               <CardHeader>
                 <CardTitle>Stock Levels by Location</CardTitle>
-                <CardDescription>Current inventory levels across all locations</CardDescription>
+                <CardDescription>Current inventory levels across all locations - Click any row to adjust</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="overflow-x-auto">
@@ -401,15 +528,15 @@ export function InventoryManagement() {
                         <th className="text-left py-2">Location</th>
                         <th className="text-right py-2">Quantity</th>
                         <th className="text-center py-2">Status</th>
+                        <th className="text-center py-2">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
                       {stocksData?.elements?.map((stock: ItemStock, index: number) => {
                         const stockInfo = getStockStatus(stock.quantity);
-                        // Create a truly unique key using multiple identifiers
                         const uniqueKey = `stock-${stock.item?.id || `unknown-${index}`}-${stock.locationId}-${index}-${stock.quantity}`;
                         return (
-                          <tr key={uniqueKey} className="border-b">
+                          <tr key={uniqueKey} className="border-b hover:bg-gray-50 cursor-pointer">
                             <td className="py-2 font-medium">{stock.item?.name || 'Unknown Item'}</td>
                             <td className="py-2 text-gray-600">{stock.locationName}</td>
                             <td className="py-2 text-right font-medium">{stock.quantity}</td>
@@ -417,6 +544,27 @@ export function InventoryManagement() {
                               <Badge className={stockInfo.color}>
                                 {stockInfo.status}
                               </Badge>
+                            </td>
+                            <td className="py-2 text-center">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  setSelectedStockItem({
+                                    itemId: stock.item?.id || '',
+                                    itemName: stock.item?.name || 'Unknown Item',
+                                    currentStock: stock.quantity,
+                                    locationName: stock.locationName,
+                                    locationId: stock.locationId,
+                                    unitPrice: stock.item?.price || 0
+                                  });
+                                  setShowAdjustmentDialog(true);
+                                }}
+                                data-testid={`button-adjust-${index}`}
+                              >
+                                <Settings className="h-4 w-4 mr-1" />
+                                Adjust
+                              </Button>
                             </td>
                           </tr>
                         );
@@ -604,6 +752,275 @@ export function InventoryManagement() {
           </Card>
         </div>
       )}
+
+      {/* Stock Adjustment Dialog */}
+      <Dialog open={showAdjustmentDialog} onOpenChange={setShowAdjustmentDialog}>
+        <DialogContent className="max-w-lg" data-testid="dialog-stock-adjustment">
+          <DialogHeader>
+            <DialogTitle>Stock Adjustment</DialogTitle>
+            <DialogDescription>
+              Adjust inventory levels for {selectedStockItem?.itemName}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <StockAdjustmentForm 
+            selectedStockItem={selectedStockItem}
+            availableLocations={itemsData?.locations || []}
+            selectedLocation={selectedLocation}
+            onClose={() => setShowAdjustmentDialog(false)}
+            onSuccess={() => {
+              setShowAdjustmentDialog(false);
+              queryClient.invalidateQueries({ queryKey: ['/api/accounting/inventory/stocks'] });
+              toast({
+                title: "Stock Adjusted",
+                description: "Inventory levels have been updated successfully",
+              });
+            }}
+          />
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// Stock Adjustment Form Component
+interface StockAdjustmentFormProps {
+  selectedStockItem: SelectedStockItem | null;
+  availableLocations: any[];
+  selectedLocation: string;
+  onClose: () => void;
+  onSuccess: () => void;
+}
+
+function StockAdjustmentForm({ 
+  selectedStockItem, 
+  availableLocations, 
+  selectedLocation, 
+  onClose, 
+  onSuccess 
+}: StockAdjustmentFormProps) {
+  const [adjustmentType, setAdjustmentType] = useState<'increase' | 'decrease' | 'transfer'>('increase');
+  const [quantity, setQuantity] = useState<number>(1);
+  const [targetLocationId, setTargetLocationId] = useState<string>('');
+  const [reason, setReason] = useState<string>('');
+  const [customReason, setCustomReason] = useState<string>('');
+  const [notes, setNotes] = useState<string>('');
+
+  const predefinedReasons = [
+    'Employee Purchase',
+    'Expired Shelf Life',
+    'End of Life Product',
+    'Lack of Sales',
+    'Product Damage',
+    'Theft/Loss',
+    'Quality Control',
+    'Inventory Correction',
+    'Return to Vendor',
+    'Promotional Use',
+    'Sample/Demo',
+    'Transfer Between Locations',
+    'Recount Adjustment',
+    'Other'
+  ];
+
+  const adjustmentMutation = useMutation({
+    mutationFn: async (adjustmentData: any) => {
+      const endpoint = adjustmentType === 'transfer' 
+        ? '/api/inventory/actions/transfer'
+        : '/api/inventory/actions/adjustment';
+      
+      const payload = {
+        type: adjustmentType,
+        itemId: selectedStockItem?.itemId,
+        itemName: selectedStockItem?.itemName,
+        quantity: adjustmentType === 'decrease' ? -quantity : quantity,
+        fromLocationId: selectedStockItem?.locationId,
+        toLocationId: adjustmentType === 'transfer' ? targetLocationId : undefined,
+        reason: reason === 'Other' ? customReason : reason,
+        notes,
+        ...adjustmentData
+      };
+
+      const response = await apiRequest('POST', endpoint, payload);
+      return response.json();
+    },
+    onSuccess: () => {
+      onSuccess();
+    },
+    onError: (error) => {
+      console.error('Adjustment failed:', error);
+    }
+  });
+
+  const handleSubmit = () => {
+    if (!selectedStockItem || !reason || (reason === 'Other' && !customReason)) return;
+    if (adjustmentType === 'transfer' && !targetLocationId) return;
+    
+    adjustmentMutation.mutate({});
+  };
+
+  if (!selectedStockItem) return null;
+
+  return (
+    <div className="space-y-6">
+      {/* Current Stock Info */}
+      <div className="bg-gray-50 p-4 rounded-lg">
+        <h4 className="font-medium mb-2">Current Stock Information</h4>
+        <div className="grid grid-cols-2 gap-2 text-sm">
+          <span className="text-gray-600">Product:</span>
+          <span className="font-medium">{selectedStockItem.itemName}</span>
+          <span className="text-gray-600">Location:</span>
+          <span className="font-medium">{selectedStockItem.locationName}</span>
+          <span className="text-gray-600">Current Stock:</span>
+          <span className="font-medium">{selectedStockItem.currentStock} units</span>
+        </div>
+      </div>
+
+      {/* Adjustment Type */}
+      <div>
+        <Label htmlFor="adjustment-type">Adjustment Type</Label>
+        <Select value={adjustmentType} onValueChange={(value: 'increase' | 'decrease' | 'transfer') => setAdjustmentType(value)}>
+          <SelectTrigger data-testid="select-adjustment-type">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="increase">
+              <div className="flex items-center gap-2">
+                <Plus className="h-4 w-4 text-green-600" />
+                Increase Stock
+              </div>
+            </SelectItem>
+            <SelectItem value="decrease">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 text-red-600" />
+                Decrease Stock
+              </div>
+            </SelectItem>
+            <SelectItem value="transfer">
+              <div className="flex items-center gap-2">
+                <ArrowLeftRight className="h-4 w-4 text-blue-600" />
+                Transfer Between Locations
+              </div>
+            </SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Target Location for Transfers */}
+      {adjustmentType === 'transfer' && (
+        <div>
+          <Label htmlFor="target-location">Transfer To Location</Label>
+          <Select value={targetLocationId} onValueChange={setTargetLocationId}>
+            <SelectTrigger data-testid="select-target-location">
+              <SelectValue placeholder="Select destination location" />
+            </SelectTrigger>
+            <SelectContent>
+              {availableLocations
+                .filter(loc => loc.id.toString() !== selectedStockItem.locationId?.toString())
+                .map((location: any) => (
+                <SelectItem key={location.id} value={location.id.toString()}>
+                  {location.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
+      {/* Quantity */}
+      <div>
+        <Label htmlFor="quantity">
+          {adjustmentType === 'transfer' ? 'Quantity to Transfer' : 
+           adjustmentType === 'increase' ? 'Quantity to Add' : 'Quantity to Remove'}
+        </Label>
+        <Input
+          id="quantity"
+          type="number"
+          min="1"
+          max={adjustmentType === 'decrease' || adjustmentType === 'transfer' ? selectedStockItem.currentStock : undefined}
+          value={quantity}
+          onChange={(e) => setQuantity(parseInt(e.target.value) || 1)}
+          data-testid="input-adjustment-quantity"
+        />
+      </div>
+
+      {/* Reason */}
+      <div>
+        <Label htmlFor="reason">Reason for Adjustment</Label>
+        <Select value={reason} onValueChange={setReason}>
+          <SelectTrigger data-testid="select-adjustment-reason">
+            <SelectValue placeholder="Select a reason" />
+          </SelectTrigger>
+          <SelectContent>
+            {predefinedReasons.map((reasonOption) => (
+              <SelectItem key={reasonOption} value={reasonOption}>
+                {reasonOption}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Custom Reason */}
+      {reason === 'Other' && (
+        <div>
+          <Label htmlFor="custom-reason">Custom Reason</Label>
+          <Input
+            id="custom-reason"
+            placeholder="Please specify the reason"
+            value={customReason}
+            onChange={(e) => setCustomReason(e.target.value)}
+            data-testid="input-custom-reason"
+          />
+        </div>
+      )}
+
+      {/* Notes */}
+      <div>
+        <Label htmlFor="notes">Additional Notes (Optional)</Label>
+        <Textarea
+          id="notes"
+          placeholder="Add any additional details about this adjustment..."
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          data-testid="textarea-adjustment-notes"
+        />
+      </div>
+
+      {/* New Stock Level Preview */}
+      <div className="bg-blue-50 p-4 rounded-lg">
+        <h4 className="font-medium mb-2 text-blue-800">Stock Level Preview</h4>
+        <div className="text-sm">
+          <span className="text-blue-600">
+            {adjustmentType === 'transfer' 
+              ? `After transfer: ${selectedStockItem.currentStock - quantity} units remaining at ${selectedStockItem.locationName}`
+              : adjustmentType === 'increase'
+              ? `New stock level: ${selectedStockItem.currentStock + quantity} units`
+              : `New stock level: ${selectedStockItem.currentStock - quantity} units`
+            }
+          </span>
+        </div>
+      </div>
+
+      <DialogFooter>
+        <Button variant="outline" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button 
+          onClick={handleSubmit}
+          disabled={
+            adjustmentMutation.isPending || 
+            !reason || 
+            (reason === 'Other' && !customReason) ||
+            (adjustmentType === 'transfer' && !targetLocationId)
+          }
+          data-testid="button-confirm-adjustment"
+        >
+          {adjustmentMutation.isPending ? 'Processing...' : 
+           adjustmentType === 'transfer' ? 'Transfer Stock' :
+           adjustmentType === 'increase' ? 'Increase Stock' : 'Decrease Stock'}
+        </Button>
+      </DialogFooter>
     </div>
   );
 }
