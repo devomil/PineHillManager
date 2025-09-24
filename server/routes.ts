@@ -8144,11 +8144,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
             offset: offset ? parseInt(offset as string) : 0
           });
 
+          console.log(`📊 Processing ${locationConfig.merchantName}: items=${!!items}, elements=${items?.elements?.length || 0}, filter="${filter}"`);
+          
           if (items && items.elements) {
             let filteredItems = items.elements;
             
             // Apply local filtering if filter is provided
             if (filter) {
+              console.log(`🔍 Applying filter: "${filter}"`);
               const filterLower = (filter as string).toLowerCase();
               
               // Handle different filter formats: "name:XXX" or just "XXX"
@@ -8157,14 +8160,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 searchTerm = filterLower.replace('name:', '');
               }
               
+              console.log(`🔍 Search term: "${searchTerm}"`);
+              
               // Filter items locally by name or code
               filteredItems = items.elements.filter((item: any) => {
                 const nameMatch = item.name && item.name.toLowerCase().includes(searchTerm);
                 const codeMatch = item.code && item.code.toLowerCase().includes(searchTerm);
-                return nameMatch || codeMatch;
+                const match = nameMatch || codeMatch;
+                if (match) {
+                  console.log(`✅ Match found: ${item.name} (${item.code || 'no code'})`);
+                }
+                return match;
               });
               
               console.log(`🔍 Local search for "${searchTerm}": found ${filteredItems.length} items out of ${items.elements.length} total`);
+            } else {
+              console.log(`📦 No filter provided, returning all ${items.elements.length} items`);
             }
             
             // Add location info to each item
@@ -8176,6 +8187,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }));
             
             allItems.push(...itemsWithLocation);
+          } else {
+            console.log(`❌ No items found for ${locationConfig.merchantName}`);
           }
         } catch (error) {
           console.log(`No inventory data for ${locationConfig.merchantName}:`, error);
