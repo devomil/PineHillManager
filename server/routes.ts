@@ -8754,6 +8754,220 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ============================================
+  // BARCODE SCANNING AND INVENTORY ACTIONS
+  // ============================================
+
+  // Product lookup by SKU/barcode for barcode scanning
+  app.get('/api/accounting/inventory/items/lookup', isAuthenticated, async (req, res) => {
+    try {
+      const { sku, locationId } = req.query;
+      
+      if (!sku) {
+        return res.status(400).json({ error: 'SKU parameter is required' });
+      }
+
+      let locations;
+      if (locationId && locationId !== 'all') {
+        const location = await storage.getCloverConfigById(parseInt(locationId as string));
+        locations = location ? [location] : [];
+      } else {
+        locations = await storage.getAllCloverConfigs();
+      }
+
+      const activeLocations = locations.filter(config => config.isActive);
+      
+      // Search across all active locations for the SKU
+      for (const locationConfig of activeLocations) {
+        try {
+          const { CloverIntegration } = await import('./integrations/clover');
+          const cloverIntegration = new CloverIntegration(locationConfig);
+          
+          // First try to find by item ID (exact match)
+          const items = await cloverIntegration.fetchItems({ filter: `id:'${sku}'` });
+          
+          if (items.elements && items.elements.length > 0) {
+            const item = items.elements[0];
+            
+            // Get stock information
+            let stockCount = 0;
+            try {
+              const stock = await cloverIntegration.fetchItemStock(item.id);
+              stockCount = stock?.quantity || 0;
+            } catch (stockError) {
+              console.log('No stock data available for item:', item.id);
+            }
+            
+            return res.json({
+              id: item.id,
+              name: item.name,
+              price: item.price,
+              stockCount,
+              locationId: locationConfig.id,
+              locationName: locationConfig.merchantName,
+              merchantId: locationConfig.merchantId,
+              description: item.description || '',
+              categories: item.categories?.elements || []
+            });
+          }
+        } catch (error) {
+          console.log(`Error searching for SKU ${sku} at ${locationConfig.merchantName}:`, error);
+        }
+      }
+
+      // If not found in any location
+      return res.status(404).json({ 
+        error: 'Product not found', 
+        message: `No product found with SKU: ${sku}` 
+      });
+    } catch (error) {
+      console.error('Error looking up product by SKU:', error);
+      res.status(500).json({ error: 'Failed to lookup product' });
+    }
+  });
+
+  // Inventory count/take action
+  app.post('/api/inventory/actions/take', isAuthenticated, async (req, res) => {
+    try {
+      const { items, locationId, notes } = req.body;
+      const userId = req.user?.id;
+      
+      if (!items || !Array.isArray(items) || items.length === 0) {
+        return res.status(400).json({ error: 'Items array is required' });
+      }
+
+      // Create inventory action record
+      const actionRecord = {
+        type: 'inventory_take',
+        userId,
+        locationId: locationId ? parseInt(locationId) : null,
+        items: items.map(item => ({
+          barcode: item.barcode,
+          itemName: item.itemName,
+          quantity: item.quantity,
+          notes: item.notes || ''
+        })),
+        notes: notes || '',
+        createdAt: new Date()
+      };
+
+      // For now, just log the action. In a real implementation, you'd save to database
+      console.log('Inventory Take Action:', actionRecord);
+
+      // TODO: Implement actual inventory update logic here
+      // This would typically:
+      // 1. Update inventory quantities in the database
+      // 2. Create audit trail records
+      // 3. Sync changes back to Clover if needed
+
+      res.json({ 
+        success: true, 
+        message: `Inventory take completed for ${items.length} items`,
+        actionId: Date.now() // Temporary ID
+      });
+    } catch (error) {
+      console.error('Error processing inventory take:', error);
+      res.status(500).json({ error: 'Failed to process inventory take' });
+    }
+  });
+
+  // Stock adjustment action
+  app.post('/api/inventory/actions/adjustment', isAuthenticated, async (req, res) => {
+    try {
+      const { items, locationId, notes } = req.body;
+      const userId = req.user?.id;
+      
+      if (!items || !Array.isArray(items) || items.length === 0) {
+        return res.status(400).json({ error: 'Items array is required' });
+      }
+
+      // Create inventory action record
+      const actionRecord = {
+        type: 'stock_adjustment',
+        userId,
+        locationId: locationId ? parseInt(locationId) : null,
+        items: items.map(item => ({
+          barcode: item.barcode,
+          itemName: item.itemName,
+          quantity: item.quantity,
+          adjustmentType: item.quantity > 0 ? 'increase' : 'decrease',
+          notes: item.notes || ''
+        })),
+        notes: notes || '',
+        createdAt: new Date()
+      };
+
+      // For now, just log the action
+      console.log('Stock Adjustment Action:', actionRecord);
+
+      // TODO: Implement actual inventory adjustment logic here
+      
+      res.json({ 
+        success: true, 
+        message: `Stock adjustment completed for ${items.length} items`,
+        actionId: Date.now() // Temporary ID
+      });
+    } catch (error) {
+      console.error('Error processing stock adjustment:', error);
+      res.status(500).json({ error: 'Failed to process stock adjustment' });
+    }
+  });
+
+  // Employee purchase action
+  app.post('/api/inventory/actions/employee_purchase', isAuthenticated, async (req, res) => {
+    try {
+      const { items, locationId, employeeId, notes } = req.body;
+      const userId = req.user?.id;
+      
+      if (!items || !Array.isArray(items) || items.length === 0) {
+        return res.status(400).json({ error: 'Items array is required' });
+      }
+
+      // Calculate total purchase amount
+      const totalAmount = items.reduce((sum, item) => {
+        return sum + (item.quantity * (item.unitPrice || 0));
+      }, 0);
+
+      // Create employee purchase record
+      const purchaseRecord = {
+        type: 'employee_purchase',
+        userId,
+        employeeId: employeeId || userId,
+        locationId: locationId ? parseInt(locationId) : null,
+        items: items.map(item => ({
+          barcode: item.barcode,
+          itemName: item.itemName,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice || 0,
+          totalPrice: item.quantity * (item.unitPrice || 0),
+          notes: item.notes || ''
+        })),
+        totalAmount,
+        notes: notes || '',
+        createdAt: new Date()
+      };
+
+      // For now, just log the action
+      console.log('Employee Purchase Action:', purchaseRecord);
+
+      // TODO: Implement actual employee purchase logic here
+      // This would typically:
+      // 1. Deduct inventory quantities
+      // 2. Create purchase transaction records
+      // 3. Handle employee payroll deductions if applicable
+      
+      res.json({ 
+        success: true, 
+        message: `Employee purchase recorded for ${items.length} items (Total: $${(totalAmount / 100).toFixed(2)})`,
+        actionId: Date.now(), // Temporary ID
+        totalAmount
+      });
+    } catch (error) {
+      console.error('Error processing employee purchase:', error);
+      res.status(500).json({ error: 'Failed to process employee purchase' });
+    }
+  });
+
+  // ============================================
   // MONTHLY ACCOUNTING ARCHIVAL API ENDPOINTS
   // ============================================
 

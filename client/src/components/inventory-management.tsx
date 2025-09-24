@@ -16,10 +16,13 @@ import {
   MapPin,
   Tag,
   Eye,
-  RefreshCw
+  RefreshCw,
+  QrCode
 } from 'lucide-react';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
+import { BarcodeScanner } from './barcode-scanner';
+import { DymoLabelPrinter } from './dymo-label-printer';
 
 interface InventoryItem {
   id: string;
@@ -55,10 +58,17 @@ interface Category {
 }
 
 export function InventoryManagement() {
-  const [activeTab, setActiveTab] = useState<'items' | 'stocks' | 'categories'>('items');
+  const [activeTab, setActiveTab] = useState<'items' | 'stocks' | 'categories' | 'scanner'>('items');
   const [selectedLocation, setSelectedLocation] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState('all');
+  const [scannerMode, setScannerMode] = useState<'take' | 'adjustment' | 'employee_purchase'>('take');
+  const [selectedProductForLabel, setSelectedProductForLabel] = useState<{
+    name: string;
+    sku: string;
+    price: number;
+    description?: string;
+  } | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -244,6 +254,18 @@ export function InventoryManagement() {
           >
             <Tag className="inline h-4 w-4 mr-2" />
             Categories
+          </button>
+          <button
+            onClick={() => setActiveTab('scanner')}
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${
+              activeTab === 'scanner'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+            data-testid="tab-scanner"
+          >
+            <QrCode className="inline h-4 w-4 mr-2" />
+            Barcode Scanner
           </button>
         </nav>
       </div>
@@ -432,6 +454,72 @@ export function InventoryManagement() {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {activeTab === 'scanner' && (
+        <div className="space-y-6">
+          <Tabs defaultValue="scanner" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="scanner">Barcode Scanner</TabsTrigger>
+              <TabsTrigger value="printer">Label Printer</TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="scanner" className="space-y-4">
+              {/* Scanner Mode Selection */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Scanner Mode</CardTitle>
+                  <CardDescription>
+                    Choose the type of inventory action to perform with barcode scanning
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Select value={scannerMode} onValueChange={(value: 'take' | 'adjustment' | 'employee_purchase') => setScannerMode(value)}>
+                    <SelectTrigger className="w-[250px]">
+                      <SelectValue placeholder="Select scanner mode" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="take">Inventory Count</SelectItem>
+                      <SelectItem value="adjustment">Stock Adjustment</SelectItem>
+                      <SelectItem value="employee_purchase">Employee Purchase</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </CardContent>
+              </Card>
+
+              {/* Barcode Scanner Component */}
+              <BarcodeScanner 
+                mode={scannerMode}
+                selectedLocation={selectedLocation}
+                onItemScanned={(item) => {
+                  // Handle scanned item and optionally set it for label printing
+                  console.log('Item scanned:', item);
+                  if (item) {
+                    setSelectedProductForLabel({
+                      name: item.name || '',
+                      sku: item.sku || '',
+                      price: item.price || 0,
+                      description: item.description || ''
+                    });
+                  }
+                }}
+              />
+            </TabsContent>
+            
+            <TabsContent value="printer" className="space-y-4">
+              {/* DYMO Label Printer Component */}
+              <DymoLabelPrinter 
+                productData={selectedProductForLabel}
+                onPrintComplete={() => {
+                  toast({
+                    title: "Label Printed",
+                    description: "Label has been sent to the printer successfully",
+                  });
+                }}
+              />
+            </TabsContent>
+          </Tabs>
         </div>
       )}
     </div>
