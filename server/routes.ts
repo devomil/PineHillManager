@@ -8870,45 +8870,141 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Stock adjustment action
+  // Stock adjustment action (individual item adjustments)
   app.post('/api/inventory/actions/adjustment', isAuthenticated, async (req, res) => {
     try {
-      const { items, locationId, notes } = req.body;
+      const { 
+        type, 
+        itemId, 
+        itemName, 
+        quantity, 
+        fromLocationId, 
+        reason, 
+        notes 
+      } = req.body;
       const userId = req.user?.id;
       
-      if (!items || !Array.isArray(items) || items.length === 0) {
-        return res.status(400).json({ error: 'Items array is required' });
+      if (!itemId || !itemName || !quantity || !type || !reason) {
+        return res.status(400).json({ error: 'Missing required fields: itemId, itemName, quantity, type, reason' });
       }
 
-      // Create inventory action record
-      const actionRecord = {
+      if (!['increase', 'decrease'].includes(type)) {
+        return res.status(400).json({ error: 'Invalid adjustment type. Must be increase or decrease' });
+      }
+
+      // Create inventory adjustment record
+      const adjustmentRecord = {
         type: 'stock_adjustment',
+        adjustmentType: type,
         userId,
-        locationId: locationId ? parseInt(locationId) : null,
-        items: items.map(item => ({
-          barcode: item.barcode,
-          itemName: item.itemName,
-          quantity: item.quantity,
-          adjustmentType: item.quantity > 0 ? 'increase' : 'decrease',
-          notes: item.notes || ''
-        })),
+        itemId,
+        itemName,
+        quantity: Math.abs(quantity), // Always store positive, type determines direction
+        fromLocationId: fromLocationId ? parseInt(fromLocationId.toString()) : null,
+        reason,
         notes: notes || '',
-        createdAt: new Date()
+        createdAt: new Date(),
+        actionId: `adj_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
       };
 
-      // For now, just log the action
-      console.log('Stock Adjustment Action:', actionRecord);
+      // Log the adjustment action
+      console.log('📦 Stock Adjustment Action:', adjustmentRecord);
 
       // TODO: Implement actual inventory adjustment logic here
+      // This would typically:
+      // 1. Update stock levels in Clover via API
+      // 2. Create audit trail in database
+      // 3. Send notifications if needed
       
+      const message = type === 'increase' 
+        ? `Added ${quantity} units to ${itemName}` 
+        : `Removed ${quantity} units from ${itemName}`;
+
       res.json({ 
         success: true, 
-        message: `Stock adjustment completed for ${items.length} items`,
-        actionId: Date.now() // Temporary ID
+        message,
+        actionId: adjustmentRecord.actionId,
+        adjustment: adjustmentRecord
       });
     } catch (error) {
       console.error('Error processing stock adjustment:', error);
       res.status(500).json({ error: 'Failed to process stock adjustment' });
+    }
+  });
+
+  // Stock transfer action (between locations)
+  app.post('/api/inventory/actions/transfer', isAuthenticated, async (req, res) => {
+    try {
+      const { 
+        itemId, 
+        itemName, 
+        quantity, 
+        fromLocationId, 
+        toLocationId, 
+        reason, 
+        notes 
+      } = req.body;
+      const userId = req.user?.id;
+      
+      if (!itemId || !itemName || !quantity || !fromLocationId || !toLocationId || !reason) {
+        return res.status(400).json({ error: 'Missing required fields: itemId, itemName, quantity, fromLocationId, toLocationId, reason' });
+      }
+
+      if (fromLocationId.toString() === toLocationId.toString()) {
+        return res.status(400).json({ error: 'Cannot transfer to the same location' });
+      }
+
+      // Get location names for logging
+      let fromLocationName = 'Unknown Location';
+      let toLocationName = 'Unknown Location';
+      
+      try {
+        const fromLocation = await storage.getCloverConfigById(parseInt(fromLocationId.toString()));
+        const toLocation = await storage.getCloverConfigById(parseInt(toLocationId.toString()));
+        fromLocationName = fromLocation?.merchantName || 'Unknown Location';
+        toLocationName = toLocation?.merchantName || 'Unknown Location';
+      } catch (error) {
+        console.log('Could not fetch location names for transfer logging');
+      }
+
+      // Create inventory transfer record
+      const transferRecord = {
+        type: 'stock_transfer',
+        userId,
+        itemId,
+        itemName,
+        quantity: Math.abs(quantity),
+        fromLocationId: parseInt(fromLocationId.toString()),
+        toLocationId: parseInt(toLocationId.toString()),
+        fromLocationName,
+        toLocationName,
+        reason,
+        notes: notes || '',
+        createdAt: new Date(),
+        actionId: `xfer_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+      };
+
+      // Log the transfer action
+      console.log('🔄 Stock Transfer Action:', transferRecord);
+
+      // TODO: Implement actual inventory transfer logic here
+      // This would typically:
+      // 1. Decrease stock at source location via Clover API
+      // 2. Increase stock at destination location via Clover API
+      // 3. Create audit trail in database
+      // 4. Send notifications if needed
+      
+      const message = `Transferred ${quantity} units of ${itemName} from ${fromLocationName} to ${toLocationName}`;
+
+      res.json({ 
+        success: true, 
+        message,
+        actionId: transferRecord.actionId,
+        transfer: transferRecord
+      });
+    } catch (error) {
+      console.error('Error processing stock transfer:', error);
+      res.status(500).json({ error: 'Failed to process stock transfer' });
     }
   });
 
