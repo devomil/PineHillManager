@@ -64,7 +64,12 @@ app.use((req, res, next) => {
 
   // Setup Vite integration for React app
   if (process.env.NODE_ENV === "development") {
+    // Temporarily set NODE_ENV to production to prevent cartographer plugin from loading and breaking HMR
+    const originalNodeEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = "production";
     const { setupVite } = await import("./vite");
+    // Restore original NODE_ENV after Vite config is loaded
+    process.env.NODE_ENV = originalNodeEnv;
     await setupVite(app, server);
   } else {
     // In production, serve static files
