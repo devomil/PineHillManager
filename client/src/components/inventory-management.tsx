@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   Package, 
   Search, 
@@ -17,7 +18,9 @@ import {
   Tag,
   Eye,
   RefreshCw,
-  QrCode
+  QrCode,
+  Plus,
+  Camera
 } from 'lucide-react';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
@@ -58,7 +61,7 @@ interface Category {
 }
 
 export function InventoryManagement() {
-  const [activeTab, setActiveTab] = useState<'items' | 'stocks' | 'categories' | 'scanner'>('items');
+  const [activeTab, setActiveTab] = useState<'items' | 'stocks' | 'categories' | 'add-product'>('items');
   const [selectedLocation, setSelectedLocation] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState('all');
@@ -68,7 +71,7 @@ export function InventoryManagement() {
     sku: string;
     price: number;
     description?: string;
-  } | null>(null);
+  } | undefined>(undefined);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -256,16 +259,16 @@ export function InventoryManagement() {
             Categories
           </button>
           <button
-            onClick={() => setActiveTab('scanner')}
+            onClick={() => setActiveTab('add-product')}
             className={`py-2 px-1 border-b-2 font-medium text-sm ${
-              activeTab === 'scanner'
+              activeTab === 'add-product'
                 ? 'border-blue-500 text-blue-600'
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
             }`}
-            data-testid="tab-scanner"
+            data-testid="tab-add-product"
           >
-            <QrCode className="inline h-4 w-4 mr-2" />
-            Barcode Scanner
+            <Plus className="inline h-4 w-4 mr-2" />
+            Add Product
           </button>
         </nav>
       </div>
@@ -457,69 +460,142 @@ export function InventoryManagement() {
         </div>
       )}
 
-      {activeTab === 'scanner' && (
+      {activeTab === 'add-product' && (
         <div className="space-y-6">
-          <Tabs defaultValue="scanner" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="scanner">Barcode Scanner</TabsTrigger>
-              <TabsTrigger value="printer">Label Printer</TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="scanner" className="space-y-4">
-              {/* Scanner Mode Selection */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Scanner Mode</CardTitle>
-                  <CardDescription>
-                    Choose the type of inventory action to perform with barcode scanning
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Select value={scannerMode} onValueChange={(value: 'take' | 'adjustment' | 'employee_purchase') => setScannerMode(value)}>
-                    <SelectTrigger className="w-[250px]">
-                      <SelectValue placeholder="Select scanner mode" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="take">Inventory Count</SelectItem>
-                      <SelectItem value="adjustment">Stock Adjustment</SelectItem>
-                      <SelectItem value="employee_purchase">Employee Purchase</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </CardContent>
-              </Card>
-
-              {/* Barcode Scanner Component */}
-              <BarcodeScanner 
-                mode={scannerMode}
-                selectedLocation={selectedLocation}
-                onItemScanned={(item) => {
-                  // Handle scanned item and optionally set it for label printing
-                  console.log('Item scanned:', item);
-                  if (item) {
-                    setSelectedProductForLabel({
-                      name: item.name || '',
-                      sku: item.sku || '',
-                      price: item.price || 0,
-                      description: item.description || ''
-                    });
-                  }
-                }}
-              />
-            </TabsContent>
-            
-            <TabsContent value="printer" className="space-y-4">
-              {/* DYMO Label Printer Component */}
-              <DymoLabelPrinter 
-                productData={selectedProductForLabel}
-                onPrintComplete={() => {
-                  toast({
-                    title: "Label Printed",
-                    description: "Label has been sent to the printer successfully",
-                  });
-                }}
-              />
-            </TabsContent>
-          </Tabs>
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Plus className="h-5 w-5" />
+                Add New Product
+              </CardTitle>
+              <CardDescription>
+                Create a new product in your inventory. Use the barcode scanner to quickly fill in product details or enter them manually.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Tabs defaultValue="manual" className="w-full">
+                <TabsList className="grid w-full grid-cols-3">
+                  <TabsTrigger value="manual">Manual Entry</TabsTrigger>
+                  <TabsTrigger value="scan">Barcode Scan</TabsTrigger>
+                  <TabsTrigger value="print">Print Labels</TabsTrigger>
+                </TabsList>
+                
+                <TabsContent value="manual" className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-sm font-medium">Product Name</label>
+                      <Input placeholder="Enter product name" data-testid="input-product-name" />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium">SKU/Barcode</label>
+                      <Input placeholder="Enter SKU or barcode" data-testid="input-product-sku" />
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-sm font-medium">Price</label>
+                      <Input type="number" placeholder="0.00" step="0.01" data-testid="input-product-price" />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium">Cost</label>
+                      <Input type="number" placeholder="0.00" step="0.01" data-testid="input-product-cost" />
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-sm font-medium">Location</label>
+                      <Select defaultValue={selectedLocation}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select location" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Locations</SelectItem>
+                          {itemsData?.locations?.map((location: any) => (
+                            <SelectItem key={location.id} value={location.id.toString()}>
+                              {location.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium">Category</label>
+                      <Select>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select category" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="uncategorized">Uncategorized</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <label className="text-sm font-medium">Description</label>
+                    <Input placeholder="Product description (optional)" data-testid="input-product-description" />
+                  </div>
+                  
+                  <div className="flex gap-2">
+                    <Button className="flex-1" data-testid="button-save-product">
+                      <Package className="h-4 w-4 mr-2" />
+                      Save Product
+                    </Button>
+                    <Button variant="outline" data-testid="button-save-and-print">
+                      <Eye className="h-4 w-4 mr-2" />
+                      Save & Print Label
+                    </Button>
+                  </div>
+                </TabsContent>
+                
+                <TabsContent value="scan" className="space-y-4">
+                  <div className="text-center py-4">
+                    <Camera className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+                    <h3 className="text-lg font-medium mb-2">Scan Product Barcode</h3>
+                    <p className="text-gray-600 mb-4">
+                      Use your camera to scan a product barcode and automatically fill in the product details.
+                    </p>
+                  </div>
+                  
+                  {/* Barcode Scanner Component */}
+                  <BarcodeScanner 
+                    mode="take"
+                    selectedLocation={selectedLocation}
+                    onItemScanned={(item) => {
+                      console.log('Item scanned for add product:', item);
+                      if (item) {
+                        setSelectedProductForLabel({
+                          name: item.itemName || '',
+                          sku: item.barcode || '',
+                          price: item.unitPrice || 0,
+                          description: item.itemName || ''
+                        });
+                        toast({
+                          title: "Product Scanned",
+                          description: "Product details have been filled automatically",
+                        });
+                      }
+                    }}
+                  />
+                </TabsContent>
+                
+                <TabsContent value="print" className="space-y-4">
+                  {/* DYMO Label Printer Component */}
+                  <DymoLabelPrinter 
+                    productData={selectedProductForLabel}
+                    onPrintComplete={() => {
+                      toast({
+                        title: "Label Printed",
+                        description: "Label has been sent to the printer successfully",
+                      });
+                    }}
+                  />
+                </TabsContent>
+              </Tabs>
+            </CardContent>
+          </Card>
         </div>
       )}
     </div>
