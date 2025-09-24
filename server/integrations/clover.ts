@@ -431,7 +431,31 @@ export class CloverIntegration {
 
   async fetchItemStock(itemId: string) {
     console.log(`🔍 Fetching stock for item ${itemId} in merchant ${this.config.merchantId}`);
-    return await this.makeCloverAPICall(`items/${itemId}/stock`);
+    
+    try {
+      // Use the working item_stocks endpoint instead of the broken items/{id}/stock endpoint
+      const allStocks = await this.makeCloverAPICall('item_stocks?limit=1000');
+      
+      if (allStocks && allStocks.elements) {
+        // Find the stock data for this specific item
+        const itemStock = allStocks.elements.find((stock: any) => stock.item?.id === itemId);
+        
+        if (itemStock) {
+          console.log(`✅ Found stock data for item ${itemId}: ${itemStock.quantity} units`);
+          return itemStock;
+        } else {
+          console.log(`📦 No stock data found for item ${itemId}`);
+          return { quantity: 0, item: { id: itemId } };
+        }
+      }
+      
+      // Fallback - return zero stock
+      return { quantity: 0, item: { id: itemId } };
+      
+    } catch (error) {
+      console.log(`❌ Error fetching stock for item ${itemId}:`, error);
+      return { quantity: 0, item: { id: itemId } };
+    }
   }
 
   // Update item stock quantity via Clover API
