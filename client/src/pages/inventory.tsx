@@ -141,13 +141,6 @@ export default function InventoryPage() {
           </CardContent>
         </Card>
 
-        {/* Quick Actions Bar */}
-        <div className="fixed bottom-6 right-6 flex flex-col gap-2">
-          <Button size="sm" className="shadow-lg bg-green-600 hover:bg-green-700">
-            <Package className="h-4 w-4 mr-2" />
-            Add Product
-          </Button>
-        </div>
       </div>
     </div>
   );
