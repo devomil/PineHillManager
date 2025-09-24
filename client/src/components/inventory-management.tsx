@@ -80,6 +80,7 @@ export function InventoryManagement() {
   const [selectedLocation, setSelectedLocation] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState('all');
+  const [stockStatusFilter, setStockStatusFilter] = useState('all');
   const [scannerMode, setScannerMode] = useState<'take' | 'adjustment' | 'employee_purchase'>('take');
   const [selectedProductForLabel, setSelectedProductForLabel] = useState<{
     name: string;
@@ -196,18 +197,37 @@ export function InventoryManagement() {
   };
 
   const filteredItems = itemsData?.elements?.filter((item: InventoryItem) => {
+    // Category filter
     if (filterCategory !== 'all') {
-      return item.categories?.some(cat => cat.id === filterCategory);
+      const categoryMatch = item.categories?.some(cat => cat.id === filterCategory);
+      if (!categoryMatch) return false;
     }
+    
+    // Stock status filter
+    if (stockStatusFilter !== 'all') {
+      const stockStatus = getStockStatus(item.stockCount).status;
+      if (stockStatus !== stockStatusFilter) return false;
+    }
+    
     return true;
   }) || [];
 
   // Filter stocks for the Stock Levels tab
   const filteredStocks = stocksData?.elements?.filter((stock: ItemStock) => {
-    if (!stockSearchTerm) return true;
-    const searchLower = stockSearchTerm.toLowerCase();
-    const nameMatch = stock.item?.name?.toLowerCase().includes(searchLower);
-    return nameMatch;
+    // Search term filter
+    if (stockSearchTerm) {
+      const searchLower = stockSearchTerm.toLowerCase();
+      const nameMatch = stock.item?.name?.toLowerCase().includes(searchLower);
+      if (!nameMatch) return false;
+    }
+    
+    // Stock status filter
+    if (stockStatusFilter !== 'all') {
+      const stockStatus = getStockStatus(stock.quantity).status;
+      if (stockStatus !== stockStatusFilter) return false;
+    }
+    
+    return true;
   }) || [];
 
   // Stats calculations - use appropriate data based on active tab
@@ -398,6 +418,20 @@ export function InventoryManagement() {
           </SelectContent>
         </Select>
 
+        {(activeTab === 'items' || activeTab === 'stocks') && (
+          <Select value={stockStatusFilter} onValueChange={setStockStatusFilter}>
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="Filter by stock status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Stock Levels</SelectItem>
+              <SelectItem value="in-stock">In Stock</SelectItem>
+              <SelectItem value="low-stock">Low Stock</SelectItem>
+              <SelectItem value="out-of-stock">Out of Stock</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
+        
         {activeTab === 'items' && (
           <Select value={filterCategory} onValueChange={setFilterCategory}>
             <SelectTrigger className="w-[200px]">
