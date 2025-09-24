@@ -50,7 +50,7 @@ interface InventoryItem {
 
 interface ItemStock {
   id: string;
-  item: { id: string; name: string; price?: number; };
+  item: { id: string; name: string; price?: number; cost?: number; };
   quantity: number;
   locationId: number;
   locationName: string;
@@ -112,10 +112,11 @@ export function InventoryManagement() {
 
   // Fetch item stocks
   const { data: stocksData, isLoading: stocksLoading } = useQuery({
-    queryKey: ['/api/accounting/inventory/stocks', selectedLocation],
+    queryKey: ['/api/accounting/inventory/stocks', selectedLocation, stockSearchTerm],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (selectedLocation !== 'all') params.append('locationId', selectedLocation);
+      if (stockSearchTerm) params.append('filter', `name:${stockSearchTerm}`);
       
       const response = await apiRequest('GET', `/api/accounting/inventory/stocks?${params.toString()}`);
       return await response.json();
@@ -201,14 +202,42 @@ export function InventoryManagement() {
     return true;
   }) || [];
 
-  // Stats calculations
-  const totalItems = itemsData?.totalItems || 0;
-  const totalValue = filteredItems.reduce((sum: number, item: InventoryItem) => 
-    sum + ((item.stockCount || 0) * (item.price || 0) / 100), 0);
-  const lowStockItems = filteredItems.filter((item: InventoryItem) => 
-    (item.stockCount || 0) < 10 && (item.stockCount || 0) > 0).length;
-  const outOfStockItems = filteredItems.filter((item: InventoryItem) => 
-    (item.stockCount || 0) === 0).length;
+  // Filter stocks for the Stock Levels tab
+  const filteredStocks = stocksData?.elements?.filter((stock: ItemStock) => {
+    if (!stockSearchTerm) return true;
+    const searchLower = stockSearchTerm.toLowerCase();
+    const nameMatch = stock.item?.name?.toLowerCase().includes(searchLower);
+    return nameMatch;
+  }) || [];
+
+  // Stats calculations - use appropriate data based on active tab
+  const isStocksTab = activeTab === 'stocks';
+  
+  const totalItems = isStocksTab ? 
+    (filteredStocks?.length || 0) : 
+    (itemsData?.totalItems || 0);
+  
+  const totalValue = isStocksTab ?
+    filteredStocks.reduce((sum: number, stock: ItemStock) => {
+      const unitCost = stock.item?.cost ?? stock.item?.price ?? 0;
+      return sum + ((stock.quantity || 0) * unitCost / 100);
+    }, 0) :
+    filteredItems.reduce((sum: number, item: InventoryItem) => {
+      const unitCost = item.cost ?? item.price ?? 0;
+      return sum + ((item.stockCount || 0) * unitCost / 100);
+    }, 0);
+  
+  const lowStockItems = isStocksTab ?
+    filteredStocks.filter((stock: ItemStock) => 
+      (stock.quantity || 0) < 10 && (stock.quantity || 0) > 0).length :
+    filteredItems.filter((item: InventoryItem) => 
+      (item.stockCount || 0) < 10 && (item.stockCount || 0) > 0).length;
+  
+  const outOfStockItems = isStocksTab ?
+    filteredStocks.filter((stock: ItemStock) => 
+      (stock.quantity || 0) === 0).length :
+    filteredItems.filter((item: InventoryItem) => 
+      (item.stockCount || 0) === 0).length;
 
   return (
     <div className="space-y-6">
@@ -434,10 +463,10 @@ export function InventoryManagement() {
                           <span className="text-sm text-gray-600">Stock:</span>
                           <span className="font-medium">{item.stockCount || 0} {item.unitName || 'units'}</span>
                         </div>
-                        {item.stockCount && item.price && (
+                        {item.stockCount && (item.cost || item.price) && (
                           <div className="flex justify-between border-t pt-2">
                             <span className="text-sm text-gray-600">Value:</span>
-                            <span className="font-bold">${((item.stockCount * item.price) / 100).toFixed(2)}</span>
+                            <span className="font-bold">${((item.stockCount * (item.cost ?? item.price)) / 100).toFixed(2)}</span>
                           </div>
                         )}
                       </div>
@@ -532,7 +561,7 @@ export function InventoryManagement() {
                       </tr>
                     </thead>
                     <tbody>
-                      {stocksData?.elements?.map((stock: ItemStock, index: number) => {
+                      {filteredStocks?.map((stock: ItemStock, index: number) => {
                         const stockInfo = getStockStatus(stock.quantity);
                         const uniqueKey = `stock-${stock.item?.id || `unknown-${index}`}-${stock.locationId}-${index}-${stock.quantity}`;
                         return (
