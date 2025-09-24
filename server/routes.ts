@@ -8910,11 +8910,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Log the adjustment action
       console.log('📦 Stock Adjustment Action:', adjustmentRecord);
 
-      // TODO: Implement actual inventory adjustment logic here
-      // This would typically:
-      // 1. Update stock levels in Clover via API
-      // 2. Create audit trail in database
-      // 3. Send notifications if needed
+      // Get location configuration for Clover API call
+      let locationConfig = null;
+      if (fromLocationId) {
+        try {
+          locationConfig = await storage.getCloverConfigById(parseInt(fromLocationId.toString()));
+        } catch (error) {
+          console.log('Could not fetch location config for adjustment');
+        }
+      }
+
+      if (!locationConfig) {
+        // Try to find any active location if no specific location provided
+        const allConfigs = await storage.getAllCloverConfigs();
+        locationConfig = allConfigs.find(config => config.isActive);
+      }
+
+      let cloverUpdateResult = null;
+      if (locationConfig) {
+        try {
+          // Update stock levels in Clover via API
+          const { CloverIntegration } = await import('./integrations/clover');
+          const cloverIntegration = new CloverIntegration(locationConfig);
+          
+          // Get current stock to calculate new quantity
+          const currentStock = await cloverIntegration.fetchItemStock(itemId);
+          const currentQuantity = currentStock?.quantity || 0;
+          
+          const newQuantity = type === 'increase' 
+            ? currentQuantity + Math.abs(quantity)
+            : Math.max(0, currentQuantity - Math.abs(quantity)); // Prevent negative stock
+
+          console.log(`📊 Updating Clover stock: ${itemName} from ${currentQuantity} to ${newQuantity}`);
+          
+          cloverUpdateResult = await cloverIntegration.updateItemStock(itemId, newQuantity);
+          console.log('✅ Successfully updated stock in Clover:', cloverUpdateResult);
+          
+        } catch (cloverError) {
+          console.error('❌ Failed to update stock in Clover:', cloverError);
+          // Continue with local logging even if Clover update fails
+        }
+      } else {
+        console.log('⚠️ No Clover configuration found for stock update');
+      }
       
       const message = type === 'increase' 
         ? `Added ${quantity} units to ${itemName}` 
@@ -8922,9 +8960,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json({ 
         success: true, 
-        message,
+        message: cloverUpdateResult ? 
+          `${message} - Updated in Clover POS` : 
+          `${message} - Logged locally (Clover sync may be needed)`,
         actionId: adjustmentRecord.actionId,
-        adjustment: adjustmentRecord
+        adjustment: adjustmentRecord,
+        cloverUpdated: !!cloverUpdateResult
       });
     } catch (error) {
       console.error('Error processing stock adjustment:', error);
@@ -8987,20 +9028,90 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Log the transfer action
       console.log('🔄 Stock Transfer Action:', transferRecord);
 
-      // TODO: Implement actual inventory transfer logic here
-      // This would typically:
-      // 1. Decrease stock at source location via Clover API
-      // 2. Increase stock at destination location via Clover API
-      // 3. Create audit trail in database
-      // 4. Send notifications if needed
+      // Get location configurations for Clover API calls
+      let fromConfig = null;
+      let toConfig = null;
       
-      const message = `Transferred ${quantity} units of ${itemName} from ${fromLocationName} to ${toLocationName}`;
+      try {
+        fromConfig = await storage.getCloverConfigById(parseInt(fromLocationId.toString()));
+        toConfig = await storage.getCloverConfigById(parseInt(toLocationId.toString()));
+      } catch (error) {
+        console.error('Could not fetch location configs for transfer:', error);
+      }
+
+      let cloverTransferResult = { 
+        fromLocationUpdated: false, 
+        toLocationUpdated: false,
+        error: null 
+      };
+
+      if (fromConfig && toConfig) {
+        try {
+          // Implement actual inventory transfer logic via Clover API
+          const { CloverIntegration } = await import('./integrations/clover');
+          
+          // 1. Decrease stock at source location
+          try {
+            const fromClover = new CloverIntegration(fromConfig);
+            const fromCurrentStock = await fromClover.fetchItemStock(itemId);
+            const fromCurrentQuantity = fromCurrentStock?.quantity || 0;
+            const fromNewQuantity = Math.max(0, fromCurrentQuantity - Math.abs(quantity));
+            
+            console.log(`📊 Updating ${fromLocationName}: ${itemName} from ${fromCurrentQuantity} to ${fromNewQuantity}`);
+            await fromClover.updateItemStock(itemId, fromNewQuantity);
+            cloverTransferResult.fromLocationUpdated = true;
+            console.log(`✅ Successfully updated stock at source location: ${fromLocationName}`);
+          } catch (fromError) {
+            console.error(`❌ Failed to update stock at source location ${fromLocationName}:`, fromError);
+            cloverTransferResult.error = `Failed to update source location: ${fromError.message}`;
+          }
+
+          // 2. Increase stock at destination location (only if source update succeeded)
+          if (cloverTransferResult.fromLocationUpdated) {
+            try {
+              const toClover = new CloverIntegration(toConfig);
+              const toCurrentStock = await toClover.fetchItemStock(itemId);
+              const toCurrentQuantity = toCurrentStock?.quantity || 0;
+              const toNewQuantity = toCurrentQuantity + Math.abs(quantity);
+              
+              console.log(`📊 Updating ${toLocationName}: ${itemName} from ${toCurrentQuantity} to ${toNewQuantity}`);
+              await toClover.updateItemStock(itemId, toNewQuantity);
+              cloverTransferResult.toLocationUpdated = true;
+              console.log(`✅ Successfully updated stock at destination location: ${toLocationName}`);
+            } catch (toError) {
+              console.error(`❌ Failed to update stock at destination location ${toLocationName}:`, toError);
+              cloverTransferResult.error = `Failed to update destination location: ${toError.message}`;
+              
+              // TODO: Consider rollback logic here if destination update fails
+              console.log('⚠️ Source location was updated but destination failed - manual correction may be needed');
+            }
+          }
+          
+        } catch (transferError) {
+          console.error('❌ Failed to complete stock transfer:', transferError);
+          cloverTransferResult.error = transferError.message;
+        }
+      } else {
+        console.log('⚠️ Missing Clover configuration for one or both locations');
+        cloverTransferResult.error = 'Missing location configuration';
+      }
+      
+      const baseMessage = `Transferred ${quantity} units of ${itemName} from ${fromLocationName} to ${toLocationName}`;
+      let statusMessage = baseMessage;
+      
+      if (cloverTransferResult.fromLocationUpdated && cloverTransferResult.toLocationUpdated) {
+        statusMessage = `${baseMessage} - Updated in Clover POS at both locations`;
+      } else if (cloverTransferResult.error) {
+        statusMessage = `${baseMessage} - Logged locally (${cloverTransferResult.error})`;
+      }
 
       res.json({ 
         success: true, 
-        message,
+        message: statusMessage,
         actionId: transferRecord.actionId,
-        transfer: transferRecord
+        transfer: transferRecord,
+        cloverUpdated: cloverTransferResult.fromLocationUpdated && cloverTransferResult.toLocationUpdated,
+        cloverResult: cloverTransferResult
       });
     } catch (error) {
       console.error('Error processing stock transfer:', error);

@@ -166,7 +166,7 @@ export class CloverIntegration {
   }
 
   // Make authenticated API calls to Clover with specific config
-  private async makeCloverAPICallWithConfig(endpoint: string, config: any, method: 'GET' | 'POST' = 'GET'): Promise<any> {
+  private async makeCloverAPICallWithConfig(endpoint: string, config: any, method: 'GET' | 'POST' | 'PUT' = 'GET', body?: any): Promise<any> {
     try {
       
       if (!config || !config.accessToken) {
@@ -181,14 +181,22 @@ export class CloverIntegration {
       console.log(`Using base URL: ${baseUrl}`);
       console.log(`Using API token: ${config.accessToken?.substring(0, 8)}...${config.accessToken?.slice(-4)}`);
       
-      const response = await fetch(url, {
+      const requestOptions: RequestInit = {
         method,
         headers: {
           'Authorization': `Bearer ${config.accessToken}`,
           'Accept': 'application/json',
           'Content-Type': 'application/json'
         }
-      });
+      };
+
+      // Add body for POST/PUT requests
+      if (body && (method === 'POST' || method === 'PUT')) {
+        requestOptions.body = JSON.stringify(body);
+        console.log(`Request body:`, JSON.stringify(body, null, 2));
+      }
+      
+      const response = await fetch(url, requestOptions);
 
       if (!response.ok) {
         const errorBody = await response.text();
@@ -196,7 +204,9 @@ export class CloverIntegration {
           status: response.status,
           statusText: response.statusText,
           url,
-          body: errorBody
+          method,
+          requestBody: body,
+          responseBody: errorBody
         });
         throw new Error(`Clover API error: ${response.status} ${response.statusText} - ${errorBody}`);
       }
@@ -418,6 +428,39 @@ export class CloverIntegration {
   async fetchItemStock(itemId: string) {
     console.log(`🔍 Fetching stock for item ${itemId} in merchant ${this.config.merchantId}`);
     return await this.makeCloverAPICall(`items/${itemId}/stock`);
+  }
+
+  // Update item stock quantity via Clover API
+  async updateItemStock(itemId: string, newQuantity: number): Promise<any> {
+    console.log(`📦 Updating stock for item ${itemId} to ${newQuantity} units`);
+    
+    const requestBody = {
+      item: { id: itemId },
+      quantity: newQuantity
+    };
+
+    return await this.makeCloverAPICallWithConfig(
+      `item_stocks/${itemId}`, 
+      this.config, 
+      'POST',
+      requestBody
+    );
+  }
+
+  // Update inventory item stock via inventory endpoints (alternative method)
+  async updateInventoryItemStock(itemId: string, newQuantity: number): Promise<any> {
+    console.log(`📊 Updating inventory stock for item ${itemId} to ${newQuantity} units via inventory endpoint`);
+    
+    const requestBody = {
+      quantity: newQuantity
+    };
+
+    return await this.makeCloverAPICallWithConfig(
+      `inventory/items/${itemId}/stock`, 
+      this.config, 
+      'PUT',
+      requestBody
+    );
   }
 
   async fetchCategories(params: {

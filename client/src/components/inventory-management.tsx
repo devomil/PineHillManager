@@ -755,7 +755,7 @@ export function InventoryManagement() {
 
       {/* Stock Adjustment Dialog */}
       <Dialog open={showAdjustmentDialog} onOpenChange={setShowAdjustmentDialog}>
-        <DialogContent className="max-w-lg" data-testid="dialog-stock-adjustment">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto" data-testid="dialog-stock-adjustment">
           <DialogHeader>
             <DialogTitle>Stock Adjustment</DialogTitle>
             <DialogDescription>
