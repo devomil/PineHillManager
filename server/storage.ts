@@ -5073,40 +5073,102 @@ export class DatabaseStorage implements IStorage {
         });
       }
       
-      // Calculate total discounts from order discounts array
+      // ============================================
+      // CLOVER-ACCURATE DISCOUNT CALCULATION
+      // ============================================
       let totalDiscounts = 0;
-      if (order.discounts && order.discounts.elements && order.discounts.elements.length > 0) {
-        // DEBUG: Log raw discount data
-        order.discounts.elements.forEach((discount: any, index: number) => {
-          console.log(`[DISCOUNT DEBUG] Order ${order.id} Discount ${index}:`, {
-            fullDiscountObject: discount,
-            rawAmount: discount.amount,
-            rawValue: discount.value,
-            rawDiscount: discount.discount,
-            rawDiscountAmount: discount.discountAmount,
-            parsedAmount: parseFloat(discount.amount || discount.value || discount.discount || discount.discountAmount || '0') / 100,
-            absAmount: Math.abs(parseFloat(discount.amount || discount.value || discount.discount || discount.discountAmount || '0') / 100)
-          });
-        });
-        
-        totalDiscounts = order.discounts.elements.reduce((sum: number, discount: any) => {
-          let discountAmount = 0;
-          
-          // Handle percentage-based discounts (like "100% HSA")
-          if (discount.percentage && typeof discount.percentage === 'number') {
-            // Calculate discount as percentage of order total
-            discountAmount = (orderTotal * discount.percentage) / 100;
-            console.log(`[DISCOUNT CALC] Percentage-based discount: ${discount.percentage}% of $${orderTotal.toFixed(2)} = $${discountAmount.toFixed(2)}`);
-          } else {
-            // Handle fixed amount discounts (stored in cents)
-            const rawAmount = discount.amount || discount.value || discount.discount || discount.discountAmount || '0';
-            discountAmount = Math.abs(parseFloat(rawAmount) / 100);
-            console.log(`[DISCOUNT CALC] Fixed amount discount: ${rawAmount} cents = $${discountAmount.toFixed(2)}`);
+      const appliedDiscountIds = new Set<string>();
+      
+      console.log(`🔧 [DISCOUNT DEBUG] ${order.id}: Starting discount calculation`);
+      
+      // Step 1: Calculate line-item level discounts
+      let lineItemDiscounts = 0;
+      let subtotalAfterItemDiscounts = 0;
+      
+      if (order.lineItems && order.lineItems.elements) {
+        order.lineItems.elements.forEach((lineItem: any, lineIndex: number) => {
+          // Skip voided, refunded, or non-revenue items
+          if (lineItem.refund || lineItem.exchanged || lineItem.voided) {
+            console.log(`🔧 [DISCOUNT DEBUG] ${order.id} Line ${lineIndex}: Skipping voided/refunded item`);
+            return;
           }
           
-          return sum + discountAmount;
-        }, 0);
-      } else {
+          // Calculate line base: (price + modifications) × quantity
+          const price = parseFloat(lineItem.price || '0') / 100;
+          const quantity = parseInt(lineItem.unitQty || lineItem.quantity || '1');
+          
+          let modificationTotal = 0;
+          if (lineItem.modifications && lineItem.modifications.elements) {
+            modificationTotal = lineItem.modifications.elements.reduce((sum: number, mod: any) => {
+              return sum + (parseFloat(mod.price || '0') / 100);
+            }, 0);
+          }
+          
+          const lineBase = (price + modificationTotal) * quantity;
+          let lineDiscount = 0;
+          
+          // Apply line-level discounts
+          if (lineItem.discounts && lineItem.discounts.elements) {
+            lineItem.discounts.elements.forEach((discount: any) => {
+              if (discount.id) appliedDiscountIds.add(discount.id);
+              
+              if (discount.percentage && typeof discount.percentage === 'number') {
+                // Clover stores percentage as basis points (1500 = 15.00%)
+                const discountAmount = lineBase * (discount.percentage / 10000);
+                lineDiscount += Math.min(discountAmount, lineBase);
+                console.log(`🔧 [DISCOUNT DEBUG] ${order.id} Line ${lineIndex}: Percentage discount ${discount.percentage/100}% on $${lineBase.toFixed(2)} = $${discountAmount.toFixed(2)}`);
+              } else {
+                const fixedAmount = Math.abs(parseFloat(discount.amount || '0') / 100);
+                lineDiscount += Math.min(fixedAmount, lineBase);
+                console.log(`🔧 [DISCOUNT DEBUG] ${order.id} Line ${lineIndex}: Fixed discount $${fixedAmount.toFixed(2)}`);
+              }
+            });
+          }
+          
+          // Round line discount to cents
+          lineDiscount = Math.round(lineDiscount * 100) / 100;
+          lineItemDiscounts += lineDiscount;
+          subtotalAfterItemDiscounts += lineBase - lineDiscount;
+          
+          console.log(`🔧 [DISCOUNT DEBUG] ${order.id} Line ${lineIndex}: Base=$${lineBase.toFixed(2)}, Discount=$${lineDiscount.toFixed(2)}, Net=$${(lineBase - lineDiscount).toFixed(2)}`);
+        });
+      }
+      
+      // Step 2: Apply order-level discounts (excluding already applied discount IDs)
+      let orderLevelDiscounts = 0;
+      
+      if (order.discounts && order.discounts.elements && order.discounts.elements.length > 0) {
+        order.discounts.elements.forEach((discount: any, index: number) => {
+          // Skip if this discount was already applied at line level
+          if (discount.id && appliedDiscountIds.has(discount.id)) {
+            console.log(`🔧 [DISCOUNT DEBUG] ${order.id}: Skipping order-level discount ${discount.id} - already applied at line level`);
+            return;
+          }
+          
+          let discountAmount = 0;
+          
+          if (discount.percentage && typeof discount.percentage === 'number') {
+            // Apply percentage to subtotal after item discounts
+            discountAmount = subtotalAfterItemDiscounts * (discount.percentage / 10000);
+            console.log(`🔧 [DISCOUNT DEBUG] ${order.id}: Order-level percentage ${discount.percentage/100}% on $${subtotalAfterItemDiscounts.toFixed(2)} = $${discountAmount.toFixed(2)}`);
+          } else {
+            // Fixed amount order-level discount
+            const rawAmount = discount.amount || discount.value || discount.discount || discount.discountAmount || '0';
+            discountAmount = Math.abs(parseFloat(rawAmount) / 100);
+            console.log(`🔧 [DISCOUNT DEBUG] ${order.id}: Order-level fixed discount $${discountAmount.toFixed(2)}`);
+          }
+          
+          // Round to cents
+          discountAmount = Math.round(discountAmount * 100) / 100;
+          orderLevelDiscounts += discountAmount;
+        });
+      }
+      
+      totalDiscounts = lineItemDiscounts + orderLevelDiscounts;
+      console.log(`🔧 [DISCOUNT DEBUG] ${order.id}: Final totals - Line discounts: $${lineItemDiscounts.toFixed(2)}, Order discounts: $${orderLevelDiscounts.toFixed(2)}, Total: $${totalDiscounts.toFixed(2)}`);
+      
+      // Fallback for orders with missing discount data but known to have discounts
+      if (totalDiscounts === 0) {
         // ULTRA-OPTIMIZED DISCOUNT FIX: Only call discount API for known discount orders
         const knownDiscountOrders = [
           'SDAFGZ1SSTQJ0', '7KW1441F96Q5C', 'R0CGB7XM7EBZW', 'SW1WVEKN1HRAP',
