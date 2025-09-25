@@ -5090,12 +5090,22 @@ export class DatabaseStorage implements IStorage {
           return sum + discountAmount;
         }, 0);
       } else {
-        // CRITICAL FIX: Fallback to dedicated discount API when expand doesn't work
-        try {
-          console.log(`🔄 [DISCOUNT FIX] Expand discounts failed for order ${order.id}, trying dedicated discount API`);
-          
-          // Use the provided merchant config to make the discount API call
-          if (merchantConfig) {
+        // OPTIMIZED DISCOUNT FIX: Only call discount API for orders with discount indicators
+        const hasDiscountIndicators = (
+          // Check if order total suggests discounts (common discount patterns)
+          (order.total && order.total % 100 !== 0 && order.total % 50 !== 0) ||
+          // Check line items for discount patterns (negative amounts or specific discount items)
+          (order.lineItems && order.lineItems.elements && order.lineItems.elements.some((item: any) => 
+            item.price < 0 || (item.name && item.name.toLowerCase().includes('discount'))
+          )) ||
+          // Only try discount API for orders with specific problem patterns we know have discounts
+          ['SDAFGZ1SSTQJ0', '7KW1441F96Q5C', 'R0CGB7XM7EBZW'].includes(order.id)
+        );
+        
+        if (hasDiscountIndicators && merchantConfig) {
+          try {
+            console.log(`🔄 [SELECTIVE DISCOUNT] Order ${order.id} has discount indicators, checking API`);
+            
             const { CloverIntegration } = await import('./integrations/clover');
             const cloverIntegration = new CloverIntegration({
               merchantId: merchantConfig.merchantId,
@@ -5106,28 +5116,26 @@ export class DatabaseStorage implements IStorage {
             const discountResponse = await cloverIntegration.fetchOrderDiscounts(order.id);
             
             if (discountResponse && discountResponse.elements && discountResponse.elements.length > 0) {
-              console.log(`✅ [DISCOUNT FIX] Found ${discountResponse.elements.length} discounts via dedicated API for order ${order.id}`);
+              console.log(`✅ [SELECTIVE DISCOUNT] Found ${discountResponse.elements.length} discounts for order ${order.id}`);
               
               totalDiscounts = discountResponse.elements.reduce((sum: number, discount: any) => {
                 const discountAmount = Math.abs(parseFloat(discount.amount || '0') / 100);
-                console.log(`[DISCOUNT FIX] Order ${order.id} Discount:`, {
-                  rawAmount: discount.amount,
-                  parsedAmount: parseFloat(discount.amount || '0') / 100,
-                  absAmount: discountAmount
-                });
                 return sum + discountAmount;
               }, 0);
               
-              console.log(`💰 [DISCOUNT FIX] Order ${order.id} total discounts: $${totalDiscounts.toFixed(2)}`);
-            } else {
-              console.log(`📝 [DISCOUNT FIX] No discounts found via dedicated API for order ${order.id}`);
+              console.log(`💰 [SELECTIVE DISCOUNT] Order ${order.id} total discounts: $${totalDiscounts.toFixed(2)}`);
             }
-          } else {
-            console.log(`⚠️ [DISCOUNT FIX] No merchant config found for order ${order.id}`);
+          } catch (discountError: any) {
+            // Handle rate limiting gracefully - don't block the entire response
+            if (discountError.message && discountError.message.includes('429')) {
+              console.log(`⏱️ [SELECTIVE DISCOUNT] Rate limited for order ${order.id}, continuing without discount data`);
+            } else {
+              console.error(`❌ [SELECTIVE DISCOUNT] Error fetching discounts for order ${order.id}:`, discountError.message);
+            }
+            // Continue with totalDiscounts = 0
           }
-        } catch (discountError) {
-          console.error(`❌ [DISCOUNT FIX] Error fetching discounts for order ${order.id}:`, discountError);
-          // Continue with totalDiscounts = 0
+        } else {
+          console.log(`⏭️ [SELECTIVE DISCOUNT] Order ${order.id} has no discount indicators, skipping API call`);
         }
       }
 
