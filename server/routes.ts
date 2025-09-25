@@ -6464,28 +6464,307 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // SPECIFIC ROUTES MUST COME BEFORE PARAMETERIZED ROUTES
 
-  // Get voided items from orders
+  // Get voided items from orders using comprehensive Clover API
   app.get('/api/orders/voided-items', isAuthenticated, async (req, res) => {
     try {
       const {
         startDate,
         endDate,
         locationId,
+        employeeId
       } = req.query as Record<string, string>;
 
-      console.log('🔧 [VOIDED ITEMS] Route handler called');
-      // For now, return empty voided items structure
-      // This can be enhanced later with real Clover API integration
+      console.log('🔧 [VOIDED ITEMS] Enhanced route handler called with comprehensive API');
+      
+      let allVoidedItems: any[] = [];
+      let totalVoidedAmount = 0;
+      let totalVoidedItems = 0;
+      
+      // Get Clover configurations
+      const cloverConfigs = await storage.getAllCloverConfigs();
+      
+      for (const config of cloverConfigs) {
+        // Skip if locationId filter doesn't match
+        if (locationId && locationId !== 'all' && config.id?.toString() !== locationId.toString()) {
+          continue;
+        }
+        
+        try {
+          const { CloverIntegration } = await import('./integrations/clover');
+          const cloverIntegration = new CloverIntegration(config);
+          
+          // Fetch voided line items totals for this location
+          const voidedTotals = await cloverIntegration.fetchVoidedLineItemsTotals({
+            startDate,
+            endDate,
+            employee: employeeId
+          });
+          
+          if (voidedTotals && voidedTotals.elements) {
+            const locationVoidedItems = voidedTotals.elements.map((item: any) => ({
+              ...item,
+              locationName: config.merchantName,
+              locationId: config.id,
+              merchantId: config.merchantId
+            }));
+            
+            allVoidedItems.push(...locationVoidedItems);
+            
+            // Aggregate totals
+            totalVoidedItems += locationVoidedItems.length;
+            totalVoidedAmount += locationVoidedItems.reduce((sum: number, item: any) => {
+              return sum + (parseFloat(item.price || 0) / 100);
+            }, 0);
+          }
+          
+          console.log(`✅ Fetched ${voidedTotals?.elements?.length || 0} voided items from ${config.merchantName}`);
+          
+        } catch (error) {
+          console.error(`❌ Error fetching voided items from ${config.merchantName}:`, error);
+          // Continue with other locations
+        }
+      }
+
       res.json({
-        voidedItems: [],
+        voidedItems: allVoidedItems,
         totals: {
-          totalVoidedAmount: 0,
-          totalVoidedItems: 0
+          totalVoidedAmount,
+          totalVoidedItems
         }
       });
     } catch (error) {
       console.error('Error fetching voided items:', error);
       res.status(500).json({ error: 'Failed to fetch voided items' });
+    }
+  });
+
+  // Get order discounts using comprehensive Clover API
+  app.get('/api/orders/:orderId/discounts', isAuthenticated, async (req, res) => {
+    try {
+      const { orderId } = req.params;
+      console.log(`💰 [ORDER DISCOUNTS] Fetching discounts for order ${orderId}`);
+
+      let allDiscounts: any[] = [];
+      
+      // Get Clover configurations to find the right merchant for this order
+      const cloverConfigs = await storage.getAllCloverConfigs();
+      
+      for (const config of cloverConfigs) {
+        try {
+          const { CloverIntegration } = await import('./integrations/clover');
+          const cloverIntegration = new CloverIntegration(config);
+          
+          // Fetch order discounts for this location
+          const discounts = await cloverIntegration.fetchOrderDiscounts(orderId);
+          
+          if (discounts && discounts.elements) {
+            const locationDiscounts = discounts.elements.map((discount: any) => ({
+              ...discount,
+              locationName: config.merchantName,
+              locationId: config.id,
+              merchantId: config.merchantId
+            }));
+            
+            allDiscounts.push(...locationDiscounts);
+          }
+          
+          console.log(`✅ Fetched ${discounts?.elements?.length || 0} discounts from ${config.merchantName}`);
+          
+        } catch (error) {
+          console.error(`❌ Error fetching discounts from ${config.merchantName}:`, error);
+          // Continue with other locations
+        }
+      }
+
+      res.json({
+        discounts: allDiscounts,
+        total: allDiscounts.length
+      });
+    } catch (error) {
+      console.error('Error fetching order discounts:', error);
+      res.status(500).json({ error: 'Failed to fetch order discounts' });
+    }
+  });
+
+  // Get employee payments using comprehensive Clover API
+  app.get('/api/orders/employee-payments', isAuthenticated, async (req, res) => {
+    try {
+      const {
+        employeeId,
+        startDate,
+        endDate,
+        locationId,
+        limit = '100',
+        offset = '0'
+      } = req.query as Record<string, string>;
+
+      console.log(`👥 [EMPLOYEE PAYMENTS] Fetching employee payments`);
+      
+      let allPayments: any[] = [];
+      
+      // Get Clover configurations
+      const cloverConfigs = await storage.getAllCloverConfigs();
+      
+      for (const config of cloverConfigs) {
+        // Skip if locationId filter doesn't match
+        if (locationId && locationId !== 'all' && config.id?.toString() !== locationId.toString()) {
+          continue;
+        }
+        
+        try {
+          const { CloverIntegration } = await import('./integrations/clover');
+          const cloverIntegration = new CloverIntegration(config);
+          
+          // Fetch employee payments for this location
+          const payments = await cloverIntegration.fetchEmployeePayments({
+            employeeId,
+            startDate,
+            endDate,
+            limit: parseInt(limit),
+            offset: parseInt(offset)
+          });
+          
+          if (payments && payments.elements) {
+            const locationPayments = payments.elements.map((payment: any) => ({
+              ...payment,
+              locationName: config.merchantName,
+              locationId: config.id,
+              merchantId: config.merchantId
+            }));
+            
+            allPayments.push(...locationPayments);
+          }
+          
+          console.log(`✅ Fetched ${payments?.elements?.length || 0} employee payments from ${config.merchantName}`);
+          
+        } catch (error) {
+          console.error(`❌ Error fetching employee payments from ${config.merchantName}:`, error);
+          // Continue with other locations
+        }
+      }
+
+      res.json({
+        payments: allPayments,
+        total: allPayments.length
+      });
+    } catch (error) {
+      console.error('Error fetching employee payments:', error);
+      res.status(500).json({ error: 'Failed to fetch employee payments' });
+    }
+  });
+
+  // Get credit refunds using comprehensive Clover API
+  app.get('/api/orders/credit-refunds', isAuthenticated, async (req, res) => {
+    try {
+      const {
+        orderId,
+        paymentId,
+        startDate,
+        endDate,
+        locationId,
+        limit = '100',
+        offset = '0'
+      } = req.query as Record<string, string>;
+
+      console.log(`🔄 [CREDIT REFUNDS] Fetching credit refunds`);
+      
+      let allRefunds: any[] = [];
+      
+      // Get Clover configurations
+      const cloverConfigs = await storage.getAllCloverConfigs();
+      
+      for (const config of cloverConfigs) {
+        // Skip if locationId filter doesn't match
+        if (locationId && locationId !== 'all' && config.id?.toString() !== locationId.toString()) {
+          continue;
+        }
+        
+        try {
+          const { CloverIntegration } = await import('./integrations/clover');
+          const cloverIntegration = new CloverIntegration(config);
+          
+          // Fetch credit refunds for this location
+          const refunds = await cloverIntegration.fetchCreditRefunds({
+            orderId,
+            paymentId,
+            startDate,
+            endDate,
+            limit: parseInt(limit),
+            offset: parseInt(offset)
+          });
+          
+          if (refunds && refunds.elements) {
+            const locationRefunds = refunds.elements.map((refund: any) => ({
+              ...refund,
+              locationName: config.merchantName,
+              locationId: config.id,
+              merchantId: config.merchantId
+            }));
+            
+            allRefunds.push(...locationRefunds);
+          }
+          
+          console.log(`✅ Fetched ${refunds?.elements?.length || 0} credit refunds from ${config.merchantName}`);
+          
+        } catch (error) {
+          console.error(`❌ Error fetching credit refunds from ${config.merchantName}:`, error);
+          // Continue with other locations
+        }
+      }
+
+      res.json({
+        refunds: allRefunds,
+        total: allRefunds.length
+      });
+    } catch (error) {
+      console.error('Error fetching credit refunds:', error);
+      res.status(500).json({ error: 'Failed to fetch credit refunds' });
+    }
+  });
+
+  // Get comprehensive order data using all available APIs
+  app.get('/api/orders/:orderId/comprehensive', isAuthenticated, async (req, res) => {
+    try {
+      const { orderId } = req.params;
+      console.log(`🎯 [COMPREHENSIVE ORDER] Fetching all data for order ${orderId}`);
+
+      let comprehensiveData: any = null;
+      
+      // Get Clover configurations to find the right merchant for this order
+      const cloverConfigs = await storage.getAllCloverConfigs();
+      
+      for (const config of cloverConfigs) {
+        try {
+          const { CloverIntegration } = await import('./integrations/clover');
+          const cloverIntegration = new CloverIntegration(config);
+          
+          // Fetch comprehensive order data for this location
+          const data = await cloverIntegration.fetchComprehensiveOrderData(orderId);
+          
+          if (data && data.orderDetails) {
+            comprehensiveData = {
+              ...data,
+              locationName: config.merchantName,
+              locationId: config.id,
+              merchantId: config.merchantId
+            };
+            break; // Found the order, stop searching
+          }
+          
+        } catch (error) {
+          console.error(`❌ Error fetching comprehensive data from ${config.merchantName}:`, error);
+          // Continue with other locations
+        }
+      }
+
+      if (!comprehensiveData) {
+        return res.status(404).json({ error: 'Order not found' });
+      }
+
+      res.json(comprehensiveData);
+    } catch (error) {
+      console.error('Error fetching comprehensive order data:', error);
+      res.status(500).json({ error: 'Failed to fetch comprehensive order data' });
     }
   });
 

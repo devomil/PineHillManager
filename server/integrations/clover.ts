@@ -507,6 +507,185 @@ export class CloverIntegration {
     return await this.makeCloverAPICall(endpoint);
   }
 
+  // ================================
+  // COMPREHENSIVE REPORTING METHODS
+  // ================================
+
+  // Fetch voided order line items for comprehensive reporting
+  async fetchVoidedOrderLineItems(params: {
+    orderId: string;
+    limit?: number;
+    offset?: number;
+  }) {
+    console.log(`🗑️ Fetching voided line items for order ${params.orderId}`);
+    
+    const queryParams = new URLSearchParams();
+    if (params.limit) queryParams.append('limit', params.limit.toString());
+    if (params.offset) queryParams.append('offset', params.offset.toString());
+
+    const queryString = queryParams.toString();
+    const endpoint = queryString 
+      ? `orders/${params.orderId}/line_items/voided?${queryString}` 
+      : `orders/${params.orderId}/line_items/voided`;
+    
+    return await this.makeCloverAPICall(endpoint);
+  }
+
+  // Fetch order discounts for detailed discount tracking
+  async fetchOrderDiscounts(orderId: string) {
+    console.log(`💰 Fetching discounts for order ${orderId}`);
+    return await this.makeCloverAPICall(`orders/${orderId}/discounts`);
+  }
+
+  // Fetch voided line items totals for accurate void reporting
+  async fetchVoidedLineItemsTotals(params: {
+    startDate?: string;
+    endDate?: string;
+    employee?: string;
+  } = {}) {
+    console.log(`📊 Fetching voided line items totals`);
+    
+    const queryParams = new URLSearchParams();
+    if (params.startDate) queryParams.append('filter', `modifiedTime>=${new Date(params.startDate).getTime()}`);
+    if (params.endDate) queryParams.append('filter', `modifiedTime<=${new Date(params.endDate).getTime()}`);
+    if (params.employee) queryParams.append('filter', `employee.id=${params.employee}`);
+
+    const queryString = queryParams.toString();
+    const endpoint = queryString 
+      ? `line_items/voided/totals?${queryString}` 
+      : `line_items/voided/totals`;
+    
+    return await this.makeCloverAPICall(endpoint);
+  }
+
+  // Enhanced order details fetching with complete structure
+  async fetchOrderDetails(orderId: string, expand?: string[]) {
+    console.log(`📋 Fetching detailed order information for ${orderId}`);
+    
+    const queryParams = new URLSearchParams();
+    if (expand && expand.length > 0) {
+      queryParams.append('expand', expand.join(','));
+    } else {
+      // Default comprehensive expand for single source of truth
+      queryParams.append('expand', 'lineItems,payments,refunds,credits,voids,discounts,serviceCharge,lineItems.discounts,lineItems.modifications');
+    }
+
+    const queryString = queryParams.toString();
+    const endpoint = `orders/${orderId}?${queryString}`;
+    
+    return await this.makeCloverAPICall(endpoint);
+  }
+
+  // Fetch comprehensive order line items
+  async fetchOrderLineItems(orderId: string, params: {
+    limit?: number;
+    offset?: number;
+    expand?: string[];
+  } = {}) {
+    console.log(`📝 Fetching line items for order ${orderId}`);
+    
+    const queryParams = new URLSearchParams();
+    if (params.limit) queryParams.append('limit', params.limit.toString());
+    if (params.offset) queryParams.append('offset', params.offset.toString());
+    if (params.expand && params.expand.length > 0) {
+      queryParams.append('expand', params.expand.join(','));
+    } else {
+      queryParams.append('expand', 'discounts,modifications,item');
+    }
+
+    const queryString = queryParams.toString();
+    const endpoint = `orders/${orderId}/line_items?${queryString}`;
+    
+    return await this.makeCloverAPICall(endpoint);
+  }
+
+  // Fetch employee payment data for staff sales reporting
+  async fetchEmployeePayments(params: {
+    employeeId?: string;
+    startDate?: string;
+    endDate?: string;
+    limit?: number;
+    offset?: number;
+  } = {}) {
+    console.log(`👥 Fetching employee payments`);
+    
+    const queryParams = new URLSearchParams();
+    if (params.employeeId) queryParams.append('filter', `employee.id=${params.employeeId}`);
+    if (params.startDate) queryParams.append('filter', `modifiedTime>=${new Date(params.startDate).getTime()}`);
+    if (params.endDate) queryParams.append('filter', `modifiedTime<=${new Date(params.endDate).getTime()}`);
+    if (params.limit) queryParams.append('limit', params.limit.toString());
+    if (params.offset) queryParams.append('offset', params.offset.toString());
+
+    const queryString = queryParams.toString();
+    const endpoint = queryString ? `payments?${queryString}` : 'payments';
+    
+    return await this.makeCloverAPICall(endpoint);
+  }
+
+  // Fetch credit refunds for complete refund visibility
+  async fetchCreditRefunds(params: {
+    orderId?: string;
+    paymentId?: string;
+    startDate?: string;
+    endDate?: string;
+    limit?: number;
+    offset?: number;
+  } = {}) {
+    console.log(`🔄 Fetching credit refunds`);
+    
+    const queryParams = new URLSearchParams();
+    if (params.orderId) queryParams.append('filter', `order.id=${params.orderId}`);
+    if (params.paymentId) queryParams.append('filter', `payment.id=${params.paymentId}`);
+    if (params.startDate) queryParams.append('filter', `modifiedTime>=${new Date(params.startDate).getTime()}`);
+    if (params.endDate) queryParams.append('filter', `modifiedTime<=${new Date(params.endDate).getTime()}`);
+    if (params.limit) queryParams.append('limit', params.limit.toString());
+    if (params.offset) queryParams.append('offset', params.offset.toString());
+
+    const queryString = queryParams.toString();
+    const endpoint = queryString ? `refunds?${queryString}` : 'refunds';
+    
+    return await this.makeCloverAPICall(endpoint);
+  }
+
+  // Comprehensive order data aggregation for single source of truth
+  async fetchComprehensiveOrderData(orderId: string) {
+    console.log(`🎯 Fetching comprehensive order data for ${orderId}`);
+    
+    try {
+      const [
+        orderDetails,
+        lineItems,
+        discounts,
+        voidedItems,
+        refunds
+      ] = await Promise.allSettled([
+        this.fetchOrderDetails(orderId),
+        this.fetchOrderLineItems(orderId),
+        this.fetchOrderDiscounts(orderId),
+        this.fetchVoidedOrderLineItems({ orderId }),
+        this.fetchCreditRefunds({ orderId })
+      ]);
+
+      return {
+        orderDetails: orderDetails.status === 'fulfilled' ? orderDetails.value : null,
+        lineItems: lineItems.status === 'fulfilled' ? lineItems.value : null,
+        discounts: discounts.status === 'fulfilled' ? discounts.value : null,
+        voidedItems: voidedItems.status === 'fulfilled' ? voidedItems.value : null,
+        refunds: refunds.status === 'fulfilled' ? refunds.value : null,
+        errors: {
+          orderDetails: orderDetails.status === 'rejected' ? orderDetails.reason : null,
+          lineItems: lineItems.status === 'rejected' ? lineItems.reason : null,
+          discounts: discounts.status === 'rejected' ? discounts.reason : null,
+          voidedItems: voidedItems.status === 'rejected' ? voidedItems.reason : null,
+          refunds: refunds.status === 'rejected' ? refunds.reason : null
+        }
+      };
+    } catch (error) {
+      console.error(`❌ Error fetching comprehensive order data for ${orderId}:`, error);
+      throw error;
+    }
+  }
+
   async fetchOptions(params: {
     limit?: number;
     offset?: number;
