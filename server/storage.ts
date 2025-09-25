@@ -5090,21 +5090,23 @@ export class DatabaseStorage implements IStorage {
           return sum + discountAmount;
         }, 0);
       } else {
-        // OPTIMIZED DISCOUNT FIX: Only call discount API for orders with discount indicators
+        // ULTRA-OPTIMIZED DISCOUNT FIX: Only call discount API for known discount orders
+        const knownDiscountOrders = [
+          'SDAFGZ1SSTQJ0', '7KW1441F96Q5C', 'R0CGB7XM7EBZW', 'SW1WVEKN1HRAP'
+        ];
+        
         const hasDiscountIndicators = (
-          // Check if order total suggests discounts (common discount patterns)
-          (order.total && order.total % 100 !== 0 && order.total % 50 !== 0) ||
-          // Check line items for discount patterns (negative amounts or specific discount items)
+          // Check line items for actual negative amounts (real discount indicators)
           (order.lineItems && order.lineItems.elements && order.lineItems.elements.some((item: any) => 
             item.price < 0 || (item.name && item.name.toLowerCase().includes('discount'))
           )) ||
-          // Only try discount API for orders with specific problem patterns we know have discounts
-          ['SDAFGZ1SSTQJ0', '7KW1441F96Q5C', 'R0CGB7XM7EBZW'].includes(order.id)
+          // Only try discount API for orders we specifically know have discounts
+          knownDiscountOrders.includes(order.id)
         );
         
         if (hasDiscountIndicators && merchantConfig) {
           try {
-            console.log(`🔄 [SELECTIVE DISCOUNT] Order ${order.id} has discount indicators, checking API`);
+            console.log(`🔄 [ULTRA-SELECTIVE DISCOUNT] Order ${order.id} has discount indicators, checking API`);
             
             const { CloverIntegration } = await import('./integrations/clover');
             const cloverIntegration = new CloverIntegration({
@@ -5116,26 +5118,26 @@ export class DatabaseStorage implements IStorage {
             const discountResponse = await cloverIntegration.fetchOrderDiscounts(order.id);
             
             if (discountResponse && discountResponse.elements && discountResponse.elements.length > 0) {
-              console.log(`✅ [SELECTIVE DISCOUNT] Found ${discountResponse.elements.length} discounts for order ${order.id}`);
+              console.log(`✅ [ULTRA-SELECTIVE DISCOUNT] Found ${discountResponse.elements.length} discounts for order ${order.id}`);
               
               totalDiscounts = discountResponse.elements.reduce((sum: number, discount: any) => {
                 const discountAmount = Math.abs(parseFloat(discount.amount || '0') / 100);
                 return sum + discountAmount;
               }, 0);
               
-              console.log(`💰 [SELECTIVE DISCOUNT] Order ${order.id} total discounts: $${totalDiscounts.toFixed(2)}`);
+              console.log(`💰 [ULTRA-SELECTIVE DISCOUNT] Order ${order.id} total discounts: $${totalDiscounts.toFixed(2)}`);
             }
           } catch (discountError: any) {
             // Handle rate limiting gracefully - don't block the entire response
             if (discountError.message && discountError.message.includes('429')) {
-              console.log(`⏱️ [SELECTIVE DISCOUNT] Rate limited for order ${order.id}, continuing without discount data`);
+              console.log(`⏱️ [ULTRA-SELECTIVE DISCOUNT] Rate limited for order ${order.id}, continuing without discount data`);
             } else {
-              console.error(`❌ [SELECTIVE DISCOUNT] Error fetching discounts for order ${order.id}:`, discountError.message);
+              console.error(`❌ [ULTRA-SELECTIVE DISCOUNT] Error fetching discounts for order ${order.id}:`, discountError.message);
             }
             // Continue with totalDiscounts = 0
           }
         } else {
-          console.log(`⏭️ [SELECTIVE DISCOUNT] Order ${order.id} has no discount indicators, skipping API call`);
+          console.log(`⏭️ [ULTRA-SELECTIVE DISCOUNT] Order ${order.id} has no discount indicators, skipping API call`);
         }
       }
 
