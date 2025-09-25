@@ -6378,7 +6378,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Add timeout wrapper for Amazon integration
           const amazonFetchWithTimeout = async (): Promise<any[]> => {
             const timeoutPromise = new Promise((_, reject) => 
-              setTimeout(() => reject(new Error('Amazon API timeout')), 10000) // 10 second timeout
+              setTimeout(() => reject(new Error('Amazon API timeout')), 3000) // 3 second timeout
             );
             
             const fetchPromise = async (): Promise<any[]> => {
@@ -6437,6 +6437,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.error('Error fetching Amazon orders (with timeout):', error);
           // Don't fail the entire request if Amazon fails - continue with just Clover orders
           amazonOrders = [];
+          // Log specifically if it's a timeout vs API error
+          if (error.message === 'Amazon API timeout') {
+            console.log('🛒 [AMAZON ORDERS] Request timed out after 3 seconds - continuing without Amazon data');
+          }
         }
       }
 
