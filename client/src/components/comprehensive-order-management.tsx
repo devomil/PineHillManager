@@ -489,10 +489,10 @@ export function ComprehensiveOrderManagement() {
     // Enhanced metrics from orders data for COGS analysis
     const orderMetrics = ordersData.orders.reduce((acc, order) => {
       return {
-        totalCOGS: acc.totalCOGS + (parseFloat(order.netCOGS) || 0),
-        totalProfit: acc.totalProfit + (parseFloat(order.netProfit) || 0),
+        totalCOGS: acc.totalCOGS + (typeof order.netCOGS === 'number' ? order.netCOGS : parseFloat(String(order.netCOGS || 0))),
+        totalProfit: acc.totalProfit + (typeof order.netProfit === 'number' ? order.netProfit : parseFloat(String(order.netProfit || 0))),
         orderCount: acc.orderCount + 1,
-        marginSum: acc.marginSum + (parseFloat(order.netMargin?.replace('%', '') || '0'))
+        marginSum: acc.marginSum + (parseFloat(String(order.netMargin || '0').replace('%', '')))
       };
     }, { totalCOGS: 0, totalProfit: 0, orderCount: 0, marginSum: 0 });
 
@@ -513,7 +513,7 @@ export function ComprehensiveOrderManagement() {
       // Primary order metrics (from analytics API)
       totalOrders: baseStats.totalOrders || 0,
       totalRevenue: baseStats.totalRevenue || 0,
-      avgOrderValue: baseStats.avgOrderValue || 0,
+      avgOrderValue: baseStats.averageOrderValue || 0,
       
       // Financial analysis (from orders data)
       totalCOGS: orderMetrics.totalCOGS,
@@ -521,8 +521,8 @@ export function ComprehensiveOrderManagement() {
       avgMargin: orderMetrics.orderCount > 0 ? orderMetrics.marginSum / orderMetrics.orderCount : 0,
       
       // Comprehensive reporting metrics
-      voidedAmount: voidedMetrics.totalVoidedAmount || 0,
-      voidedItemsCount: voidedMetrics.totalVoidedItems || 0,
+      voidedAmount: (voidedMetrics as any)?.totalVoidedAmount || 0,
+      voidedItemsCount: (voidedMetrics as any)?.totalVoidedItems || 0,
       employeePaymentCount: employeePaymentMetrics.count,
       employeePaymentAmount: employeePaymentMetrics.totalAmount,
       creditRefundCount: creditRefundMetrics.count,
@@ -530,7 +530,7 @@ export function ComprehensiveOrderManagement() {
       
       // Calculated metrics
       grossProfitMargin: baseStats.totalRevenue > 0 ? (orderMetrics.totalProfit / baseStats.totalRevenue) * 100 : 0,
-      voidedRate: baseStats.totalOrders > 0 ? (voidedMetrics.totalVoidedItems || 0) / baseStats.totalOrders * 100 : 0,
+      voidedRate: baseStats.totalOrders > 0 ? ((voidedMetrics as any)?.totalVoidedItems || 0) / baseStats.totalOrders * 100 : 0,
       refundRate: creditRefundMetrics.count > 0 && baseStats.totalOrders > 0 ? 
         (creditRefundMetrics.count / baseStats.totalOrders) * 100 : 0
     };
