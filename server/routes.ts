@@ -6444,14 +6444,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Combine database and Amazon orders
-      const allOrders = [...dbResult.orders, ...amazonOrders];
-      const totalItems = dbResult.total + amazonOrders.length;
+      // Transform Amazon orders to include COGS calculation 
+      const amazonOrdersWithMetrics = await Promise.all(amazonOrders.map(async (order) => {
+        try {
+          // Calculate financial metrics for Amazon orders (including COGS)
+          const metrics = await storage.calculateOrderFinancialMetrics(order);
+          return {
+            ...order,
+            ...metrics,
+            isAmazonOrder: true,
+            locationName: 'Amazon Store'
+          };
+        } catch (error) {
+          console.error(`Error calculating metrics for Amazon order ${order.AmazonOrderId}:`, error);
+          return {
+            ...order,
+            isAmazonOrder: true,
+            locationName: 'Amazon Store',
+            netCOGS: 0,
+            netProfit: 0,
+            netMargin: '0.00%'
+          };
+        }
+      }));
 
-      console.log(`🚀 [ORDERS API] Database query completed, returning ${allOrders.length} orders out of ${totalItems} total`);
+      // FIXED PAGINATION: Don't combine paginated results inappropriately
+      // For now, prioritize Clover orders with proper pagination, add Amazon orders to current page only
+      let allOrdersForCurrentPage = [...dbResult.orders];
+      let totalItems = dbResult.total;
+      
+      // Add Amazon orders only if we're on the first page and have space
+      if (offsetNum === 0 && allOrdersForCurrentPage.length < limitNum) {
+        const remainingSpace = limitNum - allOrdersForCurrentPage.length;
+        allOrdersForCurrentPage.push(...amazonOrdersWithMetrics.slice(0, remainingSpace));
+      }
+      
+      // Account for Amazon orders in total only
+      totalItems += amazonOrdersWithMetrics.length;
+
+      console.log(`🚀 [ORDERS API] Database query completed, returning ${allOrdersForCurrentPage.length} orders out of ${totalItems} total`);
 
       res.json({
-        orders: allOrders,
+        orders: allOrdersForCurrentPage,
         pagination: {
           currentPage: parseInt(page),
           totalPages: Math.ceil(totalItems / parseInt(limit)),

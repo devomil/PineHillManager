@@ -5317,7 +5317,26 @@ export class DatabaseStorage implements IStorage {
           
           // Try to find inventory item by SKU/item ID to get actual cost
           try {
-            const inventoryItems = await this.getInventoryItemsBySKU(lineItem.item?.id || lineItem.id);
+            // For Amazon orders, try different SKU mappings
+            let inventoryItems: any[] = [];
+            const itemId = lineItem.item?.id || lineItem.id || lineItem.SellerSKU || lineItem.ASIN;
+            
+            if (itemId) {
+              inventoryItems = await this.getInventoryItemsBySKU(itemId);
+              
+              // If not found and this is an Amazon order, try alternative mappings
+              if (inventoryItems.length === 0 && order.isAmazonOrder) {
+                // Try ASIN lookup
+                if (lineItem.ASIN) {
+                  inventoryItems = await this.getInventoryItemsBySKU(lineItem.ASIN);
+                }
+                // Try SellerSKU lookup  
+                if (inventoryItems.length === 0 && lineItem.SellerSKU) {
+                  inventoryItems = await this.getInventoryItemsBySKU(lineItem.SellerSKU);
+                }
+              }
+            }
+            
             if (inventoryItems.length > 0) {
               const inventoryItem = inventoryItems[0];
               const rawUnitCost = inventoryItem.unitCost || '0';
