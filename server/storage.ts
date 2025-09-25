@@ -5090,7 +5090,20 @@ export class DatabaseStorage implements IStorage {
         });
         
         totalDiscounts = order.discounts.elements.reduce((sum: number, discount: any) => {
-          const discountAmount = Math.abs(parseFloat(discount.amount || discount.value || discount.discount || discount.discountAmount || '0') / 100);
+          let discountAmount = 0;
+          
+          // Handle percentage-based discounts (like "100% HSA")
+          if (discount.percentage && typeof discount.percentage === 'number') {
+            // Calculate discount as percentage of order total
+            discountAmount = (orderTotal * discount.percentage) / 100;
+            console.log(`[DISCOUNT CALC] Percentage-based discount: ${discount.percentage}% of $${orderTotal.toFixed(2)} = $${discountAmount.toFixed(2)}`);
+          } else {
+            // Handle fixed amount discounts (stored in cents)
+            const rawAmount = discount.amount || discount.value || discount.discount || discount.discountAmount || '0';
+            discountAmount = Math.abs(parseFloat(rawAmount) / 100);
+            console.log(`[DISCOUNT CALC] Fixed amount discount: ${rawAmount} cents = $${discountAmount.toFixed(2)}`);
+          }
+          
           return sum + discountAmount;
         }, 0);
       } else {
@@ -5127,7 +5140,20 @@ export class DatabaseStorage implements IStorage {
               console.log(`✅ [ULTRA-SELECTIVE DISCOUNT] Found ${discountResponse.elements.length} discounts for order ${order.id}`);
               
               totalDiscounts = discountResponse.elements.reduce((sum: number, discount: any) => {
-                const discountAmount = Math.abs(parseFloat(discount.amount || discount.value || discount.discount || discount.discountAmount || '0') / 100);
+                let discountAmount = 0;
+                
+                // Handle percentage-based discounts (like "100% HSA")
+                if (discount.percentage && typeof discount.percentage === 'number') {
+                  // Calculate discount as percentage of order total
+                  discountAmount = (orderTotal * discount.percentage) / 100;
+                  console.log(`[API DISCOUNT CALC] Percentage-based discount: ${discount.percentage}% of $${orderTotal.toFixed(2)} = $${discountAmount.toFixed(2)}`);
+                } else {
+                  // Handle fixed amount discounts (stored in cents)
+                  const rawAmount = discount.amount || discount.value || discount.discount || discount.discountAmount || '0';
+                  discountAmount = Math.abs(parseFloat(rawAmount) / 100);
+                  console.log(`[API DISCOUNT CALC] Fixed amount discount: ${rawAmount} cents = $${discountAmount.toFixed(2)}`);
+                }
+                
                 return sum + discountAmount;
               }, 0);
               

@@ -29,7 +29,9 @@ import {
   XCircle,
   Users,
   Percent,
-  RotateCcw
+  RotateCcw,
+  Receipt,
+  Tag
 } from "lucide-react";
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { format, addDays, startOfDay, endOfDay, subDays } from "date-fns";
@@ -490,10 +492,12 @@ export function ComprehensiveOrderManagement() {
       return {
         totalCOGS: acc.totalCOGS + (typeof order.netCOGS === 'number' ? order.netCOGS : parseFloat(String(order.netCOGS || 0))),
         totalProfit: acc.totalProfit + (typeof order.netProfit === 'number' ? order.netProfit : parseFloat(String(order.netProfit || 0))),
+        totalDiscounts: acc.totalDiscounts + (typeof order.totalDiscounts === 'number' ? order.totalDiscounts : parseFloat(String(order.totalDiscounts || 0))),
+        totalGrossTax: acc.totalGrossTax + (typeof order.grossTax === 'number' ? order.grossTax : parseFloat(String(order.grossTax || 0))),
         orderCount: acc.orderCount + 1,
         marginSum: acc.marginSum + (parseFloat(String(order.netMargin || '0').replace('%', '')))
       };
-    }, { totalCOGS: 0, totalProfit: 0, orderCount: 0, marginSum: 0 });
+    }, { totalCOGS: 0, totalProfit: 0, totalDiscounts: 0, totalGrossTax: 0, orderCount: 0, marginSum: 0 });
 
     // Comprehensive reporting metrics from new API endpoints
     const voidedMetrics = voidedData?.totals || {};
@@ -517,9 +521,11 @@ export function ComprehensiveOrderManagement() {
       // Financial analysis (from orders data)
       totalCOGS: orderMetrics.totalCOGS,
       totalProfit: orderMetrics.totalProfit,
+      totalGrossTax: orderMetrics.totalGrossTax,
       avgMargin: orderMetrics.orderCount > 0 ? orderMetrics.marginSum / orderMetrics.orderCount : 0,
       
       // Comprehensive reporting metrics
+      totalDiscounts: orderMetrics.totalDiscounts,
       voidedAmount: (voidedMetrics as any)?.totalVoidedAmount || 0,
       voidedItemsCount: (voidedMetrics as any)?.totalVoidedItems || 0,
       employeePaymentCount: employeePaymentMetrics.count,
@@ -824,6 +830,16 @@ export function ComprehensiveOrderManagement() {
                   <div className="text-2xl font-bold">{formatCurrencyDirect(comprehensiveStats.totalCOGS)}</div>
                 </CardContent>
               </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Gross Sales Tax</CardTitle>
+                  <Receipt className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{formatCurrencyDirect(comprehensiveStats.totalGrossTax)}</div>
+                </CardContent>
+              </Card>
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-medium">Net Profit</CardTitle>
@@ -861,6 +877,17 @@ export function ComprehensiveOrderManagement() {
           <div>
             <h3 className="text-lg font-semibold mb-4">Advanced Reporting</h3>
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Total Discounts</CardTitle>
+                  <Tag className="h-4 w-4 text-blue-500" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-blue-500">{formatCurrencyDirect(comprehensiveStats.totalDiscounts)}</div>
+                  <p className="text-xs text-muted-foreground">Applied to orders</p>
+                </CardContent>
+              </Card>
+
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-medium">Employee Payments</CardTitle>
