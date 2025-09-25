@@ -19,11 +19,17 @@ import {
   DollarSign, 
   ShoppingCart, 
   TrendingUp,
+  TrendingDown,
   Calendar,
   Filter,
   Download,
   AlertCircle,
-  CheckCircle
+  AlertTriangle,
+  CheckCircle,
+  XCircle,
+  Users,
+  Percent,
+  RotateCcw
 } from "lucide-react";
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { format, addDays, startOfDay, endOfDay, subDays } from "date-fns";
@@ -419,6 +425,117 @@ export function ComprehensiveOrderManagement() {
     refetchOnWindowFocus: false,
   });
 
+  // Fetch employee payments for comprehensive reporting
+  const employeePaymentsParams = new URLSearchParams();
+  if (dateParams?.startDate) employeePaymentsParams.set('startDate', dateParams.startDate);
+  if (dateParams?.endDate) employeePaymentsParams.set('endDate', dateParams.endDate);
+  employeePaymentsParams.set('locationId', filters.locationId);
+  const employeePaymentsUrl = `/api/orders/employee-payments?${employeePaymentsParams.toString()}`;
+
+  const { data: employeePaymentsData, isLoading: employeePaymentsLoading } = useQuery({
+    queryKey: ['/api/orders/employee-payments', {
+      startDate: dateParams?.startDate,
+      endDate: dateParams?.endDate,
+      locationId: filters.locationId
+    }],
+    queryFn: async () => {
+      const response = await fetch(employeePaymentsUrl, {
+        credentials: 'include'
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to fetch employee payments: ${response.status} ${response.statusText}`);
+      }
+      return response.json();
+    },
+    enabled: !!dateParams,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
+
+  // Fetch credit refunds for comprehensive reporting
+  const creditRefundsParams = new URLSearchParams();
+  if (dateParams?.startDate) creditRefundsParams.set('startDate', dateParams.startDate);
+  if (dateParams?.endDate) creditRefundsParams.set('endDate', dateParams.endDate);
+  creditRefundsParams.set('locationId', filters.locationId);
+  const creditRefundsUrl = `/api/orders/credit-refunds?${creditRefundsParams.toString()}`;
+
+  const { data: creditRefundsData, isLoading: creditRefundsLoading } = useQuery({
+    queryKey: ['/api/orders/credit-refunds', {
+      startDate: dateParams?.startDate,
+      endDate: dateParams?.endDate,
+      locationId: filters.locationId
+    }],
+    queryFn: async () => {
+      const response = await fetch(creditRefundsUrl, {
+        credentials: 'include'
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to fetch credit refunds: ${response.status} ${response.statusText}`);
+      }
+      return response.json();
+    },
+    enabled: !!dateParams,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
+
+  // Comprehensive stats aggregation from all data sources - Single Source of Truth
+  const comprehensiveStats = useMemo(() => {
+    if (!ordersData || !analyticsData) return null;
+
+    // Core metrics from analytics API (primary source)
+    const baseStats = analyticsData.summary || {};
+    
+    // Enhanced metrics from orders data for COGS analysis
+    const orderMetrics = ordersData.orders.reduce((acc, order) => {
+      return {
+        totalCOGS: acc.totalCOGS + (parseFloat(order.netCOGS) || 0),
+        totalProfit: acc.totalProfit + (parseFloat(order.netProfit) || 0),
+        orderCount: acc.orderCount + 1,
+        marginSum: acc.marginSum + (parseFloat(order.netMargin?.replace('%', '') || '0'))
+      };
+    }, { totalCOGS: 0, totalProfit: 0, orderCount: 0, marginSum: 0 });
+
+    // Comprehensive reporting metrics from new API endpoints
+    const voidedMetrics = voidedData?.totals || {};
+    const employeePaymentMetrics = {
+      count: employeePaymentsData?.total || 0,
+      totalAmount: employeePaymentsData?.payments?.reduce((sum: number, payment: any) => 
+        sum + (parseFloat(payment.amount || 0) / 100), 0) || 0
+    };
+    const creditRefundMetrics = {
+      count: creditRefundsData?.total || 0,
+      totalAmount: creditRefundsData?.refunds?.reduce((sum: number, refund: any) => 
+        sum + (parseFloat(refund.amount || 0) / 100), 0) || 0
+    };
+
+    return {
+      // Primary order metrics (from analytics API)
+      totalOrders: baseStats.totalOrders || 0,
+      totalRevenue: baseStats.totalRevenue || 0,
+      avgOrderValue: baseStats.avgOrderValue || 0,
+      
+      // Financial analysis (from orders data)
+      totalCOGS: orderMetrics.totalCOGS,
+      totalProfit: orderMetrics.totalProfit,
+      avgMargin: orderMetrics.orderCount > 0 ? orderMetrics.marginSum / orderMetrics.orderCount : 0,
+      
+      // Comprehensive reporting metrics
+      voidedAmount: voidedMetrics.totalVoidedAmount || 0,
+      voidedItemsCount: voidedMetrics.totalVoidedItems || 0,
+      employeePaymentCount: employeePaymentMetrics.count,
+      employeePaymentAmount: employeePaymentMetrics.totalAmount,
+      creditRefundCount: creditRefundMetrics.count,
+      creditRefundAmount: creditRefundMetrics.totalAmount,
+      
+      // Calculated metrics
+      grossProfitMargin: baseStats.totalRevenue > 0 ? (orderMetrics.totalProfit / baseStats.totalRevenue) * 100 : 0,
+      voidedRate: baseStats.totalOrders > 0 ? (voidedMetrics.totalVoidedItems || 0) / baseStats.totalOrders * 100 : 0,
+      refundRate: creditRefundMetrics.count > 0 && baseStats.totalOrders > 0 ? 
+        (creditRefundMetrics.count / baseStats.totalOrders) * 100 : 0
+    };
+  }, [ordersData, analyticsData, voidedData, employeePaymentsData, creditRefundsData]);
+
   // All useEffects AFTER useQuery declarations to avoid initialization errors
   // Log API errors and success for debugging
   useEffect(() => {
@@ -649,48 +766,148 @@ export function ComprehensiveOrderManagement() {
         </CardContent>
       </Card>
 
-      {/* Analytics Overview */}
-      {analyticsData && (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Orders</CardTitle>
-              <ShoppingCart className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{analyticsData.summary.totalOrders.toLocaleString()}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
-              <DollarSign className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{formatCurrency(analyticsData.summary.totalRevenue * 100)}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Average Order Value</CardTitle>
-              <TrendingUp className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{formatCurrency(analyticsData.summary.averageOrderValue * 100)}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Voided Items</CardTitle>
-              <AlertCircle className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{voidedData?.totals.totalVoidedItems || 0}</div>
-              <p className="text-xs text-muted-foreground">
-                {formatCurrency((voidedData?.totals.totalVoidedAmount || 0) * 100)} voided
-              </p>
-            </CardContent>
-          </Card>
+      {/* Comprehensive Analytics Overview - Single Source of Truth */}
+      {comprehensiveStats && (
+        <div className="space-y-6">
+          {/* Primary Business Metrics */}
+          <div>
+            <h3 className="text-lg font-semibold mb-4">Core Business Metrics</h3>
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Total Orders</CardTitle>
+                  <ShoppingCart className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{comprehensiveStats.totalOrders.toLocaleString()}</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
+                  <DollarSign className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{formatCurrency(comprehensiveStats.totalRevenue * 100)}</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Average Order Value</CardTitle>
+                  <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{formatCurrency(comprehensiveStats.avgOrderValue * 100)}</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Gross Profit Margin</CardTitle>
+                  <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{formatPercentage(comprehensiveStats.grossProfitMargin)}</div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+
+          {/* Financial Analysis */}
+          <div>
+            <h3 className="text-lg font-semibold mb-4">Financial Analysis</h3>
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Total COGS</CardTitle>
+                  <TrendingDown className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{formatCurrencyDirect(comprehensiveStats.totalCOGS)}</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Net Profit</CardTitle>
+                  <DollarSign className="h-4 w-4 text-green-600" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-green-600">{formatCurrencyDirect(comprehensiveStats.totalProfit)}</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Average Margin</CardTitle>
+                  <Percent className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{formatPercentage(comprehensiveStats.avgMargin)}</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Voided Items</CardTitle>
+                  <XCircle className="h-4 w-4 text-red-500" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-red-500">{comprehensiveStats.voidedItemsCount}</div>
+                  <p className="text-xs text-muted-foreground">
+                    {formatCurrencyDirect(comprehensiveStats.voidedAmount)} voided
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+
+          {/* Comprehensive Reporting Metrics */}
+          <div>
+            <h3 className="text-lg font-semibold mb-4">Advanced Reporting</h3>
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Employee Payments</CardTitle>
+                  <Users className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{comprehensiveStats.employeePaymentCount}</div>
+                  <p className="text-xs text-muted-foreground">
+                    {formatCurrencyDirect(comprehensiveStats.employeePaymentAmount)} total
+                  </p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Credit Refunds</CardTitle>
+                  <RefreshCw className="h-4 w-4 text-orange-500" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-orange-500">{comprehensiveStats.creditRefundCount}</div>
+                  <p className="text-xs text-muted-foreground">
+                    {formatCurrencyDirect(comprehensiveStats.creditRefundAmount)} refunded
+                  </p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Void Rate</CardTitle>
+                  <AlertTriangle className="h-4 w-4 text-yellow-500" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{formatPercentage(comprehensiveStats.voidedRate)}</div>
+                  <p className="text-xs text-muted-foreground">Of total orders</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Refund Rate</CardTitle>
+                  <RotateCcw className="h-4 w-4 text-red-500" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{formatPercentage(comprehensiveStats.refundRate)}</div>
+                  <p className="text-xs text-muted-foreground">Of total orders</p>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
         </div>
       )}
 
