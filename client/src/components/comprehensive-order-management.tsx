@@ -124,12 +124,11 @@ interface OrderAnalyticsResponse {
 }
 
 export function ComprehensiveOrderManagement() {
-  // Track both the picker value and actual date range
-  const [dateRangeValue, setDateRangeValue] = useState("last-30-days");
+  // Track both the picker value and actual date range - start with today for faster loading
+  const [dateRangeValue, setDateRangeValue] = useState("today");
   const [dateRange, setDateRange] = useState(() => {
-    const end = new Date();
-    const start = addDays(end, -29); // Last 30 days includes today
-    return { from: start, to: end };
+    const today = new Date();
+    return { from: today, to: today }; // Default to today only for faster loading
   });
 
   // Debounced search to prevent excessive API calls
