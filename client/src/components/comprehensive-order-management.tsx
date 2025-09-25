@@ -1001,12 +1001,12 @@ export function ComprehensiveOrderManagement() {
                     Previous
                   </Button>
                   <span className="text-sm text-muted-foreground">
-                    Page {ordersData.pagination.currentPage} of {ordersData.pagination.totalPages}
+                    Page {filters.page} of {ordersData.pagination.totalPages}
                   </span>
                   <Button
                     variant="outline"
                     size="sm"
-                    disabled={!ordersData.pagination.hasMore}
+                    disabled={filters.page >= ordersData.pagination.totalPages}
                     onClick={() => setFilters(prev => ({ ...prev, page: prev.page + 1 }))}
                   >
                     Next
