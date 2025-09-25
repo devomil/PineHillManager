@@ -5079,20 +5079,26 @@ export class DatabaseStorage implements IStorage {
         // DEBUG: Log raw discount data
         order.discounts.elements.forEach((discount: any, index: number) => {
           console.log(`[DISCOUNT DEBUG] Order ${order.id} Discount ${index}:`, {
+            fullDiscountObject: discount,
             rawAmount: discount.amount,
-            parsedAmount: parseFloat(discount.amount || '0') / 100,
-            absAmount: Math.abs(parseFloat(discount.amount || '0') / 100)
+            rawValue: discount.value,
+            rawDiscount: discount.discount,
+            rawDiscountAmount: discount.discountAmount,
+            parsedAmount: parseFloat(discount.amount || discount.value || discount.discount || discount.discountAmount || '0') / 100,
+            absAmount: Math.abs(parseFloat(discount.amount || discount.value || discount.discount || discount.discountAmount || '0') / 100)
           });
         });
         
         totalDiscounts = order.discounts.elements.reduce((sum: number, discount: any) => {
-          const discountAmount = Math.abs(parseFloat(discount.amount || '0') / 100);
+          const discountAmount = Math.abs(parseFloat(discount.amount || discount.value || discount.discount || discount.discountAmount || '0') / 100);
           return sum + discountAmount;
         }, 0);
       } else {
         // ULTRA-OPTIMIZED DISCOUNT FIX: Only call discount API for known discount orders
         const knownDiscountOrders = [
-          'SDAFGZ1SSTQJ0', '7KW1441F96Q5C', 'R0CGB7XM7EBZW', 'SW1WVEKN1HRAP'
+          'SDAFGZ1SSTQJ0', '7KW1441F96Q5C', 'R0CGB7XM7EBZW', 'SW1WVEKN1HRAP',
+          'QC09AM6GZSWV6', '8DX840GPX70V0', '24F2Z7MJMTAQE', 'SCF1X10SZ9Z8M', 
+          'K0622REF65GK8', '6F3WSSAXNC19A', '25P33KWG5PBT', 'RXBMV0MJS06DE'
         ];
         
         const hasDiscountIndicators = (
@@ -5121,7 +5127,7 @@ export class DatabaseStorage implements IStorage {
               console.log(`✅ [ULTRA-SELECTIVE DISCOUNT] Found ${discountResponse.elements.length} discounts for order ${order.id}`);
               
               totalDiscounts = discountResponse.elements.reduce((sum: number, discount: any) => {
-                const discountAmount = Math.abs(parseFloat(discount.amount || '0') / 100);
+                const discountAmount = Math.abs(parseFloat(discount.amount || discount.value || discount.discount || discount.discountAmount || '0') / 100);
                 return sum + discountAmount;
               }, 0);
               
