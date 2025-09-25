@@ -6261,6 +6261,62 @@ export async function registerRoutes(app: Express): Promise<Server> {
     next();
   });
 
+  // Lightweight orders endpoint for list view (no financial calculations)
+  app.get('/api/orders/list', isAuthenticated, async (req, res) => {
+    try {
+      const {
+        createdTimeMin,
+        createdTimeMax,
+        startDate,
+        endDate,
+        locationId,
+        search,
+        state,
+        page = '1',
+        limit = '20'
+      } = req.query as Record<string, string>;
+
+      const offset = (parseInt(page) - 1) * parseInt(limit);
+      const ctMin = req.query.createdTimeMin != null ? Number(String(req.query.createdTimeMin)) : undefined;
+      const ctMax = req.query.createdTimeMax != null ? Number(String(req.query.createdTimeMax)) : undefined;
+      
+      let createdTimeMinMs: number | undefined;
+      let createdTimeMaxMs: number | undefined;
+      
+      if (ctMin != null && ctMax != null && !isNaN(ctMin) && !isNaN(ctMax)) {
+        createdTimeMinMs = ctMin;
+        createdTimeMaxMs = ctMax;
+      }
+
+      let normalizedStartDate = createdTimeMinMs ? new Date(createdTimeMinMs).toISOString().slice(0,10) : startDate;
+      let normalizedEndDate = createdTimeMaxMs ? new Date(createdTimeMaxMs).toISOString().slice(0,10) : endDate;
+      
+      const stateParam = state && state !== 'all' ? String(state) : undefined;
+      const limitNum = Number.isFinite(Number(limit)) && Number(limit) > 0 ? Number(limit) : 20;
+      const offsetNum = Number.isFinite(Number(offset)) && Number(offset) >= 0 ? Number(offset) : 0;
+      const locationIdNum = locationId && locationId !== 'all' ? Number(locationId) : undefined;
+
+      // Get basic orders without expensive financial calculations
+      const dbResult = await storage.getOrdersFromCloverAPI({
+        createdTimeMin: createdTimeMinMs,
+        createdTimeMax: createdTimeMaxMs,
+        startDate: normalizedStartDate,
+        endDate: normalizedEndDate,
+        locationId: locationIdNum,
+        search,
+        state: stateParam,
+        limit: limitNum,
+        offset: offsetNum,
+        skipFinancialCalculations: true // Skip expensive calculations
+      });
+
+      res.json({ orders: dbResult.orders, total: dbResult.total });
+    } catch (error) {
+      console.error('Error fetching lightweight orders:', error);
+      res.status(500).json({ error: 'Failed to fetch orders' });
+    }
+  });
+
   // Get orders with comprehensive filtering using Clover API
   app.get('/api/orders', isAuthenticated, async (req, res) => {
     try {

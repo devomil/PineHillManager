@@ -5012,7 +5012,7 @@ export class DatabaseStorage implements IStorage {
       
       if (isProblematicOrder) {
         console.log(`\n========================================`);
-        console.log(`[PROBLEMATIC ORDER DEBUG] ${order.id}`);
+        // Disabled for performance: console.log(`[PROBLEMATIC ORDER DEBUG] ${order.id}`);
         console.log(`========================================`);
         console.log(`Full Order Data:`, JSON.stringify(order, null, 2));
       }
@@ -5040,25 +5040,25 @@ export class DatabaseStorage implements IStorage {
       
       // Log tax calculation details for debugging
       if (isProblematicOrder || grossTax === 0) {
-        console.log(`[TAX DEBUG] Order ${order.id} Tax Calculation:`, {
-          rawTaxAmount: order.taxAmount,
-          rawTax: order.tax,
-          calculatedGrossTax: grossTax,
-          hasPayments: !!(order.payments && order.payments.elements),
-          taxCalculationMethod: order.taxAmount ? 'taxAmount' : order.tax ? 'tax' : grossTax > 0 ? 'payments' : 'none'
-        });
+        // Disabled for performance: console.log(`[TAX DEBUG] Order ${order.id} Tax Calculation:`, {
+        //   rawTaxAmount: order.taxAmount,
+        //   rawTax: order.tax,
+        //   calculatedGrossTax: grossTax,
+        //   hasPayments: !!(order.payments && order.payments.elements),
+        //   taxCalculationMethod: order.taxAmount ? 'taxAmount' : order.tax ? 'tax' : grossTax > 0 ? 'payments' : 'none'
+        // });
       }
       
       // DEBUG: Log raw order data
-      console.log(`[FINANCIAL CALC DEBUG] Order ${order.id} Raw Data:`, {
-        rawTotal: order.total,
-        rawTaxAmount: order.taxAmount,
-        orderTotal,
-        grossTax,
-        discountsCount: order.discounts?.elements?.length || 0,
-        refundsCount: order.refunds?.elements?.length || 0,
-        lineItemsCount: order.lineItems?.elements?.length || 0
-      });
+      // Disabled for performance: console.log(`[FINANCIAL CALC DEBUG] Order ${order.id} Raw Data:`, {
+      //   rawTotal: order.total,
+      //   rawTaxAmount: order.taxAmount,
+      //   orderTotal,
+      //   grossTax,
+      //   discountsCount: order.discounts?.elements?.length || 0,
+      //   refundsCount: order.refunds?.elements?.length || 0,
+      //   lineItemsCount: order.lineItems?.elements?.length || 0
+      // });
       
       if (isProblematicOrder) {
         console.log(`[PROBLEMATIC ORDER] ${order.id} - Order Total Conversion:`, {
@@ -5079,7 +5079,7 @@ export class DatabaseStorage implements IStorage {
       let totalDiscounts = 0;
       const appliedDiscountIds = new Set<string>();
       
-      console.log(`🔧 [DISCOUNT DEBUG] ${order.id}: Starting discount calculation`);
+      // Disabled for performance: console.log(`🔧 [DISCOUNT DEBUG] ${order.id}: Starting discount calculation`);
       
       // Step 1: Calculate line-item level discounts
       let lineItemDiscounts = 0;
@@ -5089,7 +5089,7 @@ export class DatabaseStorage implements IStorage {
         order.lineItems.elements.forEach((lineItem: any, lineIndex: number) => {
           // Skip voided, refunded, or non-revenue items
           if (lineItem.refund || lineItem.exchanged || lineItem.voided) {
-            console.log(`🔧 [DISCOUNT DEBUG] ${order.id} Line ${lineIndex}: Skipping voided/refunded item`);
+            // Disabled for performance: console.log(`🔧 [DISCOUNT DEBUG] ${order.id} Line ${lineIndex}: Skipping voided/refunded item`);
             return;
           }
           
@@ -5116,11 +5116,11 @@ export class DatabaseStorage implements IStorage {
                 // Clover stores percentage as basis points (1500 = 15.00%)
                 const discountAmount = lineBase * (discount.percentage / 10000);
                 lineDiscount += Math.min(discountAmount, lineBase);
-                console.log(`🔧 [DISCOUNT DEBUG] ${order.id} Line ${lineIndex}: Percentage discount ${discount.percentage/100}% on $${lineBase.toFixed(2)} = $${discountAmount.toFixed(2)}`);
+                // Disabled for performance: console.log(`🔧 [DISCOUNT DEBUG] ${order.id} Line ${lineIndex}: Percentage discount ${discount.percentage/100}% on $${lineBase.toFixed(2)} = $${discountAmount.toFixed(2)}`);
               } else {
                 const fixedAmount = Math.abs(parseFloat(discount.amount || '0') / 100);
                 lineDiscount += Math.min(fixedAmount, lineBase);
-                console.log(`🔧 [DISCOUNT DEBUG] ${order.id} Line ${lineIndex}: Fixed discount $${fixedAmount.toFixed(2)}`);
+                // Disabled for performance: console.log(`🔧 [DISCOUNT DEBUG] ${order.id} Line ${lineIndex}: Fixed discount $${fixedAmount.toFixed(2)}`);
               }
             });
           }
@@ -5130,7 +5130,7 @@ export class DatabaseStorage implements IStorage {
           lineItemDiscounts += lineDiscount;
           subtotalAfterItemDiscounts += lineBase - lineDiscount;
           
-          console.log(`🔧 [DISCOUNT DEBUG] ${order.id} Line ${lineIndex}: Base=$${lineBase.toFixed(2)}, Discount=$${lineDiscount.toFixed(2)}, Net=$${(lineBase - lineDiscount).toFixed(2)}`);
+          // Disabled for performance: console.log(`🔧 [DISCOUNT DEBUG] ${order.id} Line ${lineIndex}: Base=$${lineBase.toFixed(2)}, Discount=$${lineDiscount.toFixed(2)}, Net=$${(lineBase - lineDiscount).toFixed(2)}`);
         });
       }
       
@@ -5141,7 +5141,7 @@ export class DatabaseStorage implements IStorage {
         order.discounts.elements.forEach((discount: any, index: number) => {
           // Skip if this discount was already applied at line level
           if (discount.id && appliedDiscountIds.has(discount.id)) {
-            console.log(`🔧 [DISCOUNT DEBUG] ${order.id}: Skipping order-level discount ${discount.id} - already applied at line level`);
+            // Disabled for performance: console.log(`🔧 [DISCOUNT DEBUG] ${order.id}: Skipping order-level discount ${discount.id} - already applied at line level`);
             return;
           }
           
@@ -5150,12 +5150,12 @@ export class DatabaseStorage implements IStorage {
           if (discount.percentage && typeof discount.percentage === 'number') {
             // Apply percentage to subtotal after item discounts
             discountAmount = subtotalAfterItemDiscounts * (discount.percentage / 10000);
-            console.log(`🔧 [DISCOUNT DEBUG] ${order.id}: Order-level percentage ${discount.percentage/100}% on $${subtotalAfterItemDiscounts.toFixed(2)} = $${discountAmount.toFixed(2)}`);
+            // Disabled for performance: console.log(`🔧 [DISCOUNT DEBUG] ${order.id}: Order-level percentage ${discount.percentage/100}% on $${subtotalAfterItemDiscounts.toFixed(2)} = $${discountAmount.toFixed(2)}`);
           } else {
             // Fixed amount order-level discount
             const rawAmount = discount.amount || discount.value || discount.discount || discount.discountAmount || '0';
             discountAmount = Math.abs(parseFloat(rawAmount) / 100);
-            console.log(`🔧 [DISCOUNT DEBUG] ${order.id}: Order-level fixed discount $${discountAmount.toFixed(2)}`);
+            // Disabled for performance: console.log(`🔧 [DISCOUNT DEBUG] ${order.id}: Order-level fixed discount $${discountAmount.toFixed(2)}`);
           }
           
           // Round to cents
@@ -5165,7 +5165,7 @@ export class DatabaseStorage implements IStorage {
       }
       
       totalDiscounts = lineItemDiscounts + orderLevelDiscounts;
-      console.log(`🔧 [DISCOUNT DEBUG] ${order.id}: Final totals - Line discounts: $${lineItemDiscounts.toFixed(2)}, Order discounts: $${orderLevelDiscounts.toFixed(2)}, Total: $${totalDiscounts.toFixed(2)}`);
+      // Disabled for performance: console.log(`🔧 [DISCOUNT DEBUG] ${order.id}: Final totals - Line discounts: $${lineItemDiscounts.toFixed(2)}, Order discounts: $${orderLevelDiscounts.toFixed(2)}, Total: $${totalDiscounts.toFixed(2)}`);
       
       // Fallback for orders with missing discount data but known to have discounts
       if (totalDiscounts === 0) {
@@ -5272,7 +5272,7 @@ export class DatabaseStorage implements IStorage {
       // Calculate COGS by looking up actual costs for line items
       let netCOGS = 0;
       if (order.lineItems && order.lineItems.elements) {
-        console.log(`[COGS DEBUG] Order ${order.id} Processing ${order.lineItems.elements.length} line items`);
+        // Disabled for performance: console.log(`[COGS DEBUG] Order ${order.id} Processing ${order.lineItems.elements.length} line items`);
         
         for (const [index, lineItem] of order.lineItems.elements.entries()) {
           // CRITICAL FIX: Clover quantities appear to be stored 1000x too high
@@ -5280,7 +5280,7 @@ export class DatabaseStorage implements IStorage {
           
           // Add intelligent unit conversion - if quantity > 100, divide by 1000
           if (quantity > 100) {
-            console.log(`[QUANTITY FIX] Order ${order.id} Line Item ${index}: Converting quantity ${quantity} to ${quantity / 1000}`);
+            // Disabled for performance: console.log(`[QUANTITY FIX] Order ${order.id} Line Item ${index}: Converting quantity ${quantity} to ${quantity / 1000}`);
             if (isProblematicOrder) {
               console.log(`[PROBLEMATIC ORDER] ${order.id} - CRITICAL QUANTITY FIX Line Item ${index}:`, {
                 originalQuantity: quantity,
@@ -5294,14 +5294,14 @@ export class DatabaseStorage implements IStorage {
           
           const lineItemPrice = parseFloat(lineItem.price || '0') / 100; // Convert from cents to dollars
           
-          console.log(`[COGS DEBUG] Line Item ${index}:`, {
-            itemId: lineItem.item?.id || lineItem.id,
-            itemName: lineItem.name || lineItem.item?.name,
-            rawPrice: lineItem.price,
-            lineItemPrice,
-            rawQuantity: lineItem.unitQty,
-            adjustedQuantity: quantity
-          });
+          // Disabled for performance: console.log(`[COGS DEBUG] Line Item ${index}:`, {
+          //   itemId: lineItem.item?.id || lineItem.id,
+          //   itemName: lineItem.name || lineItem.item?.name,
+          //   rawPrice: lineItem.price,
+          //   lineItemPrice,
+          //   rawQuantity: lineItem.unitQty,
+          //   adjustedQuantity: quantity
+          // });
           
           if (isProblematicOrder) {
             console.log(`[PROBLEMATIC ORDER] ${order.id} - Line Item ${index} Details:`, {
@@ -5315,7 +5315,7 @@ export class DatabaseStorage implements IStorage {
             });
           }
           
-          // Try to find inventory item by SKU/item ID to get actual cost
+          // Try to find inventory item by SKU/item ID to get actual cost using cached lookup
           try {
             // For Amazon orders, try different SKU mappings
             let inventoryItems: any[] = [];
@@ -5328,11 +5328,13 @@ export class DatabaseStorage implements IStorage {
               if (inventoryItems.length === 0 && order.isAmazonOrder) {
                 // Try ASIN lookup
                 if (lineItem.ASIN) {
-                  inventoryItems = await this.getInventoryItemsBySKU(lineItem.ASIN);
+                  const asinItems = await this.getInventoryItemsBySKU(lineItem.ASIN);
+                  if (asinItems.length > 0) inventoryItems = asinItems;
                 }
                 // Try SellerSKU lookup  
                 if (inventoryItems.length === 0 && lineItem.SellerSKU) {
-                  inventoryItems = await this.getInventoryItemsBySKU(lineItem.SellerSKU);
+                  const skuItems = await this.getInventoryItemsBySKU(lineItem.SellerSKU);
+                  if (skuItems.length > 0) inventoryItems = skuItems;
                 }
               }
             }
@@ -5344,44 +5346,36 @@ export class DatabaseStorage implements IStorage {
               
               // CRITICAL FIX: Check if unit cost seems to be in cents (> $100) and convert
               if (unitCost > 100) {
-                console.log(`[COGS DEBUG] Unit cost ${unitCost} seems to be in cents, converting to dollars`);
+                // Disabled for performance: console.log(`[COGS DEBUG] Unit cost ${unitCost} seems to be in cents, converting to dollars`);
                 unitCost = unitCost / 100;
               }
               
               const itemCOGS = unitCost * quantity;
               netCOGS += itemCOGS;
               
-              console.log(`[COGS DEBUG] Found inventory item:`, {
-                rawUnitCost,
-                adjustedUnitCost: unitCost,
-                quantity,
-                itemCOGS,
-                runningNetCOGS: netCOGS
-              });
+              // Disabled for performance: console.log(`[COGS DEBUG] Found inventory item:`, {
+              //   rawUnitCost,
+              //   adjustedUnitCost: unitCost,
+              //   quantity,
+              //   itemCOGS,
+              //   runningNetCOGS: netCOGS
+              // });
             } else {
               // Fallback: estimate COGS as 60% of line item price if no inventory record found
               const fallbackCOGS = lineItemPrice * 0.6 * quantity;
               netCOGS += fallbackCOGS;
               
-              console.log(`[COGS DEBUG] No inventory found, using 60% fallback:`, {
-                lineItemPrice,
-                quantity,
-                fallbackCOGS,
-                runningNetCOGS: netCOGS
-              });
+              // Disabled for performance: console.log(`[COGS DEBUG] No inventory found, using 60% fallback:`, {
+              //   lineItemPrice,
+              //   quantity,
+              //   fallbackCOGS,
+              //   runningNetCOGS: netCOGS
+              // });
             }
           } catch (error) {
             // Fallback for items not in inventory
             const fallbackCOGS = lineItemPrice * 0.6 * quantity;
             netCOGS += fallbackCOGS;
-            
-            console.log(`[COGS DEBUG] Error finding inventory, using 60% fallback:`, {
-              error: error.message,
-              lineItemPrice,
-              quantity,
-              fallbackCOGS,
-              runningNetCOGS: netCOGS
-            });
           }
         }
       }
@@ -5396,22 +5390,22 @@ export class DatabaseStorage implements IStorage {
       const netMargin = netSale > 0 ? (netProfit / netSale) * 100 : 0;
 
       // DEBUG: Log final calculations
-      console.log(`[FINANCIAL CALC DEBUG] Order ${order.id} Final Results:`, {
-        orderTotal,
-        grossTax,
-        totalDiscounts,
-        totalRefunds,
-        netCOGS,
-        netSale,
-        netProfit,
-        netMargin: `${netMargin.toFixed(2)}%`,
-        calculationBreakdown: {
-          formula: 'netSale = orderTotal - grossTax - totalDiscounts - totalRefunds',
-          calculation: `${netSale.toFixed(2)} = ${orderTotal.toFixed(2)} - ${grossTax.toFixed(2)} - ${totalDiscounts.toFixed(2)} - ${totalRefunds.toFixed(2)}`,
-          profitFormula: 'netProfit = netSale - netCOGS',
-          profitCalculation: `${netProfit.toFixed(2)} = ${netSale.toFixed(2)} - ${netCOGS.toFixed(2)}`
-        }
-      });
+      // Disabled for performance: console.log(`[FINANCIAL CALC DEBUG] Order ${order.id} Final Results:`, {
+      //   orderTotal,
+      //   grossTax,
+      //   totalDiscounts,
+      //   totalRefunds,
+      //   netCOGS,
+      //   netSale,
+      //   netProfit,
+      //   netMargin: `${netMargin.toFixed(2)}%`,
+      //   calculationBreakdown: {
+      //     formula: 'netSale = orderTotal - grossTax - totalDiscounts - totalRefunds',
+      //     calculation: `${netSale.toFixed(2)} = ${orderTotal.toFixed(2)} - ${grossTax.toFixed(2)} - ${totalDiscounts.toFixed(2)} - ${totalRefunds.toFixed(2)}`,
+      //     profitFormula: 'netProfit = netSale - netCOGS',
+      //     profitCalculation: `${netProfit.toFixed(2)} = ${netSale.toFixed(2)} - ${netCOGS.toFixed(2)}`
+      //   }
+      // });
 
       if (isProblematicOrder) {
         console.log(`\n[PROBLEMATIC ORDER] ${order.id} - FINAL CALCULATION SUMMARY:`);
@@ -5461,6 +5455,7 @@ export class DatabaseStorage implements IStorage {
     state?: string;
     limit: number;
     offset: number;
+    skipFinancialCalculations?: boolean;
   }): Promise<{
     orders: any[];
     total: number;
@@ -5578,7 +5573,7 @@ export class DatabaseStorage implements IStorage {
                   const refunds = Array.isArray(order.refunds) ? order.refunds : (order.refunds?.elements ?? []);
                   const lineItems = order.lineItems?.elements || [];
                   
-                  console.log(`🔧 [DATA STRUCTURE DEBUG] Order ${order.id}: payments type=${Array.isArray(order.payments) ? 'array' : 'object'}, payments count=${payments.length}, refunds count=${refunds.length}, lineItems count=${lineItems.length}`);
+                  // Disabled for performance: console.log(`🔧 [DATA STRUCTURE DEBUG] Order ${order.id}: payments type=${Array.isArray(order.payments) ? 'array' : 'object'}, payments count=${payments.length}, refunds count=${refunds.length}, lineItems count=${lineItems.length}`);
                   
                   // Check if payments have valid amounts
                   const paymentSum = payments.filter(p => p.result === 'SUCCESS').reduce((sum, p) => sum + (parseFloat(p.amount || '0') / 100), 0);
@@ -5594,7 +5589,7 @@ export class DatabaseStorage implements IStorage {
                       for (const refund of refunds) {
                         const refundAmount = parseFloat(refund.amount || '0') / 100;
                         normalizedTotal -= refundAmount;
-                        console.log(`🔧 [REFUND DEBUG] Subtracted refund: $${refundAmount}, running total: $${normalizedTotal}`);
+                        // Disabled for performance: console.log(`🔧 [REFUND DEBUG] Subtracted refund: $${refundAmount}, running total: $${normalizedTotal}`);
                       }
                     }
                   } 
@@ -5606,7 +5601,7 @@ export class DatabaseStorage implements IStorage {
                       const quantity = parseInt(lineItem.unitQty || '1');
                       const lineTotal = lineItemPrice * quantity;
                       normalizedTotal += lineTotal;
-                      console.log(`🔧 [LINEITEM DEBUG] Added "${lineItem.name}": $${lineItemPrice} x ${quantity} = $${lineTotal.toFixed(2)}, running total: $${normalizedTotal.toFixed(2)}`);
+                      // Disabled for performance: console.log(`🔧 [LINEITEM DEBUG] Added "${lineItem.name}": $${lineItemPrice} x ${quantity} = $${lineTotal.toFixed(2)}, running total: $${normalizedTotal.toFixed(2)}`);
                     }
                   } 
                   // Method 3: Last resort - use Clover's reported total if > 0
@@ -5635,35 +5630,55 @@ export class DatabaseStorage implements IStorage {
                   grossTax = parseFloat(order.tax) / 100;
                 }
                 
-                // Calculate actual financial metrics for this order
-                const financialMetrics = await this.calculateOrderFinancialMetrics(order, config.id, config);
+                // Calculate actual financial metrics for this order (skip if requested for performance)
+                let enhancedOrder;
                 
-                // 🔧 DEBUG: Log financial metrics for problematic orders
-                if (isProblematicOrder) {
-                  console.log(`🔧 [FINANCIAL METRICS] ${order.id}:`, {
+                if (filters.skipFinancialCalculations) {
+                  // Lightweight version: Skip expensive financial calculations
+                  enhancedOrder = {
+                    ...order,
+                    locationId: config.id,
+                    locationName: config.merchantName,
+                    orderTotal: orderTotalInDollars,
+                    grossTax,
+                    totalDiscounts: 0,
+                    totalRefunds: 0,
+                    netCOGS: 0,
+                    netSale: orderTotalInDollars,
+                    netProfit: 0,
+                    netMargin: '0.00%'
+                  };
+                } else {
+                  // Full calculation version for detailed views
+                  const financialMetrics = await this.calculateOrderFinancialMetrics(order, config.id, config);
+                  
+                  // 🔧 DEBUG: Log financial metrics for problematic orders
+                  if (isProblematicOrder) {
+                    console.log(`🔧 [FINANCIAL METRICS] ${order.id}:`, {
+                      totalDiscounts: financialMetrics.totalDiscounts,
+                      totalRefunds: financialMetrics.totalRefunds,
+                      netSale: financialMetrics.netSale,
+                      netProfit: financialMetrics.netProfit,
+                      rawOrderTotal: order.total,
+                      rawDiscountsCount: order.discounts?.elements?.length || 0,
+                      rawRefundsCount: order.refunds?.elements?.length || 0
+                    });
+                  }
+                  
+                  // Enhance the order with financial data - FORCE correct location assignment
+                  enhancedOrder = {
+                    ...order,
+                    locationId: config.id,
+                    locationName: config.merchantName,
+                    grossTax: financialMetrics.grossTax,
                     totalDiscounts: financialMetrics.totalDiscounts,
                     totalRefunds: financialMetrics.totalRefunds,
+                    netCOGS: financialMetrics.netCOGS,
                     netSale: financialMetrics.netSale,
                     netProfit: financialMetrics.netProfit,
-                    rawOrderTotal: order.total,
-                    rawDiscountsCount: order.discounts?.elements?.length || 0,
-                    rawRefundsCount: order.refunds?.elements?.length || 0
-                  });
+                    netMargin: financialMetrics.netMargin
+                  };
                 }
-                
-                // Enhance the order with financial data - FORCE correct location assignment
-                const enhancedOrder = {
-                  ...order,
-                  locationId: config.id,
-                  locationName: config.merchantName, // This should be "Watertown Retail" for QGFXZQXYG8M31
-                  grossTax: financialMetrics.grossTax,
-                  totalDiscounts: financialMetrics.totalDiscounts,
-                  totalRefunds: financialMetrics.totalRefunds,
-                  netCOGS: financialMetrics.netCOGS,
-                  netSale: financialMetrics.netSale,
-                  netProfit: financialMetrics.netProfit,
-                  netMargin: financialMetrics.netMargin
-                };
                 
                 // 🔧 DEBUG: Confirm final order data for problematic orders
                 if (isProblematicOrder) {
@@ -5876,17 +5891,17 @@ export class DatabaseStorage implements IStorage {
       // Try each configuration to find the order
       for (const config of allConfigs) {
         try {
-          console.log('🔧 [ORDER DETAILS DEBUG] Trying config:', {
-            configId: config.id,
-            merchantId: config.merchantId,
-            merchantName: config.merchantName
-          });
+          // Disabled for performance: console.log('🔧 [ORDER DETAILS DEBUG] Trying config:', {
+          //   configId: config.id,
+          //   merchantId: config.merchantId,
+          //   merchantName: config.merchantName
+          // });
           
           // Make direct API call to avoid circular dependency
           const baseUrl = config.baseUrl || 'https://api.clover.com';
           const url = `${baseUrl}/v3/merchants/${config.merchantId}/orders?limit=1000&expand=lineItems,payments,discounts,refunds`;
           
-          console.log(`🔧 [ORDER DETAILS DEBUG] Making direct Clover API call to: ${url}`);
+          // Disabled for performance: console.log(`🔧 [ORDER DETAILS DEBUG] Making direct Clover API call to: ${url}`);
           
           const response = await fetch(url, {
             method: 'GET',
@@ -5899,7 +5914,7 @@ export class DatabaseStorage implements IStorage {
 
           if (!response.ok) {
             const errorBody = await response.text();
-            console.log(`🔧 [ORDER DETAILS DEBUG] API error: ${response.status} ${response.statusText} - ${errorBody}`);
+            // Disabled for performance: console.log(`🔧 [ORDER DETAILS DEBUG] API error: ${response.status} ${response.statusText} - ${errorBody}`);
             throw new Error(`Clover API error: ${response.status} ${response.statusText}`);
           }
 
@@ -5909,19 +5924,19 @@ export class DatabaseStorage implements IStorage {
           const targetOrder = cloverOrders.elements?.find((order: any) => order.id === orderId);
           
           if (targetOrder) {
-            console.log('🔧 [ORDER DETAILS DEBUG] Found order in batch via config:', {
-              configId: config.id,
-              merchantId: config.merchantId,
-              merchantName: config.merchantName,
-              orderId: targetOrder.id
-            });
+            // Disabled for performance: console.log('🔧 [ORDER DETAILS DEBUG] Found order in batch via config:', {
+            //   configId: config.id,
+            //   merchantId: config.merchantId,
+            //   merchantName: config.merchantName,
+            //   orderId: targetOrder.id
+            // });
             
             foundOrder = targetOrder;
             foundConfig = config;
             break;
           }
         } catch (configError) {
-          console.log(`🔧 [ORDER DETAILS DEBUG] Config ${config.id} failed for order ${orderId}:`, configError.message);
+          // Disabled for performance: console.log(`🔧 [ORDER DETAILS DEBUG] Config ${config.id} failed for order ${orderId}:`, configError.message);
           continue;
         }
       }
@@ -5955,16 +5970,16 @@ export class DatabaseStorage implements IStorage {
         foundOrder.orderTime = new Date(foundOrder.createdTime).toLocaleTimeString();
       }
       
-      console.log('🔧 [ORDER DETAILS DEBUG] Final enriched order details:', {
-        orderId: foundOrder.id,
-        locationName: foundOrder.locationName,
-        merchantId: foundOrder.merchantId,
-        netSale: foundOrder.netSale,
-        netProfit: foundOrder.netProfit,
-        totalDiscounts: foundOrder.totalDiscounts,
-        totalRefunds: foundOrder.totalRefunds,
-        formattedDate: foundOrder.formattedDate
-      });
+      // Disabled for performance: console.log('🔧 [ORDER DETAILS DEBUG] Final enriched order details:', {
+      //   orderId: foundOrder.id,
+      //   locationName: foundOrder.locationName,
+      //   merchantId: foundOrder.merchantId,
+      //   netSale: foundOrder.netSale,
+      //   netProfit: foundOrder.netProfit,
+      //   totalDiscounts: foundOrder.totalDiscounts,
+      //   totalRefunds: foundOrder.totalRefunds,
+      //   formattedDate: foundOrder.formattedDate
+      // });
       
       return foundOrder;
     } catch (error) {
