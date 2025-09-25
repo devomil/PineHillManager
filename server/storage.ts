@@ -4996,7 +4996,7 @@ export class DatabaseStorage implements IStorage {
   // ================================
 
   // Helper method to calculate detailed financial metrics for an order
-  async calculateOrderFinancialMetrics(order: any, locationId: number): Promise<{
+  async calculateOrderFinancialMetrics(order: any, locationId: number, merchantConfig?: any): Promise<{
     grossTax: number;
     totalDiscounts: number;
     totalRefunds: number;
@@ -5075,7 +5075,7 @@ export class DatabaseStorage implements IStorage {
       
       // Calculate total discounts from order discounts array
       let totalDiscounts = 0;
-      if (order.discounts && order.discounts.elements) {
+      if (order.discounts && order.discounts.elements && order.discounts.elements.length > 0) {
         // DEBUG: Log raw discount data
         order.discounts.elements.forEach((discount: any, index: number) => {
           console.log(`[DISCOUNT DEBUG] Order ${order.id} Discount ${index}:`, {
@@ -5089,6 +5089,46 @@ export class DatabaseStorage implements IStorage {
           const discountAmount = Math.abs(parseFloat(discount.amount || '0') / 100);
           return sum + discountAmount;
         }, 0);
+      } else {
+        // CRITICAL FIX: Fallback to dedicated discount API when expand doesn't work
+        try {
+          console.log(`🔄 [DISCOUNT FIX] Expand discounts failed for order ${order.id}, trying dedicated discount API`);
+          
+          // Use the provided merchant config to make the discount API call
+          if (merchantConfig) {
+            const { CloverIntegration } = await import('./integrations/clover');
+            const cloverIntegration = new CloverIntegration({
+              merchantId: merchantConfig.merchantId,
+              apiToken: merchantConfig.apiToken,
+              baseUrl: merchantConfig.baseUrl || 'https://api.clover.com'
+            });
+            
+            const discountResponse = await cloverIntegration.fetchOrderDiscounts(order.id);
+            
+            if (discountResponse && discountResponse.elements && discountResponse.elements.length > 0) {
+              console.log(`✅ [DISCOUNT FIX] Found ${discountResponse.elements.length} discounts via dedicated API for order ${order.id}`);
+              
+              totalDiscounts = discountResponse.elements.reduce((sum: number, discount: any) => {
+                const discountAmount = Math.abs(parseFloat(discount.amount || '0') / 100);
+                console.log(`[DISCOUNT FIX] Order ${order.id} Discount:`, {
+                  rawAmount: discount.amount,
+                  parsedAmount: parseFloat(discount.amount || '0') / 100,
+                  absAmount: discountAmount
+                });
+                return sum + discountAmount;
+              }, 0);
+              
+              console.log(`💰 [DISCOUNT FIX] Order ${order.id} total discounts: $${totalDiscounts.toFixed(2)}`);
+            } else {
+              console.log(`📝 [DISCOUNT FIX] No discounts found via dedicated API for order ${order.id}`);
+            }
+          } else {
+            console.log(`⚠️ [DISCOUNT FIX] No merchant config found for order ${order.id}`);
+          }
+        } catch (discountError) {
+          console.error(`❌ [DISCOUNT FIX] Error fetching discounts for order ${order.id}:`, discountError);
+          // Continue with totalDiscounts = 0
+        }
       }
 
       // Calculate refunds (from refunds or payments with negative amounts)
@@ -5473,7 +5513,7 @@ export class DatabaseStorage implements IStorage {
                 }
                 
                 // Calculate actual financial metrics for this order
-                const financialMetrics = await this.calculateOrderFinancialMetrics(order, config.id);
+                const financialMetrics = await this.calculateOrderFinancialMetrics(order, config.id, config);
                 
                 // 🔧 DEBUG: Log financial metrics for problematic orders
                 if (isProblematicOrder) {
@@ -5774,7 +5814,7 @@ export class DatabaseStorage implements IStorage {
       
       // Calculate financial metrics for this order
       console.log('🔧 [ORDER DETAILS DEBUG] Calculating financial metrics for order:', foundOrder.id);
-      const financialMetrics = await this.calculateOrderFinancialMetrics(foundOrder, foundConfig.id);
+      const financialMetrics = await this.calculateOrderFinancialMetrics(foundOrder, foundConfig.id, foundConfig);
       
       // Add financial calculations to the order object
       foundOrder.grossTax = financialMetrics.grossTax;
