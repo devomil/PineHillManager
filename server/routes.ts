@@ -3134,6 +3134,69 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Mark individual message as read
+  app.post('/api/messages/:id/mark-read', isAuthenticated, async (req, res) => {
+    try {
+      const messageId = parseInt(req.params.id);
+      const userId = req.user!.id;
+      
+      // Mark direct message as read
+      await storage.markMessageAsRead(messageId, userId);
+      
+      // Also create/update read receipt for tracking
+      await storage.createMessageReadReceipt(messageId, userId);
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error marking message as read:', error);
+      res.status(500).json({ error: 'Failed to mark message as read' });
+    }
+  });
+
+  // Mark individual announcement as read
+  app.post('/api/announcements/:id/mark-read', isAuthenticated, async (req, res) => {
+    try {
+      const announcementId = parseInt(req.params.id);
+      const userId = req.user!.id;
+      
+      await storage.markAnnouncementAsRead(announcementId, userId);
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error marking announcement as read:', error);
+      res.status(500).json({ error: 'Failed to mark announcement as read' });
+    }
+  });
+
+  // Bulk mark all messages as read
+  app.post('/api/communications/mark-all-messages-read', isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user!.id;
+      
+      await storage.markAllMessagesAsRead(userId);
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error marking all messages as read:', error);
+      res.status(500).json({ error: 'Failed to mark all messages as read' });
+    }
+  });
+
+  // Bulk mark all announcements as read
+  app.post('/api/communications/mark-all-announcements-read', isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user!.id;
+      const userRole = req.user!.role || 'employee';
+      
+      await storage.markAllAnnouncementsAsRead(userId, userRole);
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error marking all announcements as read:', error);
+      res.status(500).json({ error: 'Failed to mark all announcements as read' });
+    }
+  });
+
   // ================================
   // EMPLOYEE RESPONSE ROUTES
   // ================================

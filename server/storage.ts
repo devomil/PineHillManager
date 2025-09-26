@@ -6527,11 +6527,21 @@ export class DatabaseStorage implements IStorage {
         );
 
       if (existing.length > 0) {
-        return existing[0];
+        // Update existing receipt to mark as read
+        const [updated] = await db.update(readReceipts)
+          .set({ readAt: new Date() })
+          .where(
+            and(
+              eq(readReceipts.messageId, messageId),
+              eq(readReceipts.userId, userId)
+            )
+          )
+          .returning();
+        return updated;
       }
 
       const [created] = await db.insert(readReceipts)
-        .values({ messageId, userId })
+        .values({ messageId, userId, readAt: new Date() })
         .returning();
       return created;
     } catch (error) {
@@ -6549,6 +6559,113 @@ export class DatabaseStorage implements IStorage {
     } catch (error) {
       console.error('Error fetching message read receipts:', error);
       return [];
+    }
+  }
+
+  // Mark message as read (for direct messages)
+  async markMessageAsRead(messageId: number, userId: string): Promise<void> {
+    try {
+      // Update direct message isRead flag
+      await db.update(messages)
+        .set({ isRead: true, readAt: new Date() })
+        .where(
+          and(
+            eq(messages.id, messageId),
+            eq(messages.recipientId, userId)
+          )
+        );
+    } catch (error) {
+      console.error('Error marking direct message as read:', error);
+      throw error;
+    }
+  }
+
+  // Mark announcement as read (by creating a "viewed" reaction)
+  async markAnnouncementAsRead(announcementId: number, userId: string): Promise<void> {
+    try {
+      // Check if user already has any reaction to this announcement
+      const existingReaction = await db.select()
+        .from(announcementReactions)
+        .where(
+          and(
+            eq(announcementReactions.announcementId, announcementId),
+            eq(announcementReactions.userId, userId)
+          )
+        );
+
+      // If no reaction exists, create a "viewed" reaction to mark as read
+      if (existingReaction.length === 0) {
+        await db.insert(announcementReactions)
+          .values({
+            announcementId,
+            userId,
+            reactionType: 'viewed'
+          });
+      }
+    } catch (error) {
+      console.error('Error marking announcement as read:', error);
+      throw error;
+    }
+  }
+
+  // Bulk mark all messages as read for a user
+  async markAllMessagesAsRead(userId: string): Promise<void> {
+    try {
+      // Mark all direct messages as read
+      await db.update(messages)
+        .set({ isRead: true, readAt: new Date() })
+        .where(
+          and(
+            eq(messages.recipientId, userId),
+            eq(messages.isRead, false)
+          )
+        );
+
+      // Mark all custom messages as read via readReceipts
+      await db.update(readReceipts)
+        .set({ readAt: new Date() })
+        .where(
+          and(
+            eq(readReceipts.userId, userId),
+            isNull(readReceipts.readAt)
+          )
+        );
+    } catch (error) {
+      console.error('Error marking all messages as read:', error);
+      throw error;
+    }
+  }
+
+  // Bulk mark all announcements as read for a user
+  async markAllAnnouncementsAsRead(userId: string, userRole: string): Promise<void> {
+    try {
+      // Get all announcements targeted for this user
+      const userAnnouncements = await this.getPublishedAnnouncementsForUser(userId, userRole);
+      
+      for (const announcement of userAnnouncements) {
+        // Check if user already has any reaction
+        const existingReaction = await db.select()
+          .from(announcementReactions)
+          .where(
+            and(
+              eq(announcementReactions.announcementId, announcement.id),
+              eq(announcementReactions.userId, userId)
+            )
+          );
+
+        // If no reaction exists, create a "viewed" reaction
+        if (existingReaction.length === 0) {
+          await db.insert(announcementReactions)
+            .values({
+              announcementId: announcement.id,
+              userId,
+              reactionType: 'viewed'
+            });
+        }
+      }
+    } catch (error) {
+      console.error('Error marking all announcements as read:', error);
+      throw error;
     }
   }
 

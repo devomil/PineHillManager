@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { queryClient } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -9,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Bell, Calendar, Users, AlertTriangle, Clock, Plus, Send, MessageSquare, BarChart3, Wifi, WifiOff, TrendingUp, Activity, DollarSign, CheckCircle, CalendarCheck, Edit, Trash2, Search, X } from "lucide-react";
+import { Bell, Calendar, Users, AlertTriangle, Clock, Plus, Send, MessageSquare, BarChart3, Wifi, WifiOff, TrendingUp, Activity, DollarSign, CheckCircle, CalendarCheck, Edit, Trash2, Search, X, Check } from "lucide-react";
 import { LineChart, Line, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { format, isAfter, parseISO } from "date-fns";
 import AdminLayout from "@/components/admin-layout";
@@ -1756,6 +1757,28 @@ function CommunicationsContent() {
 
         {/* Announcements Tab */}
         <TabsContent value="announcements" className="space-y-6">
+          {/* Header with Mark All as Read */}
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-lg font-semibold">Current Announcements</h3>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={async () => {
+                try {
+                  await apiRequest('/api/communications/mark-all-announcements-read', 'POST');
+                  // Refresh unread counts
+                  queryClient.invalidateQueries({ queryKey: ['/api/communications/unread-counts'] });
+                } catch (error) {
+                  console.error('Failed to mark all announcements as read:', error);
+                }
+              }}
+              className="flex items-center gap-2"
+            >
+              <Check className="w-4 h-4" />
+              <span>Mark All Read</span>
+            </Button>
+          </div>
+          
           {/* Mobile-First Filter Buttons */}
           <div className="mb-4 md:mb-6">
             <div className="flex flex-wrap gap-2 sm:gap-3">
@@ -2007,6 +2030,28 @@ function CommunicationsContent() {
 
         {/* Messages Tab */}
         <TabsContent value="messages">
+          {/* Header with Mark All as Read */}
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-lg font-semibold">Direct Messages</h3>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={async () => {
+                try {
+                  await apiRequest('/api/communications/mark-all-messages-read', 'POST');
+                  // Refresh unread counts
+                  queryClient.invalidateQueries({ queryKey: ['/api/communications/unread-counts'] });
+                } catch (error) {
+                  console.error('Failed to mark all messages as read:', error);
+                }
+              }}
+              className="flex items-center gap-2"
+            >
+              <Check className="w-4 h-4" />
+              <span>Mark All Read</span>
+            </Button>
+          </div>
+          
           {messagesLoading ? (
             <div className="text-center py-8">
               <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
