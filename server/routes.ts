@@ -83,6 +83,34 @@ const parseMerchantId = (merchantId: string | undefined): number | undefined => 
   return parsed;
 };
 
+// Helper functions for imageUrls parsing (shared across endpoints)
+const parseImageUrls = (content: string): string[] => {
+  const match = content.match(/<!--attachments:(.*?)-->/);
+  if (match) {
+    try {
+      const attachments = JSON.parse(match[1]);
+      return attachments.images || [];
+    } catch (e) {
+      return [];
+    }
+  }
+  return [];
+};
+
+const addImageUrlsToItem = (item: any): any => {
+  if (!item.content) return item;
+  
+  const imageUrls = parseImageUrls(item.content);
+  // Remove sentinel from content for display
+  const cleanContent = item.content.replace(/\n\n<!--attachments:.*?-->/g, '');
+  
+  return {
+    ...item,
+    content: cleanContent,
+    imageUrls
+  };
+};
+
 // Utility function to validate date strings
 const validateDateString = (dateStr: string, paramName: string): string => {
   const date = new Date(dateStr);
@@ -1543,14 +1571,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const announcements = await storage.getAllAnnouncements();
       
-      // Fetch reactions for each announcement
+      // Fetch reactions and parse imageUrls for each announcement
       const announcementsWithReactions = await Promise.all(
         announcements.map(async (announcement) => {
           const reactions = await storage.getMessageReactions(announcement.id);
           
-          
+          const announcementWithImages = addImageUrlsToItem(announcement);
           return {
-            ...announcement,
+            ...announcementWithImages,
             reactions: reactions || []
           };
         })
@@ -1567,14 +1595,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const announcements = await storage.getPublishedAnnouncements();
       
-      // Fetch reactions for each announcement (same as admin endpoint)
+      // Fetch reactions and parse imageUrls for each announcement (same as admin endpoint)
       const announcementsWithReactions = await Promise.all(
         announcements.map(async (announcement) => {
           const reactions = await storage.getMessageReactions(announcement.id);
           
-          
+          const announcementWithImages = addImageUrlsToItem(announcement);
           return {
-            ...announcement,
+            ...announcementWithImages,
             reactions: reactions || []
           };
         })
@@ -2897,10 +2925,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!channel) {
         const userId = req.user!.id;
         const messages = await storage.getUserMessages(userId, 50, 0); // Get 50 most recent messages
-        res.json(messages);
+        const messagesWithImages = messages.map(addImageUrlsToItem);
+        res.json(messagesWithImages);
       } else {
         const messages = await storage.getMessagesByChannel(channel as string);
-        res.json(messages);
+        const messagesWithImages = messages.map(addImageUrlsToItem);
+        res.json(messagesWithImages);
       }
     } catch (error) {
       console.error('Error fetching messages:', error);
@@ -10567,7 +10597,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         smsEnabled = false,
         recipientMode = 'audience',
         targetAudience = 'all',
-        recipients = []
+        recipients = [],
+        imageUrls = []
       } = req.body;
       
       const senderId = req.user!.id;
@@ -10577,6 +10608,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!subject?.trim() || !content?.trim()) {
         return res.status(400).json({ error: 'Subject and content are required' });
       }
+
+      // Helper function to embed imageUrls in content using sentinel pattern
+      const embedImageUrls = (content: string, imageUrls: string[]): string => {
+        if (!imageUrls || imageUrls.length === 0) return content;
+        
+        // Remove existing sentinel if present
+        const cleanContent = content.replace(/\n\n<!--attachments:.*?-->/g, '');
+        
+        // Add new sentinel with image URLs
+        const sentinel = `\n\n<!--attachments:${JSON.stringify({ images: imageUrls })}-->`;
+        return cleanContent + sentinel;
+      };
+
+      // Helper function to parse imageUrls from content
+      const parseImageUrls = (content: string): string[] => {
+        const match = content.match(/<!--attachments:(.*?)-->/);
+        if (match) {
+          try {
+            const attachments = JSON.parse(match[1]);
+            return attachments.images || [];
+          } catch (e) {
+            return [];
+          }
+        }
+        return [];
+      };
+
+      // Embed imageUrls in content if provided
+      const contentWithImages = embedImageUrls(content.trim(), imageUrls);
 
       // Role-based permission checks (relaxed to allow all employees broader access)
       const isAdminOrManager = senderUser.role === 'admin' || senderUser.role === 'manager';
@@ -10642,7 +10702,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           senderId,
           recipientId: targetUsers[0].id, // Set recipient for direct messages
           subject,
-          content,
+          content: contentWithImages,
           priority,
           messageType,
           targetAudience: 'custom',
@@ -10653,7 +10713,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         messageRecord = await storage.createMessage({
           senderId,
           subject,
-          content,
+          content: contentWithImages,
           priority,
           messageType,
           targetAudience: recipientMode === 'individual' ? 'custom' : targetAudience,
@@ -10706,6 +10766,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         success: true,
         messageId: messageRecord.id,
         subject,
+        content: content.trim(), // Clean content without sentinel
+        imageUrls: parseImageUrls(contentWithImages), // Parsed image URLs
         recipients: {
           total: targetUsers.length,
           appNotifications: notificationResult.appNotifications,

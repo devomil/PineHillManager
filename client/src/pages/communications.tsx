@@ -967,7 +967,8 @@ function CommunicationsContent() {
           smsEnabled: data.smsEnabled,
           recipientMode: data.targetEmployees?.length > 0 ? 'individual' : 'audience',
           targetAudience: data.targetAudience,
-          recipients: data.targetEmployees || []  // Server expects 'recipients' not 'targetEmployees'
+          recipients: data.targetEmployees || [],  // Server expects 'recipients' not 'targetEmployees'
+          imageUrls: data.imageUrls || []
         };
         return apiRequest('POST', '/api/communications/send', mappedData);
       }
@@ -990,7 +991,8 @@ function CommunicationsContent() {
         targetAudience: 'all',
         targetEmployees: [],
         smsEnabled: true,
-        scheduledFor: ''
+        scheduledFor: '',
+        imageUrls: []
       });
     },
     onError: (error: any) => {
@@ -1027,7 +1029,8 @@ function CommunicationsContent() {
         content: '',
         priority: 'normal',
         targetEmployees: [],
-        smsEnabled: true
+        smsEnabled: true,
+        imageUrls: []
       });
       setShowDirectMessageEmployeeSelector(false);
       setDirectMessageSearchQuery('');
@@ -1058,7 +1061,8 @@ function CommunicationsContent() {
         targetAudience: 'all',
         targetEmployees: [],
         smsEnabled: true,
-        scheduledFor: ''
+        scheduledFor: '',
+        imageUrls: []
       });
       queryClient.invalidateQueries({ queryKey: ["/api/scheduled-messages"] });
     },
@@ -1798,6 +1802,31 @@ function CommunicationsContent() {
                           {announcement.content}
                         </p>
                         
+                        {/* Image Gallery */}
+                        {announcement.imageUrls && announcement.imageUrls.length > 0 && (
+                          <div className="mt-4">
+                            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                              {announcement.imageUrls.map((imageUrl: string, index: number) => (
+                                <div 
+                                  key={index} 
+                                  className="relative aspect-square bg-gray-100 rounded-lg overflow-hidden hover:opacity-90 transition-opacity cursor-pointer"
+                                  data-testid={`image-announcement-${announcement.id}-${index}`}
+                                >
+                                  <img
+                                    src={imageUrl}
+                                    alt={`Announcement image ${index + 1}`}
+                                    className="w-full h-full object-cover"
+                                    onError={(e) => {
+                                      const target = e.target as HTMLImageElement;
+                                      target.style.display = 'none';
+                                    }}
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        
                         {/* Message Reactions */}
                         {typeof announcement.id === 'number' && announcement.id > 0 && (
                           <MessageReactions 
@@ -1932,6 +1961,31 @@ function CommunicationsContent() {
                       <p className="text-gray-700 leading-relaxed">
                         {message.content}
                       </p>
+                      
+                      {/* Image Gallery */}
+                      {message.imageUrls && message.imageUrls.length > 0 && (
+                        <div className="mt-4">
+                          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                            {message.imageUrls.map((imageUrl: string, index: number) => (
+                              <div 
+                                key={index} 
+                                className="relative aspect-square bg-gray-100 rounded-lg overflow-hidden hover:opacity-90 transition-opacity cursor-pointer"
+                                data-testid={`image-message-${message.id}-${index}`}
+                              >
+                                <img
+                                  src={imageUrl}
+                                  alt={`Message image ${index + 1}`}
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => {
+                                    const target = e.target as HTMLImageElement;
+                                    target.style.display = 'none';
+                                  }}
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                       
                       {/* Message Reactions - Use messageId for direct messages */}
                       <div className="pt-3 border-t border-gray-200">
