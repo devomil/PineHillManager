@@ -2488,7 +2488,8 @@ export class DatabaseStorage implements IStorage {
 
   async getUnreadMessageCount(userId: string): Promise<number> {
     try {
-      const result = await db
+      // Count traditional direct messages (with recipientId)
+      const directMessages = await db
         .select({ count: sql<number>`count(*)` })
         .from(messages)
         .where(
@@ -2497,7 +2498,23 @@ export class DatabaseStorage implements IStorage {
             eq(messages.isRead, false)
           )
         );
-      return result[0]?.count || 0;
+
+      // Count custom direct messages (tracked via readReceipts with no readAt)
+      const customMessages = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(readReceipts)
+        .innerJoin(messages, eq(readReceipts.messageId, messages.id))
+        .where(
+          and(
+            eq(readReceipts.userId, userId),
+            isNull(readReceipts.readAt)
+          )
+        );
+
+      const directCount = directMessages[0]?.count || 0;
+      const customCount = customMessages[0]?.count || 0;
+      
+      return directCount + customCount;
     } catch (error) {
       console.log("Database error in getUnreadMessageCount, returning 0");
       return 0;
