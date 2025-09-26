@@ -1642,31 +1642,31 @@ function CommunicationsContent() {
 
       {/* Mobile-First Main Content with Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4 md:space-y-6">
-        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-5 lg:w-auto bg-gray-100 p-1 rounded-lg">
-          <TabsTrigger value="announcements" className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 text-xs sm:text-sm font-medium">
+        <TabsList className="flex w-full overflow-x-auto sm:grid sm:grid-cols-5 lg:w-auto bg-gray-100 p-1 rounded-lg scroll-smooth">
+          <TabsTrigger value="announcements" className="flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium flex-shrink-0 whitespace-nowrap">
             <Bell className="w-3 h-3 sm:w-4 sm:h-4" />
             <span className="hidden sm:inline">Announcements</span>
             <span className="sm:hidden">News</span>
           </TabsTrigger>
-          <TabsTrigger value="messages" className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 text-xs sm:text-sm font-medium">
+          <TabsTrigger value="messages" className="flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium flex-shrink-0 whitespace-nowrap">
             <MessageSquare className="w-3 h-3 sm:w-4 sm:h-4" />
             <span className="hidden sm:inline">Messages</span>
             <span className="sm:hidden">Chat</span>
           </TabsTrigger>
-          <TabsTrigger value="scheduled" className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 text-xs sm:text-sm font-medium">
+          <TabsTrigger value="scheduled" className="flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium flex-shrink-0 whitespace-nowrap">
             <CalendarCheck className="w-3 h-3 sm:w-4 sm:h-4" />
             <span className="hidden sm:inline">Scheduled</span>
             <span className="sm:hidden">Queue</span>
           </TabsTrigger>
           {(user?.role === 'admin' || user?.role === 'manager') && (
-            <TabsTrigger value="analytics" className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 text-xs sm:text-sm font-medium">
+            <TabsTrigger value="analytics" className="flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium flex-shrink-0 whitespace-nowrap">
               <BarChart3 className="w-3 h-3 sm:w-4 sm:h-4" />
               <span className="hidden sm:inline">Analytics</span>
               <span className="sm:hidden">Data</span>
             </TabsTrigger>
           )}
           {user?.role === 'admin' && (
-            <TabsTrigger value="admin" className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 text-xs sm:text-sm font-medium">
+            <TabsTrigger value="admin" className="flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium flex-shrink-0 whitespace-nowrap">
               <TrendingUp className="w-3 h-3 sm:w-4 sm:h-4" />
               <span className="hidden sm:inline">Admin KPIs</span>
               <span className="sm:hidden">KPIs</span>
