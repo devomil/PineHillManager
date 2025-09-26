@@ -21,11 +21,14 @@ export function UnreadIndicator({
   showIcon = false,
   showZero = false
 }: UnreadIndicatorProps) {
-  const { data: unreadCounts, isLoading } = useQuery<UnreadCounts>({
+  const { data: unreadCounts, isLoading, error } = useQuery<UnreadCounts>({
     queryKey: ['/api/communications/unread-counts'],
     refetchInterval: 30000, // Refresh every 30 seconds
     refetchOnWindowFocus: true
   });
+
+  // Debug logging
+  console.log('UnreadIndicator:', { type, isLoading, error, unreadCounts });
 
   if (isLoading || !unreadCounts) {
     return null;
