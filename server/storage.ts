@@ -2511,8 +2511,8 @@ export class DatabaseStorage implements IStorage {
           )
         );
 
-      const directCount = directMessages[0]?.count || 0;
-      const customCount = customMessages[0]?.count || 0;
+      const directCount = Number(directMessages[0]?.count) || 0;
+      const customCount = Number(customMessages[0]?.count) || 0;
       
       return directCount + customCount;
     } catch (error) {

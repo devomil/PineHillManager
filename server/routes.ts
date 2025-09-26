@@ -3124,9 +3124,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       ]);
       
       res.json({
-        messages: unreadMessages,
-        announcements: unreadAnnouncements,
-        total: unreadMessages + unreadAnnouncements
+        messages: Number(unreadMessages) || 0,
+        announcements: Number(unreadAnnouncements) || 0,
+        total: (Number(unreadMessages) || 0) + (Number(unreadAnnouncements) || 0)
       });
     } catch (error) {
       console.error('Error fetching unread counts:', error);
