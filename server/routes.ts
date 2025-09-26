@@ -1593,7 +1593,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get('/api/announcements/published', isAuthenticated, async (req, res) => {
     try {
-      const announcements = await storage.getPublishedAnnouncements();
+      const userId = req.user!.id;
+      const userRole = req.user!.role || 'employee';
+      const announcements = await storage.getPublishedAnnouncementsForUser(userId, userRole);
       
       // Fetch reactions and parse imageUrls for each announcement (same as admin endpoint)
       const announcementsWithReactions = await Promise.all(

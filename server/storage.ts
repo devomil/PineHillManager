@@ -309,6 +309,7 @@ export interface IStorage {
   createAnnouncement(announcement: InsertAnnouncement): Promise<Announcement>;
   getAllAnnouncements(): Promise<Announcement[]>;
   getPublishedAnnouncements(): Promise<Announcement[]>;
+  getPublishedAnnouncementsForUser(userId: string, userRole: string): Promise<Announcement[]>;
   updateAnnouncement(id: number, announcement: Partial<InsertAnnouncement>): Promise<Announcement>;
   publishAnnouncement(id: number): Promise<Announcement>;
   deleteAnnouncement(id: number): Promise<void>;
@@ -2148,6 +2149,66 @@ export class DatabaseStorage implements IStorage {
       .from(announcements)
       .where(eq(announcements.isPublished, true))
       .orderBy(desc(announcements.createdAt));
+  }
+
+  async getPublishedAnnouncementsForUser(userId: string, userRole: string): Promise<Announcement[]> {
+    // Get all published announcements first
+    const allAnnouncements = await db
+      .select()
+      .from(announcements)
+      .where(eq(announcements.isPublished, true))
+      .orderBy(desc(announcements.createdAt));
+    
+    // Filter announcements based on targeting
+    const filteredAnnouncements = allAnnouncements.filter(announcement => {
+      // If no specific targeting is set, include the announcement
+      if (!announcement.targetAudience || announcement.targetAudience === 'all') {
+        return true;
+      }
+      
+      // Check if announcement targets specific employees
+      if (announcement.targetEmployees && announcement.targetEmployees.length > 0) {
+        // Handle PostgreSQL array format: "{emp_1,emp_2}" or actual array
+        let targetEmployeeIds: string[] = [];
+        
+        if (typeof announcement.targetEmployees === 'string') {
+          // Handle PostgreSQL array format like "{emp_1748972104870_mr83mj8jz,emp_1748972535874_ysrqsakt1}"
+          if (announcement.targetEmployees.startsWith('{') && announcement.targetEmployees.endsWith('}')) {
+            targetEmployeeIds = announcement.targetEmployees.slice(1, -1).split(',').map((id: string) => id.trim());
+          } else {
+            targetEmployeeIds = [announcement.targetEmployees];
+          }
+        } else if (Array.isArray(announcement.targetEmployees)) {
+          targetEmployeeIds = announcement.targetEmployees;
+        }
+        
+        return targetEmployeeIds.includes(userId);
+      }
+      
+      // Check role-based targeting
+      switch (announcement.targetAudience) {
+        case 'employees':
+        case 'employees-only':
+          return userRole === 'employee' || !userRole; // Include users with no role as employees
+        case 'managers':
+        case 'managers-only':
+          return userRole === 'manager';
+        case 'admins':
+        case 'admins-only':
+          return userRole === 'admin';
+        case 'admins-managers':
+          return userRole === 'admin' || userRole === 'manager';
+        case 'specific':
+          // For 'specific' audience, we need targetEmployees to be set
+          return false; // If no targetEmployees specified for 'specific', exclude
+        default:
+          // SECURITY: Unknown audience types are explicitly excluded
+          // Only whitelisted audience values are allowed to prevent leakage
+          return false;
+      }
+    });
+    
+    return filteredAnnouncements;
   }
 
   async getAnnouncementById(id: number): Promise<Announcement | undefined> {
