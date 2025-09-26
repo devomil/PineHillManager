@@ -363,6 +363,7 @@ export interface IStorage {
   getChannelMessages(channelId: string, limit?: number): Promise<Message[]>;
   getDirectMessages(userId1: string, userId2: string, limit?: number): Promise<Message[]>;
   getUnreadMessageCount(userId: string): Promise<number>;
+  getUnreadAnnouncementCount(userId: string, userRole: string): Promise<number>;
   markMessagesAsRead(userId: string, channelId?: string): Promise<void>;
 
   // Document management
@@ -2499,6 +2500,39 @@ export class DatabaseStorage implements IStorage {
       return result[0]?.count || 0;
     } catch (error) {
       console.log("Database error in getUnreadMessageCount, returning 0");
+      return 0;
+    }
+  }
+
+  async getUnreadAnnouncementCount(userId: string, userRole: string): Promise<number> {
+    try {
+      // Get announcements targeted for this user
+      const userAnnouncements = await this.getPublishedAnnouncementsForUser(userId, userRole);
+      
+      // Count announcements that the user hasn't reacted to yet
+      let unreadCount = 0;
+      
+      for (const announcement of userAnnouncements) {
+        // Check if user has reacted to this announcement
+        const reactions = await db
+          .select()
+          .from(announcementReactions)
+          .where(
+            and(
+              eq(announcementReactions.announcementId, announcement.id),
+              eq(announcementReactions.userId, userId)
+            )
+          );
+        
+        // If no reactions, consider it unread
+        if (reactions.length === 0) {
+          unreadCount++;
+        }
+      }
+      
+      return unreadCount;
+    } catch (error) {
+      console.log("Database error in getUnreadAnnouncementCount, returning 0");
       return 0;
     }
   }

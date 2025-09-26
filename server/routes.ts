@@ -3110,6 +3110,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ================================
+  // UNREAD COUNTS API ENDPOINT
+  // ================================
+  
+  app.get('/api/communications/unread-counts', isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user!.id;
+      const userRole = req.user!.role || 'employee';
+      
+      const [unreadMessages, unreadAnnouncements] = await Promise.all([
+        storage.getUnreadMessageCount(userId),
+        storage.getUnreadAnnouncementCount(userId, userRole)
+      ]);
+      
+      res.json({
+        messages: unreadMessages,
+        announcements: unreadAnnouncements,
+        total: unreadMessages + unreadAnnouncements
+      });
+    } catch (error) {
+      console.error('Error fetching unread counts:', error);
+      res.status(500).json({ message: 'Failed to fetch unread counts' });
+    }
+  });
+
+  // ================================
   // EMPLOYEE RESPONSE ROUTES
   // ================================
 
