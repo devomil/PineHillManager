@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Bell, Calendar, Users, AlertTriangle, Clock, Plus, Send, MessageSquare, BarChart3, Wifi, WifiOff, TrendingUp, Activity, DollarSign, CheckCircle, CalendarCheck, Edit, Trash2, Search, X, Check } from "lucide-react";
 import { LineChart, Line, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { format, isAfter, parseISO } from "date-fns";
@@ -1888,6 +1889,27 @@ function CommunicationsContent() {
                             <CardTitle className="text-base sm:text-lg md:text-xl font-semibold text-gray-900 leading-tight">
                               {announcement.title}
                             </CardTitle>
+                            {/* Author Information */}
+                            {announcement.authorId && (
+                              <div className="flex items-center gap-2 mt-1">
+                                <Avatar className="h-5 w-5 sm:h-6 sm:w-6">
+                                  <AvatarFallback className="text-xs bg-blue-100 text-blue-700">
+                                    {(() => {
+                                      const author = employees?.find(emp => emp.id === announcement.authorId);
+                                      return author ? `${author.firstName[0]}${author.lastName[0]}` : '??';
+                                    })()} 
+                                  </AvatarFallback>
+                                </Avatar>
+                                <span className="text-xs sm:text-sm text-gray-600">
+                                  {(() => {
+                                    const author = employees?.find(emp => emp.id === announcement.authorId);
+                                    return author ? `${author.firstName} ${author.lastName}` : 'Unknown Author';
+                                  })()}
+                                </span>
+                                <span className="text-xs text-gray-400">•</span>
+                                <span className="text-xs text-gray-500">Author</span>
+                              </div>
+                            )}
                           </div>
                           <div className="flex flex-col items-end space-y-1 sm:space-y-2 flex-shrink-0">
                             <Badge className={`text-xs ${getPriorityColor(announcement.priority)}`}>
@@ -1984,6 +2006,27 @@ function CommunicationsContent() {
                               <CardTitle className="text-xl font-semibold text-gray-900">
                                 {announcement.title}
                               </CardTitle>
+                              {/* Author Information for Expired Announcements */}
+                              {announcement.authorId && (
+                                <div className="flex items-center gap-2 mt-1">
+                                  <Avatar className="h-5 w-5 sm:h-6 sm:w-6">
+                                    <AvatarFallback className="text-xs bg-gray-200 text-gray-600">
+                                      {(() => {
+                                        const author = employees?.find(emp => emp.id === announcement.authorId);
+                                        return author ? `${author.firstName[0]}${author.lastName[0]}` : '??';
+                                      })()} 
+                                    </AvatarFallback>
+                                  </Avatar>
+                                  <span className="text-xs sm:text-sm text-gray-500">
+                                    {(() => {
+                                      const author = employees?.find(emp => emp.id === announcement.authorId);
+                                      return author ? `${author.firstName} ${author.lastName}` : 'Unknown Author';
+                                    })()}
+                                  </span>
+                                  <span className="text-xs text-gray-400">•</span>
+                                  <span className="text-xs text-gray-400">Author</span>
+                                </div>
+                              )}
                             </div>
                             <div className="flex flex-col items-end space-y-2">
                               <Badge className={getPriorityColor(announcement.priority)}>
@@ -2070,6 +2113,27 @@ function CommunicationsContent() {
                           <CardTitle className="text-lg font-semibold text-gray-900">
                             {message.subject || 'Direct Message'}
                           </CardTitle>
+                          {/* Sender Information */}
+                          {message.senderId && (
+                            <div className="flex items-center gap-2 mt-1">
+                              <Avatar className="h-5 w-5 sm:h-6 sm:w-6">
+                                <AvatarFallback className="text-xs bg-green-100 text-green-700">
+                                  {(() => {
+                                    const sender = employees?.find(emp => emp.id === message.senderId);
+                                    return sender ? `${sender.firstName[0]}${sender.lastName[0]}` : '??';
+                                  })()} 
+                                </AvatarFallback>
+                              </Avatar>
+                              <span className="text-xs sm:text-sm text-gray-600">
+                                {(() => {
+                                  const sender = employees?.find(emp => emp.id === message.senderId);
+                                  return sender ? `${sender.firstName} ${sender.lastName}` : 'Unknown Sender';
+                                })()}
+                              </span>
+                              <span className="text-xs text-gray-400">•</span>
+                              <span className="text-xs text-gray-500">Sender</span>
+                            </div>
+                          )}
                         </div>
                         <div className="flex flex-col items-end space-y-1">
                           <Badge className={`text-xs ${getPriorityColor(message.priority)}`}>
