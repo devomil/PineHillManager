@@ -98,7 +98,7 @@ function AppRouter() {
   // Initialize font loading for consistent branding
   useFontLoader();
 
-  console.log('Auth state:', { isAuthenticated, isLoading, user });
+  if (import.meta.env.DEV) console.log('Auth state:', { isAuthenticated, isLoading, user });
 
   if (isLoading) {
     return (
@@ -111,7 +111,7 @@ function AppRouter() {
     );
   }
 
-  console.log('Rendering:', isAuthenticated ? 'AuthenticatedApp' : 'UnauthenticatedApp');
+  if (import.meta.env.DEV) console.log('Rendering:', isAuthenticated ? 'AuthenticatedApp' : 'UnauthenticatedApp');
   
   // Force re-render when user data changes
   if (isAuthenticated && user) {

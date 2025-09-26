@@ -27,8 +27,8 @@ export function UnreadIndicator({
     refetchOnWindowFocus: true
   });
 
-  // Debug logging
-  console.log('UnreadIndicator:', { type, isLoading, error, unreadCounts });
+  // Debug logging only in development
+  if (import.meta.env.DEV) console.log('UnreadIndicator:', { type, isLoading, error, unreadCounts });
 
   if (isLoading || !unreadCounts) {
     return null;

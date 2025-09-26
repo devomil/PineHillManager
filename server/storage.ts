@@ -2523,31 +2523,32 @@ export class DatabaseStorage implements IStorage {
 
   async getUnreadAnnouncementCount(userId: string, userRole: string): Promise<number> {
     try {
-      // Get announcements targeted for this user
-      const userAnnouncements = await this.getPublishedAnnouncementsForUser(userId, userRole);
+      // Optimized query using LEFT JOIN to count unread announcements in a single query
+      const result = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(announcements)
+        .leftJoin(
+          announcementReactions, 
+          and(
+            eq(announcements.id, announcementReactions.announcementId),
+            eq(announcementReactions.userId, userId)
+          )
+        )
+        .where(
+          and(
+            eq(announcements.status, 'published'),
+            or(
+              eq(announcements.targetAudience, 'all'),
+              eq(announcements.targetAudience, userRole),
+              // Include announcements targeted to this specific user
+              like(announcements.targetAudience, `%${userId}%`)
+            ),
+            // Only count if user hasn't reacted (LEFT JOIN results in null)
+            isNull(announcementReactions.id)
+          )
+        );
       
-      // Count announcements that the user hasn't reacted to yet
-      let unreadCount = 0;
-      
-      for (const announcement of userAnnouncements) {
-        // Check if user has reacted to this announcement
-        const reactions = await db
-          .select()
-          .from(announcementReactions)
-          .where(
-            and(
-              eq(announcementReactions.announcementId, announcement.id),
-              eq(announcementReactions.userId, userId)
-            )
-          );
-        
-        // If no reactions, consider it unread
-        if (reactions.length === 0) {
-          unreadCount++;
-        }
-      }
-      
-      return unreadCount;
+      return Number(result[0]?.count) || 0;
     } catch (error) {
       console.log("Database error in getUnreadAnnouncementCount, returning 0");
       return 0;

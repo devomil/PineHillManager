@@ -248,17 +248,19 @@ export default function TimeClock() {
   const weekHours = calculateWeekHours();
   const currentBreakTime = calculateCurrentBreakTime();
 
-  // Debug logging
+  // Debug logging only in development
   useEffect(() => {
-    console.log('=== TIME CLOCK STATE DEBUG ===');
-    console.log('Current Entry:', currentEntry);
-    console.log('Current Entry Type:', typeof currentEntry);
-    console.log('Is Clocked In:', isClockedIn);
-    console.log('Is On Break:', isOnBreak);
-    console.log('Current Entry Loading:', currentEntryLoading);
-    console.log('Current Entry Error:', currentEntryError);
-    console.log('Button should show:', !isClockedIn ? 'Clock In' : 'Clock Out');
-    console.log('===========================');
+    if (import.meta.env.DEV) {
+      console.log('=== TIME CLOCK STATE DEBUG ===');
+      console.log('Current Entry:', currentEntry);
+      console.log('Current Entry Type:', typeof currentEntry);
+      console.log('Is Clocked In:', isClockedIn);
+      console.log('Is On Break:', isOnBreak);
+      console.log('Current Entry Loading:', currentEntryLoading);
+      console.log('Current Entry Error:', currentEntryError);
+      console.log('Button should show:', !isClockedIn ? 'Clock In' : 'Clock Out');
+      console.log('===========================');
+    }
   }, [currentEntry, isClockedIn, isOnBreak, currentEntryLoading, currentEntryError]);
 
   if (!user) {
