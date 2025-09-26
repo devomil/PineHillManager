@@ -51,6 +51,7 @@ import {
   messageReactions,
   announcementReactions,
   smsConsentHistory,
+  readReceipts,
   // Monthly Accounting Archival Tables
   monthlyClosings,
   monthlyAccountBalances,
@@ -248,7 +249,7 @@ import {
   type InsertDailySales,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, desc, asc, gte, lte, or, sql, like, isNull, isNotNull } from "drizzle-orm";
+import { eq, and, desc, asc, gte, lte, or, sql, like, isNull, isNotNull, exists } from "drizzle-orm";
 
 export interface IStorage {
   // User operations - supports both Replit Auth and traditional email/password
@@ -2241,14 +2242,23 @@ export class DatabaseStorage implements IStorage {
   // Messages
 
   async getUserMessages(userId: string, limit = 50, offset = 0): Promise<Message[]> {
-    // Get all messages sent by or received by this user
+    // Get all messages sent by or received by this user, including custom direct messages
     return await db
       .select()
       .from(messages)
       .where(
         or(
           eq(messages.senderId, userId), // Messages sent by this user
-          eq(messages.recipientId, userId) // Messages received by this user
+          eq(messages.recipientId, userId), // Messages received by this user
+          exists(
+            db.select().from(readReceipts)
+              .where(
+                and(
+                  eq(readReceipts.messageId, messages.id),
+                  eq(readReceipts.userId, userId)
+                )
+              )
+          ) // Messages where this user has a readReceipt (custom recipients)
         )
       )
       .orderBy(desc(messages.sentAt))
