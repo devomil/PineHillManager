@@ -35,6 +35,7 @@ interface Announcement {
   expiresAt?: string;
   smsEnabled: boolean;
   reactions?: any[];
+  imageUrls?: string[];
 }
 
 interface Communication {
@@ -156,7 +157,7 @@ const formatMessageAudience = (message: any, employees: any[] = []) => {
     } else if (typeof message.targetEmployees === 'string') {
       // Handle PostgreSQL array format like "{emp_1748972869348_lpavu3oa7}"
       if (message.targetEmployees.startsWith('{') && message.targetEmployees.endsWith('}')) {
-        targetEmployeeIds = message.targetEmployees.slice(1, -1).split(',').map(id => id.trim());
+        targetEmployeeIds = message.targetEmployees.slice(1, -1).split(',').map((id: string) => id.trim());
       } else {
         targetEmployeeIds = [message.targetEmployees];
       }
