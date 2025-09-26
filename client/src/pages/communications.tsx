@@ -1765,7 +1765,7 @@ function CommunicationsContent() {
               size="sm"
               onClick={async () => {
                 try {
-                  await apiRequest('/api/communications/mark-all-announcements-read', 'POST');
+                  await apiRequest('POST', '/api/communications/mark-all-announcements-read');
                   // Refresh unread counts
                   queryClient.invalidateQueries({ queryKey: ['/api/communications/unread-counts'] });
                 } catch (error) {
@@ -2038,7 +2038,7 @@ function CommunicationsContent() {
               size="sm"
               onClick={async () => {
                 try {
-                  await apiRequest('/api/communications/mark-all-messages-read', 'POST');
+                  await apiRequest('POST', '/api/communications/mark-all-messages-read');
                   // Refresh unread counts
                   queryClient.invalidateQueries({ queryKey: ['/api/communications/unread-counts'] });
                 } catch (error) {
