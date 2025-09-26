@@ -22,6 +22,7 @@ import { useToast } from "@/hooks/use-toast";
 import { getPriorityStyle, getCategoryStyle, getPriorityEmoji, getCategoryEmoji } from "@shared/template-utils";
 import { useWebSocket, useWebSocketSubscription } from "@/lib/websocket";
 import { PhotoUpload } from "@/components/ui/photo-upload";
+import { UnreadIndicator } from "@/components/ui/unread-indicator";
 
 interface Announcement {
   id: number;
@@ -1687,12 +1688,14 @@ function CommunicationsContent() {
                 <div className="flex items-center gap-2">
                   <Bell className="w-4 h-4" />
                   <span>Announcements</span>
+                  <UnreadIndicator type="announcements" className="ml-auto" />
                 </div>
               </SelectItem>
               <SelectItem value="messages">
                 <div className="flex items-center gap-2">
                   <MessageSquare className="w-4 h-4" />
                   <span>Messages</span>
+                  <UnreadIndicator type="messages" className="ml-auto" />
                 </div>
               </SelectItem>
               <SelectItem value="scheduled">
@@ -1726,10 +1729,12 @@ function CommunicationsContent() {
           <TabsTrigger value="announcements" className="flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium">
             <Bell className="w-3 h-3 sm:w-4 sm:h-4" />
             <span>Announcements</span>
+            <UnreadIndicator type="announcements" className="ml-1" />
           </TabsTrigger>
           <TabsTrigger value="messages" className="flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium">
             <MessageSquare className="w-3 h-3 sm:w-4 sm:h-4" />
             <span>Messages</span>
+            <UnreadIndicator type="messages" className="ml-1" />
           </TabsTrigger>
           <TabsTrigger value="scheduled" className="flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium">
             <CalendarCheck className="w-3 h-3 sm:w-4 sm:h-4" />
