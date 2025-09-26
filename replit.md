@@ -142,3 +142,32 @@ The comprehensive order management system now provides complete visibility into 
 - Professional performance suitable for production deployment
 
 **Next Development Focus**: Communication page enhancements and features, with order management system now fully optimized and production-ready.
+
+### September 26, 2025 - Communication Page Direct Message Fix ✅
+**Status**: Production Ready
+
+**Critical Bug Resolution**:
+- ✅ **Direct Message Visibility Issue**: Fixed custom target audience messages not appearing for recipients on the /communications page
+- ✅ **Root Cause Analysis**: Messages with `target_audience='custom'` had `recipient_id=NULL`, causing `getUserMessages()` to miss them
+- ✅ **Architectural Solution**: Modified `getUserMessages()` to include messages where user has `readReceipts` entries
+- ✅ **Zero Schema Changes**: Leveraged existing `readReceipts` table for recipient tracking without database migrations
+
+**Technical Implementation**:
+- **Storage Layer Fix**: Enhanced `getUserMessages()` query to include `EXISTS` check for `readReceipts` table
+- **Backward Compatibility**: Maintained existing direct message functionality while fixing custom recipient messages
+- **Performance Optimized**: Used efficient database joins with proper indexing on `readReceipts` table
+- **Production Tested**: Confirmed Jackie Phillips' "Radio in LG" message now visible to intended recipients like Danielle Clark
+
+**System Functionality**:
+- **Custom Direct Messages**: Full visibility for multi-recipient direct messages with custom targeting
+- **Read Receipt Integration**: Unified message delivery and read tracking using existing infrastructure
+- **Message Threading**: Proper participant tracking for direct message conversations and responses
+- **SMS Integration**: Maintained existing SMS notification functionality for direct message participants
+
+**User Experience Improvements**:
+- Direct messages with custom recipients now appear correctly in communications feed
+- Consistent message visibility across all message types (direct, channel, announcement, broadcast)
+- Real-time message delivery and read tracking maintained
+- Seamless user experience with no visible changes to UI/UX
+
+The communication system now provides complete message visibility for all targeting scenarios, resolving the critical gap in custom direct message delivery and ensuring reliable team communication across all Pine Hill Farm locations.
