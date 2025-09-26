@@ -954,6 +954,7 @@ function CommunicationsContent() {
           targetAudience: data.targetAudience,
           targetEmployees: data.targetEmployees,
           smsEnabled: data.smsEnabled,
+          imageUrls: data.imageUrls || [],
           action: 'publish'  // Auto-publish announcements for SMS threading
         };
         return apiRequest('POST', '/api/announcements', announcementData);

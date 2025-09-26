@@ -1627,7 +1627,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         targetEmployees: req.body.targetEmployees,
         expiresAt: req.body.expiresAt,
         action: req.body.action || 'publish',
-        smsEnabled: req.body.smsEnabled || false
+        smsEnabled: req.body.smsEnabled || false,
+        imageUrls: req.body.imageUrls
       };
       
       const {
@@ -1638,8 +1639,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         targetEmployees,
         expiresAt,
         action,
-        smsEnabled
+        smsEnabled,
+        imageUrls
       } = validationResult;
+      
+      // Helper function to embed imageUrls in content using sentinel pattern
+      const embedImageUrls = (content: string, imageUrls: string[]): string => {
+        if (!imageUrls || imageUrls.length === 0) return content;
+        
+        // Remove existing sentinel if present
+        const cleanContent = content.replace(/\n\n<!--attachments:.*?-->/g, '');
+        
+        // Add new sentinel with image URLs
+        const sentinel = `\n\n<!--attachments:${JSON.stringify({ images: imageUrls })}-->`;
+        return cleanContent + sentinel;
+      };
       
       const isPublished = action === 'publish';
       
@@ -1655,6 +1669,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         smsEnabledType: typeof smsEnabled,
         reqBodyKeys: Object.keys(req.body)
       });
+      
+      // Embed imageUrls in content if provided
+      const contentWithImages = embedImageUrls(content.trim(), imageUrls);
       
       // Validate required fields
       if (!title?.trim() || !content?.trim()) {
@@ -1685,7 +1702,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Create announcement in database
       const announcement = await storage.createAnnouncement({
         title: title.trim(),
-        content: content.trim(),
+        content: contentWithImages,
         authorId,
         priority,
         targetAudience: processedAudience,
