@@ -21,6 +21,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { getPriorityStyle, getCategoryStyle, getPriorityEmoji, getCategoryEmoji } from "@shared/template-utils";
 import { useWebSocket, useWebSocketSubscription } from "@/lib/websocket";
+import { PhotoUpload } from "@/components/ui/photo-upload";
 
 interface Announcement {
   id: number;
@@ -835,7 +836,8 @@ function CommunicationsContent() {
     targetAudience: 'all',
     targetEmployees: [] as string[],
     smsEnabled: true,
-    scheduledFor: ''
+    scheduledFor: '',
+    imageUrls: [] as string[]
   });
   
   // Form state for direct messages (available to all employees)
@@ -844,7 +846,8 @@ function CommunicationsContent() {
     content: '',
     priority: 'normal' as 'low' | 'normal' | 'high' | 'urgent',
     targetEmployees: [] as string[],
-    smsEnabled: true
+    smsEnabled: true,
+    imageUrls: [] as string[]
   });
   
   // Dialog states
@@ -1009,7 +1012,8 @@ function CommunicationsContent() {
         messageType: 'direct_message',
         smsEnabled: data.smsEnabled,
         recipientMode: 'individual',
-        recipients: data.targetEmployees
+        recipients: data.targetEmployees,
+        imageUrls: data.imageUrls || []
       };
       return apiRequest('POST', '/api/communications/send', mappedData);
     },
@@ -1217,6 +1221,17 @@ function CommunicationsContent() {
                   />
                 </div>
 
+                {/* Photo Upload - Available to all users for messages */}
+                <div>
+                  <Label>📷 Attach Photos</Label>
+                  <PhotoUpload
+                    onPhotosUploaded={(imageUrls) => setDirectMessageData(prev => ({ ...prev, imageUrls }))}
+                    maxFiles={5}
+                    placeholder="Add photos to your message (drag, paste, or click)"
+                    className="mt-2"
+                  />
+                </div>
+
                 {/* Priority */}
                 <div>
                   <Label htmlFor="dm-priority">Priority Level</Label>
@@ -1376,6 +1391,19 @@ function CommunicationsContent() {
                     rows={4}
                   />
                 </div>
+
+                {/* Photo Upload - Only for Admin/Manager users in announcements */}
+                {(user?.role === 'admin' || user?.role === 'manager') && (
+                  <div>
+                    <Label>📷 Attach Photos</Label>
+                    <PhotoUpload
+                      onPhotosUploaded={(imageUrls) => setFormData(prev => ({ ...prev, imageUrls }))}
+                      maxFiles={5}
+                      placeholder="Add photos to your announcement (drag, paste, or click)"
+                      className="mt-2"
+                    />
+                  </div>
+                )}
 
                 {/* Professional Templates */}
                 {templates && templates.length > 0 && (
