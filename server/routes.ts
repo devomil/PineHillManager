@@ -10491,6 +10491,71 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ENHANCED COMMUNICATION ENDPOINTS
   // ================================
 
+  // Upload images for communications (messages/announcements)
+  app.post('/api/communications/upload-images', isAuthenticated, upload.array('images', 5), async (req, res) => {
+    try {
+      const files = req.files as Express.Multer.File[];
+      const user = req.user as any;
+
+      if (!files || files.length === 0) {
+        return res.status(400).json({ error: 'No images uploaded' });
+      }
+
+      // Validate file types (only images)
+      const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+      const validFiles = files.filter(file => {
+        // Check if file has been validated by multer first
+        if (!file.originalname) return false;
+        
+        // Check file extension as additional validation
+        const ext = path.extname(file.originalname).toLowerCase();
+        const validExts = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
+        return validExts.includes(ext);
+      });
+
+      if (validFiles.length === 0) {
+        // Clean up any uploaded files
+        files.forEach(file => {
+          if (fs.existsSync(file.path)) {
+            fs.unlinkSync(file.path);
+          }
+        });
+        return res.status(400).json({ error: 'Only image files (JPG, PNG, GIF, WebP) are allowed' });
+      }
+
+      // Process valid files and create public URLs
+      const imageUrls = validFiles.map(file => {
+        const fileExtension = path.extname(file.originalname);
+        const newFileName = `comm_${Date.now()}_${Math.random().toString(36).substring(7)}${fileExtension}`;
+        const newPath = path.join(uploadsDir, newFileName);
+        
+        // Move file to proper location with descriptive name
+        fs.renameSync(file.path, newPath);
+        
+        return `/uploads/${newFileName}`;
+      });
+
+      // Clean up any invalid files
+      files.filter(file => !validFiles.includes(file)).forEach(file => {
+        if (fs.existsSync(file.path)) {
+          fs.unlinkSync(file.path);
+        }
+      });
+
+      console.log(`📷 Images uploaded by ${user.firstName} ${user.lastName}:`, imageUrls);
+
+      res.json({
+        success: true,
+        imageUrls,
+        message: `${imageUrls.length} image(s) uploaded successfully`
+      });
+
+    } catch (error) {
+      console.error('Error uploading images:', error);
+      res.status(500).json({ error: 'Failed to upload images' });
+    }
+  });
+
   // Send communication (messages/announcements) with SMS + app notifications
   app.post('/api/communications/send', isAuthenticated, async (req, res) => {
     try {
