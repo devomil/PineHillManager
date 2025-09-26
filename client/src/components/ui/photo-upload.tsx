@@ -89,9 +89,7 @@ export function PhotoUpload({
       });
 
       // Upload to backend
-      const response = await apiRequest('POST', '/api/communications/upload-images', {
-        body: formData
-      });
+      const response = await apiRequest('POST', '/api/communications/upload-images', formData);
 
       const result = await response.json();
 
