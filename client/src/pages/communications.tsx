@@ -1642,34 +1642,108 @@ function CommunicationsContent() {
 
       {/* Mobile-First Main Content with Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4 md:space-y-6">
-        <TabsList className="flex w-full overflow-x-auto sm:grid sm:grid-cols-5 lg:w-auto bg-gray-100 p-1 rounded-lg scroll-smooth">
-          <TabsTrigger value="announcements" className="flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium flex-shrink-0 whitespace-nowrap">
+        {/* Mobile Dropdown Navigation */}
+        <div className="block sm:hidden">
+          <Select value={activeTab} onValueChange={setActiveTab}>
+            <SelectTrigger className="w-full bg-white border border-gray-200">
+              <SelectValue>
+                <div className="flex items-center gap-2">
+                  {activeTab === 'announcements' && (
+                    <>
+                      <Bell className="w-4 h-4" />
+                      <span>Announcements</span>
+                    </>
+                  )}
+                  {activeTab === 'messages' && (
+                    <>
+                      <MessageSquare className="w-4 h-4" />
+                      <span>Messages</span>
+                    </>
+                  )}
+                  {activeTab === 'scheduled' && (
+                    <>
+                      <CalendarCheck className="w-4 h-4" />
+                      <span>Scheduled</span>
+                    </>
+                  )}
+                  {activeTab === 'analytics' && (
+                    <>
+                      <BarChart3 className="w-4 h-4" />
+                      <span>Analytics</span>
+                    </>
+                  )}
+                  {activeTab === 'admin' && (
+                    <>
+                      <TrendingUp className="w-4 h-4" />
+                      <span>Admin KPIs</span>
+                    </>
+                  )}
+                </div>
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="announcements">
+                <div className="flex items-center gap-2">
+                  <Bell className="w-4 h-4" />
+                  <span>Announcements</span>
+                </div>
+              </SelectItem>
+              <SelectItem value="messages">
+                <div className="flex items-center gap-2">
+                  <MessageSquare className="w-4 h-4" />
+                  <span>Messages</span>
+                </div>
+              </SelectItem>
+              <SelectItem value="scheduled">
+                <div className="flex items-center gap-2">
+                  <CalendarCheck className="w-4 h-4" />
+                  <span>Scheduled</span>
+                </div>
+              </SelectItem>
+              {(user?.role === 'admin' || user?.role === 'manager') && (
+                <SelectItem value="analytics">
+                  <div className="flex items-center gap-2">
+                    <BarChart3 className="w-4 h-4" />
+                    <span>Analytics</span>
+                  </div>
+                </SelectItem>
+              )}
+              {user?.role === 'admin' && (
+                <SelectItem value="admin">
+                  <div className="flex items-center gap-2">
+                    <TrendingUp className="w-4 h-4" />
+                    <span>Admin KPIs</span>
+                  </div>
+                </SelectItem>
+              )}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Desktop Tabs Navigation */}
+        <TabsList className="hidden sm:grid sm:grid-cols-5 lg:w-auto bg-gray-100 p-1 rounded-lg">
+          <TabsTrigger value="announcements" className="flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium">
             <Bell className="w-3 h-3 sm:w-4 sm:h-4" />
-            <span className="hidden sm:inline">Announcements</span>
-            <span className="sm:hidden">News</span>
+            <span>Announcements</span>
           </TabsTrigger>
-          <TabsTrigger value="messages" className="flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium flex-shrink-0 whitespace-nowrap">
+          <TabsTrigger value="messages" className="flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium">
             <MessageSquare className="w-3 h-3 sm:w-4 sm:h-4" />
-            <span className="hidden sm:inline">Messages</span>
-            <span className="sm:hidden">Chat</span>
+            <span>Messages</span>
           </TabsTrigger>
-          <TabsTrigger value="scheduled" className="flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium flex-shrink-0 whitespace-nowrap">
+          <TabsTrigger value="scheduled" className="flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium">
             <CalendarCheck className="w-3 h-3 sm:w-4 sm:h-4" />
-            <span className="hidden sm:inline">Scheduled</span>
-            <span className="sm:hidden">Queue</span>
+            <span>Scheduled</span>
           </TabsTrigger>
           {(user?.role === 'admin' || user?.role === 'manager') && (
-            <TabsTrigger value="analytics" className="flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium flex-shrink-0 whitespace-nowrap">
+            <TabsTrigger value="analytics" className="flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium">
               <BarChart3 className="w-3 h-3 sm:w-4 sm:h-4" />
-              <span className="hidden sm:inline">Analytics</span>
-              <span className="sm:hidden">Data</span>
+              <span>Analytics</span>
             </TabsTrigger>
           )}
           {user?.role === 'admin' && (
-            <TabsTrigger value="admin" className="flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium flex-shrink-0 whitespace-nowrap">
+            <TabsTrigger value="admin" className="flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium">
               <TrendingUp className="w-3 h-3 sm:w-4 sm:h-4" />
-              <span className="hidden sm:inline">Admin KPIs</span>
-              <span className="sm:hidden">KPIs</span>
+              <span>Admin KPIs</span>
             </TabsTrigger>
           )}
         </TabsList>
