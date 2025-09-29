@@ -536,7 +536,11 @@ export class SmartNotificationService {
       
       if (timeString.includes('T')) {
         // ISO format: 2025-09-06T10:00:00
-        dateObj = new Date(timeString);
+        // Treat as local time (already in Chicago timezone) to avoid double conversion
+        const [datePart, timePart] = timeString.split('T');
+        const [year, month, day] = datePart.split('-').map(Number);
+        const [hours, minutes, seconds = 0] = timePart.split(':').map(Number);
+        dateObj = new Date(year, month - 1, day, hours, minutes, seconds);
       } else if (timeString.includes(':')) {
         // Time only format: 10:00:00 or 10:00
         const today = new Date();
@@ -547,12 +551,11 @@ export class SmartNotificationService {
         return timeString;
       }
 
-      // Format to readable AM/PM time
+      // Format to readable AM/PM time (already in local timezone, no conversion needed)
       return dateObj.toLocaleTimeString('en-US', {
         hour: 'numeric',
         minute: '2-digit',
-        hour12: true,
-        timeZone: 'America/Chicago' // CST timezone for Pine Hill Farm
+        hour12: true
       });
       
     } catch (error) {
