@@ -59,7 +59,6 @@ import {
   PieChart,
   CheckCircle2,
   AlertTriangle,
-  Calculator,
   Edit,
   FileText,
   Scan,
@@ -330,24 +329,27 @@ function AccountingContent() {
   });
 
   // Chart of Accounts with period filtering state
-  const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
-  const [selectedYear, setSelectedYear] = useState<number | null>(null);
   const [isPayrollDialogOpen, setIsPayrollDialogOpen] = useState(false);
 
-  // Financial accounts with period filtering
+  // Financial accounts with period filtering - use COA endpoint when filtering, regular endpoint otherwise
+  const useCOAFiltering = isHistoricalMode;
   const { data: coaData, isLoading: accountsLoading } = useQuery<{
     accounts: FinancialAccount[];
     period: { month: number; year: number } | null;
   }>({
-    queryKey: ['/api/accounting/coa', selectedMonth, selectedYear],
+    queryKey: useCOAFiltering ? ['/api/accounting/coa', selectedMonth, selectedYear] : ['/api/accounting/accounts'],
     queryFn: async () => {
-      const params = new URLSearchParams();
-      if (selectedMonth && selectedYear) {
+      if (useCOAFiltering) {
+        const params = new URLSearchParams();
         params.append('month', selectedMonth.toString());
         params.append('year', selectedYear.toString());
+        const response = await apiRequest('GET', `/api/accounting/coa?${params.toString()}`);
+        return await response.json();
+      } else {
+        const response = await apiRequest('GET', '/api/accounting/accounts');
+        const accounts = await response.json();
+        return { accounts, period: null };
       }
-      const response = await apiRequest('GET', `/api/accounting/coa?${params.toString()}`);
-      return await response.json();
     },
   });
 
