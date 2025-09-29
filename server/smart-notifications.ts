@@ -530,6 +530,8 @@ export class SmartNotificationService {
    * Format time for SMS display (convert ISO to readable AM/PM format)
    */
   private formatTimeForSMS(timeString: string): string {
+    console.log(`🔧 DEBUG - formatTimeForSMS input: "${timeString}"`);
+    
     try {
       // Handle various time format inputs
       let dateObj: Date;
@@ -541,22 +543,30 @@ export class SmartNotificationService {
         const [year, month, day] = datePart.split('-').map(Number);
         const [hours, minutes, seconds = 0] = timePart.split(':').map(Number);
         dateObj = new Date(year, month - 1, day, hours, minutes, seconds);
+        console.log(`🔧 DEBUG - Parsed ISO: year=${year}, month=${month-1}, day=${day}, hours=${hours}, minutes=${minutes}`);
+        console.log(`🔧 DEBUG - Created dateObj: ${dateObj.toString()}`);
       } else if (timeString.includes(':')) {
         // Time only format: 10:00:00 or 10:00
         const today = new Date();
         const [hours, minutes] = timeString.split(':').map(Number);
         dateObj = new Date(today.getFullYear(), today.getMonth(), today.getDate(), hours, minutes);
+        console.log(`🔧 DEBUG - Parsed time only: hours=${hours}, minutes=${minutes}`);
+        console.log(`🔧 DEBUG - Created dateObj: ${dateObj.toString()}`);
       } else {
         // Fallback to original string
+        console.log(`🔧 DEBUG - Using fallback for: "${timeString}"`);
         return timeString;
       }
 
       // Format to readable AM/PM time (already in local timezone, no conversion needed)
-      return dateObj.toLocaleTimeString('en-US', {
+      const formatted = dateObj.toLocaleTimeString('en-US', {
         hour: 'numeric',
         minute: '2-digit',
         hour12: true
       });
+      
+      console.log(`🔧 DEBUG - Formatted result: "${formatted}"`);
+      return formatted;
       
     } catch (error) {
       console.error('Error formatting time for SMS:', error);
