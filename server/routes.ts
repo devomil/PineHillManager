@@ -5099,6 +5099,178 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ============================================
+  // PAYROLL AUTOMATION API ROUTES
+  // ============================================
+
+  // Get Chart of Accounts with optional month/year filtering for balances
+  app.get('/api/accounting/coa', isAuthenticated, async (req, res) => {
+    try {
+      const { month, year } = req.query;
+      
+      let monthNum, yearNum;
+      if (month && year) {
+        monthNum = parseInt(month as string);
+        yearNum = parseInt(year as string);
+        
+        if (isNaN(monthNum) || isNaN(yearNum) || monthNum < 1 || monthNum > 12) {
+          return res.status(400).json({ message: 'Invalid month or year. Month must be 1-12.' });
+        }
+      }
+      
+      const accounts = await storage.getChartOfAccountsWithBalances(monthNum, yearNum);
+      res.json({
+        accounts,
+        period: monthNum && yearNum ? { month: monthNum, year: yearNum } : null
+      });
+    } catch (error) {
+      console.error('Error fetching Chart of Accounts:', error);
+      res.status(500).json({ message: 'Failed to fetch Chart of Accounts' });
+    }
+  });
+
+  // Preview payroll accrual calculation
+  app.get('/api/accounting/payroll/preview', isAuthenticated, async (req, res) => {
+    try {
+      // Admin-only access
+      if (!req.user || req.user.role !== 'admin') {
+        return res.status(403).json({ message: 'Admin access required' });
+      }
+
+      const { month, year, locationId } = req.query;
+      
+      if (!month || !year) {
+        return res.status(400).json({ message: 'Month and year are required' });
+      }
+      
+      const monthNum = parseInt(month as string);
+      const yearNum = parseInt(year as string);
+      const locationIdNum = locationId ? parseInt(locationId as string) : undefined;
+      
+      if (isNaN(monthNum) || isNaN(yearNum) || monthNum < 1 || monthNum > 12) {
+        return res.status(400).json({ message: 'Invalid month or year. Month must be 1-12.' });
+      }
+      
+      // Calculate date range for the month
+      const startDate = `${yearNum}-${monthNum.toString().padStart(2, '0')}-01`;
+      const endDate = new Date(yearNum, monthNum, 0).toISOString().split('T')[0]; // Last day of month
+      
+      const employeeHours = await storage.computeScheduledHoursByUser(startDate, endDate, locationIdNum);
+      
+      let totalAmount = 0;
+      const employeeBreakdown = employeeHours.map(emp => {
+        const hourlyRate = emp.hourlyRate || 0;
+        const totalCost = emp.scheduledHours * hourlyRate;
+        totalAmount += totalCost;
+        
+        return {
+          userId: emp.userId,
+          userName: emp.userName,
+          scheduledHours: emp.scheduledHours,
+          hourlyRate,
+          totalCost
+        };
+      }).filter(emp => emp.totalCost > 0); // Only include employees with costs
+      
+      res.json({
+        month: monthNum,
+        year: yearNum,
+        locationId: locationIdNum,
+        startDate,
+        endDate,
+        totalAmount: Math.round(totalAmount * 100) / 100,
+        employeeCount: employeeBreakdown.length,
+        employeeBreakdown
+      });
+    } catch (error) {
+      console.error('Error previewing payroll accrual:', error);
+      res.status(500).json({ message: 'Failed to preview payroll accrual' });
+    }
+  });
+
+  // Create payroll accrual transaction
+  app.post('/api/accounting/payroll/accrue', isAuthenticated, async (req, res) => {
+    try {
+      // Admin-only access
+      if (!req.user || req.user.role !== 'admin') {
+        return res.status(403).json({ message: 'Admin access required' });
+      }
+
+      // Validate request body
+      const accrualSchema = z.object({
+        month: z.number().min(1).max(12),
+        year: z.number().min(2020).max(2030),
+        source: z.literal('scheduled'),
+        replace: z.boolean().optional().default(false),
+        locationId: z.number().optional()
+      });
+
+      const { month, year, source, replace, locationId } = accrualSchema.parse(req.body);
+      
+      // Calculate date range for the month
+      const startDate = `${year}-${month.toString().padStart(2, '0')}-01`;
+      const endDate = new Date(year, month, 0).toISOString().split('T')[0]; // Last day of month
+      
+      const employeeHours = await storage.computeScheduledHoursByUser(startDate, endDate, locationId);
+      
+      if (employeeHours.length === 0) {
+        return res.status(400).json({ message: 'No scheduled hours found for the specified period' });
+      }
+      
+      let totalAmount = 0;
+      const employeeBreakdown = employeeHours.map(emp => {
+        const hourlyRate = emp.hourlyRate || 0;
+        const totalCost = emp.scheduledHours * hourlyRate;
+        totalAmount += totalCost;
+        
+        return {
+          userId: emp.userId,
+          userName: emp.userName,
+          scheduledHours: emp.scheduledHours,
+          hourlyRate,
+          totalCost
+        };
+      }).filter(emp => emp.totalCost > 0); // Only include employees with costs
+      
+      if (employeeBreakdown.length === 0) {
+        return res.status(400).json({ message: 'No employees with hourly rates found for payroll accrual' });
+      }
+      
+      const transaction = await storage.createPayrollAccrualTransaction({
+        month,
+        year,
+        totalAmount: Math.round(totalAmount * 100) / 100,
+        employeeBreakdown,
+        locationId,
+        replace
+      });
+      
+      res.status(201).json({
+        success: true,
+        transaction,
+        accrual: {
+          month,
+          year,
+          totalAmount: Math.round(totalAmount * 100) / 100,
+          employeeCount: employeeBreakdown.length,
+          description: `Payroll Accrual - ${year}-${month.toString().padStart(2, '0')} (scheduled)`
+        }
+      });
+    } catch (error: any) {
+      if (error?.name === 'ZodError') {
+        return res.status(400).json({ 
+          message: 'Invalid request data',
+          errors: error.errors 
+        });
+      }
+      console.error('Error creating payroll accrual:', error);
+      res.status(500).json({ 
+        message: 'Failed to create payroll accrual',
+        error: error.message
+      });
+    }
+  });
+
   // Financial Transactions Routes
   app.get('/api/accounting/transactions', isAuthenticated, async (req, res) => {
     try {
