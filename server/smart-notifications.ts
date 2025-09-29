@@ -639,8 +639,21 @@ export class SmartNotificationService {
         return acc;
       }, {} as Record<string, any[]>);
 
-      const totalSchedules = schedules.length;
       const totalDates = Object.keys(schedulesByDate).length;
+      
+      // Create a more accurate message based on the actual changes
+      let message: string;
+      if (totalDates === 1) {
+        const date = Object.keys(schedulesByDate)[0];
+        const shiftsForDay = schedulesByDate[date].length;
+        if (shiftsForDay === 1) {
+          message = `Your schedule has been updated for ${new Date(date).toLocaleDateString()}. Check your app for complete details.`;
+        } else {
+          message = `Your schedule has been updated with ${shiftsForDay} change${shiftsForDay > 1 ? 's' : ''} for ${new Date(date).toLocaleDateString()}. Check your app for complete details.`;
+        }
+      } else {
+        message = `Your schedule has been updated across ${totalDates} day${totalDates > 1 ? 's' : ''}. Check your app for complete details.`;
+      }
 
       const summaryContext: NotificationContext = {
         userId,
@@ -648,7 +661,7 @@ export class SmartNotificationService {
         priority: 'high',
         content: {
           title: 'Schedule Ready',
-          message: `Your schedule has been updated with ${totalSchedules} shift${totalSchedules > 1 ? 's' : ''} across ${totalDates} day${totalDates > 1 ? 's' : ''}. Check your app for complete details.`,
+          message,
           metadata: {
             summaryType: 'bulk_schedule_update',
             totalSchedules,
