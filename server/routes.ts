@@ -1485,26 +1485,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Send smart notification for schedule change
       try {
-        console.log('🔧 DEBUG - Updates object:', updates);
-        console.log('🔧 DEBUG - Updated schedule:', updatedSchedule);
-        
-        const notificationData = { 
-          userId: updatedSchedule.userId,
-          date: updatedSchedule.date,
-          shiftType: updatedSchedule.shiftType,
-          originalSchedule: updatedSchedule,
-          // Extract specific changes for notification formatting (only include if changed)
-          ...(updates.startTime && { startTime: updates.startTime }),
-          ...(updates.endTime && { endTime: updates.endTime }),
-          ...(updates.locationId && { locationId: updates.locationId }),
-          ...(updates.status && { status: updates.status })
-        };
-        
-        console.log('🔧 DEBUG - Notification data being sent:', notificationData);
-        
         await smartNotificationService.handleScheduleChange(
           scheduleId, 
-          notificationData, 
+          { 
+            userId: updatedSchedule.userId,
+            date: updatedSchedule.date,
+            shiftType: updatedSchedule.shiftType,
+            originalSchedule: updatedSchedule,
+            // Extract specific changes for notification formatting (only include if changed)
+            ...(updates.startTime && { startTime: updates.startTime }),
+            ...(updates.endTime && { endTime: updates.endTime }),
+            ...(updates.locationId && { locationId: updates.locationId }),
+            ...(updates.status && { status: updates.status })
+          }, 
           req.user.id
         );
       } catch (notificationError) {
