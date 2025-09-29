@@ -53,6 +53,8 @@ import {
   Target,
   Plus,
   TrendingDown,
+  Calculator,
+  CalendarDays,
   Calendar,
   PieChart,
   CheckCircle2,
@@ -327,14 +329,30 @@ function AccountingContent() {
     },
   });
 
-  // Financial accounts
-  const { data: accounts = [], isLoading: accountsLoading } = useQuery<FinancialAccount[]>({
-    queryKey: ['/api/accounting/accounts'],
+  // Chart of Accounts with period filtering state
+  const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
+  const [selectedYear, setSelectedYear] = useState<number | null>(null);
+  const [isPayrollDialogOpen, setIsPayrollDialogOpen] = useState(false);
+
+  // Financial accounts with period filtering
+  const { data: coaData, isLoading: accountsLoading } = useQuery<{
+    accounts: FinancialAccount[];
+    period: { month: number; year: number } | null;
+  }>({
+    queryKey: ['/api/accounting/coa', selectedMonth, selectedYear],
     queryFn: async () => {
-      const response = await apiRequest('GET', '/api/accounting/accounts');
+      const params = new URLSearchParams();
+      if (selectedMonth && selectedYear) {
+        params.append('month', selectedMonth.toString());
+        params.append('year', selectedYear.toString());
+      }
+      const response = await apiRequest('GET', `/api/accounting/coa?${params.toString()}`);
       return await response.json();
     },
   });
+
+  const accounts = coaData?.accounts || [];
+  const selectedPeriod = coaData?.period;
 
   // Analytics data - Dynamic based on historical mode
   const today = new Date().toISOString().split('T')[0];
@@ -1514,49 +1532,128 @@ function AccountingContent() {
               {/* Chart of Accounts Management */}
               <Card>
                 <CardHeader>
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <CardTitle className="flex items-center gap-2">
-                        <BookOpen className="h-5 w-5 text-blue-600" />
-                        Chart of Accounts
-                      </CardTitle>
-                      <CardDescription>
-                        Manage your financial account structure and create journal entries
-                      </CardDescription>
-                    </div>
-                    <div className="flex gap-2">
-                      {canAddExpenses && (
-                        <Button
-                          onClick={() => setIsQuickExpenseDialogOpen(true)}
-                          className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white shadow-md"
-                          data-testid="button-add-expense"
+                  <div className="space-y-4">
+                    {/* Title and Period Filters */}
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <CardTitle className="flex items-center gap-2">
+                          <BookOpen className="h-5 w-5 text-blue-600" />
+                          Chart of Accounts
+                          {selectedPeriod && (
+                            <Badge variant="outline" className="ml-2">
+                              {new Date(selectedPeriod.year, selectedPeriod.month - 1).toLocaleString('default', { month: 'long', year: 'numeric' })}
+                            </Badge>
+                          )}
+                        </CardTitle>
+                        <CardDescription>
+                          {selectedPeriod 
+                            ? `Account balances as of ${new Date(selectedPeriod.year, selectedPeriod.month, 0).toLocaleDateString()}`
+                            : 'Manage your financial account structure and view current balances'
+                          }
+                        </CardDescription>
+                      </div>
+
+                      {/* Period Filtering Controls */}
+                      <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2">
+                          <CalendarDays className="h-4 w-4 text-gray-500" />
+                          <Label className="text-sm text-gray-600">Filter by Period:</Label>
+                        </div>
+                        <Select 
+                          value={selectedMonth?.toString() || ""} 
+                          onValueChange={(value) => setSelectedMonth(value ? parseInt(value) : null)}
                         >
-                          <Receipt className="h-4 w-4" />
-                          Add Expense
-                        </Button>
-                      )}
-                      {canManageAccounts && (
-                        <>
+                          <SelectTrigger className="w-32">
+                            <SelectValue placeholder="Month" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="">All Time</SelectItem>
+                            {Array.from({ length: 12 }, (_, i) => (
+                              <SelectItem key={i + 1} value={(i + 1).toString()}>
+                                {new Date(2024, i).toLocaleString('default', { month: 'long' })}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Select 
+                          value={selectedYear?.toString() || ""} 
+                          onValueChange={(value) => setSelectedYear(value ? parseInt(value) : null)}
+                        >
+                          <SelectTrigger className="w-24">
+                            <SelectValue placeholder="Year" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="">All</SelectItem>
+                            {Array.from({ length: 5 }, (_, i) => (
+                              <SelectItem key={2024 - i} value={(2024 - i).toString()}>
+                                {2024 - i}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {(selectedMonth || selectedYear) && (
                           <Button
+                            variant="ghost"
+                            size="sm"
                             onClick={() => {
-                              setEditingAccount(null);
-                              setIsAccountDialogOpen(true);
+                              setSelectedMonth(null);
+                              setSelectedYear(null);
                             }}
-                            className="flex items-center gap-2"
+                            className="text-gray-500 hover:text-gray-700"
                           >
-                            <Plus className="h-4 w-4" />
-                            Add Account
+                            Clear
                           </Button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex justify-between items-center">
+                      <div />
+                      <div className="flex gap-2">
+                        {user?.role === 'admin' && (
                           <Button
-                            onClick={() => setIsJournalEntryDialogOpen(true)}
-                            variant="outline"
-                            className="flex items-center gap-2"
+                            onClick={() => setIsPayrollDialogOpen(true)}
+                            className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white shadow-md"
+                            data-testid="button-payroll-accrual"
                           >
-                            <FileText className="h-4 w-4" />
-                            Journal Entry
+                            <Calculator className="h-4 w-4" />
+                            Payroll Accrual
                           </Button>
-                        </>
-                      )}
+                        )}
+                        {canAddExpenses && (
+                          <Button
+                            onClick={() => setIsQuickExpenseDialogOpen(true)}
+                            className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white shadow-md"
+                            data-testid="button-add-expense"
+                          >
+                            <Receipt className="h-4 w-4" />
+                            Add Expense
+                          </Button>
+                        )}
+                        {canManageAccounts && (
+                          <>
+                            <Button
+                              onClick={() => {
+                                setEditingAccount(null);
+                                setIsAccountDialogOpen(true);
+                              }}
+                              className="flex items-center gap-2"
+                            >
+                              <Plus className="h-4 w-4" />
+                              Add Account
+                            </Button>
+                            <Button
+                              onClick={() => setIsJournalEntryDialogOpen(true)}
+                              variant="outline"
+                              className="flex items-center gap-2"
+                            >
+                              <FileText className="h-4 w-4" />
+                              Journal Entry
+                            </Button>
+                          </>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </CardHeader>
@@ -1812,6 +1909,12 @@ function AccountingContent() {
           isOpen={isPLScanDialogOpen}
           onClose={() => setIsPLScanDialogOpen(false)}
           accounts={accounts}
+        />
+
+        {/* Payroll Accrual Dialog */}
+        <PayrollAccrualDialog
+          isOpen={isPayrollDialogOpen}
+          onClose={() => setIsPayrollDialogOpen(false)}
         />
       </div>
     </AdminLayout>
@@ -4014,6 +4117,198 @@ function DailySalesReport({
         )}
       </CardContent>
     </Card>
+  );
+}
+
+// Payroll Accrual Dialog Component
+function PayrollAccrualDialog({ isOpen, onClose }: {
+  isOpen: boolean;
+  onClose: () => void;
+}) {
+  const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1);
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
+  const { toast } = useToast();
+
+  // Preview payroll calculation
+  const { data: payrollPreview, isLoading: previewLoading } = useQuery({
+    queryKey: ['/api/accounting/payroll/preview', selectedMonth, selectedYear],
+    queryFn: async () => {
+      const response = await apiRequest('GET', `/api/accounting/payroll/preview?month=${selectedMonth}&year=${selectedYear}`);
+      return await response.json();
+    },
+    enabled: isOpen && selectedMonth && selectedYear,
+  });
+
+  // Payroll accrual mutation
+  const payrollMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest('POST', '/api/accounting/payroll/accrue', {
+        month: selectedMonth,
+        year: selectedYear,
+        source: 'scheduled',
+        replace: false
+      });
+      return await response.json();
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "Success",
+        description: `Payroll accrual created successfully for ${data.accrual.employeeCount} employees ($${data.accrual.totalAmount})`,
+      });
+      onClose();
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create payroll accrual",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleAccrue = () => {
+    payrollMutation.mutate();
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Calculator className="h-5 w-5" />
+            Payroll Accrual
+          </DialogTitle>
+          <DialogDescription>
+            Calculate and create payroll accrual entries based on scheduled hours and employee wages
+          </DialogDescription>
+        </DialogHeader>
+        
+        <div className="space-y-6">
+          {/* Period Selection */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="accrual-month">Month</Label>
+              <Select 
+                value={selectedMonth.toString()} 
+                onValueChange={(value) => setSelectedMonth(parseInt(value))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: 12 }, (_, i) => (
+                    <SelectItem key={i + 1} value={(i + 1).toString()}>
+                      {new Date(2024, i).toLocaleString('default', { month: 'long' })}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="accrual-year">Year</Label>
+              <Select 
+                value={selectedYear.toString()} 
+                onValueChange={(value) => setSelectedYear(parseInt(value))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: 3 }, (_, i) => (
+                    <SelectItem key={2024 - i} value={(2024 - i).toString()}>
+                      {2024 - i}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Preview Results */}
+          {previewLoading ? (
+            <div className="flex items-center justify-center h-32">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            </div>
+          ) : payrollPreview ? (
+            <div className="space-y-4">
+              {/* Summary Card */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Payroll Summary</CardTitle>
+                  <CardDescription>
+                    {new Date(selectedYear, selectedMonth - 1).toLocaleString('default', { month: 'long', year: 'numeric' })}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="text-center">
+                      <p className="text-2xl font-bold text-green-600">${payrollPreview.totalAmount}</p>
+                      <p className="text-sm text-gray-500">Total Payroll</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-2xl font-bold text-blue-600">{payrollPreview.employeeCount}</p>
+                      <p className="text-sm text-gray-500">Employees</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-2xl font-bold text-purple-600">
+                        {payrollPreview.employeeBreakdown.reduce((sum: number, emp: any) => sum + emp.scheduledHours, 0)}
+                      </p>
+                      <p className="text-sm text-gray-500">Total Hours</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Employee Breakdown */}
+              {payrollPreview.employeeBreakdown.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Employee Breakdown</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2 max-h-64 overflow-y-auto">
+                      {payrollPreview.employeeBreakdown.map((employee: any, index: number) => (
+                        <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
+                          <div>
+                            <p className="font-medium">{employee.userName}</p>
+                            <p className="text-sm text-gray-500">
+                              {employee.scheduledHours} hours × ${employee.hourlyRate}/hr
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-medium">${employee.totalCost}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <Calculator className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <p className="text-gray-500">No scheduled hours found for this period</p>
+            </div>
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          {payrollPreview && payrollPreview.employeeBreakdown.length > 0 && (
+            <Button
+              onClick={handleAccrue}
+              disabled={payrollMutation.isPending}
+              className="bg-purple-600 hover:bg-purple-700"
+            >
+              {payrollMutation.isPending ? 'Creating...' : `Create Accrual ($${payrollPreview.totalAmount})`}
+            </Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
