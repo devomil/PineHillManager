@@ -631,28 +631,50 @@ export class SmartNotificationService {
         return;
       }
 
-      // Group schedules by date for better summary
+      // Extract date from nested schedule structure and group by valid dates
       const schedulesByDate = schedules.reduce((acc, schedule) => {
-        const date = schedule.date || 'Unknown Date';
-        if (!acc[date]) acc[date] = [];
-        acc[date].push(schedule);
+        // Extract date from various possible locations
+        const date = schedule.originalSchedule?.date || schedule.changes?.date || schedule.date;
+        
+        // Only group by valid dates
+        if (date && date !== 'Unknown Date') {
+          const dateKey = date;
+          if (!acc[dateKey]) acc[dateKey] = [];
+          acc[dateKey].push(schedule);
+        } else {
+          // Group invalid/unknown dates separately
+          if (!acc['unknown']) acc['unknown'] = [];
+          acc['unknown'].push(schedule);
+        }
         return acc;
       }, {} as Record<string, any[]>);
 
-      const totalDates = Object.keys(schedulesByDate).length;
+      const validDates = Object.keys(schedulesByDate).filter(key => key !== 'unknown');
+      const totalValidDates = validDates.length;
+      const hasUnknownDates = schedulesByDate['unknown']?.length > 0;
       
       // Create a more accurate message based on the actual changes
       let message: string;
-      if (totalDates === 1) {
-        const date = Object.keys(schedulesByDate)[0];
-        const shiftsForDay = schedulesByDate[date].length;
-        if (shiftsForDay === 1) {
-          message = `Your schedule has been updated for ${new Date(date).toLocaleDateString()}. Check your app for complete details.`;
-        } else {
-          message = `Your schedule has been updated with ${shiftsForDay} change${shiftsForDay > 1 ? 's' : ''} for ${new Date(date).toLocaleDateString()}. Check your app for complete details.`;
+      if (totalValidDates === 1 && !hasUnknownDates) {
+        const date = validDates[0];
+        const changesForDay = schedulesByDate[date].length;
+        try {
+          const formattedDate = new Date(date).toLocaleDateString();
+          if (changesForDay === 1) {
+            message = `Your schedule has been updated for ${formattedDate}.`;
+          } else {
+            message = `Your schedule has been updated with ${changesForDay} change${changesForDay > 1 ? 's' : ''} for ${formattedDate}.`;
+          }
+        } catch (error) {
+          // Fallback if date parsing fails
+          message = `Your schedule has been updated with ${changesForDay} change${changesForDay > 1 ? 's' : ''}.`;
         }
+      } else if (totalValidDates > 1) {
+        message = `Your schedule has been updated across ${totalValidDates} day${totalValidDates > 1 ? 's' : ''}.`;
       } else {
-        message = `Your schedule has been updated across ${totalDates} day${totalDates > 1 ? 's' : ''}. Check your app for complete details.`;
+        // All dates are unknown or invalid
+        const totalChanges = schedules.length;
+        message = `Your schedule has been updated with ${totalChanges} change${totalChanges > 1 ? 's' : ''}.`;
       }
 
       const summaryContext: NotificationContext = {
@@ -664,8 +686,9 @@ export class SmartNotificationService {
           message,
           metadata: {
             summaryType: 'bulk_schedule_update',
-            totalSchedules,
-            totalDates,
+            totalScheduleUpdates: schedules.length,
+            totalValidDates,
+            hasUnknownDates,
             schedulesByDate
           }
         },
