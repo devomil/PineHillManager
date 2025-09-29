@@ -249,7 +249,7 @@ import {
   type InsertDailySales,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, desc, asc, gte, lte, or, sql, like, isNull, isNotNull, exists } from "drizzle-orm";
+import { eq, and, desc, asc, gte, lte, or, sql, like, isNull, isNotNull, exists, sum, inArray } from "drizzle-orm";
 
 export interface IStorage {
   // User operations - supports both Replit Auth and traditional email/password
@@ -510,6 +510,42 @@ export interface IStorage {
   getTransactionLines(transactionId: number): Promise<FinancialTransactionLine[]>;
   updateTransactionLine(id: number, line: Partial<InsertFinancialTransactionLine>): Promise<FinancialTransactionLine>;
   deleteTransactionLine(id: number): Promise<void>;
+
+  // Payroll Automation Functions
+  computeScheduledHoursByUser(startDate: string, endDate: string, locationId?: number): Promise<Array<{
+    userId: string;
+    userName: string;
+    scheduledHours: number;
+    hourlyRate: number | null;
+  }>>;
+  getHourlyRates(userIds: string[]): Promise<Array<{
+    userId: string;
+    hourlyRate: number | null;
+    defaultEntryCost: number | null;
+  }>>;
+  getAccountByCodeOrName(accountIdentifier: string): Promise<FinancialAccount | undefined>;
+  createPayrollAccrualTransaction(data: {
+    month: number;
+    year: number;
+    totalAmount: number;
+    employeeBreakdown: Array<{
+      userId: string;
+      userName: string;
+      scheduledHours: number;
+      hourlyRate: number;
+      totalCost: number;
+    }>;
+    locationId?: number;
+    replace?: boolean;
+  }): Promise<FinancialTransaction>;
+  getChartOfAccountsWithBalances(month?: number, year?: number): Promise<Array<{
+    id: number;
+    accountName: string;
+    accountType: string;
+    accountCode: string | null;
+    balance: number;
+    isActive: boolean;
+  }>>;
 
   // Customers and Vendors
   createCustomerVendor(customerVendor: InsertCustomersVendors): Promise<CustomersVendors>;
@@ -4062,6 +4098,281 @@ export class DatabaseStorage implements IStorage {
 
   async deleteTransactionLine(id: number): Promise<void> {
     await db.delete(financialTransactionLines).where(eq(financialTransactionLines.id, id));
+  }
+
+  // Payroll Automation Functions
+  async computeScheduledHoursByUser(startDate: string, endDate: string, locationId?: number): Promise<Array<{
+    userId: string;
+    userName: string;
+    scheduledHours: number;
+    hourlyRate: number | null;
+  }>> {
+    let query = db
+      .select({
+        userId: workSchedules.userId,
+        firstName: users.firstName,
+        lastName: users.lastName,
+        hourlyRate: users.hourlyRate,
+        startTime: workSchedules.startTime,
+        endTime: workSchedules.endTime
+      })
+      .from(workSchedules)
+      .innerJoin(users, eq(workSchedules.userId, users.id))
+      .where(and(
+        gte(workSchedules.date, startDate),
+        lte(workSchedules.date, endDate),
+        eq(workSchedules.status, 'scheduled'),
+        eq(users.isActive, true)
+      ));
+
+    if (locationId) {
+      query = query.where(eq(workSchedules.locationId, locationId));
+    }
+
+    const schedules = await query;
+
+    // Group by user and calculate total hours
+    const userHoursMap = new Map<string, {
+      userName: string;
+      totalHours: number;
+      hourlyRate: number | null;
+    }>();
+
+    for (const schedule of schedules) {
+      const userId = schedule.userId;
+      const userName = `${schedule.firstName || ''} ${schedule.lastName || ''}`.trim();
+      
+      // Calculate hours for this schedule
+      const startTime = new Date(`1970-01-01T${schedule.startTime}`);
+      const endTime = new Date(`1970-01-01T${schedule.endTime}`);
+      const hours = (endTime.getTime() - startTime.getTime()) / (1000 * 60 * 60);
+
+      if (userHoursMap.has(userId)) {
+        userHoursMap.get(userId)!.totalHours += hours;
+      } else {
+        userHoursMap.set(userId, {
+          userName,
+          totalHours: hours,
+          hourlyRate: schedule.hourlyRate ? parseFloat(schedule.hourlyRate) : null
+        });
+      }
+    }
+
+    return Array.from(userHoursMap.entries()).map(([userId, data]) => ({
+      userId,
+      userName: data.userName,
+      scheduledHours: Math.round(data.totalHours * 100) / 100, // Round to 2 decimal places
+      hourlyRate: data.hourlyRate
+    }));
+  }
+
+  async getHourlyRates(userIds: string[]): Promise<Array<{
+    userId: string;
+    hourlyRate: number | null;
+    defaultEntryCost: number | null;
+  }>> {
+    const rates = await db
+      .select({
+        id: users.id,
+        hourlyRate: users.hourlyRate,
+        defaultEntryCost: users.defaultEntryCost
+      })
+      .from(users)
+      .where(inArray(users.id, userIds));
+
+    return rates.map(rate => ({
+      userId: rate.id,
+      hourlyRate: rate.hourlyRate ? parseFloat(rate.hourlyRate) : null,
+      defaultEntryCost: rate.defaultEntryCost ? parseFloat(rate.defaultEntryCost) : null
+    }));
+  }
+
+  async getAccountByCodeOrName(accountIdentifier: string): Promise<FinancialAccount | undefined> {
+    // First try to find by account code
+    let [account] = await db
+      .select()
+      .from(financialAccounts)
+      .where(and(
+        eq(financialAccounts.accountCode, accountIdentifier),
+        eq(financialAccounts.isActive, true)
+      ));
+
+    // If not found by code, try by name (exact match first, then partial)
+    if (!account) {
+      [account] = await db
+        .select()
+        .from(financialAccounts)
+        .where(and(
+          eq(financialAccounts.accountName, accountIdentifier),
+          eq(financialAccounts.isActive, true)
+        ));
+    }
+
+    // If still not found, try partial name match
+    if (!account) {
+      [account] = await db
+        .select()
+        .from(financialAccounts)
+        .where(and(
+          like(financialAccounts.accountName, `%${accountIdentifier}%`),
+          eq(financialAccounts.isActive, true)
+        ));
+    }
+
+    return account;
+  }
+
+  async createPayrollAccrualTransaction(data: {
+    month: number;
+    year: number;
+    totalAmount: number;
+    employeeBreakdown: Array<{
+      userId: string;
+      userName: string;
+      scheduledHours: number;
+      hourlyRate: number;
+      totalCost: number;
+    }>;
+    locationId?: number;
+    replace?: boolean;
+  }): Promise<FinancialTransaction> {
+    const { month, year, totalAmount, employeeBreakdown, locationId, replace = false } = data;
+    
+    // Check for existing accrual
+    const description = `Payroll Accrual - ${year}-${month.toString().padStart(2, '0')} (scheduled)`;
+    const existingTransaction = await db
+      .select()
+      .from(financialTransactions)
+      .where(and(
+        eq(financialTransactions.description, description),
+        eq(financialTransactions.sourceSystem, 'system')
+      ));
+
+    if (existingTransaction.length > 0 && !replace) {
+      throw new Error(`Payroll accrual for ${year}-${month} already exists. Use replace=true to overwrite.`);
+    }
+
+    // Delete existing if replace is true
+    if (existingTransaction.length > 0 && replace) {
+      for (const tx of existingTransaction) {
+        await db.delete(financialTransactionLines).where(eq(financialTransactionLines.transactionId, tx.id));
+        await db.delete(financialTransactions).where(eq(financialTransactions.id, tx.id));
+      }
+    }
+
+    // Find required accounts
+    const payrollExpenseAccount = await this.getAccountByCodeOrName('6700') || 
+                                   await this.getAccountByCodeOrName('Payroll Expense');
+    if (!payrollExpenseAccount) {
+      throw new Error('Payroll Expense account (6700) not found in chart of accounts');
+    }
+
+    const payrollLiabilityAccount = await this.getAccountByCodeOrName('Payroll Liabilities') ||
+                                    await this.getAccountByCodeOrName('Accrued Payroll');
+    if (!payrollLiabilityAccount) {
+      throw new Error('Payroll Liabilities account not found in chart of accounts');
+    }
+
+    // Create transaction on last day of month
+    const lastDayOfMonth = new Date(year, month, 0);
+    
+    const transaction = await this.createFinancialTransaction({
+      transactionDate: lastDayOfMonth,
+      description,
+      reference: `PAYROLL-${year}-${month}`,
+      totalAmount,
+      sourceSystem: 'system'
+    });
+
+    // Create debit line for payroll expense
+    await this.createTransactionLine({
+      transactionId: transaction.id,
+      accountId: payrollExpenseAccount.id,
+      description: `Scheduled payroll accrual for ${employeeBreakdown.length} employees`,
+      debitAmount: totalAmount,
+      creditAmount: null,
+      lineNumber: 1
+    });
+
+    // Create credit line for payroll liability
+    await this.createTransactionLine({
+      transactionId: transaction.id,
+      accountId: payrollLiabilityAccount.id,
+      description: 'Accrued payroll liability',
+      debitAmount: null,
+      creditAmount: totalAmount,
+      lineNumber: 2
+    });
+
+    console.log(`✅ Payroll accrual created: ${description}, Total: $${totalAmount}, Employees: ${employeeBreakdown.length}`);
+    
+    return transaction;
+  }
+
+  async getChartOfAccountsWithBalances(month?: number, year?: number): Promise<Array<{
+    id: number;
+    accountName: string;
+    accountType: string;
+    accountCode: string | null;
+    balance: number;
+    isActive: boolean;
+  }>> {
+    let dateFilter;
+    
+    if (month && year) {
+      // Calculate balance up to the end of the specified month
+      const endOfMonth = new Date(year, month, 0); // Last day of the month
+      dateFilter = lte(financialTransactions.transactionDate, endOfMonth);
+    }
+
+    // Get all accounts
+    const accounts = await db
+      .select()
+      .from(financialAccounts)
+      .where(eq(financialAccounts.isActive, true))
+      .orderBy(asc(financialAccounts.accountCode), asc(financialAccounts.accountName));
+
+    // Calculate balances for each account
+    const result = await Promise.all(accounts.map(async (account) => {
+      let balanceQuery = db
+        .select({
+          totalDebits: sum(financialTransactionLines.debitAmount),
+          totalCredits: sum(financialTransactionLines.creditAmount)
+        })
+        .from(financialTransactionLines)
+        .innerJoin(financialTransactions, eq(financialTransactionLines.transactionId, financialTransactions.id))
+        .where(eq(financialTransactionLines.accountId, account.id));
+
+      if (dateFilter) {
+        balanceQuery = balanceQuery.where(dateFilter);
+      }
+
+      const [balanceResult] = await balanceQuery;
+      
+      const totalDebits = parseFloat(balanceResult.totalDebits || '0');
+      const totalCredits = parseFloat(balanceResult.totalCredits || '0');
+      
+      // Calculate balance based on account type (normal balance)
+      let balance: number;
+      if (['asset', 'expense'].includes(account.accountType.toLowerCase())) {
+        // Assets and Expenses have normal debit balances
+        balance = totalDebits - totalCredits;
+      } else {
+        // Liabilities, Equity, and Revenue have normal credit balances
+        balance = totalCredits - totalDebits;
+      }
+
+      return {
+        id: account.id,
+        accountName: account.accountName,
+        accountType: account.accountType,
+        accountCode: account.accountCode,
+        balance: Math.round(balance * 100) / 100, // Round to 2 decimal places
+        isActive: account.isActive
+      };
+    }));
+
+    return result;
   }
 
   // Customers and Vendors
