@@ -1488,11 +1488,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await smartNotificationService.handleScheduleChange(
           scheduleId, 
           { 
-            ...updates, 
             userId: updatedSchedule.userId,
             date: updatedSchedule.date,
             shiftType: updatedSchedule.shiftType,
-            originalSchedule: updatedSchedule
+            originalSchedule: updatedSchedule,
+            // Extract specific changes for notification formatting (only include if changed)
+            ...(updates.startTime && { startTime: updates.startTime }),
+            ...(updates.endTime && { endTime: updates.endTime }),
+            ...(updates.locationId && { locationId: updates.locationId }),
+            ...(updates.status && { status: updates.status })
           }, 
           req.user.id
         );
