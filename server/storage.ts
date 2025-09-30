@@ -5572,24 +5572,36 @@ export class DatabaseStorage implements IStorage {
       let orderLevelDiscounts = 0;
       
       if (order.discounts && order.discounts.elements && order.discounts.elements.length > 0) {
+        console.log(`💰 [DISCOUNT FIX] Order ${order.id}: Found ${order.discounts.elements.length} order-level discounts`);
+        
         order.discounts.elements.forEach((discount: any, index: number) => {
+          console.log(`💰 [DISCOUNT FIX] Order ${order.id} Discount ${index}:`, JSON.stringify({
+            id: discount.id,
+            name: discount.name,
+            percentage: discount.percentage,
+            amount: discount.amount,
+            orderTotal,
+            subtotalAfterItemDiscounts
+          }));
+          
           // Skip if this discount was already applied at line level
           if (discount.id && appliedDiscountIds.has(discount.id)) {
-            // Disabled for performance: console.log(`🔧 [DISCOUNT DEBUG] ${order.id}: Skipping order-level discount ${discount.id} - already applied at line level`);
+            console.log(`💰 [DISCOUNT FIX] ${order.id}: Skipping discount ${discount.id} - already applied at line level`);
             return;
           }
           
           let discountAmount = 0;
           
           if (discount.percentage && typeof discount.percentage === 'number') {
-            // Apply percentage to subtotal after item discounts
-            discountAmount = subtotalAfterItemDiscounts * (discount.percentage / 10000);
-            // Disabled for performance: console.log(`🔧 [DISCOUNT DEBUG] ${order.id}: Order-level percentage ${discount.percentage/100}% on $${subtotalAfterItemDiscounts.toFixed(2)} = $${discountAmount.toFixed(2)}`);
+            // FIX: Clover stores percentage as whole number (100 = 100%), not basis points
+            // Apply to ORDER TOTAL, not subtotal (Clover applies order discounts to original total)
+            discountAmount = orderTotal * (discount.percentage / 100);
+            console.log(`💰 [DISCOUNT FIX] ${order.id}: Percentage discount ${discount.percentage}% of $${orderTotal.toFixed(2)} = $${discountAmount.toFixed(2)}`);
           } else {
             // Fixed amount order-level discount
             const rawAmount = discount.amount || discount.value || discount.discount || discount.discountAmount || '0';
             discountAmount = Math.abs(parseFloat(rawAmount) / 100);
-            // Disabled for performance: console.log(`🔧 [DISCOUNT DEBUG] ${order.id}: Order-level fixed discount $${discountAmount.toFixed(2)}`);
+            console.log(`💰 [DISCOUNT FIX] ${order.id}: Fixed discount $${discountAmount.toFixed(2)}`);
           }
           
           // Round to cents
@@ -5599,7 +5611,7 @@ export class DatabaseStorage implements IStorage {
       }
       
       totalDiscounts = lineItemDiscounts + orderLevelDiscounts;
-      // Disabled for performance: console.log(`🔧 [DISCOUNT DEBUG] ${order.id}: Final totals - Line discounts: $${lineItemDiscounts.toFixed(2)}, Order discounts: $${orderLevelDiscounts.toFixed(2)}, Total: $${totalDiscounts.toFixed(2)}`);
+      console.log(`💰 [DISCOUNT FIX] ${order.id}: Final totals - Line: $${lineItemDiscounts.toFixed(2)}, Order: $${orderLevelDiscounts.toFixed(2)}, Total: $${totalDiscounts.toFixed(2)}`);
       
       // Fallback for orders with missing discount data but known to have discounts
       if (totalDiscounts === 0) {

@@ -1,0 +1,40 @@
+﻿Discounts Report,,,,,,,
+"Sep 30, 2025 12:00 AM - Sep 30, 2025 11:59 PM",,,,,,,
+"Requested on: Sep 30, 2025 11:30 AM",,,,,,,
+Filters: Item Type = Revenue Items,,,,,,,
+,,,,,,,
+Discount Name,Discounts on Orders, ,Discounts on Items, ,Total Discounts,,
+ ,Amount Discounted,Number Applied,Amount Discounted,Number Applied,Amount Discounted,Number Applied,Employee
+10% Off,,,,,,,
+Order ID: EW05EGZW6BHKG,,,,,,,
+"Order: Sep 30, 2025 11:08 AM",$0.50 ,1,$0.00 ,-,$0.50 ,1,Diane
+Total,$0.50 ,1,$0.00 ,-,$0.50 ,1,
+,,,,,,,
+100% Jackie,,,,,,,
+Order ID: Y6V1K6YA5H014,,,,,,,
+"Order: Sep 30, 2025 11:15 AM",$11.99 ,1,$0.00 ,-,$11.99 ,1,Danielle
+Order ID: 8EE309MJYMM36,,,,,,,
+"Order: Sep 30, 2025 9:56 AM",$8.85 ,1,$0.00 ,-,$8.85 ,1,LYNLEY GRAY
+Total,$20.84 ,2,$0.00 ,-,$20.84 ,2,
+,,,,,,,
+100% Raffle,,,,,,,
+Order ID: 40SS3KN1BFJ26,,,,,,,
+"Order: Sep 30, 2025 8:57 AM",$55.78 ,1,$0.00 ,-,$55.78 ,1,Danielle
+Total,$55.78 ,1,$0.00 ,-,$55.78 ,1,
+,,,,,,,
+15% Off,,,,,,,
+Order ID: 1X9RYBXVN9H0M,,,,,,,
+"Order: Sep 30, 2025 10:44 AM",$9.89 ,1,$0.00 ,-,$9.89 ,1,Diane
+Total,$9.89 ,1,$0.00 ,-,$9.89 ,1,
+,,,,,,,
+Employee Supplement 35%,,,,,,,
+Order ID: Q00A629ACYZD0,,,,,,,
+"Order: Sep 30, 2025 10:41 AM",$9.10 ,1,$0.00 ,-,$9.10 ,1,Diane
+Total,$9.10 ,1,$0.00 ,-,$9.10 ,1,
+,,,,,,,
+Perks,,,,,,,
+Order ID: 1X9RYBXVN9H0M,,,,,,,
+"Order: Sep 30, 2025 10:44 AM",$3.00 ,1,$0.00 ,-,$3.00 ,1,Diane
+Total,$3.00 ,1,$0.00 ,-,$3.00 ,1,
+,,,,,,,
+TOTAL,$99.11 ,7,$0.00 ,-,$99.11 ,7,
