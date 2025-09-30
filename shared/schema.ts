@@ -260,6 +260,7 @@ export const announcements = pgTable("announcements", {
   priority: varchar("priority").default("normal"), // low, normal, high, urgent
   targetAudience: varchar("target_audience").default("all"), // all, employees, admins, department
   targetEmployees: varchar("target_employees").array(), // specific employee IDs when targeting individuals
+  imageUrls: text("image_urls").array(), // Array of image URLs for attachments
   isPublished: boolean("is_published").default(false),
   publishedAt: timestamp("published_at"),
   expiresAt: timestamp("expires_at"),
@@ -304,6 +305,7 @@ export const messages = pgTable("messages", {
   subject: varchar("subject"),
   content: text("content").notNull(),
   priority: varchar("priority").default("normal"), // 'emergency', 'high', 'normal', 'low'
+  imageUrls: text("image_urls").array(), // Array of image URLs for attachments
   isRead: boolean("is_read").default(false),
   sentAt: timestamp("sent_at").defaultNow(),
   readAt: timestamp("read_at"),
