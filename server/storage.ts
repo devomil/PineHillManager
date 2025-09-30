@@ -5433,6 +5433,7 @@ export class DatabaseStorage implements IStorage {
   async calculateOrderFinancialMetrics(order: any, locationId: number, merchantConfig?: any): Promise<{
     grossTax: number;
     totalDiscounts: number;
+    giftCardTotal: number;
     totalRefunds: number;
     netCOGS: number;
     netSale: number;
@@ -5515,6 +5516,9 @@ export class DatabaseStorage implements IStorage {
       let totalDiscounts = 0;
       let subtotalBeforeDiscounts = 0;
       
+      // Track gift card items separately (they're not discounts, just complimentary items)
+      let giftCardTotal = 0;
+      
       // Calculate subtotal from all non-voided line items
       if (order.lineItems && order.lineItems.elements) {
         order.lineItems.elements.forEach((lineItem: any) => {
@@ -5535,7 +5539,17 @@ export class DatabaseStorage implements IStorage {
           }
           
           const lineBase = (price + modificationTotal) * quantity;
-          subtotalBeforeDiscounts += lineBase;
+          
+          // Check if this is a gift card item
+          const isGiftCard = lineItem.name && 
+            (lineItem.name.toLowerCase().includes('gift card') || 
+             lineItem.itemCode?.toLowerCase().includes('giftcard'));
+          
+          if (isGiftCard) {
+            giftCardTotal += lineBase;
+          } else {
+            subtotalBeforeDiscounts += lineBase;
+          }
         });
       }
       
@@ -5815,6 +5829,7 @@ export class DatabaseStorage implements IStorage {
       return {
         grossTax,
         totalDiscounts,
+        giftCardTotal,
         totalRefunds,
         netCOGS,
         netSale,
@@ -5826,6 +5841,7 @@ export class DatabaseStorage implements IStorage {
       return {
         grossTax: 0,
         totalDiscounts: 0,
+        giftCardTotal: 0,
         totalRefunds: 0,
         netCOGS: 0,
         netSale: 0,
@@ -6087,6 +6103,7 @@ export class DatabaseStorage implements IStorage {
                     orderTotal: orderTotalInDollars,
                     grossTax,
                     totalDiscounts: 0,
+                    giftCardTotal: 0,
                     totalRefunds: 0,
                     netCOGS: 0,
                     netSale: orderTotalInDollars,
@@ -6105,6 +6122,7 @@ export class DatabaseStorage implements IStorage {
                   if (isProblematicOrder) {
                     console.log(`🔧 [FINANCIAL METRICS] ${order.id}:`, {
                       totalDiscounts: financialMetrics.totalDiscounts,
+                      giftCardTotal: financialMetrics.giftCardTotal,
                       totalRefunds: financialMetrics.totalRefunds,
                       netSale: financialMetrics.netSale,
                       netProfit: financialMetrics.netProfit,
@@ -6121,6 +6139,7 @@ export class DatabaseStorage implements IStorage {
                     locationName: config.merchantName,
                     grossTax: financialMetrics.grossTax,
                     totalDiscounts: financialMetrics.totalDiscounts,
+                    giftCardTotal: financialMetrics.giftCardTotal,
                     totalRefunds: financialMetrics.totalRefunds,
                     netCOGS: financialMetrics.netCOGS,
                     netSale: financialMetrics.netSale,

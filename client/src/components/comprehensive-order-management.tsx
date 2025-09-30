@@ -31,7 +31,8 @@ import {
   Percent,
   RotateCcw,
   Receipt,
-  Tag
+  Tag,
+  Gift
 } from "lucide-react";
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { format, addDays, startOfDay, endOfDay, subDays } from "date-fns";
@@ -57,6 +58,7 @@ interface Order {
   // Enhanced financial data from getOrderDetails
   grossTax?: number;
   totalDiscounts?: number;
+  giftCardTotal?: number;
   totalRefunds?: number;
   netCOGS?: number;
   netSale?: number;
@@ -508,10 +510,11 @@ export function ComprehensiveOrderManagement() {
         totalCOGS: acc.totalCOGS + (typeof order.netCOGS === 'number' ? order.netCOGS : parseFloat(String(order.netCOGS || 0))),
         totalProfit: acc.totalProfit + (typeof order.netProfit === 'number' ? order.netProfit : parseFloat(String(order.netProfit || 0))),
         totalDiscounts: acc.totalDiscounts + (typeof order.totalDiscounts === 'number' ? order.totalDiscounts : parseFloat(String(order.totalDiscounts || 0))),
+        giftCardTotal: acc.giftCardTotal + (typeof order.giftCardTotal === 'number' ? order.giftCardTotal : parseFloat(String(order.giftCardTotal || 0))),
         totalGrossTax: acc.totalGrossTax + (typeof order.grossTax === 'number' ? order.grossTax : parseFloat(String(order.grossTax || 0))),
         marginSum: acc.marginSum + (parseFloat(String(order.netMargin || '0').replace('%', '')))
       };
-    }, { totalRevenue: 0, orderCount: 0, totalCOGS: 0, totalProfit: 0, totalDiscounts: 0, totalGrossTax: 0, marginSum: 0 });
+    }, { totalRevenue: 0, orderCount: 0, totalCOGS: 0, totalProfit: 0, totalDiscounts: 0, giftCardTotal: 0, totalGrossTax: 0, marginSum: 0 });
 
     // Comprehensive reporting metrics from new API endpoints
     const voidedMetrics = voidedData?.totals || {};
@@ -540,6 +543,7 @@ export function ComprehensiveOrderManagement() {
       
       // Comprehensive reporting metrics
       totalDiscounts: orderMetrics.totalDiscounts,
+      giftCardTotal: orderMetrics.giftCardTotal,
       voidedAmount: (voidedMetrics as any)?.totalVoidedAmount || 0,
       voidedItemsCount: (voidedMetrics as any)?.totalVoidedItems || 0,
       employeePaymentCount: employeePaymentMetrics.count,
@@ -949,6 +953,17 @@ export function ComprehensiveOrderManagement() {
                 <CardContent>
                   <div className="text-2xl font-bold text-blue-500">{formatCurrencyDirect(comprehensiveStats.totalDiscounts)}</div>
                   <p className="text-xs text-muted-foreground">Applied to orders</p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Gift Cards</CardTitle>
+                  <Gift className="h-4 w-4 text-purple-500" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-purple-500">{formatCurrencyDirect(comprehensiveStats.giftCardTotal)}</div>
+                  <p className="text-xs text-muted-foreground">Complimentary items</p>
                 </CardContent>
               </Card>
 
