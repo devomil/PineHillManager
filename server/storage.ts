@@ -5583,11 +5583,14 @@ export class DatabaseStorage implements IStorage {
               let discountAmount = 0;
               
               if (discount.amount && typeof discount.amount === 'number' && discount.amount !== 0) {
+                // Fixed amount: already in cents, just convert to dollars (no extra rounding needed)
                 discountAmount = Math.abs(discount.amount / 100);
                 console.log(`  [LINE-ITEM DISCOUNT] ${lineItem.name}: ${discount.name || 'Unnamed'} = ${discount.amount} cents = $${discountAmount.toFixed(2)}`);
               } else if (discount.percentage && typeof discount.percentage === 'number') {
+                // Percentage: CRITICAL - Round immediately after calculation to match Clover
                 const lineItemPrice = parseFloat(lineItem.price || '0') / 100;
-                discountAmount = (lineItemPrice * discount.percentage) / 100;
+                const rawDiscount = (lineItemPrice * discount.percentage) / 100;
+                discountAmount = Math.round(rawDiscount * 100) / 100; // Round to nearest cent immediately
                 console.log(`  [LINE-ITEM DISCOUNT] ${lineItem.name}: ${discount.name || 'Unnamed'} = ${discount.percentage}% of $${lineItemPrice.toFixed(2)} = $${discountAmount.toFixed(2)}`);
               }
               
@@ -5609,13 +5612,15 @@ export class DatabaseStorage implements IStorage {
             
             // CRITICAL FIX: Always use Clover's provided amount field if available
             if (discount.amount && typeof discount.amount === 'number' && discount.amount !== 0) {
-              // Clover provides discount amounts in cents, convert to dollars
+              // Fixed amount: already in cents, just convert to dollars (no extra rounding needed)
               discountAmount = Math.abs(discount.amount / 100);
               console.log(`  [ORDER DISCOUNT] ${discount.name || 'Unnamed'}: ${discount.amount} cents = $${discountAmount.toFixed(2)}`);
             } else if (discount.percentage && typeof discount.percentage === 'number') {
               // CRITICAL: Calculate percentage from SUBTOTAL before discount, not order total (which is after discount)
               // This avoids circular calculation: 20% of $5.50 subtotal = $1.10, NOT 20% of $4.64 order total = $0.93
-              discountAmount = (subtotalBeforeDiscounts * discount.percentage) / 100;
+              // ALSO CRITICAL: Round immediately after calculation to match Clover's rounding behavior
+              const rawDiscount = (subtotalBeforeDiscounts * discount.percentage) / 100;
+              discountAmount = Math.round(rawDiscount * 100) / 100; // Round to nearest cent immediately
               console.log(`  [ORDER DISCOUNT] ${discount.name || 'Unnamed'}: ${discount.percentage}% of $${subtotalBeforeDiscounts.toFixed(2)} subtotal = $${discountAmount.toFixed(2)}`);
             } else {
               // Last resort: try other amount fields
@@ -5644,7 +5649,7 @@ export class DatabaseStorage implements IStorage {
         totalDiscounts = 0;
       }
       
-      totalDiscounts = Math.round(totalDiscounts * 100) / 100;
+      // No final rounding needed - each discount was already rounded individually to match Clover
 
       // Calculate refunds (from refunds or payments with negative amounts)
       let totalRefunds = 0;
