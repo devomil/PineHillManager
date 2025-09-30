@@ -6261,7 +6261,7 @@ export class DatabaseStorage implements IStorage {
         const searchTerm = filters.search.toLowerCase();
         filteredOrders = allOrders.filter(order => 
           order.id?.toLowerCase().includes(searchTerm) ||
-          order.lineItems?.some((item: any) => 
+          order.lineItems?.elements?.some((item: any) => 
             item.name?.toLowerCase().includes(searchTerm) ||
             item.item?.name?.toLowerCase().includes(searchTerm)
           )
