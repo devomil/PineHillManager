@@ -5569,34 +5569,71 @@ export class DatabaseStorage implements IStorage {
       console.log(`💰 [RECONCILIATION] Order ${order.id}: Subtotal=$${subtotalBeforeDiscounts.toFixed(2)}, Tax=$${grossTax.toFixed(2)}, ServiceChg=$${totalServiceCharges.toFixed(2)}, OrderTotal=$${orderTotal.toFixed(2)}, DiscountCalcTotal=$${totalForDiscountCalc.toFixed(2)} => ReconciliationDiscount=$${reconciliationDiscount.toFixed(2)}`);
       
       // ✅ ALWAYS prefer Clover's actual discount objects (already expanded in order fetch)
-      if (order.discounts && order.discounts.elements && order.discounts.elements.length > 0) {
-        // Use Clover's actual discount objects
-        console.log(`✅ [CLOVER DISCOUNT] Found ${order.discounts.elements.length} discount objects for order ${order.id}`);
-        
-        totalDiscounts = order.discounts.elements.reduce((sum: number, discount: any) => {
-          let discountAmount = 0;
-          
-          // CRITICAL FIX: Always use Clover's provided amount field if available
-          if (discount.amount && typeof discount.amount === 'number' && discount.amount !== 0) {
-            // Clover provides discount amounts in cents, convert to dollars
-            discountAmount = Math.abs(discount.amount / 100);
-            console.log(`  [DISCOUNT] ${discount.name || 'Unnamed'}: ${discount.amount} cents = $${discountAmount.toFixed(2)}`);
-          } else if (discount.percentage && typeof discount.percentage === 'number') {
-            // CRITICAL: Calculate percentage from SUBTOTAL before discount, not order total (which is after discount)
-            // This avoids circular calculation: 20% of $5.50 subtotal = $1.10, NOT 20% of $4.64 order total = $0.93
-            discountAmount = (subtotalBeforeDiscounts * discount.percentage) / 100;
-            console.log(`  [DISCOUNT] ${discount.name || 'Unnamed'}: ${discount.percentage}% of $${subtotalBeforeDiscounts.toFixed(2)} subtotal = $${discountAmount.toFixed(2)}`);
-          } else {
-            // Last resort: try other amount fields
-            const rawAmount = discount.value || discount.discount || discount.discountAmount || '0';
-            discountAmount = Math.abs(parseFloat(rawAmount) / 100);
-            console.log(`  [DISCOUNT] ${discount.name || 'Unnamed'}: fallback ${rawAmount} cents = $${discountAmount.toFixed(2)}`);
+      // Check BOTH order-level discounts AND line-item level discounts
+      let hasOrderLevelDiscounts = order.discounts && order.discounts.elements && order.discounts.elements.length > 0;
+      let hasLineItemDiscounts = false;
+      let lineItemDiscountTotal = 0;
+      
+      // First, check for line-item level discounts
+      if (order.lineItems && order.lineItems.elements) {
+        order.lineItems.elements.forEach((lineItem: any) => {
+          if (lineItem.discounts && lineItem.discounts.elements && lineItem.discounts.elements.length > 0) {
+            hasLineItemDiscounts = true;
+            lineItem.discounts.elements.forEach((discount: any) => {
+              let discountAmount = 0;
+              
+              if (discount.amount && typeof discount.amount === 'number' && discount.amount !== 0) {
+                discountAmount = Math.abs(discount.amount / 100);
+                console.log(`  [LINE-ITEM DISCOUNT] ${lineItem.name}: ${discount.name || 'Unnamed'} = ${discount.amount} cents = $${discountAmount.toFixed(2)}`);
+              } else if (discount.percentage && typeof discount.percentage === 'number') {
+                const lineItemPrice = parseFloat(lineItem.price || '0') / 100;
+                discountAmount = (lineItemPrice * discount.percentage) / 100;
+                console.log(`  [LINE-ITEM DISCOUNT] ${lineItem.name}: ${discount.name || 'Unnamed'} = ${discount.percentage}% of $${lineItemPrice.toFixed(2)} = $${discountAmount.toFixed(2)}`);
+              }
+              
+              lineItemDiscountTotal += discountAmount;
+            });
           }
-          
-          return sum + discountAmount;
-        }, 0);
+        });
+      }
+      
+      if (hasOrderLevelDiscounts || hasLineItemDiscounts) {
+        // Use Clover's actual discount objects
+        let orderLevelTotal = 0;
         
-        console.log(`💰 [CLOVER DISCOUNT] Order ${order.id} total Clover discounts: $${totalDiscounts.toFixed(2)} (reconciliation was $${reconciliationDiscount.toFixed(2)})`);
+        if (hasOrderLevelDiscounts) {
+          console.log(`✅ [CLOVER DISCOUNT] Found ${order.discounts.elements.length} order-level discount objects for order ${order.id}`);
+          
+          orderLevelTotal = order.discounts.elements.reduce((sum: number, discount: any) => {
+            let discountAmount = 0;
+            
+            // CRITICAL FIX: Always use Clover's provided amount field if available
+            if (discount.amount && typeof discount.amount === 'number' && discount.amount !== 0) {
+              // Clover provides discount amounts in cents, convert to dollars
+              discountAmount = Math.abs(discount.amount / 100);
+              console.log(`  [ORDER DISCOUNT] ${discount.name || 'Unnamed'}: ${discount.amount} cents = $${discountAmount.toFixed(2)}`);
+            } else if (discount.percentage && typeof discount.percentage === 'number') {
+              // CRITICAL: Calculate percentage from SUBTOTAL before discount, not order total (which is after discount)
+              // This avoids circular calculation: 20% of $5.50 subtotal = $1.10, NOT 20% of $4.64 order total = $0.93
+              discountAmount = (subtotalBeforeDiscounts * discount.percentage) / 100;
+              console.log(`  [ORDER DISCOUNT] ${discount.name || 'Unnamed'}: ${discount.percentage}% of $${subtotalBeforeDiscounts.toFixed(2)} subtotal = $${discountAmount.toFixed(2)}`);
+            } else {
+              // Last resort: try other amount fields
+              const rawAmount = discount.value || discount.discount || discount.discountAmount || '0';
+              discountAmount = Math.abs(parseFloat(rawAmount) / 100);
+              console.log(`  [ORDER DISCOUNT] ${discount.name || 'Unnamed'}: fallback ${rawAmount} cents = $${discountAmount.toFixed(2)}`);
+            }
+            
+            return sum + discountAmount;
+          }, 0);
+        }
+        
+        if (hasLineItemDiscounts) {
+          console.log(`✅ [CLOVER DISCOUNT] Found line-item discounts totaling $${lineItemDiscountTotal.toFixed(2)} for order ${order.id}`);
+        }
+        
+        totalDiscounts = orderLevelTotal + lineItemDiscountTotal;
+        console.log(`💰 [CLOVER DISCOUNT] Order ${order.id} total Clover discounts: $${totalDiscounts.toFixed(2)} (order-level: $${orderLevelTotal.toFixed(2)}, line-item: $${lineItemDiscountTotal.toFixed(2)}, reconciliation was $${reconciliationDiscount.toFixed(2)})`);
       } else if (reconciliationDiscount > 0) {
         // No Clover discount objects found, but reconciliation shows a discount
         // This means the line items were created at a discounted price, not an actual "discount"
