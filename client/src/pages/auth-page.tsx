@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,14 @@ import { useLocation } from "wouter";
 
 export default function AuthPage() {
   const [location, setLocation] = useLocation();
-  const { loginMutation, registerMutation } = useAuth();
+  const { loginMutation, registerMutation, isAuthenticated } = useAuth();
+
+  // Redirect to dashboard if already authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      setLocation("/");
+    }
+  }, [isAuthenticated, setLocation]);
   
   const [loginForm, setLoginForm] = useState({
     email: "",
@@ -30,8 +37,8 @@ export default function AuthPage() {
     e.preventDefault();
     try {
       await loginMutation.mutateAsync(loginForm);
-      // Force a page reload to ensure proper state update
-      window.location.href = "/";
+      // Navigate to dashboard using client-side routing
+      setLocation("/");
     } catch (error) {
       // Error handled by mutation onError
     }
