@@ -5593,10 +5593,10 @@ export class DatabaseStorage implements IStorage {
           let discountAmount = 0;
           
           if (discount.percentage && typeof discount.percentage === 'number') {
-            // FIX: Clover stores percentage as whole number (100 = 100%), not basis points
-            // Apply to ORDER TOTAL, not subtotal (Clover applies order discounts to original total)
-            discountAmount = orderTotal * (discount.percentage / 100);
-            console.log(`💰 [DISCOUNT FIX] ${order.id}: Percentage discount ${discount.percentage}% of $${orderTotal.toFixed(2)} = $${discountAmount.toFixed(2)}`);
+            // FIX: Clover applies percentage discounts to SUBTOTAL (before order-level discounts), not final total
+            // This is the line item total before any order-level discounts are applied
+            discountAmount = subtotalAfterItemDiscounts * (discount.percentage / 100);
+            console.log(`💰 [DISCOUNT FIX] ${order.id}: Percentage discount ${discount.percentage}% of $${subtotalAfterItemDiscounts.toFixed(2)} = $${discountAmount.toFixed(2)}`);
           } else {
             // Fixed amount order-level discount
             const rawAmount = discount.amount || discount.value || discount.discount || discount.discountAmount || '0';
