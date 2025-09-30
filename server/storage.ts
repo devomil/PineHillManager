@@ -6602,7 +6602,8 @@ export class DatabaseStorage implements IStorage {
         const isRefund = order.total < 0 || order.state === 'refunded';
         
         if (isRefund) {
-          group.totalRefunds += Math.abs(order.totalRefunds || 0);
+          // For completely refunded orders, count the absolute total as refund
+          group.totalRefunds += Math.abs(order.total / 100);
         } else {
           group.totalOrders += 1;
           
@@ -6613,6 +6614,10 @@ export class DatabaseStorage implements IStorage {
           group.totalCOGS += order.netCOGS || 0;
           group.totalProfit += order.netProfit || 0;
           group.netSale += order.netSale || 0;
+          
+          // IMPORTANT: Add refunds for normal orders that have partial refunds
+          // Orders can have refunds without being marked as 'refunded' state
+          group.totalRefunds += order.totalRefunds || 0;
         }
         
         console.log(`📊 Order ${order.id}: Revenue $${(order.total/100).toFixed(2)}, Discounts $${(order.totalDiscounts || 0).toFixed(2)}, Profit $${(order.netProfit || 0).toFixed(2)}`);

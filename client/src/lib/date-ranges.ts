@@ -60,8 +60,8 @@ export const getDateRangeOptions = (): DateRangeOption[] => {
       label: 'This Week',
       value: 'this-week',
       ...(() => {
-        const thisWeekStart = createTzAwareBoundary(now, (d) => startOfWeek(d, { weekStartsOn: 1 }));
-        const thisWeekEnd = createTzAwareBoundary(now, (d) => endOfWeek(d, { weekStartsOn: 1 }));
+        const thisWeekStart = createTzAwareBoundary(now, (d) => startOfWeek(d, { weekStartsOn: 0 }));
+        const thisWeekEnd = createTzAwareBoundary(now, (d) => endOfWeek(d, { weekStartsOn: 0 }));
         return {
           startDate: thisWeekStart.localDate,
           endDate: thisWeekEnd.localDate,
@@ -74,8 +74,8 @@ export const getDateRangeOptions = (): DateRangeOption[] => {
       label: 'Last Week',
       value: 'last-week',
       ...(() => {
-        const lastWeekStart = createTzAwareBoundary(subWeeks(now, 1), (d) => startOfWeek(d, { weekStartsOn: 1 }));
-        const lastWeekEnd = createTzAwareBoundary(subWeeks(now, 1), (d) => endOfWeek(d, { weekStartsOn: 1 }));
+        const lastWeekStart = createTzAwareBoundary(subWeeks(now, 1), (d) => startOfWeek(d, { weekStartsOn: 0 }));
+        const lastWeekEnd = createTzAwareBoundary(subWeeks(now, 1), (d) => endOfWeek(d, { weekStartsOn: 0 }));
         return {
           startDate: lastWeekStart.localDate,
           endDate: lastWeekEnd.localDate,
