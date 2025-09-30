@@ -5582,9 +5582,10 @@ export class DatabaseStorage implements IStorage {
             discountAmount = Math.abs(discount.amount / 100);
             console.log(`  [DISCOUNT] ${discount.name || 'Unnamed'}: ${discount.amount} cents = $${discountAmount.toFixed(2)}`);
           } else if (discount.percentage && typeof discount.percentage === 'number') {
-            // Fallback: Calculate from percentage only if amount not provided
-            discountAmount = (totalForDiscountCalc * discount.percentage) / 100;
-            console.log(`  [DISCOUNT] ${discount.name || 'Unnamed'}: ${discount.percentage}% of $${totalForDiscountCalc.toFixed(2)} = $${discountAmount.toFixed(2)}`);
+            // CRITICAL: Calculate percentage from SUBTOTAL before discount, not order total (which is after discount)
+            // This avoids circular calculation: 20% of $5.50 subtotal = $1.10, NOT 20% of $4.64 order total = $0.93
+            discountAmount = (subtotalBeforeDiscounts * discount.percentage) / 100;
+            console.log(`  [DISCOUNT] ${discount.name || 'Unnamed'}: ${discount.percentage}% of $${subtotalBeforeDiscounts.toFixed(2)} subtotal = $${discountAmount.toFixed(2)}`);
           } else {
             // Last resort: try other amount fields
             const rawAmount = discount.value || discount.discount || discount.discountAmount || '0';
