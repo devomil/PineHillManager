@@ -6052,7 +6052,12 @@ export class DatabaseStorage implements IStorage {
             
             if (filters.hasDiscounts && filters.hasDiscounts !== 'all') {
               ordersToProcess = ordersToProcess.filter(order => {
-                const hasDiscounts = (order.discounts?.elements?.length || 0) > 0;
+                // Check both order-level and line-item level discounts
+                const hasOrderDiscounts = (order.discounts?.elements?.length || 0) > 0;
+                const hasLineItemDiscounts = order.lineItems?.elements?.some((item: any) => 
+                  (item.discounts?.elements?.length || 0) > 0
+                ) || false;
+                const hasDiscounts = hasOrderDiscounts || hasLineItemDiscounts;
                 return filters.hasDiscounts === 'yes' ? hasDiscounts : !hasDiscounts;
               });
               console.log(`🔍 DISCOUNTS FILTER: Filtered to ${ordersToProcess.length} orders with discounts=${filters.hasDiscounts}`);
