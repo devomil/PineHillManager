@@ -35,7 +35,7 @@ import {
 } from "lucide-react";
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { format, addDays, startOfDay, endOfDay, subDays } from "date-fns";
-import { fromZonedTime } from "date-fns-tz";
+import { fromZonedTime, formatInTimeZone } from "date-fns-tz";
 import { getDateRangeByValue } from '@/lib/date-ranges';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useDebounce } from '@/hooks/use-debounce';
@@ -172,6 +172,7 @@ export function ComprehensiveOrderManagement() {
 
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [showOrderDetails, setShowOrderDetails] = useState(false);
+  const [activeTab, setActiveTab] = useState<string>("orders");
 
   // Order details query - only fetch when dialog is open
   const { data: selectedOrder, isLoading: orderDetailsLoading, error: orderDetailsError } = useQuery<Order>({
@@ -377,7 +378,7 @@ export function ComprehensiveOrderManagement() {
     groupBy: 'day'
   }];
 
-  // Fetch order analytics - PERFORMANCE: Load AFTER orders to avoid blocking
+  // Fetch order analytics - PERFORMANCE: Only load when Analytics tab is active
   const { data: analyticsData, isLoading: analyticsLoading } = useQuery<OrderAnalyticsResponse>({
     queryKey: analyticsQueryKey,
     queryFn: async () => {
@@ -389,7 +390,7 @@ export function ComprehensiveOrderManagement() {
       }
       return response.json();
     },
-    enabled: !!dateParams && !!ordersData && !ordersLoading, // Only load after orders are fetched
+    enabled: activeTab === 'analytics' && !!dateParams, // Only load when Analytics tab is active
     staleTime: 5 * 60 * 1000, // 5 minutes for analytics
     refetchOnWindowFocus: false,
   });
@@ -486,24 +487,22 @@ export function ComprehensiveOrderManagement() {
     // Only require ordersData to render the page
     if (!ordersData) return null;
 
-    // Core metrics from analytics API (primary source) - use fallback if not loaded yet
-    const baseStats = analyticsData?.summary || {
-      totalOrders: 0,
-      totalRevenue: 0,
-      averageOrderValue: 0
-    };
-    
-    // Enhanced metrics from orders data for COGS analysis
+    // PERFORMANCE FIX: Calculate ALL metrics from ordersData directly
+    // Don't wait for slow analytics API - compute everything from the data we have
     const orderMetrics = ordersData.orders.reduce((acc, order) => {
       return {
+        // Core metrics (previously from analytics)
+        totalRevenue: acc.totalRevenue + (order.total / 100), // total is in cents, convert to dollars
+        orderCount: acc.orderCount + 1,
+        
+        // Financial metrics (previously from orderMetrics)
         totalCOGS: acc.totalCOGS + (typeof order.netCOGS === 'number' ? order.netCOGS : parseFloat(String(order.netCOGS || 0))),
         totalProfit: acc.totalProfit + (typeof order.netProfit === 'number' ? order.netProfit : parseFloat(String(order.netProfit || 0))),
         totalDiscounts: acc.totalDiscounts + (typeof order.totalDiscounts === 'number' ? order.totalDiscounts : parseFloat(String(order.totalDiscounts || 0))),
         totalGrossTax: acc.totalGrossTax + (typeof order.grossTax === 'number' ? order.grossTax : parseFloat(String(order.grossTax || 0))),
-        orderCount: acc.orderCount + 1,
         marginSum: acc.marginSum + (parseFloat(String(order.netMargin || '0').replace('%', '')))
       };
-    }, { totalCOGS: 0, totalProfit: 0, totalDiscounts: 0, totalGrossTax: 0, orderCount: 0, marginSum: 0 });
+    }, { totalRevenue: 0, orderCount: 0, totalCOGS: 0, totalProfit: 0, totalDiscounts: 0, totalGrossTax: 0, marginSum: 0 });
 
     // Comprehensive reporting metrics from new API endpoints
     const voidedMetrics = voidedData?.totals || {};
@@ -519,10 +518,10 @@ export function ComprehensiveOrderManagement() {
     };
 
     return {
-      // Primary order metrics (from analytics API)
-      totalOrders: baseStats.totalOrders || 0,
-      totalRevenue: baseStats.totalRevenue || 0,
-      avgOrderValue: baseStats.averageOrderValue || 0,
+      // Primary order metrics (calculated from ordersData - no need to wait for analytics!)
+      totalOrders: orderMetrics.orderCount,
+      totalRevenue: orderMetrics.totalRevenue,
+      avgOrderValue: orderMetrics.orderCount > 0 ? orderMetrics.totalRevenue / orderMetrics.orderCount : 0,
       
       // Financial analysis (from orders data)
       totalCOGS: orderMetrics.totalCOGS,
@@ -539,11 +538,11 @@ export function ComprehensiveOrderManagement() {
       creditRefundCount: creditRefundMetrics.count,
       creditRefundAmount: creditRefundMetrics.totalAmount,
       
-      // Calculated metrics
-      grossProfitMargin: baseStats.totalRevenue > 0 ? (orderMetrics.totalProfit / baseStats.totalRevenue) * 100 : 0,
-      voidedRate: baseStats.totalOrders > 0 ? ((voidedMetrics as any)?.totalVoidedItems || 0) / baseStats.totalOrders * 100 : 0,
-      refundRate: creditRefundMetrics.count > 0 && baseStats.totalOrders > 0 ? 
-        (creditRefundMetrics.count / baseStats.totalOrders) * 100 : 0
+      // Calculated metrics (now using orderMetrics instead of baseStats)
+      grossProfitMargin: orderMetrics.totalRevenue > 0 ? (orderMetrics.totalProfit / orderMetrics.totalRevenue) * 100 : 0,
+      voidedRate: orderMetrics.orderCount > 0 ? ((voidedMetrics as any)?.totalVoidedItems || 0) / orderMetrics.orderCount * 100 : 0,
+      refundRate: creditRefundMetrics.count > 0 && orderMetrics.orderCount > 0 ? 
+        (creditRefundMetrics.count / orderMetrics.orderCount) * 100 : 0
     };
   }, [ordersData, analyticsData, voidedData, employeePaymentsData, creditRefundsData]);
 
@@ -628,7 +627,8 @@ export function ComprehensiveOrderManagement() {
   };
 
   const formatDate = (timestamp: number) => {
-    return new Date(timestamp).toLocaleString();
+    // Use formatInTimeZone to ensure consistent CST timezone display
+    return formatInTimeZone(timestamp, 'America/Chicago', 'MM/dd/yyyy \'at\' h:mm:ss a');
   };
 
   const getPaymentStateBadge = (state: string) => {
@@ -943,7 +943,7 @@ export function ComprehensiveOrderManagement() {
         </div>
       )}
 
-      <Tabs defaultValue="orders" className="space-y-4">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="orders">Orders List</TabsTrigger>
           <TabsTrigger value="analytics">Analytics</TabsTrigger>
