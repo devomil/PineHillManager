@@ -5508,37 +5508,18 @@ export class DatabaseStorage implements IStorage {
       }
       
       // ============================================
-      // CLOVER-ACCURATE DISCOUNT CALCULATION
+      // CLOVER-ACCURATE DISCOUNT CALCULATION VIA RECONCILIATION
       // ============================================
+      // Calculate total discounts by reconciling line item subtotal vs final order total
+      // This captures BOTH order-level AND line-item discounts without needing Clover's expand parameter
       let totalDiscounts = 0;
-      const appliedDiscountIds = new Set<string>();
+      let subtotalBeforeDiscounts = 0;
       
-      // Track specific problematic orders for detailed logging
-      const debugDiscountOrders = ['5H6GVKRHEA2AM', 'C76YXKWR8X1QW'];
-      const isDebugOrder = debugDiscountOrders.includes(order.id);
-      
-      if (isDebugOrder) {
-        console.log(`🔍 [LINE DISCOUNT DEBUG] ${order.id}: Starting discount calculation`);
-        console.log(`🔍 [LINE DISCOUNT DEBUG] ${order.id}: Has ${order.lineItems?.elements?.length || 0} line items`);
-      }
-      
-      // Step 1: Calculate line-item level discounts
-      let lineItemDiscounts = 0;
-      let subtotalAfterItemDiscounts = 0;
-      
-      // 🔍 DEBUG: Log entire order structure to see if line-item discounts exist
-      const orderHasAnyLineItemDiscounts = order.lineItems?.elements?.some((item: any) => 
-        item.discounts && item.discounts.elements && item.discounts.elements.length > 0
-      );
-      if (orderHasAnyLineItemDiscounts) {
-        console.log(`🚨 [LINE DISCOUNT FOUND] Order ${order.id} HAS line-item discounts in raw data!`);
-      }
-      
+      // Calculate subtotal from all non-voided line items
       if (order.lineItems && order.lineItems.elements) {
-        order.lineItems.elements.forEach((lineItem: any, lineIndex: number) => {
+        order.lineItems.elements.forEach((lineItem: any) => {
           // Skip voided, refunded, or non-revenue items
           if (lineItem.refund || lineItem.exchanged || lineItem.voided) {
-            if (isDebugOrder) console.log(`🔍 [LINE DISCOUNT DEBUG] ${order.id} Line ${lineIndex}: Skipping voided/refunded item`);
             return;
           }
           
@@ -5554,134 +5535,24 @@ export class DatabaseStorage implements IStorage {
           }
           
           const lineBase = (price + modificationTotal) * quantity;
-          let lineDiscount = 0;
-          
-          // 🔍 DEBUG: Log ALL line items to see discount structure
-          console.log(`🔍 [LINE ITEM STRUCTURE] ${order.id} Line ${lineIndex}:`, {
-            name: lineItem.name,
-            price: lineItem.price,
-            discountAmount: lineItem.discountAmount,
-            hasDiscountsArray: !!(lineItem.discounts && lineItem.discounts.elements),
-            discountsArrayLength: lineItem.discounts?.elements?.length || 0,
-            allFields: Object.keys(lineItem)
-          });
-          
-          if (isDebugOrder) {
-            console.log(`🔍 [LINE DISCOUNT DEBUG] ${order.id} Line ${lineIndex}:`, {
-              name: lineItem.name,
-              price: price,
-              quantity: quantity,
-              lineBase: lineBase,
-              hasDiscounts: !!(lineItem.discounts && lineItem.discounts.elements && lineItem.discounts.elements.length > 0),
-              discountCount: lineItem.discounts?.elements?.length || 0
-            });
-          }
-          
-          // Apply line-level discounts
-          if (lineItem.discounts && lineItem.discounts.elements) {
-            console.log(`💰 [LINE ITEM DISCOUNT] ${order.id} Line ${lineIndex} (${lineItem.name}): Found ${lineItem.discounts.elements.length} line-item discounts`);
-            lineItem.discounts.elements.forEach((discount: any, discIndex: number) => {
-              if (discount.id) appliedDiscountIds.add(discount.id);
-              
-              console.log(`💰 [LINE ITEM DISCOUNT] ${order.id} Line ${lineIndex} Discount ${discIndex}:`, JSON.stringify({
-                id: discount.id,
-                name: discount.name,
-                percentage: discount.percentage,
-                amount: discount.amount,
-                lineBase
-              }));
-              
-              if (isDebugOrder) {
-                console.log(`🔍 [LINE DISCOUNT DEBUG] ${order.id} Line ${lineIndex} Discount:`, {
-                  id: discount.id,
-                  name: discount.name,
-                  percentage: discount.percentage,
-                  amount: discount.amount,
-                  rawData: JSON.stringify(discount)
-                });
-              }
-              
-              if (discount.percentage && typeof discount.percentage === 'number') {
-                // FIX: Clover stores percentage directly (20 = 20%), not as basis points
-                const discountAmount = lineBase * (discount.percentage / 100);
-                lineDiscount += Math.min(discountAmount, lineBase);
-                if (isDebugOrder) {
-                  console.log(`🔍 [LINE DISCOUNT DEBUG] ${order.id} Line ${lineIndex}: Percentage discount ${discount.percentage}% on $${lineBase.toFixed(2)} = $${discountAmount.toFixed(2)}`);
-                }
-              } else {
-                const fixedAmount = Math.abs(parseFloat(discount.amount || '0') / 100);
-                lineDiscount += Math.min(fixedAmount, lineBase);
-                if (isDebugOrder) {
-                  console.log(`🔍 [LINE DISCOUNT DEBUG] ${order.id} Line ${lineIndex}: Fixed discount $${fixedAmount.toFixed(2)}`);
-                }
-              }
-            });
-          }
-          
-          // Round line discount to cents
-          lineDiscount = Math.round(lineDiscount * 100) / 100;
-          lineItemDiscounts += lineDiscount;
-          subtotalAfterItemDiscounts += lineBase - lineDiscount;
-          
-          if (isDebugOrder && lineDiscount > 0) {
-            console.log(`🔍 [LINE DISCOUNT DEBUG] ${order.id} Line ${lineIndex}: Base=$${lineBase.toFixed(2)}, Discount=$${lineDiscount.toFixed(2)}, Net=$${(lineBase - lineDiscount).toFixed(2)}`);
-          }
+          subtotalBeforeDiscounts += lineBase;
         });
       }
       
-      if (isDebugOrder) {
-        console.log(`🔍 [LINE DISCOUNT DEBUG] ${order.id}: Total line item discounts = $${lineItemDiscounts.toFixed(2)}`);
+      // Service charges (Clover can add these)
+      let totalServiceCharges = 0;
+      if (order.serviceCharge && order.serviceCharge.elements) {
+        totalServiceCharges = order.serviceCharge.elements.reduce((sum: number, charge: any) => {
+          return sum + (parseFloat(charge.amount || '0') / 100);
+        }, 0);
       }
       
-      // Step 2: Apply order-level discounts (excluding already applied discount IDs)
-      let orderLevelDiscounts = 0;
+      // Calculate total discount via reconciliation
+      // Formula: discount = max(0, subtotal + tax + service charges - final order total)
+      totalDiscounts = Math.max(0, subtotalBeforeDiscounts + grossTax + totalServiceCharges - orderTotal);
+      totalDiscounts = Math.round(totalDiscounts * 100) / 100;
       
-      if (order.discounts && order.discounts.elements && order.discounts.elements.length > 0) {
-        console.log(`💰 [DISCOUNT FIX] Order ${order.id}: Found ${order.discounts.elements.length} order-level discounts`);
-        
-        order.discounts.elements.forEach((discount: any, index: number) => {
-          console.log(`💰 [DISCOUNT FIX] Order ${order.id} Discount ${index}:`, JSON.stringify({
-            id: discount.id,
-            name: discount.name,
-            percentage: discount.percentage,
-            amount: discount.amount,
-            orderTotal,
-            subtotalAfterItemDiscounts
-          }));
-          
-          // Skip if this discount was already applied at line level
-          if (discount.id && appliedDiscountIds.has(discount.id)) {
-            console.log(`💰 [DISCOUNT FIX] ${order.id}: Skipping discount ${discount.id} - already applied at line level`);
-            return;
-          }
-          
-          let discountAmount = 0;
-          
-          // CRITICAL FIX: Always use Clover's provided amount field if available
-          // This prevents rounding mismatches from recalculating percentages
-          if (discount.amount && typeof discount.amount === 'number' && discount.amount !== 0) {
-            // Clover provides discount amounts in cents, convert to dollars
-            discountAmount = Math.abs(discount.amount / 100);
-            console.log(`💰 [DISCOUNT FIX] ${order.id}: Using Clover's exact amount: ${discount.amount} cents = $${discountAmount.toFixed(2)}`);
-          } else if (discount.percentage && typeof discount.percentage === 'number') {
-            // Fallback: Calculate from percentage only if amount not provided
-            discountAmount = subtotalAfterItemDiscounts * (discount.percentage / 100);
-            console.log(`💰 [DISCOUNT FIX] ${order.id}: Calculated from percentage ${discount.percentage}% of $${subtotalAfterItemDiscounts.toFixed(2)} = $${discountAmount.toFixed(2)}`);
-          } else {
-            // Last resort: try other amount fields
-            const rawAmount = discount.value || discount.discount || discount.discountAmount || '0';
-            discountAmount = Math.abs(parseFloat(rawAmount) / 100);
-            console.log(`💰 [DISCOUNT FIX] ${order.id}: Using fallback amount $${discountAmount.toFixed(2)}`);
-          }
-          
-          // Round to cents
-          discountAmount = Math.round(discountAmount * 100) / 100;
-          orderLevelDiscounts += discountAmount;
-        });
-      }
-      
-      totalDiscounts = lineItemDiscounts + orderLevelDiscounts;
-      console.log(`💰 [DISCOUNT FIX] ${order.id}: Final totals - Line: $${lineItemDiscounts.toFixed(2)}, Order: $${orderLevelDiscounts.toFixed(2)}, Total: $${totalDiscounts.toFixed(2)}`);
+      console.log(`💰 [RECONCILIATION] Order ${order.id}: Subtotal=$${subtotalBeforeDiscounts.toFixed(2)}, Tax=$${grossTax.toFixed(2)}, ServiceChg=$${totalServiceCharges.toFixed(2)}, OrderTotal=$${orderTotal.toFixed(2)} => TotalDiscount=$${totalDiscounts.toFixed(2)}`);
       
       // Fallback for orders with missing discount data but known to have discounts
       if (totalDiscounts === 0) {
