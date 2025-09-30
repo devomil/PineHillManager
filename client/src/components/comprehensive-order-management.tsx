@@ -1022,8 +1022,8 @@ export function ComprehensiveOrderManagement() {
                 </div>
               )}
 
-              {/* Pagination */}
-              {ordersData?.pagination && ordersData.pagination.totalPages > 1 && (
+              {/* Pagination - Always show if on page 2+ or if multiple pages exist */}
+              {ordersData?.pagination && (ordersData.pagination.totalPages > 1 || filters.page > 1) && (
                 <div className="flex items-center justify-center space-x-2 mt-4">
                   <Button
                     variant="outline"
