@@ -6440,7 +6440,7 @@ export class DatabaseStorage implements IStorage {
           
           // Make direct API call to avoid circular dependency
           const baseUrl = config.baseUrl || 'https://api.clover.com';
-          const url = `${baseUrl}/v3/merchants/${config.merchantId}/orders?limit=1000&expand=lineItems,payments,discounts,refunds`;
+          const url = `${baseUrl}/v3/merchants/${config.merchantId}/orders?limit=1000&expand=lineItems,lineItems.discounts,payments,discounts,refunds`;
           
           // Disabled for performance: console.log(`🔧 [ORDER DETAILS DEBUG] Making direct Clover API call to: ${url}`);
           

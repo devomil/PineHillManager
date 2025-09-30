@@ -1,0 +1,62 @@
+﻿Discounts Report,,,,,,,
+"Sep 30, 2025 12:00 AM - Sep 30, 2025 11:59 PM",,,,,,,
+"Requested on: Sep 30, 2025 3:34 PM",,,,,,,
+Filters: Item Type = Revenue Items,,,,,,,
+,,,,,,,
+Discount Name,Discounts on Orders, ,Discounts on Items, ,Total Discounts,,
+ ,Amount Discounted,Number Applied,Amount Discounted,Number Applied,Amount Discounted,Number Applied,Employee
+$12.01 Off,,,,,,,
+"Order: Sep 30, 2025 1:05 PM",$0.00 ,-,$12.01 ,1,$12.01 ,1,Diane
+Total,$0.00 ,-,$12.01 ,1,$12.01 ,1,
+,,,,,,,
+10%,,,,,,,
+"Order: Sep 30, 2025 12:33 PM",$8.64 ,1,$0.00 ,-,$8.64 ,1,Diane
+Total,$8.64 ,1,$0.00 ,-,$8.64 ,1,
+,,,,,,,
+10% Off,,,,,,,
+"Order: Sep 30, 2025 11:08 AM",$0.50 ,1,$0.00 ,-,$0.50 ,1,Diane
+Total,$0.50 ,1,$0.00 ,-,$0.50 ,1,
+,,,,,,,
+100% Jackie,,,,,,,
+"Order: Sep 30, 2025 11:15 AM",$11.99 ,1,$0.00 ,-,$11.99 ,1,Danielle
+"Order: Sep 30, 2025 9:56 AM",$8.85 ,1,$0.00 ,-,$8.85 ,1,LYNLEY GRAY
+Total,$20.84 ,2,$0.00 ,-,$20.84 ,2,
+,,,,,,,
+100% Raffle,,,,,,,
+"Order: Sep 30, 2025 12:55 PM",$25.95 ,1,$0.00 ,-,$25.95 ,1,Diane
+"Order: Sep 30, 2025 8:57 AM",$55.78 ,1,$0.00 ,-,$55.78 ,1,Danielle
+Total,$81.73 ,2,$0.00 ,-,$81.73 ,2,
+,,,,,,,
+15% Off,,,,,,,
+"Order: Sep 30, 2025 10:44 AM",$9.89 ,1,$0.00 ,-,$9.89 ,1,Diane
+Total,$9.89 ,1,$0.00 ,-,$9.89 ,1,
+,,,,,,,
+20% Off,,,,,,,
+"Order: Sep 30, 2025 1:43 PM",$1.75 ,1,$0.00 ,-,$1.75 ,1,Diane
+"Order: Sep 30, 2025 11:34 AM",$7.80 ,1,$0.00 ,-,$7.80 ,1,Diane
+Total,$9.55 ,2,$0.00 ,-,$9.55 ,2,
+,,,,,,,
+Employee Supplement 35%,,,,,,,
+"Order: Sep 30, 2025 2:55 PM",$0.00 ,-,$2.78 ,1,$2.78 ,1,Diane
+"Order: Sep 30, 2025 2:10 PM",$0.00 ,-,$22.75 ,1,$22.75 ,1,Diane
+"Order: Sep 30, 2025 10:41 AM",$9.10 ,1,$0.00 ,-,$9.10 ,1,Diane
+Total,$9.10 ,1,$25.53 ,2,$34.63 ,3,
+,,,,,,,
+Family/Employee,,,,,,,
+"Order: Sep 30, 2025 2:55 PM",$0.00 ,-,$1.77 ,3,$1.77 ,3,Diane
+"Order: Sep 30, 2025 2:10 PM",$0.00 ,-,$1.60 ,1,$1.60 ,1,Diane
+Total,$0.00 ,-,$3.37 ,4,$3.37 ,4,
+,,,,,,,
+"Nic Phillips Comp, Per Jax",,,,,,,
+"Order: Sep 30, 2025 11:46 AM",$175.48 ,1,$0.00 ,-,$175.48 ,1,Diane
+Total,$175.48 ,1,$0.00 ,-,$175.48 ,1,
+,,,,,,,
+Perks,,,,,,,
+"Order: Sep 30, 2025 2:43 PM",$3.00 ,1,$0.00 ,-,$3.00 ,1,Diane
+"Order: Sep 30, 2025 1:29 PM",$2.00 ,1,$0.00 ,-,$2.00 ,1,Diane
+"Order: Sep 30, 2025 12:36 PM",$2.00 ,1,$0.00 ,-,$2.00 ,1,Diane
+"Order: Sep 30, 2025 12:17 PM",$5.00 ,1,$0.00 ,-,$5.00 ,1,Diane
+"Order: Sep 30, 2025 10:44 AM",$3.00 ,1,$0.00 ,-,$3.00 ,1,Diane
+Total,$15.00 ,5,$0.00 ,-,$15.00 ,5,
+,,,,,,,
+TOTAL,$330.73 ,16,$40.91 ,7,$371.64 ,23,
