@@ -5526,6 +5526,14 @@ export class DatabaseStorage implements IStorage {
       let lineItemDiscounts = 0;
       let subtotalAfterItemDiscounts = 0;
       
+      // 🔍 DEBUG: Log entire order structure to see if line-item discounts exist
+      const orderHasAnyLineItemDiscounts = order.lineItems?.elements?.some((item: any) => 
+        item.discounts && item.discounts.elements && item.discounts.elements.length > 0
+      );
+      if (orderHasAnyLineItemDiscounts) {
+        console.log(`🚨 [LINE DISCOUNT FOUND] Order ${order.id} HAS line-item discounts in raw data!`);
+      }
+      
       if (order.lineItems && order.lineItems.elements) {
         order.lineItems.elements.forEach((lineItem: any, lineIndex: number) => {
           // Skip voided, refunded, or non-revenue items
