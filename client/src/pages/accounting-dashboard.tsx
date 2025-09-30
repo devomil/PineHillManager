@@ -1562,14 +1562,14 @@ function AccountingContent() {
                           <Label className="text-sm text-gray-600">Filter by Period:</Label>
                         </div>
                         <Select 
-                          value={selectedMonth?.toString() || ""} 
-                          onValueChange={(value) => setSelectedMonth(value ? parseInt(value) : null)}
+                          value={selectedMonth?.toString() || "all"} 
+                          onValueChange={(value) => setSelectedMonth(value === "all" ? null : parseInt(value))}
                         >
                           <SelectTrigger className="w-32">
                             <SelectValue placeholder="Month" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="">All Time</SelectItem>
+                            <SelectItem value="all">All Time</SelectItem>
                             {Array.from({ length: 12 }, (_, i) => (
                               <SelectItem key={i + 1} value={(i + 1).toString()}>
                                 {new Date(2024, i).toLocaleString('default', { month: 'long' })}
@@ -1578,14 +1578,14 @@ function AccountingContent() {
                           </SelectContent>
                         </Select>
                         <Select 
-                          value={selectedYear?.toString() || ""} 
-                          onValueChange={(value) => setSelectedYear(value ? parseInt(value) : null)}
+                          value={selectedYear?.toString() || "all"} 
+                          onValueChange={(value) => setSelectedYear(value === "all" ? null : parseInt(value))}
                         >
                           <SelectTrigger className="w-24">
                             <SelectValue placeholder="Year" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="">All</SelectItem>
+                            <SelectItem value="all">All</SelectItem>
                             {Array.from({ length: 5 }, (_, i) => (
                               <SelectItem key={2024 - i} value={(2024 - i).toString()}>
                                 {2024 - i}
