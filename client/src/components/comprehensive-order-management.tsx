@@ -1147,7 +1147,7 @@ export function ComprehensiveOrderManagement() {
               ) : orderDetailsError ? (
                 'Failed to load order details'
               ) : selectedOrder ? (
-                `Order ${selectedOrder.id} from ${selectedOrder.locationName}${selectedOrder.formattedDate ? ` - 📅 ${selectedOrder.orderDate} at ${selectedOrder.orderTime}` : ''}`
+                `Order ${selectedOrder.id} from ${selectedOrder.locationName} - ${formatDate(selectedOrder.createdTime)}`
               ) : (
                 'Select an order to view details'
               )}

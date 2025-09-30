@@ -6737,10 +6737,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log('Orders API result:', { total: dbResult.total, returned: dbResult.orders.length });
 
-      // Also fetch Amazon orders if date range is provided (with timeout)
+      // PERFORMANCE: Temporarily disable Amazon orders fetch - it's slow and failing
       let amazonOrders: any[] = [];
       
-      if ((createdTimeMinMs && createdTimeMaxMs) || (startDate && endDate)) {
+      if (false && ((createdTimeMinMs && createdTimeMaxMs) || (startDate && endDate))) {
         try {
           console.log('🛒 [AMAZON ORDERS] Starting Amazon order fetch with timeout');
           
