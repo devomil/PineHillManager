@@ -5430,7 +5430,7 @@ export class DatabaseStorage implements IStorage {
   // ================================
 
   // Helper method to calculate detailed financial metrics for an order
-  async calculateOrderFinancialMetrics(order: any, locationId: number, merchantConfig?: any): Promise<{
+  async calculateOrderFinancialMetrics(order: any, locationId: number, merchantConfig?: any, normalizedTotalForDiscounts?: number): Promise<{
     grossTax: number;
     totalDiscounts: number;
     giftCardTotal: number;
@@ -5563,10 +5563,12 @@ export class DatabaseStorage implements IStorage {
       
       // Calculate total discount via reconciliation
       // Formula: discount = max(0, subtotal + tax + service charges - final order total)
-      totalDiscounts = Math.max(0, subtotalBeforeDiscounts + grossTax + totalServiceCharges - orderTotal);
+      // ✅ CRITICAL FIX: Use normalizedTotalForDiscounts for 100% comp orders instead of $0 orderTotal
+      const totalForDiscountCalc = normalizedTotalForDiscounts !== undefined ? normalizedTotalForDiscounts : orderTotal;
+      totalDiscounts = Math.max(0, subtotalBeforeDiscounts + grossTax + totalServiceCharges - totalForDiscountCalc);
       totalDiscounts = Math.round(totalDiscounts * 100) / 100;
       
-      console.log(`💰 [RECONCILIATION] Order ${order.id}: Subtotal=$${subtotalBeforeDiscounts.toFixed(2)}, Tax=$${grossTax.toFixed(2)}, ServiceChg=$${totalServiceCharges.toFixed(2)}, OrderTotal=$${orderTotal.toFixed(2)} => TotalDiscount=$${totalDiscounts.toFixed(2)}`);
+      console.log(`💰 [RECONCILIATION] Order ${order.id}: Subtotal=$${subtotalBeforeDiscounts.toFixed(2)}, Tax=$${grossTax.toFixed(2)}, ServiceChg=$${totalServiceCharges.toFixed(2)}, OrderTotal=$${orderTotal.toFixed(2)}, DiscountCalcTotal=$${totalForDiscountCalc.toFixed(2)} => TotalDiscount=$${totalDiscounts.toFixed(2)}`);
       
       // Fallback for orders with missing discount data but known to have discounts
       if (totalDiscounts === 0) {
@@ -5612,8 +5614,8 @@ export class DatabaseStorage implements IStorage {
                   console.log(`[API DISCOUNT CALC] Using Clover's exact amount: ${discount.amount} cents = $${discountAmount.toFixed(2)}`);
                 } else if (discount.percentage && typeof discount.percentage === 'number') {
                   // Fallback: Calculate from percentage only if amount not provided
-                  discountAmount = (orderTotal * discount.percentage) / 100;
-                  console.log(`[API DISCOUNT CALC] Calculated from percentage: ${discount.percentage}% of $${orderTotal.toFixed(2)} = $${discountAmount.toFixed(2)}`);
+                  discountAmount = (totalForDiscountCalc * discount.percentage) / 100;
+                  console.log(`[API DISCOUNT CALC] Calculated from percentage: ${discount.percentage}% of $${totalForDiscountCalc.toFixed(2)} = $${discountAmount.toFixed(2)}`);
                 } else {
                   // Last resort: try other amount fields
                   const rawAmount = discount.value || discount.discount || discount.discountAmount || '0';
@@ -6023,9 +6025,11 @@ export class DatabaseStorage implements IStorage {
                 // TEMPORARILY SIMPLIFIED: Skip expensive COGS calculations for faster loading
                 // Frontend expects order.total in CENTS, but grossTax and other financial metrics in DOLLARS
                 let orderTotalInDollars = parseFloat(order.total || '0') / 100;
-                const originalOrderTotal = orderTotalInDollars; // Save original for discount calculations
+                const originalOrderTotal = orderTotalInDollars; // Save original Clover total for revenue calculations
+                let normalizedTotalForDiscounts = orderTotalInDollars; // Separate normalized value for discount calculations only
                 
                 // ✅ PROPER CLOVER TOTAL NORMALIZATION: Handle both payment shapes from Clover API
+                // BUT: Keep original order.total for revenue - only use normalized for discount calculations
                 if (orderTotalInDollars === 0 && (order.lineItems?.elements?.length > 0 || order.payments)) {
                   let normalizedTotal = 0;
                   
@@ -6033,8 +6037,6 @@ export class DatabaseStorage implements IStorage {
                   const payments = Array.isArray(order.payments) ? order.payments : (order.payments?.elements ?? []);
                   const refunds = Array.isArray(order.refunds) ? order.refunds : (order.refunds?.elements ?? []);
                   const lineItems = order.lineItems?.elements || [];
-                  
-                  // Disabled for performance: console.log(`🔧 [DATA STRUCTURE DEBUG] Order ${order.id}: payments type=${Array.isArray(order.payments) ? 'array' : 'object'}, payments count=${payments.length}, refunds count=${refunds.length}, lineItems count=${lineItems.length}`);
                   
                   // Check if payments have valid amounts
                   const paymentSum = payments.filter(p => p.result === 'SUCCESS').reduce((sum, p) => sum + (parseFloat(p.amount || '0') / 100), 0);
@@ -6050,7 +6052,6 @@ export class DatabaseStorage implements IStorage {
                       for (const refund of refunds) {
                         const refundAmount = parseFloat(refund.amount || '0') / 100;
                         normalizedTotal -= refundAmount;
-                        // Disabled for performance: console.log(`🔧 [REFUND DEBUG] Subtracted refund: $${refundAmount}, running total: $${normalizedTotal}`);
                       }
                     }
                   } 
@@ -6062,7 +6063,6 @@ export class DatabaseStorage implements IStorage {
                       const quantity = parseInt(lineItem.unitQty || '1');
                       const lineTotal = lineItemPrice * quantity;
                       normalizedTotal += lineTotal;
-                      // Disabled for performance: console.log(`🔧 [LINEITEM DEBUG] Added "${lineItem.name}": $${lineItemPrice} x ${quantity} = $${lineTotal.toFixed(2)}, running total: $${normalizedTotal.toFixed(2)}`);
                     }
                   } 
                   // Method 3: Last resort - use Clover's reported total if > 0
@@ -6076,11 +6076,11 @@ export class DatabaseStorage implements IStorage {
                     }
                   }
                   
-                  orderTotalInDollars = normalizedTotal;
-                  console.log(`🔧 [CLOVER TOTAL NORMALIZATION] Order ${order.id}: Normalized total from Clover data: $${normalizedTotal.toFixed(2)}`);
+                  normalizedTotalForDiscounts = normalizedTotal;
+                  console.log(`🔧 [CLOVER TOTAL NORMALIZATION] Order ${order.id}: Normalized total for discount calc: $${normalizedTotal.toFixed(2)}, keeping original total $${originalOrderTotal.toFixed(2)} for revenue`);
                   
-                  // ✅ CRITICAL: Update the order object that gets returned to frontend
-                  order.total = Math.round(normalizedTotal * 100); // Convert back to cents for Clover format
+                  // ✅ CRITICAL FIX: DO NOT overwrite order.total - keep Clover's original $0 for revenue reporting
+                  // Only use normalizedTotalForDiscounts internally for discount calculations
                 }
                 
                 // Calculate tax properly (send as dollars to match frontend expectation)
@@ -6112,11 +6112,10 @@ export class DatabaseStorage implements IStorage {
                   };
                 } else {
                   // Full calculation version for detailed views
-                  // ✅ CRITICAL: Restore original order.total for accurate discount calculation
-                  const normalizedTotal = order.total; // Save normalized total for frontend
-                  order.total = Math.round(originalOrderTotal * 100); // Restore original for discount calc
-                  const financialMetrics = await this.calculateOrderFinancialMetrics(order, config.id, config);
-                  order.total = normalizedTotal; // Restore normalized total for frontend
+                  // ✅ CRITICAL FIX: Use normalizedTotalForDiscounts for accurate discount calculation
+                  // Pass the normalized value separately without overwriting order.total
+                  const financialMetrics = await this.calculateOrderFinancialMetrics(order, config.id, config, normalizedTotalForDiscounts);
+                  
                   
                   // 🔧 DEBUG: Log financial metrics for problematic orders
                   if (isProblematicOrder) {
