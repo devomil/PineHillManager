@@ -377,7 +377,7 @@ export function ComprehensiveOrderManagement() {
     groupBy: 'day'
   }];
 
-  // Fetch order analytics
+  // Fetch order analytics - PERFORMANCE: Load AFTER orders to avoid blocking
   const { data: analyticsData, isLoading: analyticsLoading } = useQuery<OrderAnalyticsResponse>({
     queryKey: analyticsQueryKey,
     queryFn: async () => {
@@ -389,7 +389,7 @@ export function ComprehensiveOrderManagement() {
       }
       return response.json();
     },
-    enabled: !!dateParams,
+    enabled: !!dateParams && !!ordersData && !ordersLoading, // Only load after orders are fetched
     staleTime: 5 * 60 * 1000, // 5 minutes for analytics
     refetchOnWindowFocus: false,
   });
@@ -482,10 +482,16 @@ export function ComprehensiveOrderManagement() {
 
   // Comprehensive stats aggregation from all data sources - Single Source of Truth
   const comprehensiveStats = useMemo(() => {
-    if (!ordersData || !analyticsData) return null;
+    // PERFORMANCE FIX: Don't block on analytics - it can take 100+ seconds
+    // Only require ordersData to render the page
+    if (!ordersData) return null;
 
-    // Core metrics from analytics API (primary source)
-    const baseStats = analyticsData.summary || {};
+    // Core metrics from analytics API (primary source) - use fallback if not loaded yet
+    const baseStats = analyticsData?.summary || {
+      totalOrders: 0,
+      totalRevenue: 0,
+      averageOrderValue: 0
+    };
     
     // Enhanced metrics from orders data for COGS analysis
     const orderMetrics = ordersData.orders.reduce((acc, order) => {
