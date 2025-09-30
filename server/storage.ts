@@ -5630,16 +5630,21 @@ export class DatabaseStorage implements IStorage {
           
           let discountAmount = 0;
           
-          if (discount.percentage && typeof discount.percentage === 'number') {
-            // FIX: Clover applies percentage discounts to SUBTOTAL (before order-level discounts), not final total
-            // This is the line item total before any order-level discounts are applied
+          // CRITICAL FIX: Always use Clover's provided amount field if available
+          // This prevents rounding mismatches from recalculating percentages
+          if (discount.amount && typeof discount.amount === 'number' && discount.amount !== 0) {
+            // Clover provides discount amounts in cents, convert to dollars
+            discountAmount = Math.abs(discount.amount / 100);
+            console.log(`💰 [DISCOUNT FIX] ${order.id}: Using Clover's exact amount: ${discount.amount} cents = $${discountAmount.toFixed(2)}`);
+          } else if (discount.percentage && typeof discount.percentage === 'number') {
+            // Fallback: Calculate from percentage only if amount not provided
             discountAmount = subtotalAfterItemDiscounts * (discount.percentage / 100);
-            console.log(`💰 [DISCOUNT FIX] ${order.id}: Percentage discount ${discount.percentage}% of $${subtotalAfterItemDiscounts.toFixed(2)} = $${discountAmount.toFixed(2)}`);
+            console.log(`💰 [DISCOUNT FIX] ${order.id}: Calculated from percentage ${discount.percentage}% of $${subtotalAfterItemDiscounts.toFixed(2)} = $${discountAmount.toFixed(2)}`);
           } else {
-            // Fixed amount order-level discount
-            const rawAmount = discount.amount || discount.value || discount.discount || discount.discountAmount || '0';
+            // Last resort: try other amount fields
+            const rawAmount = discount.value || discount.discount || discount.discountAmount || '0';
             discountAmount = Math.abs(parseFloat(rawAmount) / 100);
-            console.log(`💰 [DISCOUNT FIX] ${order.id}: Fixed discount $${discountAmount.toFixed(2)}`);
+            console.log(`💰 [DISCOUNT FIX] ${order.id}: Using fallback amount $${discountAmount.toFixed(2)}`);
           }
           
           // Round to cents
@@ -5688,16 +5693,20 @@ export class DatabaseStorage implements IStorage {
               totalDiscounts = discountResponse.elements.reduce((sum: number, discount: any) => {
                 let discountAmount = 0;
                 
-                // Handle percentage-based discounts (like "100% HSA")
-                if (discount.percentage && typeof discount.percentage === 'number') {
-                  // Calculate discount as percentage of order total
+                // CRITICAL FIX: Always use Clover's provided amount field if available
+                if (discount.amount && typeof discount.amount === 'number' && discount.amount !== 0) {
+                  // Clover provides discount amounts in cents, convert to dollars
+                  discountAmount = Math.abs(discount.amount / 100);
+                  console.log(`[API DISCOUNT CALC] Using Clover's exact amount: ${discount.amount} cents = $${discountAmount.toFixed(2)}`);
+                } else if (discount.percentage && typeof discount.percentage === 'number') {
+                  // Fallback: Calculate from percentage only if amount not provided
                   discountAmount = (orderTotal * discount.percentage) / 100;
-                  console.log(`[API DISCOUNT CALC] Percentage-based discount: ${discount.percentage}% of $${orderTotal.toFixed(2)} = $${discountAmount.toFixed(2)}`);
+                  console.log(`[API DISCOUNT CALC] Calculated from percentage: ${discount.percentage}% of $${orderTotal.toFixed(2)} = $${discountAmount.toFixed(2)}`);
                 } else {
-                  // Handle fixed amount discounts (stored in cents)
-                  const rawAmount = discount.amount || discount.value || discount.discount || discount.discountAmount || '0';
+                  // Last resort: try other amount fields
+                  const rawAmount = discount.value || discount.discount || discount.discountAmount || '0';
                   discountAmount = Math.abs(parseFloat(rawAmount) / 100);
-                  console.log(`[API DISCOUNT CALC] Fixed amount discount: ${rawAmount} cents = $${discountAmount.toFixed(2)}`);
+                  console.log(`[API DISCOUNT CALC] Using fallback amount: ${rawAmount} cents = $${discountAmount.toFixed(2)}`);
                 }
                 
                 return sum + discountAmount;
