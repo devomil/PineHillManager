@@ -6641,6 +6641,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         locationId,
         search,
         state,
+        paymentState,
+        hasDiscounts,
+        hasRefunds,
         page = '1',
         limit = '20'
       } = req.query as Record<string, string>;
@@ -6712,6 +6715,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         isSingleDayFilter: normalizedStartDate === normalizedEndDate
       });
       const stateParam = state && state !== 'all' ? String(state) : undefined;
+      const paymentStateParam = paymentState && paymentState !== 'all' ? String(paymentState) : undefined;
+      const hasDiscountsParam = hasDiscounts && hasDiscounts !== 'all' ? String(hasDiscounts) : undefined;
+      const hasRefundsParam = hasRefunds && hasRefunds !== 'all' ? String(hasRefunds) : undefined;
       const limitNum = Number.isFinite(Number(limit)) && Number(limit) > 0 ? Number(limit) : 20;
       const offsetNum = Number.isFinite(Number(offset)) && Number(offset) >= 0 ? Number(offset) : 0;
       const locationIdNum = locationId && locationId !== 'all' ? Number(locationId) : undefined;
@@ -6719,7 +6725,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log('🚀 [ORDERS API] Fetching orders with database queries (optimized)');
       console.log('Orders API filters:', { 
         startDate: normalizedStartDate, endDate: normalizedEndDate, locationId: locationIdNum, 
-        state: stateParam, limit: limitNum, offset: offsetNum, search 
+        state: stateParam, paymentState: paymentStateParam, hasDiscounts: hasDiscountsParam, 
+        hasRefunds: hasRefundsParam, limit: limitNum, offset: offsetNum, search 
       });
 
       // Use Clover API method with financial calculations for comprehensive order data
@@ -6731,6 +6738,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         locationId: locationIdNum,
         search,
         state: stateParam,
+        paymentState: paymentStateParam,
+        hasDiscounts: hasDiscountsParam,
+        hasRefunds: hasRefundsParam,
         limit: limitNum,
         offset: offsetNum
       });

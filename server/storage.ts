@@ -5899,6 +5899,9 @@ export class DatabaseStorage implements IStorage {
     locationId?: number | string;
     search?: string;
     state?: string;
+    paymentState?: string;
+    hasDiscounts?: string;
+    hasRefunds?: string;
     limit: number;
     offset: number;
     skipFinancialCalculations?: boolean;
@@ -6001,6 +6004,28 @@ export class DatabaseStorage implements IStorage {
               });
               
               console.log(`⚡ EARLY FILTER: Reduced from ${response.elements.length} to ${ordersToProcess.length} orders for ${config.merchantName}`);
+            }
+            
+            // Apply additional column filters
+            if (filters.paymentState && filters.paymentState !== 'all') {
+              ordersToProcess = ordersToProcess.filter(order => order.paymentState === filters.paymentState);
+              console.log(`🔍 PAYMENT STATE FILTER: Filtered to ${ordersToProcess.length} orders with paymentState=${filters.paymentState}`);
+            }
+            
+            if (filters.hasDiscounts && filters.hasDiscounts !== 'all') {
+              ordersToProcess = ordersToProcess.filter(order => {
+                const hasDiscounts = (order.discounts?.elements?.length || 0) > 0;
+                return filters.hasDiscounts === 'yes' ? hasDiscounts : !hasDiscounts;
+              });
+              console.log(`🔍 DISCOUNTS FILTER: Filtered to ${ordersToProcess.length} orders with discounts=${filters.hasDiscounts}`);
+            }
+            
+            if (filters.hasRefunds && filters.hasRefunds !== 'all') {
+              ordersToProcess = ordersToProcess.filter(order => {
+                const hasRefunds = (order.refunds?.elements?.length || 0) > 0;
+                return filters.hasRefunds === 'yes' ? hasRefunds : !hasRefunds;
+              });
+              console.log(`🔍 REFUNDS FILTER: Filtered to ${ordersToProcess.length} orders with refunds=${filters.hasRefunds}`);
             }
             
             // Debug: Check the dates of filtered orders
