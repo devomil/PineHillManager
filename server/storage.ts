@@ -5968,10 +5968,33 @@ export class DatabaseStorage implements IStorage {
           if (response?.elements && Array.isArray(response.elements)) {
             console.log(`Found ${response.elements.length} orders from ${config.merchantName}`);
             
-            // Debug: Check the dates of returned orders to verify filtering is working
-            if (response.elements.length > 0) {
-              const firstOrder = response.elements[0];
-              const lastOrder = response.elements[response.elements.length - 1];
+            // 🚀 PERFORMANCE FIX: Apply date filtering BEFORE expensive processing
+            let ordersToProcess = response.elements;
+            if (options.createdTimeMin || options.createdTimeMax) {
+              ordersToProcess = response.elements.filter(order => {
+                const orderCreatedTime = order.createdTime;
+                if (!orderCreatedTime) return false;
+                
+                const orderTime = parseInt(orderCreatedTime.toString());
+                
+                if (options.createdTimeMin && orderTime < options.createdTimeMin) {
+                  return false;
+                }
+                
+                if (options.createdTimeMax && orderTime > options.createdTimeMax) {
+                  return false;
+                }
+                
+                return true;
+              });
+              
+              console.log(`⚡ EARLY FILTER: Reduced from ${response.elements.length} to ${ordersToProcess.length} orders for ${config.merchantName}`);
+            }
+            
+            // Debug: Check the dates of filtered orders
+            if (ordersToProcess.length > 0) {
+              const firstOrder = ordersToProcess[0];
+              const lastOrder = ordersToProcess[ordersToProcess.length - 1];
               console.log(`First order created: ${new Date(firstOrder.createdTime).toISOString()}`);
               console.log(`Last order created: ${new Date(lastOrder.createdTime).toISOString()}`);
               if (options.createdTimeMin && options.createdTimeMax) {
@@ -5979,9 +6002,9 @@ export class DatabaseStorage implements IStorage {
               }
             }
             
-            // Enhance orders with financial calculations
+            // Enhance ONLY filtered orders with financial calculations
             const enhancedOrders = [];
-            for (const order of response.elements) {
+            for (const order of ordersToProcess) {
               // 🔧 DEBUG: Track specific problematic orders
               const isProblematicOrder = ['NS8NSG9CNXEEJ', '48GWSVFSYPDN4'].includes(order.id);
               if (isProblematicOrder) {
@@ -6143,32 +6166,8 @@ export class DatabaseStorage implements IStorage {
               }
             }
             
-            // Apply server-side date filtering since Clover API doesn't respect createdTime.min/max properly
-            let filteredOrders = enhancedOrders;
-            if (options.createdTimeMin || options.createdTimeMax) {
-              filteredOrders = enhancedOrders.filter(order => {
-                const orderCreatedTime = order.createdTime;
-                if (!orderCreatedTime) return false;
-                
-                const orderTime = parseInt(orderCreatedTime.toString());
-                
-                // Check minimum time
-                if (options.createdTimeMin && orderTime < options.createdTimeMin) {
-                  return false;
-                }
-                
-                // Check maximum time  
-                if (options.createdTimeMax && orderTime > options.createdTimeMax) {
-                  return false;
-                }
-                
-                return true;
-              });
-              
-              console.log(`After server-side date filtering: ${filteredOrders.length} orders from ${config.merchantName}`);
-            }
-            
-            allOrders.push(...filteredOrders);
+            // Add enhanced orders directly (already filtered early)
+            allOrders.push(...enhancedOrders);
           }
         } catch (error) {
           console.error(`Error fetching orders from location ${config.merchantName}:`, error);
