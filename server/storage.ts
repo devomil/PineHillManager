@@ -6007,6 +6007,7 @@ export class DatabaseStorage implements IStorage {
                 // TEMPORARILY SIMPLIFIED: Skip expensive COGS calculations for faster loading
                 // Frontend expects order.total in CENTS, but grossTax and other financial metrics in DOLLARS
                 let orderTotalInDollars = parseFloat(order.total || '0') / 100;
+                const originalOrderTotal = orderTotalInDollars; // Save original for discount calculations
                 
                 // ✅ PROPER CLOVER TOTAL NORMALIZATION: Handle both payment shapes from Clover API
                 if (orderTotalInDollars === 0 && (order.lineItems?.elements?.length > 0 || order.payments)) {
@@ -6094,7 +6095,11 @@ export class DatabaseStorage implements IStorage {
                   };
                 } else {
                   // Full calculation version for detailed views
+                  // ✅ CRITICAL: Restore original order.total for accurate discount calculation
+                  const normalizedTotal = order.total; // Save normalized total for frontend
+                  order.total = Math.round(originalOrderTotal * 100); // Restore original for discount calc
                   const financialMetrics = await this.calculateOrderFinancialMetrics(order, config.id, config);
+                  order.total = normalizedTotal; // Restore normalized total for frontend
                   
                   // 🔧 DEBUG: Log financial metrics for problematic orders
                   if (isProblematicOrder) {
