@@ -159,7 +159,10 @@ export function ComprehensiveOrderManagement() {
   
   const [filters, setFilters] = useState({
     locationId: "all",
-    state: "all", 
+    state: "all",
+    paymentState: "all",
+    hasDiscounts: "all",
+    hasRefunds: "all",
     search: "",
     page: 1,
     limit: 20
@@ -325,6 +328,9 @@ export function ComprehensiveOrderManagement() {
     params.set('search', filters.search);
     params.set('locationId', filters.locationId);
     params.set('state', filters.state);
+    params.set('paymentState', filters.paymentState);
+    params.set('hasDiscounts', filters.hasDiscounts);
+    params.set('hasRefunds', filters.hasRefunds);
     params.set('page', filters.page.toString());
     params.set('limit', filters.limit.toString());
     return `/api/orders?${params.toString()}`;
@@ -337,6 +343,9 @@ export function ComprehensiveOrderManagement() {
     search: filters.search || '',
     locationId: filters.locationId,
     state: filters.state,
+    paymentState: filters.paymentState,
+    hasDiscounts: filters.hasDiscounts,
+    hasRefunds: filters.hasRefunds,
     page: filters.page,
     limit: filters.limit
   }];
@@ -770,6 +779,55 @@ export function ComprehensiveOrderManagement() {
                   <SelectItem value="locked">Locked</SelectItem>
                   <SelectItem value="open">Open</SelectItem>
                   <SelectItem value="paid">Paid</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          
+          {/* Additional Column Filters */}
+          <div className="flex flex-col lg:flex-row gap-4 pt-2 border-t">
+            <div className="flex flex-1 gap-2">
+              <Select
+                value={filters.paymentState}
+                onValueChange={(value) => setFilters(prev => ({ ...prev, paymentState: value, page: 1 }))}
+              >
+                <SelectTrigger className="w-48">
+                  <SelectValue placeholder="Payment Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Payment Status</SelectItem>
+                  <SelectItem value="PAID">Paid</SelectItem>
+                  <SelectItem value="OPEN">Open</SelectItem>
+                  <SelectItem value="PARTIALLY_PAID">Partially Paid</SelectItem>
+                  <SelectItem value="REFUNDED">Refunded</SelectItem>
+                </SelectContent>
+              </Select>
+              
+              <Select
+                value={filters.hasDiscounts}
+                onValueChange={(value) => setFilters(prev => ({ ...prev, hasDiscounts: value, page: 1 }))}
+              >
+                <SelectTrigger className="w-48">
+                  <SelectValue placeholder="Discounts" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Orders</SelectItem>
+                  <SelectItem value="yes">With Discounts</SelectItem>
+                  <SelectItem value="no">No Discounts</SelectItem>
+                </SelectContent>
+              </Select>
+              
+              <Select
+                value={filters.hasRefunds}
+                onValueChange={(value) => setFilters(prev => ({ ...prev, hasRefunds: value, page: 1 }))}
+              >
+                <SelectTrigger className="w-48">
+                  <SelectValue placeholder="Refunds" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Orders</SelectItem>
+                  <SelectItem value="yes">With Refunds</SelectItem>
+                  <SelectItem value="no">No Refunds</SelectItem>
                 </SelectContent>
               </Select>
             </div>
