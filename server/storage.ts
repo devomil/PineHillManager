@@ -5513,7 +5513,14 @@ export class DatabaseStorage implements IStorage {
       let totalDiscounts = 0;
       const appliedDiscountIds = new Set<string>();
       
-      // Disabled for performance: console.log(`🔧 [DISCOUNT DEBUG] ${order.id}: Starting discount calculation`);
+      // Track specific problematic orders for detailed logging
+      const debugDiscountOrders = ['5H6GVKRHEA2AM', 'C76YXKWR8X1QW'];
+      const isDebugOrder = debugDiscountOrders.includes(order.id);
+      
+      if (isDebugOrder) {
+        console.log(`🔍 [LINE DISCOUNT DEBUG] ${order.id}: Starting discount calculation`);
+        console.log(`🔍 [LINE DISCOUNT DEBUG] ${order.id}: Has ${order.lineItems?.elements?.length || 0} line items`);
+      }
       
       // Step 1: Calculate line-item level discounts
       let lineItemDiscounts = 0;
@@ -5523,7 +5530,7 @@ export class DatabaseStorage implements IStorage {
         order.lineItems.elements.forEach((lineItem: any, lineIndex: number) => {
           // Skip voided, refunded, or non-revenue items
           if (lineItem.refund || lineItem.exchanged || lineItem.voided) {
-            // Disabled for performance: console.log(`🔧 [DISCOUNT DEBUG] ${order.id} Line ${lineIndex}: Skipping voided/refunded item`);
+            if (isDebugOrder) console.log(`🔍 [LINE DISCOUNT DEBUG] ${order.id} Line ${lineIndex}: Skipping voided/refunded item`);
             return;
           }
           
@@ -5541,20 +5548,45 @@ export class DatabaseStorage implements IStorage {
           const lineBase = (price + modificationTotal) * quantity;
           let lineDiscount = 0;
           
+          if (isDebugOrder) {
+            console.log(`🔍 [LINE DISCOUNT DEBUG] ${order.id} Line ${lineIndex}:`, {
+              name: lineItem.name,
+              price: price,
+              quantity: quantity,
+              lineBase: lineBase,
+              hasDiscounts: !!(lineItem.discounts && lineItem.discounts.elements && lineItem.discounts.elements.length > 0),
+              discountCount: lineItem.discounts?.elements?.length || 0
+            });
+          }
+          
           // Apply line-level discounts
           if (lineItem.discounts && lineItem.discounts.elements) {
             lineItem.discounts.elements.forEach((discount: any) => {
               if (discount.id) appliedDiscountIds.add(discount.id);
               
+              if (isDebugOrder) {
+                console.log(`🔍 [LINE DISCOUNT DEBUG] ${order.id} Line ${lineIndex} Discount:`, {
+                  id: discount.id,
+                  name: discount.name,
+                  percentage: discount.percentage,
+                  amount: discount.amount,
+                  rawData: JSON.stringify(discount)
+                });
+              }
+              
               if (discount.percentage && typeof discount.percentage === 'number') {
-                // Clover stores percentage as basis points (1500 = 15.00%)
-                const discountAmount = lineBase * (discount.percentage / 10000);
+                // FIX: Clover stores percentage directly (20 = 20%), not as basis points
+                const discountAmount = lineBase * (discount.percentage / 100);
                 lineDiscount += Math.min(discountAmount, lineBase);
-                // Disabled for performance: console.log(`🔧 [DISCOUNT DEBUG] ${order.id} Line ${lineIndex}: Percentage discount ${discount.percentage/100}% on $${lineBase.toFixed(2)} = $${discountAmount.toFixed(2)}`);
+                if (isDebugOrder) {
+                  console.log(`🔍 [LINE DISCOUNT DEBUG] ${order.id} Line ${lineIndex}: Percentage discount ${discount.percentage}% on $${lineBase.toFixed(2)} = $${discountAmount.toFixed(2)}`);
+                }
               } else {
                 const fixedAmount = Math.abs(parseFloat(discount.amount || '0') / 100);
                 lineDiscount += Math.min(fixedAmount, lineBase);
-                // Disabled for performance: console.log(`🔧 [DISCOUNT DEBUG] ${order.id} Line ${lineIndex}: Fixed discount $${fixedAmount.toFixed(2)}`);
+                if (isDebugOrder) {
+                  console.log(`🔍 [LINE DISCOUNT DEBUG] ${order.id} Line ${lineIndex}: Fixed discount $${fixedAmount.toFixed(2)}`);
+                }
               }
             });
           }
@@ -5564,8 +5596,14 @@ export class DatabaseStorage implements IStorage {
           lineItemDiscounts += lineDiscount;
           subtotalAfterItemDiscounts += lineBase - lineDiscount;
           
-          // Disabled for performance: console.log(`🔧 [DISCOUNT DEBUG] ${order.id} Line ${lineIndex}: Base=$${lineBase.toFixed(2)}, Discount=$${lineDiscount.toFixed(2)}, Net=$${(lineBase - lineDiscount).toFixed(2)}`);
+          if (isDebugOrder && lineDiscount > 0) {
+            console.log(`🔍 [LINE DISCOUNT DEBUG] ${order.id} Line ${lineIndex}: Base=$${lineBase.toFixed(2)}, Discount=$${lineDiscount.toFixed(2)}, Net=$${(lineBase - lineDiscount).toFixed(2)}`);
+          }
         });
+      }
+      
+      if (isDebugOrder) {
+        console.log(`🔍 [LINE DISCOUNT DEBUG] ${order.id}: Total line item discounts = $${lineItemDiscounts.toFixed(2)}`);
       }
       
       // Step 2: Apply order-level discounts (excluding already applied discount IDs)
