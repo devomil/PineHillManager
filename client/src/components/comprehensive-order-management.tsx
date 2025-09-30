@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { 
@@ -32,7 +33,8 @@ import {
   RotateCcw,
   Receipt,
   Tag,
-  Gift
+  Gift,
+  HelpCircle
 } from "lucide-react";
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { format, addDays, startOfDay, endOfDay, subDays } from "date-fns";
@@ -681,6 +683,7 @@ export function ComprehensiveOrderManagement() {
   }
 
   return (
+    <TooltipProvider>
     <div className="space-y-6">
       {/* Header with controls */}
       <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
@@ -857,7 +860,18 @@ export function ComprehensiveOrderManagement() {
               </Card>
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
+                  <div className="flex items-center gap-2">
+                    <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
+                    <UITooltip>
+                      <TooltipTrigger>
+                        <HelpCircle className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p className="text-xs">Sum of all order totals from Clover</p>
+                        <p className="text-xs font-mono mt-1">= Gross Sales - Discounts + Tax</p>
+                      </TooltipContent>
+                    </UITooltip>
+                  </div>
                   <DollarSign className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
@@ -901,7 +915,18 @@ export function ComprehensiveOrderManagement() {
 
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Gross Sales Tax</CardTitle>
+                  <div className="flex items-center gap-2">
+                    <CardTitle className="text-sm font-medium">Gross Sales Tax</CardTitle>
+                    <UITooltip>
+                      <TooltipTrigger>
+                        <HelpCircle className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p className="text-xs">Total sales tax collected from all orders</p>
+                        <p className="text-xs text-muted-foreground mt-1">Matches Clover's "Taxes & Fees" report</p>
+                      </TooltipContent>
+                    </UITooltip>
+                  </div>
                   <Receipt className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
@@ -947,7 +972,19 @@ export function ComprehensiveOrderManagement() {
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Total Discounts</CardTitle>
+                  <div className="flex items-center gap-2">
+                    <CardTitle className="text-sm font-medium">Total Discounts</CardTitle>
+                    <UITooltip>
+                      <TooltipTrigger>
+                        <HelpCircle className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p className="text-xs">Sum of all discounts applied (excludes gift cards)</p>
+                        <p className="text-xs font-mono mt-1">= Subtotal + Tax - Order Total</p>
+                        <p className="text-xs text-muted-foreground mt-1">Matches Clover discount reports</p>
+                      </TooltipContent>
+                    </UITooltip>
+                  </div>
                   <Tag className="h-4 w-4 text-blue-500" />
                 </CardHeader>
                 <CardContent>
@@ -958,7 +995,18 @@ export function ComprehensiveOrderManagement() {
 
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Gift Cards</CardTitle>
+                  <div className="flex items-center gap-2">
+                    <CardTitle className="text-sm font-medium">Gift Cards</CardTitle>
+                    <UITooltip>
+                      <TooltipTrigger>
+                        <HelpCircle className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p className="text-xs">Complimentary gift card items tracked separately</p>
+                        <p className="text-xs text-muted-foreground mt-1">Not included in discount totals</p>
+                      </TooltipContent>
+                    </UITooltip>
+                  </div>
                   <Gift className="h-4 w-4 text-purple-500" />
                 </CardHeader>
                 <CardContent>
@@ -1405,5 +1453,6 @@ export function ComprehensiveOrderManagement() {
         </DialogContent>
       </Dialog>
     </div>
+    </TooltipProvider>
   );
 }
