@@ -6026,7 +6026,7 @@ export class DatabaseStorage implements IStorage {
                 // Frontend expects order.total in CENTS, but grossTax and other financial metrics in DOLLARS
                 let orderTotalInDollars = parseFloat(order.total || '0') / 100;
                 const originalOrderTotal = orderTotalInDollars; // Save original Clover total for revenue calculations
-                let normalizedTotalForDiscounts = orderTotalInDollars; // Separate normalized value for discount calculations only
+                let normalizedTotalForDiscounts: number | undefined = undefined; // Only set for 100% comp orders
                 
                 // ✅ PROPER CLOVER TOTAL NORMALIZATION: Handle both payment shapes from Clover API
                 // BUT: Keep original order.total for revenue - only use normalized for discount calculations
