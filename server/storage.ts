@@ -5571,8 +5571,17 @@ export class DatabaseStorage implements IStorage {
           
           // Apply line-level discounts
           if (lineItem.discounts && lineItem.discounts.elements) {
-            lineItem.discounts.elements.forEach((discount: any) => {
+            console.log(`💰 [LINE ITEM DISCOUNT] ${order.id} Line ${lineIndex} (${lineItem.name}): Found ${lineItem.discounts.elements.length} line-item discounts`);
+            lineItem.discounts.elements.forEach((discount: any, discIndex: number) => {
               if (discount.id) appliedDiscountIds.add(discount.id);
+              
+              console.log(`💰 [LINE ITEM DISCOUNT] ${order.id} Line ${lineIndex} Discount ${discIndex}:`, JSON.stringify({
+                id: discount.id,
+                name: discount.name,
+                percentage: discount.percentage,
+                amount: discount.amount,
+                lineBase
+              }));
               
               if (isDebugOrder) {
                 console.log(`🔍 [LINE DISCOUNT DEBUG] ${order.id} Line ${lineIndex} Discount:`, {
