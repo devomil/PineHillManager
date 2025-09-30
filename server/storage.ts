@@ -5548,6 +5548,16 @@ export class DatabaseStorage implements IStorage {
           const lineBase = (price + modificationTotal) * quantity;
           let lineDiscount = 0;
           
+          // 🔍 DEBUG: Log ALL line items to see discount structure
+          console.log(`🔍 [LINE ITEM STRUCTURE] ${order.id} Line ${lineIndex}:`, {
+            name: lineItem.name,
+            price: lineItem.price,
+            discountAmount: lineItem.discountAmount,
+            hasDiscountsArray: !!(lineItem.discounts && lineItem.discounts.elements),
+            discountsArrayLength: lineItem.discounts?.elements?.length || 0,
+            allFields: Object.keys(lineItem)
+          });
+          
           if (isDebugOrder) {
             console.log(`🔍 [LINE DISCOUNT DEBUG] ${order.id} Line ${lineIndex}:`, {
               name: lineItem.name,
