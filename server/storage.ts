@@ -5561,86 +5561,52 @@ export class DatabaseStorage implements IStorage {
         }, 0);
       }
       
-      // Calculate total discount via reconciliation
-      // Formula: discount = max(0, subtotal + tax + service charges - final order total)
-      // ✅ CRITICAL FIX: Use normalizedTotalForDiscounts for 100% comp orders instead of $0 orderTotal
+      // ✅ OPTIMIZED APPROACH: Use already-expanded Clover discount objects from order
+      // Calculate reconciliation discount as a fallback
       const totalForDiscountCalc = normalizedTotalForDiscounts !== undefined ? normalizedTotalForDiscounts : orderTotal;
-      totalDiscounts = Math.max(0, subtotalBeforeDiscounts + grossTax + totalServiceCharges - totalForDiscountCalc);
-      totalDiscounts = Math.round(totalDiscounts * 100) / 100;
+      const reconciliationDiscount = Math.max(0, subtotalBeforeDiscounts + grossTax + totalServiceCharges - totalForDiscountCalc);
       
-      console.log(`💰 [RECONCILIATION] Order ${order.id}: Subtotal=$${subtotalBeforeDiscounts.toFixed(2)}, Tax=$${grossTax.toFixed(2)}, ServiceChg=$${totalServiceCharges.toFixed(2)}, OrderTotal=$${orderTotal.toFixed(2)}, DiscountCalcTotal=$${totalForDiscountCalc.toFixed(2)} => TotalDiscount=$${totalDiscounts.toFixed(2)}`);
+      console.log(`💰 [RECONCILIATION] Order ${order.id}: Subtotal=$${subtotalBeforeDiscounts.toFixed(2)}, Tax=$${grossTax.toFixed(2)}, ServiceChg=$${totalServiceCharges.toFixed(2)}, OrderTotal=$${orderTotal.toFixed(2)}, DiscountCalcTotal=$${totalForDiscountCalc.toFixed(2)} => ReconciliationDiscount=$${reconciliationDiscount.toFixed(2)}`);
       
-      // Fallback for orders with missing discount data but known to have discounts
-      if (totalDiscounts === 0) {
-        // ULTRA-OPTIMIZED DISCOUNT FIX: Only call discount API for known discount orders
-        const knownDiscountOrders = [
-          'SDAFGZ1SSTQJ0', '7KW1441F96Q5C', 'R0CGB7XM7EBZW', 'SW1WVEKN1HRAP',
-          'QC09AM6GZSWV6', '8DX840GPX70V0', '24F2Z7MJMTAQE', 'SCF1X10SZ9Z8M', 
-          'K0622REF65GK8', '6F3WSSAXNC19A', '25P33KWG5PBT', 'RXBMV0MJS06DE'
-        ];
+      // ✅ ALWAYS prefer Clover's actual discount objects (already expanded in order fetch)
+      if (order.discounts && order.discounts.elements && order.discounts.elements.length > 0) {
+        // Use Clover's actual discount objects
+        console.log(`✅ [CLOVER DISCOUNT] Found ${order.discounts.elements.length} discount objects for order ${order.id}`);
         
-        const hasDiscountIndicators = (
-          // Check line items for actual negative amounts (real discount indicators)
-          (order.lineItems && order.lineItems.elements && order.lineItems.elements.some((item: any) => 
-            item.price < 0 || (item.name && item.name.toLowerCase().includes('discount'))
-          )) ||
-          // Only try discount API for orders we specifically know have discounts
-          knownDiscountOrders.includes(order.id)
-        );
-        
-        if (hasDiscountIndicators && merchantConfig) {
-          try {
-            console.log(`🔄 [ULTRA-SELECTIVE DISCOUNT] Order ${order.id} has discount indicators, checking API`);
-            
-            const { CloverIntegration } = await import('./integrations/clover');
-            const cloverIntegration = new CloverIntegration({
-              merchantId: merchantConfig.merchantId,
-              apiToken: merchantConfig.apiToken,
-              baseUrl: merchantConfig.baseUrl || 'https://api.clover.com'
-            });
-            
-            const discountResponse = await cloverIntegration.fetchOrderDiscounts(order.id);
-            
-            if (discountResponse && discountResponse.elements && discountResponse.elements.length > 0) {
-              console.log(`✅ [ULTRA-SELECTIVE DISCOUNT] Found ${discountResponse.elements.length} discounts for order ${order.id}`);
-              
-              totalDiscounts = discountResponse.elements.reduce((sum: number, discount: any) => {
-                let discountAmount = 0;
-                
-                // CRITICAL FIX: Always use Clover's provided amount field if available
-                if (discount.amount && typeof discount.amount === 'number' && discount.amount !== 0) {
-                  // Clover provides discount amounts in cents, convert to dollars
-                  discountAmount = Math.abs(discount.amount / 100);
-                  console.log(`[API DISCOUNT CALC] Using Clover's exact amount: ${discount.amount} cents = $${discountAmount.toFixed(2)}`);
-                } else if (discount.percentage && typeof discount.percentage === 'number') {
-                  // Fallback: Calculate from percentage only if amount not provided
-                  discountAmount = (totalForDiscountCalc * discount.percentage) / 100;
-                  console.log(`[API DISCOUNT CALC] Calculated from percentage: ${discount.percentage}% of $${totalForDiscountCalc.toFixed(2)} = $${discountAmount.toFixed(2)}`);
-                } else {
-                  // Last resort: try other amount fields
-                  const rawAmount = discount.value || discount.discount || discount.discountAmount || '0';
-                  discountAmount = Math.abs(parseFloat(rawAmount) / 100);
-                  console.log(`[API DISCOUNT CALC] Using fallback amount: ${rawAmount} cents = $${discountAmount.toFixed(2)}`);
-                }
-                
-                return sum + discountAmount;
-              }, 0);
-              
-              console.log(`💰 [ULTRA-SELECTIVE DISCOUNT] Order ${order.id} total discounts: $${totalDiscounts.toFixed(2)}`);
-            }
-          } catch (discountError: any) {
-            // Handle rate limiting gracefully - don't block the entire response
-            if (discountError.message && discountError.message.includes('429')) {
-              console.log(`⏱️ [ULTRA-SELECTIVE DISCOUNT] Rate limited for order ${order.id}, continuing without discount data`);
-            } else {
-              console.error(`❌ [ULTRA-SELECTIVE DISCOUNT] Error fetching discounts for order ${order.id}:`, discountError.message);
-            }
-            // Continue with totalDiscounts = 0
+        totalDiscounts = order.discounts.elements.reduce((sum: number, discount: any) => {
+          let discountAmount = 0;
+          
+          // CRITICAL FIX: Always use Clover's provided amount field if available
+          if (discount.amount && typeof discount.amount === 'number' && discount.amount !== 0) {
+            // Clover provides discount amounts in cents, convert to dollars
+            discountAmount = Math.abs(discount.amount / 100);
+            console.log(`  [DISCOUNT] ${discount.name || 'Unnamed'}: ${discount.amount} cents = $${discountAmount.toFixed(2)}`);
+          } else if (discount.percentage && typeof discount.percentage === 'number') {
+            // Fallback: Calculate from percentage only if amount not provided
+            discountAmount = (totalForDiscountCalc * discount.percentage) / 100;
+            console.log(`  [DISCOUNT] ${discount.name || 'Unnamed'}: ${discount.percentage}% of $${totalForDiscountCalc.toFixed(2)} = $${discountAmount.toFixed(2)}`);
+          } else {
+            // Last resort: try other amount fields
+            const rawAmount = discount.value || discount.discount || discount.discountAmount || '0';
+            discountAmount = Math.abs(parseFloat(rawAmount) / 100);
+            console.log(`  [DISCOUNT] ${discount.name || 'Unnamed'}: fallback ${rawAmount} cents = $${discountAmount.toFixed(2)}`);
           }
-        } else {
-          console.log(`⏭️ [ULTRA-SELECTIVE DISCOUNT] Order ${order.id} has no discount indicators, skipping API call`);
-        }
+          
+          return sum + discountAmount;
+        }, 0);
+        
+        console.log(`💰 [CLOVER DISCOUNT] Order ${order.id} total Clover discounts: $${totalDiscounts.toFixed(2)} (reconciliation was $${reconciliationDiscount.toFixed(2)})`);
+      } else if (reconciliationDiscount > 0) {
+        // No Clover discount objects found, but reconciliation shows a discount
+        // This means the line items were created at a discounted price, not an actual "discount"
+        console.log(`⚠️ [CLOVER DISCOUNT] No discount objects for order ${order.id}, but reconciliation shows $${reconciliationDiscount.toFixed(2)} - likely line items at discounted prices, NOT actual discounts`);
+        totalDiscounts = 0; // Don't count as discount if Clover doesn't have discount objects
+      } else {
+        // No discounts at all
+        totalDiscounts = 0;
       }
+      
+      totalDiscounts = Math.round(totalDiscounts * 100) / 100;
 
       // Calculate refunds (from refunds or payments with negative amounts)
       let totalRefunds = 0;
