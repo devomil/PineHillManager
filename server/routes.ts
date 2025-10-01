@@ -7070,72 +7070,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get credit refunds using comprehensive Clover API
+  // Get credit refunds aggregated from orders
   app.get('/api/orders/credit-refunds', isAuthenticated, async (req, res) => {
     try {
       const {
-        orderId,
-        paymentId,
         startDate,
         endDate,
-        locationId,
-        limit = '100',
-        offset = '0'
+        locationId
       } = req.query as Record<string, string>;
 
-      console.log(`🔄 [CREDIT REFUNDS] Fetching credit refunds`);
+      console.log(`🔄 [CREDIT REFUNDS] Aggregating refunds from orders (Date: ${startDate} to ${endDate}, Location: ${locationId})`);
+      
+      // Fetch orders with financial metrics (including totalRefunds)
+      const ordersResult = await storage.getAllOrders({
+        startDate,
+        endDate,
+        locationId: locationId && locationId !== 'all' ? parseInt(locationId) : undefined,
+        skipFinancialCalculations: false // IMPORTANT: We need full financial metrics including refunds
+      });
       
       let allRefunds: any[] = [];
+      let totalRefundAmount = 0;
       
-      // Get Clover configurations
-      const cloverConfigs = await storage.getAllCloverConfigs();
-      
-      for (const config of cloverConfigs) {
-        // Skip if locationId filter doesn't match
-        if (locationId && locationId !== 'all' && config.id?.toString() !== locationId.toString()) {
-          continue;
-        }
-        
-        try {
-          const { CloverIntegration } = await import('./integrations/clover');
-          const cloverIntegration = new CloverIntegration(config);
-          
-          // Fetch credit refunds for this location
-          const refunds = await cloverIntegration.fetchCreditRefunds({
-            orderId,
-            paymentId,
-            startDate,
-            endDate,
-            limit: parseInt(limit),
-            offset: parseInt(offset)
+      // Extract refunds from orders
+      for (const order of ordersResult.orders) {
+        // Each order has totalRefunds calculated from order.refunds.elements
+        if (order.totalRefunds && order.totalRefunds > 0) {
+          allRefunds.push({
+            orderId: order.id,
+            amount: (order.totalRefunds * 100).toFixed(0), // Convert to cents for consistency
+            locationName: order.locationName,
+            locationId: order.locationId,
+            createdTime: order.createdTime,
+            modifiedTime: order.modifiedTime
           });
           
-          if (refunds && refunds.elements) {
-            const locationRefunds = refunds.elements.map((refund: any) => ({
-              ...refund,
-              locationName: config.merchantName,
-              locationId: config.id,
-              merchantId: config.merchantId
-            }));
-            
-            allRefunds.push(...locationRefunds);
-          }
-          
-          console.log(`✅ Fetched ${refunds?.elements?.length || 0} credit refunds from ${config.merchantName}`);
-          
-        } catch (error) {
-          console.error(`❌ Error fetching credit refunds from ${config.merchantName}:`, error);
-          // Continue with other locations
+          totalRefundAmount += order.totalRefunds;
         }
       }
+      
+      console.log(`✅ Found ${allRefunds.length} orders with refunds, total amount: $${totalRefundAmount.toFixed(2)}`);
 
       res.json({
         refunds: allRefunds,
         total: allRefunds.length
       });
     } catch (error) {
-      console.error('Error fetching credit refunds:', error);
-      res.status(500).json({ error: 'Failed to fetch credit refunds' });
+      console.error('Error aggregating credit refunds:', error);
+      res.status(500).json({ error: 'Failed to aggregate credit refunds' });
     }
   });
 
