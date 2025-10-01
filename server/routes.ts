@@ -7137,10 +7137,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
               break;
             }
             
-            // Process each refund
+            // Process each refund and filter by date (Clover API params don't work!)
             for (const refund of refunds) {
+              const refundCreatedTime = refund.createdTime || refund.modifiedTime;
+              
+              // Filter by date range on backend since Clover API ignores createdTime.min/max
+              if (startEpoch && refundCreatedTime < startEpoch) {
+                console.log(`⏭️ [CREDIT REFUNDS] Skipping refund ${refund.id} - before start date (${new Date(refundCreatedTime).toISOString()})`);
+                continue;
+              }
+              if (endEpoch && refundCreatedTime > endEpoch) {
+                console.log(`⏭️ [CREDIT REFUNDS] Skipping refund ${refund.id} - after end date (${new Date(refundCreatedTime).toISOString()})`);
+                continue;
+              }
+              
               const refundAmount = refund.amount ? parseFloat(refund.amount) / 100 : 0;
-              console.log(`💸 [CREDIT REFUNDS] Refund ${refund.id}: $${refundAmount.toFixed(2)} for order ${refund.payment?.order?.id || 'N/A'}`);
+              console.log(`💸 [CREDIT REFUNDS] ✅ Refund ${refund.id}: $${refundAmount.toFixed(2)} on ${new Date(refundCreatedTime).toISOString()} for order ${refund.payment?.order?.id || 'N/A'}`);
               
               allRefunds.push({
                 refundId: refund.id,
@@ -7148,7 +7160,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 amount: refund.amount || '0', // Amount in cents
                 locationName: config.merchantName,
                 locationId: config.id,
-                createdTime: refund.createdTime,
+                createdTime: refundCreatedTime,
                 modifiedTime: refund.modifiedTime || refund.createdTime
               });
               
