@@ -7107,7 +7107,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
       console.log(`🏪 [CREDIT REFUNDS] Querying ${configurationsToQuery.length} location(s) for refunds`);
       
-      // Fetch refunds from each location
+      // Fetch refunds from each location with pagination
       for (const config of configurationsToQuery) {
         try {
           const { CloverIntegration } = await import('./integrations/clover');
@@ -7115,33 +7115,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           console.log(`💸 [CREDIT REFUNDS] Fetching from ${config.merchantName} (${config.merchantId})`);
           
-          // Fetch credit refunds from Clover API with date filter
-          const refundsResponse = await cloverIntegration.fetchCreditRefunds({
-            createdTimeMin: startEpoch,
-            createdTimeMax: endEpoch,
-            limit: 1000 // Fetch up to 1000 refunds per location
-          });
+          // Fetch ALL credit refunds using pagination
+          let offset = 0;
+          const limit = 100;
+          let hasMoreData = true;
+          let locationRefundCount = 0;
           
-          const refunds = refundsResponse.elements || [];
-          console.log(`📦 [CREDIT REFUNDS] Found ${refunds.length} refunds from ${config.merchantName}`);
-          
-          // Process each refund
-          for (const refund of refunds) {
-            const refundAmount = refund.amount ? parseFloat(refund.amount) / 100 : 0;
-            console.log(`💸 [CREDIT REFUNDS] Refund ${refund.id}: $${refundAmount.toFixed(2)} for order ${refund.payment?.order?.id || 'N/A'}`);
-            
-            allRefunds.push({
-              refundId: refund.id,
-              orderId: refund.payment?.order?.id || null,
-              amount: refund.amount || '0', // Amount in cents
-              locationName: config.merchantName,
-              locationId: config.id,
-              createdTime: refund.createdTime,
-              modifiedTime: refund.modifiedTime || refund.createdTime
+          while (hasMoreData) {
+            const refundsResponse = await cloverIntegration.fetchCreditRefunds({
+              createdTimeMin: startEpoch,
+              createdTimeMax: endEpoch,
+              limit,
+              offset
             });
             
-            totalRefundAmount += refundAmount;
+            const refunds = refundsResponse.elements || [];
+            console.log(`📦 [CREDIT REFUNDS] Fetched ${refunds.length} refunds from ${config.merchantName} (offset=${offset})`);
+            
+            if (refunds.length === 0) {
+              hasMoreData = false;
+              break;
+            }
+            
+            // Process each refund
+            for (const refund of refunds) {
+              const refundAmount = refund.amount ? parseFloat(refund.amount) / 100 : 0;
+              console.log(`💸 [CREDIT REFUNDS] Refund ${refund.id}: $${refundAmount.toFixed(2)} for order ${refund.payment?.order?.id || 'N/A'}`);
+              
+              allRefunds.push({
+                refundId: refund.id,
+                orderId: refund.payment?.order?.id || null,
+                amount: refund.amount || '0', // Amount in cents
+                locationName: config.merchantName,
+                locationId: config.id,
+                createdTime: refund.createdTime,
+                modifiedTime: refund.modifiedTime || refund.createdTime
+              });
+              
+              totalRefundAmount += refundAmount;
+              locationRefundCount++;
+            }
+            
+            // Check if there are more pages
+            if (refunds.length < limit) {
+              hasMoreData = false;
+            } else {
+              offset += limit;
+            }
           }
+          
+          console.log(`✅ [CREDIT REFUNDS] Total from ${config.merchantName}: ${locationRefundCount} refunds`);
           
         } catch (error) {
           console.error(`❌ [CREDIT REFUNDS] Error fetching from ${config.merchantName}:`, error);
