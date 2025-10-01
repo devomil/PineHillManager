@@ -329,6 +329,45 @@ export class CloverIntegration {
     return inventoryItems;
   }
 
+  // Fetch credit refunds from Clover API
+  async fetchCreditRefunds(options: {
+    createdTimeMin?: number;
+    createdTimeMax?: number;
+    limit?: number;
+    offset?: number;
+  } = {}): Promise<{ elements: any[]; href?: string }> {
+    const params = new URLSearchParams();
+    
+    if (options.limit) params.append('limit', options.limit.toString());
+    if (options.offset) params.append('offset', options.offset.toString());
+    
+    // Convert millisecond timestamps to Unix seconds for Clover API
+    if (options.createdTimeMin) {
+      const unixSeconds = Math.floor(options.createdTimeMin / 1000);
+      params.append('createdTime.min', unixSeconds.toString());
+      console.log('💸 [CLOVER REFUNDS API] Converting createdTimeMin:', { 
+        milliseconds: options.createdTimeMin, 
+        unixSeconds, 
+        isoDate: new Date(options.createdTimeMin).toISOString() 
+      });
+    }
+    if (options.createdTimeMax) {
+      const unixSeconds = Math.floor(options.createdTimeMax / 1000);
+      params.append('createdTime.max', unixSeconds.toString());
+      console.log('💸 [CLOVER REFUNDS API] Converting createdTimeMax:', { 
+        milliseconds: options.createdTimeMax, 
+        unixSeconds, 
+        isoDate: new Date(options.createdTimeMax).toISOString() 
+      });
+    }
+
+    const queryString = params.toString();
+    const endpoint = queryString ? `credit_refunds?${queryString}` : 'credit_refunds';
+    
+    console.log(`💸 [CLOVER REFUNDS] Fetching credit refunds from: ${endpoint}`);
+    return await this.makeCloverAPICallWithConfig(endpoint, this.config);
+  }
+
   // Sync inventory items with cost data to database (Enhanced with inventory endpoints)
   async syncInventoryItems(config?: any): Promise<void> {
     try {

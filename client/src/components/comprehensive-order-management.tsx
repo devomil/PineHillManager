@@ -474,32 +474,25 @@ export function ComprehensiveOrderManagement() {
   creditRefundsParams.set('locationId', filters.locationId);
   const creditRefundsUrl = `/api/orders/credit-refunds?${creditRefundsParams.toString()}`;
 
-  const { data: creditRefundsData, isLoading: creditRefundsLoading, error: creditRefundsError } = useQuery({
+  const { data: creditRefundsData, isLoading: creditRefundsLoading } = useQuery({
     queryKey: ['/api/orders/credit-refunds', {
       startDate: dateParams?.startDate,
       endDate: dateParams?.endDate,
       locationId: filters.locationId
     }],
     queryFn: async () => {
-      console.log(`🔄 [CREDIT REFUNDS QUERY] Calling endpoint: ${creditRefundsUrl}`);
       const response = await fetch(creditRefundsUrl, {
         credentials: 'include'
       });
       if (!response.ok) {
-        console.error(`❌ [CREDIT REFUNDS QUERY] Failed: ${response.status} ${response.statusText}`);
         throw new Error(`Failed to fetch credit refunds: ${response.status} ${response.statusText}`);
       }
-      const data = await response.json();
-      console.log(`✅ [CREDIT REFUNDS QUERY] Response:`, data);
-      return data;
+      return response.json();
     },
     enabled: !!dateParams,
     staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
   });
-  
-  // Debug logging for credit refunds
-  console.log(`💸 [CREDIT REFUNDS DEBUG] enabled=${!!dateParams}, isLoading=${creditRefundsLoading}, hasData=${!!creditRefundsData}, hasError=${!!creditRefundsError}`);
 
   // Comprehensive stats aggregation from all data sources - Single Source of Truth
   const comprehensiveStats = useMemo(() => {
