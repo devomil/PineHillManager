@@ -7079,7 +7079,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         locationId
       } = req.query as Record<string, string>;
 
-      console.log(`🔄 [CREDIT REFUNDS API CALLED] Aggregating refunds from orders (Date: ${startDate} to ${endDate}, Location: ${locationId})`);
+      console.log(`🔄🔄🔄 [CREDIT REFUNDS API CALLED] Aggregating refunds from orders (Date: ${startDate} to ${endDate}, Location: ${locationId})`);
       
       // Fetch orders with financial metrics (including totalRefunds)
       const ordersResult = await storage.getOrders({
@@ -7096,6 +7096,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Extract refunds from orders
       for (const order of ordersResult.orders) {
+        // Debug: Check if order has totalRefunds property
+        if (order.hasOwnProperty('totalRefunds')) {
+          console.log(`🔍 [CREDIT REFUNDS] Order ${order.id} has totalRefunds: ${order.totalRefunds}`);
+        }
+        
         // Each order has totalRefunds calculated from order.refunds.elements
         if (order.totalRefunds && order.totalRefunds > 0) {
           console.log(`💸 [CREDIT REFUNDS] Found refund in order ${order.id}: $${order.totalRefunds.toFixed(2)}`);
@@ -7113,6 +7118,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       console.log(`✅ [CREDIT REFUNDS RESULT] Found ${allRefunds.length} orders with refunds, total amount: $${totalRefundAmount.toFixed(2)}`);
+      console.log(`📤 [CREDIT REFUNDS RESPONSE]`, JSON.stringify({ refunds: allRefunds, total: allRefunds.length }));
 
       res.json({
         refunds: allRefunds,
