@@ -481,13 +481,17 @@ export function ComprehensiveOrderManagement() {
       locationId: filters.locationId
     }],
     queryFn: async () => {
+      console.log(`💸 [CREDIT REFUNDS QUERY] Calling endpoint: ${creditRefundsUrl}`);
       const response = await fetch(creditRefundsUrl, {
         credentials: 'include'
       });
       if (!response.ok) {
+        console.error(`❌ [CREDIT REFUNDS QUERY] Failed: ${response.status} ${response.statusText}`);
         throw new Error(`Failed to fetch credit refunds: ${response.status} ${response.statusText}`);
       }
-      return response.json();
+      const data = await response.json();
+      console.log(`✅ [CREDIT REFUNDS QUERY] Response:`, data);
+      return data;
     },
     enabled: !!dateParams,
     staleTime: 5 * 60 * 1000,
