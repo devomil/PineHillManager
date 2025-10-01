@@ -7079,7 +7079,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         locationId
       } = req.query as Record<string, string>;
 
-      console.log(`🔄 [CREDIT REFUNDS] Aggregating refunds from orders (Date: ${startDate} to ${endDate}, Location: ${locationId})`);
+      console.log(`🔄 [CREDIT REFUNDS API CALLED] Aggregating refunds from orders (Date: ${startDate} to ${endDate}, Location: ${locationId})`);
       
       // Fetch orders with financial metrics (including totalRefunds)
       const ordersResult = await storage.getAllOrders({
@@ -7089,6 +7089,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         skipFinancialCalculations: false // IMPORTANT: We need full financial metrics including refunds
       });
       
+      console.log(`📦 [CREDIT REFUNDS] Received ${ordersResult.orders.length} orders to check for refunds`);
+      
       let allRefunds: any[] = [];
       let totalRefundAmount = 0;
       
@@ -7096,6 +7098,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       for (const order of ordersResult.orders) {
         // Each order has totalRefunds calculated from order.refunds.elements
         if (order.totalRefunds && order.totalRefunds > 0) {
+          console.log(`💸 [CREDIT REFUNDS] Found refund in order ${order.id}: $${order.totalRefunds.toFixed(2)}`);
           allRefunds.push({
             orderId: order.id,
             amount: (order.totalRefunds * 100).toFixed(0), // Convert to cents for consistency
@@ -7109,14 +7112,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
-      console.log(`✅ Found ${allRefunds.length} orders with refunds, total amount: $${totalRefundAmount.toFixed(2)}`);
+      console.log(`✅ [CREDIT REFUNDS RESULT] Found ${allRefunds.length} orders with refunds, total amount: $${totalRefundAmount.toFixed(2)}`);
 
       res.json({
         refunds: allRefunds,
         total: allRefunds.length
       });
     } catch (error) {
-      console.error('Error aggregating credit refunds:', error);
+      console.error('❌ [CREDIT REFUNDS ERROR]', error);
       res.status(500).json({ error: 'Failed to aggregate credit refunds' });
     }
   });
