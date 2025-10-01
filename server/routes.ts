@@ -7082,7 +7082,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`🔄 [CREDIT REFUNDS API CALLED] Aggregating refunds from orders (Date: ${startDate} to ${endDate}, Location: ${locationId})`);
       
       // Fetch orders with financial metrics (including totalRefunds)
-      const ordersResult = await storage.getAllOrders({
+      const ordersResult = await storage.getOrders({
         startDate,
         endDate,
         locationId: locationId && locationId !== 'all' ? parseInt(locationId) : undefined,
