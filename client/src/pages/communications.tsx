@@ -923,7 +923,18 @@ function CommunicationsContent() {
     queryFn: async () => {
       const response = await fetch("/api/messages", { credentials: "include" });
       if (!response.ok) throw new Error("Failed to fetch messages");
-      return response.json();
+      const data = await response.json();
+      
+      // Debug: Check if any messages have imageUrls
+      const messagesWithImages = data.filter((msg: any) => msg.imageUrls && msg.imageUrls.length > 0);
+      if (messagesWithImages.length > 0) {
+        console.log("📸 Messages with images:", messagesWithImages.map((msg: any) => ({ 
+          subject: msg.subject, 
+          imageUrls: msg.imageUrls 
+        })));
+      }
+      
+      return data;
     },
     retry: 1,
   });
