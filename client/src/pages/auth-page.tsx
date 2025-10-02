@@ -29,11 +29,10 @@ export default function AuthPage() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await loginMutation.mutateAsync(loginForm);
-      // Small delay to ensure session is fully established, then redirect
-      setTimeout(() => {
-        setLocation("/");
-      }, 100);
+      const user = await loginMutation.mutateAsync(loginForm);
+      // Wait for session to fully establish before redirecting
+      // The mutation already sets the user in cache, so just navigate
+      setLocation(user.role === 'employee' ? '/dashboard' : '/admin');
     } catch (error) {
       // Error handled by mutation onError
     }
@@ -47,17 +46,15 @@ export default function AuthPage() {
     }
 
     try {
-      await registerMutation.mutateAsync({
+      const user = await registerMutation.mutateAsync({
         email: registerForm.email,
         password: registerForm.password,
         firstName: registerForm.firstName,
         lastName: registerForm.lastName,
         employeeId: registerForm.employeeId
       });
-      // Small delay to ensure session is fully established, then redirect
-      setTimeout(() => {
-        setLocation("/");
-      }, 100);
+      // Navigate directly to appropriate page based on role
+      setLocation(user.role === 'employee' ? '/dashboard' : '/admin');
     } catch (error) {
       // Error handled by mutation onError
     }
