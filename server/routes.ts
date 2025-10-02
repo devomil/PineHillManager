@@ -7862,6 +7862,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Clear Amazon order cache endpoint
+  app.post('/api/orders/clear-amazon-cache', isAuthenticated, async (req, res) => {
+    try {
+      const { AmazonIntegration } = await import('./integrations/amazon');
+      AmazonIntegration.clearOrderCache();
+      res.json({ 
+        success: true, 
+        message: 'Amazon order cache cleared successfully. Orders will be refetched with latest fee calculations.' 
+      });
+    } catch (error) {
+      console.error('Error clearing Amazon cache:', error);
+      res.status(500).json({ error: 'Failed to clear Amazon cache' });
+    }
+  });
+
   app.get('/api/integrations/clover/test', isAuthenticated, async (req, res) => {
     try {
       const { cloverIntegration } = await import('./integrations/clover');

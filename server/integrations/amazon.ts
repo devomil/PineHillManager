@@ -17,6 +17,12 @@ export class AmazonIntegration {
   private static lastApiCall = 0;
   private static readonly MIN_API_INTERVAL = 15000; // 15 seconds between calls to prevent rate limits
 
+  // Method to clear the order cache
+  static clearOrderCache() {
+    console.log('🗑️ [AMAZON CACHE] Clearing Amazon order cache');
+    AmazonIntegration.orderCache.clear();
+  }
+
   constructor(dbConfig?: any) {
     if (dbConfig) {
       console.log(`🔧 AmazonIntegration constructor received config:`, {
