@@ -37,8 +37,7 @@ export default function AuthPage() {
     e.preventDefault();
     try {
       await loginMutation.mutateAsync(loginForm);
-      // Navigate to dashboard using client-side routing
-      setLocation("/");
+      // Let the useEffect handle navigation to avoid race conditions
     } catch (error) {
       // Error handled by mutation onError
     }
@@ -59,7 +58,7 @@ export default function AuthPage() {
         lastName: registerForm.lastName,
         employeeId: registerForm.employeeId
       });
-      setLocation("/");
+      // Let the useEffect handle navigation to avoid race conditions
     } catch (error) {
       // Error handled by mutation onError
     }
