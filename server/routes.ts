@@ -6858,8 +6858,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 const amazonResponse = await amazonIntegration.getOrders(amazonStartDate, amazonEndDate);
                 
                 if (amazonResponse && amazonResponse.payload && amazonResponse.payload.Orders) {
-                  // Transform Amazon orders to match Clover format
-                  const transformedOrders = amazonResponse.payload.Orders.map((order: any) => {
+                  // Transform Amazon orders to match Clover format WITH fee calculation
+                  const transformedOrders = await Promise.all(amazonResponse.payload.Orders.map(async (order: any) => {
                     // Map Amazon OrderStatus to Clover state (locked/open)
                     const state = order.OrderStatus === 'Shipped' || order.OrderStatus === 'Delivered' ? 'locked' : 'open';
                     
@@ -6876,6 +6876,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
                       paymentState = 'paid';
                     }
                     
+                    // Fetch order items to calculate Amazon fees
+                    let totalAmazonFees = 0;
+                    try {
+                      const itemsResponse = await amazonIntegration.getOrderItems(order.AmazonOrderId);
+                      if (itemsResponse && itemsResponse.payload && itemsResponse.payload.OrderItems) {
+                        const orderItems = itemsResponse.payload.OrderItems;
+                        
+                        // Calculate fees for each item
+                        for (const item of orderItems) {
+                          if (item.SellerSKU) {
+                            const itemPrice = parseFloat(item.ItemPrice?.Amount || '0');
+                            try {
+                              // Always use FBA fees for consistent estimates
+                              let fees = await amazonIntegration.getProductFees(item.SellerSKU, itemPrice, true);
+                              
+                              // If SKU returned $0 and we have an ASIN, try fetching by ASIN
+                              if (fees.totalFees === 0 && item.ASIN) {
+                                fees = await amazonIntegration.getProductFeesByASIN(item.ASIN, itemPrice, true);
+                              }
+                              
+                              totalAmazonFees += fees.totalFees;
+                            } catch (error) {
+                              console.error(`❌ Error fetching fees for ${item.SellerSKU}:`, error);
+                            }
+                          }
+                        }
+                      }
+                    } catch (error) {
+                      console.error(`❌ Error fetching items for order ${order.AmazonOrderId}:`, error);
+                    }
+                    
+                    console.log(`💰 [AMAZON ORDER] ${order.AmazonOrderId}: Total=$${parseFloat(order.OrderTotal?.Amount || '0').toFixed(2)}, Fees=$${totalAmazonFees.toFixed(2)}`);
+                    
                     return {
                       ...order,
                       id: order.AmazonOrderId, // Add id field for compatibility
@@ -6886,9 +6919,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
                       merchantId: config.sellerId,
                       state, // Add mapped order state
                       paymentState, // Add mapped payment state
-                      isAmazonOrder: true
+                      isAmazonOrder: true,
+                      amazonFees: totalAmazonFees // Add calculated fees
                     };
-                  });
+                  }));
                   
                   allAmazonOrders.push(...transformedOrders);
                   console.log(`🛒 [AMAZON ORDERS] Retrieved ${transformedOrders.length} orders from ${config.merchantName}`);
