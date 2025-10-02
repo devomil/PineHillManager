@@ -66,6 +66,8 @@ interface Order {
   netSale?: number;
   netProfit?: number;
   netMargin?: number;
+  amazonFees?: number;
+  isAmazonOrder?: boolean;
   // Formatted date fields
   formattedDate?: string;
   orderDate?: string;
@@ -518,9 +520,10 @@ export function ComprehensiveOrderManagement() {
         totalDiscounts: acc.totalDiscounts + (typeof order.totalDiscounts === 'number' ? order.totalDiscounts : parseFloat(String(order.totalDiscounts || 0))),
         giftCardTotal: acc.giftCardTotal + (typeof order.giftCardTotal === 'number' ? order.giftCardTotal : parseFloat(String(order.giftCardTotal || 0))),
         totalGrossTax: acc.totalGrossTax + (typeof order.grossTax === 'number' ? order.grossTax : parseFloat(String(order.grossTax || 0))),
+        totalAmazonFees: acc.totalAmazonFees + (typeof order.amazonFees === 'number' ? order.amazonFees : parseFloat(String(order.amazonFees || 0))),
         marginSum: acc.marginSum + (parseFloat(String(order.netMargin || '0').replace('%', '')))
       };
-    }, { totalRevenue: 0, orderCount: 0, totalCOGS: 0, totalProfit: 0, totalDiscounts: 0, giftCardTotal: 0, totalGrossTax: 0, marginSum: 0 });
+    }, { totalRevenue: 0, orderCount: 0, totalCOGS: 0, totalProfit: 0, totalDiscounts: 0, giftCardTotal: 0, totalGrossTax: 0, totalAmazonFees: 0, marginSum: 0 });
 
     // Comprehensive reporting metrics from new API endpoints
     const voidedMetrics = voidedData?.totals || {};
@@ -545,6 +548,7 @@ export function ComprehensiveOrderManagement() {
       totalCOGS: orderMetrics.totalCOGS,
       totalProfit: orderMetrics.totalProfit,
       totalGrossTax: orderMetrics.totalGrossTax,
+      totalAmazonFees: orderMetrics.totalAmazonFees,
       avgMargin: orderMetrics.orderCount > 0 ? orderMetrics.marginSum / orderMetrics.orderCount : 0,
       
       // Comprehensive reporting metrics
@@ -1053,6 +1057,27 @@ export function ComprehensiveOrderManagement() {
               </Card>
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <div className="flex items-center gap-2">
+                    <CardTitle className="text-sm font-medium">Amazon Fees</CardTitle>
+                    <UITooltip>
+                      <TooltipTrigger>
+                        <HelpCircle className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p className="text-xs">Total marketplace fees from Amazon orders</p>
+                        <p className="text-xs text-muted-foreground mt-1">Includes FBA fulfillment and referral fees</p>
+                      </TooltipContent>
+                    </UITooltip>
+                  </div>
+                  <ShoppingCart className="h-4 w-4 text-amber-500" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-amber-500">{formatCurrencyDirect(comprehensiveStats.totalAmazonFees)}</div>
+                  <p className="text-xs text-muted-foreground">Marketplace fees</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-medium">Void Rate</CardTitle>
                   <AlertTriangle className="h-4 w-4 text-yellow-500" />
                 </CardHeader>
@@ -1361,11 +1386,11 @@ export function ComprehensiveOrderManagement() {
                             -{formatCurrencyDirect(selectedOrder.totalRefunds || 0)}
                           </p>
                         </div>
-                        {selectedOrder.isAmazonOrder && selectedOrder.amazonFees > 0 && (
+                        {selectedOrder.isAmazonOrder && (selectedOrder.amazonFees ?? 0) > 0 && (
                           <div>
                             <label className="text-sm font-medium text-muted-foreground">Amazon Fees</label>
                             <p className="text-lg font-semibold text-orange-600">
-                              -{formatCurrencyDirect(selectedOrder.amazonFees || 0)}
+                              -{formatCurrencyDirect(selectedOrder.amazonFees ?? 0)}
                             </p>
                           </div>
                         )}
