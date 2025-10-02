@@ -1704,39 +1704,20 @@ function CommunicationsContent() {
 
       {/* Mobile-First Main Content with Tabs */}
       {/* 🧪 DIAGNOSTIC TEST BUTTON */}
-      <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-        <h3 className="font-bold text-yellow-900 mb-2">🧪 Diagnostic Test</h3>
+      <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+        <h3 className="font-bold text-green-900 mb-2">🔄 Fix Image Display</h3>
         <Button
           onClick={async () => {
-            console.log("🧪 MANUAL TEST: Button clicked - fetching /api/messages");
-            try {
-              const response = await fetch("/api/messages", { credentials: "include" });
-              const data = await response.json();
-              console.log("🧪 MANUAL TEST: Received", data.length, "messages");
-              console.log("🧪 MANUAL TEST: Full data:", data);
-              
-              const messagesWithImages = data.filter((msg: any) => msg.imageUrls && msg.imageUrls.length > 0);
-              if (messagesWithImages.length > 0) {
-                console.log("🧪 MANUAL TEST: Messages with imageUrls:", messagesWithImages.map((msg: any) => ({ 
-                  id: msg.id,
-                  subject: msg.subject, 
-                  imageUrls: msg.imageUrls 
-                })));
-                alert(`✅ Found ${messagesWithImages.length} messages with images! Check console for details.`);
-              } else {
-                console.log("🧪 MANUAL TEST: No messages with imageUrls found");
-                alert(`❌ No messages with imageUrls found out of ${data.length} total messages. Check console for details.`);
-              }
-            } catch (error) {
-              console.error("🧪 MANUAL TEST: Error:", error);
-              alert(`❌ Error: ${error}`);
-            }
+            console.log("🔄 CACHE INVALIDATION: Clearing stale cache and forcing fresh fetch");
+            await queryClient.invalidateQueries({ queryKey: ['/api/messages'] });
+            await queryClient.refetchQueries({ queryKey: ['/api/messages'] });
+            alert('✅ Cache cleared! Images should now display. Refresh the page if needed.');
           }}
-          className="bg-yellow-600 hover:bg-yellow-700 text-white"
+          className="bg-green-600 hover:bg-green-700 text-white"
         >
-          🧪 Test /api/messages (Click to check imageUrls)
+          🔄 Clear Cache & Reload Messages (Click to fix images)
         </Button>
-        <p className="text-sm text-yellow-800 mt-2">Click this button to manually test what the backend returns. Check the browser console for full output.</p>
+        <p className="text-sm text-green-800 mt-2">The backend is working! Click this to clear old cached data and reload with images.</p>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4 md:space-y-6">
