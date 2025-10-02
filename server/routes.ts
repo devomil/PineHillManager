@@ -6787,8 +6787,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Fetch from Clover only if not filtering for Amazon exclusively
       let dbResult = { orders: [], total: 0, hasMore: false };
+      let allCloverOrdersForTotals: any[] = []; // For accurate aggregated totals
       
       if (!locationType || locationType === 'clover') {
+        // For "All Locations", fetch ALL Clover orders first for accurate totals
+        const needAllOrders = !locationType; // True when "All Locations" is selected
+        
+        if (needAllOrders) {
+          // Fetch ALL Clover orders for accurate totals (no pagination)
+          const allOrdersResult = await storage.getOrdersFromCloverAPI({
+            createdTimeMin: createdTimeMinMs,
+            createdTimeMax: createdTimeMaxMs,
+            startDate: normalizedStartDate,
+            endDate: normalizedEndDate,
+            locationId: undefined, // All Clover locations
+            search,
+            state: stateParam,
+            paymentState: paymentStateParam,
+            hasDiscounts: hasDiscountsParam,
+            hasRefunds: hasRefundsParam,
+            testMode: false, // 🧪 Exclude test orders
+            limit: 10000, // High limit to get all orders
+            offset: 0
+          });
+          allCloverOrdersForTotals = allOrdersResult.orders;
+          console.log(`📊 [ALL LOCATIONS] Fetched ${allCloverOrdersForTotals.length} Clover orders for totals calculation`);
+        }
+        
+        // Fetch paginated orders for display
         dbResult = await storage.getOrdersFromCloverAPI({
           createdTimeMin: createdTimeMinMs,
           createdTimeMax: createdTimeMaxMs,
@@ -6800,10 +6826,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
           paymentState: paymentStateParam,
           hasDiscounts: hasDiscountsParam,
           hasRefunds: hasRefundsParam,
+          testMode: false, // 🧪 Exclude test orders
           limit: limitNum,
           offset: offsetNum
         });
-        console.log('Clover Orders API result:', { total: dbResult.total, returned: dbResult.orders.length });
+        
+        // For single location, use paginated results for totals
+        if (!needAllOrders) {
+          allCloverOrdersForTotals = dbResult.orders;
+        }
+        
+        console.log('Clover Orders API result:', { total: dbResult.total, returned: dbResult.orders.length, forTotals: allCloverOrdersForTotals.length });
       }
 
       // Fetch Amazon orders if Amazon location is selected or all locations
@@ -6993,27 +7026,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Handle response based on location type
       let allOrdersForCurrentPage: any[] = [];
       let totalItems = 0;
+      let allOrdersForTotals: any[] = []; // Track ALL orders for aggregated totals
       
       if (locationType === 'amazon') {
         // Amazon only - return Amazon orders with proper pagination
+        allOrdersForTotals = amazonOrdersWithMetrics;
         allOrdersForCurrentPage = amazonOrdersWithMetrics.slice(offsetNum, offsetNum + limitNum);
         totalItems = amazonOrdersWithMetrics.length;
         console.log(`📍 [AMAZON ONLY] Returning ${allOrdersForCurrentPage.length} Amazon orders out of ${totalItems} total`);
       } else if (locationType === 'clover') {
         // Clover only - return Clover orders
+        allOrdersForTotals = allCloverOrdersForTotals; // Use all fetched Clover orders
         allOrdersForCurrentPage = dbResult.orders;
         totalItems = dbResult.total;
         console.log(`📍 [CLOVER ONLY] Returning ${allOrdersForCurrentPage.length} Clover orders out of ${totalItems} total`);
       } else {
-        // All locations - combine Clover and Amazon orders
-        // For proper pagination, we need to combine and then slice
-        const combinedOrders = [...dbResult.orders, ...amazonOrdersWithMetrics];
-        allOrdersForCurrentPage = combinedOrders.slice(offsetNum, offsetNum + limitNum);
+        // All locations - combine ALL Clover orders with Amazon orders for accurate totals
+        allOrdersForTotals = [...allCloverOrdersForTotals, ...amazonOrdersWithMetrics]; 
+        // For display, combine paginated Clover with Amazon
+        const combinedOrdersForPage = [...dbResult.orders, ...amazonOrdersWithMetrics];
+        allOrdersForCurrentPage = combinedOrdersForPage.slice(offsetNum, offsetNum + limitNum);
         totalItems = dbResult.total + amazonOrdersWithMetrics.length;
-        console.log(`📍 [ALL LOCATIONS] Returning ${allOrdersForCurrentPage.length} orders (${dbResult.total} Clover + ${amazonOrdersWithMetrics.length} Amazon = ${totalItems} total)`);
+        console.log(`📍 [ALL LOCATIONS] Returning ${allOrdersForCurrentPage.length} orders for display. Totals from ${allOrdersForTotals.length} orders (${allCloverOrdersForTotals.length} Clover + ${amazonOrdersWithMetrics.length} Amazon)`);
       }
 
+      // Calculate aggregated totals from ALL orders (before pagination)
+      const aggregatedTotals = allOrdersForTotals.reduce((acc, order) => {
+        return {
+          totalRevenue: acc.totalRevenue + (order.total / 100), // total is in cents
+          orderCount: acc.orderCount + 1,
+          totalCOGS: acc.totalCOGS + (typeof order.netCOGS === 'number' ? order.netCOGS : parseFloat(String(order.netCOGS || 0))),
+          totalProfit: acc.totalProfit + (typeof order.netProfit === 'number' ? order.netProfit : parseFloat(String(order.netProfit || 0))),
+          totalDiscounts: acc.totalDiscounts + (typeof order.totalDiscounts === 'number' ? order.totalDiscounts : parseFloat(String(order.totalDiscounts || 0))),
+          giftCardTotal: acc.giftCardTotal + (typeof order.giftCardTotal === 'number' ? order.giftCardTotal : parseFloat(String(order.giftCardTotal || 0))),
+          totalGrossTax: acc.totalGrossTax + (typeof order.grossTax === 'number' ? order.grossTax : parseFloat(String(order.grossTax || 0))),
+          totalAmazonFees: acc.totalAmazonFees + (typeof order.amazonFees === 'number' ? order.amazonFees : parseFloat(String(order.amazonFees || 0))),
+          marginSum: acc.marginSum + (parseFloat(String(order.netMargin || '0').replace('%', '')))
+        };
+      }, { totalRevenue: 0, orderCount: 0, totalCOGS: 0, totalProfit: 0, totalDiscounts: 0, giftCardTotal: 0, totalGrossTax: 0, totalAmazonFees: 0, marginSum: 0 });
+
       console.log(`🚀 [ORDERS API] Query completed, returning ${allOrdersForCurrentPage.length} orders out of ${totalItems} total`);
+      console.log(`📊 [AGGREGATED TOTALS] Calculated from ${allOrdersForTotals.length} orders: ${aggregatedTotals.orderCount} orders, $${aggregatedTotals.totalRevenue.toFixed(2)} revenue`);
 
       res.json({
         orders: allOrdersForCurrentPage,
@@ -7023,7 +7076,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           totalItems,
           hasMore: (parseInt(page) * parseInt(limit)) < totalItems,
           limit: parseInt(limit)
-        }
+        },
+        aggregatedTotals // Add aggregated totals to response
       });
     } catch (error) {
       console.error('Error fetching orders from Clover API:', error);

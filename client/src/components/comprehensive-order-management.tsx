@@ -506,9 +506,9 @@ export function ComprehensiveOrderManagement() {
     // Only require ordersData to render the page
     if (!ordersData) return null;
 
-    // PERFORMANCE FIX: Calculate ALL metrics from ordersData directly
-    // Don't wait for slow analytics API - compute everything from the data we have
-    const orderMetrics = ordersData.orders.reduce((acc, order) => {
+    // Use aggregatedTotals from API if available (calculated from ALL orders, not just paginated results)
+    // This fixes the bug where metrics were calculated from only the first page of results
+    const orderMetrics = ordersData.aggregatedTotals || ordersData.orders.reduce((acc, order) => {
       return {
         // Core metrics (previously from analytics)
         totalRevenue: acc.totalRevenue + (order.total / 100), // total is in cents, convert to dollars
