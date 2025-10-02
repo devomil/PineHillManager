@@ -6876,17 +6876,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
                       paymentState = 'paid';
                     }
                     
-                    // Fetch order items to calculate Amazon fees
+                    // Fetch order items to calculate Amazon fees AND build line items structure
                     let totalAmazonFees = 0;
+                    let lineItems: any[] = [];
                     try {
                       const itemsResponse = await amazonIntegration.getOrderItems(order.AmazonOrderId);
                       if (itemsResponse && itemsResponse.payload && itemsResponse.payload.OrderItems) {
                         const orderItems = itemsResponse.payload.OrderItems;
                         
-                        // Calculate fees for each item
+                        // Calculate fees for each item AND transform to Clover format
                         for (const item of orderItems) {
+                          const itemPrice = parseFloat(item.ItemPrice?.Amount || '0');
+                          const itemTax = parseFloat(item.ItemTax?.Amount || '0');
+                          
+                          // Build line item in Clover format for COGS calculation
+                          lineItems.push({
+                            id: item.OrderItemId,
+                            name: item.Title,
+                            price: Math.round(itemPrice * 100), // Convert to cents
+                            quantity: item.QuantityOrdered,
+                            sku: item.SellerSKU,
+                            asin: item.ASIN,
+                            isRevenue: true
+                          });
+                          
                           if (item.SellerSKU) {
-                            const itemPrice = parseFloat(item.ItemPrice?.Amount || '0');
                             try {
                               // Always use FBA fees for consistent estimates
                               let fees = await amazonIntegration.getProductFees(item.SellerSKU, itemPrice, true);
@@ -6920,7 +6934,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
                       state, // Add mapped order state
                       paymentState, // Add mapped payment state
                       isAmazonOrder: true,
-                      amazonFees: totalAmazonFees // Add calculated fees
+                      amazonFees: totalAmazonFees, // Add calculated fees
+                      lineItems: {
+                        elements: lineItems // Add line items for COGS calculation
+                      }
                     };
                   }));
                   
