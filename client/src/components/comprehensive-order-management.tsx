@@ -712,9 +712,17 @@ export function ComprehensiveOrderManagement() {
       {/* Date Range and Filters */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <Filter className="h-5 w-5" />
-            <span>Filters & Date Range</span>
+          <CardTitle className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <Filter className="h-5 w-5" />
+              <span>Filters & Date Range</span>
+            </div>
+            {(ordersLoading || analyticsLoading || voidedLoading || employeePaymentsLoading || creditRefundsLoading) && (
+              <div className="flex items-center space-x-2 text-sm text-muted-foreground" data-testid="loading-indicator">
+                <RefreshCw className="h-4 w-4 animate-spin" />
+                <span>Loading...</span>
+              </div>
+            )}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
