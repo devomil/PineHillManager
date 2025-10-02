@@ -238,6 +238,26 @@ export class AmazonIntegration {
     }
   }
 
+  // Get order items for a specific order
+  async getOrderItems(orderId: string): Promise<any> {
+    if (!this.config) {
+      throw new Error('Amazon config not set');
+    }
+
+    const endpoint = `/orders/v0/orders/${orderId}/orderItems`;
+    
+    console.log(`📦 [AMAZON ORDER ITEMS] Fetching items for order ${orderId}`);
+    
+    try {
+      const result = await this.makeAmazonAPICall(endpoint);
+      console.log(`📦 [AMAZON ORDER ITEMS] Retrieved ${result.payload?.OrderItems?.length || 0} items`);
+      return result;
+    } catch (error) {
+      console.error(`❌ [AMAZON ORDER ITEMS] Failed to fetch items for order ${orderId}:`, error);
+      throw error;
+    }
+  }
+
   // Get sales metrics (same API used by Amazon Seller Central)
   async getSalesMetrics(startDate: string, endDate: string, granularity: string = 'Total'): Promise<any> {
     if (!this.config) {

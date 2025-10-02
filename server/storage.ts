@@ -6403,6 +6403,115 @@ export class DatabaseStorage implements IStorage {
     try {
       console.log('🔧 [ORDER DETAILS DEBUG] getOrderDetails called for orderId:', orderId);
       
+      // Detect if this is an Amazon order (format: XXX-XXXXXXX-XXXXXXX)
+      const isAmazonOrder = /^\d{3}-\d{7}-\d{7}$/.test(orderId);
+      
+      if (isAmazonOrder) {
+        console.log('🛒 [AMAZON ORDER DETAILS] Detected Amazon order, fetching from Amazon API');
+        
+        // Get Amazon configurations
+        const amazonConfigs = await db.select().from(amazonConfig);
+        
+        if (amazonConfigs.length === 0) {
+          console.log('🛒 [AMAZON ORDER DETAILS] No Amazon configurations found');
+          return null;
+        }
+        
+        // Try each Amazon config to find the order
+        for (const config of amazonConfigs) {
+          try {
+            const { AmazonIntegration } = await import('./integrations/amazon');
+            const amazonIntegration = new AmazonIntegration(config);
+            
+            // Fetch the order items
+            const itemsResponse = await amazonIntegration.getOrderItems(orderId);
+            
+            if (itemsResponse && itemsResponse.payload && itemsResponse.payload.OrderItems) {
+              // We found the order items, now we need the order itself
+              // Since we already have the order from the list, we need to fetch it again
+              // For now, let's construct a basic order object from what we have
+              
+              const orderItems = itemsResponse.payload.OrderItems;
+              
+              // Calculate totals from items
+              let subtotal = 0;
+              let tax = 0;
+              
+              const lineItems = orderItems.map((item: any) => {
+                const itemPrice = parseFloat(item.ItemPrice?.Amount || '0');
+                const itemTax = parseFloat(item.ItemTax?.Amount || '0');
+                
+                subtotal += itemPrice;
+                tax += itemTax;
+                
+                return {
+                  id: item.OrderItemId,
+                  name: item.Title,
+                  price: Math.round(itemPrice * 100), // Convert to cents
+                  quantity: item.QuantityOrdered,
+                  sku: item.SellerSKU,
+                  asin: item.ASIN,
+                  isRevenue: true
+                };
+              });
+              
+              const total = subtotal + tax;
+              
+              // Construct order object in Clover-like format
+              const amazonOrder = {
+                id: orderId,
+                AmazonOrderId: orderId,
+                total: Math.round(total * 100), // Convert to cents
+                taxAmount: Math.round(tax * 100),
+                createdTime: Date.now(), // Will need to get from order list
+                locationName: config.merchantName || 'Amazon Store',
+                merchantId: config.sellerId,
+                isAmazonOrder: true,
+                lineItems: {
+                  elements: lineItems
+                },
+                payments: {
+                  elements: [{
+                    id: 'amazon_payment',
+                    amount: Math.round(total * 100),
+                    tipAmount: 0,
+                    taxAmount: Math.round(tax * 100),
+                    result: 'SUCCESS'
+                  }]
+                },
+                discounts: {
+                  elements: [] // Amazon doesn't provide discount details in items API
+                },
+                refunds: {
+                  elements: []
+                }
+              };
+              
+              // Calculate financial metrics for Amazon orders
+              const financialMetrics = await this.calculateOrderFinancialMetrics(amazonOrder, config.id, config);
+              
+              amazonOrder.grossTax = financialMetrics.grossTax;
+              amazonOrder.totalDiscounts = financialMetrics.totalDiscounts;
+              amazonOrder.totalRefunds = financialMetrics.totalRefunds;
+              amazonOrder.netCOGS = financialMetrics.netCOGS;
+              amazonOrder.netSale = financialMetrics.netSale;
+              amazonOrder.netProfit = financialMetrics.netProfit;
+              amazonOrder.netMargin = financialMetrics.netMargin;
+              
+              console.log('🛒 [AMAZON ORDER DETAILS] Successfully fetched Amazon order:', orderId);
+              return amazonOrder;
+            }
+          } catch (configError) {
+            console.log(`🛒 [AMAZON ORDER DETAILS] Config ${config.id} failed:`, configError.message);
+            continue;
+          }
+        }
+        
+        console.log('🛒 [AMAZON ORDER DETAILS] Order not found in any Amazon configuration');
+        return null;
+      }
+      
+      // CLOVER ORDER PROCESSING BELOW
       // Instead of making separate API calls, use the same method as getOrders
       // to fetch orders and then find the specific one we need
       const allConfigs = await db.select().from(cloverConfig);
