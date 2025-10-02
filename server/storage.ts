@@ -6567,9 +6567,9 @@ export class DatabaseStorage implements IStorage {
                 paymentState = 'paid';
               }
               
-              // Fetch Amazon fees for each item
-              console.log('💰 [AMAZON FEES] Fetching product fees for order items...');
-              const isAmazonFulfilled = fullOrder?.FulfillmentChannel === 'AFN'; // Amazon Fulfillment Network
+              // Fetch Amazon fees for each item (always use FBA fees for consistent estimates)
+              console.log('💰 [AMAZON FEES] Fetching product fees for order items (using FBA fee structure for consistency)...');
+              const isAmazonFulfilled = true; // Always use FBA fees for consistent estimates across all orders
               let totalAmazonFees = 0;
               const itemsWithFees = await Promise.all(lineItems.map(async (item: any) => {
                 try {
