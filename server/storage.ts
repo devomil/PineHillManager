@@ -6409,16 +6409,11 @@ export class DatabaseStorage implements IStorage {
       if (isAmazonOrder) {
         console.log('🛒 [AMAZON ORDER DETAILS] Detected Amazon order, fetching from Amazon API');
         
-        // Get Amazon configurations - filter out placeholder/test configs
-        const allAmazonConfigs = await db.select().from(amazonConfig);
-        const amazonConfigs = allAmazonConfigs.filter(config => 
-          config.sellerId && 
-          !config.sellerId.includes('SELLER_ID') && 
-          config.sellerId.length > 10
-        );
+        // Get Amazon configurations with placeholders resolved from secrets
+        const amazonConfigs = await this.getAllAmazonConfigs();
         
         if (amazonConfigs.length === 0) {
-          console.log('🛒 [AMAZON ORDER DETAILS] No valid Amazon configurations found');
+          console.log('🛒 [AMAZON ORDER DETAILS] No Amazon configurations found');
           return null;
         }
         
