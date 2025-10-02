@@ -11382,12 +11382,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         type: type as string
       });
 
-      // Enrich messages with reaction counts and read status
+      // Enrich messages with reaction counts, read status, and recipients
       const enrichedMessages = await Promise.all(
         messages.map(async (message) => {
-          const [reactions, readReceipt] = await Promise.all([
+          const [reactions, readReceipt, recipients] = await Promise.all([
             storage.getMessageReactions(message.id),
-            storage.getReadReceipt(message.id, userId)
+            storage.getReadReceipt(message.id, userId),
+            storage.getMessageRecipients(message.id)
           ]);
 
           return {
@@ -11398,7 +11399,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }, {}),
             userReaction: reactions.find(r => r.userId === userId)?.reactionType || null,
             isRead: !!readReceipt?.readAt,
-            deliveredAt: readReceipt?.deliveredAt
+            deliveredAt: readReceipt?.deliveredAt,
+            recipients: recipients
           };
         })
       );

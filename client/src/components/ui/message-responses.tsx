@@ -72,24 +72,12 @@ export function MessageResponses({ messageId, className }: MessageResponsesProps
 
   const numericMessageId = getNumericMessageId(messageId);
 
-  // Fetch responses for this message (force fresh data with cache busting)
+  // Fetch responses for this message
   const { data: rawResponses = [], isLoading, error } = useQuery<ResponseWithAuthor[]>({
     queryKey: ['/api/messages', numericMessageId, 'responses'],
-    queryFn: async () => {
-      // Add timestamp to bypass browser cache
-      const response = await fetch(`/api/messages/${numericMessageId}/responses?_t=${Date.now()}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-      });
-      if (!response.ok) throw new Error('Failed to fetch responses');
-      return response.json();
-    },
+    enabled: !!numericMessageId,
     staleTime: 0,
     refetchOnMount: 'always',
-    gcTime: 0,
   });
 
   // Ensure we always have an array

@@ -149,8 +149,22 @@ const formatAudience = (audience: string) => {
   }
 };
 
-// Function to format audience based on selected employees or recipient
+// Function to format audience based on selected employees, recipients, or recipient_id
 const formatMessageAudience = (message: any, employees: any[] = []) => {
+  // For direct messages with recipients array (from readReceipts), show recipient names
+  if (message.recipients && Array.isArray(message.recipients) && message.recipients.length > 0) {
+    if (message.recipients.length === 1) {
+      const recipient = message.recipients[0];
+      return `${recipient.firstName} ${recipient.lastName}`;
+    } else if (message.recipients.length === 2) {
+      return `${message.recipients[0].firstName} ${message.recipients[0].lastName} & ${message.recipients[1].firstName} ${message.recipients[1].lastName}`;
+    } else if (message.recipients.length <= 4) {
+      return `${message.recipients.length} Recipients`;
+    } else {
+      return `${message.recipients.length} Recipients`;
+    }
+  }
+  
   // For direct messages with a recipient_id, show the recipient's name
   if (message.recipientId) {
     const recipient = employees?.find(emp => emp.id === message.recipientId);

@@ -939,6 +939,7 @@ export interface IStorage {
   addMessageReaction(reaction: InsertMessageReaction): Promise<MessageReaction>;
   removeMessageReaction(messageId: number, userId: string, reactionType: string): Promise<void>;
   getMessageReactions(messageId: number): Promise<MessageReaction[]>;
+  getMessageRecipients(messageId: number): Promise<any[]>;
   
   // Announcement reactions
   addAnnouncementReaction(reaction: InsertAnnouncementReaction): Promise<AnnouncementReaction>;
@@ -7219,6 +7220,27 @@ export class DatabaseStorage implements IStorage {
         .orderBy(asc(messageReactions.createdAt));
     } catch (error) {
       console.error('Error fetching message reactions:', error);
+      return [];
+    }
+  }
+
+  async getMessageRecipients(messageId: number): Promise<any[]> {
+    try {
+      const recipients = await db.select({
+        userId: readReceipts.userId,
+        firstName: users.firstName,
+        lastName: users.lastName,
+        role: users.role,
+        deliveredAt: readReceipts.deliveredAt,
+        readAt: readReceipts.readAt
+      })
+        .from(readReceipts)
+        .innerJoin(users, eq(readReceipts.userId, users.id))
+        .where(eq(readReceipts.messageId, messageId));
+      
+      return recipients;
+    } catch (error) {
+      console.error('Error fetching message recipients:', error);
       return [];
     }
   }
