@@ -101,6 +101,12 @@ const addImageUrlsToItem = (item: any): any => {
   if (!item.content) return item;
   
   const imageUrls = parseImageUrls(item.content);
+  
+  // Debug logging
+  if (imageUrls.length > 0) {
+    console.log(`🖼️ Extracted ${imageUrls.length} imageUrls from message "${item.subject}":`, imageUrls);
+  }
+  
   // Remove sentinel from content for display
   const cleanContent = item.content.replace(/\n\n<!--attachments:.*?-->/g, '');
   
