@@ -6120,8 +6120,15 @@ export class DatabaseStorage implements IStorage {
             
             // 🚀 PERFORMANCE FIX: Apply date filtering BEFORE expensive processing
             let ordersToProcess = response.elements;
+            
+            // Filter out test orders (Clover Sales Reports exclude test orders)
+            ordersToProcess = ordersToProcess.filter(order => !order.testMode);
+            if (response.elements.length !== ordersToProcess.length) {
+              console.log(`🧪 TEST ORDER FILTER: Excluded ${response.elements.length - ordersToProcess.length} test orders from ${config.merchantName}`);
+            }
+            
             if (options.createdTimeMin || options.createdTimeMax) {
-              ordersToProcess = response.elements.filter(order => {
+              ordersToProcess = ordersToProcess.filter(order => {
                 const orderCreatedTime = order.createdTime;
                 if (!orderCreatedTime) return false;
                 
