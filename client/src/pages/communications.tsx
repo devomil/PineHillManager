@@ -1703,6 +1703,42 @@ function CommunicationsContent() {
       </div>
 
       {/* Mobile-First Main Content with Tabs */}
+      {/* 🧪 DIAGNOSTIC TEST BUTTON */}
+      <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+        <h3 className="font-bold text-yellow-900 mb-2">🧪 Diagnostic Test</h3>
+        <Button
+          onClick={async () => {
+            console.log("🧪 MANUAL TEST: Button clicked - fetching /api/messages");
+            try {
+              const response = await fetch("/api/messages", { credentials: "include" });
+              const data = await response.json();
+              console.log("🧪 MANUAL TEST: Received", data.length, "messages");
+              console.log("🧪 MANUAL TEST: Full data:", data);
+              
+              const messagesWithImages = data.filter((msg: any) => msg.imageUrls && msg.imageUrls.length > 0);
+              if (messagesWithImages.length > 0) {
+                console.log("🧪 MANUAL TEST: Messages with imageUrls:", messagesWithImages.map((msg: any) => ({ 
+                  id: msg.id,
+                  subject: msg.subject, 
+                  imageUrls: msg.imageUrls 
+                })));
+                alert(`✅ Found ${messagesWithImages.length} messages with images! Check console for details.`);
+              } else {
+                console.log("🧪 MANUAL TEST: No messages with imageUrls found");
+                alert(`❌ No messages with imageUrls found out of ${data.length} total messages. Check console for details.`);
+              }
+            } catch (error) {
+              console.error("🧪 MANUAL TEST: Error:", error);
+              alert(`❌ Error: ${error}`);
+            }
+          }}
+          className="bg-yellow-600 hover:bg-yellow-700 text-white"
+        >
+          🧪 Test /api/messages (Click to check imageUrls)
+        </Button>
+        <p className="text-sm text-yellow-800 mt-2">Click this button to manually test what the backend returns. Check the browser console for full output.</p>
+      </div>
+
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4 md:space-y-6">
         {/* Mobile Dropdown Navigation */}
         <div className="block sm:hidden">
