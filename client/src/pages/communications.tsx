@@ -158,8 +158,11 @@ const formatMessageAudience = (message: any, employees: any[] = []) => {
       return `${recipient.firstName} ${recipient.lastName}`;
     } else if (message.recipients.length === 2) {
       return `${message.recipients[0].firstName} ${message.recipients[0].lastName} & ${message.recipients[1].firstName} ${message.recipients[1].lastName}`;
-    } else if (message.recipients.length <= 4) {
-      return `${message.recipients.length} Recipients`;
+    } else if (message.recipients.length <= 10) {
+      // Show up to 10 recipient names, separated by commas with & before the last one
+      const names = message.recipients.map((r: any) => `${r.firstName} ${r.lastName}`);
+      const lastRecipient = names.pop();
+      return `${names.join(', ')} & ${lastRecipient}`;
     } else {
       return `${message.recipients.length} Recipients`;
     }
@@ -916,14 +919,11 @@ function CommunicationsContent() {
 
   // Fetch new communication messages (announcements and direct messages)  
   const { data: communicationMessages = [], isLoading: messagesLoading } = useQuery<any[]>({
-    queryKey: ["/api/messages", "v2"], // Version bump to force fresh fetch
+    queryKey: ["/api/messages", "v2"],
     queryFn: async () => {
-      console.log("🔥 FETCHING /api/messages");
       const response = await fetch("/api/messages", { credentials: "include" });
       if (!response.ok) throw new Error("Failed to fetch messages");
-      const data = await response.json();
-      console.log("📩 Messages data:", data);
-      return data;
+      return response.json();
     },
     retry: 1,
   });
