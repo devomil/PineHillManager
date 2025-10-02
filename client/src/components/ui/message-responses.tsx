@@ -267,7 +267,7 @@ export function MessageResponses({ messageId, className }: MessageResponsesProps
                           )}
                         </div>
                         <span className="text-xs text-gray-500">
-                          {format(new Date(response.createdAt), 'MMM d, h:mm a')}
+                          {response.createdAt ? format(new Date(response.createdAt), 'MMM d, h:mm a') : 'Just now'}
                         </span>
                       </div>
 
