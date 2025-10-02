@@ -916,7 +916,7 @@ function CommunicationsContent() {
 
   // Fetch new communication messages (announcements and direct messages)  
   const { data: communicationMessages = [], isLoading: messagesLoading } = useQuery<any[]>({
-    queryKey: ["/api/messages"],
+    queryKey: ["/api/messages", "with-recipients"],
     queryFn: async () => {
       const response = await fetch("/api/messages", { credentials: "include" });
       if (!response.ok) throw new Error("Failed to fetch messages");
@@ -1005,11 +1005,11 @@ function CommunicationsContent() {
       setShowCreateDialog(false);
       
       // Invalidate queries to refresh the data
-      queryClient.invalidateQueries({ queryKey: ["/api/messages"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/messages", "with-recipients"] });
       queryClient.invalidateQueries({ queryKey: ["/api/announcements/published"] });
       
       // Force refetch to show new data immediately
-      queryClient.refetchQueries({ queryKey: ["/api/messages"] });
+      queryClient.refetchQueries({ queryKey: ["/api/messages", "with-recipients"] });
       setFormData({
         type: 'announcement',
         title: '',
@@ -1048,7 +1048,7 @@ function CommunicationsContent() {
     },
     onSuccess: () => {
       toast({ title: "✅ Direct message sent successfully!" });
-      queryClient.invalidateQueries({ queryKey: ["/api/messages"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/messages", "with-recipients"] });
       setShowDirectMessageDialog(false);
       // Reset direct message form
       setDirectMessageData({
