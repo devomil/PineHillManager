@@ -941,6 +941,9 @@ function CommunicationsContent() {
       return data;
     },
     retry: 1,
+    staleTime: 0,
+    refetchOnMount: true,
+    refetchOnWindowFocus: false,
   });
 
   // Combine legacy announcements with new announcement-type messages
