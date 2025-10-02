@@ -6575,7 +6575,14 @@ export class DatabaseStorage implements IStorage {
                 try {
                   if (item.sku) {
                     const itemPrice = item.price / 100; // Convert back to dollars
-                    const fees = await amazonIntegration.getProductFees(item.sku, itemPrice, isAmazonFulfilled);
+                    let fees = await amazonIntegration.getProductFees(item.sku, itemPrice, isAmazonFulfilled);
+                    
+                    // If SKU returned $0 and we have an ASIN, try fetching by ASIN
+                    if (fees.totalFees === 0 && item.asin) {
+                      console.log(`💰 [AMAZON FEES] SKU returned $0, trying ASIN ${item.asin}...`);
+                      fees = await amazonIntegration.getProductFeesByASIN(item.asin, itemPrice, isAmazonFulfilled);
+                    }
+                    
                     totalAmazonFees += fees.totalFees;
                     
                     return {

@@ -344,6 +344,57 @@ export class AmazonIntegration {
     }
   }
 
+  // Get product fees estimate by ASIN (alternative to SKU)
+  async getProductFeesByASIN(asin: string, price: number, isAmazonFulfilled: boolean = true): Promise<any> {
+    if (!this.config) {
+      throw new Error('Amazon config not set');
+    }
+
+    const endpoint = `/products/fees/v0/items/${encodeURIComponent(asin)}/feesEstimate`;
+    
+    const requestBody = {
+      FeesEstimateRequest: {
+        MarketplaceId: this.config.marketplaceId,
+        IsAmazonFulfilled: isAmazonFulfilled,
+        PriceToEstimateFees: {
+          ListingPrice: {
+            CurrencyCode: 'USD',
+            Amount: price
+          },
+          Shipping: {
+            CurrencyCode: 'USD',
+            Amount: 0.00
+          }
+        },
+        Identifier: `fee-asin-${asin}-${Date.now()}`
+      }
+    };
+
+    console.log(`💰 [AMAZON FEES] Fetching fees for ASIN ${asin} at price $${price}`);
+    
+    try {
+      const result = await this.makeAmazonAPICall(endpoint, requestBody, 'POST');
+      
+      if (result?.payload?.FeesEstimateResult?.FeesEstimate) {
+        const fees = result.payload.FeesEstimateResult.FeesEstimate;
+        const totalFees = parseFloat(fees.TotalFeesEstimate?.Amount || '0');
+        
+        console.log(`💰 [AMAZON FEES] ASIN ${asin}: Total fees = $${totalFees.toFixed(2)}`);
+        
+        return {
+          totalFees,
+          feeDetails: fees.FeeDetailList || [],
+          timeOfEstimation: fees.TimeOfFeesEstimation
+        };
+      }
+      
+      return { totalFees: 0, feeDetails: [], timeOfEstimation: null };
+    } catch (error) {
+      console.error(`❌ [AMAZON FEES] Failed to fetch fees for ASIN ${asin}:`, error);
+      return { totalFees: 0, feeDetails: [], error: error.message };
+    }
+  }
+
   // Get fees for multiple items (batch)
   async getProductFeesBatch(items: Array<{ sku: string; price: number; isAmazonFulfilled?: boolean }>): Promise<Map<string, any>> {
     const feesMap = new Map<string, any>();
