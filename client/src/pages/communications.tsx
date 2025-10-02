@@ -1026,11 +1026,11 @@ function CommunicationsContent() {
       setShowCreateDialog(false);
       
       // Invalidate queries to refresh the data
-      queryClient.invalidateQueries({ queryKey: ["/api/messages", "v2"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/messages", "v3"] });
       queryClient.invalidateQueries({ queryKey: ["/api/announcements/published"] });
       
       // Force refetch to show new data immediately
-      queryClient.refetchQueries({ queryKey: ["/api/messages", "v2"] });
+      queryClient.refetchQueries({ queryKey: ["/api/messages", "v3"] });
       setFormData({
         type: 'announcement',
         title: '',
@@ -1069,7 +1069,7 @@ function CommunicationsContent() {
     },
     onSuccess: () => {
       toast({ title: "✅ Direct message sent successfully!" });
-      queryClient.invalidateQueries({ queryKey: ["/api/messages", "v2"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/messages", "v3"] });
       setShowDirectMessageDialog(false);
       // Reset direct message form
       setDirectMessageData({
