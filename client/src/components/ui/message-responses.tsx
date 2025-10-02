@@ -75,6 +75,13 @@ export function MessageResponses({ messageId, className }: MessageResponsesProps
   // Fetch responses for this message
   const { data: rawResponses = [], isLoading, error } = useQuery<ResponseWithAuthor[]>({
     queryKey: ['/api/messages', numericMessageId, 'responses'],
+    queryFn: async () => {
+      const response = await fetch(`/api/messages/${numericMessageId}/responses`, {
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Failed to fetch responses');
+      return response.json();
+    },
     enabled: !!numericMessageId,
     staleTime: 0,
     refetchOnMount: 'always',
