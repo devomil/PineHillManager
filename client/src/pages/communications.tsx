@@ -894,6 +894,10 @@ function CommunicationsContent() {
   const [scheduledEmployeeSearchQuery, setScheduledEmployeeSearchQuery] = useState('');
   const [showScheduledEmployeeSelector, setShowScheduledEmployeeSelector] = useState(false);
 
+  // 🧪 DIAGNOSTIC: Test backend IMMEDIATELY when component renders
+  console.log("🧪 DIAGNOSTIC: Component is rendering - about to fetch /api/messages");
+  const [diagnosticRan, setDiagnosticRan] = useState(false);
+
   // Fetch employees for targeting
   const { data: employees = [] } = useQuery<any[]>({
     queryKey: ["/api/employees"],
@@ -919,8 +923,10 @@ function CommunicationsContent() {
 
   // DIAGNOSTIC: Bypass React Query to test backend directly
   useEffect(() => {
+    if (diagnosticRan) return; // Only run once
+    
     const testBackend = async () => {
-      console.log("🧪 DIAGNOSTIC: Bypassing React Query, fetching directly...");
+      console.log("🧪 DIAGNOSTIC: useEffect firing - fetching from /api/messages");
       try {
         const response = await fetch("/api/messages", { credentials: "include" });
         const data = await response.json();
@@ -936,13 +942,15 @@ function CommunicationsContent() {
         } else {
           console.log("🧪 DIAGNOSTIC: No messages with imageUrls in backend response");
         }
+        setDiagnosticRan(true);
       } catch (error) {
         console.error("🧪 DIAGNOSTIC: Error fetching:", error);
+        setDiagnosticRan(true);
       }
     };
     
     testBackend();
-  }, []); // Run once on mount
+  }, [diagnosticRan]); // Run once on mount
 
   // Fetch new communication messages (announcements and direct messages)
   const { data: communicationMessages = [], isLoading: messagesLoading } = useQuery<any[]>({
