@@ -5463,6 +5463,31 @@ export class DatabaseStorage implements IStorage {
     netMargin: number;
   }> {
     try {
+      // Detect if this is an Amazon order vs Clover order
+      const isAmazonOrder = !!order.AmazonOrderId || order.isAmazonOrder;
+      
+      if (isAmazonOrder) {
+        // Amazon orders have a different structure - extract financial data
+        const orderTotal = parseFloat(order.OrderTotal?.Amount || '0');
+        const orderId = order.AmazonOrderId;
+        
+        console.log(`💰 [AMAZON ORDER] ${orderId}: Total=$${orderTotal.toFixed(2)}`);
+        
+        // Amazon provides order-level totals but not detailed breakdowns like Clover
+        // For now, return basic metrics with placeholders for detailed data
+        return {
+          grossTax: 0, // Amazon doesn't separate tax in the Orders API
+          totalDiscounts: 0, // Amazon doesn't provide discount details in Orders API
+          giftCardTotal: 0,
+          totalRefunds: 0, // Would need separate Refunds API call
+          netCOGS: 0, // Would need to match with inventory
+          netSale: orderTotal,
+          netProfit: orderTotal, // Without COGS, profit = revenue
+          netMargin: 100 // Without COGS, margin is 100%
+        };
+      }
+      
+      // CLOVER ORDER PROCESSING BELOW
       // SPECIFIC ORDER DEBUGGING - Track problematic orders
       const problematicOrders = ['NMXJ9X9KQX16Y', '144M3D8KYBZRY', 'NS8NSG9CNXEEJ'];
       const isProblematicOrder = problematicOrders.includes(order.id);

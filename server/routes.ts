@@ -6861,6 +6861,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   // Transform Amazon orders to match Clover format
                   const transformedOrders = amazonResponse.payload.Orders.map((order: any) => ({
                     ...order,
+                    id: order.AmazonOrderId, // Add id field for compatibility
+                    total: parseFloat(order.OrderTotal?.Amount || '0') * 100, // Convert dollars to cents for compatibility
+                    createdTime: new Date(order.PurchaseDate).getTime(), // Convert to timestamp
                     locationName: config.merchantName || 'Amazon Store',
                     locationId: `amazon_${config.id}`,
                     merchantId: config.sellerId,
