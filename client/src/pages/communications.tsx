@@ -917,7 +917,8 @@ function CommunicationsContent() {
     retry: 1,
   });
 
-  // Fetch new communication messages (announcements and direct messages)  
+  // Fetch new communication messages (announcements and direct messages)
+  console.log("🚀 Communications component rendering - about to define useQuery");  
   const { data: communicationMessages = [], isLoading: messagesLoading } = useQuery<any[]>({
     queryKey: ["/api/messages", "v3"],
     queryFn: async () => {
@@ -945,6 +946,7 @@ function CommunicationsContent() {
     refetchOnMount: true,
     refetchOnWindowFocus: false,
   });
+  console.log("📊 After useQuery - communicationMessages:", communicationMessages.length, "items, loading:", messagesLoading);
 
   // Combine legacy announcements with new announcement-type messages
   const announcements = [
