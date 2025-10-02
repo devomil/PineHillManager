@@ -11,13 +11,6 @@ import { useLocation } from "wouter";
 export default function AuthPage() {
   const [location, setLocation] = useLocation();
   const { loginMutation, registerMutation, isAuthenticated } = useAuth();
-
-  // Redirect to dashboard if already authenticated
-  useEffect(() => {
-    if (isAuthenticated) {
-      setLocation("/");
-    }
-  }, [isAuthenticated, setLocation]);
   
   const [loginForm, setLoginForm] = useState({
     email: "",
@@ -37,7 +30,10 @@ export default function AuthPage() {
     e.preventDefault();
     try {
       await loginMutation.mutateAsync(loginForm);
-      // Let the useEffect handle navigation to avoid race conditions
+      // Small delay to ensure session is fully established, then redirect
+      setTimeout(() => {
+        setLocation("/");
+      }, 100);
     } catch (error) {
       // Error handled by mutation onError
     }
@@ -58,7 +54,10 @@ export default function AuthPage() {
         lastName: registerForm.lastName,
         employeeId: registerForm.employeeId
       });
-      // Let the useEffect handle navigation to avoid race conditions
+      // Small delay to ensure session is fully established, then redirect
+      setTimeout(() => {
+        setLocation("/");
+      }, 100);
     } catch (error) {
       // Error handled by mutation onError
     }
