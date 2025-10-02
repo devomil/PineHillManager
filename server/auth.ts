@@ -241,7 +241,13 @@ export function setupAuth(app: Express) {
   });
 
   // Get current user endpoint
-  app.get("/api/user", (req, res) => {
+  app.get("/api/user", async (req, res) => {
+    // Give session deserialization a moment to complete if needed
+    // This prevents race conditions where the check happens before passport deserializes the session
+    if (!req.user && req.session) {
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+    
     if (!req.isAuthenticated() || !req.user) {
       return res.sendStatus(401);
     }
