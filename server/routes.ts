@@ -4186,6 +4186,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Unified endpoint to get all locations (Clover + Amazon + future channels)
+  app.get('/api/locations/all', isAuthenticated, async (req, res) => {
+    try {
+      const { db } = await import('./db');
+      const { cloverConfig } = await import('@shared/schema');
+      
+      // Get all Clover locations
+      const cloverLocations = await db.select().from(cloverConfig);
+      
+      // Get all Amazon configurations
+      const amazonConfigs = await storage.getAllAmazonConfigs();
+      
+      // Transform to unified location format
+      const locations = [
+        ...cloverLocations.map(config => ({
+          id: `clover_${config.id}`,
+          name: config.merchantName,
+          type: 'clover',
+          merchantId: config.merchantId,
+          isActive: config.isActive,
+          internalId: config.id
+        })),
+        ...amazonConfigs.map(config => ({
+          id: `amazon_${config.id}`,
+          name: config.merchantName || 'Amazon Store',
+          type: 'amazon',
+          sellerId: config.sellerId,
+          isActive: config.isActive,
+          internalId: config.id
+        }))
+      ];
+      
+      console.log(`📍 Returning ${locations.length} locations (${cloverLocations.length} Clover + ${amazonConfigs.length} Amazon)`);
+      res.json(locations);
+    } catch (error) {
+      console.error('Error fetching all locations:', error);
+      res.status(500).json({ error: 'Failed to fetch locations' });
+    }
+  });
+
   app.get('/api/accounting/clover-config', isAuthenticated, async (req, res) => {
     try {
       console.log('Getting active Clover config...');
@@ -6720,7 +6760,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const hasRefundsParam = hasRefunds && hasRefunds !== 'all' ? String(hasRefunds) : undefined;
       const limitNum = Number.isFinite(Number(limit)) && Number(limit) > 0 ? Number(limit) : 20;
       const offsetNum = Number.isFinite(Number(offset)) && Number(offset) >= 0 ? Number(offset) : 0;
-      const locationIdNum = locationId && locationId !== 'all' ? Number(locationId) : undefined;
+      
+      // Parse new unified location ID format: clover_X, amazon_X, etc.
+      let locationType: string | undefined;
+      let locationIdNum: number | undefined;
+      
+      if (locationId && locationId !== 'all') {
+        const parts = locationId.split('_');
+        if (parts.length === 2) {
+          locationType = parts[0]; // 'clover' or 'amazon'
+          locationIdNum = Number(parts[1]);
+          console.log(`📍 [LOCATION FILTER] Parsed location: type=${locationType}, id=${locationIdNum}`);
+        } else {
+          // Fallback for old numeric format (Clover only)
+          locationIdNum = Number(locationId);
+          locationType = 'clover';
+        }
+      }
 
       console.log('🚀 [ORDERS API] Fetching orders with database queries (optimized)');
       console.log('Orders API filters:', { 
@@ -6729,28 +6785,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
         hasRefunds: hasRefundsParam, limit: limitNum, offset: offsetNum, search 
       });
 
-      // Use Clover API method with financial calculations for comprehensive order data
-      const dbResult = await storage.getOrdersFromCloverAPI({
-        createdTimeMin: createdTimeMinMs,
-        createdTimeMax: createdTimeMaxMs,
-        startDate: normalizedStartDate,
-        endDate: normalizedEndDate,
-        locationId: locationIdNum,
-        search,
-        state: stateParam,
-        paymentState: paymentStateParam,
-        hasDiscounts: hasDiscountsParam,
-        hasRefunds: hasRefundsParam,
-        limit: limitNum,
-        offset: offsetNum
-      });
+      // Fetch from Clover only if not filtering for Amazon exclusively
+      let dbResult = { orders: [], total: 0, hasMore: false };
+      
+      if (!locationType || locationType === 'clover') {
+        dbResult = await storage.getOrdersFromCloverAPI({
+          createdTimeMin: createdTimeMinMs,
+          createdTimeMax: createdTimeMaxMs,
+          startDate: normalizedStartDate,
+          endDate: normalizedEndDate,
+          locationId: locationType === 'clover' ? locationIdNum : undefined, // Only filter by ID if Clover selected
+          search,
+          state: stateParam,
+          paymentState: paymentStateParam,
+          hasDiscounts: hasDiscountsParam,
+          hasRefunds: hasRefundsParam,
+          limit: limitNum,
+          offset: offsetNum
+        });
+        console.log('Clover Orders API result:', { total: dbResult.total, returned: dbResult.orders.length });
+      }
 
-      console.log('Orders API result:', { total: dbResult.total, returned: dbResult.orders.length });
-
-      // PERFORMANCE: Temporarily disable Amazon orders fetch - it's slow and failing
+      // Fetch Amazon orders if Amazon location is selected or all locations
       let amazonOrders: any[] = [];
       
-      if (false && ((createdTimeMinMs && createdTimeMaxMs) || (startDate && endDate))) {
+      if ((!locationType || locationType === 'amazon') && ((createdTimeMinMs && createdTimeMaxMs) || (startDate && endDate))) {
         try {
           console.log('🛒 [AMAZON ORDERS] Starting Amazon order fetch with timeout');
           
@@ -6761,15 +6820,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
             );
             
             const fetchPromise = async (): Promise<any[]> => {
-              // Get Amazon configuration
-              const amazonConfig = await storage.getAllAmazonConfigs();
+              // Get Amazon configuration(s) - filter by ID if specific Amazon location selected
+              let amazonConfigs = await storage.getAllAmazonConfigs();
               
-              if (!amazonConfig || amazonConfig.length === 0) {
+              if (locationType === 'amazon' && locationIdNum) {
+                // Filter to specific Amazon config
+                amazonConfigs = amazonConfigs.filter(config => config.id === locationIdNum);
+                console.log(`🛒 [AMAZON ORDERS] Filtering for specific Amazon location ID: ${locationIdNum}`);
+              }
+              
+              if (!amazonConfigs || amazonConfigs.length === 0) {
                 console.log('🛒 [AMAZON ORDERS] No Amazon configuration found');
                 return [];
               }
               
-              console.log('🛒 [AMAZON ORDERS] Fetching Amazon orders for date range');
+              console.log(`🛒 [AMAZON ORDERS] Fetching from ${amazonConfigs.length} Amazon location(s)`);
               
               // Convert epoch milliseconds to ISO date strings for Amazon API
               let amazonStartDate: string;
@@ -6785,26 +6850,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
               }
               
               const { AmazonIntegration } = await import('./integrations/amazon');
-              const amazonIntegration = new AmazonIntegration(amazonConfig[0]);
+              const allAmazonOrders: any[] = [];
               
-              const amazonResponse = await amazonIntegration.getOrders(amazonStartDate, amazonEndDate);
-              
-              if (amazonResponse && amazonResponse.payload && amazonResponse.payload.Orders) {
-                // Transform Amazon orders to match Clover format
-                const transformedOrders = amazonResponse.payload.Orders.map((order: any) => ({
-                  ...order,
-                  locationName: 'Amazon Store',
-                  locationId: 'amazon',
-                  merchantId: 'amazon',
-                  // Add Amazon-specific identifiers
-                  isAmazonOrder: true
-                }));
+              // Fetch from each Amazon config
+              for (const config of amazonConfigs) {
+                const amazonIntegration = new AmazonIntegration(config);
+                const amazonResponse = await amazonIntegration.getOrders(amazonStartDate, amazonEndDate);
                 
-                console.log(`🛒 [AMAZON ORDERS] Retrieved ${transformedOrders.length} Amazon orders`);
-                return transformedOrders;
+                if (amazonResponse && amazonResponse.payload && amazonResponse.payload.Orders) {
+                  // Transform Amazon orders to match Clover format
+                  const transformedOrders = amazonResponse.payload.Orders.map((order: any) => ({
+                    ...order,
+                    locationName: config.merchantName || 'Amazon Store',
+                    locationId: `amazon_${config.id}`,
+                    merchantId: config.sellerId,
+                    isAmazonOrder: true
+                  }));
+                  
+                  allAmazonOrders.push(...transformedOrders);
+                  console.log(`🛒 [AMAZON ORDERS] Retrieved ${transformedOrders.length} orders from ${config.merchantName}`);
+                }
               }
               
-              return [];
+              console.log(`🛒 [AMAZON ORDERS] Total Amazon orders: ${allAmazonOrders.length}`);
+              return allAmazonOrders;
             };
             
             return Promise.race([fetchPromise(), timeoutPromise]) as Promise<any[]>;
@@ -6847,21 +6916,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }));
 
-      // FIXED PAGINATION: Don't combine paginated results inappropriately
-      // For now, prioritize Clover orders with proper pagination, add Amazon orders to current page only
-      let allOrdersForCurrentPage = [...dbResult.orders];
-      let totalItems = dbResult.total;
+      // Handle response based on location type
+      let allOrdersForCurrentPage: any[] = [];
+      let totalItems = 0;
       
-      // Add Amazon orders only if we're on the first page and have space
-      if (offsetNum === 0 && allOrdersForCurrentPage.length < limitNum) {
-        const remainingSpace = limitNum - allOrdersForCurrentPage.length;
-        allOrdersForCurrentPage.push(...amazonOrdersWithMetrics.slice(0, remainingSpace));
+      if (locationType === 'amazon') {
+        // Amazon only - return Amazon orders with proper pagination
+        allOrdersForCurrentPage = amazonOrdersWithMetrics.slice(offsetNum, offsetNum + limitNum);
+        totalItems = amazonOrdersWithMetrics.length;
+        console.log(`📍 [AMAZON ONLY] Returning ${allOrdersForCurrentPage.length} Amazon orders out of ${totalItems} total`);
+      } else if (locationType === 'clover') {
+        // Clover only - return Clover orders
+        allOrdersForCurrentPage = dbResult.orders;
+        totalItems = dbResult.total;
+        console.log(`📍 [CLOVER ONLY] Returning ${allOrdersForCurrentPage.length} Clover orders out of ${totalItems} total`);
+      } else {
+        // All locations - combine Clover and Amazon orders
+        // For proper pagination, we need to combine and then slice
+        const combinedOrders = [...dbResult.orders, ...amazonOrdersWithMetrics];
+        allOrdersForCurrentPage = combinedOrders.slice(offsetNum, offsetNum + limitNum);
+        totalItems = dbResult.total + amazonOrdersWithMetrics.length;
+        console.log(`📍 [ALL LOCATIONS] Returning ${allOrdersForCurrentPage.length} orders (${dbResult.total} Clover + ${amazonOrdersWithMetrics.length} Amazon = ${totalItems} total)`);
       }
-      
-      // Account for Amazon orders in total only
-      totalItems += amazonOrdersWithMetrics.length;
 
-      console.log(`🚀 [ORDERS API] Database query completed, returning ${allOrdersForCurrentPage.length} orders out of ${totalItems} total`);
+      console.log(`🚀 [ORDERS API] Query completed, returning ${allOrdersForCurrentPage.length} orders out of ${totalItems} total`);
 
       res.json({
         orders: allOrdersForCurrentPage,

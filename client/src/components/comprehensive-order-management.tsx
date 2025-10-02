@@ -142,11 +142,11 @@ export function ComprehensiveOrderManagement() {
   const debouncedSearch = useDebounce(searchInput, 400);
 
 
-  // Fetch available locations for filtering - MOVED HERE TO FIX INITIALIZATION ERROR
+  // Fetch available locations for filtering - includes Clover, Amazon, and future channels
   const { data: locations, error: locationsError, isLoading: locationsLoading } = useQuery<any[]>({
-    queryKey: ['/api/accounting/config/clover/all'],
+    queryKey: ['/api/locations/all'],
     queryFn: async () => {
-      const response = await fetch('/api/accounting/config/clover/all', {
+      const response = await fetch('/api/locations/all', {
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
@@ -770,8 +770,8 @@ export function ComprehensiveOrderManagement() {
                     (locations || []).map((location: any) => {
                       console.log('📁 [LOCATIONS DEBUG] Rendering location:', location);
                       return (
-                        <SelectItem key={location.id} value={location.id.toString()}>
-                          {location.merchantName || location.name || `Location ${location.id}`}
+                        <SelectItem key={location.id} value={location.id}>
+                          {location.name || `Location ${location.id}`}
                         </SelectItem>
                       );
                     })
