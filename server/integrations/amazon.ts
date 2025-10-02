@@ -102,7 +102,7 @@ export class AmazonIntegration {
       console.log(`Using seller ID: ${this.config.sellerId}`);
       console.log(`Using access token: ${this.config.accessToken ? '[MASKED-' + this.config.accessToken.substring(0, 6) + '...]' : 'MISSING'}`);
       
-      const response = await fetch(url, {
+      const fetchOptions: RequestInit = {
         method,
         headers: {
           'Authorization': `Bearer ${this.config.accessToken}`,
@@ -110,7 +110,14 @@ export class AmazonIntegration {
           'Accept': 'application/json',
           'Content-Type': 'application/json'
         }
-      });
+      };
+      
+      // Add body for POST requests
+      if (method === 'POST' && config) {
+        fetchOptions.body = JSON.stringify(config);
+      }
+      
+      const response = await fetch(url, fetchOptions);
 
       if (response.status === 401 || response.status === 403) {
         // Try refreshing token once for 401 (Unauthorized) or 403 (Forbidden)
@@ -124,7 +131,7 @@ export class AmazonIntegration {
           throw new Error(`Failed to refresh Amazon token: ${refreshError.message}`);
         }
         
-        const retryResponse = await fetch(url, {
+        const retryFetchOptions: RequestInit = {
           method,
           headers: {
             'Authorization': `Bearer ${this.config.accessToken}`,
@@ -132,7 +139,14 @@ export class AmazonIntegration {
             'Accept': 'application/json',
             'Content-Type': 'application/json'
           }
-        });
+        };
+        
+        // Add body for POST requests
+        if (method === 'POST' && config) {
+          retryFetchOptions.body = JSON.stringify(config);
+        }
+        
+        const retryResponse = await fetch(url, retryFetchOptions);
 
         if (!retryResponse.ok) {
           const errorBody = await retryResponse.text();
@@ -238,6 +252,26 @@ export class AmazonIntegration {
     }
   }
 
+  // Get a single order by ID
+  async getOrder(orderId: string): Promise<any> {
+    if (!this.config) {
+      throw new Error('Amazon config not set');
+    }
+
+    const endpoint = `/orders/v0/orders/${orderId}`;
+    
+    console.log(`📦 [AMAZON ORDER] Fetching order ${orderId}`);
+    
+    try {
+      const result = await this.makeAmazonAPICall(endpoint);
+      console.log(`📦 [AMAZON ORDER] Retrieved order ${orderId}`);
+      return result;
+    } catch (error) {
+      console.error(`❌ [AMAZON ORDER] Failed to fetch order ${orderId}:`, error);
+      throw error;
+    }
+  }
+
   // Get order items for a specific order
   async getOrderItems(orderId: string): Promise<any> {
     if (!this.config) {
@@ -256,6 +290,71 @@ export class AmazonIntegration {
       console.error(`❌ [AMAZON ORDER ITEMS] Failed to fetch items for order ${orderId}:`, error);
       throw error;
     }
+  }
+
+  // Get product fees estimate for a SKU
+  async getProductFees(sku: string, price: number, isAmazonFulfilled: boolean = true): Promise<any> {
+    if (!this.config) {
+      throw new Error('Amazon config not set');
+    }
+
+    const endpoint = `/products/fees/v0/listings/${encodeURIComponent(sku)}/feesEstimate`;
+    
+    const requestBody = {
+      FeesEstimateRequest: {
+        MarketplaceId: this.config.marketplaceId,
+        IsAmazonFulfilled: isAmazonFulfilled,
+        PriceToEstimateFees: {
+          ListingPrice: {
+            CurrencyCode: 'USD',
+            Amount: price
+          },
+          Shipping: {
+            CurrencyCode: 'USD',
+            Amount: 0.00
+          }
+        },
+        Identifier: `fee-${sku}-${Date.now()}`
+      }
+    };
+
+    console.log(`💰 [AMAZON FEES] Fetching fees for SKU ${sku} at price $${price}`);
+    
+    try {
+      const result = await this.makeAmazonAPICall(endpoint, requestBody, 'POST');
+      
+      if (result?.payload?.FeesEstimateResult?.FeesEstimate) {
+        const fees = result.payload.FeesEstimateResult.FeesEstimate;
+        const totalFees = parseFloat(fees.TotalFeesEstimate?.Amount || '0');
+        
+        console.log(`💰 [AMAZON FEES] SKU ${sku}: Total fees = $${totalFees.toFixed(2)}`);
+        
+        return {
+          totalFees,
+          feeDetails: fees.FeeDetailList || [],
+          timeOfEstimation: fees.TimeOfFeesEstimation
+        };
+      }
+      
+      return { totalFees: 0, feeDetails: [], timeOfEstimation: null };
+    } catch (error) {
+      console.error(`❌ [AMAZON FEES] Failed to fetch fees for SKU ${sku}:`, error);
+      // Return zero fees on error to avoid breaking the order processing
+      return { totalFees: 0, feeDetails: [], error: error.message };
+    }
+  }
+
+  // Get fees for multiple items (batch)
+  async getProductFeesBatch(items: Array<{ sku: string; price: number; isAmazonFulfilled?: boolean }>): Promise<Map<string, any>> {
+    const feesMap = new Map<string, any>();
+    
+    // Amazon allows up to 20 items per batch request, but we'll process sequentially to avoid rate limits
+    for (const item of items) {
+      const fees = await this.getProductFees(item.sku, item.price, item.isAmazonFulfilled);
+      feesMap.set(item.sku, fees);
+    }
+    
+    return feesMap;
   }
 
   // Get sales metrics (same API used by Amazon Seller Central)

@@ -1455,6 +1455,7 @@ export const inventoryItems = pgTable("inventory_items", {
   qbItemId: varchar("qb_item_id").unique(),
   thriveItemId: varchar("thrive_item_id").unique(),
   sku: varchar("sku"),
+  asin: varchar("asin"), // Amazon Standard Identification Number
   itemName: varchar("item_name").notNull(),
   description: text("description"),
   category: varchar("category"),
@@ -1472,6 +1473,7 @@ export const inventoryItems = pgTable("inventory_items", {
   qbItemIdIdx: index("idx_ii_qb_item_id").on(table.qbItemId),
   thriveItemIdIdx: index("idx_ii_thrive_item_id").on(table.thriveItemId),
   skuIdx: index("idx_ii_sku").on(table.sku),
+  asinIdx: index("idx_ii_asin").on(table.asin),
   categoryIdx: index("idx_ii_category").on(table.category),
 }));
 

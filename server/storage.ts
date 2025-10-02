@@ -563,6 +563,7 @@ export interface IStorage {
   getInventoryItemByQBId(qbItemId: string): Promise<InventoryItem | undefined>;
   getInventoryItemByThriveId(thriveItemId: string): Promise<InventoryItem | undefined>;
   getInventoryItemsBySKU(sku: string): Promise<InventoryItem[]>;
+  getInventoryItemByASIN(asin: string): Promise<InventoryItem | undefined>;
   getLowStockItems(): Promise<InventoryItem[]>;
   updateInventoryItem(id: number, item: Partial<InsertInventoryItem>): Promise<InventoryItem>;
   updateInventoryQuantity(id: number, quantity: string): Promise<InventoryItem>;
@@ -4459,6 +4460,11 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(inventoryItems).where(eq(inventoryItems.sku, sku));
   }
 
+  async getInventoryItemByASIN(asin: string): Promise<InventoryItem | undefined> {
+    const [item] = await db.select().from(inventoryItems).where(eq(inventoryItems.asin, asin));
+    return item;
+  }
+
   async getLowStockItems(): Promise<InventoryItem[]> {
     return await db.select().from(inventoryItems)
       .where(sql`${inventoryItems.quantityOnHand} <= ${inventoryItems.reorderPoint} AND ${inventoryItems.isActive} = true`);
@@ -5469,21 +5475,63 @@ export class DatabaseStorage implements IStorage {
       if (isAmazonOrder) {
         // Amazon orders have a different structure - extract financial data
         const orderTotal = parseFloat(order.OrderTotal?.Amount || '0');
-        const orderId = order.AmazonOrderId;
+        const orderId = order.AmazonOrderId || order.id;
+        const amazonFees = order.amazonFees || 0;
         
-        console.log(`💰 [AMAZON ORDER] ${orderId}: Total=$${orderTotal.toFixed(2)}`);
+        console.log(`💰 [AMAZON ORDER] ${orderId}: Total=$${orderTotal.toFixed(2)}, Fees=$${amazonFees.toFixed(2)}`);
         
-        // Amazon provides order-level totals but not detailed breakdowns like Clover
-        // For now, return basic metrics with placeholders for detailed data
+        // Calculate COGS from line items
+        let totalCOGS = 0;
+        if (order.lineItems && order.lineItems.elements) {
+          for (const item of order.lineItems.elements) {
+            try {
+              // Try to find inventory item by SKU or ASIN
+              let inventoryItem = null;
+              
+              if (item.sku) {
+                const skuItems = await this.getInventoryItemsBySKU(item.sku);
+                if (skuItems.length > 0) inventoryItem = skuItems[0];
+              }
+              
+              if (!inventoryItem && item.asin) {
+                inventoryItem = await this.getInventoryItemByASIN(item.asin);
+              }
+              
+              if (inventoryItem) {
+                const unitCost = parseFloat(inventoryItem.unitCost || '0');
+                const quantity = item.quantity || 1;
+                const itemCOGS = unitCost * quantity;
+                totalCOGS += itemCOGS;
+                console.log(`💰 [AMAZON COGS] ${item.name}: $${unitCost} × ${quantity} = $${itemCOGS.toFixed(2)}`);
+              } else {
+                // Fallback to 60% estimation if no inventory item found
+                const itemPrice = (item.price || 0) / 100; // Convert from cents
+                const estimatedCOGS = itemPrice * 0.6;
+                totalCOGS += estimatedCOGS;
+                console.log(`💰 [AMAZON COGS] ${item.name}: Estimated at 60% = $${estimatedCOGS.toFixed(2)}`);
+              }
+            } catch (error) {
+              console.error(`Error calculating COGS for item ${item.name}:`, error);
+            }
+          }
+        }
+        
+        // Calculate net profit: Revenue - COGS - Amazon Fees
+        const netSale = orderTotal;
+        const netProfit = netSale - totalCOGS - amazonFees;
+        const netMargin = netSale > 0 ? (netProfit / netSale) * 100 : 0;
+        
+        console.log(`💰 [AMAZON FINANCIALS] ${orderId}: Revenue=$${netSale.toFixed(2)}, COGS=$${totalCOGS.toFixed(2)}, Fees=$${amazonFees.toFixed(2)}, Profit=$${netProfit.toFixed(2)}, Margin=${netMargin.toFixed(2)}%`);
+        
         return {
           grossTax: 0, // Amazon doesn't separate tax in the Orders API
           totalDiscounts: 0, // Amazon doesn't provide discount details in Orders API
           giftCardTotal: 0,
           totalRefunds: 0, // Would need separate Refunds API call
-          netCOGS: 0, // Would need to match with inventory
-          netSale: orderTotal,
-          netProfit: orderTotal, // Without COGS, profit = revenue
-          netMargin: 100 // Without COGS, margin is 100%
+          netCOGS: totalCOGS,
+          netSale: netSale,
+          netProfit: netProfit,
+          netMargin: netMargin
         };
       }
       
@@ -6425,14 +6473,14 @@ export class DatabaseStorage implements IStorage {
             const { AmazonIntegration } = await import('./integrations/amazon');
             const amazonIntegration = new AmazonIntegration(config);
             
-            // Fetch the order items
+            // Fetch the full order first to get OrderStatus and other metadata
+            const orderResponse = await amazonIntegration.getOrder(orderId);
+            const fullOrder = orderResponse?.payload;
+            
+            // Then fetch the order items
             const itemsResponse = await amazonIntegration.getOrderItems(orderId);
             
             if (itemsResponse && itemsResponse.payload && itemsResponse.payload.OrderItems) {
-              // We found the order items, now we need the order itself
-              // Since we already have the order from the list, we need to fetch it again
-              // For now, let's construct a basic order object from what we have
-              
               const orderItems = itemsResponse.payload.OrderItems;
               
               // Calculate totals from items
@@ -6459,18 +6507,63 @@ export class DatabaseStorage implements IStorage {
               
               const total = subtotal + tax;
               
+              // Map Amazon OrderStatus to Clover state (locked/open)
+              const state = fullOrder?.OrderStatus === 'Shipped' || fullOrder?.OrderStatus === 'Delivered' ? 'locked' : 'open';
+              
+              // Map Amazon PaymentMethodDetails to paymentState (paid/unpaid)
+              let paymentState = 'open'; // Default to unpaid
+              if (fullOrder?.PaymentMethodDetails && fullOrder.PaymentMethodDetails.length > 0) {
+                // If payment methods are present and order is not pending, it's paid
+                if (fullOrder.OrderStatus !== 'Pending' && fullOrder.OrderStatus !== 'PendingAvailability') {
+                  paymentState = 'paid';
+                }
+              } else if (fullOrder?.OrderStatus === 'Shipped' || fullOrder?.OrderStatus === 'Delivered') {
+                // Fallback: If shipped/delivered, it must be paid
+                paymentState = 'paid';
+              }
+              
+              // Fetch Amazon fees for each item
+              console.log('💰 [AMAZON FEES] Fetching product fees for order items...');
+              const isAmazonFulfilled = fullOrder?.FulfillmentChannel === 'AFN'; // Amazon Fulfillment Network
+              let totalAmazonFees = 0;
+              const itemsWithFees = await Promise.all(lineItems.map(async (item: any) => {
+                try {
+                  if (item.sku) {
+                    const itemPrice = item.price / 100; // Convert back to dollars
+                    const fees = await amazonIntegration.getProductFees(item.sku, itemPrice, isAmazonFulfilled);
+                    totalAmazonFees += fees.totalFees;
+                    
+                    return {
+                      ...item,
+                      amazonFees: fees.totalFees,
+                      feeDetails: fees.feeDetails
+                    };
+                  }
+                  return item;
+                } catch (error) {
+                  console.error(`❌ [AMAZON FEES] Error fetching fees for ${item.sku}:`, error);
+                  return item;
+                }
+              }));
+              
+              console.log(`💰 [AMAZON FEES] Total Amazon fees for order: $${totalAmazonFees.toFixed(2)}`);
+              
               // Construct order object in Clover-like format
               const amazonOrder = {
+                ...fullOrder, // Include all Amazon order fields (OrderStatus, PaymentMethodDetails, etc.)
                 id: orderId,
                 AmazonOrderId: orderId,
                 total: Math.round(total * 100), // Convert to cents
                 taxAmount: Math.round(tax * 100),
-                createdTime: Date.now(), // Will need to get from order list
+                createdTime: fullOrder?.PurchaseDate ? new Date(fullOrder.PurchaseDate).getTime() : Date.now(),
                 locationName: config.merchantName || 'Amazon Store',
                 merchantId: config.sellerId,
+                state, // Add mapped order state
+                paymentState, // Add mapped payment state
                 isAmazonOrder: true,
+                amazonFees: totalAmazonFees, // Total Amazon fees
                 lineItems: {
-                  elements: lineItems
+                  elements: itemsWithFees
                 },
                 payments: {
                   elements: [{
@@ -6478,7 +6571,7 @@ export class DatabaseStorage implements IStorage {
                     amount: Math.round(total * 100),
                     tipAmount: 0,
                     taxAmount: Math.round(tax * 100),
-                    result: 'SUCCESS'
+                    result: paymentState === 'paid' ? 'SUCCESS' : 'PENDING'
                   }]
                 },
                 discounts: {
@@ -6489,7 +6582,7 @@ export class DatabaseStorage implements IStorage {
                 }
               };
               
-              // Calculate financial metrics for Amazon orders
+              // Calculate financial metrics for Amazon orders (now with fees)
               const financialMetrics = await this.calculateOrderFinancialMetrics(amazonOrder, config.id, config);
               
               amazonOrder.grossTax = financialMetrics.grossTax;

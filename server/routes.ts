@@ -6859,16 +6859,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 
                 if (amazonResponse && amazonResponse.payload && amazonResponse.payload.Orders) {
                   // Transform Amazon orders to match Clover format
-                  const transformedOrders = amazonResponse.payload.Orders.map((order: any) => ({
-                    ...order,
-                    id: order.AmazonOrderId, // Add id field for compatibility
-                    total: parseFloat(order.OrderTotal?.Amount || '0') * 100, // Convert dollars to cents for compatibility
-                    createdTime: new Date(order.PurchaseDate).getTime(), // Convert to timestamp
-                    locationName: config.merchantName || 'Amazon Store',
-                    locationId: `amazon_${config.id}`,
-                    merchantId: config.sellerId,
-                    isAmazonOrder: true
-                  }));
+                  const transformedOrders = amazonResponse.payload.Orders.map((order: any) => {
+                    // Map Amazon OrderStatus to Clover state (locked/open)
+                    const state = order.OrderStatus === 'Shipped' || order.OrderStatus === 'Delivered' ? 'locked' : 'open';
+                    
+                    // Map Amazon PaymentMethodDetails to paymentState (paid/unpaid)
+                    // PaymentMethodDetails is an array of payment methods used
+                    let paymentState = 'open'; // Default to unpaid
+                    if (order.PaymentMethodDetails && order.PaymentMethodDetails.length > 0) {
+                      // If payment methods are present and order is not pending, it's paid
+                      if (order.OrderStatus !== 'Pending' && order.OrderStatus !== 'PendingAvailability') {
+                        paymentState = 'paid';
+                      }
+                    } else if (order.OrderStatus === 'Shipped' || order.OrderStatus === 'Delivered') {
+                      // Fallback: If shipped/delivered, it must be paid
+                      paymentState = 'paid';
+                    }
+                    
+                    return {
+                      ...order,
+                      id: order.AmazonOrderId, // Add id field for compatibility
+                      total: parseFloat(order.OrderTotal?.Amount || '0') * 100, // Convert dollars to cents for compatibility
+                      createdTime: new Date(order.PurchaseDate).getTime(), // Convert to timestamp
+                      locationName: config.merchantName || 'Amazon Store',
+                      locationId: `amazon_${config.id}`,
+                      merchantId: config.sellerId,
+                      state, // Add mapped order state
+                      paymentState, // Add mapped payment state
+                      isAmazonOrder: true
+                    };
+                  });
                   
                   allAmazonOrders.push(...transformedOrders);
                   console.log(`🛒 [AMAZON ORDERS] Retrieved ${transformedOrders.length} orders from ${config.merchantName}`);

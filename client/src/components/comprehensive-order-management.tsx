@@ -1348,7 +1348,7 @@ export function ComprehensiveOrderManagement() {
                   {selectedOrder.lineItems && selectedOrder.lineItems.length > 0 ? (
                     <div className="space-y-4">
                       {/* Order Financial Summary */}
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-muted rounded-lg">
+                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 p-4 bg-muted rounded-lg">
                         <div>
                           <label className="text-sm font-medium text-muted-foreground">Total Discounts</label>
                           <p className="text-lg font-semibold text-red-600">
@@ -1359,6 +1359,20 @@ export function ComprehensiveOrderManagement() {
                           <label className="text-sm font-medium text-muted-foreground">Total Refunds</label>
                           <p className="text-lg font-semibold text-red-600">
                             -{formatCurrencyDirect(selectedOrder.totalRefunds || 0)}
+                          </p>
+                        </div>
+                        {selectedOrder.isAmazonOrder && selectedOrder.amazonFees > 0 && (
+                          <div>
+                            <label className="text-sm font-medium text-muted-foreground">Amazon Fees</label>
+                            <p className="text-lg font-semibold text-orange-600">
+                              -{formatCurrencyDirect(selectedOrder.amazonFees || 0)}
+                            </p>
+                          </div>
+                        )}
+                        <div>
+                          <label className="text-sm font-medium text-muted-foreground">Product Cost (COGS)</label>
+                          <p className="text-lg font-semibold text-purple-600">
+                            -{formatCurrencyDirect(selectedOrder.netCOGS || 0)}
                           </p>
                         </div>
                         <div>
