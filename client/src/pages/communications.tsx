@@ -917,41 +917,40 @@ function CommunicationsContent() {
     retry: 1,
   });
 
+  // DIAGNOSTIC: Bypass React Query to test backend directly
+  useEffect(() => {
+    const testBackend = async () => {
+      console.log("🧪 DIAGNOSTIC: Bypassing React Query, fetching directly...");
+      try {
+        const response = await fetch("/api/messages", { credentials: "include" });
+        const data = await response.json();
+        console.log("🧪 DIAGNOSTIC: Received", data.length, "messages from backend");
+        
+        const messagesWithImages = data.filter((msg: any) => msg.imageUrls && msg.imageUrls.length > 0);
+        if (messagesWithImages.length > 0) {
+          console.log("🧪 DIAGNOSTIC: Messages with imageUrls:", messagesWithImages.map((msg: any) => ({ 
+            id: msg.id,
+            subject: msg.subject, 
+            imageUrls: msg.imageUrls 
+          })));
+        } else {
+          console.log("🧪 DIAGNOSTIC: No messages with imageUrls in backend response");
+        }
+      } catch (error) {
+        console.error("🧪 DIAGNOSTIC: Error fetching:", error);
+      }
+    };
+    
+    testBackend();
+  }, []); // Run once on mount
+
   // Fetch new communication messages (announcements and direct messages)
-  console.log("🚀 Communications component rendering - about to define useQuery");
-  
-  // Force fresh data by disabling cache completely
   const { data: communicationMessages = [], isLoading: messagesLoading } = useQuery<any[]>({
     queryKey: ["/api/messages"],
-    queryFn: async () => {
-      console.log("🔄 FETCHING /api/messages - forcing fresh data");
-      const response = await fetch("/api/messages", { credentials: "include" });
-      if (!response.ok) throw new Error("Failed to fetch messages");
-      const data = await response.json();
-      console.log("📦 Received", data.length, "messages from /api/messages");
-      
-      // Debug: Check if any messages have imageUrls
-      const messagesWithImages = data.filter((msg: any) => msg.imageUrls && msg.imageUrls.length > 0);
-      if (messagesWithImages.length > 0) {
-        console.log("📸 Messages with images:", messagesWithImages.map((msg: any) => ({ 
-          subject: msg.subject, 
-          imageUrls: msg.imageUrls 
-        })));
-      } else {
-        console.log("❌ No messages with imageUrls found in response");
-      }
-      
-      return data;
-    },
-    enabled: true,
-    retry: false,
     staleTime: 0,
     gcTime: 0,
-    refetchOnMount: "always",
-    refetchOnWindowFocus: false,
-    refetchOnReconnect: false,
   });
-  console.log("📊 After useQuery - communicationMessages:", communicationMessages.length, "items, loading:", messagesLoading);
+  console.log("📊 React Query data - communicationMessages:", communicationMessages.length, "items, loading:", messagesLoading);
 
   // Combine legacy announcements with new announcement-type messages
   const announcements = [
