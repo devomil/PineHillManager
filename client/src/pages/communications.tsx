@@ -919,7 +919,7 @@ function CommunicationsContent() {
 
   // Fetch new communication messages (announcements and direct messages)  
   const { data: communicationMessages = [], isLoading: messagesLoading } = useQuery<any[]>({
-    queryKey: ["/api/messages", "v2"],
+    queryKey: ["/api/messages", "v3"],
     queryFn: async () => {
       const response = await fetch("/api/messages", { credentials: "include" });
       if (!response.ok) throw new Error("Failed to fetch messages");
