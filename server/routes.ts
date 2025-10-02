@@ -6816,7 +6816,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Add timeout wrapper for Amazon integration
           const amazonFetchWithTimeout = async (): Promise<any[]> => {
             const timeoutPromise = new Promise((_, reject) => 
-              setTimeout(() => reject(new Error('Amazon API timeout')), 3000) // 3 second timeout
+              setTimeout(() => reject(new Error('Amazon API timeout')), 30000) // 30 second timeout to handle rate limiting
             );
             
             const fetchPromise = async (): Promise<any[]> => {
