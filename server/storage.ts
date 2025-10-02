@@ -3842,7 +3842,16 @@ export class DatabaseStorage implements IStorage {
 
   async getAllAmazonConfigs(): Promise<AmazonConfig[]> {
     const configs = await db.select().from(amazonConfig).orderBy(asc(amazonConfig.merchantName));
-    return configs;
+    
+    // Replace placeholder environment variable names with actual values from secrets
+    return configs.map(config => ({
+      ...config,
+      sellerId: config.sellerId === 'AMAZON_SELLER_ID' ? process.env.AMAZON_SELLER_ID || config.sellerId : config.sellerId,
+      accessToken: config.accessToken === 'AMAZON_ACCESS_TOKEN' ? (process.env.AMAZON_ACCESS_TOKEN || '') : config.accessToken,
+      refreshToken: config.refreshToken === 'AMAZON_REFRESH_TOKEN' ? (process.env.AMAZON_REFRESH_TOKEN || config.refreshToken) : config.refreshToken,
+      clientId: config.clientId === 'AMAZON_CLIENT_ID' ? (process.env.AMAZON_CLIENT_ID || config.clientId) : config.clientId,
+      clientSecret: config.clientSecret === 'AMAZON_CLIENT_SECRET' ? (process.env.AMAZON_CLIENT_SECRET || config.clientSecret) : config.clientSecret
+    }));
   }
 
   async updateAmazonConfig(id: number, config: Partial<InsertAmazonConfig>): Promise<AmazonConfig> {
