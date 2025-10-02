@@ -947,6 +947,7 @@ function CommunicationsContent() {
   // Fetch new communication messages (announcements and direct messages)
   const { data: communicationMessages = [], isLoading: messagesLoading } = useQuery<any[]>({
     queryKey: ["/api/messages"],
+    networkMode: "always", // CRITICAL: Bypass offline manager to ensure query always runs
     staleTime: 0,
     gcTime: 0,
   });
