@@ -86,9 +86,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       return await res.json();
     },
-    onSuccess: (user: SelectUser) => {
-      // Set the user data immediately and force a re-render
-      queryClient.setQueryData(["/api/user"], user);
+    onSuccess: async (user: SelectUser) => {
+      // Invalidate to force a fresh fetch from server (ensures session sync)
+      await queryClient.invalidateQueries({ queryKey: ["/api/user"] });
       
       toast({
         title: "Welcome back!",
@@ -120,8 +120,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       return await res.json();
     },
-    onSuccess: (user: SelectUser) => {
-      queryClient.setQueryData(["/api/user"], user);
+    onSuccess: async (user: SelectUser) => {
+      // Invalidate to force a fresh fetch from server (ensures session sync)
+      await queryClient.invalidateQueries({ queryKey: ["/api/user"] });
+      
       toast({
         title: "Account created!",
         description: `Welcome to Pine Hill Farm, ${user.firstName}!`,
