@@ -1437,8 +1437,8 @@ export function ComprehensiveOrderManagement() {
                       {selectedOrder.payments.map((payment) => (
                         <div key={payment.id} className="flex justify-between items-center p-3 bg-muted rounded-lg">
                           <div>
-                            <p className="font-medium">{payment.tender.label}</p>
-                            <p className="text-sm text-muted-foreground">Status: {payment.result}</p>
+                            <p className="font-medium">{payment.tender?.label || 'Payment'}</p>
+                            <p className="text-sm text-muted-foreground">Status: {payment.result || 'Completed'}</p>
                           </div>
                           <div className="text-right">
                             <p className="font-semibold">{formatCurrency(payment.amount)}</p>
