@@ -13,7 +13,7 @@ export interface AmazonConfig {
 export class AmazonIntegration {
   private config: AmazonConfig | null = null;
   private static orderCache = new Map<string, { data: any; timestamp: number }>();
-  private static readonly CACHE_DURATION = 0; // TEMPORARILY DISABLED - force fresh fetch with new FBA fee calculations
+  private static readonly CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
   private static lastApiCall = 0;
   private static readonly MIN_API_INTERVAL = 15000; // 15 seconds between calls to prevent rate limits
 
