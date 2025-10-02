@@ -921,9 +921,11 @@ function CommunicationsContent() {
   const { data: communicationMessages = [], isLoading: messagesLoading } = useQuery<any[]>({
     queryKey: ["/api/messages", "v3"],
     queryFn: async () => {
+      console.log("🔄 FETCHING /api/messages with queryKey v3");
       const response = await fetch("/api/messages", { credentials: "include" });
       if (!response.ok) throw new Error("Failed to fetch messages");
       const data = await response.json();
+      console.log("📦 Received", data.length, "messages from /api/messages");
       
       // Debug: Check if any messages have imageUrls
       const messagesWithImages = data.filter((msg: any) => msg.imageUrls && msg.imageUrls.length > 0);
@@ -932,6 +934,8 @@ function CommunicationsContent() {
           subject: msg.subject, 
           imageUrls: msg.imageUrls 
         })));
+      } else {
+        console.log("❌ No messages with imageUrls found in response");
       }
       
       return data;
