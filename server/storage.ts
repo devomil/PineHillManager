@@ -3844,7 +3844,7 @@ export class DatabaseStorage implements IStorage {
     const configs = await db.select().from(amazonConfig).orderBy(asc(amazonConfig.merchantName));
     
     // Replace placeholder environment variable names with actual values from secrets
-    return configs.map(config => ({
+    const resolvedConfigs = configs.map(config => ({
       ...config,
       sellerId: config.sellerId === 'AMAZON_SELLER_ID' ? process.env.AMAZON_SELLER_ID || config.sellerId : config.sellerId,
       accessToken: config.accessToken === 'AMAZON_ACCESS_TOKEN' ? (process.env.AMAZON_ACCESS_TOKEN || '') : config.accessToken,
@@ -3852,6 +3852,19 @@ export class DatabaseStorage implements IStorage {
       clientId: config.clientId === 'AMAZON_CLIENT_ID' ? (process.env.AMAZON_CLIENT_ID || config.clientId) : config.clientId,
       clientSecret: config.clientSecret === 'AMAZON_CLIENT_SECRET' ? (process.env.AMAZON_CLIENT_SECRET || config.clientSecret) : config.clientSecret
     }));
+    
+    // Log what was resolved (mask sensitive data)
+    resolvedConfigs.forEach(config => {
+      console.log(`🔐 [AMAZON CONFIG] Resolved credentials for ${config.merchantName}:`, {
+        sellerId: config.sellerId ? `${config.sellerId.substring(0, 4)}...` : 'MISSING',
+        hasAccessToken: !!config.accessToken && config.accessToken.length > 10,
+        hasRefreshToken: !!config.refreshToken && config.refreshToken.length > 10,
+        hasClientId: !!config.clientId && config.clientId.length > 10,
+        hasClientSecret: !!config.clientSecret && config.clientSecret.length > 10
+      });
+    });
+    
+    return resolvedConfigs;
   }
 
   async updateAmazonConfig(id: number, config: Partial<InsertAmazonConfig>): Promise<AmazonConfig> {

@@ -106,9 +106,17 @@ export class AmazonIntegration {
         }
       });
 
-      if (response.status === 401) {
-        // Try refreshing token once
-        await this.refreshAccessToken();
+      if (response.status === 401 || response.status === 403) {
+        // Try refreshing token once for 401 (Unauthorized) or 403 (Forbidden)
+        console.log(`⚠️ Amazon API returned ${response.status}, attempting token refresh...`);
+        
+        try {
+          await this.refreshAccessToken();
+          console.log(`✅ Token refreshed successfully, retrying request...`);
+        } catch (refreshError) {
+          console.error(`❌ Token refresh failed:`, refreshError);
+          throw new Error(`Failed to refresh Amazon token: ${refreshError.message}`);
+        }
         
         const retryResponse = await fetch(url, {
           method,
@@ -127,7 +135,7 @@ export class AmazonIntegration {
             statusText: retryResponse.statusText,
             body: errorBody
           });
-          throw new Error(`Amazon API error: ${retryResponse.status} ${retryResponse.statusText}`);
+          throw new Error(`Amazon API error after refresh: ${retryResponse.status} ${retryResponse.statusText}`);
         }
 
         return await retryResponse.json();
