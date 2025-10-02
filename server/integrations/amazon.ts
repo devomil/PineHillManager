@@ -81,12 +81,18 @@ export class AmazonIntegration {
   // Make authenticated API calls to Amazon Seller API
   private async makeAmazonAPICall(endpoint: string, config?: any, method: 'GET' | 'POST' = 'GET'): Promise<any> {
     try {
-      if (!this.config || !this.config.accessToken) {
+      // Check if access token is missing or is a placeholder string
+      const hasValidToken = this.config?.accessToken && 
+                           this.config.accessToken.length > 20 && 
+                           !this.config.accessToken.includes('AMAZON_ACCESS_TOKEN');
+      
+      if (!this.config || !hasValidToken) {
         // Try to refresh token if available
         if (this.config?.refreshToken) {
+          console.log('🔄 [AMAZON TOKEN] Access token missing or invalid, refreshing...');
           await this.refreshAccessToken();
         } else {
-          throw new Error('Amazon not configured');
+          throw new Error('Amazon not configured - no refresh token available');
         }
       }
 
@@ -193,7 +199,21 @@ export class AmazonIntegration {
       params.append('CreatedAfter', startDate);
     }
     if (endDate) {
-      params.append('CreatedBefore', endDate);
+      // Amazon requires CreatedBefore to be at least 2 minutes before current time
+      const now = new Date();
+      const twoMinutesAgo = new Date(now.getTime() - 2 * 60 * 1000);
+      const requestedEndDate = new Date(endDate);
+      
+      // If requested end date is in the future or within 2 minutes, cap it to 2 minutes ago
+      const actualEndDate = requestedEndDate > twoMinutesAgo ? twoMinutesAgo : requestedEndDate;
+      
+      if (actualEndDate < twoMinutesAgo) {
+        console.log(`📅 [AMAZON API] Using CreatedBefore: ${actualEndDate.toISOString()} (requested: ${endDate})`);
+      } else {
+        console.log(`⏰ [AMAZON API] Capping CreatedBefore to 2 minutes ago: ${actualEndDate.toISOString()} (requested: ${endDate})`);
+      }
+      
+      params.append('CreatedBefore', actualEndDate.toISOString());
     }
 
     const endpoint = `/orders/v0/orders?${params.toString()}`;
