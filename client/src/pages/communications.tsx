@@ -1945,10 +1945,10 @@ function CommunicationsContent() {
                         <div className="flex items-start justify-between gap-3">
                           <div className="space-y-1 flex-1 min-w-0">
                             <CardTitle className="text-base sm:text-lg md:text-xl font-semibold text-gray-900 leading-tight">
-                              {announcement.title}
+                              {String(announcement.title)}
                             </CardTitle>
                             {/* Author Information */}
-                            {announcement.authorId && (
+                            {'authorId' in announcement && announcement.authorId && (
                               <div className="flex items-center gap-2 mt-1">
                                 <Avatar className="h-5 w-5 sm:h-6 sm:w-6">
                                   <AvatarFallback className="text-xs bg-blue-100 text-blue-700">
@@ -1987,7 +1987,7 @@ function CommunicationsContent() {
                         </p>
                         
                         {/* Image Gallery */}
-                        {announcement.imageUrls && announcement.imageUrls.length > 0 && (
+                        {'imageUrls' in announcement && announcement.imageUrls && announcement.imageUrls.length > 0 && (
                           <div className="mt-4">
                             <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                               {announcement.imageUrls.map((imageUrl: string, index: number) => (
@@ -2062,10 +2062,10 @@ function CommunicationsContent() {
                           <div className="flex items-start justify-between">
                             <div className="space-y-1">
                               <CardTitle className="text-xl font-semibold text-gray-900">
-                                {announcement.title}
+                                {String(announcement.title)}
                               </CardTitle>
                               {/* Author Information for Expired Announcements */}
-                              {announcement.authorId && (
+                              {'authorId' in announcement && announcement.authorId && (
                                 <div className="flex items-center gap-2 mt-1">
                                   <Avatar className="h-5 w-5 sm:h-6 sm:w-6">
                                     <AvatarFallback className="text-xs bg-gray-200 text-gray-600">
