@@ -1703,23 +1703,6 @@ function CommunicationsContent() {
       </div>
 
       {/* Mobile-First Main Content with Tabs */}
-      {/* 🧪 DIAGNOSTIC TEST BUTTON */}
-      <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg">
-        <h3 className="font-bold text-green-900 mb-2">🔄 Fix Image Display</h3>
-        <Button
-          onClick={async () => {
-            console.log("🔄 CACHE INVALIDATION: Clearing stale cache and forcing fresh fetch");
-            await queryClient.invalidateQueries({ queryKey: ['/api/messages'] });
-            await queryClient.refetchQueries({ queryKey: ['/api/messages'] });
-            alert('✅ Cache cleared! Images should now display. Refresh the page if needed.');
-          }}
-          className="bg-green-600 hover:bg-green-700 text-white"
-        >
-          🔄 Clear Cache & Reload Messages (Click to fix images)
-        </Button>
-        <p className="text-sm text-green-800 mt-2">The backend is working! Click this to clear old cached data and reload with images.</p>
-      </div>
-
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4 md:space-y-6">
         {/* Mobile Dropdown Navigation */}
         <div className="block sm:hidden">
