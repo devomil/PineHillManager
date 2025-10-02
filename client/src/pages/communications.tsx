@@ -2193,7 +2193,7 @@ function CommunicationsContent() {
                           Sent {format(parseISO(message.sentAt), "MMM d, yyyy 'at' h:mm a")}
                         </div>
                         <div className="text-sm text-gray-500">
-                          To: {message.targetAudience === 'all' ? 'All Staff' : 'Selected Recipients'}
+                          To: {formatMessageAudience(message, employees)}
                         </div>
                       </div>
                     </CardContent>
