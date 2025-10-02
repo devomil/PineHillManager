@@ -2967,6 +2967,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         );
         
         const messagesWithImages = enrichedMessages.map(addImageUrlsToItem);
+        
+        // Debug: Log first message to check imageUrls
+        if (messagesWithImages.length > 0) {
+          console.log('📬 First message response:', {
+            subject: messagesWithImages[0].subject,
+            hasImageUrls: !!messagesWithImages[0].imageUrls,
+            imageUrlsLength: messagesWithImages[0].imageUrls?.length || 0,
+            imageUrls: messagesWithImages[0].imageUrls
+          });
+        }
+        
         res.json(messagesWithImages);
       } else {
         const messages = await storage.getMessagesByChannel(channel as string);
