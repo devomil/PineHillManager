@@ -5485,16 +5485,61 @@ export class DatabaseStorage implements IStorage {
         if (order.lineItems && order.lineItems.elements) {
           for (const item of order.lineItems.elements) {
             try {
-              // Try to find inventory item by SKU or ASIN
+              // Try to find inventory item by SKU, ASIN, or name
               let inventoryItem = null;
               
+              // First try SKU lookup
               if (item.sku) {
                 const skuItems = await this.getInventoryItemsBySKU(item.sku);
-                if (skuItems.length > 0) inventoryItem = skuItems[0];
+                if (skuItems.length > 0) {
+                  inventoryItem = skuItems[0];
+                  console.log(`✅ [AMAZON COGS] Found by SKU: ${item.name}`);
+                }
               }
               
+              // Then try ASIN lookup
               if (!inventoryItem && item.asin) {
                 inventoryItem = await this.getInventoryItemByASIN(item.asin);
+                if (inventoryItem) {
+                  console.log(`✅ [AMAZON COGS] Found by ASIN: ${item.name}`);
+                }
+              }
+              
+              // Finally try name-based matching
+              if (!inventoryItem && item.name) {
+                const allInventory = await this.getAllInventoryItems();
+                
+                // Extract key terms from Amazon product name for matching
+                const amazonName = item.name.toUpperCase();
+                
+                // Try exact substring match first
+                inventoryItem = allInventory.find(inv => {
+                  const invName = inv.itemName?.toUpperCase() || '';
+                  return invName.includes('PHF') && amazonName.includes('PHF') && 
+                         (amazonName.includes(invName.replace(/^PHF\s+/, '')) || 
+                          invName.includes(amazonName.replace(/^.*PHF.*?,\s*/, '')));
+                });
+                
+                // If still not found, try more flexible matching
+                if (!inventoryItem) {
+                  // Extract product identifiers like "L-Theanine", "Saw Palmetto", etc.
+                  const productIdentifiers = ['L-THEANINE', 'THEANINE', 'SAW PALMETTO', 'PYGEUM', 
+                                              'SLEEP SUPPORT', 'WELLNESS', 'OMEGA', 'VITAMIN'];
+                  
+                  for (const identifier of productIdentifiers) {
+                    if (amazonName.includes(identifier)) {
+                      inventoryItem = allInventory.find(inv => {
+                        const invName = inv.itemName?.toUpperCase() || '';
+                        return invName.includes(identifier);
+                      });
+                      if (inventoryItem) break;
+                    }
+                  }
+                }
+                
+                if (inventoryItem) {
+                  console.log(`✅ [AMAZON COGS] Found by name match: "${item.name}" → "${inventoryItem.itemName}"`);
+                }
               }
               
               if (inventoryItem) {
@@ -5508,7 +5553,7 @@ export class DatabaseStorage implements IStorage {
                 const itemPrice = (item.price || 0) / 100; // Convert from cents
                 const estimatedCOGS = itemPrice * 0.6;
                 totalCOGS += estimatedCOGS;
-                console.log(`💰 [AMAZON COGS] ${item.name}: Estimated at 60% = $${estimatedCOGS.toFixed(2)}`);
+                console.log(`❌ [AMAZON COGS] ${item.name}: No match found, estimated at 60% = $${estimatedCOGS.toFixed(2)}`);
               }
             } catch (error) {
               console.error(`Error calculating COGS for item ${item.name}:`, error);
