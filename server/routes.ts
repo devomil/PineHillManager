@@ -2948,7 +2948,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!channel) {
         const userId = req.user!.id;
         const messages = await storage.getUserMessages(userId, 50, 0); // Get 50 most recent messages
-        const messagesWithImages = messages.map(addImageUrlsToItem);
+        
+        // Enrich messages with recipients for multi-recipient direct messages
+        const enrichedMessages = await Promise.all(
+          messages.map(async (message) => {
+            const recipients = await storage.getMessageRecipients(message.id);
+            return {
+              ...message,
+              recipients: recipients
+            };
+          })
+        );
+        
+        const messagesWithImages = enrichedMessages.map(addImageUrlsToItem);
         res.json(messagesWithImages);
       } else {
         const messages = await storage.getMessagesByChannel(channel as string);
