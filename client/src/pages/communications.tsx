@@ -149,8 +149,16 @@ const formatAudience = (audience: string) => {
   }
 };
 
-// Function to format audience based on selected employees
+// Function to format audience based on selected employees or recipient
 const formatMessageAudience = (message: any, employees: any[] = []) => {
+  // For direct messages with a recipient_id, show the recipient's name
+  if (message.recipientId) {
+    const recipient = employees?.find(emp => emp.id === message.recipientId);
+    if (recipient) {
+      return `${recipient.firstName} ${recipient.lastName}`;
+    }
+  }
+  
   // Handle different formats of targetEmployees (array, string, or PostgreSQL array format)
   let targetEmployeeIds: string[] = [];
   

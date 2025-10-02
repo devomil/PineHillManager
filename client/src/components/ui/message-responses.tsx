@@ -72,16 +72,24 @@ export function MessageResponses({ messageId, className }: MessageResponsesProps
 
   const numericMessageId = getNumericMessageId(messageId);
 
-  // Fetch responses for this message
+  // Fetch responses for this message (force fresh data with cache busting)
   const { data: rawResponses = [], isLoading, error } = useQuery<ResponseWithAuthor[]>({
     queryKey: ['/api/messages', numericMessageId, 'responses'],
     queryFn: async () => {
-      const response = await apiRequest('GET', `/api/messages/${numericMessageId}/responses`);
+      // Add timestamp to bypass browser cache
+      const response = await fetch(`/api/messages/${numericMessageId}/responses?_t=${Date.now()}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Failed to fetch responses');
       return response.json();
     },
-    staleTime: 0, // No caching - always fresh
-    refetchOnMount: 'always', // Always refetch when component mounts
-    gcTime: 0, // Don't store in cache (React Query v5)
+    staleTime: 0,
+    refetchOnMount: 'always',
+    gcTime: 0,
   });
 
   // Ensure we always have an array
