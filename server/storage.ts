@@ -249,7 +249,8 @@ import {
   type InsertDailySales,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, desc, asc, gte, lte, or, sql, like, isNull, isNotNull, exists, sum, inArray, alias } from "drizzle-orm";
+import { eq, and, desc, asc, gte, lte, or, sql, like, isNull, isNotNull, exists, sum, inArray } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 
 export interface IStorage {
   // User operations - supports both Replit Auth and traditional email/password
