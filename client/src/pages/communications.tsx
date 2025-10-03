@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import UserAvatar from "@/components/user-avatar";
 import { Bell, Calendar, Users, AlertTriangle, Clock, Plus, Send, MessageSquare, BarChart3, Wifi, WifiOff, TrendingUp, Activity, DollarSign, CheckCircle, CalendarCheck, Edit, Trash2, Search, X, Check } from "lucide-react";
 import { LineChart, Line, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { format, isAfter, parseISO } from "date-fns";
@@ -1950,14 +1951,10 @@ function CommunicationsContent() {
                             {/* Author Information */}
                             {'authorId' in announcement && announcement.authorId && (
                               <div className="flex items-center gap-2 mt-1">
-                                <Avatar className="h-5 w-5 sm:h-6 sm:w-6">
-                                  <AvatarFallback className="text-xs bg-blue-100 text-blue-700">
-                                    {(() => {
-                                      const author = employees?.find(emp => emp.id === announcement.authorId);
-                                      return author ? `${author.firstName[0]}${author.lastName[0]}` : '??';
-                                    })()} 
-                                  </AvatarFallback>
-                                </Avatar>
+                                <UserAvatar 
+                                  user={employees?.find(emp => emp.id === announcement.authorId)} 
+                                  size="sm"
+                                />
                                 <span className="text-xs sm:text-sm text-gray-600">
                                   {(() => {
                                     const author = employees?.find(emp => emp.id === announcement.authorId);
@@ -2067,14 +2064,10 @@ function CommunicationsContent() {
                               {/* Author Information for Expired Announcements */}
                               {'authorId' in announcement && announcement.authorId && (
                                 <div className="flex items-center gap-2 mt-1">
-                                  <Avatar className="h-5 w-5 sm:h-6 sm:w-6">
-                                    <AvatarFallback className="text-xs bg-gray-200 text-gray-600">
-                                      {(() => {
-                                        const author = employees?.find(emp => emp.id === announcement.authorId);
-                                        return author ? `${author.firstName[0]}${author.lastName[0]}` : '??';
-                                      })()} 
-                                    </AvatarFallback>
-                                  </Avatar>
+                                  <UserAvatar 
+                                    user={employees?.find(emp => emp.id === announcement.authorId)} 
+                                    size="sm"
+                                  />
                                   <span className="text-xs sm:text-sm text-gray-500">
                                     {(() => {
                                       const author = employees?.find(emp => emp.id === announcement.authorId);
@@ -2174,14 +2167,10 @@ function CommunicationsContent() {
                           {/* Sender Information */}
                           {message.senderId && (
                             <div className="flex items-center gap-2 mt-1">
-                              <Avatar className="h-5 w-5 sm:h-6 sm:w-6">
-                                <AvatarFallback className="text-xs bg-green-100 text-green-700">
-                                  {(() => {
-                                    const sender = employees?.find(emp => emp.id === message.senderId);
-                                    return sender ? `${sender.firstName[0]}${sender.lastName[0]}` : '??';
-                                  })()} 
-                                </AvatarFallback>
-                              </Avatar>
+                              <UserAvatar 
+                                user={employees?.find(emp => emp.id === message.senderId)} 
+                                size="sm"
+                              />
                               <span className="text-xs sm:text-sm text-gray-600">
                                 {(() => {
                                   const sender = employees?.find(emp => emp.id === message.senderId);
