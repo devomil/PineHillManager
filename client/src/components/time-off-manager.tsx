@@ -411,14 +411,20 @@ export default function TimeOffManager() {
                     {request.comments && (
                       <div className="text-sm text-blue-600 bg-blue-50 p-2 rounded">
                         <MessageSquare className="h-3 w-3 inline mr-1" />
-                        <strong>Manager Comments:</strong> {request.comments}
+                        <strong>
+                          {request.reviewer 
+                            ? `${request.reviewer.firstName} ${request.reviewer.lastName} Comments:` 
+                            : 'Manager Comments:'}
+                        </strong> {request.comments}
                       </div>
                     )}
 
                     {request.reviewedAt && (
                       <div className="text-xs text-gray-500 flex items-center gap-1">
                         <Timer className="h-3 w-3" />
-                        Reviewed {format(parseISO(request.reviewedAt), "MMM d, h:mm a")}
+                        Reviewed by {request.reviewer 
+                          ? `${request.reviewer.firstName} ${request.reviewer.lastName}` 
+                          : 'Manager'} on {format(parseISO(request.reviewedAt), "MMM d, h:mm a")}
                       </div>
                     )}
                   </div>
