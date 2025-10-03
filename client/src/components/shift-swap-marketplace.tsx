@@ -262,20 +262,20 @@ export default function ShiftSwapMarketplace() {
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex justify-between items-center"
+        className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4"
       >
         <div>
-          <h1 className="text-3xl font-bold flex items-center gap-2">
-            <Sparkles className="h-8 w-8 text-blue-500" />
+          <h1 className="text-2xl sm:text-3xl font-bold flex items-center gap-2">
+            <Sparkles className="h-6 w-6 sm:h-8 sm:w-8 text-blue-500" />
             Shift Swap Marketplace
           </h1>
-          <p className="text-muted-foreground">
+          <p className="text-sm sm:text-base text-muted-foreground">
             Find coverage for your shifts or pick up extra work
           </p>
         </div>
         <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
           <DialogTrigger asChild>
-            <Button className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700">
+            <Button className="w-full sm:w-auto bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white font-semibold shadow-lg">
               <Plus className="h-4 w-4 mr-2" />
               Post Shift Swap
             </Button>
