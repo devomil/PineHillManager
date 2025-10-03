@@ -1719,6 +1719,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         priority,
         targetAudience: processedAudience,
         targetEmployees: processedTargetEmployees,
+        imageUrls: imageUrls || [],
         isPublished: String(isPublished) === 'true',
         expiresAt: expirationDate,
       });
@@ -11390,6 +11391,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           content: contentWithImages,
           priority,
           messageType,
+          imageUrls: imageUrls || [],
           targetAudience: 'custom',
           smsEnabled,
         });
@@ -11401,6 +11403,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           content: contentWithImages,
           priority,
           messageType,
+          imageUrls: imageUrls || [],
           targetAudience: recipientMode === 'individual' ? 'custom' : targetAudience,
           smsEnabled,
         });
