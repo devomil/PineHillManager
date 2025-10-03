@@ -165,6 +165,16 @@ export default function EnhancedMonthlyScheduler() {
     enabled: !!user
   });
 
+  // Fetch all team schedules (for Team Schedule tab - employees only)
+  const { data: teamSchedules = [] } = useQuery({
+    queryKey: ["/api/work-schedules/team", format(calendarStart, "yyyy-MM-dd"), format(calendarEnd, "yyyy-MM-dd")],
+    queryFn: async () => {
+      const response = await apiRequest("GET", `/api/work-schedules?startDate=${format(calendarStart, "yyyy-MM-dd")}&endDate=${format(calendarEnd, "yyyy-MM-dd")}`);
+      return response.json();
+    },
+    enabled: !!user && user?.role === 'employee'
+  });
+
   // Create schedule mutation
   const createScheduleMutation = useMutation({
     mutationFn: async (data: { userId: string; locationId: number; date: string; startTime: string; endTime: string }) => {
@@ -838,11 +848,17 @@ export default function EnhancedMonthlyScheduler() {
 
       {/* Tabs for Schedule and Shift Swaps */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full max-w-2xl grid-cols-3">
+        <TabsList className={`grid w-full max-w-2xl ${isEmployee ? 'grid-cols-4' : 'grid-cols-3'}`}>
           <TabsTrigger value="schedule" className="flex items-center gap-2">
             <Calendar className="h-4 w-4" />
             Schedule
           </TabsTrigger>
+          {isEmployee && (
+            <TabsTrigger value="team-schedule" className="flex items-center gap-2">
+              <Users2 className="h-4 w-4" />
+              Team Schedule
+            </TabsTrigger>
+          )}
           <TabsTrigger value="shift-swaps" className="flex items-center gap-2">
             <Users2 className="h-4 w-4" />
             Shift Swaps
@@ -1277,6 +1293,160 @@ export default function EnhancedMonthlyScheduler() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+        </TabsContent>
+
+        <TabsContent value="team-schedule" className="space-y-6">
+          {/* Team Schedule View for Employees */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Users2 className="h-5 w-5 text-farm-green" />
+                Team Schedule
+              </CardTitle>
+              <p className="text-sm text-muted-foreground">
+                See who's working where and when across all locations
+              </p>
+            </CardHeader>
+            <CardContent>
+              {/* Month Navigation */}
+              <div className="flex items-center justify-between mb-6">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
+                  className="h-8"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <h3 className="text-lg font-semibold">
+                  {format(currentMonth, "MMMM yyyy")}
+                </h3>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
+                  className="h-8"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+
+              {/* Calendar Grid */}
+              <div className="space-y-4">
+                {/* Weekday Headers */}
+                <div className="grid grid-cols-7 gap-1 text-center text-sm font-medium text-slate-600 mb-2">
+                  {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
+                    <div key={day} className="py-2">{day}</div>
+                  ))}
+                </div>
+
+                {/* Calendar Days */}
+                <div className="grid grid-cols-7 gap-1">
+                  {calendarDays.map((day) => {
+                    const dateStr = format(day, "yyyy-MM-dd");
+                    const daySchedules = teamSchedules.filter((s: WorkSchedule) => s.date === dateStr);
+                    const isCurrentMonth = isSameMonth(day, currentMonth);
+                    const isDayToday = isToday(day);
+                    
+                    return (
+                      <div
+                        key={dateStr}
+                        className={`min-h-[80px] sm:min-h-[100px] p-1 sm:p-2 border rounded-lg transition-colors ${
+                          isDayToday
+                            ? "border-farm-green bg-green-50"
+                            : isCurrentMonth
+                            ? "border-slate-200 bg-white hover:bg-slate-50"
+                            : "border-slate-100 bg-slate-50 opacity-50"
+                        }`}
+                      >
+                        {/* Day Number */}
+                        <div className={`text-xs sm:text-sm font-medium mb-1 ${
+                          isDayToday ? "text-farm-green" : isCurrentMonth ? "text-slate-900" : "text-slate-400"
+                        }`}>
+                          {format(day, "d")}
+                        </div>
+
+                        {/* Schedules for this day */}
+                        {isCurrentMonth && daySchedules.length > 0 && (
+                          <div className="space-y-1">
+                            {daySchedules.slice(0, 2).map((schedule: WorkSchedule, idx: number) => {
+                              const employee = employees.find((emp: UserType) => emp.id === schedule.userId);
+                              const location = locations.find((loc: Location) => loc.id === schedule.locationId);
+                              
+                              return (
+                                <div
+                                  key={idx}
+                                  className="text-[10px] sm:text-xs p-1 rounded"
+                                  style={{ 
+                                    backgroundColor: `${employee?.displayColor || '#3b82f6'}20`,
+                                    borderLeft: `3px solid ${employee?.displayColor || '#3b82f6'}`
+                                  }}
+                                  title={`${employee?.firstName || ''} ${employee?.lastName || ''} - ${location?.name || ''}\n${formatTime(schedule.startTime)} - ${formatTime(schedule.endTime)}`}
+                                >
+                                  <div className="font-medium truncate">
+                                    {employee?.firstName || 'Unknown'}
+                                  </div>
+                                  <div className="text-[9px] sm:text-[10px] text-slate-600 truncate">
+                                    {getLocationAbbreviation(schedule.locationId)}
+                                  </div>
+                                  <div className="text-[9px] sm:text-[10px] text-slate-500 hidden sm:block">
+                                    {formatCompactTime(schedule.startTime)}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                            {daySchedules.length > 2 && (
+                              <div className="text-[10px] text-slate-500 text-center">
+                                +{daySchedules.length - 2} more
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Legend */}
+                <div className="mt-6 pt-4 border-t">
+                  <h4 className="text-sm font-semibold mb-3">Team Members</h4>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                    {employees
+                      .filter((emp: UserType) => emp.isActive)
+                      .sort((a: UserType, b: UserType) => a.firstName.localeCompare(b.firstName))
+                      .map((employee: UserType) => (
+                        <div key={employee.id} className="flex items-center gap-2">
+                          <div
+                            className="w-3 h-3 rounded-full"
+                            style={{ backgroundColor: employee.displayColor || '#3b82f6' }}
+                          />
+                          <span className="text-xs sm:text-sm truncate">
+                            {employee.firstName} {employee.lastName}
+                          </span>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+
+                {/* Location Legend */}
+                <div className="mt-4 pt-4 border-t">
+                  <h4 className="text-sm font-semibold mb-3">Location Codes</h4>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {locations.map((location: Location) => (
+                      <div key={location.id} className="flex items-center gap-2">
+                        <MapPin className="h-3 w-3 text-slate-400" />
+                        <span className="text-xs sm:text-sm">
+                          <span className="font-medium">{getLocationAbbreviation(location.id)}</span>
+                          {' - '}
+                          <span className="text-slate-600">{location.name}</span>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="shift-swaps" className="space-y-6">
