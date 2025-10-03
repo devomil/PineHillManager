@@ -62,6 +62,28 @@ export default function HomeDashboard() {
               </div>
             </div>
             
+            {/* Mobile Profile Button - Only visible on small screens */}
+            <div className="md:hidden">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" className="flex items-center space-x-2 hover:bg-gray-50" data-testid="button-mobile-profile">
+                    <UserAvatar user={user} size="md" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuItem onClick={() => window.location.href = '/profile'} className="cursor-pointer">
+                    <User className="mr-2 h-4 w-4" />
+                    Profile & Settings
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => logoutMutation.mutate()} className="cursor-pointer text-red-600 hover:text-red-700 hover:bg-red-50">
+                    <LogOut className="mr-2 h-4 w-4" />
+                    Sign Out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+            
             <nav className="hidden md:flex space-x-8">
               <Link href="/dashboard">
                 <Button variant="default" className="bg-green-600 hover:bg-green-700">
