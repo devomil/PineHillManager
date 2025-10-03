@@ -1628,8 +1628,8 @@ export default function EnhancedMonthlyScheduler() {
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* Horizontal Week View */}
-              <div className="flex justify-between gap-2 overflow-x-auto pb-2">
+              {/* Horizontal Week View - Desktop Only */}
+              <div className="hidden md:flex justify-between gap-2 overflow-x-auto pb-2">
                 {[...Array(7)].map((_, index) => {
                   const day = addDays(teamWeekStart, index);
                   const dateStr = format(day, "yyyy-MM-dd");
@@ -1670,14 +1670,68 @@ export default function EnhancedMonthlyScheduler() {
                 })}
               </div>
 
-              {/* Selected Day Header */}
+              {/* Selected Day Header with Mobile Navigation */}
               <div className="pt-2 border-t">
-                <h3 className="text-sm font-semibold text-slate-900 mb-1">
-                  {format(selectedTeamDay, "EEEE")}
-                </h3>
-                <p className="text-2xl font-bold text-farm-green mb-4">
-                  {format(selectedTeamDay, "d")}
-                </p>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex-1">
+                    <h3 className="text-sm font-semibold text-slate-900 mb-1">
+                      {format(selectedTeamDay, "EEEE")}
+                    </h3>
+                    <p className="text-2xl font-bold text-farm-green">
+                      {format(selectedTeamDay, "d")}
+                    </p>
+                  </div>
+                  
+                  {/* Mobile Day Navigation Buttons */}
+                  <div className="flex gap-2 md:hidden">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const newDay = addDays(selectedTeamDay, -1);
+                        setSelectedTeamDay(newDay);
+                        const weekStart = startOfWeek(newDay, { weekStartsOn: 0 });
+                        if (!isSameDay(weekStart, teamWeekStart)) {
+                          setTeamWeekStart(weekStart);
+                        }
+                      }}
+                      className="h-10 w-10 p-0"
+                      data-testid="button-previous-day"
+                    >
+                      <ChevronLeft className="h-5 w-5" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const today = new Date();
+                        setSelectedTeamDay(today);
+                        const weekStart = startOfWeek(today, { weekStartsOn: 0 });
+                        setTeamWeekStart(weekStart);
+                      }}
+                      className="px-3 h-10"
+                      data-testid="button-today"
+                    >
+                      Today
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const newDay = addDays(selectedTeamDay, 1);
+                        setSelectedTeamDay(newDay);
+                        const weekStart = startOfWeek(newDay, { weekStartsOn: 0 });
+                        if (!isSameDay(weekStart, teamWeekStart)) {
+                          setTeamWeekStart(weekStart);
+                        }
+                      }}
+                      className="h-10 w-10 p-0"
+                      data-testid="button-next-day"
+                    >
+                      <ChevronRight className="h-5 w-5" />
+                    </Button>
+                  </div>
+                </div>
               </div>
 
               {/* Employee List for Selected Day */}
