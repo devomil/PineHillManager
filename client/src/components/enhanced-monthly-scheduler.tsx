@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -115,6 +115,12 @@ export default function EnhancedMonthlyScheduler() {
   // Schedule View State (for employees)
   const [showCalendarView, setShowCalendarView] = useState(false);
 
+  // Team Schedule Scroll Detection
+  const teamScheduleScrollRef = useRef<HTMLDivElement>(null);
+  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastScrollYRef = useRef<number>(0);
+  const touchStartYRef = useRef<number>(0);
+
   // Calculate calendar dates
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(currentMonth);
@@ -184,6 +190,85 @@ export default function EnhancedMonthlyScheduler() {
     },
     enabled: !!user && user?.role === 'employee'
   });
+
+  // Team Schedule Scroll Navigation
+  useEffect(() => {
+    const scrollContainer = teamScheduleScrollRef.current;
+    if (!scrollContainer || activeTab !== 'team-schedule') return;
+
+    const handleDayNavigation = (direction: 'next' | 'prev') => {
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+      }
+
+      scrollTimeoutRef.current = setTimeout(() => {
+        const newDay = direction === 'next' 
+          ? addDays(selectedTeamDay, 1) 
+          : addDays(selectedTeamDay, -1);
+        
+        setSelectedTeamDay(newDay);
+        
+        // Update week if we've scrolled outside current week
+        const weekStart = startOfWeek(newDay, { weekStartsOn: 0 });
+        if (!isSameDay(weekStart, teamWeekStart)) {
+          setTeamWeekStart(weekStart);
+        }
+      }, 150);
+    };
+
+    // Handle wheel scroll (desktop)
+    const handleWheel = (e: WheelEvent) => {
+      const currentScroll = scrollContainer.scrollTop;
+      const maxScroll = scrollContainer.scrollHeight - scrollContainer.clientHeight;
+      
+      // Check if we're at the top or bottom and trying to scroll further
+      if (e.deltaY > 0 && currentScroll >= maxScroll - 5) {
+        // Scrolling down at bottom - go to next day
+        e.preventDefault();
+        handleDayNavigation('next');
+      } else if (e.deltaY < 0 && currentScroll <= 5) {
+        // Scrolling up at top - go to previous day
+        e.preventDefault();
+        handleDayNavigation('prev');
+      }
+    };
+
+    // Handle touch scroll (mobile)
+    const handleTouchStart = (e: TouchEvent) => {
+      touchStartYRef.current = e.touches[0].clientY;
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      const currentScroll = scrollContainer.scrollTop;
+      const maxScroll = scrollContainer.scrollHeight - scrollContainer.clientHeight;
+      const touchY = e.touches[0].clientY;
+      const touchDelta = touchStartYRef.current - touchY;
+
+      // Swiping up (scrolling down) at bottom
+      if (touchDelta > 0 && currentScroll >= maxScroll - 5) {
+        e.preventDefault();
+        handleDayNavigation('next');
+      } 
+      // Swiping down (scrolling up) at top
+      else if (touchDelta < 0 && currentScroll <= 5) {
+        e.preventDefault();
+        handleDayNavigation('prev');
+      }
+    };
+
+    scrollContainer.addEventListener('wheel', handleWheel, { passive: false });
+    scrollContainer.addEventListener('touchstart', handleTouchStart, { passive: true });
+    scrollContainer.addEventListener('touchmove', handleTouchMove, { passive: false });
+
+    return () => {
+      scrollContainer.removeEventListener('wheel', handleWheel);
+      scrollContainer.removeEventListener('touchstart', handleTouchStart);
+      scrollContainer.removeEventListener('touchmove', handleTouchMove);
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+      }
+    };
+  }, [selectedTeamDay, teamWeekStart, activeTab]);
 
   // Create schedule mutation
   const createScheduleMutation = useMutation({
@@ -1531,7 +1616,7 @@ export default function EnhancedMonthlyScheduler() {
               </div>
 
               {/* Employee List for Selected Day */}
-              <div className="space-y-3 max-h-[500px] overflow-y-auto">
+              <div ref={teamScheduleScrollRef} className="space-y-3 max-h-[500px] overflow-y-auto">
                 {(() => {
                   const dateStr = format(selectedTeamDay, "yyyy-MM-dd");
                   const daySchedules = teamSchedules.filter((s: WorkSchedule) => s.date === dateStr);
