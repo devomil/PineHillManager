@@ -10,11 +10,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { User, Edit, Save, X, Phone, MapPin, Building, Calendar, User2, AlertTriangle, MessageSquare } from "lucide-react";
+import { User, Edit, Save, X, Phone, MapPin, Building, Calendar, User2, AlertTriangle, MessageSquare, Camera } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { format } from "date-fns";
 import type { User as UserType } from "@shared/schema";
+import AvatarCustomization from "@/components/avatar-customization";
+import UserAvatar from "@/components/user-avatar";
 
 const profileSchema = z.object({
   firstName: z.string().min(1, "First name is required"),
@@ -41,6 +43,7 @@ export default function UserProfile() {
   const [smsConsent, setSmsConsent] = useState(false);
   const [smsEnabled, setSmsEnabled] = useState(true);
   const [smsNotificationTypes, setSmsNotificationTypes] = useState<string[]>(['emergency']);
+  const [isAvatarDialogOpen, setIsAvatarDialogOpen] = useState(false);
   const { toast } = useToast();
 
   const { data: user, isLoading, refetch, error } = useQuery<UserType>({
@@ -202,16 +205,19 @@ export default function UserProfile() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
           <div className="flex items-center space-x-4">
-            <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center">
-              {user?.profileImageUrl ? (
-                <img
-                  src={user.profileImageUrl}
-                  alt="Profile"
-                  className="w-16 h-16 rounded-full object-cover"
-                />
-              ) : (
-                <User className="w-8 h-8 text-slate-500" />
-              )}
+            <div className="relative group">
+              <UserAvatar 
+                user={user} 
+                size="lg"
+                className="w-16 h-16"
+              />
+              <button
+                onClick={() => setIsAvatarDialogOpen(true)}
+                className="absolute inset-0 rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                data-testid="button-edit-avatar"
+              >
+                <Camera className="w-6 h-6 text-white" />
+              </button>
             </div>
             <div>
               <h2 className="text-xl font-semibold text-slate-900">
@@ -609,6 +615,16 @@ export default function UserProfile() {
           </div>
         )}
       </form>
+
+      {/* Avatar Customization Dialog */}
+      <AvatarCustomization
+        isOpen={isAvatarDialogOpen}
+        onClose={() => {
+          setIsAvatarDialogOpen(false);
+          refetch(); // Refetch user data to update avatar
+        }}
+        currentAvatarUrl={user?.profileImageUrl || undefined}
+      />
     </div>
   );
 }

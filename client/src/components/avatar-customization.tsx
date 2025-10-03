@@ -176,10 +176,10 @@ export default function AvatarCustomization({ isOpen, onClose, currentAvatarUrl 
       const formData = new FormData();
       formData.append('avatar', croppedImageBlob, 'avatar.jpg');
 
-      const response = await apiRequest('POST', '/api/user/avatar', formData, {
-        headers: {
-          // Let browser set Content-Type with boundary for FormData
-        },
+      const response = await fetch('/api/user/avatar', {
+        method: 'POST',
+        credentials: 'include',
+        body: formData,
       });
 
       if (response.ok) {
