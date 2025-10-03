@@ -21,8 +21,6 @@ import {
   Edit, 
   ChevronLeft, 
   ChevronRight,
-  ChevronUp,
-  ChevronDown,
   FileText, 
   Download,
   StickyNote,
@@ -118,11 +116,8 @@ export default function EnhancedMonthlyScheduler() {
   // Schedule View State (for employees)
   const [showCalendarView, setShowCalendarView] = useState(false);
 
-  // Team Schedule Scroll Detection
+  // Team Schedule Scroll Reference
   const teamScheduleScrollRef = useRef<HTMLDivElement>(null);
-  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const lastScrollYRef = useRef<number>(0);
-  const touchStartYRef = useRef<number>(0);
 
   // Calculate calendar dates
   const monthStart = startOfMonth(currentMonth);
@@ -194,107 +189,6 @@ export default function EnhancedMonthlyScheduler() {
     enabled: !!user && user?.role === 'employee'
   });
 
-  // Team Schedule Scroll Navigation
-  useEffect(() => {
-    const scrollContainer = teamScheduleScrollRef.current;
-    if (!scrollContainer || activeTab !== 'team-schedule') return;
-
-    const handleDayNavigation = (direction: 'next' | 'prev') => {
-      if (scrollTimeoutRef.current) {
-        clearTimeout(scrollTimeoutRef.current);
-      }
-
-      scrollTimeoutRef.current = setTimeout(() => {
-        const newDay = direction === 'next' 
-          ? addDays(selectedTeamDay, 1) 
-          : addDays(selectedTeamDay, -1);
-        
-        setSelectedTeamDay(newDay);
-        
-        // Update week if we've scrolled outside current week
-        const weekStart = startOfWeek(newDay, { weekStartsOn: 0 });
-        if (!isSameDay(weekStart, teamWeekStart)) {
-          setTeamWeekStart(weekStart);
-        }
-      }, 150);
-    };
-
-    // Handle wheel scroll (desktop)
-    const handleWheel = (e: WheelEvent) => {
-      const currentScroll = scrollContainer.scrollTop;
-      const maxScroll = scrollContainer.scrollHeight - scrollContainer.clientHeight;
-      
-      // Check if we're at the top or bottom and trying to scroll further
-      if (e.deltaY > 0 && currentScroll >= maxScroll - 5) {
-        // Scrolling down at bottom - go to next day
-        e.preventDefault();
-        handleDayNavigation('next');
-      } else if (e.deltaY < 0 && currentScroll <= 5) {
-        // Scrolling up at top - go to previous day
-        e.preventDefault();
-        handleDayNavigation('prev');
-      }
-    };
-
-    // Handle touch scroll (mobile) - More aggressive swipe detection
-    let touchStartTime = 0;
-    const handleTouchStart = (e: TouchEvent) => {
-      touchStartYRef.current = e.touches[0].clientY;
-      touchStartTime = Date.now();
-    };
-
-    const handleTouchMove = (e: TouchEvent) => {
-      const currentScroll = scrollContainer.scrollTop;
-      const maxScroll = scrollContainer.scrollHeight - scrollContainer.clientHeight;
-      const touchY = e.touches[0].clientY;
-      const touchDelta = touchStartYRef.current - touchY;
-      const touchTime = Date.now() - touchStartTime;
-      
-      // Quick swipe detection (within 300ms and moved more than 50px)
-      const isQuickSwipe = touchTime < 300 && Math.abs(touchDelta) > 50;
-      
-      if (isQuickSwipe) {
-        // Quick swipe up = next day
-        if (touchDelta > 50 && currentScroll >= maxScroll - 10) {
-          e.preventDefault();
-          handleDayNavigation('next');
-          touchStartTime = Date.now() + 1000; // Prevent multiple triggers
-        }
-        // Quick swipe down = previous day  
-        else if (touchDelta < -50 && currentScroll <= 10) {
-          e.preventDefault();
-          handleDayNavigation('prev');
-          touchStartTime = Date.now() + 1000; // Prevent multiple triggers
-        }
-      }
-      // Regular scroll-based navigation (at edges)
-      else {
-        // Swiping up (scrolling down) at bottom
-        if (touchDelta > 0 && currentScroll >= maxScroll - 5) {
-          e.preventDefault();
-          handleDayNavigation('next');
-        } 
-        // Swiping down (scrolling up) at top
-        else if (touchDelta < 0 && currentScroll <= 5) {
-          e.preventDefault();
-          handleDayNavigation('prev');
-        }
-      }
-    };
-
-    scrollContainer.addEventListener('wheel', handleWheel, { passive: false });
-    scrollContainer.addEventListener('touchstart', handleTouchStart, { passive: true });
-    scrollContainer.addEventListener('touchmove', handleTouchMove, { passive: false });
-
-    return () => {
-      scrollContainer.removeEventListener('wheel', handleWheel);
-      scrollContainer.removeEventListener('touchstart', handleTouchStart);
-      scrollContainer.removeEventListener('touchmove', handleTouchMove);
-      if (scrollTimeoutRef.current) {
-        clearTimeout(scrollTimeoutRef.current);
-      }
-    };
-  }, [selectedTeamDay, teamWeekStart, activeTab]);
 
   // Create schedule mutation
   const createScheduleMutation = useMutation({
@@ -1695,26 +1589,52 @@ export default function EnhancedMonthlyScheduler() {
                 })}
               </div>
 
-              {/* Selected Day Header - Centered on Mobile */}
+              {/* Selected Day Header with Navigation */}
               <div className="pt-2 border-t">
-                <div className="text-center md:text-left mb-4">
-                  <h3 className="text-sm font-semibold text-slate-900 mb-1">
-                    {format(selectedTeamDay, "EEEE")}
-                  </h3>
-                  <p className="text-2xl font-bold text-farm-green">
-                    {format(selectedTeamDay, "d")}
-                  </p>
-                  {/* Swipe hint for mobile */}
-                  <p className="text-xs text-slate-400 mt-2 md:hidden flex items-center justify-center gap-1">
-                    <ChevronUp className="h-3 w-3" />
-                    Swipe up or down to change days
-                    <ChevronDown className="h-3 w-3" />
-                  </p>
+                <div className="flex items-center justify-between mb-4">
+                  <button
+                    onClick={() => {
+                      const newDay = addDays(selectedTeamDay, -1);
+                      setSelectedTeamDay(newDay);
+                      const weekStart = startOfWeek(newDay, { weekStartsOn: 0 });
+                      if (!isSameDay(weekStart, teamWeekStart)) {
+                        setTeamWeekStart(weekStart);
+                      }
+                    }}
+                    className="p-2 hover:bg-slate-100 rounded-full transition-colors"
+                    data-testid="button-previous-day"
+                  >
+                    <ChevronLeft className="h-5 w-5 text-slate-600" />
+                  </button>
+                  
+                  <div className="text-center">
+                    <h3 className="text-sm font-semibold text-slate-900 mb-1">
+                      {format(selectedTeamDay, "EEEE")}
+                    </h3>
+                    <p className="text-2xl font-bold text-farm-green">
+                      {format(selectedTeamDay, "d")}
+                    </p>
+                  </div>
+                  
+                  <button
+                    onClick={() => {
+                      const newDay = addDays(selectedTeamDay, 1);
+                      setSelectedTeamDay(newDay);
+                      const weekStart = startOfWeek(newDay, { weekStartsOn: 0 });
+                      if (!isSameDay(weekStart, teamWeekStart)) {
+                        setTeamWeekStart(weekStart);
+                      }
+                    }}
+                    className="p-2 hover:bg-slate-100 rounded-full transition-colors"
+                    data-testid="button-next-day"
+                  >
+                    <ChevronRight className="h-5 w-5 text-slate-600" />
+                  </button>
                 </div>
               </div>
 
               {/* Employee List for Selected Day */}
-              <div ref={teamScheduleScrollRef} className="space-y-3 max-h-[500px] md:max-h-[600px] overflow-y-auto touch-pan-y">
+              <div ref={teamScheduleScrollRef} className="space-y-3 max-h-[500px] md:max-h-[600px] overflow-y-auto">
                 {(() => {
                   const dateStr = format(selectedTeamDay, "yyyy-MM-dd");
                   const daySchedules = teamSchedules.filter((s: WorkSchedule) => s.date === dateStr);
