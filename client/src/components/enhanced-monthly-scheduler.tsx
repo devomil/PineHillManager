@@ -46,7 +46,10 @@ import {
   isSameMonth,
   isToday,
   parseISO,
-  isSameDay 
+  isSameDay,
+  addDays,
+  addWeeks,
+  subWeeks
 } from "date-fns";
 import type { WorkSchedule, User as UserType, Location, CalendarNote } from "@shared/schema";
 import ShiftSwapMarketplace from "./shift-swap-marketplace";
@@ -104,6 +107,10 @@ export default function EnhancedMonthlyScheduler() {
   
   // SMS Control State
   const [showSMSSummaryOption, setShowSMSSummaryOption] = useState(false);
+  
+  // Team Schedule State
+  const [selectedTeamDay, setSelectedTeamDay] = useState<Date>(new Date());
+  const [teamWeekStart, setTeamWeekStart] = useState<Date>(startOfWeek(new Date(), { weekStartsOn: 0 }));
 
   // Calculate calendar dates
   const monthStart = startOfMonth(currentMonth);
@@ -1295,155 +1302,152 @@ export default function EnhancedMonthlyScheduler() {
       </Dialog>
         </TabsContent>
 
-        <TabsContent value="team-schedule" className="space-y-6">
-          {/* Team Schedule View for Employees */}
+        <TabsContent value="team-schedule" className="space-y-4">
+          {/* Team Schedule View for Employees - List Design */}
           <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Users2 className="h-5 w-5 text-farm-green" />
-                Team Schedule
-              </CardTitle>
-              <p className="text-sm text-muted-foreground">
-                See who's working where and when across all locations
-              </p>
+            <CardHeader className="pb-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-lg font-semibold">
+                    {format(teamWeekStart, "MMMM yyyy")}
+                  </CardTitle>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const newWeekStart = subWeeks(teamWeekStart, 1);
+                      setTeamWeekStart(newWeekStart);
+                      setSelectedTeamDay(newWeekStart);
+                    }}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const newWeekStart = addWeeks(teamWeekStart, 1);
+                      setTeamWeekStart(newWeekStart);
+                      setSelectedTeamDay(newWeekStart);
+                    }}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
             </CardHeader>
-            <CardContent>
-              {/* Month Navigation */}
-              <div className="flex items-center justify-between mb-6">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
-                  className="h-8"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <h3 className="text-lg font-semibold">
-                  {format(currentMonth, "MMMM yyyy")}
-                </h3>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
-                  className="h-8"
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
+            <CardContent className="space-y-4">
+              {/* Horizontal Week View */}
+              <div className="flex justify-between gap-2 overflow-x-auto pb-2">
+                {[...Array(7)].map((_, index) => {
+                  const day = addDays(teamWeekStart, index);
+                  const dateStr = format(day, "yyyy-MM-dd");
+                  const daySchedules = teamSchedules.filter((s: WorkSchedule) => s.date === dateStr);
+                  const isDayToday = isToday(day);
+                  const isSelected = isSameDay(day, selectedTeamDay);
+                  const hasSchedules = daySchedules.length > 0;
+                  
+                  return (
+                    <button
+                      key={index}
+                      onClick={() => setSelectedTeamDay(day)}
+                      className={`flex-1 min-w-[70px] p-3 rounded-lg border transition-all ${
+                        isSelected
+                          ? "bg-farm-green text-white border-farm-green shadow-md"
+                          : isDayToday
+                          ? "border-farm-green bg-green-50 text-farm-green"
+                          : "border-slate-200 hover:bg-slate-50"
+                      }`}
+                    >
+                      <div className={`text-xs font-medium mb-1 ${
+                        isSelected ? "text-white" : "text-slate-600"
+                      }`}>
+                        {format(day, "EEE")}
+                      </div>
+                      <div className={`text-2xl font-bold ${
+                        isSelected ? "text-white" : isDayToday ? "text-farm-green" : "text-slate-900"
+                      }`}>
+                        {format(day, "d")}
+                      </div>
+                      {hasSchedules && !isSelected && (
+                        <div className="flex justify-center mt-1">
+                          <div className="w-1 h-1 rounded-full bg-farm-green"></div>
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
 
-              {/* Calendar Grid */}
-              <div className="space-y-4">
-                {/* Weekday Headers */}
-                <div className="grid grid-cols-7 gap-1 text-center text-sm font-medium text-slate-600 mb-2">
-                  {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
-                    <div key={day} className="py-2">{day}</div>
-                  ))}
-                </div>
+              {/* Selected Day Header */}
+              <div className="pt-2 border-t">
+                <h3 className="text-sm font-semibold text-slate-900 mb-1">
+                  {format(selectedTeamDay, "EEEE")}
+                </h3>
+                <p className="text-2xl font-bold text-farm-green mb-4">
+                  {format(selectedTeamDay, "d")}
+                </p>
+              </div>
 
-                {/* Calendar Days */}
-                <div className="grid grid-cols-7 gap-1">
-                  {calendarDays.map((day) => {
-                    const dateStr = format(day, "yyyy-MM-dd");
-                    const daySchedules = teamSchedules.filter((s: WorkSchedule) => s.date === dateStr);
-                    const isCurrentMonth = isSameMonth(day, currentMonth);
-                    const isDayToday = isToday(day);
+              {/* Employee List for Selected Day */}
+              <div className="space-y-3 max-h-[500px] overflow-y-auto">
+                {(() => {
+                  const dateStr = format(selectedTeamDay, "yyyy-MM-dd");
+                  const daySchedules = teamSchedules.filter((s: WorkSchedule) => s.date === dateStr);
+                  
+                  if (daySchedules.length === 0) {
+                    return (
+                      <div className="text-center py-8 text-slate-400">
+                        <Users2 className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                        <p>No team members scheduled for this day</p>
+                      </div>
+                    );
+                  }
+                  
+                  return daySchedules.map((schedule: WorkSchedule, idx: number) => {
+                    const employee = employees.find((emp: UserType) => emp.id === schedule.userId);
+                    const location = locations.find((loc: Location) => loc.id === schedule.locationId);
+                    const initials = employee 
+                      ? `${employee.firstName.charAt(0)}${employee.lastName.charAt(0)}`
+                      : "?";
                     
                     return (
                       <div
-                        key={dateStr}
-                        className={`min-h-[80px] sm:min-h-[100px] p-1 sm:p-2 border rounded-lg transition-colors ${
-                          isDayToday
-                            ? "border-farm-green bg-green-50"
-                            : isCurrentMonth
-                            ? "border-slate-200 bg-white hover:bg-slate-50"
-                            : "border-slate-100 bg-slate-50 opacity-50"
-                        }`}
+                        key={idx}
+                        className="flex items-center gap-3 p-3 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors"
                       >
-                        {/* Day Number */}
-                        <div className={`text-xs sm:text-sm font-medium mb-1 ${
-                          isDayToday ? "text-farm-green" : isCurrentMonth ? "text-slate-900" : "text-slate-400"
-                        }`}>
-                          {format(day, "d")}
+                        {/* Avatar */}
+                        <div
+                          className="w-12 h-12 rounded-full flex items-center justify-center text-white font-semibold"
+                          style={{ backgroundColor: employee?.displayColor || '#3b82f6' }}
+                        >
+                          {initials}
                         </div>
-
-                        {/* Schedules for this day */}
-                        {isCurrentMonth && daySchedules.length > 0 && (
-                          <div className="space-y-1">
-                            {daySchedules.slice(0, 2).map((schedule: WorkSchedule, idx: number) => {
-                              const employee = employees.find((emp: UserType) => emp.id === schedule.userId);
-                              const location = locations.find((loc: Location) => loc.id === schedule.locationId);
-                              
-                              return (
-                                <div
-                                  key={idx}
-                                  className="text-[10px] sm:text-xs p-1 rounded"
-                                  style={{ 
-                                    backgroundColor: `${employee?.displayColor || '#3b82f6'}20`,
-                                    borderLeft: `3px solid ${employee?.displayColor || '#3b82f6'}`
-                                  }}
-                                  title={`${employee?.firstName || ''} ${employee?.lastName || ''} - ${location?.name || ''}\n${formatTime(schedule.startTime)} - ${formatTime(schedule.endTime)}`}
-                                >
-                                  <div className="font-medium truncate">
-                                    {employee?.firstName || 'Unknown'}
-                                  </div>
-                                  <div className="text-[9px] sm:text-[10px] text-slate-600 truncate">
-                                    {getLocationAbbreviation(schedule.locationId)}
-                                  </div>
-                                  <div className="text-[9px] sm:text-[10px] text-slate-500 hidden sm:block">
-                                    {formatCompactTime(schedule.startTime)}
-                                  </div>
-                                </div>
-                              );
-                            })}
-                            {daySchedules.length > 2 && (
-                              <div className="text-[10px] text-slate-500 text-center">
-                                +{daySchedules.length - 2} more
-                              </div>
-                            )}
+                        
+                        {/* Employee Info */}
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-semibold text-slate-900 truncate">
+                            {employee?.firstName || 'Unknown'} {employee?.lastName || ''}
+                          </h4>
+                          <p className="text-sm text-slate-600">
+                            {formatTime(schedule.startTime)} – {formatTime(schedule.endTime)}
+                          </p>
+                          <div className="flex items-center gap-1 mt-1">
+                            <div
+                              className="w-2 h-2 rounded-full"
+                              style={{ backgroundColor: employee?.displayColor || '#3b82f6' }}
+                            />
+                            <span className="text-xs text-slate-500">
+                              {location?.name || 'Unknown Location'}
+                            </span>
                           </div>
-                        )}
+                        </div>
                       </div>
                     );
-                  })}
-                </div>
-
-                {/* Legend */}
-                <div className="mt-6 pt-4 border-t">
-                  <h4 className="text-sm font-semibold mb-3">Team Members</h4>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-                    {employees
-                      .filter((emp: UserType) => emp.isActive)
-                      .sort((a: UserType, b: UserType) => a.firstName.localeCompare(b.firstName))
-                      .map((employee: UserType) => (
-                        <div key={employee.id} className="flex items-center gap-2">
-                          <div
-                            className="w-3 h-3 rounded-full"
-                            style={{ backgroundColor: employee.displayColor || '#3b82f6' }}
-                          />
-                          <span className="text-xs sm:text-sm truncate">
-                            {employee.firstName} {employee.lastName}
-                          </span>
-                        </div>
-                      ))}
-                  </div>
-                </div>
-
-                {/* Location Legend */}
-                <div className="mt-4 pt-4 border-t">
-                  <h4 className="text-sm font-semibold mb-3">Location Codes</h4>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    {locations.map((location: Location) => (
-                      <div key={location.id} className="flex items-center gap-2">
-                        <MapPin className="h-3 w-3 text-slate-400" />
-                        <span className="text-xs sm:text-sm">
-                          <span className="font-medium">{getLocationAbbreviation(location.id)}</span>
-                          {' - '}
-                          <span className="text-slate-600">{location.name}</span>
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                  });
+                })()}
               </div>
             </CardContent>
           </Card>
