@@ -40,6 +40,7 @@ interface ResponseWithAuthor extends Response {
     firstName: string;
     lastName: string;
     role: string;
+    profileImageUrl: string | null;
   };
 }
 
