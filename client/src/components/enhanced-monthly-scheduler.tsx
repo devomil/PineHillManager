@@ -943,7 +943,70 @@ export default function EnhancedMonthlyScheduler() {
 
       {/* Tabs for Schedule and Shift Swaps */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className={`grid w-full max-w-2xl ${isEmployee ? 'grid-cols-4' : 'grid-cols-3'}`}>
+        {/* Mobile Dropdown Navigation */}
+        <div className="md:hidden">
+          <Select value={activeTab} onValueChange={setActiveTab}>
+            <SelectTrigger className="w-full">
+              <SelectValue>
+                {activeTab === 'schedule' && (
+                  <div className="flex items-center gap-2">
+                    <Calendar className="h-4 w-4" />
+                    Schedule
+                  </div>
+                )}
+                {activeTab === 'team-schedule' && (
+                  <div className="flex items-center gap-2">
+                    <Users2 className="h-4 w-4" />
+                    Team Schedule
+                  </div>
+                )}
+                {activeTab === 'shift-swaps' && (
+                  <div className="flex items-center gap-2">
+                    <Users2 className="h-4 w-4" />
+                    Shift Swaps
+                  </div>
+                )}
+                {activeTab === 'time-off' && (
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-4 w-4" />
+                    Time Off
+                  </div>
+                )}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="schedule">
+                <div className="flex items-center gap-2">
+                  <Calendar className="h-4 w-4" />
+                  Schedule
+                </div>
+              </SelectItem>
+              {isEmployee && (
+                <SelectItem value="team-schedule">
+                  <div className="flex items-center gap-2">
+                    <Users2 className="h-4 w-4" />
+                    Team Schedule
+                  </div>
+                </SelectItem>
+              )}
+              <SelectItem value="shift-swaps">
+                <div className="flex items-center gap-2">
+                  <Users2 className="h-4 w-4" />
+                  Shift Swaps
+                </div>
+              </SelectItem>
+              <SelectItem value="time-off">
+                <div className="flex items-center gap-2">
+                  <Clock className="h-4 w-4" />
+                  Time Off
+                </div>
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Desktop Tab Navigation */}
+        <TabsList className={`hidden md:grid w-full max-w-2xl ${isEmployee ? 'grid-cols-4' : 'grid-cols-3'}`}>
           <TabsTrigger value="schedule" className="flex items-center gap-2">
             <Calendar className="h-4 w-4" />
             Schedule
