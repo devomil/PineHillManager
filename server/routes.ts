@@ -10892,6 +10892,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         updatedAt: new Date()
       });
 
+      // Refresh the session with updated user data
+      const updatedUser = await storage.getUser(userId);
+      if (updatedUser) {
+        req.user = updatedUser;
+      }
+
       res.json({ 
         success: true, 
         avatarUrl 
@@ -10917,6 +10923,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         profileImageUrl: iconUrl,
         updatedAt: new Date()
       });
+
+      // Refresh the session with updated user data
+      const updatedUser = await storage.getUser(userId);
+      if (updatedUser) {
+        req.user = updatedUser;
+      }
 
       res.json({ 
         success: true, 
