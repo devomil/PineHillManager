@@ -2201,6 +2201,11 @@ export class DatabaseStorage implements IStorage {
     
     // Filter announcements based on targeting
     const filteredAnnouncements = allAnnouncements.filter(announcement => {
+      // Always show announcements created by the user (so they can see responses/reactions)
+      if (announcement.authorId === userId) {
+        return true;
+      }
+      
       // If no specific targeting is set, include the announcement
       if (!announcement.targetAudience || announcement.targetAudience === 'all') {
         return true;
