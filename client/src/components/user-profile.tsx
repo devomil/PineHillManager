@@ -242,7 +242,7 @@ export default function UserProfile() {
             onClick={() => setIsEditing(!isEditing)}
             variant={isEditing ? "outline" : "default"}
             size="sm"
-            className={!isEditing ? "font-semibold text-white" : ""}
+            className={!isEditing ? "font-semibold text-white px-4" : "px-4"}
             data-testid="button-edit-profile"
           >
             {isEditing ? (
