@@ -166,6 +166,7 @@ export const locations = pgTable("locations", {
   state: varchar("state").notNull(),
   zipCode: varchar("zip_code").notNull(),
   phone: varchar("phone"),
+  displayColor: varchar("display_color").default("#10b981"), // Color for location indicators
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),

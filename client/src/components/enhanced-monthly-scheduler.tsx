@@ -983,7 +983,10 @@ export default function EnhancedMonthlyScheduler() {
                               {location?.name || 'Unknown Location'}
                             </div>
                             <div className="flex items-center gap-2 mt-1">
-                              <div className="w-2 h-2 rounded-full bg-farm-green"></div>
+                              <div 
+                                className="w-2 h-2 rounded-full" 
+                                style={{ backgroundColor: location?.displayColor || '#10b981' }}
+                              ></div>
                               <span className="text-sm text-slate-500">
                                 {location?.address || ''}
                               </span>
@@ -1573,7 +1576,7 @@ export default function EnhancedMonthlyScheduler() {
                           <div className="flex items-center gap-1 mt-1">
                             <div
                               className="w-2 h-2 rounded-full"
-                              style={{ backgroundColor: employee?.displayColor || '#3b82f6' }}
+                              style={{ backgroundColor: location?.displayColor || '#10b981' }}
                             />
                             <span className="text-xs text-slate-500">
                               {location?.name || 'Unknown Location'}
