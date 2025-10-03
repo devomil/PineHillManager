@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import UserAvatar from "@/components/user-avatar";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -1336,12 +1336,7 @@ export default function AdminEmployeeManagement() {
                 className="flex items-center justify-between p-4 border border-slate-200 rounded-lg hover:bg-slate-50"
               >
                 <div className="flex items-center space-x-4">
-                  <Avatar className="h-12 w-12">
-                    <AvatarImage src={employee.profileImageUrl || ""} />
-                    <AvatarFallback>
-                      {employee.firstName?.[0]}{employee.lastName?.[0]}
-                    </AvatarFallback>
-                  </Avatar>
+                  <UserAvatar user={employee} size="lg" />
                   
                   <div className="flex-1">
                     <div className="flex items-center space-x-2">

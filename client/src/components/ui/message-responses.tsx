@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent } from '@/components/ui/card';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import UserAvatar from '@/components/user-avatar';
 import { Badge } from '@/components/ui/badge';
 import { 
   MessageCircle, 
@@ -250,11 +250,7 @@ export function MessageResponses({ messageId, className }: MessageResponsesProps
                 <CardContent className="pt-4">
                   <div className="flex gap-3">
                     {/* Avatar */}
-                    <Avatar className="w-8 h-8">
-                      <AvatarFallback className="bg-farm-blue/10 text-farm-blue text-xs">
-                        {getInitials(response.author?.firstName, response.author?.lastName)}
-                      </AvatarFallback>
-                    </Avatar>
+                    <UserAvatar user={response.author} size="sm" />
 
                     <div className="flex-1 space-y-2">
                       {/* Header */}
