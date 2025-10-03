@@ -1,7 +1,10 @@
 import UserProfile from "@/components/user-profile";
 import { Button } from "@/components/ui/button";
+import { useLocation } from "wouter";
 
 export default function Profile() {
+  const [, setLocation] = useLocation();
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100">
       {/* Header */}
@@ -20,7 +23,7 @@ export default function Profile() {
             
             <Button 
               variant="ghost" 
-              onClick={() => window.history.back()}
+              onClick={() => setLocation("/")}
               className="text-gray-700 hover:text-gray-900"
             >
               ← Back to Dashboard
