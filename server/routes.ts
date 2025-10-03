@@ -10864,6 +10864,70 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Avatar upload and customization
+  app.post('/api/user/avatar', isAuthenticated, upload.single('avatar'), async (req, res) => {
+    try {
+      const userId = req.user!.id;
+      
+      if (!req.file) {
+        return res.status(400).json({ error: 'No file uploaded' });
+      }
+
+      const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+      const fileExt = path.extname(req.file.originalname).toLowerCase();
+      
+      if (!allowedTypes.some(type => type.endsWith(fileExt.slice(1)))) {
+        fs.unlinkSync(req.file.path);
+        return res.status(400).json({ error: 'Invalid file type. Only images allowed.' });
+      }
+
+      const fileName = `avatar_${userId}_${Date.now()}${fileExt}`;
+      const newPath = path.join(uploadsDir, fileName);
+      
+      fs.renameSync(req.file.path, newPath);
+
+      const avatarUrl = `/uploads/${fileName}`;
+      await storage.updateUserProfile(userId, { 
+        profileImageUrl: avatarUrl,
+        updatedAt: new Date()
+      });
+
+      res.json({ 
+        success: true, 
+        avatarUrl 
+      });
+    } catch (error) {
+      console.error('Error uploading avatar:', error);
+      res.status(500).json({ error: 'Failed to upload avatar' });
+    }
+  });
+
+  app.patch('/api/user/avatar', isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user!.id;
+      const { iconType } = req.body;
+
+      if (!iconType) {
+        return res.status(400).json({ error: 'Icon type is required' });
+      }
+
+      const iconUrl = `/icon/${iconType}`;
+      
+      await storage.updateUserProfile(userId, { 
+        profileImageUrl: iconUrl,
+        updatedAt: new Date()
+      });
+
+      res.json({ 
+        success: true, 
+        avatarUrl: iconUrl 
+      });
+    } catch (error) {
+      console.error('Error updating avatar icon:', error);
+      res.status(500).json({ error: 'Failed to update avatar' });
+    }
+  });
+
   // PHASE 2: Smart Notification Status API
   app.get('/api/user/work-status', isAuthenticated, async (req, res) => {
     try {
