@@ -3442,12 +3442,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const responses = await storage.getResponsesByAnnouncement(announcementId);
       
-      // Prevent caching to ensure fresh data with profileImageUrl
+      // Prevent caching and disable ETags to ensure fresh data with profileImageUrl
       res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
       res.setHeader('Pragma', 'no-cache');
       res.setHeader('Expires', '0');
-      res.setHeader('ETag', 'W/"' + Date.now() + '"'); // Force unique ETag
       
+      // Send response and explicitly remove ETag to prevent 304 responses
+      res.removeHeader('ETag');
       res.json(responses);
     } catch (error) {
       console.error("Error fetching announcement responses:", error);
