@@ -3441,6 +3441,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const responses = await storage.getResponsesByAnnouncement(announcementId);
+      
+      // Prevent caching to ensure fresh data with profileImageUrl
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+      
       res.json(responses);
     } catch (error) {
       console.error("Error fetching announcement responses:", error);
