@@ -31,6 +31,11 @@ interface TimeOffRequest {
     firstName: string;
     lastName: string;
   };
+  reviewer?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+  };
 }
 
 const statusStyles = {

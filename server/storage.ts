@@ -3534,7 +3534,37 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getAllTimeOffRequests(): Promise<TimeOffRequest[]> {
-    return await db.select().from(timeOffRequests);
+    const employeeAlias = alias(users, 'employee');
+    const reviewerAlias = alias(users, 'reviewer');
+    
+    const requests = await db
+      .select({
+        id: timeOffRequests.id,
+        userId: timeOffRequests.userId,
+        startDate: timeOffRequests.startDate,
+        endDate: timeOffRequests.endDate,
+        reason: timeOffRequests.reason,
+        status: timeOffRequests.status,
+        requestedAt: timeOffRequests.requestedAt,
+        reviewedAt: timeOffRequests.reviewedAt,
+        reviewedBy: timeOffRequests.reviewedBy,
+        comments: timeOffRequests.comments,
+        user: {
+          id: employeeAlias.id,
+          firstName: employeeAlias.firstName,
+          lastName: employeeAlias.lastName
+        },
+        reviewer: {
+          id: reviewerAlias.id,
+          firstName: reviewerAlias.firstName,
+          lastName: reviewerAlias.lastName
+        }
+      })
+      .from(timeOffRequests)
+      .leftJoin(employeeAlias, eq(timeOffRequests.userId, employeeAlias.id))
+      .leftJoin(reviewerAlias, eq(timeOffRequests.reviewedBy, reviewerAlias.id));
+    
+    return requests as any;
   }
 
 
