@@ -3709,7 +3709,8 @@ export class DatabaseStorage implements IStorage {
         author: {
           firstName: users.firstName,
           lastName: users.lastName,
-          role: users.role
+          role: users.role,
+          profileImageUrl: users.profileImageUrl
         }
       })
       .from(responses)
@@ -3742,7 +3743,8 @@ export class DatabaseStorage implements IStorage {
         author: {
           firstName: users.firstName,
           lastName: users.lastName,
-          role: users.role
+          role: users.role,
+          profileImageUrl: users.profileImageUrl
         }
       })
       .from(responses)
