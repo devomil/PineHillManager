@@ -242,7 +242,7 @@ export default function UserProfile() {
             onClick={() => setIsEditing(!isEditing)}
             variant={isEditing ? "outline" : "default"}
             size="sm"
-            className={!isEditing ? "font-semibold text-white px-4" : "px-4"}
+            className={!isEditing ? "font-semibold text-white px-3 sm:px-4" : "px-3 sm:px-4"}
             data-testid="button-edit-profile"
           >
             {isEditing ? (
@@ -252,8 +252,9 @@ export default function UserProfile() {
               </>
             ) : (
               <>
-                <Edit className="w-4 h-4 mr-2" />
-                Edit Profile
+                <Edit className="w-4 h-4 mr-1 sm:mr-2" />
+                <span className="sm:hidden">Edit</span>
+                <span className="hidden sm:inline">Edit Profile</span>
               </>
             )}
           </Button>
