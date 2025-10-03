@@ -563,7 +563,7 @@ export default function EnhancedMonthlyScheduler() {
   };
 
   // Note type styling
-  const getNoteTypeStyle = (noteType: string) => {
+  const getNoteTypeStyle = (noteType: string | null) => {
     switch (noteType) {
       case "meeting":
         return "bg-blue-100 text-blue-800 border-blue-200";
