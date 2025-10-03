@@ -53,6 +53,7 @@ import {
 } from "date-fns";
 import type { WorkSchedule, User as UserType, Location, CalendarNote } from "@shared/schema";
 import ShiftSwapMarketplace from "./shift-swap-marketplace";
+import UserAvatar from "./user-avatar";
 import TimeOffManager from "./time-off-manager";
 
 interface DraggedEmployee {
@@ -1033,9 +1034,10 @@ export default function EnhancedMonthlyScheduler() {
             <div className="space-y-6">
               {/* Greeting */}
               <div className="flex items-center gap-4">
-                <div className="w-16 h-16 rounded-full bg-farm-green flex items-center justify-center text-white font-semibold text-xl">
-                  {user?.firstName?.charAt(0)}{user?.lastName?.charAt(0)}
-                </div>
+                <UserAvatar 
+                  user={user} 
+                  size="lg"
+                />
                 <div>
                   <h2 className="text-2xl font-semibold text-slate-900">
                     Good {new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 17 ? 'afternoon' : 'evening'},
@@ -1696,9 +1698,6 @@ export default function EnhancedMonthlyScheduler() {
                   return daySchedules.map((schedule: WorkSchedule, idx: number) => {
                     const employee = employees.find((emp: UserType) => emp.id === schedule.userId);
                     const location = locations.find((loc: Location) => loc.id === schedule.locationId);
-                    const initials = employee 
-                      ? `${employee.firstName.charAt(0)}${employee.lastName.charAt(0)}`
-                      : "?";
                     
                     return (
                       <div
@@ -1706,12 +1705,10 @@ export default function EnhancedMonthlyScheduler() {
                         className="flex items-center gap-3 p-3 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors"
                       >
                         {/* Avatar */}
-                        <div
-                          className="w-12 h-12 rounded-full flex items-center justify-center text-white font-semibold"
-                          style={{ backgroundColor: employee?.displayColor || '#3b82f6' }}
-                        >
-                          {initials}
-                        </div>
+                        <UserAvatar 
+                          user={employee} 
+                          size="md"
+                        />
                         
                         {/* Employee Info */}
                         <div className="flex-1 min-w-0">
