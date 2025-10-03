@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import UserAvatar from "@/components/user-avatar";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -192,13 +192,7 @@ export default function EmployeeRoster() {
                 className="flex items-center justify-between p-4 border rounded-lg hover:bg-slate-50"
               >
                 <div className="flex items-center space-x-4">
-                  <Avatar>
-                    <AvatarImage src={employee.profileImageUrl || undefined} />
-                    <AvatarFallback>
-                      {employee.firstName?.[0] || employee.email[0].toUpperCase()}
-                      {employee.lastName?.[0] || ''}
-                    </AvatarFallback>
-                  </Avatar>
+                  <UserAvatar user={employee} size="md" />
                   <div>
                     <div className="font-medium">
                       {employee.firstName && employee.lastName
