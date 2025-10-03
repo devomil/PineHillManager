@@ -2,7 +2,7 @@ import { ReactNode, useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import UserAvatar from "@/components/user-avatar";
 // Removed Tabs imports to prevent RovingFocusGroupItem conflicts
 import { Users, Clock, Calendar, Bell, Settings, Eye, FileText, DollarSign, Menu, QrCode, Video, User, LogOut, ChevronDown, MessageSquare, Package, ShoppingCart, ArrowLeftRight } from "lucide-react";
 import { useLocation } from "wouter";
@@ -86,12 +86,7 @@ export default function AdminLayout({ children, currentTab }: AdminLayoutProps) 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="flex items-center space-x-2 hover:bg-gray-50">
-                    <Avatar className="h-8 w-8">
-                      <AvatarImage src={user?.profileImageUrl || undefined} alt={user?.firstName || 'User'} />
-                      <AvatarFallback className="bg-blue-100 text-blue-600">
-                        {user?.firstName?.[0]}{user?.lastName?.[0]}
-                      </AvatarFallback>
-                    </Avatar>
+                    <UserAvatar user={user} size="md" />
                     <div className="hidden sm:block text-left">
                       <p className="text-sm font-medium text-gray-900">
                         {user?.firstName} {user?.lastName}

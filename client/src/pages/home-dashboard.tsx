@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Clock, Calendar, FileText, Users, MessageSquare, MessageCircle, Bell, ChevronRight, HelpCircle, User, LogOut, ChevronDown } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import UserAvatar from "@/components/user-avatar";
 import { Link } from "wouter";
 
 export default function HomeDashboard() {
@@ -88,12 +88,7 @@ export default function HomeDashboard() {
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="flex items-center space-x-2 hover:bg-gray-50">
-                    <Avatar className="h-8 w-8">
-                      <AvatarImage src={user?.profileImageUrl || undefined} alt={user?.firstName || 'User'} />
-                      <AvatarFallback className="bg-green-100 text-green-600">
-                        {user?.firstName?.[0]}{user?.lastName?.[0]}
-                      </AvatarFallback>
-                    </Avatar>
+                    <UserAvatar user={user} size="md" />
                     <div className="hidden sm:block text-left">
                       <p className="text-sm font-medium text-gray-900">
                         {user?.firstName} {user?.lastName}

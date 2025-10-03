@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import Sidebar from "./sidebar";
 import { Button } from "@/components/ui/button";
 import { Bell, Plus } from "lucide-react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import UserAvatar from "@/components/user-avatar";
 import { useAuth } from "@/hooks/use-auth";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
@@ -93,16 +93,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
               {/* User Profile */}
               <div className="flex items-center space-x-3">
-                <Avatar className="w-8 h-8">
-                  <AvatarImage 
-                    src={user?.profileImageUrl || undefined} 
-                    alt={user?.firstName || 'User'}
-                    className="object-cover"
-                  />
-                  <AvatarFallback>
-                    {user?.firstName?.[0]}{user?.lastName?.[0]}
-                  </AvatarFallback>
-                </Avatar>
+                <UserAvatar user={user} size="md" />
                 <div className="hidden md:block">
                   <p className="text-sm font-medium text-slate-900">
                     {user?.firstName} {user?.lastName}
