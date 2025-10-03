@@ -257,6 +257,7 @@ export function setupAuth(app: Express) {
       firstName: req.user.firstName,
       lastName: req.user.lastName,
       role: req.user.role,
+      profileImageUrl: req.user.profileImageUrl,
     });
   });
 
