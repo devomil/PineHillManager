@@ -20,7 +20,9 @@ import {
   Plus, 
   Edit, 
   ChevronLeft, 
-  ChevronRight, 
+  ChevronRight,
+  ChevronUp,
+  ChevronDown,
   FileText, 
   Download,
   StickyNote,
@@ -234,9 +236,11 @@ export default function EnhancedMonthlyScheduler() {
       }
     };
 
-    // Handle touch scroll (mobile)
+    // Handle touch scroll (mobile) - More aggressive swipe detection
+    let touchStartTime = 0;
     const handleTouchStart = (e: TouchEvent) => {
       touchStartYRef.current = e.touches[0].clientY;
+      touchStartTime = Date.now();
     };
 
     const handleTouchMove = (e: TouchEvent) => {
@@ -244,16 +248,37 @@ export default function EnhancedMonthlyScheduler() {
       const maxScroll = scrollContainer.scrollHeight - scrollContainer.clientHeight;
       const touchY = e.touches[0].clientY;
       const touchDelta = touchStartYRef.current - touchY;
-
-      // Swiping up (scrolling down) at bottom
-      if (touchDelta > 0 && currentScroll >= maxScroll - 5) {
-        e.preventDefault();
-        handleDayNavigation('next');
-      } 
-      // Swiping down (scrolling up) at top
-      else if (touchDelta < 0 && currentScroll <= 5) {
-        e.preventDefault();
-        handleDayNavigation('prev');
+      const touchTime = Date.now() - touchStartTime;
+      
+      // Quick swipe detection (within 300ms and moved more than 50px)
+      const isQuickSwipe = touchTime < 300 && Math.abs(touchDelta) > 50;
+      
+      if (isQuickSwipe) {
+        // Quick swipe up = next day
+        if (touchDelta > 50 && currentScroll >= maxScroll - 10) {
+          e.preventDefault();
+          handleDayNavigation('next');
+          touchStartTime = Date.now() + 1000; // Prevent multiple triggers
+        }
+        // Quick swipe down = previous day  
+        else if (touchDelta < -50 && currentScroll <= 10) {
+          e.preventDefault();
+          handleDayNavigation('prev');
+          touchStartTime = Date.now() + 1000; // Prevent multiple triggers
+        }
+      }
+      // Regular scroll-based navigation (at edges)
+      else {
+        // Swiping up (scrolling down) at bottom
+        if (touchDelta > 0 && currentScroll >= maxScroll - 5) {
+          e.preventDefault();
+          handleDayNavigation('next');
+        } 
+        // Swiping down (scrolling up) at top
+        else if (touchDelta < 0 && currentScroll <= 5) {
+          e.preventDefault();
+          handleDayNavigation('prev');
+        }
       }
     };
 
@@ -1670,72 +1695,26 @@ export default function EnhancedMonthlyScheduler() {
                 })}
               </div>
 
-              {/* Selected Day Header with Mobile Navigation */}
+              {/* Selected Day Header - Centered on Mobile */}
               <div className="pt-2 border-t">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex-1">
-                    <h3 className="text-sm font-semibold text-slate-900 mb-1">
-                      {format(selectedTeamDay, "EEEE")}
-                    </h3>
-                    <p className="text-2xl font-bold text-farm-green">
-                      {format(selectedTeamDay, "d")}
-                    </p>
-                  </div>
-                  
-                  {/* Mobile Day Navigation Buttons */}
-                  <div className="flex gap-2 md:hidden">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        const newDay = addDays(selectedTeamDay, -1);
-                        setSelectedTeamDay(newDay);
-                        const weekStart = startOfWeek(newDay, { weekStartsOn: 0 });
-                        if (!isSameDay(weekStart, teamWeekStart)) {
-                          setTeamWeekStart(weekStart);
-                        }
-                      }}
-                      className="h-10 w-10 p-0"
-                      data-testid="button-previous-day"
-                    >
-                      <ChevronLeft className="h-5 w-5" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        const today = new Date();
-                        setSelectedTeamDay(today);
-                        const weekStart = startOfWeek(today, { weekStartsOn: 0 });
-                        setTeamWeekStart(weekStart);
-                      }}
-                      className="px-3 h-10"
-                      data-testid="button-today"
-                    >
-                      Today
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        const newDay = addDays(selectedTeamDay, 1);
-                        setSelectedTeamDay(newDay);
-                        const weekStart = startOfWeek(newDay, { weekStartsOn: 0 });
-                        if (!isSameDay(weekStart, teamWeekStart)) {
-                          setTeamWeekStart(weekStart);
-                        }
-                      }}
-                      className="h-10 w-10 p-0"
-                      data-testid="button-next-day"
-                    >
-                      <ChevronRight className="h-5 w-5" />
-                    </Button>
-                  </div>
+                <div className="text-center md:text-left mb-4">
+                  <h3 className="text-sm font-semibold text-slate-900 mb-1">
+                    {format(selectedTeamDay, "EEEE")}
+                  </h3>
+                  <p className="text-2xl font-bold text-farm-green">
+                    {format(selectedTeamDay, "d")}
+                  </p>
+                  {/* Swipe hint for mobile */}
+                  <p className="text-xs text-slate-400 mt-2 md:hidden flex items-center justify-center gap-1">
+                    <ChevronUp className="h-3 w-3" />
+                    Swipe up or down to change days
+                    <ChevronDown className="h-3 w-3" />
+                  </p>
                 </div>
               </div>
 
               {/* Employee List for Selected Day */}
-              <div ref={teamScheduleScrollRef} className="space-y-3 max-h-[500px] overflow-y-auto">
+              <div ref={teamScheduleScrollRef} className="space-y-3 max-h-[500px] md:max-h-[600px] overflow-y-auto touch-pan-y">
                 {(() => {
                   const dateStr = format(selectedTeamDay, "yyyy-MM-dd");
                   const daySchedules = teamSchedules.filter((s: WorkSchedule) => s.date === dateStr);
