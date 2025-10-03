@@ -48,6 +48,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           credentials: 'include',
           headers: {
             'Content-Type': 'application/json',
+            'Cache-Control': 'no-cache',
           },
         });
         if (response.status === 401) {
@@ -66,7 +67,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     retry: 1,
     refetchOnWindowFocus: false,
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 0, // Always consider data stale to refetch when invalidated
     gcTime: 30 * 60 * 1000 // 30 minutes
   });
 

@@ -25,7 +25,7 @@ import { cn } from "@/lib/utils";
 
 interface UserAvatarProps {
   user?: {
-    profileImageUrl?: string;
+    profileImageUrl?: string | null;
     firstName?: string;
     lastName?: string;
   } | null;
@@ -94,7 +94,7 @@ const iconSizeMap = {
 };
 
 export default function UserAvatar({ user, size = "md", className }: UserAvatarProps) {
-  const profileUrl = user?.profileImageUrl;
+  const profileUrl = user?.profileImageUrl || undefined;
   
   // Check if it's an icon type (starts with /icon/)
   if (profileUrl?.startsWith('/icon/')) {
