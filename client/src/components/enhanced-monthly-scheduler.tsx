@@ -111,6 +111,9 @@ export default function EnhancedMonthlyScheduler() {
   // Team Schedule State
   const [selectedTeamDay, setSelectedTeamDay] = useState<Date>(new Date());
   const [teamWeekStart, setTeamWeekStart] = useState<Date>(startOfWeek(new Date(), { weekStartsOn: 0 }));
+  
+  // Schedule View State (for employees)
+  const [showCalendarView, setShowCalendarView] = useState(false);
 
   // Calculate calendar dates
   const monthStart = startOfMonth(currentMonth);
@@ -877,6 +880,124 @@ export default function EnhancedMonthlyScheduler() {
         </TabsList>
 
         <TabsContent value="schedule" className="space-y-6">
+          {/* Employee List View - Mobile First */}
+          {isEmployee && !showCalendarView && (
+            <div className="space-y-6">
+              {/* Greeting */}
+              <div className="flex items-center gap-4">
+                <div className="w-16 h-16 rounded-full bg-farm-green flex items-center justify-center text-white font-semibold text-xl">
+                  {user?.firstName?.charAt(0)}{user?.lastName?.charAt(0)}
+                </div>
+                <div>
+                  <h2 className="text-2xl font-semibold text-slate-900">
+                    Good {new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 17 ? 'afternoon' : 'evening'},
+                  </h2>
+                  <p className="text-xl text-slate-700">{user?.firstName}.</p>
+                </div>
+              </div>
+
+              {/* Status Message */}
+              {(() => {
+                const today = format(new Date(), 'yyyy-MM-dd');
+                const todaySchedules = schedules.filter((s: WorkSchedule) => s.date === today);
+                const todayTimeOff = approvedTimeOff.filter((t: any) => t.startDate === today);
+                
+                if (todayTimeOff.length > 0) {
+                  return (
+                    <Card className="bg-blue-50 border-blue-200">
+                      <CardContent className="pt-6">
+                        <h3 className="text-2xl font-semibold text-slate-900">
+                          You have the day off—stay safe!
+                        </h3>
+                      </CardContent>
+                    </Card>
+                  );
+                } else if (todaySchedules.length > 0) {
+                  const firstShift = todaySchedules[0];
+                  const location = locations.find((loc: Location) => loc.id === firstShift.locationId);
+                  return (
+                    <Card className="bg-green-50 border-green-200">
+                      <CardContent className="pt-6">
+                        <h3 className="text-2xl font-semibold text-slate-900">
+                          You're working today at {location?.name}
+                        </h3>
+                      </CardContent>
+                    </Card>
+                  );
+                }
+                return null;
+              })()}
+
+              {/* Upcoming Shifts */}
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-2xl">Your upcoming shifts</CardTitle>
+                    <Button 
+                      variant="link" 
+                      className="text-farm-green hover:text-farm-green/80"
+                      onClick={() => setShowCalendarView(true)}
+                    >
+                      View all
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {(() => {
+                    const today = new Date();
+                    const upcomingSchedules = schedules
+                      .filter((s: WorkSchedule) => new Date(s.date) >= today)
+                      .sort((a: WorkSchedule, b: WorkSchedule) => 
+                        new Date(a.date).getTime() - new Date(b.date).getTime()
+                      )
+                      .slice(0, 5);
+                    
+                    if (upcomingSchedules.length === 0) {
+                      return (
+                        <p className="text-slate-500 text-center py-8">No upcoming shifts scheduled</p>
+                      );
+                    }
+                    
+                    return upcomingSchedules.map((schedule: WorkSchedule) => {
+                      const scheduleDate = new Date(schedule.date);
+                      const location = locations.find((loc: Location) => loc.id === schedule.locationId);
+                      
+                      return (
+                        <div key={schedule.id} className="flex gap-4 p-4 border rounded-lg hover:bg-slate-50 transition-colors">
+                          <div className="text-center min-w-[60px]">
+                            <div className="text-sm font-medium text-farm-green">
+                              {format(scheduleDate, 'EEE').toUpperCase()}
+                            </div>
+                            <div className="text-3xl font-bold text-slate-900">
+                              {format(scheduleDate, 'd')}
+                            </div>
+                            <div className="text-xs text-slate-500">
+                              {format(scheduleDate, 'MMM').toUpperCase()}
+                            </div>
+                          </div>
+                          <div className="flex-1">
+                            <div className="text-lg font-semibold text-slate-900">
+                              {formatTime(schedule.startTime)} – {formatTime(schedule.endTime)}
+                            </div>
+                            <div className="text-base text-slate-700">
+                              {location?.name || 'Unknown Location'}
+                            </div>
+                            <div className="flex items-center gap-2 mt-1">
+                              <div className="w-2 h-2 rounded-full bg-farm-green"></div>
+                              <span className="text-sm text-slate-500">
+                                {location?.address || ''}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    });
+                  })()}
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
           {/* Employee Panel - Only show for admins/managers */}
           {!isEmployee && (
             <div className="mb-6">
@@ -913,7 +1034,8 @@ export default function EnhancedMonthlyScheduler() {
             </div>
           )}
 
-      {/* Calendar Grid - Now full width */}
+      {/* Calendar Grid - Show for managers/admins always, or employees when they click View All */}
+      {(!isEmployee || showCalendarView) && (
       <div className="w-full">
           <Card>
             <CardHeader>
@@ -922,12 +1044,25 @@ export default function EnhancedMonthlyScheduler() {
                   <Calendar className="h-5 w-5" />
                   {format(currentMonth, "MMMM yyyy")} Schedule
                 </span>
-                {selectedLocation && (
-                  <Badge variant="outline">
-                    <Building className="h-3 w-3 mr-1" />
-                    {getLocationName(selectedLocation)}
-                  </Badge>
-                )}
+                <div className="flex items-center gap-2">
+                  {isEmployee && showCalendarView && (
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => setShowCalendarView(false)}
+                      className="flex items-center gap-2"
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                      Back to List
+                    </Button>
+                  )}
+                  {selectedLocation && (
+                    <Badge variant="outline">
+                      <Building className="h-3 w-3 mr-1" />
+                      {getLocationName(selectedLocation)}
+                    </Badge>
+                  )}
+                </div>
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -1069,6 +1204,7 @@ export default function EnhancedMonthlyScheduler() {
             </CardContent>
           </Card>
       </div>
+      )}
 
       {/* Add Note Dialog */}
       <Dialog open={isNoteDialogOpen} onOpenChange={setIsNoteDialogOpen}>
