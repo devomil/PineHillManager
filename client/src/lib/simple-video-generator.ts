@@ -7,7 +7,7 @@ export interface VideoConfig {
   productDescription: string;
   productImages: File[];
   duration: number;
-  style: 'pharmaceutical' | 'medical' | 'clinical';
+  style: 'pharmaceutical' | 'medical' | 'clinical' | 'whiteboard' | '3d-explainer';
   healthConcern: string;
   benefits: string[];
   ingredients: string[];
