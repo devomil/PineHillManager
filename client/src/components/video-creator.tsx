@@ -460,17 +460,26 @@ export default function VideoCreator() {
                 <Label htmlFor="style">Video Style</Label>
                 <Select 
                   value={config.style} 
-                  onValueChange={(value) => setConfig(prev => ({ ...prev, style: value as 'pharmaceutical' | 'medical' | 'clinical' }))}
+                  onValueChange={(value) => setConfig(prev => ({ ...prev, style: value as 'pharmaceutical' | 'medical' | 'clinical' | 'whiteboard' | '3d-explainer' }))}
                 >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="whiteboard">2D Whiteboard Explainer</SelectItem>
+                    <SelectItem value="3d-explainer">3D Explainer Video</SelectItem>
                     <SelectItem value="pharmaceutical">Pharmaceutical Agency Style</SelectItem>
                     <SelectItem value="medical">Medical Professional</SelectItem>
                     <SelectItem value="clinical">Clinical Research</SelectItem>
                   </SelectContent>
                 </Select>
+                <p className="text-sm text-gray-500">
+                  {config.style === 'whiteboard' && '✏️ Hand-drawn sketch animations with marker effects'}
+                  {config.style === '3d-explainer' && '🎯 3D depth, shadows, and dimensional animations'}
+                  {config.style === 'pharmaceutical' && '💊 Professional pharmaceutical industry styling'}
+                  {config.style === 'medical' && '🏥 Clean medical professional look'}
+                  {config.style === 'clinical' && '🔬 Research and clinical presentation style'}
+                </p>
               </div>
             </div>
           </div>

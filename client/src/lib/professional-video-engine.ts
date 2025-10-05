@@ -95,6 +95,14 @@ export class ProfessionalVideoEngine {
   }
 
   private createProfessionalScenes(config: any): ProfessionalScene[] {
+    // Route to style-specific scene creators
+    if (config.style === 'whiteboard') {
+      return this.createWhiteboardScenes(config);
+    } else if (config.style === '3d-explainer') {
+      return this.create3DExplainerScenes(config);
+    }
+    
+    // Default pharmaceutical/medical/clinical scenes
     return [
       {
         name: 'problem_hook',
@@ -292,6 +300,337 @@ export class ProfessionalVideoEngine {
             fontSize: 36,
             color: '#ffffff',
             animation: { type: 'fadeIn', delay: 800, duration: 600 }
+          }
+        ]
+      }
+    ];
+  }
+
+  private createWhiteboardScenes(config: any): ProfessionalScene[] {
+    const productName = config.productName || 'Our Product';
+    const healthConcern = config.healthConcern || 'health concerns';
+    const benefits = config.benefits || ['Natural ingredients', 'Effective results'];
+    const callToAction = config.callToAction || 'Try it today!';
+
+    return [
+      {
+        name: 'whiteboard_intro',
+        duration: 6,
+        background: { type: 'clean', colors: ['#ffffff', '#f8f9fa'] },
+        elements: [
+          {
+            type: 'text',
+            content: `Struggling with ${healthConcern}?`,
+            x: 960,
+            y: 200,
+            fontSize: 56,
+            color: '#2d3748',
+            animation: { type: 'typewriter', delay: 0, duration: 2000 },
+            style: { font: 'marker', handDrawn: true }
+          },
+          {
+            type: 'shape',
+            content: 'sketch-underline',
+            x: 400,
+            y: 280,
+            width: 1120,
+            height: 8,
+            color: '#3b82f6',
+            animation: { type: 'slideInLeft', delay: 2000, duration: 800 },
+            style: { handDrawn: true }
+          },
+          {
+            type: 'icon',
+            content: 'sketch-lightbulb',
+            x: 1600,
+            y: 150,
+            animation: { type: 'fadeIn', delay: 2500, duration: 600 },
+            style: { sketch: true }
+          }
+        ]
+      },
+      {
+        name: 'whiteboard_solution',
+        duration: 7,
+        background: { type: 'clean', colors: ['#ffffff', '#f8f9fa'] },
+        elements: [
+          {
+            type: 'product',
+            x: 350,
+            y: 540,
+            width: 280,
+            height: 380,
+            animation: { type: 'scaleIn', delay: 0, duration: 1000 },
+            style: { sketch: true, outline: '#2d3748' }
+          },
+          {
+            type: 'shape',
+            content: 'arrow-sketch',
+            x: 700,
+            y: 540,
+            width: 150,
+            height: 80,
+            animation: { type: 'slideInRight', delay: 800, duration: 600 }
+          },
+          {
+            type: 'text',
+            content: productName,
+            x: 1200,
+            y: 400,
+            fontSize: 48,
+            color: '#059669',
+            animation: { type: 'typewriter', delay: 1200, duration: 1500 },
+            style: { font: 'marker', handDrawn: true }
+          },
+          {
+            type: 'text',
+            content: 'Your Natural Solution',
+            x: 1200,
+            y: 500,
+            fontSize: 32,
+            color: '#64748b',
+            animation: { type: 'fadeIn', delay: 2500, duration: 800 }
+          }
+        ]
+      },
+      {
+        name: 'whiteboard_benefits',
+        duration: 8,
+        background: { type: 'clean', colors: ['#ffffff', '#f8f9fa'] },
+        elements: [
+          {
+            type: 'text',
+            content: 'Benefits:',
+            x: 960,
+            y: 150,
+            fontSize: 52,
+            color: '#1e293b',
+            animation: { type: 'fadeIn', delay: 0, duration: 600 },
+            style: { font: 'marker' }
+          },
+          ...benefits.slice(0, 4).map((benefit: string, index: number) => ({
+            type: 'text' as const,
+            content: `✓ ${benefit}`,
+            x: 960,
+            y: 300 + (index * 100),
+            fontSize: 36,
+            color: '#059669',
+            animation: {
+              type: 'slideInLeft' as const,
+              delay: 800 + (index * 600),
+              duration: 800
+            },
+            style: { handDrawn: true, checkmark: true }
+          })),
+          {
+            type: 'shape',
+            content: 'sketch-circle',
+            x: 200,
+            y: 400,
+            width: 150,
+            height: 150,
+            color: '#ef4444',
+            animation: { type: 'scaleIn', delay: 3000, duration: 600 },
+            style: { sketch: true }
+          }
+        ]
+      },
+      {
+        name: 'whiteboard_cta',
+        duration: 2,
+        background: { type: 'clean', colors: ['#ffffff', '#f8f9fa'] },
+        elements: [
+          {
+            type: 'text',
+            content: callToAction,
+            x: 960,
+            y: 450,
+            fontSize: 64,
+            color: '#dc2626',
+            animation: { type: 'bounceIn', delay: 0, duration: 800 },
+            style: { font: 'marker', bold: true }
+          },
+          {
+            type: 'shape',
+            content: 'sketch-box',
+            x: 400,
+            y: 380,
+            width: 1120,
+            height: 180,
+            color: '#dc2626',
+            animation: { type: 'fadeIn', delay: 400, duration: 600 },
+            style: { sketch: true, dashed: true }
+          }
+        ]
+      }
+    ];
+  }
+
+  private create3DExplainerScenes(config: any): ProfessionalScene[] {
+    const productName = config.productName || 'Our Product';
+    const healthConcern = config.healthConcern || 'health concerns';
+    const benefits = config.benefits || ['Natural ingredients', 'Effective results'];
+    const callToAction = config.callToAction || 'Experience the difference!';
+
+    return [
+      {
+        name: '3d_intro',
+        duration: 6,
+        background: { type: 'gradient', colors: ['#0f172a', '#1e293b'] },
+        elements: [
+          {
+            type: 'text',
+            content: `Freedom from ${healthConcern}`,
+            x: 960,
+            y: 300,
+            fontSize: 64,
+            color: '#ffffff',
+            animation: { type: 'zoomIn', delay: 0, duration: 1200 },
+            style: { shadow: true, depth: 20, perspective: true }
+          },
+          {
+            type: 'shape',
+            content: '3d-cube',
+            x: 300,
+            y: 550,
+            width: 200,
+            height: 200,
+            color: '#3b82f6',
+            animation: { type: 'bounceIn', delay: 800, duration: 1000 },
+            style: { depth: 50, rotate3d: true }
+          },
+          {
+            type: 'shape',
+            content: '3d-sphere',
+            x: 1500,
+            y: 200,
+            width: 150,
+            height: 150,
+            color: '#10b981',
+            animation: { type: 'scaleIn', delay: 1200, duration: 800 },
+            style: { depth: 30, lighting: true }
+          }
+        ]
+      },
+      {
+        name: '3d_product',
+        duration: 8,
+        background: { type: 'gradient', colors: ['#1e293b', '#334155'] },
+        elements: [
+          {
+            type: 'product',
+            x: 480,
+            y: 540,
+            width: 320,
+            height: 420,
+            animation: { type: 'slideInRight', delay: 0, duration: 1500 },
+            style: { depth: 60, shadow: true, lighting: 'top-left', rotate3d: true }
+          },
+          {
+            type: 'text',
+            content: productName,
+            x: 1200,
+            y: 400,
+            fontSize: 56,
+            color: '#60a5fa',
+            animation: { type: 'fadeIn', delay: 1000, duration: 1000 },
+            style: { shadow: true, depth: 15, glow: true }
+          },
+          {
+            type: 'text',
+            content: 'Next-Generation Formula',
+            x: 1200,
+            y: 500,
+            fontSize: 36,
+            color: '#a78bfa',
+            animation: { type: 'slideInLeft', delay: 1800, duration: 800 },
+            style: { shadow: true }
+          },
+          {
+            type: 'shape',
+            content: '3d-plane',
+            x: 960,
+            y: 800,
+            width: 1600,
+            height: 400,
+            color: '#1e40af',
+            animation: { type: 'fadeIn', delay: 2200, duration: 600 },
+            style: { perspective: true, depth: 100 }
+          }
+        ]
+      },
+      {
+        name: '3d_benefits',
+        duration: 8,
+        background: { type: 'gradient', colors: ['#0c4a6e', '#0369a1'] },
+        elements: [
+          {
+            type: 'text',
+            content: 'Powerful Benefits',
+            x: 960,
+            y: 150,
+            fontSize: 56,
+            color: '#ffffff',
+            animation: { type: 'zoomIn', delay: 0, duration: 800 },
+            style: { shadow: true, depth: 20 }
+          },
+          ...benefits.slice(0, 4).map((benefit: string, index: number) => ({
+            type: 'text' as const,
+            content: `✓ ${benefit}`,
+            x: 960,
+            y: 300 + (index * 90),
+            fontSize: 38,
+            color: '#34d399',
+            animation: {
+              type: 'slideInLeft' as const,
+              delay: 600 + (index * 500),
+              duration: 800
+            },
+            style: { 
+              shadow: true, 
+              depth: 10 + (index * 5),
+              glow: true,
+              layer: index 
+            }
+          })),
+          {
+            type: 'shape',
+            content: '3d-pyramid',
+            x: 1650,
+            y: 450,
+            width: 180,
+            height: 250,
+            color: '#f59e0b',
+            animation: { type: 'bounceIn', delay: 2500, duration: 800 },
+            style: { depth: 80, rotate3d: true, lighting: true }
+          }
+        ]
+      },
+      {
+        name: '3d_cta',
+        duration: 2,
+        background: { type: 'gradient', colors: ['#7c2d12', '#dc2626'] },
+        elements: [
+          {
+            type: 'text',
+            content: callToAction,
+            x: 960,
+            y: 450,
+            fontSize: 68,
+            color: '#ffffff',
+            animation: { type: 'zoomIn', delay: 0, duration: 1000 },
+            style: { shadow: true, depth: 30, glow: true, pulse: true }
+          },
+          {
+            type: 'shape',
+            content: '3d-button',
+            x: 760,
+            y: 580,
+            width: 400,
+            height: 100,
+            color: '#fbbf24',
+            animation: { type: 'bounceIn', delay: 600, duration: 600 },
+            style: { depth: 40, lighting: true, pressable: true }
           }
         ]
       }
