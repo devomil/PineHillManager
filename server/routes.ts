@@ -1084,9 +1084,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const schedules = await storage.getAllWorkSchedules();
       
       // Filter by date range and location if specified
-      const filteredSchedules = schedules
+      let filteredSchedules = schedules
         .filter((s: any) => s.date >= startDate.toISOString().split('T')[0] && s.date <= endDate.toISOString().split('T')[0])
         .filter((s: any) => locationId ? s.locationId === parseInt(locationId) : true);
+      
+      // If user is an employee, only show their own shifts
+      if (req.user && req.user.role === 'employee') {
+        filteredSchedules = filteredSchedules.filter((s: any) => s.userId === req.user!.id);
+      }
         
       // Get employees and locations for names
       const employees = await storage.getAllUsers();
