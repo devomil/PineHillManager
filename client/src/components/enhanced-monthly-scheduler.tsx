@@ -115,6 +115,9 @@ export default function EnhancedMonthlyScheduler() {
   
   // Schedule View State (for employees)
   const [showCalendarView, setShowCalendarView] = useState(false);
+  
+  // Team Schedule "View All" toggle - when true, employees can see all team members
+  const [showAllTeamSchedules, setShowAllTeamSchedules] = useState(false);
 
   // Team Schedule Scroll Reference
   const teamScheduleScrollRef = useRef<HTMLDivElement>(null);
@@ -180,10 +183,14 @@ export default function EnhancedMonthlyScheduler() {
   });
 
   // Fetch all team schedules (for Team Schedule tab - employees only)
+  // When showAllTeamSchedules is true, shows all team members; otherwise shows only current user
   const { data: teamSchedules = [] } = useQuery({
-    queryKey: ["/api/work-schedules/team", format(calendarStart, "yyyy-MM-dd"), format(calendarEnd, "yyyy-MM-dd")],
+    queryKey: ["/api/work-schedules/team", format(calendarStart, "yyyy-MM-dd"), format(calendarEnd, "yyyy-MM-dd"), showAllTeamSchedules],
     queryFn: async () => {
-      const response = await apiRequest("GET", `/api/work-schedules?startDate=${format(calendarStart, "yyyy-MM-dd")}&endDate=${format(calendarEnd, "yyyy-MM-dd")}`);
+      const url = showAllTeamSchedules
+        ? `/api/work-schedules?startDate=${format(calendarStart, "yyyy-MM-dd")}&endDate=${format(calendarEnd, "yyyy-MM-dd")}`
+        : `/api/work-schedules?startDate=${format(calendarStart, "yyyy-MM-dd")}&endDate=${format(calendarEnd, "yyyy-MM-dd")}&userId=${user?.id}`;
+      const response = await apiRequest("GET", url);
       return response.json();
     },
     enabled: !!user && user?.role === 'employee'
@@ -1514,34 +1521,52 @@ export default function EnhancedMonthlyScheduler() {
           {/* Team Schedule View for Employees - List Design */}
           <Card>
             <CardHeader className="pb-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="text-lg font-semibold">
-                    {format(teamWeekStart, "MMMM yyyy")}
-                  </CardTitle>
+              <div className="flex flex-col gap-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-lg font-semibold">
+                      {format(teamWeekStart, "MMMM yyyy")}
+                    </CardTitle>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const newWeekStart = subWeeks(teamWeekStart, 1);
+                        setTeamWeekStart(newWeekStart);
+                        setSelectedTeamDay(newWeekStart);
+                      }}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const newWeekStart = addWeeks(teamWeekStart, 1);
+                        setTeamWeekStart(newWeekStart);
+                        setSelectedTeamDay(newWeekStart);
+                      }}
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
-                <div className="flex gap-2">
+                
+                {/* View All Toggle */}
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-muted-foreground">
+                    {showAllTeamSchedules ? 'Viewing all team members' : 'Viewing only your shifts'}
+                  </p>
                   <Button
-                    variant="outline"
+                    variant={showAllTeamSchedules ? "default" : "outline"}
                     size="sm"
-                    onClick={() => {
-                      const newWeekStart = subWeeks(teamWeekStart, 1);
-                      setTeamWeekStart(newWeekStart);
-                      setSelectedTeamDay(newWeekStart);
-                    }}
+                    onClick={() => setShowAllTeamSchedules(!showAllTeamSchedules)}
+                    data-testid="button-view-all-team"
                   >
-                    <ChevronLeft className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      const newWeekStart = addWeeks(teamWeekStart, 1);
-                      setTeamWeekStart(newWeekStart);
-                      setSelectedTeamDay(newWeekStart);
-                    }}
-                  >
-                    <ChevronRight className="h-4 w-4" />
+                    <Users2 className="h-4 w-4 mr-2" />
+                    {showAllTeamSchedules ? 'Viewing All' : 'View All'}
                   </Button>
                 </div>
               </div>
