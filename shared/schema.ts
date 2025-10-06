@@ -1523,6 +1523,29 @@ export const posSaleItems = pgTable("pos_sale_items", {
   inventoryItemIdIdx: index("idx_psi_inventory_item_id").on(table.inventoryItemId),
 }));
 
+// Employee Purchases (Barcode scanning for employee store purchases)
+export const employeePurchases = pgTable("employee_purchases", {
+  id: serial("id").primaryKey(),
+  employeeId: varchar("employee_id").notNull().references(() => users.id),
+  inventoryItemId: integer("inventory_item_id").references(() => inventoryItems.id),
+  itemName: varchar("item_name").notNull(),
+  barcode: varchar("barcode"), // Scanned barcode/SKU
+  quantity: decimal("quantity", { precision: 10, scale: 3 }).notNull().default("1.000"),
+  unitPrice: decimal("unit_price", { precision: 10, scale: 2 }).notNull(),
+  totalAmount: decimal("total_amount", { precision: 10, scale: 2 }).notNull(),
+  purchaseDate: timestamp("purchase_date").defaultNow().notNull(),
+  periodMonth: varchar("period_month").notNull(), // YYYY-MM format for monthly allowance tracking
+  status: varchar("status").default("completed").notNull(), // completed, voided
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  employeeIdIdx: index("idx_ep_employee_id").on(table.employeeId),
+  purchaseDateIdx: index("idx_ep_purchase_date").on(table.purchaseDate),
+  periodMonthIdx: index("idx_ep_period_month").on(table.periodMonth),
+  statusIdx: index("idx_ep_status").on(table.status),
+  employeePeriodIdx: index("idx_ep_employee_period").on(table.employeeId, table.periodMonth),
+}));
+
 // HSA Expenses
 export const hsaExpenses = pgTable("hsa_expenses", {
   id: serial("id").primaryKey(),
@@ -1852,6 +1875,11 @@ export const insertPosSaleItemSchema = createInsertSchema(posSaleItems).omit({
   createdAt: true,
 });
 
+export const insertEmployeePurchaseSchema = createInsertSchema(employeePurchases).omit({
+  id: true,
+  createdAt: true,
+});
+
 export const insertHsaExpenseSchema = createInsertSchema(hsaExpenses).omit({
   id: true,
   createdAt: true,
@@ -1938,6 +1966,9 @@ export type InsertPosSale = z.infer<typeof insertPosSaleSchema>;
 
 export type PosSaleItem = typeof posSaleItems.$inferSelect;
 export type InsertPosSaleItem = z.infer<typeof insertPosSaleItemSchema>;
+
+export type EmployeePurchase = typeof employeePurchases.$inferSelect;
+export type InsertEmployeePurchase = z.infer<typeof insertEmployeePurchaseSchema>;
 
 export type HsaExpense = typeof hsaExpenses.$inferSelect;
 export type InsertHsaExpense = z.infer<typeof insertHsaExpenseSchema>;
