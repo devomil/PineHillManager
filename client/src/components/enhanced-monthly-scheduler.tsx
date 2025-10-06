@@ -116,7 +116,7 @@ export default function EnhancedMonthlyScheduler() {
   // Schedule View State (for employees)
   const [showCalendarView, setShowCalendarView] = useState(false);
   
-  // Team Schedule "View All" toggle - when true, employees can see all team members
+  // Team Schedule "View All" toggle - when true, shows monthly calendar view; when false, shows daily list view
   const [showAllTeamSchedules, setShowAllTeamSchedules] = useState(false);
 
   // Team Schedule Scroll Reference
@@ -183,14 +183,11 @@ export default function EnhancedMonthlyScheduler() {
   });
 
   // Fetch all team schedules (for Team Schedule tab - employees only)
-  // When showAllTeamSchedules is true, shows all team members; otherwise shows only current user
+  // Always fetches all team members' schedules for the month
   const { data: teamSchedules = [] } = useQuery({
-    queryKey: ["/api/work-schedules/team", format(calendarStart, "yyyy-MM-dd"), format(calendarEnd, "yyyy-MM-dd"), showAllTeamSchedules],
+    queryKey: ["/api/work-schedules/team", format(calendarStart, "yyyy-MM-dd"), format(calendarEnd, "yyyy-MM-dd")],
     queryFn: async () => {
-      const url = showAllTeamSchedules
-        ? `/api/work-schedules?startDate=${format(calendarStart, "yyyy-MM-dd")}&endDate=${format(calendarEnd, "yyyy-MM-dd")}`
-        : `/api/work-schedules?startDate=${format(calendarStart, "yyyy-MM-dd")}&endDate=${format(calendarEnd, "yyyy-MM-dd")}&userId=${user?.id}`;
-      const response = await apiRequest("GET", url);
+      const response = await apiRequest("GET", `/api/work-schedules?startDate=${format(calendarStart, "yyyy-MM-dd")}&endDate=${format(calendarEnd, "yyyy-MM-dd")}`);
       return response.json();
     },
     enabled: !!user && user?.role === 'employee'
@@ -1557,7 +1554,7 @@ export default function EnhancedMonthlyScheduler() {
                 {/* View All Toggle */}
                 <div className="flex items-center justify-between">
                   <p className="text-sm text-muted-foreground">
-                    {showAllTeamSchedules ? 'Viewing all team members' : 'Viewing only your shifts'}
+                    {showAllTeamSchedules ? 'Monthly calendar view' : 'Daily list view'}
                   </p>
                   <Button
                     variant={showAllTeamSchedules ? "default" : "outline"}
@@ -1566,151 +1563,206 @@ export default function EnhancedMonthlyScheduler() {
                     data-testid="button-view-all-team"
                   >
                     <Users2 className="h-4 w-4 mr-2" />
-                    {showAllTeamSchedules ? 'Viewing All' : 'View All'}
+                    View All
                   </Button>
                 </div>
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* Horizontal Week View - Desktop Only */}
-              <div className="hidden md:flex justify-between gap-2 overflow-x-auto pb-2">
-                {[...Array(7)].map((_, index) => {
-                  const day = addDays(teamWeekStart, index);
-                  const dateStr = format(day, "yyyy-MM-dd");
-                  const daySchedules = teamSchedules.filter((s: WorkSchedule) => s.date === dateStr);
-                  const isDayToday = isToday(day);
-                  const isSelected = isSameDay(day, selectedTeamDay);
-                  const hasSchedules = daySchedules.length > 0;
-                  
-                  return (
-                    <button
-                      key={index}
-                      onClick={() => setSelectedTeamDay(day)}
-                      className={`flex-1 min-w-[70px] p-3 rounded-lg border transition-all ${
-                        isSelected
-                          ? "bg-farm-green text-white border-farm-green shadow-md"
-                          : isDayToday
-                          ? "border-farm-green bg-green-50 text-farm-green"
-                          : "border-slate-200 hover:bg-slate-50"
-                      }`}
-                    >
-                      <div className={`text-xs font-medium mb-1 ${
-                        isSelected ? "text-white" : "text-slate-600"
-                      }`}>
-                        {format(day, "EEE")}
-                      </div>
-                      <div className={`text-2xl font-bold ${
-                        isSelected ? "text-white" : isDayToday ? "text-farm-green" : "text-slate-900"
-                      }`}>
-                        {format(day, "d")}
-                      </div>
-                      {hasSchedules && !isSelected && (
-                        <div className="flex justify-center mt-1">
-                          <div className="w-1 h-1 rounded-full bg-farm-green"></div>
-                        </div>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Selected Day Header with Navigation */}
-              <div className="pt-2 border-t">
-                <div className="flex items-center justify-between mb-4">
-                  <button
-                    onClick={() => {
-                      const newDay = addDays(selectedTeamDay, -1);
-                      setSelectedTeamDay(newDay);
-                      const weekStart = startOfWeek(newDay, { weekStartsOn: 0 });
-                      if (!isSameDay(weekStart, teamWeekStart)) {
-                        setTeamWeekStart(weekStart);
-                      }
-                    }}
-                    className="p-2 hover:bg-slate-100 rounded-full transition-colors"
-                    data-testid="button-previous-day"
-                  >
-                    <ChevronLeft className="h-5 w-5 text-slate-600" />
-                  </button>
-                  
-                  <div className="text-center">
-                    <h3 className="text-sm font-semibold text-slate-900 mb-1">
-                      {format(selectedTeamDay, "EEEE")}
-                    </h3>
-                    <p className="text-2xl font-bold text-farm-green">
-                      {format(selectedTeamDay, "d")}
-                    </p>
+              {!showAllTeamSchedules ? (
+                // Daily List View (Default)
+                <>
+                  {/* Horizontal Week View - Desktop Only */}
+                  <div className="hidden md:flex justify-between gap-2 overflow-x-auto pb-2">
+                    {[...Array(7)].map((_, index) => {
+                      const day = addDays(teamWeekStart, index);
+                      const dateStr = format(day, "yyyy-MM-dd");
+                      const daySchedules = teamSchedules.filter((s: WorkSchedule) => s.date === dateStr);
+                      const isDayToday = isToday(day);
+                      const isSelected = isSameDay(day, selectedTeamDay);
+                      const hasSchedules = daySchedules.length > 0;
+                      
+                      return (
+                        <button
+                          key={index}
+                          onClick={() => setSelectedTeamDay(day)}
+                          className={`flex-1 min-w-[70px] p-3 rounded-lg border transition-all ${
+                            isSelected
+                              ? "bg-farm-green text-white border-farm-green shadow-md"
+                              : isDayToday
+                              ? "border-farm-green bg-green-50 text-farm-green"
+                              : "border-slate-200 hover:bg-slate-50"
+                          }`}
+                        >
+                          <div className={`text-xs font-medium mb-1 ${
+                            isSelected ? "text-white" : "text-slate-600"
+                          }`}>
+                            {format(day, "EEE")}
+                          </div>
+                          <div className={`text-2xl font-bold ${
+                            isSelected ? "text-white" : isDayToday ? "text-farm-green" : "text-slate-900"
+                          }`}>
+                            {format(day, "d")}
+                          </div>
+                          {hasSchedules && !isSelected && (
+                            <div className="flex justify-center mt-1">
+                              <div className="w-1 h-1 rounded-full bg-farm-green"></div>
+                            </div>
+                          )}
+                        </button>
+                      );
+                    })}
                   </div>
-                  
-                  <button
-                    onClick={() => {
-                      const newDay = addDays(selectedTeamDay, 1);
-                      setSelectedTeamDay(newDay);
-                      const weekStart = startOfWeek(newDay, { weekStartsOn: 0 });
-                      if (!isSameDay(weekStart, teamWeekStart)) {
-                        setTeamWeekStart(weekStart);
-                      }
-                    }}
-                    className="p-2 hover:bg-slate-100 rounded-full transition-colors"
-                    data-testid="button-next-day"
-                  >
-                    <ChevronRight className="h-5 w-5 text-slate-600" />
-                  </button>
-                </div>
-              </div>
 
-              {/* Employee List for Selected Day */}
-              <div ref={teamScheduleScrollRef} className="space-y-3 max-h-[500px] md:max-h-[600px] overflow-y-auto">
-                {(() => {
-                  const dateStr = format(selectedTeamDay, "yyyy-MM-dd");
-                  const daySchedules = teamSchedules.filter((s: WorkSchedule) => s.date === dateStr);
-                  
-                  if (daySchedules.length === 0) {
-                    return (
-                      <div className="text-center py-8 text-slate-400">
-                        <Users2 className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                        <p>No team members scheduled for this day</p>
+                  {/* Selected Day Header with Navigation */}
+                  <div className="pt-2 border-t">
+                    <div className="flex items-center justify-between mb-4">
+                      <button
+                        onClick={() => {
+                          const newDay = addDays(selectedTeamDay, -1);
+                          setSelectedTeamDay(newDay);
+                          const weekStart = startOfWeek(newDay, { weekStartsOn: 0 });
+                          if (!isSameDay(weekStart, teamWeekStart)) {
+                            setTeamWeekStart(weekStart);
+                          }
+                        }}
+                        className="p-2 hover:bg-slate-100 rounded-full transition-colors"
+                        data-testid="button-previous-day"
+                      >
+                        <ChevronLeft className="h-5 w-5 text-slate-600" />
+                      </button>
+                      
+                      <div className="text-center">
+                        <h3 className="text-sm font-semibold text-slate-900 mb-1">
+                          {format(selectedTeamDay, "EEEE")}
+                        </h3>
+                        <p className="text-2xl font-bold text-farm-green">
+                          {format(selectedTeamDay, "d")}
+                        </p>
                       </div>
-                    );
-                  }
+                      
+                      <button
+                        onClick={() => {
+                          const newDay = addDays(selectedTeamDay, 1);
+                          setSelectedTeamDay(newDay);
+                          const weekStart = startOfWeek(newDay, { weekStartsOn: 0 });
+                          if (!isSameDay(weekStart, teamWeekStart)) {
+                            setTeamWeekStart(weekStart);
+                          }
+                        }}
+                        className="p-2 hover:bg-slate-100 rounded-full transition-colors"
+                        data-testid="button-next-day"
+                      >
+                        <ChevronRight className="h-5 w-5 text-slate-600" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Employee List for Selected Day */}
+                  <div ref={teamScheduleScrollRef} className="space-y-3 max-h-[500px] md:max-h-[600px] overflow-y-auto">
+                    {(() => {
+                      const dateStr = format(selectedTeamDay, "yyyy-MM-dd");
+                      const daySchedules = teamSchedules.filter((s: WorkSchedule) => s.date === dateStr);
+                      
+                      if (daySchedules.length === 0) {
+                        return (
+                          <div className="text-center py-8 text-slate-400">
+                            <Users2 className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                            <p>No team members scheduled for this day</p>
+                          </div>
+                        );
+                      }
+                      
+                      return daySchedules.map((schedule: WorkSchedule, idx: number) => {
+                        const employee = employees.find((emp: UserType) => emp.id === schedule.userId);
+                        const location = locations.find((loc: Location) => loc.id === schedule.locationId);
+                        
+                        return (
+                          <div
+                            key={idx}
+                            className="flex items-center gap-3 p-3 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors"
+                          >
+                            {/* Avatar */}
+                            <UserAvatar 
+                              user={employee} 
+                              size="md"
+                            />
+                            
+                            {/* Employee Info */}
+                            <div className="flex-1 min-w-0">
+                              <h4 className="font-semibold text-slate-900 truncate">
+                                {employee?.firstName || 'Unknown'} {employee?.lastName || ''}
+                              </h4>
+                              <p className="text-sm text-slate-600">
+                                {formatTime(schedule.startTime)} – {formatTime(schedule.endTime)}
+                              </p>
+                              <div className="flex items-center gap-1 mt-1">
+                                <div
+                                  className="w-2 h-2 rounded-full"
+                                  style={{ backgroundColor: location?.displayColor || '#10b981' }}
+                                />
+                                <span className="text-xs text-slate-500">
+                                  {location?.name || 'Unknown Location'}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      });
+                    })()}
+                  </div>
+                </>
+              ) : (
+                // Monthly Calendar View (When "View All" is ON)
+                <div className="grid grid-cols-7 gap-1 md:gap-2">
+                  {/* Day headers */}
+                  {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
+                    <div key={day} className="text-center text-xs font-semibold text-slate-600 py-2">
+                      {day}
+                    </div>
+                  ))}
                   
-                  return daySchedules.map((schedule: WorkSchedule, idx: number) => {
-                    const employee = employees.find((emp: UserType) => emp.id === schedule.userId);
-                    const location = locations.find((loc: Location) => loc.id === schedule.locationId);
+                  {/* Calendar days */}
+                  {calendarDays.map((day) => {
+                    const dateStr = format(day, "yyyy-MM-dd");
+                    const daySchedules = teamSchedules.filter((s: WorkSchedule) => s.date === dateStr);
+                    const isDayToday = isToday(day);
+                    const isCurrentMonth = isSameMonth(day, currentMonth);
                     
                     return (
                       <div
-                        key={idx}
-                        className="flex items-center gap-3 p-3 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors"
+                        key={dateStr}
+                        className={`min-h-[80px] md:min-h-[120px] p-1 md:p-2 border rounded ${
+                          !isCurrentMonth ? 'bg-slate-50 text-slate-400' : 'bg-white'
+                        } ${isDayToday ? 'border-farm-green border-2' : 'border-slate-200'}`}
                       >
-                        {/* Avatar */}
-                        <UserAvatar 
-                          user={employee} 
-                          size="md"
-                        />
-                        
-                        {/* Employee Info */}
-                        <div className="flex-1 min-w-0">
-                          <h4 className="font-semibold text-slate-900 truncate">
-                            {employee?.firstName || 'Unknown'} {employee?.lastName || ''}
-                          </h4>
-                          <p className="text-sm text-slate-600">
-                            {formatTime(schedule.startTime)} – {formatTime(schedule.endTime)}
-                          </p>
-                          <div className="flex items-center gap-1 mt-1">
-                            <div
-                              className="w-2 h-2 rounded-full"
-                              style={{ backgroundColor: location?.displayColor || '#10b981' }}
-                            />
-                            <span className="text-xs text-slate-500">
-                              {location?.name || 'Unknown Location'}
-                            </span>
-                          </div>
+                        <div className={`text-xs md:text-sm font-semibold mb-1 ${isDayToday ? 'text-farm-green' : ''}`}>
+                          {format(day, 'd')}
+                        </div>
+                        <div className="space-y-1">
+                          {daySchedules.map((schedule: WorkSchedule, idx: number) => {
+                            const employee = employees.find((emp: UserType) => emp.id === schedule.userId);
+                            const location = locations.find((loc: Location) => loc.id === schedule.locationId);
+                            
+                            return (
+                              <div
+                                key={idx}
+                                className="text-[10px] md:text-xs p-1 rounded truncate"
+                                style={{
+                                  backgroundColor: employee?.color || '#3b82f6',
+                                  color: 'white'
+                                }}
+                              >
+                                {employee?.firstName?.[0]}{employee?.lastName?.[0]} {formatTime(schedule.startTime).split(' ')[0]}
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     );
-                  });
-                })()}
-              </div>
+                  })}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
