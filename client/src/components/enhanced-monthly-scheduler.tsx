@@ -1749,7 +1749,7 @@ export default function EnhancedMonthlyScheduler() {
                                 key={idx}
                                 className="text-[10px] md:text-xs p-1 rounded truncate font-medium"
                                 style={{
-                                  backgroundColor: employee?.color || '#3b82f6',
+                                  backgroundColor: employee?.displayColor || '#3b82f6',
                                   color: 'white'
                                 }}
                               >
