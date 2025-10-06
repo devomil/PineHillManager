@@ -264,6 +264,8 @@ export function setupAuth(app: Express) {
       lastName: req.user.lastName,
       role: req.user.role,
       profileImageUrl: req.user.profileImageUrl,
+      employeePurchaseEnabled: req.user.employeePurchaseEnabled,
+      employeePurchaseCap: req.user.employeePurchaseCap,
     });
   });
 
