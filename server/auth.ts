@@ -257,10 +257,6 @@ export function setupAuth(app: Express) {
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
     
-    console.log('[DEBUG] req.user keys:', Object.keys(req.user));
-    console.log('[DEBUG] employeePurchaseEnabled:', req.user.employeePurchaseEnabled);
-    console.log('[DEBUG] employeePurchaseCap:', req.user.employeePurchaseCap);
-    
     res.json({
       id: req.user.id,
       email: req.user.email,
