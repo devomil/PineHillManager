@@ -1,7 +1,7 @@
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Clock, Calendar, FileText, Users, MessageSquare, MessageCircle, Bell, ChevronRight, HelpCircle, User, LogOut, ChevronDown } from "lucide-react";
+import { Clock, Calendar, FileText, Users, MessageSquare, MessageCircle, Bell, ChevronRight, HelpCircle, User, LogOut, ChevronDown, ShoppingCart } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import UserAvatar from "@/components/user-avatar";
 import { Link } from "wouter";
@@ -44,7 +44,15 @@ export default function HomeDashboard() {
       href: "/support",
       color: "bg-indigo-50 border-indigo-200",
       iconColor: "text-indigo-600"
-    }
+    },
+    ...(user?.employeePurchaseEnabled ? [{
+      title: "Employee Purchases",
+      description: "Shop with your monthly employee purchase allowance",
+      icon: ShoppingCart,
+      href: "/employee-purchases",
+      color: "bg-green-50 border-green-200",
+      iconColor: "text-green-600"
+    }] : [])
   ];
 
   return (

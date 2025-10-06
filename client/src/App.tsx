@@ -34,6 +34,7 @@ import OrdersPage from "@/pages/orders";
 import NotFound from "@/pages/not-found";
 import Landing from "@/pages/landing";
 import EmergencyContactPage from "@/pages/emergency-contact";
+import EmployeePurchases from "@/pages/employee-purchases";
 
 function AuthenticatedApp() {
   const { user } = useAuth();
@@ -76,6 +77,7 @@ function AuthenticatedApp() {
       <Route path="/admin/accounting" component={AccountingDashboard} />
       <Route path="/admin/integrations" component={IntegrationsPage} />
       <Route path="/admin/marketing" component={MarketingPage} />
+      <Route path="/employee-purchases" component={EmployeePurchases} />
       <Route path="/emergency-contact" component={EmergencyContactPage} />
       <Route component={NotFound} />
     </Switch>

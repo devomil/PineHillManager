@@ -2006,6 +2006,135 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ============================================
+  // EMPLOYEE PURCHASE PORTAL ROUTES
+  // ============================================
+  
+  // Search inventory by barcode/SKU
+  app.get('/api/inventory/search/:barcode', isAuthenticated, async (req, res) => {
+    try {
+      const { barcode } = req.params;
+      
+      if (!barcode) {
+        return res.status(400).json({ message: 'Barcode is required' });
+      }
+      
+      const item = await storage.searchInventoryByBarcode(barcode);
+      
+      if (!item) {
+        return res.status(404).json({ message: 'Item not found' });
+      }
+      
+      res.json(item);
+    } catch (error) {
+      console.error('Error searching inventory by barcode:', error);
+      res.status(500).json({ message: 'Failed to search inventory' });
+    }
+  });
+
+  // Create employee purchase
+  app.post('/api/employee-purchases', isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ message: 'User not authenticated' });
+      }
+      
+      // Check if employee has purchase benefit enabled
+      const user = await storage.getUser(userId);
+      if (!user?.employeePurchaseEnabled) {
+        return res.status(403).json({ message: 'Employee purchase benefit not enabled for your account' });
+      }
+      
+      const purchaseData = insertEmployeePurchaseSchema.parse(req.body);
+      
+      // Get current month in YYYY-MM format
+      const currentMonth = new Date().toISOString().slice(0, 7);
+      
+      // Check if purchase would exceed monthly cap
+      const monthlyTotal = await storage.getEmployeePurchaseMonthlyTotal(userId, currentMonth);
+      const monthlyCap = user.employeePurchaseCap || 0;
+      
+      if (monthlyTotal + purchaseData.totalAmount > monthlyCap) {
+        return res.status(400).json({ 
+          message: 'Purchase would exceed monthly allowance',
+          currentTotal: monthlyTotal,
+          monthlyCap: monthlyCap,
+          remainingBalance: monthlyCap - monthlyTotal
+        });
+      }
+      
+      // Create the purchase
+      const purchase = await storage.createEmployeePurchase({
+        ...purchaseData,
+        employeeId: userId,
+        periodMonth: currentMonth,
+        purchaseDate: new Date(),
+        status: 'completed'
+      });
+      
+      res.status(201).json(purchase);
+    } catch (error: any) {
+      if (error?.name === 'ZodError') {
+        return res.status(400).json({ 
+          message: 'Invalid purchase data',
+          errors: error.errors 
+        });
+      }
+      console.error('Error creating employee purchase:', error);
+      res.status(500).json({ message: 'Failed to create purchase' });
+    }
+  });
+
+  // Get employee purchases
+  app.get('/api/employee-purchases', isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ message: 'User not authenticated' });
+      }
+      
+      const periodMonth = req.query.periodMonth as string | undefined;
+      const purchases = await storage.getEmployeePurchasesByUser(userId, periodMonth);
+      
+      res.json(purchases);
+    } catch (error) {
+      console.error('Error fetching employee purchases:', error);
+      res.status(500).json({ message: 'Failed to fetch purchases' });
+    }
+  });
+
+  // Get employee purchase balance for current month
+  app.get('/api/employee-purchases/balance', isAuthenticated, async (req, res) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ message: 'User not authenticated' });
+      }
+      
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+      
+      const currentMonth = new Date().toISOString().slice(0, 7);
+      const monthlyTotal = await storage.getEmployeePurchaseMonthlyTotal(userId, currentMonth);
+      const monthlyCap = user.employeePurchaseCap || 0;
+      const remainingBalance = monthlyCap - monthlyTotal;
+      
+      res.json({
+        monthlyTotal,
+        monthlyCap,
+        remainingBalance,
+        periodMonth: currentMonth,
+        isEnabled: user.employeePurchaseEnabled || false
+      });
+    } catch (error) {
+      console.error('Error fetching employee purchase balance:', error);
+      res.status(500).json({ message: 'Failed to fetch balance' });
+    }
+  });
+
   // Admin-only password management routes
   const isAdmin = (req: any, res: any, next: any) => {
     if (!req.user || req.user.role !== 'admin') {
