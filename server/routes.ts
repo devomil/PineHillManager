@@ -1075,10 +1075,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // PDF Schedule Generation (Puppeteer-based for perfect single-page control)
   app.post('/api/schedules/generate-pdf', isAuthenticated, async (req, res) => {
     try {
-      if (!req.user || (req.user.role !== 'admin' && req.user.role !== 'manager')) {
-        return res.status(403).json({ error: 'Admin or Manager access required' });
-      }
-
       const { month, locationId } = req.body;
       
       // Get schedule data for the month
