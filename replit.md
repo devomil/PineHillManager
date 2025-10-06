@@ -21,7 +21,7 @@ The frontend utilizes React 18 with TypeScript and Vite. Radix UI provides acces
 
 ### Feature Specifications
 - **Time Management**: Clock in/out with break tracking, multi-location work scheduling, and time off request management.
-- **Communication & Support**: Mobile-first SMS-integrated team messaging with interactive response, TCPA-compliant consent tracking, and real-time integration via WebSockets.
+- **Communication & Support**: Mobile-first SMS-integrated team messaging with interactive response, TCPA-compliant consent tracking, and real-time integration via WebSockets. SMS notifications include 2-3 sentence message previews and clickable links to https://PHFManager.co for viewing full messages.
 - **Document Management**: Role-based file sharing.
 - **Inventory Management**: Dedicated `/inventory` page with comprehensive tracking, real-time stock levels, categories, and analytics across all locations.
 - **Order Management**: Dedicated `/orders` page for comprehensive order processing with real-time analytics, payment tracking, and performance insights across all store locations. Critical performance optimization implemented: early date/location filtering before expensive financial calculations, reducing load times from 136+ seconds to 2-4 seconds (meeting 3-second SLA).

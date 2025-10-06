@@ -248,17 +248,15 @@ export class SMSService {
     originalSubject?: string
   ): Promise<{ success: boolean; messageId?: string; error?: string }> {
     try {
-      // Truncate reply content for SMS if it's too long
-      const truncatedContent = replyContent.length > 100 
-        ? `${replyContent.substring(0, 97)}...` 
-        : replyContent;
+      // Extract 2-3 sentences from the reply content for preview
+      const previewContent = this.extractSentencePreview(replyContent, 3);
 
-      // Format the SMS message
+      // Format the SMS message with preview and link
       let smsMessage: string;
       if (originalSubject) {
-        smsMessage = `💬 ${senderName} replied to your direct message "${originalSubject}": "${truncatedContent}"`;
+        smsMessage = `💬 ${senderName} replied to "${originalSubject}":\n\n${previewContent}\n\nView full message: https://PHFManager.co`;
       } else {
-        smsMessage = `💬 ${senderName} replied to your direct message: "${truncatedContent}"`;
+        smsMessage = `💬 ${senderName} sent you a message:\n\n${previewContent}\n\nView full message: https://PHFManager.co`;
       }
 
       // Send the SMS
@@ -292,10 +290,8 @@ export class SMSService {
     parentResponseAuthor?: string
   ): Promise<{ success: boolean; messageId?: string; error?: string }> {
     try {
-      // Truncate response content for SMS if it's too long
-      const truncatedContent = responseContent.length > 100 
-        ? `${responseContent.substring(0, 97)}...` 
-        : responseContent;
+      // Extract 2-3 sentences from the response content for preview
+      const previewContent = this.extractSentencePreview(responseContent, 3);
 
       // Format the SMS message based on context
       let smsMessage: string;
@@ -306,14 +302,14 @@ export class SMSService {
         if (announcementTitle) {
           smsMessage += ` on "${announcementTitle}"`;
         }
-        smsMessage += `: "${truncatedContent}"`;
+        smsMessage += `:\n\n${previewContent}\n\nView full message: https://PHFManager.co`;
       } else {
         // Initial response to announcement
-        smsMessage = `💬 ${senderName} responded to announcement`;
+        smsMessage = `💬 ${senderName} responded`;
         if (announcementTitle) {
-          smsMessage += ` "${announcementTitle}"`;
+          smsMessage += ` to "${announcementTitle}"`;
         }
-        smsMessage += `: "${truncatedContent}"`;
+        smsMessage += `:\n\n${previewContent}\n\nView full message: https://PHFManager.co`;
       }
 
       // Send the SMS
@@ -333,6 +329,43 @@ export class SMSService {
         error: error instanceof Error ? error.message : 'Unknown error' 
       };
     }
+  }
+
+  /**
+   * Extract 2-3 sentences from text content for SMS preview
+   */
+  private extractSentencePreview(text: string, maxSentences: number = 3): string {
+    if (!text || text.trim().length === 0) {
+      return '';
+    }
+
+    // Clean up the text
+    const cleanText = text.trim();
+    
+    // Split by sentence endings (., !, ?)
+    const sentenceRegex = /[^.!?]+[.!?]+/g;
+    const sentences = cleanText.match(sentenceRegex) || [];
+    
+    // If no sentence endings found, just truncate to reasonable length
+    if (sentences.length === 0) {
+      const maxLength = 200;
+      return cleanText.length > maxLength 
+        ? cleanText.substring(0, maxLength - 3) + '...' 
+        : cleanText;
+    }
+    
+    // Take up to maxSentences
+    const preview = sentences.slice(0, maxSentences).join(' ').trim();
+    
+    // If preview is too long (over 250 chars), truncate to 2 sentences
+    if (preview.length > 250 && sentences.length > 1) {
+      const shorterPreview = sentences.slice(0, 2).join(' ').trim();
+      return shorterPreview.length > 250 
+        ? shorterPreview.substring(0, 247) + '...'
+        : shorterPreview;
+    }
+    
+    return preview;
   }
 
   /**

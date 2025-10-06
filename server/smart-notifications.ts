@@ -409,17 +409,21 @@ export class SmartNotificationService {
         priorityPrefix = '📢 ';
     }
     
-    // Build the message with header, priority, content
+    // Extract 2-3 sentence preview from message content
+    const messagePreview = message && message !== title 
+      ? this.extractSentencePreview(message, 3)
+      : this.extractSentencePreview(title, 3);
+    
+    // Build the message with header, priority, content preview, and link
     let smsText = `${header}\n${priorityPrefix}${title}`;
     
-    if (message && message !== title) {
-      smsText += ` - ${message}`;
+    // Add message preview if available
+    if (messagePreview) {
+      smsText += `\n\n${messagePreview}`;
     }
 
-    // Add context for schedule changes
-    if (context.messageType === 'schedule_change') {
-      smsText += ' Check your app for details.';
-    }
+    // Add clickable link to view full message
+    smsText += `\n\nView full message: https://PHFManager.co`;
     
     // Add footer signature
     const footer = `\n- Pine Hill Farm`;
@@ -427,18 +431,51 @@ export class SmartNotificationService {
     // Combine all parts
     const fullMessage = smsText + footer;
 
-    // For SMS longer than 160 chars, we'll allow multi-part SMS
-    // Most carriers support up to 1600 characters across multiple segments
-    if (fullMessage.length > 300) {
-      // If too long, truncate the main message but keep header and footer
-      const availableSpace = 300 - header.length - footer.length - priorityPrefix.length - 10; // 10 for separators
-      const truncatedContent = title.length > availableSpace 
-        ? title.substring(0, availableSpace - 3) + '...'
-        : title;
-      return `${header}\n${priorityPrefix}${truncatedContent}${footer}`;
+    // For very long SMS, truncate the preview but keep the essential parts
+    if (fullMessage.length > 400) {
+      // Truncate the preview to fit within reasonable SMS length
+      const shorterPreview = this.extractSentencePreview(messagePreview, 2);
+      return `${header}\n${priorityPrefix}${title}\n\n${shorterPreview}\n\nView full message: https://PHFManager.co${footer}`;
     }
 
     return fullMessage;
+  }
+
+  /**
+   * Extract 2-3 sentences from text content for SMS preview
+   */
+  private extractSentencePreview(text: string, maxSentences: number = 3): string {
+    if (!text || text.trim().length === 0) {
+      return '';
+    }
+
+    // Clean up the text
+    const cleanText = text.trim();
+    
+    // Split by sentence endings (., !, ?)
+    const sentenceRegex = /[^.!?]+[.!?]+/g;
+    const sentences = cleanText.match(sentenceRegex) || [];
+    
+    // If no sentence endings found, just truncate to reasonable length
+    if (sentences.length === 0) {
+      const maxLength = 150;
+      return cleanText.length > maxLength 
+        ? cleanText.substring(0, maxLength - 3) + '...' 
+        : cleanText;
+    }
+    
+    // Take up to maxSentences
+    const preview = sentences.slice(0, maxSentences).join(' ').trim();
+    
+    // If preview is too long (over 200 chars), truncate to 2 sentences
+    if (preview.length > 200 && sentences.length > 1) {
+      const shorterPreview = sentences.slice(0, 2).join(' ').trim();
+      return shorterPreview.length > 200 
+        ? shorterPreview.substring(0, 197) + '...'
+        : shorterPreview;
+    }
+    
+    return preview;
   }
 
   /**
