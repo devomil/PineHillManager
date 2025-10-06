@@ -962,11 +962,11 @@ function CommunicationsContent() {
   });
   console.log("📊 React Query data - communicationMessages:", communicationMessages.length, "items, loading:", messagesLoading);
 
-  // Combine legacy announcements with new announcement-type messages
+  // Combine legacy announcements with new announcement-type messages and group messages
   const announcements = [
     ...legacyAnnouncements,
     ...communicationMessages
-      .filter(msg => msg.messageType === 'announcement')
+      .filter(msg => msg.messageType === 'announcement' || msg.messageType === 'group_message')
       .map(msg => ({
         id: `msg_${msg.id}`, // Prefix to avoid ID conflicts with legacy announcements
         title: msg.subject || 'Announcement',
