@@ -1747,13 +1747,13 @@ export default function EnhancedMonthlyScheduler() {
                             return (
                               <div
                                 key={idx}
-                                className="text-[10px] md:text-xs p-1 rounded truncate"
+                                className="text-[10px] md:text-xs p-1 rounded truncate font-medium"
                                 style={{
                                   backgroundColor: employee?.color || '#3b82f6',
                                   color: 'white'
                                 }}
                               >
-                                {employee?.firstName?.[0]}{employee?.lastName?.[0]} {formatTime(schedule.startTime).split(' ')[0]}
+                                {employee?.firstName?.[0]}{employee?.lastName?.[0]} {formatTime(schedule.startTime).replace(':00', '').replace(' ', '')}-{formatTime(schedule.endTime).replace(':00', '').replace(' ', '')}
                               </div>
                             );
                           })}
