@@ -1263,12 +1263,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const isWeekend = date.getDay() === 0 || date.getDay() === 6;
           const isAlternateWeek = weekIndex % 2 === 1;
           
-          // Professional header with subtle grid and alternating backgrounds
+          // Professional header with visible grid lines
           const headerBg = isAlternateWeek ? lightBg : 'white';
           doc.rect(x, currentY, columnWidth, headerHeight)
              .fill(headerBg)
-             .stroke('#d1d5db')  // Subtle light gray grid lines
-             .lineWidth(0.5);
+             .stroke('#999999')  // Dark gray grid lines for visibility
+             .lineWidth(1.5);
           
           // Clean day name styling - compact but readable
           doc.fontSize(7)
@@ -1291,12 +1291,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const x = sideMargin + (dayIndex * columnWidth);
           const isAlternateWeek = weekIndex % 2 === 1;
           
-          // Cell with subtle grid lines and alternating backgrounds
+          // Cell with visible grid lines and alternating backgrounds
           const cellBg = isAlternateWeek ? lightBg : 'white';
           doc.rect(x, currentY, columnWidth, finalCellHeight)
              .fill(cellBg)
-             .stroke('#d1d5db')  // Light gray grid lines for better print readability
-             .lineWidth(0.5);
+             .stroke('#999999')  // Dark gray grid lines for clear day separation
+             .lineWidth(1.5);
           
           // SMART shift rendering - PRINT-FRIENDLY with high contrast
           const availableShiftSpace = finalCellHeight - 8;
