@@ -1949,7 +1949,7 @@ function CommunicationsContent() {
                               {String(announcement.title)}
                             </CardTitle>
                             {/* Author Information */}
-                            {'authorId' in announcement && announcement.authorId && (
+                            {('authorId' in announcement && announcement.authorId) ? (
                               <div className="flex items-center gap-2 mt-1">
                                 <UserAvatar 
                                   user={employees?.find(emp => emp.id === announcement.authorId)} 
@@ -1964,7 +1964,7 @@ function CommunicationsContent() {
                                 <span className="text-xs text-gray-400">•</span>
                                 <span className="text-xs text-gray-500">Author</span>
                               </div>
-                            )}
+                            ) : null}
                           </div>
                           <div className="flex flex-col items-end space-y-1 sm:space-y-2 flex-shrink-0">
                             <Badge className={`text-xs ${getPriorityColor(announcement.priority)}`}>
@@ -2062,7 +2062,7 @@ function CommunicationsContent() {
                                 {String(announcement.title)}
                               </CardTitle>
                               {/* Author Information for Expired Announcements */}
-                              {'authorId' in announcement && announcement.authorId && (
+                              {('authorId' in announcement && announcement.authorId) ? (
                                 <div className="flex items-center gap-2 mt-1">
                                   <UserAvatar 
                                     user={employees?.find(emp => emp.id === announcement.authorId)} 
@@ -2077,7 +2077,7 @@ function CommunicationsContent() {
                                   <span className="text-xs text-gray-400">•</span>
                                   <span className="text-xs text-gray-400">Author</span>
                                 </div>
-                              )}
+                              ) : null}
                             </div>
                             <div className="flex flex-col items-end space-y-2">
                               <Badge className={getPriorityColor(announcement.priority)}>
