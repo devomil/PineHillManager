@@ -1298,18 +1298,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
              .stroke('#d1d5db')  // Light gray grid lines for better print readability
              .lineWidth(0.5);
           
-          // SMART shift rendering - improved text visibility
-          const availableShiftSpace = finalCellHeight - 8; // Reserve padding
-          const shiftHeight = Math.min(16, Math.floor(availableShiftSpace / Math.max(daySchedules.length, 1)));
-          const fontSize = Math.min(7, Math.max(5, shiftHeight - 4)); // Increased range 5-7
-          const timeFont = Math.min(6, Math.max(4, fontSize - 1)); // Improved time text size
+          // SMART shift rendering - PRINT-FRIENDLY with high contrast
+          const availableShiftSpace = finalCellHeight - 8;
+          const shiftHeight = Math.min(20, Math.floor(availableShiftSpace / Math.max(daySchedules.length, 1)));
+          const fontSize = Math.min(9, Math.max(7, shiftHeight - 6)); // Larger fonts: 7-9pt
+          const timeFont = Math.min(8, Math.max(6, fontSize - 1)); // Larger time: 6-8pt
           
-          let shiftY = currentY + 4; // Consistent top padding
+          let shiftY = currentY + 4;
           daySchedules.forEach((schedule: any, shiftIndex: number) => {
-            // Skip if we're running out of space
             if (shiftY + shiftHeight > currentY + finalCellHeight - 2) return;
             
-            // 12-hour format matching your system
+            // 12-hour format
             const startTime = new Date(schedule.startTime).toLocaleString('en-US', {
               hour: 'numeric',
               minute: '2-digit',
@@ -1328,26 +1327,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const timeRange = `${startTime}-${endTime}`;
             const locationName = getLocationAbbreviation(schedule.locationId || 1);
             
-            // Compact rounded employee color blocks
-            const backgroundColor = employeeColors[employeeName] || lightBg;
-            doc.roundedRect(x + 2, shiftY, columnWidth - 4, shiftHeight, 2)
-               .fill(backgroundColor)
-               .stroke('rgba(255,255,255,0.2)')
-               .lineWidth(0.5);
+            // PRINT-FRIENDLY: Dark borders with light fill for better printing
+            const uiColor = employeeColors[employeeName] || '#CCCCCC';
             
-            // Adaptive text sizing for employee names
+            // Light pastel background for printing
+            doc.roundedRect(x + 3, shiftY, columnWidth - 6, shiftHeight, 3)
+               .fillAndStroke('#F5F5F5', uiColor) // Light gray fill with colored border
+               .lineWidth(2); // Thick border for visibility
+            
+            // DARK text for maximum print contrast
             doc.fontSize(fontSize)
                .font('Helvetica-Bold')
-               .fillColor('#ffffff')
-               .text(employeeName, x + 4, shiftY + 1, { width: columnWidth - 8, align: 'left' });
+               .fillColor('#000000') // Black text
+               .text(employeeName, x + 6, shiftY + 2, { width: columnWidth - 12, align: 'left' });
             
-            // Adaptive time and location text
+            // Dark time and location text
             doc.fontSize(timeFont)
-               .font('Helvetica-Bold')
-               .fillColor('rgba(255,255,255,0.9)')
-               .text(`${timeRange} • ${locationName}`, x + 4, shiftY + fontSize + 2, { width: columnWidth - 8, align: 'left' });
+               .font('Helvetica')
+               .fillColor('#333333') // Dark gray text
+               .text(`${timeRange} • ${locationName}`, x + 6, shiftY + fontSize + 3, { width: columnWidth - 12, align: 'left' });
             
-            shiftY += shiftHeight + 1; // Compact but readable spacing
+            shiftY += shiftHeight + 2;
           });
         });
 
