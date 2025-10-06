@@ -43,6 +43,10 @@ export const users = pgTable("users", {
   hourlyRate: decimal("hourly_rate", { precision: 8, scale: 2 }), // Hourly wage for cost calculations
   defaultEntryCost: decimal("default_entry_cost", { precision: 8, scale: 2 }), // Default cost per time entry
   benefits: jsonb("benefits"), // Array of benefit items: { id, type, name, cadence, amount, cap, startDate, endDate, active }
+  
+  // Employee Purchase Portal
+  employeePurchaseEnabled: boolean("employee_purchase_enabled").default(false), // Whether employee can use purchase portal
+  employeePurchaseCap: decimal("employee_purchase_cap", { precision: 10, scale: 2 }).default("0.00"), // Monthly purchase allowance
 
   timeOffBalance: integer("time_off_balance").default(24),
   isActive: boolean("is_active").default(true),
