@@ -431,6 +431,12 @@ export interface IStorage {
   expireOldInvitations(): Promise<void>;
   deleteInvitation(id: number): Promise<void>;
 
+  // Employee purchases (barcode scanning store purchases)
+  createEmployeePurchase(purchase: InsertEmployeePurchase): Promise<EmployeePurchase>;
+  getEmployeePurchasesByUser(employeeId: string, periodMonth?: string): Promise<EmployeePurchase[]>;
+  getEmployeePurchaseMonthlyTotal(employeeId: string, periodMonth: string): Promise<number>;
+  searchInventoryByBarcode(barcode: string): Promise<InventoryItem | undefined>;
+
   // System analytics methods for technical support
   getAllTimeEntries(): Promise<any[]>;
   getAllWorkSchedules(): Promise<WorkSchedule[]>;
@@ -3468,6 +3474,68 @@ export class DatabaseStorage implements IStorage {
     await db
       .delete(employeeInvitations)
       .where(eq(employeeInvitations.id, id));
+  }
+
+  // Employee purchases (barcode scanning store purchases)
+  
+  async createEmployeePurchase(purchase: InsertEmployeePurchase): Promise<EmployeePurchase> {
+    const [newPurchase] = await db
+      .insert(employeePurchases)
+      .values(purchase)
+      .returning();
+    return newPurchase;
+  }
+
+  async getEmployeePurchasesByUser(employeeId: string, periodMonth?: string): Promise<EmployeePurchase[]> {
+    if (periodMonth) {
+      return await db
+        .select()
+        .from(employeePurchases)
+        .where(and(
+          eq(employeePurchases.employeeId, employeeId),
+          eq(employeePurchases.periodMonth, periodMonth),
+          eq(employeePurchases.status, 'completed')
+        ))
+        .orderBy(desc(employeePurchases.purchaseDate));
+    }
+    return await db
+      .select()
+      .from(employeePurchases)
+      .where(and(
+        eq(employeePurchases.employeeId, employeeId),
+        eq(employeePurchases.status, 'completed')
+      ))
+      .orderBy(desc(employeePurchases.purchaseDate));
+  }
+
+  async getEmployeePurchaseMonthlyTotal(employeeId: string, periodMonth: string): Promise<number> {
+    const result = await db
+      .select({
+        total: sql<string>`COALESCE(SUM(${employeePurchases.totalAmount}), 0)`
+      })
+      .from(employeePurchases)
+      .where(and(
+        eq(employeePurchases.employeeId, employeeId),
+        eq(employeePurchases.periodMonth, periodMonth),
+        eq(employeePurchases.status, 'completed')
+      ));
+    
+    return parseFloat(result[0]?.total || '0');
+  }
+
+  async searchInventoryByBarcode(barcode: string): Promise<InventoryItem | undefined> {
+    const [item] = await db
+      .select()
+      .from(inventoryItems)
+      .where(and(
+        or(
+          eq(inventoryItems.sku, barcode),
+          eq(inventoryItems.asin, barcode)
+        ),
+        eq(inventoryItems.isActive, true)
+      ))
+      .limit(1);
+    return item;
   }
 
   // Enhanced chat and messaging functionality
