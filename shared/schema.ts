@@ -47,7 +47,8 @@ export const users = pgTable("users", {
   // Employee Purchase Portal
   employeePurchaseEnabled: boolean("employee_purchase_enabled").default(false), // Whether employee can use purchase portal
   employeePurchaseCap: decimal("employee_purchase_cap", { precision: 10, scale: 2 }).default("0.00"), // Monthly purchase allowance
-  employeePurchaseDiscountPercent: decimal("employee_purchase_discount_percent", { precision: 5, scale: 2 }).default("0.00"), // Employee discount percentage (0-100)
+  employeePurchaseCostMarkup: decimal("employee_purchase_cost_markup", { precision: 5, scale: 2 }).default("0.00"), // Markup % added to cost (before cap is hit)
+  employeePurchaseRetailDiscount: decimal("employee_purchase_retail_discount", { precision: 5, scale: 2 }).default("0.00"), // Discount % from retail (after cap is hit)
 
   timeOffBalance: integer("time_off_balance").default(24),
   isActive: boolean("is_active").default(true),
