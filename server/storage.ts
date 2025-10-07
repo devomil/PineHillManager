@@ -575,14 +575,14 @@ export interface IStorage {
 
   // Inventory Items
   createInventoryItem(item: InsertInventoryItem): Promise<InventoryItem>;
-  getAllInventoryItems(): Promise<InventoryItem[]>;
+  getAllInventoryItems(locationId?: number): Promise<InventoryItem[]>;
   getInventoryItemById(id: number): Promise<InventoryItem | undefined>;
   getInventoryItemByQBId(qbItemId: string): Promise<InventoryItem | undefined>;
   getInventoryItemByThriveId(thriveItemId: string): Promise<InventoryItem | undefined>;
   getInventoryItemsBySKU(sku: string): Promise<InventoryItem[]>;
   getInventoryItemsByCloverItemId(cloverItemId: string): Promise<InventoryItem[]>;
   getInventoryItemByASIN(asin: string): Promise<InventoryItem | undefined>;
-  getLowStockItems(): Promise<InventoryItem[]>;
+  getLowStockItems(locationId?: number): Promise<InventoryItem[]>;
   updateInventoryItem(id: number, item: Partial<InsertInventoryItem>): Promise<InventoryItem>;
   updateInventoryQuantity(id: number, quantity: string): Promise<InventoryItem>;
   deleteInventoryItem(id: number): Promise<void>;
@@ -4632,8 +4632,12 @@ export class DatabaseStorage implements IStorage {
     return newItem;
   }
 
-  async getAllInventoryItems(): Promise<InventoryItem[]> {
-    return await db.select().from(inventoryItems).where(eq(inventoryItems.isActive, true));
+  async getAllInventoryItems(locationId?: number): Promise<InventoryItem[]> {
+    const conditions = [eq(inventoryItems.isActive, true)];
+    if (locationId !== undefined) {
+      conditions.push(eq(inventoryItems.locationId, locationId));
+    }
+    return await db.select().from(inventoryItems).where(and(...conditions));
   }
 
   async getInventoryItemById(id: number): Promise<InventoryItem | undefined> {
@@ -4664,9 +4668,13 @@ export class DatabaseStorage implements IStorage {
     return item;
   }
 
-  async getLowStockItems(): Promise<InventoryItem[]> {
-    return await db.select().from(inventoryItems)
-      .where(sql`${inventoryItems.quantityOnHand} <= ${inventoryItems.reorderPoint} AND ${inventoryItems.isActive} = true`);
+  async getLowStockItems(locationId?: number): Promise<InventoryItem[]> {
+    const baseCondition = sql`${inventoryItems.quantityOnHand} <= ${inventoryItems.reorderPoint} AND ${inventoryItems.isActive} = true`;
+    if (locationId !== undefined) {
+      return await db.select().from(inventoryItems)
+        .where(sql`${baseCondition} AND ${inventoryItems.locationId} = ${locationId}`);
+    }
+    return await db.select().from(inventoryItems).where(baseCondition);
   }
 
   async updateInventoryItem(id: number, item: Partial<InsertInventoryItem>): Promise<InventoryItem> {
