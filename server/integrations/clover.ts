@@ -395,9 +395,9 @@ export class CloverIntegration {
 
       for (const item of allItems) {
         try {
-          // Check if item already exists by Clover ID
+          // Check if item already exists by Clover ID AND location ID
           const existingItems = await storage.getInventoryItemsByCloverItemId(item.id);
-          const existingItem = existingItems.length > 0 ? existingItems[0] : null;
+          const existingItem = existingItems.find(i => i.locationId === this.config.id) || null;
 
           // Use stock info for accurate cost data (from inventory/items/{id}/stock endpoint)
           const stockInfo = item.stockInfo;
@@ -411,6 +411,8 @@ export class CloverIntegration {
 
           const itemData = {
             cloverItemId: item.id,                    // Clover's internal ID
+            locationId: this.config.id,                // Clover config ID for multi-location tracking
+            cloverMerchantId: this.config.merchantId,  // Clover merchant ID
             sku: item.sku || null,                     // SKU from Clover
             upc: item.code || null,                    // UPC barcode from item.code
             itemName: item.name,
