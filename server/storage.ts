@@ -439,6 +439,13 @@ export interface IStorage {
   getEmployeePurchasesByUser(employeeId: string, periodMonth?: string): Promise<EmployeePurchase[]>;
   getEmployeePurchaseMonthlyTotal(employeeId: string, periodMonth: string): Promise<number>;
   searchInventoryByBarcode(barcode: string): Promise<InventoryItem | undefined>;
+  getEmployeePurchaseUsersWithSpending(periodMonth: string): Promise<any[]>;
+  updateEmployeePurchaseSettings(userId: string, settings: {
+    employeePurchaseEnabled?: boolean;
+    employeePurchaseCap?: string;
+    employeePurchaseCostMarkup?: string;
+    employeePurchaseRetailDiscount?: string;
+  }): Promise<User>;
 
   // System analytics methods for technical support
   getAllTimeEntries(): Promise<any[]>;
@@ -3554,7 +3561,8 @@ export class DatabaseStorage implements IStorage {
         position: users.position,
         employeePurchaseEnabled: users.employeePurchaseEnabled,
         employeePurchaseCap: users.employeePurchaseCap,
-        employeePurchaseDiscountPercent: users.employeePurchaseDiscountPercent,
+        employeePurchaseCostMarkup: users.employeePurchaseCostMarkup,
+        employeePurchaseRetailDiscount: users.employeePurchaseRetailDiscount,
         profileImageUrl: users.profileImageUrl,
         isActive: users.isActive,
         monthlySpent: sql<string>`COALESCE(SUM(CASE WHEN ${employeePurchases.periodMonth} = ${periodMonth} AND ${employeePurchases.status} = 'completed' THEN ${employeePurchases.totalAmount} ELSE 0 END), 0)`,
@@ -3575,7 +3583,8 @@ export class DatabaseStorage implements IStorage {
     settings: {
       employeePurchaseEnabled?: boolean;
       employeePurchaseCap?: string;
-      employeePurchaseDiscountPercent?: string;
+      employeePurchaseCostMarkup?: string;
+      employeePurchaseRetailDiscount?: string;
     }
   ): Promise<User> {
     const [updatedUser] = await db
