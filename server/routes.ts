@@ -1959,6 +1959,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         hourlyRate: employee.hourlyRate,
         defaultEntryCost: employee.defaultEntryCost,
         benefits: employee.benefits || [],
+        employeePurchaseEnabled: employee.employeePurchaseEnabled,
+        employeePurchaseCap: employee.employeePurchaseCap,
+        employeePurchaseCostMarkup: employee.employeePurchaseCostMarkup,
+        employeePurchaseRetailDiscount: employee.employeePurchaseRetailDiscount,
       });
     } catch (error) {
       console.error('Error fetching employee financials:', error);

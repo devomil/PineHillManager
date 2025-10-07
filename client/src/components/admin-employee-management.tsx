@@ -164,6 +164,8 @@ const financialFormSchema = z.object({
   ymcaAmount: z.string().optional(),
   employeePurchaseEnabled: z.boolean().default(false),
   employeePurchaseCap: z.string().optional(),
+  employeePurchaseCostMarkup: z.string().optional(),
+  employeePurchaseRetailDiscount: z.string().optional(),
 });
 
 type AddEmployeeFormData = z.infer<typeof addEmployeeSchema>;
@@ -427,6 +429,8 @@ export default function AdminEmployeeManagement() {
       ymcaAmount: "",
       employeePurchaseEnabled: false,
       employeePurchaseCap: "75.00",
+      employeePurchaseCostMarkup: "0.00",
+      employeePurchaseRetailDiscount: "0.00",
     },
   });
 
@@ -690,8 +694,10 @@ export default function AdminEmployeeManagement() {
         defaultEntryCost: formatForDisplay(financialData.defaultEntryCost),
         ymcaBenefitEnabled: ymcaBenefit?.active || false,
         ymcaAmount: formatForDisplay(ymcaBenefit?.amount),
-        employeePurchaseEnabled: purchaseBenefit?.active || false,
-        employeePurchaseCap: formatForDisplay(purchaseBenefit?.cap) || "75.00",
+        employeePurchaseEnabled: financialData.employeePurchaseEnabled || false,
+        employeePurchaseCap: formatForDisplay(financialData.employeePurchaseCap) || "75.00",
+        employeePurchaseCostMarkup: formatForDisplay(financialData.employeePurchaseCostMarkup) || "0.00",
+        employeePurchaseRetailDiscount: formatForDisplay(financialData.employeePurchaseRetailDiscount) || "0.00",
       });
     }
   }, [financialData, selectedEmployee, financialForm]);
@@ -777,6 +783,10 @@ export default function AdminEmployeeManagement() {
       hourlyRate: formatDecimal(data.hourlyRate),
       defaultEntryCost: formatDecimal(data.defaultEntryCost),
       benefits: benefits,
+      employeePurchaseEnabled: data.employeePurchaseEnabled,
+      employeePurchaseCap: data.employeePurchaseCap,
+      employeePurchaseCostMarkup: data.employeePurchaseCostMarkup,
+      employeePurchaseRetailDiscount: data.employeePurchaseRetailDiscount,
     };
     
     updateFinancialMutation.mutate({ id: selectedEmployee.id, data: financialData });
@@ -2174,7 +2184,7 @@ export default function AdminEmployeeManagement() {
                           <Label htmlFor="purchase-allowance" className="font-medium">Employee Purchase Allowance</Label>
                         </div>
                       </div>
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-3 gap-4">
                         <div>
                           <Label htmlFor="purchase-cap">Monthly Cap ($)</Label>
                           <Input
@@ -2185,6 +2195,34 @@ export default function AdminEmployeeManagement() {
                             {...financialForm.register("employeePurchaseCap")}
                             disabled={!financialForm.watch("employeePurchaseEnabled")}
                             data-testid="input-purchase-cap"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="cost-markup" className="text-sm">
+                            Cost Markup % <span className="text-xs text-slate-500">(before cap)</span>
+                          </Label>
+                          <Input
+                            id="cost-markup"
+                            type="number"
+                            step="0.01"
+                            placeholder="20.00"
+                            {...financialForm.register("employeePurchaseCostMarkup")}
+                            disabled={!financialForm.watch("employeePurchaseEnabled")}
+                            data-testid="input-cost-markup"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="retail-discount" className="text-sm">
+                            Retail Discount % <span className="text-xs text-slate-500">(after cap)</span>
+                          </Label>
+                          <Input
+                            id="retail-discount"
+                            type="number"
+                            step="0.01"
+                            placeholder="10.00"
+                            {...financialForm.register("employeePurchaseRetailDiscount")}
+                            disabled={!financialForm.watch("employeePurchaseEnabled")}
+                            data-testid="input-retail-discount"
                           />
                         </div>
                       </div>

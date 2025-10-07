@@ -904,6 +904,10 @@ export const updateUserFinancialsSchema = z.object({
   hourlyRate: z.number().min(0).max(200).optional(),
   defaultEntryCost: z.number().min(0).max(100).optional(),
   benefits: z.array(benefitItemSchema).optional(),
+  employeePurchaseEnabled: z.boolean().optional(),
+  employeePurchaseCap: z.string().optional(),
+  employeePurchaseCostMarkup: z.string().optional(),
+  employeePurchaseRetailDiscount: z.string().optional(),
 });
 
 export const insertTimeOffRequestSchema = createInsertSchema(timeOffRequests).omit({
