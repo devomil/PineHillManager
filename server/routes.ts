@@ -2131,7 +2131,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         monthlyCap,
         remainingBalance,
         periodMonth: currentMonth,
-        isEnabled: user.employeePurchaseEnabled || false
+        isEnabled: user.employeePurchaseEnabled || false,
+        costMarkup: user.employeePurchaseCostMarkup || 0,
+        retailDiscount: user.employeePurchaseRetailDiscount || 0,
       });
     } catch (error) {
       console.error('Error fetching employee purchase balance:', error);

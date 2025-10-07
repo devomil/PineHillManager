@@ -20,6 +20,8 @@ interface PurchaseBalance {
   remainingBalance: number;
   periodMonth: string;
   isEnabled: boolean;
+  costMarkup: number;
+  retailDiscount: number;
 }
 
 export default function EmployeePurchases() {
@@ -27,6 +29,28 @@ export default function EmployeePurchases() {
   const [barcode, setBarcode] = useState("");
   const [cart, setCart] = useState<CartItem[]>([]);
   const barcodeInputRef = useRef<HTMLInputElement>(null);
+
+  // Calculate price based on dual discount model
+  // This function now takes the current cart total to properly handle mid-transaction cap crossing
+  const calculatePrice = (item: InventoryItem, balance: PurchaseBalance | undefined, currentCartTotal: number = 0): number => {
+    if (!balance) return parseFloat(item.unitCost || '0');
+    
+    const cost = parseFloat(item.unitCost || '0');
+    const retailPrice = parseFloat(item.unitPrice || '0');
+    
+    // Check if we've already exceeded the cap (including current cart)
+    const totalSpending = balance.monthlyTotal + currentCartTotal;
+    
+    // If under allowance cap: use cost + markup%
+    if (totalSpending < balance.monthlyCap) {
+      const markup = parseFloat(balance.costMarkup?.toString() || '0');
+      return cost * (1 + markup / 100);
+    }
+    
+    // If over allowance cap: use retail - discount%
+    const discount = parseFloat(balance.retailDiscount?.toString() || '0');
+    return retailPrice * (1 - discount / 100);
+  };
 
   const { data: balance, isLoading: balanceLoading } = useQuery<PurchaseBalance>({
     queryKey: ['/api/employee-purchases/balance'],
@@ -74,16 +98,16 @@ export default function EmployeePurchases() {
   });
 
   const purchaseMutation = useMutation({
-    mutationFn: async (items: CartItem[]) => {
-      const purchases = items.map(({ item, quantity }) => {
-        const unitPrice = parseFloat(item.unitCost || '0');
+    mutationFn: async () => {
+      // Use pre-calculated prices from cartItemsWithPrices
+      const purchases = cartItemsWithPrices.map(({ item, quantity, unitPrice, lineTotal }) => {
         return {
           inventoryItemId: item.id,
           itemName: item.itemName,
           barcode: item.sku || item.asin || '',
           quantity,
           unitPrice,
-          totalAmount: unitPrice * quantity,
+          totalAmount: lineTotal,
         };
       });
 
@@ -133,7 +157,36 @@ export default function EmployeePurchases() {
     setCart(cart.filter(c => c.item.id !== itemId));
   };
 
-  const cartTotal = cart.reduce((sum, c) => sum + parseFloat(c.item.unitCost || '0') * c.quantity, 0);
+  // Calculate cart total with progressive pricing (accounts for crossing cap mid-cart)
+  // Use a pure reducer to avoid side effects and ensure deterministic pricing
+  const { cartItemsWithPrices, cartTotal } = cart.reduce<{
+    cartItemsWithPrices: Array<CartItem & { unitPrice: number; lineTotal: number }>;
+    cartTotal: number;
+  }>(
+    (acc, cartItem) => {
+      let lineTotal = 0;
+      
+      // Calculate price for each unit individually
+      for (let i = 0; i < cartItem.quantity; i++) {
+        const unitPrice = calculatePrice(cartItem.item, balance, acc.cartTotal);
+        lineTotal += unitPrice;
+        acc.cartTotal += unitPrice;
+      }
+      
+      // For display purposes, we show average price per unit for the line
+      const avgUnitPrice = lineTotal / cartItem.quantity;
+      
+      acc.cartItemsWithPrices.push({
+        ...cartItem,
+        unitPrice: avgUnitPrice,
+        lineTotal,
+      });
+      
+      return acc;
+    },
+    { cartItemsWithPrices: [], cartTotal: 0 }
+  );
+  
   const wouldExceed = balance && (balance.monthlyTotal + cartTotal > balance.monthlyCap);
 
   useEffect(() => {
@@ -223,7 +276,7 @@ export default function EmployeePurchases() {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {cart.map(({ item, quantity }) => (
+                  {cartItemsWithPrices.map(({ item, quantity, unitPrice, lineTotal }) => (
                     <div 
                       key={item.id} 
                       className="flex items-center gap-4 p-4 border rounded-lg"
@@ -236,7 +289,7 @@ export default function EmployeePurchases() {
                           {item.asin && ` | ASIN: ${item.asin}`}
                         </p>
                         <p className="text-sm font-medium mt-1">
-                          ${parseFloat(item.unitCost || '0').toFixed(2)} each
+                          ${unitPrice.toFixed(2)} each
                         </p>
                       </div>
                       
@@ -265,7 +318,7 @@ export default function EmployeePurchases() {
                       
                       <div className="text-right">
                         <p className="font-medium" data-testid={`total-${item.id}`}>
-                          ${(parseFloat(item.unitCost || '0') * quantity).toFixed(2)}
+                          ${lineTotal.toFixed(2)}
                         </p>
                       </div>
                       
@@ -307,7 +360,7 @@ export default function EmployeePurchases() {
                       Clear Cart
                     </Button>
                     <Button
-                      onClick={() => purchaseMutation.mutate(cart)}
+                      onClick={() => purchaseMutation.mutate()}
                       disabled={wouldExceed || purchaseMutation.isPending}
                       className="flex-1"
                       data-testid="button-complete-purchase"
