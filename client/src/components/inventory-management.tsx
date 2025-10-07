@@ -125,7 +125,7 @@ export function InventoryManagement() {
     enabled: activeTab === 'stocks'
   });
 
-  // Fetch categories
+  // Fetch categories - load for both items and categories tabs
   const { data: categoriesData, isLoading: categoriesLoading } = useQuery({
     queryKey: ['/api/accounting/inventory/categories', selectedLocation],
     queryFn: async () => {
@@ -135,7 +135,7 @@ export function InventoryManagement() {
       const response = await apiRequest('GET', `/api/accounting/inventory/categories?${params.toString()}`);
       return await response.json();
     },
-    enabled: activeTab === 'categories'
+    enabled: activeTab === 'categories' || activeTab === 'items'
   });
 
   // Helper functions
@@ -237,14 +237,19 @@ export function InventoryManagement() {
     (filteredStocks?.length || 0) : 
     (itemsData?.totalItems || 0);
   
+  // Calculate inventory value - ONLY count positive stock quantities
   const totalValue = isStocksTab ?
     filteredStocks.reduce((sum: number, stock: ItemStock) => {
+      const quantity = stock.quantity || 0;
+      if (quantity <= 0) return sum; // Skip zero or negative stock
       const unitCost = stock.item?.cost ?? stock.item?.price ?? 0;
-      return sum + ((stock.quantity || 0) * unitCost / 100);
+      return sum + (quantity * unitCost / 100);
     }, 0) :
     filteredItems.reduce((sum: number, item: InventoryItem) => {
+      const stockCount = item.stockCount || 0;
+      if (stockCount <= 0) return sum; // Skip zero or negative stock
       const unitCost = item.cost ?? item.price ?? 0;
-      return sum + ((item.stockCount || 0) * unitCost / 100);
+      return sum + (stockCount * unitCost / 100);
     }, 0);
   
   const lowStockItems = isStocksTab ?
@@ -255,9 +260,9 @@ export function InventoryManagement() {
   
   const outOfStockItems = isStocksTab ?
     filteredStocks.filter((stock: ItemStock) => 
-      (stock.quantity || 0) === 0).length :
+      (stock.quantity || 0) <= 0).length :
     filteredItems.filter((item: InventoryItem) => 
-      (item.stockCount || 0) === 0).length;
+      (item.stockCount || 0) <= 0).length;
 
   return (
     <div className="space-y-6">
