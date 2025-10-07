@@ -580,6 +580,7 @@ export interface IStorage {
   getInventoryItemByQBId(qbItemId: string): Promise<InventoryItem | undefined>;
   getInventoryItemByThriveId(thriveItemId: string): Promise<InventoryItem | undefined>;
   getInventoryItemsBySKU(sku: string): Promise<InventoryItem[]>;
+  getInventoryItemsByCloverItemId(cloverItemId: string): Promise<InventoryItem[]>;
   getInventoryItemByASIN(asin: string): Promise<InventoryItem | undefined>;
   getLowStockItems(): Promise<InventoryItem[]>;
   updateInventoryItem(id: number, item: Partial<InsertInventoryItem>): Promise<InventoryItem>;
@@ -3539,8 +3540,10 @@ export class DatabaseStorage implements IStorage {
       .from(inventoryItems)
       .where(and(
         or(
-          eq(inventoryItems.sku, barcode),
-          eq(inventoryItems.asin, barcode)
+          eq(inventoryItems.upc, barcode),           // UPC barcode (primary)
+          eq(inventoryItems.sku, barcode),           // SKU
+          eq(inventoryItems.asin, barcode),          // ASIN
+          eq(inventoryItems.cloverItemId, barcode)   // Clover Item ID (fallback)
         ),
         eq(inventoryItems.isActive, true)
       ))
@@ -4650,6 +4653,10 @@ export class DatabaseStorage implements IStorage {
 
   async getInventoryItemsBySKU(sku: string): Promise<InventoryItem[]> {
     return await db.select().from(inventoryItems).where(eq(inventoryItems.sku, sku));
+  }
+
+  async getInventoryItemsByCloverItemId(cloverItemId: string): Promise<InventoryItem[]> {
+    return await db.select().from(inventoryItems).where(eq(inventoryItems.cloverItemId, cloverItemId));
   }
 
   async getInventoryItemByASIN(asin: string): Promise<InventoryItem | undefined> {

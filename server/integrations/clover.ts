@@ -256,6 +256,9 @@ export class CloverIntegration {
     if (options.limit) params.append('limit', options.limit.toString());
     if (options.offset) params.append('offset', options.offset.toString());
     
+    // Expand to include categories and tags in response
+    params.append('expand', 'categories,tags');
+    
     const queryString = params.toString();
     const endpoint = queryString ? `inventory/items?${queryString}` : 'inventory/items';
     
@@ -391,8 +394,8 @@ export class CloverIntegration {
 
       for (const item of allItems) {
         try {
-          // Check if item already exists in inventory
-          const existingItems = await storage.getInventoryItemsBySKU(item.id);
+          // Check if item already exists by Clover ID
+          const existingItems = await storage.getInventoryItemsByCloverItemId(item.id);
           const existingItem = existingItems.length > 0 ? existingItems[0] : null;
 
           // Use stock info for accurate cost data (from inventory/items/{id}/stock endpoint)
@@ -401,12 +404,19 @@ export class CloverIntegration {
                               item.cost ? (parseFloat(item.cost) / 100).toString() : '0.00';
           const stockQuantity = stockInfo?.quantity || item.stockCount || 0;
 
+          // Extract categories and tags
+          const category = item.categories?.elements?.[0]?.name || 'Uncategorized';
+          const tags = item.tags?.elements?.map((tag: any) => tag.name) || [];
+
           const itemData = {
-            sku: item.id,
+            cloverItemId: item.id,                    // Clover's internal ID
+            sku: item.sku || null,                     // SKU from Clover
+            upc: item.code || null,                    // UPC barcode from item.code
             itemName: item.name,
             description: item.description || '',
-            category: item.categories?.elements?.[0]?.name || 'Uncategorized',
-            unitCost: accurateCost,  // 👈 Enhanced cost from inventory endpoints
+            category: category,
+            tags: tags.length > 0 ? tags : null,       // Array of tag names
+            unitCost: accurateCost,                    // Enhanced cost from inventory endpoints
             unitPrice: item.price ? (parseFloat(item.price) / 100).toString() : '0.00',
             quantityOnHand: stockQuantity.toString(),
             isActive: !item.hidden,
@@ -417,12 +427,12 @@ export class CloverIntegration {
             // Update existing item
             await storage.updateInventoryItem(existingItem.id, itemData);
             updatedCount++;
-            console.log(`✅ Updated item: ${item.name} (Enhanced Cost: $${itemData.unitCost})`);
+            console.log(`✅ Updated: ${item.name} | UPC: ${itemData.upc || 'N/A'} | SKU: ${itemData.sku || 'N/A'} | Cost: $${itemData.unitCost}`);
           } else {
             // Create new item
             await storage.createInventoryItem(itemData);
             syncedCount++;
-            console.log(`✅ Created item: ${item.name} (Enhanced Cost: $${itemData.unitCost})`);
+            console.log(`✅ Created: ${item.name} | UPC: ${itemData.upc || 'N/A'} | SKU: ${itemData.sku || 'N/A'} | Cost: $${itemData.unitCost}`);
           }
         } catch (itemError) {
           console.error(`❌ Error processing item ${item.id}:`, itemError);

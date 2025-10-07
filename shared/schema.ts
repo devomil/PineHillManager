@@ -1465,11 +1465,14 @@ export const inventoryItems = pgTable("inventory_items", {
   id: serial("id").primaryKey(),
   qbItemId: varchar("qb_item_id").unique(),
   thriveItemId: varchar("thrive_item_id").unique(),
+  cloverItemId: varchar("clover_item_id"),
   sku: varchar("sku"),
+  upc: varchar("upc"), // UPC barcode from Clover item.code
   asin: varchar("asin"), // Amazon Standard Identification Number
   itemName: varchar("item_name").notNull(),
   description: text("description"),
   category: varchar("category"),
+  tags: text("tags").array(), // Tags from Clover
   unitOfMeasure: varchar("unit_of_measure"),
   unitCost: decimal("unit_cost", { precision: 10, scale: 2 }).default("0.00"),
   standardCost: decimal("standard_cost", { precision: 10, scale: 2 }).default("0.00"), // Standard cost for COGS calculation
@@ -1483,7 +1486,9 @@ export const inventoryItems = pgTable("inventory_items", {
 }, (table) => ({
   qbItemIdIdx: index("idx_ii_qb_item_id").on(table.qbItemId),
   thriveItemIdIdx: index("idx_ii_thrive_item_id").on(table.thriveItemId),
+  cloverItemIdIdx: index("idx_ii_clover_item_id").on(table.cloverItemId),
   skuIdx: index("idx_ii_sku").on(table.sku),
+  upcIdx: index("idx_ii_upc").on(table.upc),
   asinIdx: index("idx_ii_asin").on(table.asin),
   categoryIdx: index("idx_ii_category").on(table.category),
 }));
