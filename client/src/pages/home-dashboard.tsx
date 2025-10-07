@@ -45,14 +45,14 @@ export default function HomeDashboard() {
       color: "bg-indigo-50 border-indigo-200",
       iconColor: "text-indigo-600"
     },
-    ...(user?.employeePurchaseEnabled ? [{
+    {
       title: "Employee Purchases",
       description: "Shop with your monthly employee purchase allowance",
       icon: ShoppingCart,
       href: "/employee-purchases",
       color: "bg-green-50 border-green-200",
       iconColor: "text-green-600"
-    }] : [])
+    }
   ];
 
   return (

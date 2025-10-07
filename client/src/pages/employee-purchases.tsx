@@ -193,6 +193,27 @@ export default function EmployeePurchases() {
     barcodeInputRef.current?.focus();
   }, []);
 
+  // Show loading state while balance data is being fetched
+  if (balanceLoading) {
+    return (
+      <div className="container mx-auto p-6 max-w-4xl">
+        <Card>
+          <CardHeader>
+            <CardTitle>Employee Purchase Portal</CardTitle>
+            <CardDescription>Loading your purchase information...</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="text-center py-12 text-muted-foreground">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+              <p>Please wait...</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Show disabled message if benefit is not enabled
   if (!balance?.isEnabled) {
     return (
       <div className="container mx-auto p-6 max-w-4xl">
