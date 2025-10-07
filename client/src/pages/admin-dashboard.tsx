@@ -40,7 +40,6 @@ export default function AdminDashboard() {
     if (path.includes('/integrations')) return 'integrations';
     if (path.includes('/inventory')) return 'inventory';
     if (path.includes('/orders')) return 'orders';
-    if (path.includes('/employee-purchases')) return 'employee-purchases';
     return 'dashboard';
   };
 
@@ -84,9 +83,6 @@ export default function AdminDashboard() {
         break;
       case 'orders':
         setLocation('/orders');
-        break;
-      case 'employee-purchases':
-        setLocation('/admin/employee-purchases');
         break;
     }
   };
@@ -222,14 +218,6 @@ export default function AdminDashboard() {
       href: "/admin/marketing",
       color: "text-pink-600",
       bgColor: "bg-pink-50"
-    },
-    {
-      title: "Employee Purchases",
-      description: "Manage employee purchase allowances and discounts",
-      icon: ShoppingCart,
-      href: "/admin/employee-purchases",
-      color: "text-teal-600",
-      bgColor: "bg-teal-50"
     }
   ];
 
@@ -549,13 +537,6 @@ export default function AdminDashboard() {
               >
                 <Clock className="h-3 w-3" />
                 Reports
-              </TabsTrigger>
-              <TabsTrigger 
-                value="employee-purchases" 
-                className="nav-item-secondary hidden xl:flex items-center gap-2 px-3 py-2 rounded-md hover:bg-gray-50 hover:shadow-sm hover:-translate-y-0.5 transition-all duration-200 whitespace-nowrap mx-0 text-sm data-[state=active]:bg-gray-100 data-[state=active]:font-medium"
-              >
-                <ShoppingCart className="h-3 w-3" />
-                Employee Purchases
               </TabsTrigger>
 
               {/* More Options Button for smaller screens */}
