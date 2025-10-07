@@ -1466,6 +1466,8 @@ export const inventoryItems = pgTable("inventory_items", {
   qbItemId: varchar("qb_item_id").unique(),
   thriveItemId: varchar("thrive_item_id").unique(),
   cloverItemId: varchar("clover_item_id"),
+  locationId: integer("location_id"), // Clover config ID for multi-location tracking
+  cloverMerchantId: varchar("clover_merchant_id"), // Clover merchant ID
   sku: varchar("sku"),
   upc: varchar("upc"), // UPC barcode from Clover item.code
   asin: varchar("asin"), // Amazon Standard Identification Number
@@ -1487,6 +1489,8 @@ export const inventoryItems = pgTable("inventory_items", {
   qbItemIdIdx: index("idx_ii_qb_item_id").on(table.qbItemId),
   thriveItemIdIdx: index("idx_ii_thrive_item_id").on(table.thriveItemId),
   cloverItemIdIdx: index("idx_ii_clover_item_id").on(table.cloverItemId),
+  locationIdIdx: index("idx_ii_location_id").on(table.locationId),
+  cloverMerchantIdIdx: index("idx_ii_clover_merchant_id").on(table.cloverMerchantId),
   skuIdx: index("idx_ii_sku").on(table.sku),
   upcIdx: index("idx_ii_upc").on(table.upc),
   asinIdx: index("idx_ii_asin").on(table.asin),
