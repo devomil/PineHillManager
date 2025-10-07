@@ -38,10 +38,12 @@ import {
   Download,
   Eye,
   FileText,
-  LogOut
+  LogOut,
+  ShoppingCart
 } from "lucide-react";
 import { format } from "date-fns";
 import type { User as UserType } from "@shared/schema";
+import AdminEmployeePurchases from "@/pages/admin/admin-employee-purchases";
 
 // SMS Consent History Component
 function SMSConsentHistoryComponent({ employeeId }: { employeeId: string }) {
@@ -879,10 +881,14 @@ export default function AdminEmployeeManagement() {
 
       {/* Main Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="employees" data-testid="tab-employees">
             <Users className="w-4 h-4 mr-2" />
             Employee Management
+          </TabsTrigger>
+          <TabsTrigger value="employee-purchase" data-testid="tab-employee-purchase">
+            <ShoppingCart className="w-4 h-4 mr-2" />
+            Employee Purchase
           </TabsTrigger>
           <TabsTrigger value="time-clock" data-testid="tab-time-clock">
             <Clock className="w-4 h-4 mr-2" />
@@ -1566,6 +1572,11 @@ export default function AdminEmployeeManagement() {
         </div>
       </CardContent>
     </Card>
+  </TabsContent>
+
+  {/* Employee Purchase Tab */}
+  <TabsContent value="employee-purchase" className="space-y-6">
+    <AdminEmployeePurchases />
   </TabsContent>
 
   {/* Time Clock Tab */}
