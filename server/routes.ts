@@ -9319,7 +9319,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Inventory Management Routes
+  // Inventory Management Routes - QUERY DATABASE (synced data)
   app.get('/api/accounting/inventory/items', async (req, res) => {
     try {
       if (!req.isAuthenticated() || !req.user) {
@@ -9328,7 +9328,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const { locationId, limit, offset, filter } = req.query;
       
-      // Get all or specific location configurations
+      // Get all or specific location configurations for reference
       let locations;
       if (locationId) {
         const location = await storage.getCloverConfigById(parseInt(locationId as string));
@@ -9338,58 +9338,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const activeLocations = locations.filter(config => config.isActive);
-      const allItems: any[] = [];
-
-      for (const locationConfig of activeLocations) {
-        try {
-          const { CloverIntegration } = await import('./integrations/clover');
-          const cloverIntegration = new CloverIntegration(locationConfig);
-          
-          // Fetch all items without problematic filters (more reliable)
-          const items = await cloverIntegration.fetchItems({
-            limit: 1000, // Get a large batch to filter locally
-            offset: offset ? parseInt(offset as string) : 0
-          });
-
-          if (items && items.elements) {
-            let filteredItems = items.elements;
-            
-            // Apply local filtering if filter is provided
-            if (filter) {
-              const filterLower = (filter as string).toLowerCase();
-              
-              // Handle different filter formats: "name:XXX" or just "XXX"
-              let searchTerm = filterLower;
-              if (filterLower.startsWith('name:')) {
-                searchTerm = filterLower.replace('name:', '');
-              }
-              
-              // Filter items locally by name or code
-              filteredItems = items.elements.filter((item: any) => {
-                const nameMatch = item.name && item.name.toLowerCase().includes(searchTerm);
-                const codeMatch = item.code && item.code.toLowerCase().includes(searchTerm);
-                return nameMatch || codeMatch;
-              });
-            }
-            
-            // Add location info to each item
-            const itemsWithLocation = filteredItems.map((item: any) => ({
-              ...item,
-              locationId: locationConfig.id,
-              locationName: locationConfig.merchantName,
-              merchantId: locationConfig.merchantId
-            }));
-            
-            allItems.push(...itemsWithLocation);
-          }
-        } catch (error) {
-          console.log(`No inventory data for ${locationConfig.merchantName}:`, error);
+      
+      // Query database for inventory items instead of Clover API
+      const allItems = await storage.getAllInventoryItems();
+      
+      // Filter by search term if provided
+      let filteredItems = allItems;
+      if (filter) {
+        const filterLower = (filter as string).toLowerCase();
+        let searchTerm = filterLower;
+        if (filterLower.startsWith('name:')) {
+          searchTerm = filterLower.replace('name:', '');
         }
+        
+        filteredItems = allItems.filter((item: any) => {
+          const nameMatch = item.itemName && item.itemName.toLowerCase().includes(searchTerm);
+          const skuMatch = item.sku && item.sku.toLowerCase().includes(searchTerm);
+          const upcMatch = item.upc && item.upc.toLowerCase().includes(searchTerm);
+          return nameMatch || skuMatch || upcMatch;
+        });
       }
+      
+      // Convert database format to API format
+      const elements = filteredItems.map((item: any) => ({
+        id: item.cloverItemId || item.id,
+        name: item.itemName,
+        price: item.unitPrice ? parseFloat(item.unitPrice) * 100 : 0,
+        cost: item.unitCost ? parseFloat(item.unitCost) * 100 : 0,
+        stockCount: item.quantityOnHand ? parseFloat(item.quantityOnHand) : 0,
+        code: item.upc,
+        sku: item.sku,
+        isRevenue: item.isActive,
+        locationId: locationId ? parseInt(locationId as string) : null,
+        locationName: '',
+        merchantId: ''
+      }));
 
       res.json({
-        elements: allItems,
-        totalItems: allItems.length,
+        elements: elements.slice(
+          offset ? parseInt(offset as string) : 0,
+          limit ? parseInt(limit as string) : elements.length
+        ),
+        totalItems: elements.length,
         locations: activeLocations.map(loc => ({
           id: loc.id,
           name: loc.merchantName,
@@ -9397,7 +9387,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }))
       });
     } catch (error) {
-      console.error('Error fetching inventory items:', error);
+      console.error('Error fetching inventory items from database:', error);
       res.status(500).json({ message: 'Failed to fetch inventory items' });
     }
   });
@@ -9419,66 +9409,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const activeLocations = locations.filter(config => config.isActive);
-      const allStocks: any[] = [];
-
-      for (const locationConfig of activeLocations) {
-        try {
-          const { CloverIntegration } = await import('./integrations/clover');
-          const cloverIntegration = new CloverIntegration(locationConfig);
-          
-          // First fetch all items to get the full item details
-          const items = await cloverIntegration.fetchItems({
-            limit: 1000 // Get all items to match with stocks
-          });
-
-          const stocks = await cloverIntegration.fetchItemStocks({
-            limit: limit ? parseInt(limit as string) : 100,
-            offset: offset ? parseInt(offset as string) : 0
-          });
-
-          console.log(`📋 Retrieved ${items?.elements?.length || 0} items and ${stocks?.elements?.length || 0} stocks for ${locationConfig.merchantName}`);
-
-          // Create a lookup map for item details
-          const itemsMap = new Map();
-          if (items && items.elements) {
-            items.elements.forEach((item: any) => {
-              itemsMap.set(item.id, item);
-              console.log(`📦 Item mapped: ${item.id} -> ${item.name}`);
-            });
-          }
-
-          if (stocks && stocks.elements) {
-            const stocksWithLocation = stocks.elements.map((stock: any) => {
-              // Enhance stock with full item details
-              const itemId = stock.item?.id;
-              const fullItem = itemsMap.get(itemId);
-              
-              console.log(`🔍 Processing stock for item ${itemId}: found full item = ${!!fullItem}, name = ${fullItem?.name || 'NOT FOUND'}`);
-              
-              return {
-                ...stock,
-                item: {
-                  id: itemId,
-                  name: fullItem?.name || `Item ${itemId}`,
-                  code: fullItem?.code || null,
-                  sku: fullItem?.sku || null,
-                  ...fullItem
-                },
-                locationId: locationConfig.id,
-                locationName: locationConfig.merchantName,
-                merchantId: locationConfig.merchantId
-              };
-            });
-            
-            allStocks.push(...stocksWithLocation);
-          }
-        } catch (error) {
-          console.log(`No stock data for ${locationConfig.merchantName}:`, error);
-        }
-      }
+      
+      // Query database for inventory items with stock > 0
+      const allItems = await storage.getAllInventoryItems();
+      const itemsWithStock = allItems.filter((item: any) => 
+        item.quantityOnHand && parseFloat(item.quantityOnHand) > 0
+      );
+      
+      // Convert to stocks format
+      const allStocks = itemsWithStock.map((item: any) => ({
+        id: item.cloverItemId || item.id,
+        item: {
+          id: item.cloverItemId || item.id,
+          name: item.itemName,
+          price: item.unitPrice ? parseFloat(item.unitPrice) * 100 : 0,
+          cost: item.unitCost ? parseFloat(item.unitCost) * 100 : 0,
+          code: item.upc,
+          sku: item.sku
+        },
+        quantity: parseFloat(item.quantityOnHand || '0'),
+        locationId: locationId ? parseInt(locationId as string) : null,
+        locationName: '',
+        merchantId: ''
+      }));
 
       res.json({
-        elements: allStocks,
+        elements: allStocks.slice(
+          offset ? parseInt(offset as string) : 0,
+          limit ? parseInt(limit as string) : allStocks.length
+        ),
         totalStocks: allStocks.length,
         locations: activeLocations.map(loc => ({
           id: loc.id,
@@ -9487,7 +9446,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }))
       });
     } catch (error) {
-      console.error('Error fetching item stocks:', error);
+      console.error('Error fetching item stocks from database:', error);
       res.status(500).json({ message: 'Failed to fetch item stocks' });
     }
   });
