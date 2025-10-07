@@ -40,9 +40,10 @@ export default function EmployeePurchases() {
     
     // Check if we've already exceeded the cap (including current cart)
     const totalSpending = balance.monthlyTotal + currentCartTotal;
+    const cap = parseFloat(balance.monthlyCap?.toString() || '0');
     
     // If under allowance cap: use cost + markup%
-    if (totalSpending < balance.monthlyCap) {
+    if (totalSpending < cap) {
       const markup = parseFloat(balance.costMarkup?.toString() || '0');
       return cost * (1 + markup / 100);
     }
@@ -187,7 +188,7 @@ export default function EmployeePurchases() {
     { cartItemsWithPrices: [], cartTotal: 0 }
   );
   
-  const wouldExceed = balance && (balance.monthlyTotal + cartTotal > balance.monthlyCap);
+  const wouldExceed = balance && (balance.monthlyTotal + cartTotal > parseFloat(balance.monthlyCap?.toString() || '0'));
 
   useEffect(() => {
     barcodeInputRef.current?.focus();
@@ -412,19 +413,19 @@ export default function EmployeePurchases() {
                   <div>
                     <p className="text-sm text-muted-foreground">Monthly Cap</p>
                     <p className="text-2xl font-bold" data-testid="text-monthly-cap">
-                      ${balance.monthlyCap.toFixed(2)}
+                      ${parseFloat(balance.monthlyCap?.toString() || '0').toFixed(2)}
                     </p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Used This Month</p>
                     <p className="text-2xl font-bold text-muted-foreground" data-testid="text-monthly-total">
-                      ${balance.monthlyTotal.toFixed(2)}
+                      ${(balance.monthlyTotal || 0).toFixed(2)}
                     </p>
                   </div>
                   <div className="pt-2 border-t">
                     <p className="text-sm text-muted-foreground">Remaining Balance</p>
                     <p className="text-3xl font-bold text-green-600" data-testid="text-remaining-balance">
-                      ${balance.remainingBalance.toFixed(2)}
+                      ${(balance.remainingBalance || 0).toFixed(2)}
                     </p>
                   </div>
                   <div className="text-xs text-muted-foreground">
