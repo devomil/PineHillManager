@@ -256,11 +256,12 @@ export class CloverIntegration {
     if (options.limit) params.append('limit', options.limit.toString());
     if (options.offset) params.append('offset', options.offset.toString());
     
-    // Expand to include categories and tags in response
-    params.append('expand', 'categories,tags');
+    // Expand to include categories, tags, AND code (UPC barcode) in response
+    params.append('expand', 'categories,tags,code');
     
     const queryString = params.toString();
-    const endpoint = queryString ? `inventory/items?${queryString}` : 'inventory/items';
+    // Use /items endpoint instead of /inventory/items to get UPC codes
+    const endpoint = queryString ? `items?${queryString}` : 'items';
     
     console.log(`📦 Fetching inventory items from: ${endpoint}`);
     return await this.makeCloverAPICallWithConfig(endpoint, this.config);
