@@ -2135,13 +2135,71 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Admin-only password management routes
+  // Admin-only middleware
   const isAdmin = (req: any, res: any, next: any) => {
     if (!req.user || req.user.role !== 'admin') {
       return res.status(403).json({ message: 'Admin access required' });
     }
     next();
   };
+
+  const isManagerOrAdmin = (req: any, res: any, next: any) => {
+    if (!req.user || (req.user.role !== 'admin' && req.user.role !== 'manager')) {
+      return res.status(403).json({ message: 'Manager or admin access required' });
+    }
+    next();
+  };
+
+  // Admin/Manager: Get all users with employee purchase data
+  app.get('/api/admin/employee-purchases/users', isAuthenticated, isManagerOrAdmin, async (req, res) => {
+    try {
+      const periodMonth = req.query.periodMonth as string || new Date().toISOString().slice(0, 7);
+      const usersWithData = await storage.getAllUsersWithPurchaseData(periodMonth);
+      
+      res.json({
+        users: usersWithData,
+        periodMonth
+      });
+    } catch (error) {
+      console.error('Error fetching users with purchase data:', error);
+      res.status(500).json({ message: 'Failed to fetch user purchase data' });
+    }
+  });
+
+  // Admin/Manager: Update employee purchase settings
+  app.put('/api/admin/employee-purchases/users/:userId', isAuthenticated, isManagerOrAdmin, async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const settings = req.body;
+      
+      const updatedUser = await storage.updateEmployeePurchaseSettings(userId, settings);
+      
+      res.json({
+        message: 'Employee purchase settings updated successfully',
+        user: updatedUser
+      });
+    } catch (error) {
+      console.error('Error updating employee purchase settings:', error);
+      res.status(500).json({ message: 'Failed to update employee purchase settings' });
+    }
+  });
+
+  // Admin/Manager: Get employee purchase history
+  app.get('/api/admin/employee-purchases/users/:userId/purchases', isAuthenticated, isManagerOrAdmin, async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const periodMonth = req.query.periodMonth as string | undefined;
+      
+      const purchases = await storage.getEmployeePurchasesByUser(userId, periodMonth);
+      
+      res.json(purchases);
+    } catch (error) {
+      console.error('Error fetching employee purchase history:', error);
+      res.status(500).json({ message: 'Failed to fetch purchase history' });
+    }
+  });
+
+  // Admin-only password management routes
 
   // Reset user password (admin only)
   app.post('/api/admin/reset-password', isAuthenticated, isAdmin, async (req, res) => {

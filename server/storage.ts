@@ -3538,6 +3538,54 @@ export class DatabaseStorage implements IStorage {
     return item;
   }
 
+  // Admin: Get all users with their employee purchase settings and spending
+  async getAllUsersWithPurchaseData(periodMonth: string): Promise<any[]> {
+    const usersWithSpending = await db
+      .select({
+        id: users.id,
+        employeeId: users.employeeId,
+        firstName: users.firstName,
+        lastName: users.lastName,
+        email: users.email,
+        department: users.department,
+        position: users.position,
+        employeePurchaseEnabled: users.employeePurchaseEnabled,
+        employeePurchaseCap: users.employeePurchaseCap,
+        employeePurchaseDiscountPercent: users.employeePurchaseDiscountPercent,
+        profileImageUrl: users.profileImageUrl,
+        isActive: users.isActive,
+        monthlySpent: sql<string>`COALESCE(SUM(CASE WHEN ${employeePurchases.periodMonth} = ${periodMonth} AND ${employeePurchases.status} = 'completed' THEN ${employeePurchases.totalAmount} ELSE 0 END), 0)`,
+        totalPurchases: sql<string>`COUNT(CASE WHEN ${employeePurchases.periodMonth} = ${periodMonth} AND ${employeePurchases.status} = 'completed' THEN 1 END)`
+      })
+      .from(users)
+      .leftJoin(employeePurchases, eq(users.id, employeePurchases.employeeId))
+      .where(eq(users.isActive, true))
+      .groupBy(users.id)
+      .orderBy(users.lastName, users.firstName);
+    
+    return usersWithSpending;
+  }
+
+  // Admin: Update employee purchase settings
+  async updateEmployeePurchaseSettings(
+    userId: string, 
+    settings: {
+      employeePurchaseEnabled?: boolean;
+      employeePurchaseCap?: string;
+      employeePurchaseDiscountPercent?: string;
+    }
+  ): Promise<User> {
+    const [updatedUser] = await db
+      .update(users)
+      .set({
+        ...settings,
+        updatedAt: new Date()
+      })
+      .where(eq(users.id, userId))
+      .returning();
+    return updatedUser;
+  }
+
   // Enhanced chat and messaging functionality
 
   async getChannelMessages(channelId: string, limit: number = 50): Promise<any[]> {

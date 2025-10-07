@@ -218,6 +218,14 @@ export default function AdminDashboard() {
       href: "/admin/marketing",
       color: "text-pink-600",
       bgColor: "bg-pink-50"
+    },
+    {
+      title: "Employee Purchases",
+      description: "Manage employee purchase allowances and discounts",
+      icon: ShoppingCart,
+      href: "/admin/employee-purchases",
+      color: "text-teal-600",
+      bgColor: "bg-teal-50"
     }
   ];
 
