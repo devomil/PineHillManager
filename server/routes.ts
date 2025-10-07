@@ -9340,7 +9340,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const activeLocations = locations.filter(config => config.isActive);
       
       // Query database for inventory items instead of Clover API
-      const allItems = await storage.getAllInventoryItems();
+      const allItems = await storage.getAllInventoryItems(locationId ? parseInt(locationId as string) : undefined);
       
       // Filter by search term if provided
       let filteredItems = allItems;
@@ -9411,7 +9411,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const activeLocations = locations.filter(config => config.isActive);
       
       // Query database for inventory items with stock > 0
-      const allItems = await storage.getAllInventoryItems();
+      const allItems = await storage.getAllInventoryItems(locationId ? parseInt(locationId as string) : undefined);
       const itemsWithStock = allItems.filter((item: any) => 
         item.quantityOnHand && parseFloat(item.quantityOnHand) > 0
       );
@@ -9448,6 +9448,127 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error fetching item stocks from database:', error);
       res.status(500).json({ message: 'Failed to fetch item stocks' });
+    }
+  });
+
+  // Dashboard summary endpoint
+  app.get('/api/accounting/inventory/dashboard', async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !req.user) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const { locationId } = req.query;
+      
+      // Get all inventory items (optionally filtered by location)
+      const allItems = await storage.getAllInventoryItems(locationId ? parseInt(locationId as string) : undefined);
+      
+      // Calculate dashboard metrics
+      const categoryMetrics = new Map<string, {
+        totalValue: number;
+        potentialRevenue: number;
+        grossProfit: number;
+        quantity: number;
+        itemCount: number;
+        locationBreakdown: Map<number, {
+          value: number;
+          revenue: number;
+          profit: number;
+          quantity: number;
+          locationName: string;
+        }>;
+      }>();
+
+      for (const item of allItems) {
+        const category = item.category || 'Uncategorized';
+        const quantity = parseFloat(item.quantityOnHand || '0');
+        const cost = parseFloat(item.unitCost || '0');
+        const price = parseFloat(item.unitPrice || '0');
+        
+        // Only count items with positive stock
+        if (quantity <= 0) continue;
+        
+        const value = quantity * cost;
+        const revenue = quantity * price;
+        const profit = revenue - value;
+        
+        if (!categoryMetrics.has(category)) {
+          categoryMetrics.set(category, {
+            totalValue: 0,
+            potentialRevenue: 0,
+            grossProfit: 0,
+            quantity: 0,
+            itemCount: 0,
+            locationBreakdown: new Map()
+          });
+        }
+        
+        const metric = categoryMetrics.get(category)!;
+        metric.totalValue += value;
+        metric.potentialRevenue += revenue;
+        metric.grossProfit += profit;
+        metric.quantity += quantity;
+        metric.itemCount += 1;
+        
+        // Add to location breakdown if location tracking exists
+        if (item.locationId) {
+          if (!metric.locationBreakdown.has(item.locationId)) {
+            metric.locationBreakdown.set(item.locationId, {
+              value: 0,
+              revenue: 0,
+              profit: 0,
+              quantity: 0,
+              locationName: '' // Will be filled later
+            });
+          }
+          const locMetric = metric.locationBreakdown.get(item.locationId)!;
+          locMetric.value += value;
+          locMetric.revenue += revenue;
+          locMetric.profit += profit;
+          locMetric.quantity += quantity;
+        }
+      }
+
+      // Get location names
+      const locations = await storage.getAllCloverConfigs();
+      const locationMap = new Map(locations.map(loc => [loc.id, loc.merchantName || 'Unknown']));
+
+      // Format response
+      const categories = Array.from(categoryMetrics.entries()).map(([categoryName, metrics]) => ({
+        category: categoryName,
+        totalValue: Number(metrics.totalValue.toFixed(2)),
+        potentialRevenue: Number(metrics.potentialRevenue.toFixed(2)),
+        grossProfit: Number(metrics.grossProfit.toFixed(2)),
+        quantity: Number(metrics.quantity.toFixed(0)),
+        itemCount: metrics.itemCount,
+        locations: Array.from(metrics.locationBreakdown.entries()).map(([locId, locMetrics]) => ({
+          locationId: locId,
+          locationName: locationMap.get(locId) || 'Unknown',
+          value: Number(locMetrics.value.toFixed(2)),
+          revenue: Number(locMetrics.revenue.toFixed(2)),
+          profit: Number(locMetrics.profit.toFixed(2)),
+          quantity: Number(locMetrics.quantity.toFixed(0))
+        }))
+      }));
+
+      // Calculate totals
+      const totals = {
+        totalValue: categories.reduce((sum, cat) => sum + cat.totalValue, 0),
+        potentialRevenue: categories.reduce((sum, cat) => sum + cat.potentialRevenue, 0),
+        grossProfit: categories.reduce((sum, cat) => sum + cat.grossProfit, 0),
+        totalQuantity: categories.reduce((sum, cat) => sum + cat.quantity, 0),
+        totalItems: categories.reduce((sum, cat) => sum + cat.itemCount, 0),
+        outOfStock: allItems.filter(item => parseFloat(item.quantityOnHand || '0') <= 0).length
+      };
+
+      res.json({
+        categories,
+        totals,
+        locationId: locationId ? parseInt(locationId as string) : null
+      });
+    } catch (error) {
+      console.error('Error fetching inventory dashboard:', error);
+      res.status(500).json({ message: 'Failed to fetch dashboard data' });
     }
   });
 
