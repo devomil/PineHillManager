@@ -4616,46 +4616,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Sync inventory items with cost data across all Clover locations
-  app.post('/api/accounting/sync-inventory', isAuthenticated, async (req, res) => {
-    try {
-      console.log('🏪 Starting inventory sync across all Clover locations...');
-      
-      const allCloverConfigs = await storage.getAllCloverConfigs();
-      const activeConfigs = allCloverConfigs.filter(config => config.isActive);
-      
-      const results = [];
-      
-      for (const config of activeConfigs) {
-        try {
-          const { CloverIntegration } = await import('./integrations/clover');
-          const cloverIntegration = new CloverIntegration(config);
-          
-          await cloverIntegration.syncInventoryItems(config);
-          results.push({
-            location: config.merchantName,
-            status: 'success',
-            message: 'Inventory synced successfully'
-          });
-        } catch (error) {
-          results.push({
-            location: config.merchantName,
-            status: 'error',
-            message: error instanceof Error ? error.message : 'Unknown error'
-          });
-        }
-      }
-      
-      res.json({
-        message: 'Inventory sync completed',
-        results
-      });
-    } catch (error) {
-      console.error('Error syncing inventory:', error);
-      res.status(500).json({ error: 'Failed to sync inventory' });
-    }
-  });
-
   // ============================================
   // COGS (COST OF GOODS SOLD) API ENDPOINTS
   // ============================================
