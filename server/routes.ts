@@ -9445,8 +9445,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const cost = parseFloat(item.unitCost || '0');
         const price = parseFloat(item.unitPrice || '0');
         
-        // Only count items with positive stock
-        if (quantity <= 0) continue;
+        // Only count items with positive stock (exclude negative stock items)
+        if (quantity <= 0 || cost < 0) continue;
         
         const value = quantity * cost;
         const revenue = quantity * price;
@@ -9511,12 +9511,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }))
       }));
 
-      // Calculate totals
+      // Calculate totals (round to 2 decimal places)
       const totals = {
-        totalValue: categories.reduce((sum, cat) => sum + cat.totalValue, 0),
-        potentialRevenue: categories.reduce((sum, cat) => sum + cat.potentialRevenue, 0),
-        grossProfit: categories.reduce((sum, cat) => sum + cat.grossProfit, 0),
-        totalQuantity: categories.reduce((sum, cat) => sum + cat.quantity, 0),
+        totalValue: Number(categories.reduce((sum, cat) => sum + cat.totalValue, 0).toFixed(2)),
+        potentialRevenue: Number(categories.reduce((sum, cat) => sum + cat.potentialRevenue, 0).toFixed(2)),
+        grossProfit: Number(categories.reduce((sum, cat) => sum + cat.grossProfit, 0).toFixed(2)),
+        totalQuantity: Number(categories.reduce((sum, cat) => sum + cat.quantity, 0).toFixed(0)),
         totalItems: categories.reduce((sum, cat) => sum + cat.itemCount, 0),
         outOfStock: allItems.filter(item => parseFloat(item.quantityOnHand || '0') <= 0).length
       };
