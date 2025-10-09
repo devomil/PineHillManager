@@ -9532,6 +9532,129 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Vendor Analytics Endpoint
+  app.get('/api/accounting/inventory/vendors', async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !req.user) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const { locationId } = req.query;
+
+      // Get all items from database
+      const allItems = await storage.getAllInventoryItems();
+      
+      // Filter by location if specified
+      const filteredItems = locationId 
+        ? allItems.filter(item => item.locationId === parseInt(locationId as string))
+        : allItems;
+
+      // Get location names
+      const locations = await storage.getAllCloverConfigs();
+      const locationMap = new Map(locations.map(loc => [loc.id, loc.merchantName]));
+
+      // Aggregate by vendor
+      const vendorMetrics = new Map<string, {
+        totalValue: number;
+        potentialRevenue: number;
+        grossProfit: number;
+        quantity: number;
+        itemCount: number;
+        locationBreakdown: Map<number, {
+          value: number;
+          revenue: number;
+          profit: number;
+          quantity: number;
+        }>;
+      }>();
+
+      for (const item of filteredItems) {
+        const vendorName = item.vendor || 'Unknown';
+        const quantity = parseFloat(item.quantityOnHand || '0');
+        const cost = parseFloat(item.unitCost || '0');
+        const price = parseFloat(item.unitPrice || '0');
+        
+        // Only count items with positive stock (exclude negative stock items)
+        if (quantity <= 0 || cost < 0) continue;
+        
+        const value = quantity * cost;
+        const revenue = quantity * price;
+        const profit = revenue - value;
+
+        if (!vendorMetrics.has(vendorName)) {
+          vendorMetrics.set(vendorName, {
+            totalValue: 0,
+            potentialRevenue: 0,
+            grossProfit: 0,
+            quantity: 0,
+            itemCount: 0,
+            locationBreakdown: new Map()
+          });
+        }
+
+        const metrics = vendorMetrics.get(vendorName)!;
+        metrics.totalValue += value;
+        metrics.potentialRevenue += revenue;
+        metrics.grossProfit += profit;
+        metrics.quantity += quantity;
+        metrics.itemCount += 1;
+
+        // Location breakdown
+        const locId = item.locationId || 0;
+        if (!metrics.locationBreakdown.has(locId)) {
+          metrics.locationBreakdown.set(locId, {
+            value: 0,
+            revenue: 0,
+            profit: 0,
+            quantity: 0
+          });
+        }
+        const locMetrics = metrics.locationBreakdown.get(locId)!;
+        locMetrics.value += value;
+        locMetrics.revenue += revenue;
+        locMetrics.profit += profit;
+        locMetrics.quantity += quantity;
+      }
+
+      // Format response
+      const vendors = Array.from(vendorMetrics.entries()).map(([vendorName, metrics]) => ({
+        vendor: vendorName,
+        totalValue: Number(metrics.totalValue.toFixed(2)),
+        potentialRevenue: Number(metrics.potentialRevenue.toFixed(2)),
+        grossProfit: Number(metrics.grossProfit.toFixed(2)),
+        quantity: Number(metrics.quantity.toFixed(0)),
+        itemCount: metrics.itemCount,
+        locations: Array.from(metrics.locationBreakdown.entries()).map(([locId, locMetrics]) => ({
+          locationId: locId,
+          locationName: locationMap.get(locId) || 'Unknown',
+          value: Number(locMetrics.value.toFixed(2)),
+          revenue: Number(locMetrics.revenue.toFixed(2)),
+          profit: Number(locMetrics.profit.toFixed(2)),
+          quantity: Number(locMetrics.quantity.toFixed(0))
+        }))
+      })).sort((a, b) => b.totalValue - a.totalValue); // Sort by total value descending
+
+      // Calculate totals
+      const totals = {
+        totalValue: Number(vendors.reduce((sum, vendor) => sum + vendor.totalValue, 0).toFixed(2)),
+        potentialRevenue: Number(vendors.reduce((sum, vendor) => sum + vendor.potentialRevenue, 0).toFixed(2)),
+        grossProfit: Number(vendors.reduce((sum, vendor) => sum + vendor.grossProfit, 0).toFixed(2)),
+        totalQuantity: Number(vendors.reduce((sum, vendor) => sum + vendor.quantity, 0).toFixed(0)),
+        totalItems: vendors.reduce((sum, vendor) => sum + vendor.itemCount, 0),
+        totalVendors: vendors.length
+      };
+
+      res.json({
+        vendors,
+        totals,
+        locationId: locationId ? parseInt(locationId as string) : null
+      });
+    } catch (error) {
+      console.error('Error fetching vendor analytics:', error);
+      res.status(500).json({ message: 'Failed to fetch vendor analytics' });
+    }
+  });
+
   app.get('/api/accounting/inventory/categories', async (req, res) => {
     try {
       if (!req.isAuthenticated() || !req.user) {

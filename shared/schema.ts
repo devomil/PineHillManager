@@ -1474,6 +1474,7 @@ export const inventoryItems = pgTable("inventory_items", {
   itemName: varchar("item_name").notNull(),
   description: text("description"),
   category: varchar("category"),
+  vendor: varchar("vendor"), // Vendor/Supplier name
   tags: text("tags").array(), // Tags from Clover
   unitOfMeasure: varchar("unit_of_measure"),
   unitCost: decimal("unit_cost", { precision: 10, scale: 2 }).default("0.00"),
@@ -1495,6 +1496,7 @@ export const inventoryItems = pgTable("inventory_items", {
   upcIdx: index("idx_ii_upc").on(table.upc),
   asinIdx: index("idx_ii_asin").on(table.asin),
   categoryIdx: index("idx_ii_category").on(table.category),
+  vendorIdx: index("idx_ii_vendor").on(table.vendor),
 }));
 
 // POS Sales Data (from Clover)
