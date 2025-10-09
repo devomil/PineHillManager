@@ -585,6 +585,7 @@ export interface IStorage {
   getLowStockItems(locationId?: number): Promise<InventoryItem[]>;
   updateInventoryItem(id: number, item: Partial<InsertInventoryItem>): Promise<InventoryItem>;
   updateInventoryQuantity(id: number, quantity: string): Promise<InventoryItem>;
+  updateInventoryItemVendor(id: number, vendor: string): Promise<InventoryItem>;
   deleteInventoryItem(id: number): Promise<void>;
 
   // POS Sales (from Clover)
@@ -4684,6 +4685,11 @@ export class DatabaseStorage implements IStorage {
 
   async updateInventoryQuantity(id: number, quantity: string): Promise<InventoryItem> {
     const [updated] = await db.update(inventoryItems).set({ quantityOnHand: quantity, updatedAt: new Date() }).where(eq(inventoryItems.id, id)).returning();
+    return updated;
+  }
+
+  async updateInventoryItemVendor(id: number, vendor: string): Promise<InventoryItem> {
+    const [updated] = await db.update(inventoryItems).set({ vendor, updatedAt: new Date() }).where(eq(inventoryItems.id, id)).returning();
     return updated;
   }
 

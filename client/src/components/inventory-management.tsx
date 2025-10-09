@@ -27,7 +27,8 @@ import {
   Settings,
   ArrowLeftRight,
   FileText,
-  Building2
+  Building2,
+  Upload
 } from 'lucide-react';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
@@ -95,6 +96,12 @@ export function InventoryManagement() {
   const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
   const [selectedStockItem, setSelectedStockItem] = useState<SelectedStockItem | null>(null);
   const [showAdjustmentDialog, setShowAdjustmentDialog] = useState(false);
+
+  // CSV Import States
+  const [showImportDialog, setShowImportDialog] = useState(false);
+  const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [importResults, setImportResults] = useState<any>(null);
+  const [isImporting, setIsImporting] = useState(false);
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -158,6 +165,69 @@ export function InventoryManagement() {
     if (stockCount === 0) return { status: 'out-of-stock', color: 'bg-red-100 text-red-800' };
     if (stockCount < 10) return { status: 'low-stock', color: 'bg-yellow-100 text-yellow-800' };
     return { status: 'in-stock', color: 'bg-green-100 text-green-800' };
+  };
+
+  const handleCSVImport = async () => {
+    if (!csvFile) {
+      toast({ title: "No file selected", variant: "destructive" });
+      return;
+    }
+
+    setIsImporting(true);
+    try {
+      const text = await csvFile.text();
+      const lines = text.split('\n');
+      const headers = lines[8]?.split(','); // Line 9 has headers
+      
+      if (!headers || headers.length < 11) {
+        toast({ title: "Invalid CSV format", variant: "destructive" });
+        setIsImporting(false);
+        return;
+      }
+
+      const csvData = [];
+      for (let i = 9; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
+        
+        const values = line.split(',').map(v => v.replace(/^"|"$/g, '').trim());
+        if (values.length >= 11) {
+          csvData.push({
+            Product: values[0],
+            Variant: values[1],
+            Location: values[2],
+            Categories: values[3],
+            Vendors: values[4],
+            SKU: values[5],
+            Barcode: values[6],
+            InStock: values[7],
+            ListPrice: values[8],
+            CostUnit: values[9],
+            TotalValue: values[10]
+          });
+        }
+      }
+
+      const response = await apiRequest('POST', '/api/accounting/inventory/import-vendors', {
+        body: JSON.stringify({ csvData })
+      });
+
+      const result = await response.json();
+      setImportResults(result.results);
+      
+      toast({ 
+        title: "Import Complete!", 
+        description: `Updated ${result.results.updated} items, ${result.results.unmatched} unmatched` 
+      });
+
+      // Refresh vendor analytics
+      queryClient.invalidateQueries({ queryKey: ['/api/accounting/inventory/vendors'] });
+    } catch (error) {
+      console.error('Import error:', error);
+      toast({ title: "Import failed", description: String(error), variant: "destructive" });
+    } finally {
+      setIsImporting(false);
+    }
   };
 
   const handleStockSearch = async () => {
@@ -720,6 +790,19 @@ export function InventoryManagement() {
 
       {activeTab === 'vendors' && (
         <div className="space-y-4">
+          {/* CSV Import Button */}
+          <div className="flex justify-end mb-4">
+            <Button
+              onClick={() => setShowImportDialog(true)}
+              variant="outline"
+              className="flex items-center gap-2"
+              data-testid="button-import-vendors"
+            >
+              <Upload className="h-4 w-4" />
+              Import Vendor Data (CSV)
+            </Button>
+          </div>
+
           {vendorsLoading ? (
             <div className="text-center py-8">Loading vendor analytics...</div>
           ) : (
@@ -1018,6 +1101,17 @@ export function InventoryManagement() {
           />
         </DialogContent>
       </Dialog>
+
+      {/* CSV Import Dialog */}
+      <CSVImportDialog
+        open={showImportDialog}
+        onOpenChange={setShowImportDialog}
+        csvFile={csvFile}
+        setCsvFile={setCsvFile}
+        onImport={handleCSVImport}
+        isImporting={isImporting}
+        importResults={importResults}
+      />
     </div>
   );
 }
@@ -1337,5 +1431,105 @@ const AdjustmentHistory = () => {
         </div>
       ))}
     </div>
+  );
+};
+
+// CSV Import Dialog Component
+function CSVImportDialog({ 
+  open, 
+  onOpenChange, 
+  csvFile, 
+  setCsvFile, 
+  onImport, 
+  isImporting, 
+  importResults 
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  csvFile: File | null;
+  setCsvFile: (file: File | null) => void;
+  onImport: () => void;
+  isImporting: boolean;
+  importResults: any;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Import Vendor Data from CSV</DialogTitle>
+          <DialogDescription>
+            Upload your inventory CSV file to update vendor information for all items
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div>
+            <Label htmlFor="csv-file">Select CSV File</Label>
+            <Input
+              id="csv-file"
+              type="file"
+              accept=".csv"
+              onChange={(e) => setCsvFile(e.target.files?.[0] || null)}
+              data-testid="input-csv-file"
+            />
+            <p className="text-sm text-gray-500 mt-2">
+              Expected format: Clover inventory export with Product, Variant, Location, Vendors, SKU, Barcode columns
+            </p>
+          </div>
+
+          {csvFile && (
+            <div className="bg-blue-50 p-3 rounded-lg">
+              <p className="text-sm">
+                <strong>Selected:</strong> {csvFile.name} ({(csvFile.size / 1024).toFixed(2)} KB)
+              </p>
+            </div>
+          )}
+
+          {importResults && (
+            <div className="bg-gray-50 p-4 rounded-lg space-y-2">
+              <h4 className="font-semibold">Import Results:</h4>
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                <div>Processed: <strong>{importResults.processed}</strong></div>
+                <div>Updated: <strong className="text-green-600">{importResults.updated}</strong></div>
+                <div>Matched: <strong className="text-blue-600">{importResults.matched}</strong></div>
+                <div>Unmatched: <strong className="text-yellow-600">{importResults.unmatched}</strong></div>
+              </div>
+              {importResults.errors && importResults.errors.length > 0 && (
+                <div className="mt-3 max-h-40 overflow-y-auto">
+                  <p className="text-sm font-medium text-red-600 mb-1">Errors ({importResults.errors.length}):</p>
+                  <ul className="text-xs text-red-500 list-disc list-inside">
+                    {importResults.errors.slice(0, 10).map((error: string, i: number) => (
+                      <li key={i}>{error}</li>
+                    ))}
+                    {importResults.errors.length > 10 && (
+                      <li>... and {importResults.errors.length - 10} more</li>
+                    )}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button
+            variant="outline"
+            onClick={() => {
+              setCsvFile(null);
+              onOpenChange(false);
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={onImport}
+            disabled={!csvFile || isImporting}
+            data-testid="button-start-import"
+          >
+            {isImporting ? "Importing..." : "Import"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 };

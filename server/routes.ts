@@ -9532,6 +9532,109 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // CSV Import and Vendor Update Endpoint
+  app.post('/api/accounting/inventory/import-vendors', async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !req.user) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const { csvData } = req.body;
+      
+      if (!csvData || !Array.isArray(csvData)) {
+        return res.status(400).json({ error: "Invalid CSV data" });
+      }
+
+      const results = {
+        processed: 0,
+        updated: 0,
+        matched: 0,
+        unmatched: 0,
+        errors: [] as string[]
+      };
+
+      // Get all inventory items from database
+      const allItems = await storage.getAllInventoryItems();
+      const locationNameMap: { [key: string]: number } = {
+        'Watertown': 1,
+        'PHF Lake Geneva': 2,
+        'Pinehillfarm.co': 3,
+        'Lake Geneva HSA': 4,
+        'Watertown HSA': 5
+      };
+
+      for (const row of csvData) {
+        results.processed++;
+        
+        try {
+          const productName = row.Product?.trim();
+          const variant = row.Variant?.trim();
+          const locationName = row.Location?.trim();
+          const vendors = row.Vendors?.trim();
+          const sku = row.SKU?.trim();
+          const barcode = row.Barcode?.trim();
+
+          if (!productName) continue;
+
+          // Build full name with variant
+          const fullName = variant ? `${productName} ${variant}` : productName;
+          const locationId = locationNameMap[locationName];
+
+          // Try to find matching item in database
+          let matchedItem = null;
+
+          // Match by SKU/Barcode first (most accurate)
+          if (sku || barcode) {
+            matchedItem = allItems.find(item => 
+              (sku && item.sku === sku) || 
+              (barcode && (item.upc === barcode || item.sku === barcode))
+            );
+          }
+
+          // If no SKU match, try name and location
+          if (!matchedItem && locationId) {
+            matchedItem = allItems.find(item => 
+              item.locationId === locationId && 
+              (item.itemName === fullName || item.itemName === productName)
+            );
+          }
+
+          // If still no match, try just name
+          if (!matchedItem) {
+            matchedItem = allItems.find(item => 
+              item.itemName === fullName || item.itemName === productName
+            );
+          }
+
+          if (matchedItem && vendors) {
+            // Extract primary vendor (first one in the list)
+            const primaryVendor = vendors.split(',')[0].trim();
+            
+            // Update vendor in database
+            await storage.updateInventoryItemVendor(matchedItem.id, primaryVendor);
+            results.updated++;
+            results.matched++;
+          } else {
+            results.unmatched++;
+            if (!matchedItem) {
+              results.errors.push(`No match found for: ${fullName} at ${locationName}`);
+            }
+          }
+        } catch (error) {
+          results.errors.push(`Error processing row: ${error}`);
+        }
+      }
+
+      res.json({
+        success: true,
+        results
+      });
+    } catch (error) {
+      console.error('Error importing vendor data:', error);
+      res.status(500).json({ message: 'Failed to import vendor data' });
+    }
+  });
+
   // Vendor Analytics Endpoint
   app.get('/api/accounting/inventory/vendors', async (req, res) => {
     try {
