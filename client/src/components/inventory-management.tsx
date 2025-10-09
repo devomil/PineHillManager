@@ -26,7 +26,8 @@ import {
   Camera,
   Settings,
   ArrowLeftRight,
-  FileText
+  FileText,
+  Building2
 } from 'lucide-react';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
@@ -76,7 +77,7 @@ interface Category {
 }
 
 export function InventoryManagement() {
-  const [activeTab, setActiveTab] = useState<'items' | 'stocks' | 'categories' | 'add-product'>('items');
+  const [activeTab, setActiveTab] = useState<'items' | 'stocks' | 'categories' | 'vendors' | 'add-product'>('items');
   const [selectedLocation, setSelectedLocation] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState('all');
@@ -136,6 +137,19 @@ export function InventoryManagement() {
       return await response.json();
     },
     enabled: activeTab === 'categories' || activeTab === 'items'
+  });
+
+  // Fetch vendor analytics
+  const { data: vendorsData, isLoading: vendorsLoading } = useQuery({
+    queryKey: ['/api/accounting/inventory/vendors', selectedLocation],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (selectedLocation !== 'all') params.append('locationId', selectedLocation);
+      
+      const response = await apiRequest('GET', `/api/accounting/inventory/vendors?${params.toString()}`);
+      return await response.json();
+    },
+    enabled: activeTab === 'vendors'
   });
 
   // Helper functions
@@ -379,6 +393,18 @@ export function InventoryManagement() {
           >
             <Tag className="inline h-4 w-4 mr-2" />
             Categories
+          </button>
+          <button
+            onClick={() => setActiveTab('vendors')}
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${
+              activeTab === 'vendors'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+            data-testid="tab-vendors"
+          >
+            <Building2 className="inline h-4 w-4 mr-2" />
+            Vendors
           </button>
           <button
             onClick={() => setActiveTab('add-product')}
@@ -688,6 +714,135 @@ export function InventoryManagement() {
                 </Card>
               ))}
             </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'vendors' && (
+        <div className="space-y-4">
+          {vendorsLoading ? (
+            <div className="text-center py-8">Loading vendor analytics...</div>
+          ) : (
+            <>
+              {/* Vendor Summary Stats */}
+              {vendorsData?.totals && (
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm font-medium text-gray-600">Total Vendors</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">{vendorsData.totals.totalVendors}</div>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm font-medium text-gray-600">Total Items</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">{vendorsData.totals.totalItems}</div>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm font-medium text-gray-600">Inventory Value</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold text-green-600">
+                        ${vendorsData.totals.totalValue.toLocaleString()}
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm font-medium text-gray-600">Potential Revenue</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold text-blue-600">
+                        ${vendorsData.totals.potentialRevenue.toLocaleString()}
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm font-medium text-gray-600">Gross Profit</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold text-purple-600">
+                        ${vendorsData.totals.grossProfit.toLocaleString()}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+
+              {/* Vendor Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {vendorsData?.vendors?.map((vendor: any, index: number) => (
+                  <Card key={`vendor-${vendor.vendor}-${index}`} className="hover:shadow-lg transition-shadow">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Building2 className="h-5 w-5 text-blue-600" />
+                        {vendor.vendor}
+                      </CardTitle>
+                      <CardDescription>
+                        {vendor.itemCount} items in inventory
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-gray-600">Inventory Value:</span>
+                        <span className="font-semibold text-green-600">
+                          ${vendor.totalValue.toLocaleString()}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-gray-600">Potential Revenue:</span>
+                        <span className="font-semibold text-blue-600">
+                          ${vendor.potentialRevenue.toLocaleString()}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-gray-600">Gross Profit:</span>
+                        <span className="font-semibold text-purple-600">
+                          ${vendor.grossProfit.toLocaleString()}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center pt-2 border-t">
+                        <span className="text-sm text-gray-600">Total Quantity:</span>
+                        <span className="font-semibold">{vendor.quantity.toLocaleString()} units</span>
+                      </div>
+                      
+                      {/* Location Breakdown */}
+                      {vendor.locations && vendor.locations.length > 0 && (
+                        <div className="pt-3 border-t">
+                          <div className="text-xs font-medium text-gray-500 mb-2">Location Breakdown:</div>
+                          <div className="space-y-1">
+                            {vendor.locations.map((loc: any, locIndex: number) => (
+                              <div key={`${vendor.vendor}-loc-${loc.locationId}-${locIndex}`} className="flex justify-between text-xs">
+                                <span className="text-gray-600 flex items-center gap-1">
+                                  <MapPin className="h-3 w-3" />
+                                  {loc.locationName}
+                                </span>
+                                <span className="font-medium">${loc.value.toLocaleString()}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+
+              {(!vendorsData?.vendors || vendorsData.vendors.length === 0) && (
+                <Card>
+                  <CardContent className="py-8 text-center text-gray-500">
+                    No vendor data available for the selected location
+                  </CardContent>
+                </Card>
+              )}
+            </>
           )}
         </div>
       )}
