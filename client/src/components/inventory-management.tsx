@@ -28,10 +28,12 @@ import {
   ArrowLeftRight,
   FileText,
   Building2,
-  Upload
+  Upload,
+  Link2
 } from 'lucide-react';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/use-auth';
 import { BarcodeScanner } from './barcode-scanner';
 import { DymoLabelPrinter } from './dymo-label-printer';
 
@@ -107,8 +109,71 @@ export function InventoryManagement() {
   // Sync Status Filters
   const [syncStatusFilter, setSyncStatusFilter] = useState<'all' | 'synced' | 'discrepancy'>('all');
   
+  // Manual Matching States
+  const [matchDialogOpen, setMatchDialogOpen] = useState(false);
+  const [selectedUnmatchedItem, setSelectedUnmatchedItem] = useState<any>(null);
+  const [matchSuggestions, setMatchSuggestions] = useState<any[]>([]);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  const [selectedMatch, setSelectedMatch] = useState<any>(null);
+  
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+
+  // Manual Matching Functions
+  const fetchMatchSuggestions = async (thriveItemId: number) => {
+    setLoadingSuggestions(true);
+    try {
+      const response = await apiRequest('GET', `/api/accounting/inventory/match-suggestions/${thriveItemId}`);
+      const data = await response.json();
+      setMatchSuggestions(data.suggestions || []);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to fetch match suggestions",
+        variant: "destructive"
+      });
+      setMatchSuggestions([]);
+    } finally {
+      setLoadingSuggestions(false);
+    }
+  };
+
+  const handleMatchItem = (item: any) => {
+    setSelectedUnmatchedItem(item);
+    setSelectedMatch(null);
+    setMatchDialogOpen(true);
+    fetchMatchSuggestions(item.id);
+  };
+
+  const confirmMatch = async () => {
+    if (!selectedUnmatchedItem || !selectedMatch) return;
+    
+    try {
+      await apiRequest('POST', '/api/accounting/inventory/manual-match', {
+        thriveItemId: selectedUnmatchedItem.id,
+        cloverItemId: selectedMatch.id
+      });
+      
+      toast({
+        title: "Success",
+        description: "Items matched successfully",
+      });
+      
+      // Refresh sync status data
+      queryClient.invalidateQueries({ queryKey: ['/api/accounting/inventory/sync-status'] });
+      
+      setMatchDialogOpen(false);
+      setSelectedUnmatchedItem(null);
+      setSelectedMatch(null);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to match items",
+        variant: "destructive"
+      });
+    }
+  };
 
   // Fetch inventory items
   const { data: itemsData, isLoading: itemsLoading, error: itemsError } = useQuery({
@@ -854,9 +919,22 @@ export function InventoryManagement() {
                               SKU: {item.sku || 'N/A'} • {item.vendor || 'No vendor'}
                             </p>
                           </div>
-                          <Badge className="bg-orange-100 text-orange-800">
-                            Unmatched
-                          </Badge>
+                          <div className="flex items-center gap-2">
+                            <Badge className="bg-orange-100 text-orange-800">
+                              Unmatched
+                            </Badge>
+                            {user?.role === 'admin' && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleMatchItem(item)}
+                                data-testid={`button-match-${item.id}`}
+                              >
+                                <Link2 className="h-4 w-4 mr-1" />
+                                Match
+                              </Button>
+                            )}
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -1428,6 +1506,98 @@ export function InventoryManagement() {
               });
             }}
           />
+        </DialogContent>
+      </Dialog>
+
+      {/* Manual Matching Dialog */}
+      <Dialog open={matchDialogOpen} onOpenChange={setMatchDialogOpen}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" data-testid="dialog-manual-match">
+          <DialogHeader>
+            <DialogTitle>Match Thrive Item to Clover</DialogTitle>
+            <DialogDescription>
+              Select the best matching Clover item for: <strong>{selectedUnmatchedItem?.productName}</strong>
+            </DialogDescription>
+          </DialogHeader>
+          
+          {/* Selected Thrive Item Info */}
+          <div className="bg-blue-50 p-4 rounded-lg mb-4">
+            <h4 className="font-semibold mb-2">Thrive Item Details</h4>
+            <div className="grid grid-cols-2 gap-2 text-sm">
+              <div><strong>Product:</strong> {selectedUnmatchedItem?.productName}</div>
+              <div><strong>SKU:</strong> {selectedUnmatchedItem?.sku || 'N/A'}</div>
+              <div><strong>Vendor:</strong> {selectedUnmatchedItem?.vendor || 'N/A'}</div>
+              <div><strong>Location:</strong> {selectedUnmatchedItem?.locationName}</div>
+            </div>
+          </div>
+          
+          {/* Match Suggestions */}
+          <div className="space-y-3">
+            <h4 className="font-semibold">Match Suggestions</h4>
+            
+            {loadingSuggestions ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <RefreshCw className="h-6 w-6 animate-spin mx-auto mb-2" />
+                Loading suggestions...
+              </div>
+            ) : matchSuggestions.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <AlertTriangle className="h-6 w-6 mx-auto mb-2" />
+                No matching suggestions found
+              </div>
+            ) : (
+              matchSuggestions.map((suggestion: any) => (
+                <div
+                  key={suggestion.id}
+                  className={`border rounded-lg p-3 cursor-pointer transition-colors ${
+                    selectedMatch?.id === suggestion.id
+                      ? 'border-blue-500 bg-blue-50'
+                      : 'hover:border-gray-400'
+                  }`}
+                  onClick={() => setSelectedMatch(suggestion)}
+                  data-testid={`match-suggestion-${suggestion.id}`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <p className="font-medium">{suggestion.name}</p>
+                      <div className="flex gap-3 text-sm text-muted-foreground mt-1">
+                        <span>SKU: {suggestion.sku || 'N/A'}</span>
+                        <span>Location: {suggestion.locationName}</span>
+                        {suggestion.category && <span>Category: {suggestion.category}</span>}
+                      </div>
+                    </div>
+                    <div className="text-right ml-4">
+                      <Badge className={`${
+                        suggestion.score >= 80 ? 'bg-green-100 text-green-800' :
+                        suggestion.score >= 50 ? 'bg-yellow-100 text-yellow-800' :
+                        'bg-gray-100 text-gray-800'
+                      }`}>
+                        {suggestion.score}% Match
+                      </Badge>
+                      {suggestion.matchReason && (
+                        <p className="text-xs text-muted-foreground mt-1">{suggestion.matchReason}</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setMatchDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={confirmMatch}
+              disabled={!selectedMatch}
+              data-testid="button-confirm-match"
+            >
+              Confirm Match
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

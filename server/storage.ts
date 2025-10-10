@@ -34,6 +34,7 @@ import {
   financialTransactionLines,
   customersVendors,
   inventoryItems,
+  unmatchedThriveItems,
   employeePurchases,
   posSales,
   posSaleItems,
@@ -128,6 +129,8 @@ import {
   type InsertCustomersVendors,
   type InventoryItem,
   type InsertInventoryItem,
+  type UnmatchedThriveItem,
+  type InsertUnmatchedThriveItem,
   type EmployeePurchase,
   type InsertEmployeePurchase,
   type PosSale,
@@ -587,6 +590,11 @@ export interface IStorage {
   updateInventoryQuantity(id: number, quantity: string): Promise<InventoryItem>;
   updateInventoryItemVendor(id: number, vendor: string): Promise<InventoryItem>;
   deleteInventoryItem(id: number): Promise<void>;
+  
+  // Unmatched Thrive Items
+  getUnmatchedThriveItems(locationName?: string): Promise<UnmatchedThriveItem[]>;
+  getUnmatchedThriveItemById(id: number): Promise<UnmatchedThriveItem | undefined>;
+  updateUnmatchedThriveItem(id: number, data: Partial<InsertUnmatchedThriveItem>): Promise<UnmatchedThriveItem>;
 
   // POS Sales (from Clover)
   createPosSale(sale: InsertPosSale): Promise<PosSale>;
@@ -4695,6 +4703,37 @@ export class DatabaseStorage implements IStorage {
 
   async deleteInventoryItem(id: number): Promise<void> {
     await db.update(inventoryItems).set({ isActive: false }).where(eq(inventoryItems.id, id));
+  }
+  
+  // Unmatched Thrive Items
+  async getUnmatchedThriveItems(locationName?: string): Promise<UnmatchedThriveItem[]> {
+    if (locationName) {
+      // Use and() only when we have multiple conditions
+      return await db.select().from(unmatchedThriveItems).where(
+        and(
+          eq(unmatchedThriveItems.status, 'pending'),
+          eq(unmatchedThriveItems.locationName, locationName)
+        )
+      );
+    } else {
+      // Use single condition when no location filter
+      return await db.select().from(unmatchedThriveItems).where(
+        eq(unmatchedThriveItems.status, 'pending')
+      );
+    }
+  }
+  
+  async getUnmatchedThriveItemById(id: number): Promise<UnmatchedThriveItem | undefined> {
+    const [item] = await db.select().from(unmatchedThriveItems).where(eq(unmatchedThriveItems.id, id));
+    return item;
+  }
+  
+  async updateUnmatchedThriveItem(id: number, data: Partial<InsertUnmatchedThriveItem>): Promise<UnmatchedThriveItem> {
+    const [updated] = await db.update(unmatchedThriveItems)
+      .set(data)
+      .where(eq(unmatchedThriveItems.id, id))
+      .returning();
+    return updated;
   }
 
   // Stub implementations for remaining methods (to be implemented in future phases)

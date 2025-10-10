@@ -9832,16 +9832,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Get unmatched Thrive items
-      let unmatchedItems = await storage.db.select().from(unmatchedThriveItems).where(
-        eq(unmatchedThriveItems.status, 'pending')
-      );
-      
+      let unmatchedItems: any[] = [];
       if (locationId) {
         const locations = await storage.getAllCloverConfigs();
         const locationName = locations.find(loc => loc.id === parseInt(locationId as string))?.merchantName;
         if (locationName) {
-          unmatchedItems = unmatchedItems.filter(item => item.locationName === locationName);
+          unmatchedItems = await storage.getUnmatchedThriveItems(locationName);
         }
+      } else {
+        unmatchedItems = await storage.getUnmatchedThriveItems();
       }
 
       // Get Clover items missing vendor data (ONLY Clover-sourced or items without importSource)
