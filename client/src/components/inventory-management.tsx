@@ -167,6 +167,33 @@ export function InventoryManagement() {
     return { status: 'in-stock', color: 'bg-green-100 text-green-800' };
   };
 
+  const parseCSVLine = (line: string): string[] => {
+    const values: string[] = [];
+    let current = '';
+    let inQuotes = false;
+    
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+      const nextChar = line[i + 1];
+      
+      if (char === '"') {
+        if (inQuotes && nextChar === '"') {
+          current += '"';
+          i++;
+        } else {
+          inQuotes = !inQuotes;
+        }
+      } else if (char === ',' && !inQuotes) {
+        values.push(current.trim());
+        current = '';
+      } else {
+        current += char;
+      }
+    }
+    values.push(current.trim());
+    return values;
+  };
+
   const handleCSVImport = async () => {
     if (!csvFile) {
       toast({ title: "No file selected", variant: "destructive" });
@@ -177,20 +204,14 @@ export function InventoryManagement() {
     try {
       const text = await csvFile.text();
       const lines = text.split('\n');
-      const headers = lines[8]?.split(','); // Line 9 has headers
       
-      if (!headers || headers.length < 11) {
-        toast({ title: "Invalid CSV format", variant: "destructive" });
-        setIsImporting(false);
-        return;
-      }
-
+      // Skip to line 9 (index 8) for headers, line 10 (index 9) for data
       const csvData = [];
       for (let i = 9; i < lines.length; i++) {
         const line = lines[i].trim();
         if (!line) continue;
         
-        const values = line.split(',').map(v => v.replace(/^"|"$/g, '').trim());
+        const values = parseCSVLine(line);
         if (values.length >= 6) {
           csvData.push({
             Product: values[0],
