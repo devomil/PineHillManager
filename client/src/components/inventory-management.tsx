@@ -851,6 +851,13 @@ export function InventoryManagement() {
             <div className="text-center py-8">Loading sync status...</div>
           ) : (
             <>
+              {/* Debug Info */}
+              {syncStatusData && (
+                <div className="bg-gray-100 p-3 rounded text-xs">
+                  <strong>Debug:</strong> Matched: {syncStatusData.matched?.length || 0}, Unmatched: {syncStatusData.unmatchedThrive?.length || 0}, Missing Vendor: {syncStatusData.missingVendor?.length || 0}
+                </div>
+              )}
+
               {/* Filters */}
               <div className="flex gap-4">
                 <Select value={syncStatusFilter} onValueChange={(value: any) => setSyncStatusFilter(value)}>
