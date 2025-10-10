@@ -9698,10 +9698,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
 
           if (matchedItem) {
-            // Extract all data from CSV
+            // Extract all data from CSV and clean dollar signs
             const quantityOnHand = row.InStock?.trim() || '0';
-            const unitCost = row.CostUnit?.trim() || '0';
-            const listPrice = row.ListPrice?.trim() || '0';
+            const unitCost = row.CostUnit?.trim().replace('$', '') || '0';
+            const listPrice = row.ListPrice?.trim().replace('$', '') || '0';
             
             // Update item with all CSV data: vendor, quantity, cost, and price
             const updates: any = {};
