@@ -9608,8 +9608,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
           let matchedItem = null;
           let matchMethod = '';
 
-          // Priority 1: Match by SKU + Location (most accurate for items across multiple locations)
-          if (normalizedSku && locationId) {
+          // Priority 1: Match by SKU + Location + Full Name (handles variants at same location with same SKU)
+          if (normalizedSku && locationId && normalizedFullName) {
+            matchedItem = allItems.find(item => 
+              normalizeSku(item.sku) === normalizedSku && 
+              item.locationId === locationId &&
+              normalizeName(item.itemName) === normalizedFullName
+            );
+            if (matchedItem) {
+              matchMethod = 'SKU+Location+Name';
+              results.matchedBySkuLocation++;
+            }
+          }
+
+          // Priority 2: Match by SKU + Location (for items without variants)
+          if (!matchedItem && normalizedSku && locationId) {
             matchedItem = allItems.find(item => 
               normalizeSku(item.sku) === normalizedSku && 
               item.locationId === locationId
@@ -9620,19 +9633,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
           }
 
-          // Priority 2: Match by SKU only (for unique SKUs)
-          if (!matchedItem && normalizedSku) {
-            matchedItem = allItems.find(item => 
-              normalizeSku(item.sku) === normalizedSku
-            );
-            if (matchedItem) {
-              matchMethod = 'SKU';
-              results.matchedBySku++;
-            }
-          }
-
-          // Priority 3: Match by Product+Variant name + Location
-          if (!matchedItem && locationId) {
+          // Priority 3: Match by Full Name + Location (exact variant match)
+          if (!matchedItem && locationId && normalizedFullName) {
             matchedItem = allItems.find(item => 
               item.locationId === locationId && 
               normalizeName(item.itemName) === normalizedFullName
@@ -9643,37 +9645,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
           }
 
-          // Priority 4: Match by Product name + Location (without variant)
+          // Priority 4: Match by Barcode + Location (for items with UPC/barcode)
           if (!matchedItem && locationId) {
+            const barcode = row.Barcode?.trim() || row.UPC?.trim();
+            if (barcode) {
+              matchedItem = allItems.find(item => 
+                item.barcode === barcode &&
+                item.locationId === locationId
+              );
+              if (matchedItem) {
+                matchMethod = 'Barcode+Location';
+                results.matchedByBarcode = (results.matchedByBarcode || 0) + 1;
+              }
+            }
+          }
+
+          // Priority 5: Match by SKU only (for truly unique SKUs across all locations)
+          if (!matchedItem && normalizedSku) {
+            matchedItem = allItems.find(item => 
+              normalizeSku(item.sku) === normalizedSku
+            );
+            if (matchedItem) {
+              matchMethod = 'SKU';
+              results.matchedBySku++;
+            }
+          }
+
+          // Priority 6: Match by Product name + Location (without variant, less precise)
+          if (!matchedItem && locationId && normalizedProductName) {
             matchedItem = allItems.find(item => 
               item.locationId === locationId && 
-              normalizeName(item.itemName) === normalizedProductName
+              normalizeName(item.itemName).includes(normalizedProductName)
             );
             if (matchedItem) {
               matchMethod = 'Product+Location';
               results.matchedByNameLocation++;
-            }
-          }
-
-          // Priority 5: Match by full name only
-          if (!matchedItem) {
-            matchedItem = allItems.find(item => 
-              normalizeName(item.itemName) === normalizedFullName
-            );
-            if (matchedItem) {
-              matchMethod = 'Name';
-              results.matchedByName++;
-            }
-          }
-
-          // Priority 6: Match by product name only
-          if (!matchedItem) {
-            matchedItem = allItems.find(item => 
-              normalizeName(item.itemName) === normalizedProductName
-            );
-            if (matchedItem) {
-              matchMethod = 'Product';
-              results.matchedByName++;
             }
           }
 
