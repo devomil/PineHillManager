@@ -9697,9 +9697,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
           }
 
-          if (matchedItem && vendors) {
-            // Store all vendors as comma-separated string
-            await storage.updateInventoryItemVendor(matchedItem.id, vendors);
+          if (matchedItem) {
+            // Extract all data from CSV
+            const quantityOnHand = row.InStock?.trim() || '0';
+            const unitCost = row.CostUnit?.trim() || '0';
+            const listPrice = row.ListPrice?.trim() || '0';
+            
+            // Update item with all CSV data: vendor, quantity, cost, and price
+            const updates: any = {};
+            if (vendors) updates.vendor = vendors;
+            if (quantityOnHand) updates.quantityOnHand = quantityOnHand;
+            if (unitCost) updates.unitCost = unitCost;
+            if (listPrice) updates.unitPrice = listPrice;
+            
+            await storage.updateInventoryItem(matchedItem.id, updates);
             results.updated++;
             results.matched++;
           } else {
