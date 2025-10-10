@@ -559,8 +559,8 @@ export function InventoryManagement() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <Tooltip>
-                <TooltipTrigger asChild>
-                  <CardTitle className="text-sm font-medium cursor-help">Total Items</CardTitle>
+                <TooltipTrigger className="text-sm font-medium cursor-help text-left">
+                  Total Items
                 </TooltipTrigger>
                 <TooltipContent className="max-w-xs">
                   <p className="font-semibold mb-1">How it's calculated:</p>
@@ -592,8 +592,8 @@ export function InventoryManagement() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <Tooltip>
-                <TooltipTrigger asChild>
-                  <CardTitle className="text-sm font-medium cursor-help">Inventory Value</CardTitle>
+                <TooltipTrigger className="text-sm font-medium cursor-help text-left">
+                  Inventory Value
                 </TooltipTrigger>
                 <TooltipContent className="max-w-xs">
                   <p className="font-semibold mb-1">How it's calculated:</p>
@@ -614,8 +614,8 @@ export function InventoryManagement() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <Tooltip>
-                <TooltipTrigger asChild>
-                  <CardTitle className="text-sm font-medium cursor-help">Low Stock</CardTitle>
+                <TooltipTrigger className="text-sm font-medium cursor-help text-left">
+                  Low Stock
                 </TooltipTrigger>
                 <TooltipContent className="max-w-xs">
                   <p className="font-semibold mb-1">How it's calculated:</p>
@@ -636,8 +636,8 @@ export function InventoryManagement() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <Tooltip>
-                <TooltipTrigger asChild>
-                  <CardTitle className="text-sm font-medium cursor-help">Out of Stock</CardTitle>
+                <TooltipTrigger className="text-sm font-medium cursor-help text-left">
+                  Out of Stock
                 </TooltipTrigger>
                 <TooltipContent className="max-w-xs">
                   <p className="font-semibold mb-1">How it's calculated:</p>
