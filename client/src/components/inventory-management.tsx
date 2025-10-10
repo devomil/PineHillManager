@@ -78,7 +78,7 @@ interface Category {
 }
 
 export function InventoryManagement() {
-  const [activeTab, setActiveTab] = useState<'items' | 'stocks' | 'categories' | 'vendors' | 'add-product'>('items');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'sync-status' | 'items' | 'stocks' | 'categories' | 'vendors' | 'add-product'>('dashboard');
   const [selectedLocation, setSelectedLocation] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState('all');
@@ -103,6 +103,9 @@ export function InventoryManagement() {
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [importResults, setImportResults] = useState<any>(null);
   const [isImporting, setIsImporting] = useState(false);
+
+  // Sync Status Filters
+  const [syncStatusFilter, setSyncStatusFilter] = useState<'all' | 'synced' | 'discrepancy'>('all');
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -159,6 +162,48 @@ export function InventoryManagement() {
       return await response.json();
     },
     enabled: activeTab === 'vendors'
+  });
+
+  // Fetch sync status summary for dashboard (always unfiltered)
+  const { data: dashboardSyncData, isLoading: dashboardSyncLoading } = useQuery({
+    queryKey: ['/api/accounting/inventory/sync-status/dashboard', selectedLocation],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (selectedLocation !== 'all') params.append('locationId', selectedLocation);
+      // No status filter for dashboard - always get full summary
+      
+      const response = await apiRequest('GET', `/api/accounting/inventory/sync-status?${params.toString()}`);
+      return await response.json();
+    },
+    enabled: activeTab === 'dashboard'
+  });
+
+  // Fetch sync status for sync-status tab (with filters)
+  const { data: syncStatusData, isLoading: syncStatusLoading } = useQuery({
+    queryKey: ['/api/accounting/inventory/sync-status', selectedLocation, syncStatusFilter],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (selectedLocation !== 'all') params.append('locationId', selectedLocation);
+      if (syncStatusFilter !== 'all') params.append('status', syncStatusFilter);
+      
+      const response = await apiRequest('GET', `/api/accounting/inventory/sync-status?${params.toString()}`);
+      return await response.json();
+    },
+    enabled: activeTab === 'sync-status'
+  });
+
+  // Fetch profitability data
+  const { data: profitabilityData, isLoading: profitabilityLoading } = useQuery({
+    queryKey: ['/api/accounting/inventory/profitability', selectedLocation],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (selectedLocation !== 'all') params.append('locationId', selectedLocation);
+      params.append('sortBy', 'marginPercent'); // Sort by margin by default
+      
+      const response = await apiRequest('GET', `/api/accounting/inventory/profitability?${params.toString()}`);
+      return await response.json();
+    },
+    enabled: activeTab === 'dashboard'
   });
 
   // Helper functions
@@ -453,6 +498,30 @@ export function InventoryManagement() {
       <div className="border-b border-gray-200">
         <nav className="-mb-px flex space-x-8">
           <button
+            onClick={() => setActiveTab('dashboard')}
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${
+              activeTab === 'dashboard'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+            data-testid="tab-dashboard"
+          >
+            <BarChart3 className="inline h-4 w-4 mr-2" />
+            Dashboard
+          </button>
+          <button
+            onClick={() => setActiveTab('sync-status')}
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${
+              activeTab === 'sync-status'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+            data-testid="tab-sync-status"
+          >
+            <RefreshCw className="inline h-4 w-4 mr-2" />
+            Sync Status
+          </button>
+          <button
             onClick={() => setActiveTab('items')}
             className={`py-2 px-1 border-b-2 font-medium text-sm ${
               activeTab === 'items'
@@ -572,6 +641,233 @@ export function InventoryManagement() {
       </div>
 
       {/* Content Sections */}
+      {/* Dashboard Tab */}
+      {activeTab === 'dashboard' && (
+        <div className="space-y-6">
+          {dashboardSyncLoading || profitabilityLoading ? (
+            <div className="text-center py-8">Loading dashboard...</div>
+          ) : (
+            <>
+              {/* Sync Status Overview */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium flex items-center gap-2">
+                      <CheckCircle className="h-4 w-4 text-green-500" />
+                      Synced Items
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-green-600">
+                      {dashboardSyncData?.summary?.synced || 0}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      ${dashboardSyncData?.summary?.totalValue?.matched?.toFixed(2) || '0.00'} value
+                    </p>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium flex items-center gap-2">
+                      <AlertTriangle className="h-4 w-4 text-yellow-500" />
+                      Discrepancies
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-yellow-600">
+                      {dashboardSyncData?.summary?.discrepancies || 0}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Quantity mismatches
+                    </p>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium flex items-center gap-2">
+                      <AlertTriangle className="h-4 w-4 text-orange-500" />
+                      Unmatched
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-orange-600">
+                      {dashboardSyncData?.summary?.unmatchedThrive || 0}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      ${dashboardSyncData?.summary?.totalValue?.unmatched?.toFixed(2) || '0.00'} value
+                    </p>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium flex items-center gap-2">
+                      <Package className="h-4 w-4 text-gray-500" />
+                      Missing Vendor
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-gray-600">
+                      {dashboardSyncData?.summary?.missingVendor || 0}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Clover items
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Profitability Overview */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <DollarSign className="h-5 w-5" />
+                    Profitability Summary
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Average Margin</p>
+                      <p className="text-3xl font-bold text-green-600">
+                        {profitabilityData?.summary?.averageMargin?.toFixed(1) || '0.0'}%
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Total Inventory Value</p>
+                      <p className="text-3xl font-bold">
+                        ${profitabilityData?.summary?.totalValue?.toLocaleString() || '0'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Potential Gross Profit</p>
+                      <p className="text-3xl font-bold text-blue-600">
+                        ${profitabilityData?.summary?.totalProfit?.toLocaleString() || '0'}
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Top Profitable Items */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Top Profitable Items (by Margin %)</CardTitle>
+                  <CardDescription>Items with the highest profit margins</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {profitabilityData?.items?.slice(0, 5).map((item: any) => (
+                      <div key={item.id} className="flex items-center justify-between p-3 border rounded-lg">
+                        <div className="flex-1">
+                          <p className="font-medium">{item.name}</p>
+                          <p className="text-sm text-muted-foreground">{item.vendor}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-bold text-green-600">{item.marginPercent}%</p>
+                          <p className="text-sm text-muted-foreground">${item.grossProfit.toFixed(2)} profit</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Sync Status Tab */}
+      {activeTab === 'sync-status' && (
+        <div className="space-y-4">
+          {syncStatusLoading ? (
+            <div className="text-center py-8">Loading sync status...</div>
+          ) : (
+            <>
+              {/* Filters */}
+              <div className="flex gap-4">
+                <Select value={syncStatusFilter} onValueChange={(value: any) => setSyncStatusFilter(value)}>
+                  <SelectTrigger className="w-[200px]">
+                    <SelectValue placeholder="Filter by status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Items</SelectItem>
+                    <SelectItem value="synced">Synced</SelectItem>
+                    <SelectItem value="discrepancy">Discrepancies</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Matched Items */}
+              {syncStatusData?.matched && syncStatusData.matched.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Matched Items ({syncStatusData.matched.length})</CardTitle>
+                    <CardDescription>Items successfully synced between Clover and Thrive</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      {syncStatusData.matched.slice(0, 10).map((item: any) => (
+                        <div key={item.id} className="flex items-center justify-between p-3 border rounded-lg">
+                          <div className="flex-1">
+                            <p className="font-medium">{item.name}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {item.matchMethod} • {item.vendor || 'No vendor'}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            {item.hasDiscrepancy ? (
+                              <Badge className="bg-yellow-100 text-yellow-800">
+                                <AlertTriangle className="h-3 w-3 mr-1" />
+                                Discrepancy
+                              </Badge>
+                            ) : (
+                              <Badge className="bg-green-100 text-green-800">
+                                <CheckCircle className="h-3 w-3 mr-1" />
+                                Synced
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Unmatched Thrive Items */}
+              {syncStatusData?.unmatchedThrive && syncStatusData.unmatchedThrive.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Unmatched Thrive Items ({syncStatusData.unmatchedThrive.length})</CardTitle>
+                    <CardDescription>Items from Thrive that could not be matched to Clover</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      {syncStatusData.unmatchedThrive.slice(0, 10).map((item: any) => (
+                        <div key={item.id} className="flex items-center justify-between p-3 border rounded-lg">
+                          <div className="flex-1">
+                            <p className="font-medium">{item.productName}</p>
+                            <p className="text-sm text-muted-foreground">
+                              SKU: {item.sku || 'N/A'} • {item.vendor || 'No vendor'}
+                            </p>
+                          </div>
+                          <Badge className="bg-orange-100 text-orange-800">
+                            Unmatched
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
       {activeTab === 'items' && (
         <div className="space-y-4">
           {itemsLoading ? (
