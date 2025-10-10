@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { 
   Package, 
   Search, 
@@ -553,59 +554,108 @@ export function InventoryManagement() {
       </div>
 
       {/* Overview Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Items</CardTitle>
-            <Package className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{totalItems}</div>
-            <p className="text-xs text-muted-foreground">
-              Across {itemsData?.locations?.length || 0} locations
-            </p>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Inventory Value</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">${totalValue.toFixed(2)}</div>
-            <p className="text-xs text-muted-foreground">
-              Current stock value
-            </p>
-          </CardContent>
-        </Card>
+      <TooltipProvider>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <CardTitle className="text-sm font-medium cursor-help">Total Items</CardTitle>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs">
+                  <p className="font-semibold mb-1">How it's calculated:</p>
+                  <p className="text-sm mb-2">
+                    {selectedLocation === 'all' 
+                      ? `Total count of unique inventory items across all ${itemsData?.locations?.length || 0} Clover locations.`
+                      : `Total count of unique inventory items for the selected location (${itemsData?.locations?.find((loc: any) => loc.id.toString() === selectedLocation)?.merchantName || 'filtered location'}).`
+                    }
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {selectedLocation === 'all' && itemsData?.locations
+                      ? `Includes: ${itemsData.locations.map((loc: any) => loc.merchantName).join(', ')}. `
+                      : ''
+                    }
+                    Syncs automatically from Clover POS system every 30 minutes.
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+              <Package className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{totalItems}</div>
+              <p className="text-xs text-muted-foreground">
+                Across {itemsData?.locations?.length || 0} locations
+              </p>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <CardTitle className="text-sm font-medium cursor-help">Inventory Value</CardTitle>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs">
+                  <p className="font-semibold mb-1">How it's calculated:</p>
+                  <p className="text-sm mb-2">Sum of (Unit Cost × Quantity on Hand) for all items with available cost data{selectedLocation !== 'all' ? ' in the selected location' : ' across all locations'}. Only includes items with stock quantity greater than 0.</p>
+                  <p className="text-xs text-muted-foreground">This represents the total cost value of your current inventory holdings. Price data comes from Clover POS and Thrive inventory system.</p>
+                </TooltipContent>
+              </Tooltip>
+              <DollarSign className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">${totalValue.toFixed(2)}</div>
+              <p className="text-xs text-muted-foreground">
+                Current stock value
+              </p>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Low Stock</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-yellow-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">{lowStockItems}</div>
-            <p className="text-xs text-muted-foreground">
-              Items below 10 units
-            </p>
-          </CardContent>
-        </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <CardTitle className="text-sm font-medium cursor-help">Low Stock</CardTitle>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs">
+                  <p className="font-semibold mb-1">How it's calculated:</p>
+                  <p className="text-sm mb-2">Items with quantity on hand between 0.001 and 10 units{selectedLocation !== 'all' ? ' in the selected location' : ' across all locations'}. This threshold helps identify items that may need reordering soon.</p>
+                  <p className="text-xs text-muted-foreground">Low stock alerts help prevent stockouts and ensure you maintain adequate inventory levels for customer demand.</p>
+                </TooltipContent>
+              </Tooltip>
+              <AlertTriangle className="h-4 w-4 text-yellow-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-yellow-600">{lowStockItems}</div>
+              <p className="text-xs text-muted-foreground">
+                Items below 10 units
+              </p>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Out of Stock</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-red-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-red-600">{outOfStockItems}</div>
-            <p className="text-xs text-muted-foreground">
-              Items with 0 units
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <CardTitle className="text-sm font-medium cursor-help">Out of Stock</CardTitle>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs">
+                  <p className="font-semibold mb-1">How it's calculated:</p>
+                  <p className="text-sm mb-2">Items with exactly 0 units in stock{selectedLocation !== 'all' ? ' in the selected location' : ' across all locations'}. These items cannot be sold until inventory is replenished.</p>
+                  <p className="text-xs text-muted-foreground">Out of stock items may result in lost sales opportunities. Check the Sync Status tab to reconcile Thrive vendor data with Clover inventory.</p>
+                </TooltipContent>
+              </Tooltip>
+              <AlertTriangle className="h-4 w-4 text-red-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-red-600">{outOfStockItems}</div>
+              <p className="text-xs text-muted-foreground">
+                Items with 0 units
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      </TooltipProvider>
 
       {/* Navigation Tabs */}
       <div className="border-b border-gray-200">
