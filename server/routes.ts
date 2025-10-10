@@ -9700,8 +9700,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (matchedItem) {
             // Extract all data from CSV and clean dollar signs
             const quantityOnHand = row.InStock?.trim() || '0';
-            const unitCost = row.CostUnit?.trim().replace('$', '') || '0';
-            const listPrice = row.ListPrice?.trim().replace('$', '') || '0';
+            
+            // Clean cost and price: remove $, handle ranges like "None - 7.00" or "9.80 - 14.00"
+            let unitCost = row.CostUnit?.trim().replace('$', '') || '0';
+            let listPrice = row.ListPrice?.trim().replace('$', '') || '0';
+            
+            // Handle price ranges: extract the max value (second number)
+            if (unitCost.includes(' - ')) {
+              const parts = unitCost.split(' - ');
+              unitCost = parts[1]?.trim() || parts[0]?.trim() || '0';
+            }
+            if (listPrice.includes(' - ')) {
+              const parts = listPrice.split(' - ');
+              listPrice = parts[1]?.trim() || parts[0]?.trim() || '0';
+            }
+            
+            // Handle "None" values
+            if (unitCost.toLowerCase().startsWith('none')) unitCost = '0';
+            if (listPrice.toLowerCase().startsWith('none')) listPrice = '0';
             
             // Update item with all CSV data: vendor, quantity, cost, and price
             const updates: any = {};
