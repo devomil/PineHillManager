@@ -10430,11 +10430,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
             matchReasons.push('Category match');
           }
 
-          // Location match
-          if (thriveItem.locationName) {
-            const locations = storage.getAllCloverConfigs();
-            // Note: This is async, we'll need to handle it differently
-            score += 10;
+          // Location match - check if Clover item is in the same location as Thrive item
+          if (thriveItem.locationName && cloverItem.locationId) {
+            const cloverLocationName = locationMap.get(cloverItem.locationId);
+            if (cloverLocationName && 
+                cloverLocationName.toLowerCase().includes(thriveItem.locationName.toLowerCase())) {
+              score += 15;
+              matchReasons.push('Location match');
+            }
           }
 
           return {
@@ -10473,6 +10476,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           vendor: thriveItem.vendor,
           category: thriveItem.category,
           locationName: thriveItem.locationName,
+          quantity: thriveItem.quantity,
         },
         suggestions
       });

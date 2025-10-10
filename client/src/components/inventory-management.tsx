@@ -113,6 +113,7 @@ export function InventoryManagement() {
   const [matchDialogOpen, setMatchDialogOpen] = useState(false);
   const [selectedUnmatchedItem, setSelectedUnmatchedItem] = useState<any>(null);
   const [matchSuggestions, setMatchSuggestions] = useState<any[]>([]);
+  const [matchThriveItem, setMatchThriveItem] = useState<any>(null);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
   const [selectedMatch, setSelectedMatch] = useState<any>(null);
   
@@ -133,6 +134,7 @@ export function InventoryManagement() {
       const response = await apiRequest('GET', `/api/accounting/inventory/match-suggestions/${thriveItemId}`);
       const data = await response.json();
       setMatchSuggestions(data.suggestions || []);
+      setMatchThriveItem(data.thriveItem || null);
     } catch (error) {
       toast({
         title: "Error",
@@ -1601,6 +1603,9 @@ export function InventoryManagement() {
               <div><strong>SKU:</strong> {selectedUnmatchedItem?.sku || 'N/A'}</div>
               <div><strong>Vendor:</strong> {selectedUnmatchedItem?.vendor || 'N/A'}</div>
               <div><strong>Location:</strong> {selectedUnmatchedItem?.locationName}</div>
+              <div className="col-span-2">
+                <strong>Thrive Stock:</strong> {matchThriveItem?.quantity != null ? `${parseFloat(matchThriveItem.quantity).toFixed(3)} units` : 'N/A'}
+              </div>
             </div>
           </div>
           
