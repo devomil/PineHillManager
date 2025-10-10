@@ -9761,7 +9761,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             if (thriveCost.toLowerCase().startsWith('none')) thriveCost = '0';
             if (thrivePrice.toLowerCase().startsWith('none')) thrivePrice = '0';
             
-            await storage.db.insert(unmatchedThriveItems).values({
+            await storage.createUnmatchedThriveItem({
               productName: productName,
               variant: variant || null,
               locationName: locationName || 'Unknown',

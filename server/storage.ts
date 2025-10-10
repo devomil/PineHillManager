@@ -594,6 +594,7 @@ export interface IStorage {
   // Unmatched Thrive Items
   getUnmatchedThriveItems(locationName?: string): Promise<UnmatchedThriveItem[]>;
   getUnmatchedThriveItemById(id: number): Promise<UnmatchedThriveItem | undefined>;
+  createUnmatchedThriveItem(data: InsertUnmatchedThriveItem): Promise<UnmatchedThriveItem>;
   updateUnmatchedThriveItem(id: number, data: Partial<InsertUnmatchedThriveItem>): Promise<UnmatchedThriveItem>;
 
   // POS Sales (from Clover)
@@ -4726,6 +4727,11 @@ export class DatabaseStorage implements IStorage {
   async getUnmatchedThriveItemById(id: number): Promise<UnmatchedThriveItem | undefined> {
     const [item] = await db.select().from(unmatchedThriveItems).where(eq(unmatchedThriveItems.id, id));
     return item;
+  }
+  
+  async createUnmatchedThriveItem(data: InsertUnmatchedThriveItem): Promise<UnmatchedThriveItem> {
+    const [created] = await db.insert(unmatchedThriveItems).values(data).returning();
+    return created;
   }
   
   async updateUnmatchedThriveItem(id: number, data: Partial<InsertUnmatchedThriveItem>): Promise<UnmatchedThriveItem> {
