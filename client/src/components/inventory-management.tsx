@@ -191,7 +191,7 @@ export function InventoryManagement() {
         if (!line) continue;
         
         const values = line.split(',').map(v => v.replace(/^"|"$/g, '').trim());
-        if (values.length >= 11) {
+        if (values.length >= 6) {
           csvData.push({
             Product: values[0],
             Variant: values[1],
@@ -199,11 +199,10 @@ export function InventoryManagement() {
             Categories: values[3],
             Vendors: values[4],
             SKU: values[5],
-            Barcode: values[6],
-            InStock: values[7],
-            ListPrice: values[8],
-            CostUnit: values[9],
-            TotalValue: values[10]
+            InStock: values[6],
+            ListPrice: values[7],
+            CostUnit: values[8],
+            TotalValue: values[9]
           });
         }
       }
