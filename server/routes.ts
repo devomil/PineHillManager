@@ -9564,7 +9564,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Helper function to normalize SKU for comparison
       const normalizeSku = (sku: string | null | undefined): string => {
         if (!sku) return '';
-        return sku.toString().trim().toUpperCase().replace(/^0+/, ''); // Remove leading zeros
+        let skuStr = sku.toString().trim();
+        
+        // Handle scientific notation (e.g., "8.8861E+11" -> "888610000000")
+        if (skuStr.includes('E') || skuStr.includes('e')) {
+          try {
+            const num = parseFloat(skuStr);
+            if (!isNaN(num)) {
+              skuStr = num.toFixed(0); // Convert to integer string
+            }
+          } catch (e) {
+            // If parsing fails, use original string
+          }
+        }
+        
+        return skuStr.toUpperCase().replace(/^0+/, ''); // Remove leading zeros
       };
 
       // Helper function to normalize name for comparison
