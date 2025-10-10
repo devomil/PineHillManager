@@ -29,6 +29,7 @@ import {
   unmatchedThriveItems,
 } from "@shared/schema";
 import { z } from "zod";
+import { eq } from "drizzle-orm";
 
 // Configure multer for file uploads
 const uploadsDir = path.join(process.cwd(), 'uploads');
@@ -9801,6 +9802,108 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error importing vendor data:', error);
       res.status(500).json({ message: 'Failed to import vendor data' });
+    }
+  });
+
+  // Sync Status API Endpoint - Comprehensive reconciliation data
+  app.get('/api/accounting/inventory/sync-status', async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !req.user) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const { locationId, status, matchMethod } = req.query;
+
+      // Build query for matched items (Thrive-sourced) with filters
+      const allItems = await storage.getAllInventoryItems();
+      
+      let matchedItems = allItems.filter(item => item.importSource === 'thrive');
+      
+      if (locationId) {
+        matchedItems = matchedItems.filter(item => item.locationId === parseInt(locationId as string));
+      }
+      
+      if (status) {
+        matchedItems = matchedItems.filter(item => item.syncStatus === status);
+      }
+      
+      if (matchMethod) {
+        matchedItems = matchedItems.filter(item => item.matchMethod === matchMethod);
+      }
+
+      // Get unmatched Thrive items
+      let unmatchedItems = await storage.db.select().from(unmatchedThriveItems).where(
+        eq(unmatchedThriveItems.status, 'pending')
+      );
+      
+      if (locationId) {
+        const locations = await storage.getAllCloverConfigs();
+        const locationName = locations.find(loc => loc.id === parseInt(locationId as string))?.merchantName;
+        if (locationName) {
+          unmatchedItems = unmatchedItems.filter(item => item.locationName === locationName);
+        }
+      }
+
+      // Get Clover items missing vendor data (ONLY Clover-sourced or items without importSource)
+      let missingVendorItems = allItems.filter(item => {
+        const hasVendor = item.vendor && item.vendor.trim() !== '';
+        const isCloverOnly = !item.importSource || item.importSource === 'clover';
+        return !hasVendor && isCloverOnly;
+      });
+      
+      if (locationId) {
+        missingVendorItems = missingVendorItems.filter(item => item.locationId === parseInt(locationId as string));
+      }
+
+      // Helper function to safely parse numeric values
+      const safeParseFloat = (value: any, defaultValue = 0): number => {
+        const parsed = parseFloat(value);
+        return isNaN(parsed) ? defaultValue : parsed;
+      };
+
+      // Calculate summary statistics with sanitized values
+      const summary = {
+        totalMatched: matchedItems.length,
+        synced: matchedItems.filter(item => item.syncStatus === 'synced').length,
+        discrepancies: matchedItems.filter(item => item.syncStatus === 'discrepancy').length,
+        unmatchedThrive: unmatchedItems.length,
+        missingVendor: missingVendorItems.length,
+        totalValue: {
+          matched: matchedItems.reduce((sum, item) => {
+            const qty = safeParseFloat(item.quantityOnHand);
+            const cost = safeParseFloat(item.unitCost);
+            return sum + (qty * cost);
+          }, 0),
+          unmatched: unmatchedItems.reduce((sum, item) => {
+            const qty = safeParseFloat(item.quantityOnHand);
+            const cost = safeParseFloat(item.unitCost);
+            return sum + (qty * cost);
+          }, 0)
+        },
+        lastImport: matchedItems.length > 0 
+          ? matchedItems.reduce((latest, item) => {
+              const itemDate = new Date(item.lastThriveImport || 0);
+              return itemDate > latest ? itemDate : latest;
+            }, new Date(0))
+          : null,
+        matchMethodBreakdown: {
+          skuLocation: matchedItems.filter(item => item.matchMethod?.includes('SKU+Location')).length,
+          sku: matchedItems.filter(item => item.matchMethod === 'SKU').length,
+          nameLocation: matchedItems.filter(item => item.matchMethod?.includes('Name+Location')).length,
+          barcode: matchedItems.filter(item => item.matchMethod?.includes('Barcode')).length,
+        }
+      };
+
+      res.json({
+        success: true,
+        summary,
+        matched: matchedItems,
+        unmatchedThrive: unmatchedItems,
+        missingVendor: missingVendorItems,
+      });
+    } catch (error) {
+      console.error('Error fetching sync status:', error);
+      res.status(500).json({ message: 'Failed to fetch sync status' });
     }
   });
 
