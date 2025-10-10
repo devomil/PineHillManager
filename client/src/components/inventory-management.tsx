@@ -1635,6 +1635,7 @@ export function InventoryManagement() {
                       <p className="font-medium">{suggestion.name}</p>
                       <div className="flex gap-3 text-sm text-muted-foreground mt-1">
                         <span>SKU: {suggestion.sku || 'N/A'}</span>
+                        <span>Stock: {suggestion.quantityOnHand ?? 0} units</span>
                         <span>Location: {suggestion.locationName}</span>
                         {suggestion.category && <span>Category: {suggestion.category}</span>}
                       </div>

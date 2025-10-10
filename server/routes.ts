@@ -10443,22 +10443,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
 
           return {
-            cloverItem: {
-              id: cloverItem.id,
-              name: cloverItem.itemName,
-              sku: cloverItem.sku,
-              categories: cloverItem.categories,
-              quantityOnHand: cloverItem.quantityOnHand,
-              unitCost: cloverItem.unitCost,
-              unitPrice: cloverItem.unitPrice,
-            },
-            matchScore: score,
-            matchReasons,
+            id: cloverItem.id,
+            name: cloverItem.itemName,
+            sku: cloverItem.sku,
+            locationName: cloverItem.locationName || 'Unknown',
+            category: cloverItem.categories,
+            quantityOnHand: cloverItem.quantityOnHand,
+            unitCost: cloverItem.unitCost,
+            unitPrice: cloverItem.unitPrice,
+            score,
+            matchReason: matchReasons.join(', '),
             confidence: score >= 100 ? 'high' : score >= 50 ? 'medium' : 'low'
           };
         })
-        .filter(suggestion => suggestion.matchScore > 0) // Only items with some match
-        .sort((a, b) => b.matchScore - a.matchScore) // Sort by score descending
+        .filter(suggestion => suggestion.score > 0) // Only items with some match
+        .sort((a, b) => b.score - a.score) // Sort by score descending
         .slice(0, 10); // Top 10 suggestions
 
       res.json({
