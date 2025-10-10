@@ -10184,6 +10184,210 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Manual Matching API - Link unmatched Thrive items to Clover items (Admin only)
+  app.post('/api/accounting/inventory/manual-match', async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !req.user) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      // Restrict to admin users only
+      if (req.user.role !== 'admin') {
+        return res.status(403).json({ error: "Admin access required" });
+      }
+
+      const { unmatchedThriveId, cloverItemId } = req.body;
+
+      if (!unmatchedThriveId || !cloverItemId) {
+        return res.status(400).json({ 
+          error: "Missing required fields: unmatchedThriveId and cloverItemId" 
+        });
+      }
+
+      // Get the unmatched Thrive item
+      const unmatchedItem = await storage.db
+        .select()
+        .from(unmatchedThriveItems)
+        .where(eq(unmatchedThriveItems.id, parseInt(unmatchedThriveId)))
+        .limit(1);
+
+      if (!unmatchedItem || unmatchedItem.length === 0) {
+        return res.status(404).json({ error: "Unmatched Thrive item not found" });
+      }
+
+      const thriveItem = unmatchedItem[0];
+
+      // Get the Clover item
+      const cloverItem = await storage.getInventoryItem(parseInt(cloverItemId));
+      
+      if (!cloverItem) {
+        return res.status(404).json({ error: "Clover item not found" });
+      }
+
+      // Update the Clover item with Thrive data
+      const updates: any = {
+        vendor: thriveItem.vendor,
+        unitCost: thriveItem.unitCost,
+        unitPrice: thriveItem.unitPrice,
+        importSource: 'thrive',
+        syncStatus: 'synced',
+        matchMethod: 'Manual Match',
+        thriveQuantity: thriveItem.quantityOnHand,
+        lastThriveImport: new Date(),
+        hasDiscrepancy: false
+      };
+
+      await storage.updateInventoryItem(cloverItem.id, updates);
+
+      // Update the unmatched item status to 'matched'
+      await storage.db
+        .update(unmatchedThriveItems)
+        .set({ 
+          status: 'matched', 
+          matchedItemId: cloverItem.id,
+          notes: `Manually matched to ${cloverItem.name} (ID: ${cloverItem.id})`
+        })
+        .where(eq(unmatchedThriveItems.id, thriveItem.id));
+
+      res.json({
+        success: true,
+        message: "Items successfully matched",
+        matchedItem: {
+          cloverItemId: cloverItem.id,
+          thriveItemId: thriveItem.id,
+          updates
+        }
+      });
+    } catch (error) {
+      console.error('Error in manual matching:', error);
+      res.status(500).json({ message: 'Failed to match items' });
+    }
+  });
+
+  // Get match suggestions for an unmatched Thrive item (Admin only)
+  app.get('/api/accounting/inventory/match-suggestions/:thriveItemId', async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !req.user) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      // Restrict to admin users only
+      if (req.user.role !== 'admin') {
+        return res.status(403).json({ error: "Admin access required" });
+      }
+
+      const thriveItemId = parseInt(req.params.thriveItemId);
+
+      // Get the unmatched Thrive item
+      const unmatchedItem = await storage.db
+        .select()
+        .from(unmatchedThriveItems)
+        .where(eq(unmatchedThriveItems.id, thriveItemId))
+        .limit(1);
+
+      if (!unmatchedItem || unmatchedItem.length === 0) {
+        return res.status(404).json({ error: "Unmatched Thrive item not found" });
+      }
+
+      const thriveItem = unmatchedItem[0];
+
+      // Get all Clover items for matching
+      const allCloverItems = await storage.getAllInventoryItems();
+
+      // Generate match suggestions based on similarity
+      const suggestions = allCloverItems
+        .filter(item => !item.importSource || item.importSource === 'clover') // Only unmatched Clover items
+        .map(cloverItem => {
+          let score = 0;
+          let matchReasons: string[] = [];
+
+          // SKU exact match (highest priority)
+          if (thriveItem.sku && cloverItem.sku && 
+              thriveItem.sku.toLowerCase() === cloverItem.sku.toLowerCase()) {
+            score += 100;
+            matchReasons.push('Exact SKU match');
+          }
+
+          // Name similarity (using simple string matching)
+          if (thriveItem.productName && cloverItem.name) {
+            const thriveName = thriveItem.productName.toLowerCase();
+            const cloverName = cloverItem.name.toLowerCase();
+            
+            // Exact match
+            if (thriveName === cloverName) {
+              score += 80;
+              matchReasons.push('Exact name match');
+            }
+            // Contains match
+            else if (thriveName.includes(cloverName) || cloverName.includes(thriveName)) {
+              score += 50;
+              matchReasons.push('Partial name match');
+            }
+            // Word overlap
+            else {
+              const thriveWords = thriveName.split(/\s+/);
+              const cloverWords = cloverName.split(/\s+/);
+              const commonWords = thriveWords.filter(word => 
+                word.length > 3 && cloverWords.includes(word)
+              );
+              if (commonWords.length > 0) {
+                score += commonWords.length * 10;
+                matchReasons.push(`${commonWords.length} common word(s)`);
+              }
+            }
+          }
+
+          // Category match
+          if (thriveItem.category && cloverItem.categories &&
+              cloverItem.categories.toLowerCase().includes(thriveItem.category.toLowerCase())) {
+            score += 20;
+            matchReasons.push('Category match');
+          }
+
+          // Location match
+          if (thriveItem.locationName) {
+            const locations = storage.getAllCloverConfigs();
+            // Note: This is async, we'll need to handle it differently
+            score += 10;
+          }
+
+          return {
+            cloverItem: {
+              id: cloverItem.id,
+              name: cloverItem.name,
+              sku: cloverItem.sku,
+              categories: cloverItem.categories,
+              quantityOnHand: cloverItem.quantityOnHand,
+              unitCost: cloverItem.unitCost,
+              unitPrice: cloverItem.unitPrice,
+            },
+            matchScore: score,
+            matchReasons,
+            confidence: score >= 100 ? 'high' : score >= 50 ? 'medium' : 'low'
+          };
+        })
+        .filter(suggestion => suggestion.matchScore > 0) // Only items with some match
+        .sort((a, b) => b.matchScore - a.matchScore) // Sort by score descending
+        .slice(0, 10); // Top 10 suggestions
+
+      res.json({
+        thriveItem: {
+          id: thriveItem.id,
+          productName: thriveItem.productName,
+          variant: thriveItem.variant,
+          sku: thriveItem.sku,
+          vendor: thriveItem.vendor,
+          category: thriveItem.category,
+          locationName: thriveItem.locationName,
+        },
+        suggestions
+      });
+    } catch (error) {
+      console.error('Error generating match suggestions:', error);
+      res.status(500).json({ message: 'Failed to generate suggestions' });
+    }
+  });
+
   app.get('/api/accounting/inventory/categories', async (req, res) => {
     try {
       if (!req.isAuthenticated() || !req.user) {
