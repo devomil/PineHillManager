@@ -9701,11 +9701,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           if (matchedItem) {
             // Extract all data from CSV and clean dollar signs
-            const quantityOnHand = row.InStock?.trim() || '0';
+            const quantityOnHand = (row.InStock?.trim() || '0').replace(/,/g, '');
             
-            // Clean cost and price: remove $, handle ranges like "None - 7.00" or "9.80 - 14.00"
-            let unitCost = row.CostUnit?.trim().replace('$', '') || '0';
-            let listPrice = row.ListPrice?.trim().replace('$', '') || '0';
+            // Clean cost and price: remove $, commas, handle ranges like "None - 7.00" or "9.80 - 14.00"
+            let unitCost = (row.CostUnit?.trim() || '0').replace(/[$,]/g, '');
+            let listPrice = (row.ListPrice?.trim() || '0').replace(/[$,]/g, '');
             
             // Handle price ranges: extract the max value (second number)
             if (unitCost.includes(' - ')) {
@@ -9747,9 +9747,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
             results.matched++;
           } else {
             // Save unmatched Thrive item for manual reconciliation
-            const thriveQty = row.InStock?.trim() || '0';
-            let thriveCost = row.CostUnit?.trim().replace('$', '') || '0';
-            let thrivePrice = row.ListPrice?.trim().replace('$', '') || '0';
+            const thriveQty = (row.InStock?.trim() || '0').replace(/,/g, '');
+            let thriveCost = (row.CostUnit?.trim() || '0').replace(/[$,]/g, '');
+            let thrivePrice = (row.ListPrice?.trim() || '0').replace(/[$,]/g, '');
             
             // Clean price ranges
             if (thriveCost.includes(' - ')) {
@@ -10406,9 +10406,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
 
           // Name similarity (using simple string matching)
-          if (thriveItem.productName && cloverItem.name) {
+          if (thriveItem.productName && cloverItem.itemName) {
             const thriveName = thriveItem.productName.toLowerCase();
-            const cloverName = cloverItem.name.toLowerCase();
+            const cloverName = cloverItem.itemName.toLowerCase();
             
             // Exact match
             if (thriveName === cloverName) {
@@ -10451,7 +10451,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return {
             cloverItem: {
               id: cloverItem.id,
-              name: cloverItem.name,
+              name: cloverItem.itemName,
               sku: cloverItem.sku,
               categories: cloverItem.categories,
               quantityOnHand: cloverItem.quantityOnHand,
@@ -10481,7 +10481,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error) {
       console.error('Error generating match suggestions:', error);
-      res.status(500).json({ message: 'Failed to generate suggestions' });
+      console.error('Error details:', error instanceof Error ? error.message : String(error));
+      console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+      res.status(500).json({ 
+        message: 'Failed to generate suggestions',
+        error: error instanceof Error ? error.message : String(error)
+      });
     }
   });
 
