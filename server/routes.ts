@@ -10375,6 +10375,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Get all Clover items for matching
       const allCloverItems = await storage.getAllInventoryItems();
+      console.log(`🔍 Total Clover items fetched: ${allCloverItems.length}`);
+      
+      // Debug: Check if BD Greeting Cards exists
+      const bdItems = allCloverItems.filter(item => 
+        item.itemName && item.itemName.toLowerCase().includes('bd greeting cards')
+      );
+      console.log(`🔍 Found ${bdItems.length} items matching "BD Greeting Cards"`);
+      if (bdItems.length > 0) {
+        console.log('🔍 BD Greeting Cards items:', bdItems.slice(0, 5).map(i => ({
+          id: i.id,
+          name: i.itemName,
+          importSource: i.importSource,
+          locationId: i.locationId
+        })));
+      }
 
       // Get all location configs to map locationId to locationName
       const allLocations = await storage.getAllCloverConfigs();
@@ -10456,14 +10471,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         })
         .filter(suggestion => suggestion.score > 0) // Only items with some match
         .sort((a, b) => {
-          // First sort by stock availability (in-stock items first)
+          // First sort by match score (best matches first!)
+          if (a.score !== b.score) {
+            return b.score - a.score;
+          }
+          // Then sort by stock availability as tiebreaker
           const aHasStock = parseFloat(a.quantityOnHand || '0') > 0;
           const bHasStock = parseFloat(b.quantityOnHand || '0') > 0;
           if (aHasStock !== bHasStock) {
             return bHasStock ? 1 : -1;
           }
-          // Then sort by match score
-          return b.score - a.score;
+          //  Finally sort by stock quantity
+          return parseFloat(b.quantityOnHand || '0') - parseFloat(a.quantityOnHand || '0');
         })
         .slice(0, 50); // Top 50 suggestions to show more options
 
@@ -10476,7 +10495,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           vendor: thriveItem.vendor,
           category: thriveItem.category,
           locationName: thriveItem.locationName,
-          quantity: thriveItem.quantity,
+          quantity: thriveItem.quantityOnHand,
         },
         suggestions
       });
