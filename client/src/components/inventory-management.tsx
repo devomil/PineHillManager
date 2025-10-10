@@ -240,8 +240,9 @@ export function InventoryManagement() {
         description: `Updated ${result.results.updated} items, ${result.results.unmatched} unmatched` 
       });
 
-      // Refresh vendor analytics
-      queryClient.invalidateQueries({ queryKey: ['/api/accounting/inventory/vendors'] });
+      // Refresh all inventory data (items and vendor analytics)
+      await queryClient.invalidateQueries({ queryKey: ['/api/accounting/inventory/items'] });
+      await queryClient.invalidateQueries({ queryKey: ['/api/accounting/inventory/vendors'] });
     } catch (error) {
       console.error('Import error:', error);
       toast({ title: "Import failed", description: String(error), variant: "destructive" });
