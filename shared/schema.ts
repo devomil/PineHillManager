@@ -1483,6 +1483,15 @@ export const inventoryItems = pgTable("inventory_items", {
   quantityOnHand: decimal("quantity_on_hand", { precision: 10, scale: 3 }).default("0.000"),
   reorderPoint: decimal("reorder_point", { precision: 10, scale: 3 }).default("0.000"),
   isActive: boolean("is_active").default(true),
+  
+  // Sync status tracking for Thrive-Clover reconciliation
+  importSource: varchar("import_source"), // 'clover', 'thrive', 'manual'
+  syncStatus: varchar("sync_status"), // 'synced', 'unmatched_thrive', 'missing_vendor_data', 'discrepancy'
+  matchMethod: varchar("match_method"), // How item was matched: 'SKU+Location', 'Name+Location', 'SKU', etc.
+  thriveQuantity: decimal("thrive_quantity", { precision: 10, scale: 3 }), // Thrive's reported quantity for comparison
+  hasDiscrepancy: boolean("has_discrepancy").default(false), // Quick flag for quantity mismatches
+  lastThriveImport: timestamp("last_thrive_import"), // When Thrive data was last imported
+  
   lastSyncAt: timestamp("last_sync_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -1497,6 +1506,30 @@ export const inventoryItems = pgTable("inventory_items", {
   asinIdx: index("idx_ii_asin").on(table.asin),
   categoryIdx: index("idx_ii_category").on(table.category),
   vendorIdx: index("idx_ii_vendor").on(table.vendor),
+  syncStatusIdx: index("idx_ii_sync_status").on(table.syncStatus),
+  hasDiscrepancyIdx: index("idx_ii_has_discrepancy").on(table.hasDiscrepancy),
+}));
+
+// Unmatched Thrive Items (for manual reconciliation)
+export const unmatchedThriveItems = pgTable("unmatched_thrive_items", {
+  id: serial("id").primaryKey(),
+  productName: varchar("product_name").notNull(),
+  variant: varchar("variant"),
+  locationName: varchar("location_name"),
+  category: varchar("category"),
+  vendor: varchar("vendor"),
+  sku: varchar("sku"),
+  quantityOnHand: decimal("quantity_on_hand", { precision: 10, scale: 3 }),
+  unitCost: decimal("unit_cost", { precision: 10, scale: 2 }),
+  unitPrice: decimal("unit_price", { precision: 10, scale: 2 }),
+  importDate: timestamp("import_date").defaultNow(),
+  status: varchar("status").default("pending"), // pending, matched, ignored
+  matchedItemId: integer("matched_item_id").references(() => inventoryItems.id),
+  notes: text("notes"),
+}, (table) => ({
+  statusIdx: index("idx_uti_status").on(table.status),
+  skuIdx: index("idx_uti_sku").on(table.sku),
+  locationIdx: index("idx_uti_location").on(table.locationName),
 }));
 
 // POS Sales Data (from Clover)
@@ -1886,6 +1919,11 @@ export const insertInventoryItemSchema = createInsertSchema(inventoryItems).omit
   updatedAt: true,
 });
 
+export const insertUnmatchedThriveItemSchema = createInsertSchema(unmatchedThriveItems).omit({
+  id: true,
+  importDate: true,
+});
+
 export const insertPosSaleSchema = createInsertSchema(posSales).omit({
   id: true,
   createdAt: true,
@@ -1981,6 +2019,9 @@ export type InsertCustomersVendors = z.infer<typeof insertCustomersVendorsSchema
 
 export type InventoryItem = typeof inventoryItems.$inferSelect;
 export type InsertInventoryItem = z.infer<typeof insertInventoryItemSchema>;
+
+export type UnmatchedThriveItem = typeof unmatchedThriveItems.$inferSelect;
+export type InsertUnmatchedThriveItem = z.infer<typeof insertUnmatchedThriveItemSchema>;
 
 export type PosSale = typeof posSales.$inferSelect;
 export type InsertPosSale = z.infer<typeof insertPosSaleSchema>;

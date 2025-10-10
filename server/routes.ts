@@ -26,6 +26,7 @@ import {
   insertAutomationRuleSchema,
   updateAutomationRuleSchema,
   updateUserFinancialsSchema,
+  unmatchedThriveItems,
 } from "@shared/schema";
 import { z } from "zod";
 
@@ -9726,20 +9727,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
             if (unitCost) updates.unitCost = unitCost;
             if (listPrice) updates.unitPrice = listPrice;
             
-            // Debug log first update
-            if (results.updated === 0) {
-              console.log('🔍 FIRST UPDATE DEBUG:', {
-                itemName: matchedItem.itemName,
-                rowData: { InStock: row.InStock, CostUnit: row.CostUnit, ListPrice: row.ListPrice },
-                extracted: { quantityOnHand, unitCost, listPrice },
-                updates
-              });
-            }
+            // Add sync tracking fields
+            updates.importSource = 'thrive';
+            updates.matchMethod = matchMethod;
+            updates.thriveQuantity = quantityOnHand;
+            updates.lastThriveImport = new Date();
+            
+            // Check for quantity discrepancies
+            const cloverQty = parseFloat(matchedItem.quantityOnHand || '0');
+            const thriveQty = parseFloat(quantityOnHand);
+            const hasDiscrepancy = Math.abs(cloverQty - thriveQty) > 0.001; // Allow small floating point differences
+            
+            updates.hasDiscrepancy = hasDiscrepancy;
+            updates.syncStatus = hasDiscrepancy ? 'discrepancy' : 'synced';
             
             await storage.updateInventoryItem(matchedItem.id, updates);
             results.updated++;
             results.matched++;
           } else {
+            // Save unmatched Thrive item for manual reconciliation
+            const thriveQty = row.InStock?.trim() || '0';
+            let thriveCost = row.CostUnit?.trim().replace('$', '') || '0';
+            let thrivePrice = row.ListPrice?.trim().replace('$', '') || '0';
+            
+            // Clean price ranges
+            if (thriveCost.includes(' - ')) {
+              thriveCost = thriveCost.split(' - ')[1]?.trim() || thriveCost.split(' - ')[0]?.trim() || '0';
+            }
+            if (thrivePrice.includes(' - ')) {
+              thrivePrice = thrivePrice.split(' - ')[1]?.trim() || thrivePrice.split(' - ')[0]?.trim() || '0';
+            }
+            if (thriveCost.toLowerCase().startsWith('none')) thriveCost = '0';
+            if (thrivePrice.toLowerCase().startsWith('none')) thrivePrice = '0';
+            
+            await storage.db.insert(unmatchedThriveItems).values({
+              productName: productName,
+              variant: variant || null,
+              locationName: locationName || 'Unknown',
+              category: row.Categories?.trim() || null,
+              vendor: vendors || null,
+              sku: sku || null,
+              quantityOnHand: thriveQty,
+              unitCost: thriveCost,
+              unitPrice: thrivePrice,
+              status: 'pending',
+            });
+            
             results.unmatched++;
           }
         } catch (error) {
