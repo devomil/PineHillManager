@@ -10204,17 +10204,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Get the unmatched Thrive item
-      const unmatchedItem = await storage.db
-        .select()
-        .from(unmatchedThriveItems)
-        .where(eq(unmatchedThriveItems.id, parseInt(unmatchedThriveId)))
-        .limit(1);
+      const thriveItem = await storage.getUnmatchedThriveItemById(parseInt(unmatchedThriveId));
 
-      if (!unmatchedItem || unmatchedItem.length === 0) {
+      if (!thriveItem) {
         return res.status(404).json({ error: "Unmatched Thrive item not found" });
       }
-
-      const thriveItem = unmatchedItem[0];
 
       // Get the Clover item
       const cloverItem = await storage.getInventoryItem(parseInt(cloverItemId));
@@ -10239,14 +10233,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.updateInventoryItem(cloverItem.id, updates);
 
       // Update the unmatched item status to 'matched'
-      await storage.db
-        .update(unmatchedThriveItems)
-        .set({ 
-          status: 'matched', 
-          matchedItemId: cloverItem.id,
-          notes: `Manually matched to ${cloverItem.name} (ID: ${cloverItem.id})`
-        })
-        .where(eq(unmatchedThriveItems.id, thriveItem.id));
+      await storage.updateUnmatchedThriveItem(thriveItem.id, {
+        status: 'matched', 
+        matchedItemId: cloverItem.id,
+        notes: `Manually matched to ${cloverItem.name} (ID: ${cloverItem.id})`
+      });
 
       res.json({
         success: true,
@@ -10385,6 +10376,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get all Clover items for matching
       const allCloverItems = await storage.getAllInventoryItems();
 
+      // Get all location configs to map locationId to locationName
+      const allLocations = await storage.getAllCloverConfigs();
+      const locationMap = new Map(allLocations.map(loc => [loc.id, loc.merchantName]));
+
       // Generate match suggestions based on similarity
       const suggestions = allCloverItems
         .filter(item => !item.importSource || item.importSource === 'clover') // Only unmatched Clover items
@@ -10445,8 +10440,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return {
             id: cloverItem.id,
             name: cloverItem.itemName,
-            sku: cloverItem.sku,
-            locationName: cloverItem.locationName || 'Unknown',
+            sku: cloverItem.sku || null,
+            locationName: cloverItem.locationId ? (locationMap.get(cloverItem.locationId) || 'Unknown') : 'Unknown',
             category: cloverItem.categories,
             quantityOnHand: cloverItem.quantityOnHand,
             unitCost: cloverItem.unitCost,
@@ -10457,8 +10452,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
           };
         })
         .filter(suggestion => suggestion.score > 0) // Only items with some match
-        .sort((a, b) => b.score - a.score) // Sort by score descending
-        .slice(0, 10); // Top 10 suggestions
+        .sort((a, b) => {
+          // First sort by stock availability (in-stock items first)
+          const aHasStock = parseFloat(a.quantityOnHand || '0') > 0;
+          const bHasStock = parseFloat(b.quantityOnHand || '0') > 0;
+          if (aHasStock !== bHasStock) {
+            return bHasStock ? 1 : -1;
+          }
+          // Then sort by match score
+          return b.score - a.score;
+        })
+        .slice(0, 50); // Top 50 suggestions to show more options
 
       res.json({
         thriveItem: {
