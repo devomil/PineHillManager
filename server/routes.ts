@@ -9554,7 +9554,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         updated: 0,
         matched: 0,
         unmatched: 0,
-        errors: [] as string[]
+        errors: [] as string[],
+        matchedBySku: 0,
+        matchedBySkuLocation: 0,
+        matchedByNameLocation: 0,
+        matchedByName: 0
+      };
+
+      // Helper function to normalize SKU for comparison
+      const normalizeSku = (sku: string | null | undefined): string => {
+        if (!sku) return '';
+        return sku.toString().trim().toUpperCase().replace(/^0+/, ''); // Remove leading zeros
+      };
+
+      // Helper function to normalize name for comparison
+      const normalizeName = (name: string | null | undefined): string => {
+        if (!name) return '';
+        return name.trim().toLowerCase().replace(/[^\w\s]/g, ''); // Remove punctuation
       };
 
       // Get all inventory items from database
@@ -9576,50 +9592,98 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const locationName = row.Location?.trim();
           const vendors = row.Vendors?.trim();
           const sku = row.SKU?.trim();
-          const barcode = row.Barcode?.trim();
 
           if (!productName) continue;
 
           // Build full name with variant
           const fullName = variant ? `${productName} ${variant}` : productName;
           const locationId = locationNameMap[locationName];
+          
+          // Normalize for comparison
+          const normalizedSku = normalizeSku(sku);
+          const normalizedFullName = normalizeName(fullName);
+          const normalizedProductName = normalizeName(productName);
 
-          // Try to find matching item in database
+          // Try to find matching item in database with comprehensive fallback logic
           let matchedItem = null;
+          let matchMethod = '';
 
-          // Match by SKU/Barcode first (most accurate)
-          if (sku || barcode) {
+          // Priority 1: Match by SKU + Location (most accurate for items across multiple locations)
+          if (normalizedSku && locationId) {
             matchedItem = allItems.find(item => 
-              (sku && item.sku === sku) || 
-              (barcode && (item.upc === barcode || item.sku === barcode))
+              normalizeSku(item.sku) === normalizedSku && 
+              item.locationId === locationId
             );
+            if (matchedItem) {
+              matchMethod = 'SKU+Location';
+              results.matchedBySkuLocation++;
+            }
           }
 
-          // If no SKU match, try name and location
+          // Priority 2: Match by SKU only (for unique SKUs)
+          if (!matchedItem && normalizedSku) {
+            matchedItem = allItems.find(item => 
+              normalizeSku(item.sku) === normalizedSku
+            );
+            if (matchedItem) {
+              matchMethod = 'SKU';
+              results.matchedBySku++;
+            }
+          }
+
+          // Priority 3: Match by Product+Variant name + Location
           if (!matchedItem && locationId) {
             matchedItem = allItems.find(item => 
               item.locationId === locationId && 
-              (item.itemName === fullName || item.itemName === productName)
+              normalizeName(item.itemName) === normalizedFullName
             );
+            if (matchedItem) {
+              matchMethod = 'Name+Location';
+              results.matchedByNameLocation++;
+            }
           }
 
-          // If still no match, try just name
+          // Priority 4: Match by Product name + Location (without variant)
+          if (!matchedItem && locationId) {
+            matchedItem = allItems.find(item => 
+              item.locationId === locationId && 
+              normalizeName(item.itemName) === normalizedProductName
+            );
+            if (matchedItem) {
+              matchMethod = 'Product+Location';
+              results.matchedByNameLocation++;
+            }
+          }
+
+          // Priority 5: Match by full name only
           if (!matchedItem) {
             matchedItem = allItems.find(item => 
-              item.itemName === fullName || item.itemName === productName
+              normalizeName(item.itemName) === normalizedFullName
             );
+            if (matchedItem) {
+              matchMethod = 'Name';
+              results.matchedByName++;
+            }
+          }
+
+          // Priority 6: Match by product name only
+          if (!matchedItem) {
+            matchedItem = allItems.find(item => 
+              normalizeName(item.itemName) === normalizedProductName
+            );
+            if (matchedItem) {
+              matchMethod = 'Product';
+              results.matchedByName++;
+            }
           }
 
           if (matchedItem && vendors) {
-            // Store all vendors as comma-separated string (will be split in analytics)
+            // Store all vendors as comma-separated string
             await storage.updateInventoryItemVendor(matchedItem.id, vendors);
             results.updated++;
             results.matched++;
           } else {
             results.unmatched++;
-            if (!matchedItem) {
-              results.errors.push(`No match found for: ${fullName} at ${locationName}`);
-            }
           }
         } catch (error) {
           results.errors.push(`Error processing row: ${error}`);
