@@ -10376,17 +10376,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const thriveItemId = parseInt(req.params.thriveItemId);
 
       // Get the unmatched Thrive item
-      const unmatchedItem = await storage.db
-        .select()
-        .from(unmatchedThriveItems)
-        .where(eq(unmatchedThriveItems.id, thriveItemId))
-        .limit(1);
+      const thriveItem = await storage.getUnmatchedThriveItemById(thriveItemId);
 
-      if (!unmatchedItem || unmatchedItem.length === 0) {
+      if (!thriveItem) {
         return res.status(404).json({ error: "Unmatched Thrive item not found" });
       }
-
-      const thriveItem = unmatchedItem[0];
 
       // Get all Clover items for matching
       const allCloverItems = await storage.getAllInventoryItems();
