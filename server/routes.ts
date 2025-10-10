@@ -9541,8 +9541,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const { csvData } = req.body;
       
+      console.log('Import request received, csvData type:', typeof csvData, 'isArray:', Array.isArray(csvData), 'length:', csvData?.length);
+      
       if (!csvData || !Array.isArray(csvData)) {
-        return res.status(400).json({ error: "Invalid CSV data" });
+        return res.status(400).json({ error: "Invalid CSV data", received: typeof csvData });
+      }
+      
+      if (csvData.length === 0) {
+        return res.status(400).json({ error: "CSV data is empty" });
       }
 
       const results = {
