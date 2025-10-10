@@ -228,9 +228,7 @@ export function InventoryManagement() {
         }
       }
 
-      const response = await apiRequest('POST', '/api/accounting/inventory/import-vendors', {
-        body: JSON.stringify({ csvData })
-      });
+      const response = await apiRequest('POST', '/api/accounting/inventory/import-vendors', { csvData });
 
       const result = await response.json();
       setImportResults(result.results);
