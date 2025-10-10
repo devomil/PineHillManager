@@ -83,6 +83,7 @@ export function InventoryManagement() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState('all');
   const [stockStatusFilter, setStockStatusFilter] = useState('all');
+  const [vendorStockFilter, setVendorStockFilter] = useState<'all' | 'in-stock'>('all');
   const [scannerMode, setScannerMode] = useState<'take' | 'adjustment' | 'employee_purchase'>('take');
   const [selectedProductForLabel, setSelectedProductForLabel] = useState<{
     name: string;
@@ -148,10 +149,11 @@ export function InventoryManagement() {
 
   // Fetch vendor analytics
   const { data: vendorsData, isLoading: vendorsLoading } = useQuery({
-    queryKey: ['/api/accounting/inventory/vendors', selectedLocation],
+    queryKey: ['/api/accounting/inventory/vendors', selectedLocation, vendorStockFilter],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (selectedLocation !== 'all') params.append('locationId', selectedLocation);
+      if (vendorStockFilter !== 'all') params.append('stockFilter', vendorStockFilter);
       
       const response = await apiRequest('GET', `/api/accounting/inventory/vendors?${params.toString()}`);
       return await response.json();
@@ -808,8 +810,20 @@ export function InventoryManagement() {
 
       {activeTab === 'vendors' && (
         <div className="space-y-4">
-          {/* CSV Import Button */}
-          <div className="flex justify-end mb-4">
+          {/* Filter and Import Controls */}
+          <div className="flex justify-between items-center mb-4">
+            <div className="flex items-center gap-2">
+              <Filter className="h-4 w-4 text-gray-500" />
+              <Select value={vendorStockFilter} onValueChange={(value: 'all' | 'in-stock') => setVendorStockFilter(value)}>
+                <SelectTrigger className="w-[200px]" data-testid="select-vendor-filter">
+                  <SelectValue placeholder="Filter vendors" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Vendors</SelectItem>
+                  <SelectItem value="in-stock">Vendors with Stock</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <Button
               onClick={() => setShowImportDialog(true)}
               variant="outline"

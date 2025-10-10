@@ -9741,7 +9741,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "Authentication required" });
       }
 
-      const { locationId } = req.query;
+      const { locationId, stockFilter } = req.query;
 
       // Get all items from database
       const allItems = await storage.getAllInventoryItems();
@@ -9780,8 +9780,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const cost = parseFloat(item.unitCost || '0');
         const price = parseFloat(item.unitPrice || '0');
         
-        // Only count items with positive stock (exclude negative stock items)
-        if (quantity <= 0 || cost < 0) continue;
+        // Apply stock filter if requested
+        if (stockFilter === 'in-stock' && quantity <= 0) continue;
+        
+        // Skip items with negative cost (invalid data)
+        if (cost < 0) continue;
         
         const value = quantity * cost;
         const revenue = quantity * price;
