@@ -9710,6 +9710,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
             if (unitCost) updates.unitCost = unitCost;
             if (listPrice) updates.unitPrice = listPrice;
             
+            // Debug log first update
+            if (results.updated === 0) {
+              console.log('🔍 FIRST UPDATE DEBUG:', {
+                itemName: matchedItem.itemName,
+                rowData: { InStock: row.InStock, CostUnit: row.CostUnit, ListPrice: row.ListPrice },
+                extracted: { quantityOnHand, unitCost, listPrice },
+                updates
+              });
+            }
+            
             await storage.updateInventoryItem(matchedItem.id, updates);
             results.updated++;
             results.matched++;
