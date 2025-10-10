@@ -883,66 +883,68 @@ export function InventoryManagement() {
               </div>
 
               {/* Profitability Overview */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <DollarSign className="h-5 w-5" />
-                    Profitability Summary
-                  </CardTitle>
-                  <CardDescription>
-                    Based on {profitabilityData?.summary?.totalItems || 0} items with matched Thrive cost/price data
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div>
-                      <Tooltip>
-                        <TooltipTrigger className="text-sm text-muted-foreground cursor-help text-left">
-                          Average Margin
-                        </TooltipTrigger>
-                        <TooltipContent className="max-w-xs">
-                          <p className="font-semibold mb-1">How it's calculated:</p>
-                          <p className="text-sm mb-2">Average of all individual item margins. Margin % = (Price - Cost) / Price × 100. Only includes items with both cost and price data from Thrive.</p>
-                          <p className="text-xs text-muted-foreground">This shows your average profit percentage across all products with vendor pricing data.</p>
-                        </TooltipContent>
-                      </Tooltip>
-                      <p className="text-3xl font-bold text-green-600">
-                        {profitabilityData?.summary?.averageMargin?.toFixed(1) || '0.0'}%
-                      </p>
+              <TooltipProvider>
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <DollarSign className="h-5 w-5" />
+                      Profitability Summary
+                    </CardTitle>
+                    <CardDescription>
+                      Based on {profitabilityData?.summary?.totalItems || 0} items with matched Thrive cost/price data
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      <div>
+                        <Tooltip>
+                          <TooltipTrigger className="text-sm text-muted-foreground cursor-help text-left">
+                            Average Margin
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-xs">
+                            <p className="font-semibold mb-1">How it's calculated:</p>
+                            <p className="text-sm mb-2">Average of all individual item margins. Margin % = (Price - Cost) / Price × 100. Only includes items with both cost and price data from Thrive.</p>
+                            <p className="text-xs text-muted-foreground">This shows your average profit percentage across all products with vendor pricing data.</p>
+                          </TooltipContent>
+                        </Tooltip>
+                        <p className="text-3xl font-bold text-green-600">
+                          {profitabilityData?.summary?.averageMargin?.toFixed(1) || '0.0'}%
+                        </p>
+                      </div>
+                      <div>
+                        <Tooltip>
+                          <TooltipTrigger className="text-sm text-muted-foreground cursor-help text-left">
+                            Total Inventory Value
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-xs">
+                            <p className="font-semibold mb-1">How it's calculated:</p>
+                            <p className="text-sm mb-2">Sum of (Quantity × Cost) for all items with Thrive cost data. Includes items with zero stock.</p>
+                            <p className="text-xs text-muted-foreground">⚠️ Only shows items successfully matched between Thrive and Clover. Unmatched Thrive items are not included in this total.</p>
+                          </TooltipContent>
+                        </Tooltip>
+                        <p className="text-3xl font-bold">
+                          ${profitabilityData?.summary?.totalValue?.toLocaleString() || '0'}
+                        </p>
+                      </div>
+                      <div>
+                        <Tooltip>
+                          <TooltipTrigger className="text-sm text-muted-foreground cursor-help text-left">
+                            Potential Gross Profit
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-xs">
+                            <p className="font-semibold mb-1">How it's calculated:</p>
+                            <p className="text-sm mb-2">Sum of (Quantity × (Price - Cost)) for items with stock on hand. Only includes items currently in inventory.</p>
+                            <p className="text-xs text-muted-foreground">This is the profit you'd make if you sold all current stock at full price. Zero-stock items are excluded.</p>
+                          </TooltipContent>
+                        </Tooltip>
+                        <p className="text-3xl font-bold text-blue-600">
+                          ${profitabilityData?.summary?.totalProfit?.toLocaleString() || '0'}
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <Tooltip>
-                        <TooltipTrigger className="text-sm text-muted-foreground cursor-help text-left">
-                          Total Inventory Value
-                        </TooltipTrigger>
-                        <TooltipContent className="max-w-xs">
-                          <p className="font-semibold mb-1">How it's calculated:</p>
-                          <p className="text-sm mb-2">Sum of (Quantity × Cost) for all items with Thrive cost data. Includes items with zero stock.</p>
-                          <p className="text-xs text-muted-foreground">⚠️ Only shows items successfully matched between Thrive and Clover. Unmatched Thrive items are not included in this total.</p>
-                        </TooltipContent>
-                      </Tooltip>
-                      <p className="text-3xl font-bold">
-                        ${profitabilityData?.summary?.totalValue?.toLocaleString() || '0'}
-                      </p>
-                    </div>
-                    <div>
-                      <Tooltip>
-                        <TooltipTrigger className="text-sm text-muted-foreground cursor-help text-left">
-                          Potential Gross Profit
-                        </TooltipTrigger>
-                        <TooltipContent className="max-w-xs">
-                          <p className="font-semibold mb-1">How it's calculated:</p>
-                          <p className="text-sm mb-2">Sum of (Quantity × (Price - Cost)) for items with stock on hand. Only includes items currently in inventory.</p>
-                          <p className="text-xs text-muted-foreground">This is the profit you'd make if you sold all current stock at full price. Zero-stock items are excluded.</p>
-                        </TooltipContent>
-                      </Tooltip>
-                      <p className="text-3xl font-bold text-blue-600">
-                        ${profitabilityData?.summary?.totalProfit?.toLocaleString() || '0'}
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
+              </TooltipProvider>
 
               {/* Top Profitable Items */}
               <Card>
