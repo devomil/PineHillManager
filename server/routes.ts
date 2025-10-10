@@ -10263,6 +10263,104 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Physical Count Update - Update Clover inventory after physical count (Admin only)
+  app.post('/api/accounting/inventory/update-physical-count', async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !req.user) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      // Restrict to admin users only
+      if (req.user.role !== 'admin') {
+        return res.status(403).json({ error: "Admin access required" });
+      }
+
+      const { inventoryItemId, newQuantity, notes } = req.body;
+
+      if (!inventoryItemId || newQuantity === undefined || newQuantity === null) {
+        return res.status(400).json({ 
+          error: "Missing required fields: inventoryItemId and newQuantity" 
+        });
+      }
+
+      // Get the inventory item
+      const item = await storage.getInventoryItem(parseInt(inventoryItemId));
+      
+      if (!item) {
+        return res.status(404).json({ error: "Inventory item not found" });
+      }
+
+      // Get location configuration for Clover API call
+      let locationConfig = null;
+      if (item.locationId) {
+        try {
+          locationConfig = await storage.getCloverConfigById(item.locationId);
+        } catch (error) {
+          console.log('Could not fetch location config for physical count update');
+        }
+      }
+
+      if (!locationConfig) {
+        return res.status(400).json({ error: "Location configuration not found for this item" });
+      }
+
+      let cloverUpdateResult = null;
+      if (locationConfig && item.cloverItemId) {
+        try {
+          // Update stock levels in Clover via API
+          const { CloverIntegration } = await import('./integrations/clover');
+          const cloverIntegration = new CloverIntegration(locationConfig);
+          
+          console.log(`📊 Updating Clover stock via physical count: ${item.itemName} to ${newQuantity}`);
+          
+          cloverUpdateResult = await cloverIntegration.updateItemStock(item.cloverItemId, parseFloat(newQuantity));
+          console.log('✅ Successfully updated stock in Clover:', cloverUpdateResult);
+          
+        } catch (error) {
+          console.error('❌ Error updating Clover stock:', error);
+          return res.status(500).json({ 
+            error: 'Failed to update Clover inventory',
+            details: error instanceof Error ? error.message : 'Unknown error'
+          });
+        }
+      }
+
+      // Update local database
+      const oldQuantity = item.quantityOnHand;
+      const updates: any = {
+        quantityOnHand: newQuantity.toString(),
+        lastSyncAt: new Date(),
+      };
+
+      // Check if this resolves a discrepancy
+      if (item.thriveQuantity) {
+        const diff = Math.abs(parseFloat(newQuantity) - parseFloat(item.thriveQuantity));
+        updates.hasDiscrepancy = diff > 0.001;
+        updates.syncStatus = diff > 0.001 ? 'discrepancy' : 'synced';
+      }
+
+      await storage.updateInventoryItem(item.id, updates);
+
+      console.log(`✅ Physical count updated for ${item.itemName}: ${oldQuantity} → ${newQuantity}`);
+
+      res.json({
+        success: true,
+        message: `Successfully updated ${item.itemName} inventory to ${newQuantity} units`,
+        item: {
+          id: item.id,
+          name: item.itemName,
+          oldQuantity,
+          newQuantity,
+          cloverUpdated: !!cloverUpdateResult,
+          updates
+        }
+      });
+    } catch (error) {
+      console.error('Error updating physical count:', error);
+      res.status(500).json({ message: 'Failed to update physical count' });
+    }
+  });
+
   // Get match suggestions for an unmatched Thrive item (Admin only)
   app.get('/api/accounting/inventory/match-suggestions/:thriveItemId', async (req, res) => {
     try {

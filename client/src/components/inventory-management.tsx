@@ -116,6 +116,12 @@ export function InventoryManagement() {
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
   const [selectedMatch, setSelectedMatch] = useState<any>(null);
   
+  // Physical Count Update States
+  const [physicalCountDialogOpen, setPhysicalCountDialogOpen] = useState(false);
+  const [selectedDiscrepancyItem, setSelectedDiscrepancyItem] = useState<any>(null);
+  const [physicalCount, setPhysicalCount] = useState<string>('');
+  const [updateNotes, setUpdateNotes] = useState<string>('');
+  
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -170,6 +176,46 @@ export function InventoryManagement() {
       toast({
         title: "Error",
         description: "Failed to match items",
+        variant: "destructive"
+      });
+    }
+  };
+
+  // Physical Count Update Functions
+  const handleUpdatePhysicalCount = (item: any) => {
+    setSelectedDiscrepancyItem(item);
+    setPhysicalCount(parseFloat(item.quantityOnHand || 0).toString());
+    setUpdateNotes('');
+    setPhysicalCountDialogOpen(true);
+  };
+
+  const confirmPhysicalCountUpdate = async () => {
+    if (!selectedDiscrepancyItem || !physicalCount) return;
+    
+    try {
+      await apiRequest('POST', '/api/accounting/inventory/update-physical-count', {
+        inventoryItemId: selectedDiscrepancyItem.id,
+        newQuantity: parseFloat(physicalCount),
+        notes: updateNotes || 'Physical count adjustment from discrepancy investigation'
+      });
+      
+      toast({
+        title: "Success",
+        description: `Updated Clover inventory to ${physicalCount} units`,
+      });
+      
+      // Refresh sync status and items data
+      queryClient.invalidateQueries({ queryKey: ['/api/accounting/inventory/sync-status'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/accounting/inventory/items'] });
+      
+      setPhysicalCountDialogOpen(false);
+      setSelectedDiscrepancyItem(null);
+      setPhysicalCount('');
+      setUpdateNotes('');
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update physical count",
         variant: "destructive"
       });
     }
@@ -877,17 +923,45 @@ export function InventoryManagement() {
                       {syncStatusData.matched.slice(0, 10).map((item: any) => (
                         <div key={item.id} className="flex items-center justify-between p-3 border rounded-lg">
                           <div className="flex-1">
-                            <p className="font-medium">{item.name}</p>
+                            <p className="font-medium">{item.itemName || item.name}</p>
                             <p className="text-sm text-muted-foreground">
                               {item.matchMethod} • {item.vendor || 'No vendor'}
                             </p>
+                            {item.hasDiscrepancy && (
+                              <div className="mt-2 text-sm">
+                                <div className="flex items-center gap-4">
+                                  <span className="text-blue-600">
+                                    Clover: <strong>{parseFloat(item.quantityOnHand || 0).toFixed(2)}</strong>
+                                  </span>
+                                  <span className="text-purple-600">
+                                    Thrive: <strong>{parseFloat(item.thriveQuantity || 0).toFixed(2)}</strong>
+                                  </span>
+                                  <span className="text-orange-600">
+                                    Diff: <strong>{(parseFloat(item.quantityOnHand || 0) - parseFloat(item.thriveQuantity || 0)).toFixed(2)}</strong>
+                                  </span>
+                                </div>
+                              </div>
+                            )}
                           </div>
-                          <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-2">
                             {item.hasDiscrepancy ? (
-                              <Badge className="bg-yellow-100 text-yellow-800">
-                                <AlertTriangle className="h-3 w-3 mr-1" />
-                                Discrepancy
-                              </Badge>
+                              <>
+                                <Badge className="bg-yellow-100 text-yellow-800">
+                                  <AlertTriangle className="h-3 w-3 mr-1" />
+                                  Discrepancy
+                                </Badge>
+                                {user?.role === 'admin' && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleUpdatePhysicalCount(item)}
+                                    data-testid={`button-update-count-${item.id}`}
+                                  >
+                                    <Package className="h-4 w-4 mr-1" />
+                                    Update Count
+                                  </Button>
+                                )}
+                              </>
                             ) : (
                               <Badge className="bg-green-100 text-green-800">
                                 <CheckCircle className="h-3 w-3 mr-1" />
@@ -1596,6 +1670,86 @@ export function InventoryManagement() {
               data-testid="button-confirm-match"
             >
               Confirm Match
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Physical Count Update Dialog */}
+      <Dialog open={physicalCountDialogOpen} onOpenChange={setPhysicalCountDialogOpen}>
+        <DialogContent className="max-w-lg" data-testid="dialog-physical-count">
+          <DialogHeader>
+            <DialogTitle>Update Physical Count</DialogTitle>
+            <DialogDescription>
+              Update Clover inventory after physical count for: <strong>{selectedDiscrepancyItem?.itemName}</strong>
+            </DialogDescription>
+          </DialogHeader>
+          
+          {/* Discrepancy Info */}
+          <div className="bg-yellow-50 p-4 rounded-lg mb-4">
+            <h4 className="font-semibold mb-2 text-yellow-800">Current Discrepancy</h4>
+            <div className="grid grid-cols-3 gap-3 text-sm">
+              <div>
+                <p className="text-muted-foreground">Clover Qty</p>
+                <p className="font-bold text-blue-600">{parseFloat(selectedDiscrepancyItem?.quantityOnHand || 0).toFixed(2)}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Thrive Qty</p>
+                <p className="font-bold text-purple-600">{parseFloat(selectedDiscrepancyItem?.thriveQuantity || 0).toFixed(2)}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Difference</p>
+                <p className="font-bold text-orange-600">
+                  {(parseFloat(selectedDiscrepancyItem?.quantityOnHand || 0) - parseFloat(selectedDiscrepancyItem?.thriveQuantity || 0)).toFixed(2)}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Physical Count Input */}
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="physical-count">New Physical Count</Label>
+              <Input
+                id="physical-count"
+                type="number"
+                step="0.01"
+                value={physicalCount}
+                onChange={(e) => setPhysicalCount(e.target.value)}
+                placeholder="Enter actual count from physical inventory"
+                data-testid="input-physical-count"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                This will update the quantity in Clover. Thrive will sync on next import.
+              </p>
+            </div>
+            
+            <div>
+              <Label htmlFor="update-notes">Notes (Optional)</Label>
+              <Textarea
+                id="update-notes"
+                value={updateNotes}
+                onChange={(e) => setUpdateNotes(e.target.value)}
+                placeholder="Add notes about this adjustment..."
+                rows={3}
+                data-testid="textarea-update-notes"
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setPhysicalCountDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={confirmPhysicalCountUpdate}
+              disabled={!physicalCount || parseFloat(physicalCount) < 0}
+              data-testid="button-confirm-physical-count"
+            >
+              Update Clover Inventory
             </Button>
           </DialogFooter>
         </DialogContent>
