@@ -157,7 +157,7 @@ export function InventoryManagement() {
     
     try {
       await apiRequest('POST', '/api/accounting/inventory/manual-match', {
-        thriveItemId: selectedUnmatchedItem.id,
+        unmatchedThriveId: selectedUnmatchedItem.id,
         cloverItemId: selectedMatch.id
       });
       
