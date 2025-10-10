@@ -9997,29 +9997,62 @@ export async function registerRoutes(app: Express): Promise<Server> {
         locMetrics.quantity += quantity;
       }
 
-      // Format response
-      const vendors = Array.from(vendorMetrics.entries()).map(([vendorName, metrics]) => ({
-        vendor: vendorName,
-        totalValue: Number(metrics.totalValue.toFixed(2)),
-        potentialRevenue: Number(metrics.potentialRevenue.toFixed(2)),
-        grossProfit: Number(metrics.grossProfit.toFixed(2)),
-        quantity: Number(metrics.quantity.toFixed(0)),
-        itemCount: metrics.itemCount,
-        locations: Array.from(metrics.locationBreakdown.entries()).map(([locId, locMetrics]) => ({
-          locationId: locId,
-          locationName: locationMap.get(locId) || 'Unknown',
-          value: Number(locMetrics.value.toFixed(2)),
-          revenue: Number(locMetrics.revenue.toFixed(2)),
-          profit: Number(locMetrics.profit.toFixed(2)),
-          quantity: Number(locMetrics.quantity.toFixed(0))
-        }))
-      })).sort((a, b) => b.totalValue - a.totalValue); // Sort by total value descending
+      // Format response with profitability metrics
+      const vendors = Array.from(vendorMetrics.entries()).map(([vendorName, metrics]) => {
+        // Calculate profitability metrics
+        const marginPercent = metrics.potentialRevenue > 0 
+          ? (metrics.grossProfit / metrics.potentialRevenue) * 100 
+          : 0;
+        const markupPercent = metrics.totalValue > 0 
+          ? (metrics.grossProfit / metrics.totalValue) * 100 
+          : 0;
+        
+        return {
+          vendor: vendorName,
+          totalValue: Number(metrics.totalValue.toFixed(2)),
+          potentialRevenue: Number(metrics.potentialRevenue.toFixed(2)),
+          grossProfit: Number(metrics.grossProfit.toFixed(2)),
+          marginPercent: Number(marginPercent.toFixed(2)),
+          markupPercent: Number(markupPercent.toFixed(2)),
+          quantity: Number(metrics.quantity.toFixed(0)),
+          itemCount: metrics.itemCount,
+          locations: Array.from(metrics.locationBreakdown.entries()).map(([locId, locMetrics]) => {
+            const locMargin = locMetrics.revenue > 0 
+              ? (locMetrics.profit / locMetrics.revenue) * 100 
+              : 0;
+            const locMarkup = locMetrics.value > 0 
+              ? (locMetrics.profit / locMetrics.value) * 100 
+              : 0;
+            
+            return {
+              locationId: locId,
+              locationName: locationMap.get(locId) || 'Unknown',
+              value: Number(locMetrics.value.toFixed(2)),
+              revenue: Number(locMetrics.revenue.toFixed(2)),
+              profit: Number(locMetrics.profit.toFixed(2)),
+              marginPercent: Number(locMargin.toFixed(2)),
+              markupPercent: Number(locMarkup.toFixed(2)),
+              quantity: Number(locMetrics.quantity.toFixed(0))
+            };
+          })
+        };
+      }).sort((a, b) => b.totalValue - a.totalValue); // Sort by total value descending
 
-      // Calculate totals
+      // Calculate totals with profitability metrics
+      const totalValue = Number(vendors.reduce((sum, vendor) => sum + vendor.totalValue, 0).toFixed(2));
+      const totalRevenue = Number(vendors.reduce((sum, vendor) => sum + vendor.potentialRevenue, 0).toFixed(2));
+      const totalProfit = Number(vendors.reduce((sum, vendor) => sum + vendor.grossProfit, 0).toFixed(2));
+      
       const totals = {
-        totalValue: Number(vendors.reduce((sum, vendor) => sum + vendor.totalValue, 0).toFixed(2)),
-        potentialRevenue: Number(vendors.reduce((sum, vendor) => sum + vendor.potentialRevenue, 0).toFixed(2)),
-        grossProfit: Number(vendors.reduce((sum, vendor) => sum + vendor.grossProfit, 0).toFixed(2)),
+        totalValue,
+        potentialRevenue: totalRevenue,
+        grossProfit: totalProfit,
+        averageMarginPercent: totalRevenue > 0 
+          ? Number(((totalProfit / totalRevenue) * 100).toFixed(2))
+          : 0,
+        averageMarkupPercent: totalValue > 0 
+          ? Number(((totalProfit / totalValue) * 100).toFixed(2))
+          : 0,
         totalQuantity: Number(vendors.reduce((sum, vendor) => sum + vendor.quantity, 0).toFixed(0)),
         totalItems: vendors.reduce((sum, vendor) => sum + vendor.itemCount, 0),
         totalVendors: vendors.length
@@ -10033,6 +10066,121 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error fetching vendor analytics:', error);
       res.status(500).json({ message: 'Failed to fetch vendor analytics' });
+    }
+  });
+
+  // Item-Level Profitability Endpoint
+  app.get('/api/accounting/inventory/profitability', async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !req.user) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const { locationId, sortBy, minMargin, maxMargin, category, vendor } = req.query;
+
+      // Get all items from database
+      const allItems = await storage.getAllInventoryItems();
+      
+      // Filter by location if specified
+      let filteredItems = locationId 
+        ? allItems.filter(item => item.locationId === parseInt(locationId as string))
+        : allItems;
+
+      // Filter by category if specified
+      if (category) {
+        filteredItems = filteredItems.filter(item => 
+          item.categories?.toLowerCase().includes((category as string).toLowerCase())
+        );
+      }
+
+      // Filter by vendor if specified
+      if (vendor) {
+        filteredItems = filteredItems.filter(item => 
+          item.vendor?.toLowerCase().includes((vendor as string).toLowerCase())
+        );
+      }
+
+      // Calculate profitability metrics for each item
+      const itemsWithProfitability = filteredItems.map(item => {
+        const quantity = parseFloat(item.quantityOnHand || '0');
+        const cost = parseFloat(item.unitCost || '0');
+        const price = parseFloat(item.unitPrice || '0');
+        
+        const totalValue = quantity * cost;
+        const potentialRevenue = quantity * price;
+        const grossProfit = potentialRevenue - totalValue;
+        
+        const marginPercent = price > 0 ? ((price - cost) / price) * 100 : 0;
+        const markupPercent = cost > 0 ? ((price - cost) / cost) * 100 : 0;
+        const unitProfit = price - cost;
+
+        return {
+          id: item.id,
+          name: item.name,
+          sku: item.sku,
+          vendor: item.vendor || 'Unknown',
+          category: item.categories || 'Uncategorized',
+          locationId: item.locationId,
+          quantityOnHand: quantity,
+          unitCost: cost,
+          unitPrice: price,
+          unitProfit: Number(unitProfit.toFixed(2)),
+          marginPercent: Number(marginPercent.toFixed(2)),
+          markupPercent: Number(markupPercent.toFixed(2)),
+          totalValue: Number(totalValue.toFixed(2)),
+          potentialRevenue: Number(potentialRevenue.toFixed(2)),
+          grossProfit: Number(grossProfit.toFixed(2)),
+          importSource: item.importSource,
+          syncStatus: item.syncStatus,
+        };
+      });
+
+      // Filter by margin range if specified
+      let resultItems = itemsWithProfitability;
+      if (minMargin !== undefined) {
+        resultItems = resultItems.filter(item => item.marginPercent >= parseFloat(minMargin as string));
+      }
+      if (maxMargin !== undefined) {
+        resultItems = resultItems.filter(item => item.marginPercent <= parseFloat(maxMargin as string));
+      }
+
+      // Sort items
+      const sortField = (sortBy as string) || 'marginPercent';
+      resultItems.sort((a, b) => {
+        const aVal = a[sortField as keyof typeof a] as number;
+        const bVal = b[sortField as keyof typeof b] as number;
+        return bVal - aVal; // Descending order
+      });
+
+      // Calculate summary
+      const summary = {
+        totalItems: resultItems.length,
+        averageMargin: resultItems.length > 0 
+          ? Number((resultItems.reduce((sum, item) => sum + item.marginPercent, 0) / resultItems.length).toFixed(2))
+          : 0,
+        averageMarkup: resultItems.length > 0 
+          ? Number((resultItems.reduce((sum, item) => sum + item.markupPercent, 0) / resultItems.length).toFixed(2))
+          : 0,
+        totalValue: Number(resultItems.reduce((sum, item) => sum + item.totalValue, 0).toFixed(2)),
+        totalRevenue: Number(resultItems.reduce((sum, item) => sum + item.potentialRevenue, 0).toFixed(2)),
+        totalProfit: Number(resultItems.reduce((sum, item) => sum + item.grossProfit, 0).toFixed(2)),
+      };
+
+      res.json({
+        items: resultItems,
+        summary,
+        filters: {
+          locationId: locationId ? parseInt(locationId as string) : null,
+          category: category || null,
+          vendor: vendor || null,
+          minMargin: minMargin ? parseFloat(minMargin as string) : null,
+          maxMargin: maxMargin ? parseFloat(maxMargin as string) : null,
+          sortBy: sortField
+        }
+      });
+    } catch (error) {
+      console.error('Error fetching item profitability:', error);
+      res.status(500).json({ message: 'Failed to fetch item profitability' });
     }
   });
 
