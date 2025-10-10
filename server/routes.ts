@@ -9808,10 +9808,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }>();
 
       for (const item of filteredItems) {
-        // Split comma-separated vendors to get individual vendor metrics
-        const vendors = item.vendor 
-          ? item.vendor.split(',').map(v => v.trim()).filter(v => v)
-          : ['Unknown'];
+        // Use vendor exactly as stored (no splitting on commas)
+        const vendorName = item.vendor?.trim() || 'Unknown';
         
         const quantity = parseFloat(item.quantityOnHand || '0');
         const cost = parseFloat(item.unitCost || '0');
@@ -9827,42 +9825,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const revenue = quantity * price;
         const profit = revenue - value;
 
-        // Loop through each vendor for this item
-        for (const vendorName of vendors) {
-          if (!vendorMetrics.has(vendorName)) {
-            vendorMetrics.set(vendorName, {
-              totalValue: 0,
-              potentialRevenue: 0,
-              grossProfit: 0,
-              quantity: 0,
-              itemCount: 0,
-              locationBreakdown: new Map()
-            });
-          }
-
-          const metrics = vendorMetrics.get(vendorName)!;
-          metrics.totalValue += value;
-          metrics.potentialRevenue += revenue;
-          metrics.grossProfit += profit;
-          metrics.quantity += quantity;
-          metrics.itemCount += 1;
-
-          // Location breakdown
-          const locId = item.locationId || 0;
-          if (!metrics.locationBreakdown.has(locId)) {
-            metrics.locationBreakdown.set(locId, {
-              value: 0,
-              revenue: 0,
-              profit: 0,
-              quantity: 0
-            });
-          }
-          const locMetrics = metrics.locationBreakdown.get(locId)!;
-          locMetrics.value += value;
-          locMetrics.revenue += revenue;
-          locMetrics.profit += profit;
-          locMetrics.quantity += quantity;
+        // Process single vendor for this item
+        if (!vendorMetrics.has(vendorName)) {
+          vendorMetrics.set(vendorName, {
+            totalValue: 0,
+            potentialRevenue: 0,
+            grossProfit: 0,
+            quantity: 0,
+            itemCount: 0,
+            locationBreakdown: new Map()
+          });
         }
+
+        const metrics = vendorMetrics.get(vendorName)!;
+        metrics.totalValue += value;
+        metrics.potentialRevenue += revenue;
+        metrics.grossProfit += profit;
+        metrics.quantity += quantity;
+        metrics.itemCount += 1;
+
+        // Location breakdown
+        const locId = item.locationId || 0;
+        if (!metrics.locationBreakdown.has(locId)) {
+          metrics.locationBreakdown.set(locId, {
+            value: 0,
+            revenue: 0,
+            profit: 0,
+            quantity: 0
+          });
+        }
+        const locMetrics = metrics.locationBreakdown.get(locId)!;
+        locMetrics.value += value;
+        locMetrics.revenue += revenue;
+        locMetrics.profit += profit;
+        locMetrics.quantity += quantity;
       }
 
       // Format response
