@@ -9710,6 +9710,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
+      console.log('✅ CSV IMPORT COMPLETE:', {
+        processed: results.processed,
+        matched: results.matched,
+        unmatched: results.unmatched,
+        updated: results.updated,
+        matchBreakdown: {
+          skuLocation: results.matchedBySkuLocation,
+          sku: results.matchedBySku,
+          nameLocation: results.matchedByNameLocation,
+          name: results.matchedByName,
+          barcode: results.matchedByBarcode || 0
+        }
+      });
+
       res.json({
         success: true,
         results
