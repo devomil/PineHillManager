@@ -89,6 +89,7 @@ interface Category {
   id: string;
   name: string;
   items?: { id: string; name: string; }[];
+  itemCount?: number;
   locationId: number;
   locationName: string;
   merchantId: string;
@@ -1561,7 +1562,7 @@ export function InventoryManagement() {
                   </CardHeader>
                   <CardContent>
                     <div className="text-sm text-gray-600">
-                      {category.items?.length || 0} items in this category
+                      {category.itemCount || category.items?.length || 0} items in this category
                     </div>
                   </CardContent>
                 </Card>

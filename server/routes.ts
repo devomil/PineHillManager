@@ -10677,9 +10677,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
+      // Get all inventory items to count items per category
+      const allInventoryItems = await storage.getAllInventoryItems();
+
+      // Build category count map efficiently (parse once per item)
+      const categoryCountMap = new Map<string, number>();
+      
+      allInventoryItems.forEach(item => {
+        if (!item.categories) return;
+        
+        try {
+          // Parse categories safely
+          const categoryIds = typeof item.categories === 'string' 
+            ? JSON.parse(item.categories)
+            : item.categories;
+          
+          // Handle both array and object formats
+          const categories = Array.isArray(categoryIds) ? categoryIds : [categoryIds];
+          
+          // Increment count for each category
+          categories.forEach((cat: any) => {
+            const catId = cat?.id || cat;
+            if (catId) {
+              categoryCountMap.set(catId, (categoryCountMap.get(catId) || 0) + 1);
+            }
+          });
+        } catch (error) {
+          console.log('Error parsing categories for item:', item.id, error);
+        }
+      });
+
+      // Add counts to categories without corrupting data
+      const categoriesWithCounts = allCategories.map(category => ({
+        ...category,
+        itemCount: categoryCountMap.get(category.id) || 0
+      }));
+
       res.json({
-        elements: allCategories,
-        totalCategories: allCategories.length,
+        elements: categoriesWithCounts,
+        totalCategories: categoriesWithCounts.length,
         locations: activeLocations.map(loc => ({
           id: loc.id,
           name: loc.merchantName,
