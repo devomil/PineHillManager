@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination';
 import { 
   Package, 
   Search, 
@@ -136,6 +137,10 @@ export function InventoryManagement() {
   const [selectedDiscrepancyItem, setSelectedDiscrepancyItem] = useState<any>(null);
   const [physicalCount, setPhysicalCount] = useState<string>('');
   const [updateNotes, setUpdateNotes] = useState<string>('');
+  
+  // Pagination States for Items Tab
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(20);
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -488,6 +493,17 @@ export function InventoryManagement() {
     
     return true;
   }) || [];
+
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedItems = filteredItems.slice(startIndex, endIndex);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, filterCategory, stockStatusFilter, selectedLocation]);
 
   // Filter stocks for the Stock Levels tab
   const filteredStocks = stocksData?.elements?.filter((stock: ItemStock) => {
@@ -1204,13 +1220,13 @@ export function InventoryManagement() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Package className="h-5 w-5" />
-                  Inventory Items ({filteredItems.length})
+                  Inventory Items
                 </CardTitle>
                 <CardDescription>
-                  Complete list of all inventory items with pricing and stock information
+                  Showing {startIndex + 1}-{Math.min(endIndex, filteredItems.length)} of {filteredItems.length} items
                 </CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-4">
                 <div className="border rounded-lg">
                   <Table>
                     <TableHeader>
@@ -1225,7 +1241,7 @@ export function InventoryManagement() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredItems.map((item: InventoryItem, index: number) => {
+                      {paginatedItems.map((item: InventoryItem, index: number) => {
                         const stockInfo = getStockStatus(item.stockCount || item.quantityOnHand || 0);
                         const uniqueKey = `item-${item.id}-${item.locationId}-${index}`;
                         const quantity = item.quantityOnHand || item.stockCount || 0;
@@ -1281,7 +1297,7 @@ export function InventoryManagement() {
                           </TableRow>
                         );
                       })}
-                      {filteredItems.length === 0 && (
+                      {paginatedItems.length === 0 && (
                         <TableRow>
                           <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                             No items found matching your filters
@@ -1291,6 +1307,79 @@ export function InventoryManagement() {
                     </TableBody>
                   </Table>
                 </div>
+
+                {/* Pagination Controls */}
+                {totalPages > 1 && (
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm text-muted-foreground">
+                      Page {currentPage} of {totalPages}
+                    </div>
+                    <Pagination>
+                      <PaginationContent>
+                        <PaginationItem>
+                          <PaginationPrevious 
+                            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                            className={currentPage === 1 ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                          />
+                        </PaginationItem>
+                        
+                        {/* Show first page */}
+                        {currentPage > 2 && (
+                          <PaginationItem>
+                            <PaginationLink onClick={() => setCurrentPage(1)} className="cursor-pointer">
+                              1
+                            </PaginationLink>
+                          </PaginationItem>
+                        )}
+                        
+                        {/* Show ellipsis if needed */}
+                        {currentPage > 3 && <PaginationItem>...</PaginationItem>}
+                        
+                        {/* Show current page and neighbors */}
+                        {currentPage > 1 && (
+                          <PaginationItem>
+                            <PaginationLink onClick={() => setCurrentPage(currentPage - 1)} className="cursor-pointer">
+                              {currentPage - 1}
+                            </PaginationLink>
+                          </PaginationItem>
+                        )}
+                        
+                        <PaginationItem>
+                          <PaginationLink isActive className="cursor-pointer">
+                            {currentPage}
+                          </PaginationLink>
+                        </PaginationItem>
+                        
+                        {currentPage < totalPages && (
+                          <PaginationItem>
+                            <PaginationLink onClick={() => setCurrentPage(currentPage + 1)} className="cursor-pointer">
+                              {currentPage + 1}
+                            </PaginationLink>
+                          </PaginationItem>
+                        )}
+                        
+                        {/* Show ellipsis if needed */}
+                        {currentPage < totalPages - 2 && <PaginationItem>...</PaginationItem>}
+                        
+                        {/* Show last page */}
+                        {currentPage < totalPages - 1 && (
+                          <PaginationItem>
+                            <PaginationLink onClick={() => setCurrentPage(totalPages)} className="cursor-pointer">
+                              {totalPages}
+                            </PaginationLink>
+                          </PaginationItem>
+                        )}
+                        
+                        <PaginationItem>
+                          <PaginationNext 
+                            onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                            className={currentPage === totalPages ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                          />
+                        </PaginationItem>
+                      </PaginationContent>
+                    </Pagination>
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}
