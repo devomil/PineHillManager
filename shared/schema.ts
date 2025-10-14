@@ -1489,6 +1489,8 @@ export const inventoryItems = pgTable("inventory_items", {
   syncStatus: varchar("sync_status"), // 'synced', 'unmatched_thrive', 'missing_vendor_data', 'discrepancy'
   matchMethod: varchar("match_method"), // How item was matched: 'SKU+Location', 'Name+Location', 'SKU', etc.
   thriveQuantity: decimal("thrive_quantity", { precision: 10, scale: 3 }), // Thrive's reported quantity for comparison
+  thriveListPrice: decimal("thrive_list_price", { precision: 10, scale: 2 }), // Thrive's list/sale price
+  thriveCost: decimal("thrive_cost", { precision: 10, scale: 2 }), // Thrive's unit cost
   hasDiscrepancy: boolean("has_discrepancy").default(false), // Quick flag for quantity mismatches
   lastThriveImport: timestamp("last_thrive_import"), // When Thrive data was last imported
   
