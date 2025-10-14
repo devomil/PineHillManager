@@ -66,7 +66,7 @@ export default function Tasks() {
 
   // Create task mutation
   const createTaskMutation = useMutation({
-    mutationFn: (data: TaskFormData) => apiRequest('/api/tasks', 'POST', data),
+    mutationFn: (data: TaskFormData) => apiRequest('POST', '/api/tasks', data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
       queryClient.invalidateQueries({ queryKey: ['/api/tasks/stats/overview'] });
@@ -84,7 +84,7 @@ export default function Tasks() {
   // Update task mutation
   const updateTaskMutation = useMutation({
     mutationFn: ({ id, data }: { id: number; data: Partial<TaskFormData> }) =>
-      apiRequest(`/api/tasks/${id}`, 'PATCH', data),
+      apiRequest('PATCH', `/api/tasks/${id}`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
       queryClient.invalidateQueries({ queryKey: ['/api/tasks/stats/overview'] });
@@ -577,7 +577,7 @@ function TaskDetailsDialog({
 
   const addNoteMutation = useMutation({
     mutationFn: (data: { content: string; isQuestion: boolean }) =>
-      apiRequest(`/api/tasks/${task.id}/notes`, 'POST', data),
+      apiRequest('POST', `/api/tasks/${task.id}/notes`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/tasks/${task.id}/notes`] });
       toast({ title: "Success", description: "Note added successfully" });
