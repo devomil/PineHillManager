@@ -1,16 +1,27 @@
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Clock, Calendar, FileText, Users, MessageSquare, MessageCircle, Bell, ChevronRight, HelpCircle, User, LogOut, ChevronDown, ShoppingCart } from "lucide-react";
+import { Clock, Calendar, FileText, Users, MessageSquare, MessageCircle, Bell, ChevronRight, HelpCircle, User, LogOut, ChevronDown, ShoppingCart, CheckSquare } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import UserAvatar from "@/components/user-avatar";
 import { Link } from "wouter";
+import { useQuery } from "@tanstack/react-query";
+import type { Task } from "@shared/schema";
 
 export default function HomeDashboard() {
   const { user, logoutMutation } = useAuth();
 
   const isAdmin = user?.role === 'admin';
   const isManager = user?.role === 'manager' || user?.role === 'admin';
+
+  // Fetch employee's assigned tasks
+  const { data: tasks = [] } = useQuery<Task[]>({
+    queryKey: ['/api/tasks'],
+    enabled: !!user?.id,
+  });
+
+  const pendingTasks = tasks.filter(t => t.status === 'pending' || t.status === 'in_progress');
+  const taskCount = pendingTasks.length;
 
   const quickActions = [
     {
@@ -44,6 +55,15 @@ export default function HomeDashboard() {
       href: "/support",
       color: "bg-indigo-50 border-indigo-200",
       iconColor: "text-indigo-600"
+    },
+    {
+      title: "My Tasks",
+      description: taskCount > 0 ? `You have ${taskCount} active task${taskCount !== 1 ? 's' : ''} to complete` : "View and manage your assigned tasks",
+      icon: CheckSquare,
+      href: "/tasks",
+      color: "bg-purple-50 border-purple-200",
+      iconColor: "text-purple-600",
+      badge: taskCount > 0 ? taskCount : undefined
     },
     {
       title: "Employee Purchases",
@@ -166,8 +186,13 @@ export default function HomeDashboard() {
               <Card className={`cursor-pointer transition-all duration-200 hover:shadow-lg hover:scale-105 ${action.color}`}>
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between">
-                    <div className={`p-3 rounded-lg ${action.color}`}>
+                    <div className={`p-3 rounded-lg ${action.color} relative`}>
                       <action.icon className={`h-6 w-6 ${action.iconColor}`} />
+                      {action.badge && (
+                        <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
+                          {action.badge}
+                        </span>
+                      )}
                     </div>
                     <ChevronRight className="h-5 w-5 text-gray-400" />
                   </div>
@@ -184,6 +209,7 @@ export default function HomeDashboard() {
                       {action.title === "Time Clock" ? "Clock In/Out" :
                        action.title === "My Schedule" ? "View Schedule" :
                        action.title === "Communications" ? "View Communications" :
+                       action.title === "My Tasks" ? "View Tasks" :
                        "Open"}
                     </Button>
                   </div>
