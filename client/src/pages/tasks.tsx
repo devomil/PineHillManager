@@ -21,7 +21,9 @@ import { useToast } from "@/hooks/use-toast";
 import { Plus, Calendar, User as UserIcon, AlertCircle, CheckCircle, Clock, MessageSquare, Filter, X, ListChecks } from "lucide-react";
 import { format } from "date-fns";
 
-const taskFormSchema = insertTaskSchema.extend({
+const taskFormSchema = insertTaskSchema.omit({
+  createdBy: true,
+}).extend({
   dueDate: z.string().optional(),
   steps: z.array(z.object({
     text: z.string(),
