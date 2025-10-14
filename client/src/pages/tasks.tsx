@@ -18,8 +18,9 @@ import { z } from "zod";
 import { insertTaskSchema, type Task, type User } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Calendar, User as UserIcon, AlertCircle, CheckCircle, Clock, MessageSquare, Filter, X, ListChecks } from "lucide-react";
+import { Plus, Calendar, User as UserIcon, AlertCircle, CheckCircle, Clock, MessageSquare, Filter, X, ListChecks, Check, XCircle, Sparkles } from "lucide-react";
 import { format } from "date-fns";
+import { motion, AnimatePresence } from "framer-motion";
 
 const taskFormSchema = insertTaskSchema.omit({
   createdBy: true,
@@ -564,6 +565,7 @@ function TaskDetailsDialog({
   const { toast } = useToast();
   const [noteContent, setNoteContent] = useState("");
   const [isQuestion, setIsQuestion] = useState(false);
+  const [celebratingStep, setCelebratingStep] = useState<number | null>(null);
 
   const { data: notes = [] } = useQuery({
     queryKey: [`/api/tasks/${task.id}/notes`],
@@ -606,9 +608,19 @@ function TaskDetailsDialog({
 
   const handleToggleStep = (stepIndex: number) => {
     if (!task.steps) return;
+    const currentStep = task.steps[stepIndex];
+    const isCompletingStep = !currentStep.completed;
+    
     const updatedSteps = task.steps.map((step, index) =>
       index === stepIndex ? { ...step, completed: !step.completed } : step
     );
+    
+    // Trigger celebration animation if completing
+    if (isCompletingStep) {
+      setCelebratingStep(stepIndex);
+      setTimeout(() => setCelebratingStep(null), 2000);
+    }
+    
     updateStepsMutation.mutate(updatedSteps);
   };
 
@@ -657,7 +669,13 @@ function TaskDetailsDialog({
                 {task.steps
                   .sort((a, b) => a.order - b.order)
                   .map((step, index) => (
-                    <div key={index} className="flex items-center gap-3">
+                    <motion.div 
+                      key={index} 
+                      className="flex items-center gap-3 relative"
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: index * 0.1 }}
+                    >
                       <Checkbox
                         checked={step.completed}
                         disabled={!canEditSteps || updateStepsMutation.isPending}
@@ -667,7 +685,79 @@ function TaskDetailsDialog({
                       <span className={`flex-1 ${step.completed ? 'line-through text-muted-foreground' : ''}`}>
                         {step.text}
                       </span>
-                    </div>
+                      
+                      {/* Visual Feedback Icon */}
+                      <motion.div
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        transition={{ type: "spring", stiffness: 200 }}
+                      >
+                        {step.completed ? (
+                          <Check className="h-5 w-5 text-green-500" />
+                        ) : (
+                          <XCircle className="h-5 w-5 text-gray-400" />
+                        )}
+                      </motion.div>
+
+                      {/* Celebration Animation */}
+                      <AnimatePresence>
+                        {celebratingStep === index && (
+                          <>
+                            {/* Sparkles */}
+                            {[...Array(6)].map((_, i) => (
+                              <motion.div
+                                key={i}
+                                className="absolute"
+                                initial={{ 
+                                  scale: 0,
+                                  x: 0,
+                                  y: 0,
+                                  opacity: 1
+                                }}
+                                animate={{ 
+                                  scale: [0, 1, 0],
+                                  x: Math.cos(i * 60 * Math.PI / 180) * 40,
+                                  y: Math.sin(i * 60 * Math.PI / 180) * 40,
+                                  opacity: [1, 1, 0]
+                                }}
+                                exit={{ opacity: 0 }}
+                                transition={{ duration: 1, ease: "easeOut" }}
+                              >
+                                <Sparkles className="h-4 w-4 text-yellow-400 fill-yellow-400" />
+                              </motion.div>
+                            ))}
+                            {/* Confetti particles */}
+                            {[...Array(8)].map((_, i) => (
+                              <motion.div
+                                key={`confetti-${i}`}
+                                className="absolute w-2 h-2 rounded-full"
+                                style={{
+                                  backgroundColor: ['#FF6B6B', '#4ECDC4', '#FFE66D', '#95E1D3', '#F38181'][i % 5]
+                                }}
+                                initial={{ 
+                                  scale: 0,
+                                  x: 0,
+                                  y: 0,
+                                  opacity: 1
+                                }}
+                                animate={{ 
+                                  scale: [0, 1, 0.5],
+                                  x: (Math.random() - 0.5) * 80,
+                                  y: Math.random() * -60 - 20,
+                                  rotate: Math.random() * 360,
+                                  opacity: [1, 1, 0]
+                                }}
+                                transition={{ 
+                                  duration: 1.2,
+                                  ease: "easeOut",
+                                  delay: i * 0.05
+                                }}
+                              />
+                            ))}
+                          </>
+                        )}
+                      </AnimatePresence>
+                    </motion.div>
                   ))}
               </div>
             </div>
