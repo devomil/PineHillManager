@@ -9725,8 +9725,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const updates: any = {};
             if (vendors) updates.vendor = vendors;
             if (quantityOnHand) updates.quantityOnHand = quantityOnHand;
-            if (unitCost) updates.unitCost = unitCost;
-            if (listPrice) updates.unitPrice = listPrice;
+            // Store Thrive pricing in dedicated fields to preserve Clover pricing
+            if (unitCost) updates.thriveCost = unitCost;
+            if (listPrice) updates.thriveListPrice = listPrice;
             
             // Add sync tracking fields
             updates.importSource = 'thrive';
@@ -10217,11 +10218,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Clover item not found" });
       }
 
-      // Update the Clover item with Thrive data
+      // Update the Clover item with Thrive data (store in dedicated fields to preserve Clover pricing)
       const updates: any = {
         vendor: thriveItem.vendor,
-        unitCost: thriveItem.unitCost,
-        unitPrice: thriveItem.unitPrice,
+        thriveCost: thriveItem.unitCost,
+        thriveListPrice: thriveItem.unitPrice,
         importSource: 'thrive',
         syncStatus: 'synced',
         matchMethod: 'Manual Match',
