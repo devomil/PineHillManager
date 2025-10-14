@@ -10103,16 +10103,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Calculate profitability metrics for each item
       const itemsWithProfitability = filteredItems.map(item => {
         const quantity = parseFloat(item.quantityOnHand || '0');
-        const cost = parseFloat(item.unitCost || '0');
-        const price = parseFloat(item.unitPrice || '0');
         
-        const totalValue = quantity * cost;
-        const potentialRevenue = quantity * price;
+        // Clover pricing (original POS data)
+        const cloverCost = parseFloat(item.unitCost || '0');
+        const cloverPrice = parseFloat(item.unitPrice || '0');
+        
+        // Thrive pricing (vendor data)
+        const thriveCost = parseFloat(item.thriveCost || '0');
+        const thrivePrice = parseFloat(item.thriveListPrice || '0');
+        
+        // Use Clover pricing for calculations (primary source)
+        const totalValue = quantity * cloverCost;
+        const potentialRevenue = quantity * cloverPrice;
         const grossProfit = potentialRevenue - totalValue;
         
-        const marginPercent = price > 0 ? ((price - cost) / price) * 100 : 0;
-        const markupPercent = cost > 0 ? ((price - cost) / cost) * 100 : 0;
-        const unitProfit = price - cost;
+        const marginPercent = cloverPrice > 0 ? ((cloverPrice - cloverCost) / cloverPrice) * 100 : 0;
+        const markupPercent = cloverCost > 0 ? ((cloverPrice - cloverCost) / cloverCost) * 100 : 0;
+        const unitProfit = cloverPrice - cloverCost;
+        
+        // Calculate Thrive-based metrics
+        const thriveMarginPercent = thrivePrice > 0 ? ((thrivePrice - thriveCost) / thrivePrice) * 100 : 0;
+        const thriveUnitProfit = thrivePrice - thriveCost;
 
         return {
           id: item.id,
@@ -10122,11 +10133,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
           category: item.categories || 'Uncategorized',
           locationId: item.locationId,
           quantityOnHand: quantity,
-          unitCost: cost,
-          unitPrice: price,
+          // Clover data
+          cloverCost: cloverCost,
+          cloverPrice: cloverPrice,
           unitProfit: Number(unitProfit.toFixed(2)),
           marginPercent: Number(marginPercent.toFixed(2)),
           markupPercent: Number(markupPercent.toFixed(2)),
+          // Thrive data
+          thriveCost: thriveCost,
+          thrivePrice: thrivePrice,
+          thriveMarginPercent: Number(thriveMarginPercent.toFixed(2)),
+          thriveUnitProfit: Number(thriveUnitProfit.toFixed(2)),
+          // Totals (based on Clover pricing)
           totalValue: Number(totalValue.toFixed(2)),
           potentialRevenue: Number(potentialRevenue.toFixed(2)),
           grossProfit: Number(grossProfit.toFixed(2)),
