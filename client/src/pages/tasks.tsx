@@ -502,19 +502,17 @@ export default function Tasks() {
                         <span>{format(new Date(task.dueDate), 'MMM dd, yyyy')}</span>
                       </div>
                     )}
-                    <div className="flex items-center gap-1">
-                      <MessageSquare className="h-4 w-4" />
-                      <Button 
-                        variant="link" 
-                        className="p-0 h-auto"
-                        onClick={() => setSelectedTask(task)}
-                        data-testid={`button-view-task-${task.id}`}
-                      >
-                        View Details
-                      </Button>
-                    </div>
                   </div>
-                  <div className="mt-4">
+                  <div className="mt-4 flex gap-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => setSelectedTask(task)}
+                      data-testid={`button-view-task-${task.id}`}
+                    >
+                      <MessageSquare className="h-4 w-4 mr-2" />
+                      View Details
+                    </Button>
                     <Select 
                       value={task.status} 
                       onValueChange={(value) => handleStatusChange(task.id, value)}
