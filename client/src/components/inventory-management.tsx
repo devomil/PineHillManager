@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { 
   Package, 
   Search, 
@@ -31,7 +32,8 @@ import {
   Building2,
   Upload,
   Link2,
-  Info as InfoIcon
+  Info as InfoIcon,
+  ExternalLink
 } from 'lucide-react';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
@@ -55,6 +57,13 @@ interface InventoryItem {
   locationName: string;
   merchantId: string;
   categories?: { id: string; name: string; }[];
+  // Additional fields from database
+  sku?: string;
+  upc?: string;
+  vendor?: string;
+  lastSyncAt?: string;
+  quantityOnHand?: number;
+  syncStatus?: string;
 }
 
 interface ItemStock {
@@ -1191,54 +1200,99 @@ export function InventoryManagement() {
               </CardContent>
             </Card>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredItems.map((item: InventoryItem, index: number) => {
-                const stockInfo = getStockStatus(item.stockCount);
-                const uniqueKey = `item-${item.id}-${item.locationId}-${index}`;
-                return (
-                  <Card key={uniqueKey}>
-                    <CardHeader>
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <CardTitle className="text-base">{item.name}</CardTitle>
-                          <CardDescription className="flex items-center gap-1 mt-1">
-                            <MapPin className="h-3 w-3" />
-                            {item.locationName}
-                          </CardDescription>
-                        </div>
-                        <Badge className={stockInfo.color}>
-                          {stockInfo.status}
-                        </Badge>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-2">
-                        <div className="flex justify-between">
-                          <span className="text-sm text-gray-600">Price:</span>
-                          <span className="font-medium">${formatPrice(item.price)}</span>
-                        </div>
-                        {item.cost && (
-                          <div className="flex justify-between">
-                            <span className="text-sm text-gray-600">Cost:</span>
-                            <span className="font-medium">${formatPrice(item.cost)}</span>
-                          </div>
-                        )}
-                        <div className="flex justify-between">
-                          <span className="text-sm text-gray-600">Stock:</span>
-                          <span className="font-medium">{item.stockCount || 0} {item.unitName || 'units'}</span>
-                        </div>
-                        {item.stockCount && (item.cost || item.price) && (
-                          <div className="flex justify-between border-t pt-2">
-                            <span className="text-sm text-gray-600">Value:</span>
-                            <span className="font-bold">${((item.stockCount * (item.cost ?? item.price)) / 100).toFixed(2)}</span>
-                          </div>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Package className="h-5 w-5" />
+                  Inventory Items ({filteredItems.length})
+                </CardTitle>
+                <CardDescription>
+                  Complete list of all inventory items with pricing and stock information
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="border rounded-lg">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-[300px]">PRODUCT NAME</TableHead>
+                        <TableHead>UPC/SKU</TableHead>
+                        <TableHead>Vendor</TableHead>
+                        <TableHead>Last Sync</TableHead>
+                        <TableHead className="text-right">QUANTITY ON HAND</TableHead>
+                        <TableHead className="text-right">SALABLE QUANTITY</TableHead>
+                        <TableHead className="text-center">STATUS</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredItems.map((item: InventoryItem, index: number) => {
+                        const stockInfo = getStockStatus(item.stockCount || item.quantityOnHand || 0);
+                        const uniqueKey = `item-${item.id}-${item.locationId}-${index}`;
+                        const quantity = item.quantityOnHand || item.stockCount || 0;
+                        const displaySku = item.sku || item.upc || '-';
+                        
+                        return (
+                          <TableRow key={uniqueKey} data-testid={`row-item-${item.id}`}>
+                            <TableCell className="font-medium">
+                              <div className="flex items-center gap-2">
+                                <ExternalLink className="h-4 w-4 text-blue-500" />
+                                <div>
+                                  <div>{item.name}</div>
+                                  <div className="text-xs text-muted-foreground flex items-center gap-1">
+                                    <MapPin className="h-3 w-3" />
+                                    {item.locationName}
+                                  </div>
+                                </div>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-1">
+                                <ExternalLink className="h-3 w-3 text-blue-500" />
+                                <span className="font-mono text-sm">{displaySku}</span>
+                              </div>
+                            </TableCell>
+                            <TableCell>{item.vendor || '-'}</TableCell>
+                            <TableCell>
+                              {item.lastSyncAt 
+                                ? new Date(item.lastSyncAt).toLocaleDateString('en-US', {
+                                    month: '2-digit',
+                                    day: '2-digit',
+                                    year: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                  })
+                                : '-'
+                              }
+                            </TableCell>
+                            <TableCell className="text-right font-medium">
+                              {Number(quantity).toFixed(0)}
+                            </TableCell>
+                            <TableCell className="text-right font-medium">
+                              {Number(quantity).toFixed(0)}
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <Badge 
+                                className={stockInfo.color}
+                                data-testid={`status-${item.id}`}
+                              >
+                                {stockInfo.status}
+                              </Badge>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                      {filteredItems.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                            No items found matching your filters
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
           )}
         </div>
       )}
