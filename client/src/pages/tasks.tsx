@@ -89,7 +89,7 @@ export default function Tasks() {
       description: "",
       status: "pending",
       priority: "medium",
-      assignedTo: "",
+      assignedTo: undefined,
       dueDate: "",
     },
   });
@@ -228,14 +228,13 @@ export default function Tasks() {
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel>Assign To</FormLabel>
-                            <Select onValueChange={field.onChange} value={field.value || ''}>
+                            <Select onValueChange={field.onChange} value={field.value || undefined}>
                               <FormControl>
                                 <SelectTrigger data-testid="select-task-assignee">
-                                  <SelectValue placeholder="Select employee" />
+                                  <SelectValue placeholder="Unassigned" />
                                 </SelectTrigger>
                               </FormControl>
                               <SelectContent>
-                                <SelectItem value="">Unassigned</SelectItem>
                                 {employees.map((emp) => (
                                   <SelectItem key={emp.id} value={emp.id}>
                                     {emp.firstName} {emp.lastName}
