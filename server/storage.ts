@@ -1478,6 +1478,21 @@ export interface IStorage {
       dateRange: { start: string; end: string };
     };
   }>;
+
+  // Task Management Operations
+  createTask(task: InsertTask): Promise<Task>;
+  getAllTasks(): Promise<Task[]>;
+  getTaskById(id: number): Promise<Task | undefined>;
+  getTasksByAssignee(userId: string): Promise<Task[]>;
+  getTasksByCreator(userId: string): Promise<Task[]>;
+  getTasksByStatus(status: string): Promise<Task[]>;
+  updateTask(id: number, task: Partial<InsertTask>): Promise<Task>;
+  deleteTask(id: number): Promise<void>;
+  
+  // Task Notes Operations
+  createTaskNote(note: InsertTaskNote): Promise<TaskNote>;
+  getTaskNotes(taskId: number): Promise<TaskNote[]>;
+  deleteTaskNote(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -11479,6 +11494,93 @@ export class DatabaseStorage implements IStorage {
       console.error('Error in getOptimizedHistoricalData:', error);
       throw error;
     }
+  }
+
+  // Task Management Implementations
+  async createTask(taskData: InsertTask): Promise<Task> {
+    const [task] = await db
+      .insert(tasks)
+      .values({
+        ...taskData,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .returning();
+    return task;
+  }
+
+  async getAllTasks(): Promise<Task[]> {
+    return await db.select().from(tasks).orderBy(desc(tasks.createdAt));
+  }
+
+  async getTaskById(id: number): Promise<Task | undefined> {
+    const [task] = await db.select().from(tasks).where(eq(tasks.id, id));
+    return task;
+  }
+
+  async getTasksByAssignee(userId: string): Promise<Task[]> {
+    return await db
+      .select()
+      .from(tasks)
+      .where(eq(tasks.assignedTo, userId))
+      .orderBy(desc(tasks.createdAt));
+  }
+
+  async getTasksByCreator(userId: string): Promise<Task[]> {
+    return await db
+      .select()
+      .from(tasks)
+      .where(eq(tasks.createdBy, userId))
+      .orderBy(desc(tasks.createdAt));
+  }
+
+  async getTasksByStatus(status: string): Promise<Task[]> {
+    return await db
+      .select()
+      .from(tasks)
+      .where(eq(tasks.status, status))
+      .orderBy(desc(tasks.createdAt));
+  }
+
+  async updateTask(id: number, taskData: Partial<InsertTask>): Promise<Task> {
+    const [task] = await db
+      .update(tasks)
+      .set({
+        ...taskData,
+        updatedAt: new Date(),
+        ...(taskData.status === 'completed' && !taskData.completedAt ? { completedAt: new Date() } : {}),
+      })
+      .where(eq(tasks.id, id))
+      .returning();
+    return task;
+  }
+
+  async deleteTask(id: number): Promise<void> {
+    await db.delete(tasks).where(eq(tasks.id, id));
+  }
+
+  // Task Notes Implementations
+  async createTaskNote(noteData: InsertTaskNote): Promise<TaskNote> {
+    const [note] = await db
+      .insert(taskNotes)
+      .values({
+        ...noteData,
+        createdAt: new Date(),
+      })
+      .returning();
+    return note;
+  }
+
+  async getTaskNotes(taskId: number): Promise<TaskNote[]> {
+    return await db
+      .select()
+      .from(taskNotes)
+      .where(eq(taskNotes.taskId, taskId))
+      .orderBy(asc(taskNotes.createdAt));
+  }
+
+  async deleteTaskNote(id: number): Promise<void> {
+    await db.delete(taskNotes).where(eq(taskNotes.id, id));
   }
 }
 
