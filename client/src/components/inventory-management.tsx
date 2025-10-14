@@ -45,6 +45,9 @@ interface InventoryItem {
   priceType: string;
   unitName?: string;
   cost?: number;
+  // Thrive vendor pricing fields
+  thriveCost?: number;
+  thriveListPrice?: number;
   isRevenue: boolean;
   stockCount?: number;
   locationId: number;
