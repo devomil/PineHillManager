@@ -587,10 +587,32 @@ function TaskDetailsDialog({
     },
   });
 
+  const updateStepsMutation = useMutation({
+    mutationFn: (steps: TaskStep[]) =>
+      apiRequest('PATCH', `/api/tasks/${task.id}`, { steps }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
+      toast({ title: "Success", description: "Step updated successfully" });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to update step", variant: "destructive" });
+    },
+  });
+
   const handleAddNote = () => {
     if (!noteContent.trim()) return;
     addNoteMutation.mutate({ content: noteContent, isQuestion });
   };
+
+  const handleToggleStep = (stepIndex: number) => {
+    if (!task.steps) return;
+    const updatedSteps = task.steps.map((step, index) =>
+      index === stepIndex ? { ...step, completed: !step.completed } : step
+    );
+    updateStepsMutation.mutate(updatedSteps);
+  };
+
+  const canEditSteps = isAdminOrManager || task.assignedTo === currentUserId;
 
   const getUserName = (userId: string) => {
     const user = employees.find(e => e.id === userId);
@@ -638,8 +660,9 @@ function TaskDetailsDialog({
                     <div key={index} className="flex items-center gap-3">
                       <Checkbox
                         checked={step.completed}
-                        disabled
-                        className="pointer-events-none"
+                        disabled={!canEditSteps || updateStepsMutation.isPending}
+                        onCheckedChange={() => handleToggleStep(index)}
+                        data-testid={`checkbox-step-${index}`}
                       />
                       <span className={`flex-1 ${step.completed ? 'line-through text-muted-foreground' : ''}`}>
                         {step.text}
