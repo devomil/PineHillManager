@@ -882,64 +882,98 @@ export function InventoryManagement() {
                 </Card>
               </div>
 
-              {/* Profitability Overview */}
+              {/* Profitability Overview - Clover vs Thrive Comparison */}
               <TooltipProvider>
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <DollarSign className="h-5 w-5" />
-                      Profitability Summary
+                      Profitability Summary - System Comparison
                     </CardTitle>
                     <CardDescription>
-                      Based on {profitabilityData?.summary?.totalItems || 0} items with matched Thrive cost/price data
+                      Comparing Clover POS pricing vs Thrive vendor pricing ({profitabilityData?.summary?.totalItems || 0} items)
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="space-y-6">
+                      {/* Clover Metrics */}
                       <div>
-                        <Tooltip>
-                          <TooltipTrigger className="text-sm text-muted-foreground cursor-help text-left">
-                            Average Margin
-                          </TooltipTrigger>
-                          <TooltipContent className="max-w-xs">
-                            <p className="font-semibold mb-1">How it's calculated:</p>
-                            <p className="text-sm mb-2">Average of all individual item margins. Margin % = (Price - Cost) / Price × 100. Only includes items with both cost and price data from Thrive.</p>
-                            <p className="text-xs text-muted-foreground">This shows your average profit percentage across all products with vendor pricing data.</p>
-                          </TooltipContent>
-                        </Tooltip>
-                        <p className="text-3xl font-bold text-green-600">
-                          {profitabilityData?.summary?.averageMargin?.toFixed(1) || '0.0'}%
-                        </p>
+                        <h3 className="text-sm font-semibold text-blue-600 mb-3 flex items-center gap-2">
+                          <span className="h-2 w-2 rounded-full bg-blue-600"></span>
+                          Clover POS (Sale Pricing)
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <div className="p-3 bg-blue-50 dark:bg-blue-950 rounded-lg">
+                            <p className="text-xs text-muted-foreground mb-1">Average Margin</p>
+                            <p className="text-2xl font-bold text-blue-600">
+                              {profitabilityData?.summary?.averageMargin?.toFixed(1) || '0.0'}%
+                            </p>
+                          </div>
+                          <div className="p-3 bg-blue-50 dark:bg-blue-950 rounded-lg">
+                            <p className="text-xs text-muted-foreground mb-1">Total Inventory Value</p>
+                            <p className="text-2xl font-bold">
+                              ${profitabilityData?.summary?.totalValue?.toLocaleString() || '0'}
+                            </p>
+                          </div>
+                          <div className="p-3 bg-blue-50 dark:bg-blue-950 rounded-lg">
+                            <p className="text-xs text-muted-foreground mb-1">Gross Profit</p>
+                            <p className="text-2xl font-bold text-blue-600">
+                              ${profitabilityData?.summary?.totalProfit?.toLocaleString() || '0'}
+                            </p>
+                          </div>
+                        </div>
                       </div>
+
+                      {/* Thrive Metrics */}
                       <div>
-                        <Tooltip>
-                          <TooltipTrigger className="text-sm text-muted-foreground cursor-help text-left">
-                            Total Inventory Value
-                          </TooltipTrigger>
-                          <TooltipContent className="max-w-xs">
-                            <p className="font-semibold mb-1">How it's calculated:</p>
-                            <p className="text-sm mb-2">Sum of (Quantity × Cost) for all items with Thrive cost data. Includes items with zero stock.</p>
-                            <p className="text-xs text-muted-foreground">⚠️ Only shows items successfully matched between Thrive and Clover. Unmatched Thrive items are not included in this total.</p>
-                          </TooltipContent>
-                        </Tooltip>
-                        <p className="text-3xl font-bold">
-                          ${profitabilityData?.summary?.totalValue?.toLocaleString() || '0'}
-                        </p>
+                        <h3 className="text-sm font-semibold text-purple-600 mb-3 flex items-center gap-2">
+                          <span className="h-2 w-2 rounded-full bg-purple-600"></span>
+                          Thrive (Vendor Pricing)
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <div className="p-3 bg-purple-50 dark:bg-purple-950 rounded-lg">
+                            <p className="text-xs text-muted-foreground mb-1">Average Margin</p>
+                            <p className="text-2xl font-bold text-purple-600">
+                              {(() => {
+                                const items = profitabilityData?.items || [];
+                                const validMargins = items.filter((item: any) => item.thriveMarginPercent > 0);
+                                const avg = validMargins.length > 0 
+                                  ? validMargins.reduce((sum: number, item: any) => sum + item.thriveMarginPercent, 0) / validMargins.length
+                                  : 0;
+                                return avg.toFixed(1);
+                              })()}%
+                            </p>
+                          </div>
+                          <div className="p-3 bg-purple-50 dark:bg-purple-950 rounded-lg">
+                            <p className="text-xs text-muted-foreground mb-1">Total Inventory Value</p>
+                            <p className="text-2xl font-bold">
+                              ${(() => {
+                                const items = profitabilityData?.items || [];
+                                const total = items.reduce((sum: number, item: any) => 
+                                  sum + (item.quantityOnHand * item.thriveCost), 0
+                                );
+                                return total.toLocaleString();
+                              })()}
+                            </p>
+                          </div>
+                          <div className="p-3 bg-purple-50 dark:bg-purple-950 rounded-lg">
+                            <p className="text-xs text-muted-foreground mb-1">Gross Profit</p>
+                            <p className="text-2xl font-bold text-purple-600">
+                              ${(() => {
+                                const items = profitabilityData?.items || [];
+                                const total = items.reduce((sum: number, item: any) => 
+                                  sum + (item.quantityOnHand * item.thriveUnitProfit), 0
+                                );
+                                return total.toLocaleString();
+                              })()}
+                            </p>
+                          </div>
+                        </div>
                       </div>
-                      <div>
-                        <Tooltip>
-                          <TooltipTrigger className="text-sm text-muted-foreground cursor-help text-left">
-                            Potential Gross Profit
-                          </TooltipTrigger>
-                          <TooltipContent className="max-w-xs">
-                            <p className="font-semibold mb-1">How it's calculated:</p>
-                            <p className="text-sm mb-2">Sum of (Quantity × (Price - Cost)) for items with stock on hand. Only includes items currently in inventory.</p>
-                            <p className="text-xs text-muted-foreground">This is the profit you'd make if you sold all current stock at full price. Zero-stock items are excluded.</p>
-                          </TooltipContent>
-                        </Tooltip>
-                        <p className="text-3xl font-bold text-blue-600">
-                          ${profitabilityData?.summary?.totalProfit?.toLocaleString() || '0'}
-                        </p>
+
+                      {/* System Info */}
+                      <div className="pt-3 border-t text-xs text-muted-foreground">
+                        <p>💡 <strong>Tip:</strong> Clover pricing reflects current sale prices in your POS system. Thrive pricing shows vendor cost/list data for cost comparison.</p>
                       </div>
                     </div>
                   </CardContent>
