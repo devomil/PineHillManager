@@ -1937,6 +1937,211 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ============================================
+  // TASK MANAGEMENT ROUTES
+  // ============================================
+
+  // Get all tasks (role-based: admins/managers see all, employees see only theirs)
+  app.get('/api/tasks', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      if (!user) {
+        return res.status(401).json({ message: 'Unauthorized' });
+      }
+
+      let tasks;
+      if (user.role === 'admin' || user.role === 'manager') {
+        // Admin/Manager sees all tasks
+        tasks = await storage.getAllTasks();
+      } else {
+        // Employee sees only tasks assigned to them
+        tasks = await storage.getTasksByAssignee(user.id);
+      }
+
+      res.json(tasks);
+    } catch (error) {
+      console.error('Error fetching tasks:', error);
+      res.status(500).json({ message: 'Failed to fetch tasks' });
+    }
+  });
+
+  // Get single task by ID
+  app.get('/api/tasks/:id', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      const taskId = parseInt(req.params.id);
+      
+      const task = await storage.getTaskById(taskId);
+      if (!task) {
+        return res.status(404).json({ message: 'Task not found' });
+      }
+
+      // Check permissions: admin/manager can view all, employee can only view their tasks
+      if (user?.role !== 'admin' && user?.role !== 'manager' && task.assignedTo !== user?.id) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+
+      res.json(task);
+    } catch (error) {
+      console.error('Error fetching task:', error);
+      res.status(500).json({ message: 'Failed to fetch task' });
+    }
+  });
+
+  // Create new task (admin/manager only)
+  app.post('/api/tasks', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      
+      if (user?.role !== 'admin' && user?.role !== 'manager') {
+        return res.status(403).json({ message: 'Only admins and managers can create tasks' });
+      }
+
+      const taskData = {
+        ...req.body,
+        createdBy: user.id,
+      };
+
+      const newTask = await storage.createTask(taskData);
+      res.status(201).json(newTask);
+    } catch (error) {
+      console.error('Error creating task:', error);
+      res.status(500).json({ message: 'Failed to create task' });
+    }
+  });
+
+  // Update task
+  app.patch('/api/tasks/:id', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      const taskId = parseInt(req.params.id);
+      
+      const task = await storage.getTaskById(taskId);
+      if (!task) {
+        return res.status(404).json({ message: 'Task not found' });
+      }
+
+      // Admin/Manager can update all fields
+      // Employee can only update status and add notes
+      if (user?.role !== 'admin' && user?.role !== 'manager') {
+        if (task.assignedTo !== user?.id) {
+          return res.status(403).json({ message: 'Access denied' });
+        }
+        // Employees can only update status
+        const allowedUpdates = { status: req.body.status };
+        const updatedTask = await storage.updateTask(taskId, allowedUpdates);
+        return res.json(updatedTask);
+      }
+
+      const updatedTask = await storage.updateTask(taskId, req.body);
+      res.json(updatedTask);
+    } catch (error) {
+      console.error('Error updating task:', error);
+      res.status(500).json({ message: 'Failed to update task' });
+    }
+  });
+
+  // Delete task (admin/manager only)
+  app.delete('/api/tasks/:id', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      
+      if (user?.role !== 'admin' && user?.role !== 'manager') {
+        return res.status(403).json({ message: 'Only admins and managers can delete tasks' });
+      }
+
+      const taskId = parseInt(req.params.id);
+      await storage.deleteTask(taskId);
+      res.json({ message: 'Task deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting task:', error);
+      res.status(500).json({ message: 'Failed to delete task' });
+    }
+  });
+
+  // Get task notes/comments
+  app.get('/api/tasks/:id/notes', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      const taskId = parseInt(req.params.id);
+      
+      const task = await storage.getTaskById(taskId);
+      if (!task) {
+        return res.status(404).json({ message: 'Task not found' });
+      }
+
+      // Check permissions
+      if (user?.role !== 'admin' && user?.role !== 'manager' && task.assignedTo !== user?.id) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+
+      const notes = await storage.getTaskNotes(taskId);
+      res.json(notes);
+    } catch (error) {
+      console.error('Error fetching task notes:', error);
+      res.status(500).json({ message: 'Failed to fetch task notes' });
+    }
+  });
+
+  // Add task note/comment
+  app.post('/api/tasks/:id/notes', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      const taskId = parseInt(req.params.id);
+      
+      const task = await storage.getTaskById(taskId);
+      if (!task) {
+        return res.status(404).json({ message: 'Task not found' });
+      }
+
+      // Check permissions
+      if (user?.role !== 'admin' && user?.role !== 'manager' && task.assignedTo !== user?.id) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+
+      const noteData = {
+        taskId,
+        userId: user.id,
+        content: req.body.content,
+        isQuestion: req.body.isQuestion || false,
+      };
+
+      const newNote = await storage.createTaskNote(noteData);
+      res.status(201).json(newNote);
+    } catch (error) {
+      console.error('Error creating task note:', error);
+      res.status(500).json({ message: 'Failed to create task note' });
+    }
+  });
+
+  // Get task statistics (admin/manager only)
+  app.get('/api/tasks/stats/overview', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      
+      if (user?.role !== 'admin' && user?.role !== 'manager') {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+
+      const allTasks = await storage.getAllTasks();
+      
+      const stats = {
+        total: allTasks.length,
+        pending: allTasks.filter(t => t.status === 'pending').length,
+        inProgress: allTasks.filter(t => t.status === 'in_progress').length,
+        completed: allTasks.filter(t => t.status === 'completed').length,
+        blocked: allTasks.filter(t => t.status === 'blocked').length,
+        urgent: allTasks.filter(t => t.priority === 'urgent').length,
+        overdue: allTasks.filter(t => t.dueDate && new Date(t.dueDate) < new Date() && t.status !== 'completed').length,
+      };
+
+      res.json(stats);
+    } catch (error) {
+      console.error('Error fetching task stats:', error);
+      res.status(500).json({ message: 'Failed to fetch task statistics' });
+    }
+  });
+
   // Employee Financial Management - Admin/Manager only
   app.get('/api/employees/:id/financials', isAuthenticated, async (req, res) => {
     try {

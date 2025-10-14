@@ -226,6 +226,9 @@ import {
   itemCostHistory,
   syncCursors,
   dailySales,
+  // Task Management Tables
+  tasks,
+  taskNotes,
   // Order Management Types
   type Merchant,
   type InsertMerchant,
@@ -253,6 +256,11 @@ import {
   type InsertSyncCursor,
   type DailySales,
   type InsertDailySales,
+  // Task Management Types
+  type Task,
+  type InsertTask,
+  type TaskNote,
+  type InsertTaskNote,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, asc, gte, lte, or, sql, like, isNull, isNotNull, exists, sum, inArray } from "drizzle-orm";
