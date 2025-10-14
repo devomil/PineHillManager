@@ -10680,34 +10680,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get all inventory items to count items per category
       const allInventoryItems = await storage.getAllInventoryItems();
 
-      // Build category count map efficiently (parse once per item)
+      // Build category count map - match by category name (case insensitive)
       const categoryCountMap = new Map<string, number>();
       
       allInventoryItems.forEach(item => {
-        if (!item.categories) return;
+        // Database has 'category' column (singular) not 'categories'
+        const itemCategory = (item as any).category;
+        if (!itemCategory) return;
         
-        try {
-          // Parse categories safely
-          const categoryIds = typeof item.categories === 'string' 
-            ? JSON.parse(item.categories)
-            : item.categories;
-          
-          // Handle both array and object formats
-          const categories = Array.isArray(categoryIds) ? categoryIds : [categoryIds];
-          
-          // Increment count for each category
-          categories.forEach((cat: any) => {
-            const catId = cat?.id || cat;
-            if (catId) {
-              categoryCountMap.set(catId, (categoryCountMap.get(catId) || 0) + 1);
-            }
-          });
-        } catch (error) {
-          console.log('Error parsing categories for item:', item.id, error);
-        }
+        // Match categories by name (case insensitive)
+        allCategories.forEach(category => {
+          if (category.name.toLowerCase() === itemCategory.toLowerCase()) {
+            categoryCountMap.set(category.id, (categoryCountMap.get(category.id) || 0) + 1);
+          }
+        });
       });
 
-      // Add counts to categories without corrupting data
+      // Add counts to categories
       const categoriesWithCounts = allCategories.map(category => ({
         ...category,
         itemCount: categoryCountMap.get(category.id) || 0
