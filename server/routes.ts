@@ -10089,7 +10089,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Filter by category if specified
       if (category) {
         filteredItems = filteredItems.filter(item => 
-          item.categories?.toLowerCase().includes((category as string).toLowerCase())
+          item.category?.toLowerCase().includes((category as string).toLowerCase())
         );
       }
 
@@ -10127,10 +10127,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         return {
           id: item.id,
-          name: item.name,
+          name: item.itemName,
           sku: item.sku,
           vendor: item.vendor || 'Unknown',
-          category: item.categories || 'Uncategorized',
+          category: item.category || 'Uncategorized',
           locationId: item.locationId,
           quantityOnHand: quantity,
           // Clover data
@@ -10199,6 +10199,100 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error fetching item profitability:', error);
       res.status(500).json({ message: 'Failed to fetch item profitability' });
+    }
+  });
+
+  // Pricing Coverage Diagnostic Endpoint - Shows which items have Clover vs Thrive pricing
+  app.get('/api/accounting/inventory/pricing-diagnostic', async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !req.user) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const { locationId } = req.query;
+
+      // Get all items
+      const allItems = await storage.getAllInventoryItems();
+      
+      // Filter by location if specified
+      const items = locationId 
+        ? allItems.filter(item => item.locationId === parseInt(locationId as string))
+        : allItems;
+
+      // Categorize items by pricing data
+      const cloverOnly: any[] = [];
+      const thriveOnly: any[] = [];
+      const both: any[] = [];
+      const neither: any[] = [];
+
+      items.forEach(item => {
+        const hasCloverPricing = (parseFloat(item.unitCost || '0') > 0 || parseFloat(item.unitPrice || '0') > 0);
+        const hasThrivePricing = (parseFloat(item.thriveCost || '0') > 0 || parseFloat(item.thriveListPrice || '0') > 0);
+
+        const itemData = {
+          id: item.id,
+          name: item.itemName,
+          sku: item.sku,
+          locationId: item.locationId,
+          quantityOnHand: parseFloat(item.quantityOnHand || '0'),
+          cloverCost: parseFloat(item.unitCost || '0'),
+          cloverPrice: parseFloat(item.unitPrice || '0'),
+          thriveCost: parseFloat(item.thriveCost || '0'),
+          thrivePrice: parseFloat(item.thriveListPrice || '0'),
+          vendor: item.vendor
+        };
+
+        if (hasCloverPricing && hasThrivePricing) {
+          both.push(itemData);
+        } else if (hasCloverPricing && !hasThrivePricing) {
+          cloverOnly.push(itemData);
+        } else if (!hasCloverPricing && hasThrivePricing) {
+          thriveOnly.push(itemData);
+        } else {
+          neither.push(itemData);
+        }
+      });
+
+      // Calculate inventory values for each category
+      const cloverOnlyValue = cloverOnly.reduce((sum, item) => sum + (item.quantityOnHand * item.cloverCost), 0);
+      const thriveOnlyValue = thriveOnly.reduce((sum, item) => sum + (item.quantityOnHand * item.thriveCost), 0);
+      const bothCloverValue = both.reduce((sum, item) => sum + (item.quantityOnHand * item.cloverCost), 0);
+      const bothThriveValue = both.reduce((sum, item) => sum + (item.quantityOnHand * item.thriveCost), 0);
+
+      res.json({
+        summary: {
+          totalItems: items.length,
+          cloverOnly: {
+            count: cloverOnly.length,
+            inventoryValue: Number(cloverOnlyValue.toFixed(2)),
+            percentage: Number(((cloverOnly.length / items.length) * 100).toFixed(1))
+          },
+          thriveOnly: {
+            count: thriveOnly.length,
+            inventoryValue: Number(thriveOnlyValue.toFixed(2)),
+            percentage: Number(((thriveOnly.length / items.length) * 100).toFixed(1))
+          },
+          both: {
+            count: both.length,
+            cloverInventoryValue: Number(bothCloverValue.toFixed(2)),
+            thriveInventoryValue: Number(bothThriveValue.toFixed(2)),
+            percentage: Number(((both.length / items.length) * 100).toFixed(1))
+          },
+          neither: {
+            count: neither.length,
+            percentage: Number(((neither.length / items.length) * 100).toFixed(1))
+          }
+        },
+        samples: {
+          cloverOnly: cloverOnly.slice(0, 10),
+          thriveOnly: thriveOnly.slice(0, 10),
+          both: both.slice(0, 10),
+          neither: neither.slice(0, 10)
+        }
+      });
+    } catch (error) {
+      console.error('Error fetching pricing diagnostic:', error);
+      res.status(500).json({ message: 'Failed to fetch pricing diagnostic' });
     }
   });
 

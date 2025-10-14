@@ -30,7 +30,8 @@ import {
   FileText,
   Building2,
   Upload,
-  Link2
+  Link2,
+  Info as InfoIcon
 } from 'lucide-react';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
@@ -901,10 +902,21 @@ export function InventoryManagement() {
                     <div className="space-y-6">
                       {/* Clover Metrics */}
                       <div>
-                        <h3 className="text-sm font-semibold text-blue-600 mb-3 flex items-center gap-2">
-                          <span className="h-2 w-2 rounded-full bg-blue-600"></span>
-                          Clover POS (Sale Pricing)
-                        </h3>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <h3 className="text-sm font-semibold text-blue-600 mb-3 flex items-center gap-2 cursor-help">
+                              <span className="h-2 w-2 rounded-full bg-blue-600"></span>
+                              Clover POS (Sale Pricing)
+                              <InfoIcon className="h-3 w-3 opacity-50" />
+                            </h3>
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-xs">
+                            <p className="text-sm">
+                              <strong>Clover POS Pricing:</strong> Only counts items that have Clover pricing data (unitCost & unitPrice from POS). 
+                              Based on what's actually in your POS system with cost/price set.
+                            </p>
+                          </TooltipContent>
+                        </Tooltip>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                           <div className="p-3 bg-blue-50 dark:bg-blue-950 rounded-lg">
                             <p className="text-xs text-muted-foreground mb-1">Average Margin</p>
@@ -929,10 +941,21 @@ export function InventoryManagement() {
 
                       {/* Thrive Metrics */}
                       <div>
-                        <h3 className="text-sm font-semibold text-purple-600 mb-3 flex items-center gap-2">
-                          <span className="h-2 w-2 rounded-full bg-purple-600"></span>
-                          Thrive (Vendor Pricing)
-                        </h3>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <h3 className="text-sm font-semibold text-purple-600 mb-3 flex items-center gap-2 cursor-help">
+                              <span className="h-2 w-2 rounded-full bg-purple-600"></span>
+                              Thrive (Vendor Pricing)
+                              <InfoIcon className="h-3 w-3 opacity-50" />
+                            </h3>
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-xs">
+                            <p className="text-sm">
+                              <strong>Thrive Vendor Pricing:</strong> Only counts items that have Thrive pricing data (thriveCost & thriveListPrice from CSV). 
+                              Based on what was imported from your Thrive CSV.
+                            </p>
+                          </TooltipContent>
+                        </Tooltip>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                           <div className="p-3 bg-purple-50 dark:bg-purple-950 rounded-lg">
                             <p className="text-xs text-muted-foreground mb-1">Average Margin</p>
@@ -982,6 +1005,22 @@ export function InventoryManagement() {
                   </CardContent>
                 </Card>
               </TooltipProvider>
+
+              {/* Pricing Coverage Diagnostic */}
+              <Card className="border-orange-200 bg-orange-50/50 dark:bg-orange-950/20">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <BarChart3 className="h-5 w-5 text-orange-600" />
+                    Pricing Coverage Diagnostic
+                  </CardTitle>
+                  <CardDescription>
+                    Understanding why Clover and Thrive values differ
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <PricingDiagnostic />
+                </CardContent>
+              </Card>
 
               {/* Top Profitable Items */}
               <Card>
@@ -2311,3 +2350,68 @@ function CSVImportDialog({
     </Dialog>
   );
 };
+
+// Pricing Diagnostic Component
+function PricingDiagnostic() {
+  const { data: diagnostic, isLoading } = useQuery({
+    queryKey: ['/api/accounting/inventory/pricing-diagnostic'],
+  });
+
+  if (isLoading) {
+    return <div className="text-center py-4 text-muted-foreground">Loading diagnostic...</div>;
+  }
+
+  if (!diagnostic) {
+    return <div className="text-center py-4 text-muted-foreground">No data available</div>;
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+        <div className="p-3 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200">
+          <p className="text-xs text-muted-foreground mb-1">Clover Only</p>
+          <p className="text-xl font-bold text-blue-600">{diagnostic?.summary?.cloverOnly?.count || 0}</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            ${(diagnostic?.summary?.cloverOnly?.inventoryValue || 0).toLocaleString()} value
+          </p>
+          <p className="text-xs text-blue-600 mt-1">{diagnostic?.summary?.cloverOnly?.percentage || 0}% of items</p>
+        </div>
+
+        <div className="p-3 bg-purple-50 dark:bg-purple-950 rounded-lg border border-purple-200">
+          <p className="text-xs text-muted-foreground mb-1">Thrive Only</p>
+          <p className="text-xl font-bold text-purple-600">{diagnostic?.summary?.thriveOnly?.count || 0}</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            ${(diagnostic?.summary?.thriveOnly?.inventoryValue || 0).toLocaleString()} value
+          </p>
+          <p className="text-xs text-purple-600 mt-1">{diagnostic?.summary?.thriveOnly?.percentage || 0}% of items</p>
+        </div>
+
+        <div className="p-3 bg-green-50 dark:bg-green-950 rounded-lg border border-green-200">
+          <p className="text-xs text-muted-foreground mb-1">Both Systems</p>
+          <p className="text-xl font-bold text-green-600">{diagnostic?.summary?.both?.count || 0}</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            C: ${(diagnostic?.summary?.both?.cloverInventoryValue || 0).toLocaleString()} | T: ${(diagnostic?.summary?.both?.thriveInventoryValue || 0).toLocaleString()}
+          </p>
+          <p className="text-xs text-green-600 mt-1">{diagnostic?.summary?.both?.percentage || 0}% of items</p>
+        </div>
+
+        <div className="p-3 bg-gray-50 dark:bg-gray-950 rounded-lg border border-gray-200">
+          <p className="text-xs text-muted-foreground mb-1">No Pricing Data</p>
+          <p className="text-xl font-bold text-gray-600">{diagnostic?.summary?.neither?.count || 0}</p>
+          <p className="text-xs text-gray-600 mt-1">{diagnostic?.summary?.neither?.percentage || 0}% of items</p>
+        </div>
+      </div>
+
+      {/* Explanation */}
+      <div className="bg-orange-100 dark:bg-orange-900/30 border border-orange-300 p-4 rounded-lg">
+        <p className="text-sm font-semibold text-orange-800 dark:text-orange-200 mb-2">Why the difference?</p>
+        <ul className="text-sm text-orange-700 dark:text-orange-300 space-y-1 list-disc list-inside">
+          <li><strong>Clover Only ({diagnostic?.summary?.cloverOnly?.count || 0} items):</strong> Items with POS pricing but no Thrive vendor data imported</li>
+          <li><strong>Thrive Only ({diagnostic?.summary?.thriveOnly?.count || 0} items):</strong> Items from CSV that don't exist in Clover or have no Clover pricing</li>
+          <li><strong>Both Systems ({diagnostic?.summary?.both?.count || 0} items):</strong> Items with complete pricing from both sources</li>
+        </ul>
+      </div>
+    </div>
+  );
+}
