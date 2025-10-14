@@ -3429,3 +3429,68 @@ export type InsertStockSnapshotDaily = z.infer<typeof insertStockSnapshotDailySc
 
 export type InventorySyncCursor = typeof inventorySyncCursors.$inferSelect;
 export type InsertInventorySyncCursor = z.infer<typeof insertInventorySyncCursorSchema>;
+
+// Task Management Tables
+export const tasks = pgTable("tasks", {
+  id: serial("id").primaryKey(),
+  title: varchar("title", { length: 255 }).notNull(),
+  description: text("description"),
+  status: varchar("status").notNull().default("pending"), // pending, in_progress, completed, blocked
+  priority: varchar("priority").notNull().default("medium"), // low, medium, high, urgent
+  createdBy: varchar("created_by").notNull().references(() => users.id), // Admin/Manager who created
+  assignedTo: varchar("assigned_to").references(() => users.id), // Employee assigned to (nullable)
+  dueDate: timestamp("due_date"),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  assignedToIdx: index("idx_tasks_assigned_to").on(table.assignedTo),
+  createdByIdx: index("idx_tasks_created_by").on(table.createdBy),
+  statusIdx: index("idx_tasks_status").on(table.status),
+  priorityIdx: index("idx_tasks_priority").on(table.priority),
+  dueDateIdx: index("idx_tasks_due_date").on(table.dueDate),
+}));
+
+export const taskNotes = pgTable("task_notes", {
+  id: serial("id").primaryKey(),
+  taskId: integer("task_id").notNull().references(() => tasks.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  content: text("content").notNull(),
+  isQuestion: boolean("is_question").default(false), // True if employee is asking a question
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  taskIdIdx: index("idx_task_notes_task_id").on(table.taskId),
+  userIdIdx: index("idx_task_notes_user_id").on(table.userId),
+  createdAtIdx: index("idx_task_notes_created_at").on(table.createdAt),
+}));
+
+// Task relations
+export const tasksRelations = relations(tasks, ({ one, many }) => ({
+  creator: one(users, { fields: [tasks.createdBy], references: [users.id], relationName: "taskCreator" }),
+  assignee: one(users, { fields: [tasks.assignedTo], references: [users.id], relationName: "taskAssignee" }),
+  notes: many(taskNotes),
+}));
+
+export const taskNotesRelations = relations(taskNotes, ({ one }) => ({
+  task: one(tasks, { fields: [taskNotes.taskId], references: [tasks.id] }),
+  author: one(users, { fields: [taskNotes.userId], references: [users.id] }),
+}));
+
+// Insert schemas for tasks
+export const insertTaskSchema = createInsertSchema(tasks).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertTaskNoteSchema = createInsertSchema(taskNotes).omit({
+  id: true,
+  createdAt: true,
+});
+
+// Type definitions for tasks
+export type Task = typeof tasks.$inferSelect;
+export type InsertTask = z.infer<typeof insertTaskSchema>;
+
+export type TaskNote = typeof taskNotes.$inferSelect;
+export type InsertTaskNote = z.infer<typeof insertTaskNoteSchema>;
