@@ -505,6 +505,14 @@ export function InventoryManagement() {
     setCurrentPage(1);
   }, [searchTerm, filterCategory, stockStatusFilter, selectedLocation]);
 
+  // Clamp currentPage when totalPages changes (e.g., after refetch or data updates)
+  useEffect(() => {
+    const maxPage = Math.max(1, totalPages || 1);
+    if (currentPage > maxPage) {
+      setCurrentPage(maxPage);
+    }
+  }, [totalPages, currentPage]);
+
   // Filter stocks for the Stock Levels tab
   const filteredStocks = stocksData?.elements?.filter((stock: ItemStock) => {
     // Search term filter
@@ -1223,7 +1231,10 @@ export function InventoryManagement() {
                   Inventory Items
                 </CardTitle>
                 <CardDescription>
-                  Showing {startIndex + 1}-{Math.min(endIndex, filteredItems.length)} of {filteredItems.length} items
+                  {filteredItems.length > 0 
+                    ? `Showing ${startIndex + 1}-${Math.min(endIndex, filteredItems.length)} of ${filteredItems.length} items`
+                    : 'No items to display'
+                  }
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
