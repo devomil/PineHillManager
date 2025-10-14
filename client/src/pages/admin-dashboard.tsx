@@ -1,91 +1,14 @@
-import { useState } from "react";
-import { useAuth } from "@/hooks/use-auth";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useQuery } from "@tanstack/react-query";
-import { Users, Clock, Calendar, MapPin, ChevronRight, FileText, MessageCircle, Bell, Settings, Eye, DollarSign, Menu, X, QrCode, Video, Package, ShoppingCart } from "lucide-react";
-import { Link, useLocation } from "wouter";
+import { Users, Clock, Calendar, MapPin, ChevronRight, FileText, MessageCircle, Bell, DollarSign, Package, ShoppingCart, QrCode, Settings } from "lucide-react";
+import { Link } from "wouter";
 import { formatTimeStringToCST } from "@/lib/time-utils";
-
-// Import tab components
-import EmployeesPage from "@/pages/employees";
-import ShiftScheduling from "@/pages/shift-scheduling";
-import CommunicationsPage from "@/pages/communications";
-import SystemSupport from "@/pages/system-support";
-import UserManagement from "@/pages/user-management";
-import ReportsPage from "@/pages/reports";
-import HomeDashboard from "@/pages/home-dashboard";
-import AccountingDashboard from "@/pages/accounting-dashboard";
-import IntegrationsPage from "@/pages/integrations-page";
-import MarketingPage from "@/pages/marketing-page";
+import AdminLayout from "@/components/admin-layout";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { useAuth } from "@/hooks/use-auth";
 
 export default function AdminDashboard() {
-  const { user, logoutMutation } = useAuth();
-  const [location, setLocation] = useLocation();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  
-  // Extract the current tab from the URL
-  const getCurrentTab = () => {
-    const path = location;
-    if (path.includes('/employees')) return 'employees';
-    if (path.includes('/shift-scheduling')) return 'scheduling';
-    if (path.includes('/communications')) return 'communications';
-    if (path.includes('/user-management')) return 'user-management';
-    if (path.includes('/system-support')) return 'system-support';
-    if (path.includes('/reports')) return 'reports';
-    if (path.includes('/dashboard') && !path.includes('/admin')) return 'employee-view';
-    if (path.includes('/accounting')) return 'accounting';
-    if (path.includes('/marketing')) return 'marketing';
-    if (path.includes('/integrations')) return 'integrations';
-    if (path.includes('/inventory')) return 'inventory';
-    if (path.includes('/orders')) return 'orders';
-    return 'dashboard';
-  };
-
-  const handleTabChange = (value: string) => {
-    switch (value) {
-      case 'dashboard':
-        setLocation('/admin');
-        break;
-      case 'employees':
-        setLocation('/employees');
-        break;
-      case 'scheduling':
-        setLocation('/shift-scheduling');
-        break;
-      case 'communications':
-        setLocation('/communications');
-        break;
-      case 'user-management':
-        setLocation('/user-management');
-        break;
-      case 'system-support':
-        setLocation('/system-support');
-        break;
-      case 'accounting':
-        setLocation('/accounting');
-        break;
-      case 'marketing':
-        setLocation('/admin/marketing');
-        break;
-      case 'integrations':
-        setLocation('/integrations');
-        break;
-      case 'reports':
-        setLocation('/reports');
-        break;
-      case 'employee-view':
-        setLocation('/dashboard');
-        break;
-      case 'inventory':
-        setLocation('/inventory');
-        break;
-      case 'orders':
-        setLocation('/orders');
-        break;
-    }
-  };
+  const { user } = useAuth();
 
   // Fetch dashboard stats
   const { data: stats } = useQuery({
@@ -124,26 +47,25 @@ export default function AdminDashboard() {
   });
 
   // Fetch today's schedules
-  const { data: todaySchedules } = useQuery({
+  const { data: todaySchedules = [] } = useQuery({
     queryKey: ["/api/work-schedules/today"],
     queryFn: async () => {
       const response = await fetch("/api/work-schedules/today", {
         credentials: 'include'
       });
-      if (!response.ok) throw new Error("Failed to fetch schedules");
+      if (!response.ok) throw new Error("Failed to fetch today's schedules");
       return response.json();
     }
   });
 
-  // Helper functions to map IDs to names
   const getEmployeeName = (userId: string) => {
     const employee = employees.find((emp: any) => emp.id === userId);
-    return employee ? `${employee.firstName} ${employee.lastName}` : 'Unknown Employee';
+    return employee ? `${employee.firstName} ${employee.lastName}` : 'Unknown';
   };
 
   const getLocationName = (locationId: number) => {
     const location = locations.find((loc: any) => loc.id === locationId);
-    return location ? location.name : 'Location TBD';
+    return location?.name || 'Unknown Location';
   };
 
   const adminQuickActions = [
@@ -156,7 +78,7 @@ export default function AdminDashboard() {
       bgColor: "bg-blue-50"
     },
     {
-      title: "Schedule Management", 
+      title: "Schedule Management",
       description: "Create and manage work schedules",
       icon: Calendar,
       href: "/shift-scheduling",
@@ -221,489 +143,168 @@ export default function AdminDashboard() {
     }
   ];
 
-  const DashboardContent = () => (
-    <div className="space-y-8">
-      {/* Welcome Section */}
-      <div>
-        <h2 className="text-3xl font-bold text-gray-900 mb-2">
-          Welcome back, {user?.firstName}!
-        </h2>
-        <p className="text-gray-600">
-          Manage employees, schedules, and company operations from your admin dashboard.
-        </p>
-      </div>
-
-      {/* Stats Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card className="border-l-4 border-l-blue-500 shadow-md">
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium text-gray-600">Total Employees</CardTitle>
-              <Users className="h-4 w-4 text-blue-500" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-gray-900">{stats?.totalEmployees || 0}</div>
-            <p className="text-xs text-gray-500 mt-1">Active staff members</p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-yellow-500 shadow-md">
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium text-gray-600">Pending Requests</CardTitle>
-              <Clock className="h-4 w-4 text-yellow-500" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-gray-900">{stats?.pendingRequests || 0}</div>
-            <p className="text-xs text-gray-500 mt-1">Awaiting approval</p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-green-500 shadow-md">
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium text-gray-600">Scheduled Today</CardTitle>
-              <Calendar className="h-4 w-4 text-green-500" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-gray-900">{todaySchedules?.length || 0}</div>
-            <p className="text-xs text-gray-500 mt-1">Staff working today</p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-purple-500 shadow-md">
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium text-gray-600">Store Locations</CardTitle>
-              <MapPin className="h-4 w-4 text-purple-500" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-gray-900">{stats?.storeLocations || 3}</div>
-            <p className="text-xs text-gray-500 mt-1">Active locations</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Quick Actions */}
-      <Card className="shadow-lg">
-        <CardHeader>
-          <CardTitle className="text-xl font-semibold text-gray-900">Admin Quick Actions</CardTitle>
-          <CardDescription>
-            Streamline your administrative tasks with these essential management tools
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {adminQuickActions.map((action, index) => (
-              <Card key={index} 
-                className="cursor-pointer transition-all duration-200 hover:shadow-md hover:scale-105 border border-gray-200"
-                onClick={() => {
-                  if (action.href.includes('/inventory')) {
-                    setLocation('/inventory');
-                  } else if (action.href.includes('/orders')) {
-                    setLocation('/orders');
-                  } else {
-                    handleTabChange(action.href.includes('/employees') ? 'employees' : 
-                      action.href.includes('/shift-scheduling') ? 'scheduling' :
-                      action.href.includes('/announcements') ? 'announcements' :
-                      action.href.includes('/system-support') ? 'system-support' :
-                      action.href.includes('/communications') ? 'communications' :
-                      action.href.includes('/reports') ? 'reports' :
-                      action.href.includes('/accounting') ? 'accounting' :
-                      action.href.includes('/marketing') ? 'marketing' : 'dashboard');
-                  }
-                }}
-              >
-                <CardContent className="p-4">
-                  <div className="flex items-center space-x-3">
-                    <div className={`p-2 rounded-lg ${action.bgColor}`}>
-                      <action.icon className={`h-5 w-5 ${action.color}`} />
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="font-medium text-gray-900">{action.title}</h3>
-                      <p className="text-sm text-gray-500">{action.description}</p>
-                    </div>
-                    <ChevronRight className="h-4 w-4 text-gray-400" />
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Today's Schedule Overview */}
-      <Card className="shadow-lg">
-        <CardHeader>
-          <CardTitle className="text-xl font-semibold text-gray-900">Today's Schedule Overview</CardTitle>
-          <CardDescription>
-            Current staff schedules and coverage status
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {todaySchedules && todaySchedules.length > 0 ? (
-            <div className="space-y-3">
-              {todaySchedules.slice(0, 5).map((schedule: any, index: number) => (
-                <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-8 h-8 bg-green-600 rounded-full flex items-center justify-center">
-                      <span className="text-white text-sm font-medium">
-                        {getEmployeeName(schedule.userId).charAt(0) || 'U'}
-                      </span>
-                    </div>
-                    <div>
-                      <p className="font-medium text-gray-900">{getEmployeeName(schedule.userId)}</p>
-                      <p className="text-sm text-gray-500">{getLocationName(schedule.locationId)}</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-medium text-gray-900">
-                      {formatTimeStringToCST(schedule.startTime)} - {formatTimeStringToCST(schedule.endTime)}
-                    </p>
-                    <p className="text-sm text-gray-500">{schedule.position || 'Staff'}</p>
-                  </div>
-                </div>
-              ))}
-              {todaySchedules.length > 5 && (
-                <Button 
-                  variant="outline" 
-                  className="w-full mt-4"
-                  onClick={() => handleTabChange('scheduling')}
-                >
-                  View All Schedules ({todaySchedules.length})
-                </Button>
-              )}
-            </div>
-          ) : (
-            <div className="text-center py-8">
-              <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No schedules for today</h3>
-              <p className="text-gray-500 mb-4">Get started by creating work schedules for your team</p>
-              <Button 
-                className="bg-green-600 hover:bg-green-700 text-white"
-                onClick={() => handleTabChange('scheduling')}
-              >
-                Create Schedule
-              </Button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    </div>
-  );
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100">
-      {/* Clean Header */}
-      <div className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-6">
-            <div className="flex items-center space-x-4">
-              <div>
-                <h1 className="text-3xl font-bold text-gray-900 font-brand brand-title" 
-                    style={{ fontFamily: "'Great Vibes', cursive" }}>
-                  Pine Hill Farm
-                </h1>
-                <p className="text-sm text-gray-600">Admin Dashboard</p>
-              </div>
-            </div>
-            
-            <div className="flex items-center space-x-4">
-              <Button variant="ghost" onClick={() => logoutMutation.mutate()} className="text-gray-700 hover:text-red-600">
-                Sign Out
-              </Button>
-            </div>
-          </div>
+    <AdminLayout currentTab="dashboard">
+      <div className="space-y-8">
+        {/* Welcome Section */}
+        <div>
+          <h2 className="text-3xl font-bold text-gray-900 mb-2">
+            Welcome back, {user?.firstName}!
+          </h2>
+          <p className="text-gray-600">
+            Manage employees, schedules, and company operations from your admin dashboard.
+          </p>
         </div>
-      </div>
 
-      {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <Tabs value={getCurrentTab()} onValueChange={handleTabChange} className="w-full">
-          {/* Desktop Navigation */}
-          <div className="hidden lg:block">
-            <TabsList className="flex items-center gap-4 xl:gap-6 mb-8 p-3 xl:p-4 bg-white rounded-lg shadow-sm border h-auto flex-wrap">
-              {/* Core Operations */}
-              <TabsTrigger 
-                value="dashboard" 
-                className="nav-item-core flex items-center gap-2 px-4 xl:px-6 py-2 xl:py-3 rounded-md hover:bg-blue-50 hover:text-blue-700 hover:shadow-sm hover:-translate-y-0.5 transition-all duration-200 whitespace-nowrap mx-0 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-800 data-[state=active]:font-medium"
-              >
-                <Settings className="h-4 w-4" />
-                <span className="hidden xl:inline">Admin Dashboard</span>
-                <span className="xl:hidden">Dashboard</span>
-              </TabsTrigger>
-              <div className="h-6 w-px bg-gray-300 hidden lg:block"></div>
-              <TabsTrigger 
-                value="employees" 
-                className="nav-item-core flex items-center gap-2 px-4 xl:px-6 py-2 xl:py-3 rounded-md hover:bg-blue-50 hover:text-blue-700 hover:shadow-sm hover:-translate-y-0.5 transition-all duration-200 whitespace-nowrap mx-0 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-800 data-[state=active]:font-medium"
-              >
-                <Users className="h-4 w-4" />
-                <span className="hidden xl:inline">Employee Management</span>
-                <span className="xl:hidden">Employees</span>
-              </TabsTrigger>
-              <div className="h-6 w-px bg-gray-300 hidden lg:block"></div>
-              <TabsTrigger 
-                value="scheduling" 
-                className="nav-item-core flex items-center gap-2 px-4 xl:px-6 py-2 xl:py-3 rounded-md hover:bg-blue-50 hover:text-blue-700 hover:shadow-sm hover:-translate-y-0.5 transition-all duration-200 whitespace-nowrap mx-0 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-800 data-[state=active]:font-medium"
-              >
-                <Calendar className="h-4 w-4" />
-                <span className="hidden xl:inline">Schedule Management</span>
-                <span className="xl:hidden">Schedule</span>
-              </TabsTrigger>
-              <div className="h-6 w-px bg-gray-300 hidden lg:block"></div>
-              <TabsTrigger 
-                value="accounting" 
-                className="nav-item-core flex items-center gap-2 px-4 xl:px-6 py-2 xl:py-3 rounded-md hover:bg-blue-50 hover:text-blue-700 hover:shadow-sm hover:-translate-y-0.5 transition-all duration-200 whitespace-nowrap mx-0 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-800 data-[state=active]:font-medium"
-              >
-                <DollarSign className="h-4 w-4" />
-                <span className="hidden xl:inline">Accounting</span>
-                <span className="xl:hidden">Finance</span>
-              </TabsTrigger>
-              <div className="h-6 w-px bg-gray-300 hidden lg:block"></div>
-              <TabsTrigger 
-                value="inventory" 
-                className="nav-item-core flex items-center gap-2 px-4 xl:px-6 py-2 xl:py-3 rounded-md hover:bg-blue-50 hover:text-blue-700 hover:shadow-sm hover:-translate-y-0.5 transition-all duration-200 whitespace-nowrap mx-0 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-800 data-[state=active]:font-medium"
-              >
-                <Package className="h-4 w-4" />
-                <span className="hidden xl:inline">Inventory</span>
-                <span className="xl:hidden">Inventory</span>
-              </TabsTrigger>
-              <div className="h-6 w-px bg-gray-300 hidden lg:block"></div>
-              <TabsTrigger 
-                value="orders" 
-                className="nav-item-core flex items-center gap-2 px-4 xl:px-6 py-2 xl:py-3 rounded-md hover:bg-blue-50 hover:text-blue-700 hover:shadow-sm hover:-translate-y-0.5 transition-all duration-200 whitespace-nowrap mx-0 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-800 data-[state=active]:font-medium"
-              >
-                <ShoppingCart className="h-4 w-4" />
-                <span className="hidden xl:inline">Orders</span>
-                <span className="xl:hidden">Orders</span>
-              </TabsTrigger>
-              <div className="h-6 w-px bg-gray-300 hidden lg:block"></div>
-              <TabsTrigger 
-                value="marketing" 
-                className="nav-item-core flex items-center gap-2 px-4 xl:px-6 py-2 xl:py-3 rounded-md hover:bg-blue-50 hover:text-blue-700 hover:shadow-sm hover:-translate-y-0.5 transition-all duration-200 whitespace-nowrap mx-0 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-800 data-[state=active]:font-medium"
-              >
-                <Video className="h-4 w-4" />
-                <span className="hidden xl:inline">Marketing Videos</span>
-                <span className="xl:hidden">Marketing</span>
-              </TabsTrigger>
-              <div className="h-6 w-px bg-gray-300 hidden lg:block"></div>
-              <TabsTrigger 
-                value="integrations" 
-                className="nav-item-core flex items-center gap-2 px-4 xl:px-6 py-2 xl:py-3 rounded-md hover:bg-blue-50 hover:text-blue-700 hover:shadow-sm hover:-translate-y-0.5 transition-all duration-200 whitespace-nowrap mx-0 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-800 data-[state=active]:font-medium"
-              >
-                <Settings className="h-4 w-4" />
-                <span className="hidden xl:inline">Integrations</span>
-                <span className="xl:hidden">Integrations</span>
-              </TabsTrigger>
-
-              {/* Secondary Items - Hidden on smaller screens */}
-              <div className="h-6 w-px bg-gray-300 hidden xl:block"></div>
-              <TabsTrigger 
-                value="communications" 
-                className="nav-item-core flex items-center gap-2 px-4 xl:px-6 py-2 xl:py-3 rounded-md hover:bg-blue-50 hover:text-blue-700 hover:shadow-sm hover:-translate-y-0.5 transition-all duration-200 whitespace-nowrap mx-0 data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:font-medium"
-              >
-                <MessageCircle className="h-4 w-4" />
-                <span className="hidden xl:inline">Communications</span>
-                <span className="xl:hidden">Comms</span>
-              </TabsTrigger>
-              <TabsTrigger 
-                value="system-support" 
-                className="nav-item-secondary hidden xl:flex items-center gap-2 px-3 py-2 rounded-md hover:bg-gray-50 hover:shadow-sm hover:-translate-y-0.5 transition-all duration-200 whitespace-nowrap mx-0 text-sm data-[state=active]:bg-gray-100 data-[state=active]:font-medium"
-              >
-                <FileText className="h-3 w-3" />
-                Support
-              </TabsTrigger>
-              <TabsTrigger 
-                value="user-management" 
-                className="nav-item-secondary hidden xl:flex items-center gap-2 px-3 py-2 rounded-md hover:bg-gray-50 hover:shadow-sm hover:-translate-y-0.5 transition-all duration-200 whitespace-nowrap mx-0 text-sm data-[state=active]:bg-gray-100 data-[state=active]:font-medium"
-              >
-                <Settings className="h-3 w-3" />
-                Users
-              </TabsTrigger>
-              <TabsTrigger 
-                value="employee-view" 
-                className="nav-item-secondary hidden xl:flex items-center gap-2 px-3 py-2 rounded-md hover:bg-gray-50 hover:shadow-sm hover:-translate-y-0.5 transition-all duration-200 whitespace-nowrap mx-0 text-sm data-[state=active]:bg-gray-100 data-[state=active]:font-medium"
-              >
-                <Eye className="h-3 w-3" />
-                Employee View
-              </TabsTrigger>
-              <TabsTrigger 
-                value="reports" 
-                className="nav-item-secondary hidden xl:flex items-center gap-2 px-3 py-2 rounded-md hover:bg-gray-50 hover:shadow-sm hover:-translate-y-0.5 transition-all duration-200 whitespace-nowrap mx-0 text-sm data-[state=active]:bg-gray-100 data-[state=active]:font-medium"
-              >
-                <Clock className="h-3 w-3" />
-                Reports
-              </TabsTrigger>
-
-              {/* More Options Button for smaller screens */}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="xl:hidden flex items-center gap-1 ml-2 px-3 py-2 hover:bg-gray-50 transition-colors"
-              >
-                <Menu className="h-3 w-3" />
-                More
-              </Button>
-            </TabsList>
-          </div>
-
-          {/* Tablet Navigation - Priority Items */}
-          <div className="hidden md:block lg:hidden">
-            <TabsList className="grid w-full grid-cols-3 mb-8 h-12">
-              <TabsTrigger value="dashboard" className="flex items-center gap-2 text-sm px-4 py-2">
-                <Settings className="h-4 w-4" />
-                Admin Dashboard
-              </TabsTrigger>
-              <TabsTrigger value="employees" className="flex items-center gap-2 text-sm px-4 py-2">
-                <Users className="h-4 w-4" />
-                Employees
-              </TabsTrigger>
-              <TabsTrigger value="scheduling" className="flex items-center gap-2 text-sm px-4 py-2">
-                <Calendar className="h-4 w-4" />
-                Schedule
-              </TabsTrigger>
-            </TabsList>
-            
-            {/* Mobile Menu Button for Tablet */}
-            <div className="mb-8">
-              <Button
-                variant="outline"
-                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="w-full flex items-center justify-center gap-2"
-              >
-                <Menu className="h-4 w-4" />
-                More Options
-              </Button>
-            </div>
-          </div>
-
-          {/* Mobile Navigation */}
-          <div className="md:hidden mb-8">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-gray-900">Navigation</h2>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="flex items-center gap-2"
-              >
-                {mobileMenuOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
-                Menu
-              </Button>
-            </div>
-          </div>
-
-          {/* Mobile/Tablet Dropdown Menu */}
-          {mobileMenuOpen && (
-            <div className="xl:hidden mb-8 bg-white border rounded-lg shadow-lg p-4">
-              <div className="space-y-2">
-                {/* Communication & Support Section */}
-                <div className="text-sm font-medium text-gray-500 px-3 py-2 border-b">Communication & Support</div>
-                <Button
-                  variant={getCurrentTab() === "communications" ? "default" : "ghost"}
-                  onClick={() => { handleTabChange("communications"); setMobileMenuOpen(false); }}
-                  className="w-full justify-start gap-2 h-10 hover:bg-blue-50 hover:text-blue-700"
-                >
-                  <MessageCircle className="h-4 w-4" />
-                  Communications
-                </Button>
-                <Button
-                  variant={getCurrentTab() === "system-support" ? "default" : "ghost"}
-                  onClick={() => { handleTabChange("system-support"); setMobileMenuOpen(false); }}
-                  className="w-full justify-start gap-2 h-10 hover:bg-blue-50 hover:text-blue-700"
-                >
-                  <FileText className="h-4 w-4" />
-                  System Support
-                </Button>
-                
-                {/* Advanced Features Section */}
-                <div className="text-sm font-medium text-gray-500 px-3 py-2 border-b mt-4">Advanced Features</div>
-                <Button
-                  variant={getCurrentTab() === "user-management" ? "default" : "ghost"}
-                  onClick={() => { handleTabChange("user-management"); setMobileMenuOpen(false); }}
-                  className="w-full justify-start gap-2 h-10 hover:bg-blue-50 hover:text-blue-700"
-                >
-                  <Settings className="h-4 w-4" />
-                  User Management
-                </Button>
-                <Button
-                  variant={getCurrentTab() === "employee-view" ? "default" : "ghost"}
-                  onClick={() => { handleTabChange("employee-view"); setMobileMenuOpen(false); }}
-                  className="w-full justify-start gap-2 h-10 hover:bg-blue-50 hover:text-blue-700"
-                >
-                  <Eye className="h-4 w-4" />
-                  Employee View
-                </Button>
-                <Button
-                  variant={getCurrentTab() === "marketing" ? "default" : "ghost"}
-                  onClick={() => { handleTabChange("marketing"); setMobileMenuOpen(false); }}
-                  className="w-full justify-start gap-2 h-10 hover:bg-blue-50 hover:text-blue-700"
-                >
-                  <Video className="h-4 w-4" />
-                  Marketing Videos
-                </Button>
-                <Button
-                  variant={getCurrentTab() === "reports" ? "default" : "ghost"}
-                  onClick={() => { handleTabChange("reports"); setMobileMenuOpen(false); }}
-                  className="w-full justify-start gap-2 h-10 hover:bg-blue-50 hover:text-blue-700"
-                >
-                  <Clock className="h-4 w-4" />
-                  Reports
-                </Button>
+        {/* Stats Overview */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <Card className="border-l-4 border-l-blue-500 shadow-md">
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-medium text-gray-600">Total Employees</CardTitle>
+                <Users className="h-4 w-4 text-blue-500" />
               </div>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-gray-900">{stats?.totalEmployees || 0}</div>
+              <p className="text-xs text-gray-500 mt-1">Active staff members</p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-l-4 border-l-yellow-500 shadow-md">
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-medium text-gray-600">Pending Requests</CardTitle>
+                <Clock className="h-4 w-4 text-yellow-500" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-gray-900">{stats?.pendingRequests || 0}</div>
+              <p className="text-xs text-gray-500 mt-1">Awaiting approval</p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-l-4 border-l-green-500 shadow-md">
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-medium text-gray-600">Scheduled Today</CardTitle>
+                <Calendar className="h-4 w-4 text-green-500" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-gray-900">{todaySchedules?.length || 0}</div>
+              <p className="text-xs text-gray-500 mt-1">Staff working today</p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-l-4 border-l-purple-500 shadow-md">
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-medium text-gray-600">Store Locations</CardTitle>
+                <MapPin className="h-4 w-4 text-purple-500" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-gray-900">{stats?.storeLocations || 3}</div>
+              <p className="text-xs text-gray-500 mt-1">Active locations</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Quick Actions */}
+        <Card className="shadow-lg">
+          <CardHeader>
+            <CardTitle className="text-xl font-semibold text-gray-900">Admin Quick Actions</CardTitle>
+            <CardDescription>
+              Streamline your administrative tasks with these essential management tools
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {adminQuickActions.map((action, index) => (
+                <Link key={index} href={action.href}>
+                  <Card 
+                    className="cursor-pointer transition-all duration-200 hover:shadow-md hover:scale-105 border border-gray-200"
+                  >
+                    <CardContent className="p-4">
+                      <div className="flex items-center space-x-3">
+                        <div className={`p-2 rounded-lg ${action.bgColor}`}>
+                          <action.icon className={`h-5 w-5 ${action.color}`} />
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="font-medium text-gray-900">{action.title}</h3>
+                          <p className="text-sm text-gray-500">{action.description}</p>
+                        </div>
+                        <ChevronRight className="h-4 w-4 text-gray-400" />
+                      </div>
+                    </CardContent>
+                  </Card>
+                </Link>
+              ))}
             </div>
-          )}
+          </CardContent>
+        </Card>
 
-          <TabsContent value="dashboard" className="space-y-6">
-            <DashboardContent />
-          </TabsContent>
-
-          <TabsContent value="employees" className="space-y-6">
-            <EmployeesPage />
-          </TabsContent>
-
-          <TabsContent value="scheduling" className="space-y-6">
-            <ShiftScheduling />
-          </TabsContent>
-
-          <TabsContent value="communications" className="space-y-6">
-            <CommunicationsPage />
-          </TabsContent>
-
-          <TabsContent value="system-support" className="space-y-6">
-            <SystemSupport />
-          </TabsContent>
-
-          <TabsContent value="user-management" className="space-y-6">
-            <UserManagement />
-          </TabsContent>
-
-          <TabsContent value="employee-view" className="space-y-6">
-            <HomeDashboard />
-          </TabsContent>
-
-          <TabsContent value="reports" className="space-y-6">
-            <ReportsPage />
-          </TabsContent>
-
-          <TabsContent value="accounting" className="space-y-6">
-            <AccountingDashboard />
-          </TabsContent>
-
-          <TabsContent value="marketing" className="space-y-6">
-            <MarketingPage />
-          </TabsContent>
-
-          <TabsContent value="integrations" className="space-y-6">
-            <IntegrationsPage />
-          </TabsContent>
-        </Tabs>
+        {/* Today's Schedule Overview */}
+        <Card className="shadow-lg">
+          <CardHeader>
+            <CardTitle className="text-xl font-semibold text-gray-900">Today's Schedule Overview</CardTitle>
+            <CardDescription>
+              Current staff schedules and coverage status
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {todaySchedules && todaySchedules.length > 0 ? (
+              <div className="space-y-3">
+                {todaySchedules.slice(0, 5).map((schedule: any, index: number) => (
+                  <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-8 h-8 bg-green-600 rounded-full flex items-center justify-center">
+                        <span className="text-white text-sm font-medium">
+                          {getEmployeeName(schedule.userId).charAt(0) || 'U'}
+                        </span>
+                      </div>
+                      <div>
+                        <p className="font-medium text-gray-900">{getEmployeeName(schedule.userId)}</p>
+                        <p className="text-sm text-gray-500">{getLocationName(schedule.locationId)}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-medium text-gray-900">
+                        {formatTimeStringToCST(schedule.startTime)} - {formatTimeStringToCST(schedule.endTime)}
+                      </p>
+                      <p className="text-sm text-gray-500">{schedule.position || 'Staff'}</p>
+                    </div>
+                  </div>
+                ))}
+                {todaySchedules.length > 5 && (
+                  <Link href="/shift-scheduling">
+                    <Button 
+                      variant="outline" 
+                      className="w-full mt-4"
+                    >
+                      View All Schedules ({todaySchedules.length})
+                    </Button>
+                  </Link>
+                )}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No schedules for today</h3>
+                <p className="text-gray-500 mb-4">Get started by creating work schedules for your team</p>
+                <Link href="/shift-scheduling">
+                  <Button 
+                    className="bg-green-600 hover:bg-green-700 text-white"
+                  >
+                    Create Schedule
+                  </Button>
+                </Link>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
-    </div>
+    </AdminLayout>
   );
 }

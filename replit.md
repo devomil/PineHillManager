@@ -9,7 +9,7 @@ Preferred communication style: Simple, everyday language.
 ## System Architecture
 
 ### UI/UX Decisions
-The frontend utilizes React 18 with TypeScript and Vite. Radix UI provides accessible components, styled with Tailwind CSS, ensuring a consistent and branded look using the Great Vibes font. The design emphasizes a clear, multi-role dashboard experience for Admin, Manager, and Employee users with dedicated page access for department-specific operations.
+The frontend utilizes React 18 with TypeScript and Vite. Radix UI provides accessible components, styled with Tailwind CSS, ensuring a consistent and branded look using the Great Vibes font. The design emphasizes a clear, multi-role dashboard experience for Admin, Manager, and Employee users with dedicated page access for department-specific operations. **Navigation System** (Oct 14, 2025): Implemented modern sidebar navigation for admin/manager users replacing horizontal tabs. Features collapsible desktop sidebar (localStorage persistence via 'sidebar-collapsed' key), mobile hamburger drawer menu, organized navigation sections (Main/Operations/Tools), and responsive layout with dynamic margin adjustment based on sidebar state using custom window events.
 
 ### Technical Implementations
 - **Frontend**: React 18, TypeScript, Vite, Radix UI, Tailwind CSS, TanStack Query, Wouter.
