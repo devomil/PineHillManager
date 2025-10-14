@@ -1958,7 +1958,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         tasks = await storage.getTasksByAssignee(user.id);
       }
 
-      res.json(tasks);
+      // Enrich tasks with creator and assignee names
+      const enrichedTasks = await Promise.all(tasks.map(async (task) => {
+        const creator = task.createdBy ? await storage.getUser(task.createdBy) : null;
+        const assignee = task.assignedTo ? await storage.getUser(task.assignedTo) : null;
+        
+        return {
+          ...task,
+          creatorName: creator ? `${creator.firstName} ${creator.lastName}` : 'Unknown',
+          assigneeName: assignee ? `${assignee.firstName} ${assignee.lastName}` : 'Unassigned',
+        };
+      }));
+
+      res.json(enrichedTasks);
     } catch (error) {
       console.error('Error fetching tasks:', error);
       res.status(500).json({ message: 'Failed to fetch tasks' });
@@ -2000,6 +2012,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const taskData = {
         ...req.body,
         createdBy: user.id,
+        dueDate: req.body.dueDate ? new Date(req.body.dueDate) : undefined,
       };
 
       const newTask = await storage.createTask(taskData);

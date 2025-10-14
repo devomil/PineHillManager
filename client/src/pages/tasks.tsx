@@ -489,8 +489,13 @@ export default function Tasks() {
                   <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
                     <div className="flex items-center gap-1">
                       <UserIcon className="h-4 w-4" />
-                      <span data-testid={`text-assignee-${task.id}`}>{getEmployeeName(task.assignedTo)}</span>
+                      <span data-testid={`text-assignee-${task.id}`}>Assigned: {task.assigneeName || getEmployeeName(task.assignedTo)}</span>
                     </div>
+                    {(task as any).creatorName && (
+                      <div className="flex items-center gap-1 text-xs">
+                        <span className="font-medium">Created by: {(task as any).creatorName}</span>
+                      </div>
+                    )}
                     {task.dueDate && (
                       <div className="flex items-center gap-1">
                         <Calendar className="h-4 w-4" />
