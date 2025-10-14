@@ -3435,6 +3435,7 @@ export const tasks = pgTable("tasks", {
   id: serial("id").primaryKey(),
   title: varchar("title", { length: 255 }).notNull(),
   description: text("description"),
+  steps: jsonb("steps").$type<Array<{ text: string; completed: boolean; order: number }>>(), // Task steps/checklist
   status: varchar("status").notNull().default("pending"), // pending, in_progress, completed, blocked
   priority: varchar("priority").notNull().default("medium"), // low, medium, high, urgent
   createdBy: varchar("created_by").notNull().references(() => users.id), // Admin/Manager who created

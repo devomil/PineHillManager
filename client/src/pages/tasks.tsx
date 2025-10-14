@@ -11,20 +11,27 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { insertTaskSchema, type Task, type User } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Calendar, User as UserIcon, AlertCircle, CheckCircle, Clock, MessageSquare, Filter } from "lucide-react";
+import { Plus, Calendar, User as UserIcon, AlertCircle, CheckCircle, Clock, MessageSquare, Filter, X, ListChecks } from "lucide-react";
 import { format } from "date-fns";
 
 const taskFormSchema = insertTaskSchema.extend({
   dueDate: z.string().optional(),
+  steps: z.array(z.object({
+    text: z.string(),
+    completed: z.boolean(),
+    order: z.number(),
+  })).optional(),
 });
 
 type TaskFormData = z.infer<typeof taskFormSchema>;
+type TaskStep = { text: string; completed: boolean; order: number };
 
 export default function Tasks() {
   const { user } = useAuth();
@@ -33,6 +40,8 @@ export default function Tasks() {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
+  const [taskSteps, setTaskSteps] = useState<TaskStep[]>([]);
+  const [newStepText, setNewStepText] = useState("");
 
   const isAdminOrManager = user?.role === 'admin' || user?.role === 'manager';
 
@@ -61,6 +70,9 @@ export default function Tasks() {
       queryClient.invalidateQueries({ queryKey: ['/api/tasks/stats/overview'] });
       toast({ title: "Success", description: "Task created successfully" });
       setIsCreateDialogOpen(false);
+      form.reset();
+      setTaskSteps([]);
+      setNewStepText("");
     },
     onError: () => {
       toast({ title: "Error", description: "Failed to create task", variant: "destructive" });
@@ -91,11 +103,37 @@ export default function Tasks() {
       priority: "medium",
       assignedTo: undefined,
       dueDate: "",
+      steps: [],
     },
   });
 
   const onSubmit = (data: TaskFormData) => {
-    createTaskMutation.mutate(data);
+    const taskData = {
+      ...data,
+      steps: taskSteps.length > 0 ? taskSteps : undefined,
+    };
+    createTaskMutation.mutate(taskData);
+  };
+
+  const handleAddStep = () => {
+    if (!newStepText.trim()) return;
+    const newStep: TaskStep = {
+      text: newStepText,
+      completed: false,
+      order: taskSteps.length,
+    };
+    setTaskSteps([...taskSteps, newStep]);
+    setNewStepText("");
+  };
+
+  const handleRemoveStep = (index: number) => {
+    setTaskSteps(taskSteps.filter((_, i) => i !== index).map((step, i) => ({ ...step, order: i })));
+  };
+
+  const handleToggleStep = (index: number) => {
+    setTaskSteps(taskSteps.map((step, i) => 
+      i === index ? { ...step, completed: !step.completed } : step
+    ));
   };
 
   const handleStatusChange = (taskId: number, newStatus: string) => {
@@ -198,6 +236,69 @@ export default function Tasks() {
                         </FormItem>
                       )}
                     />
+                    
+                    {/* Steps Section */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <FormLabel className="flex items-center gap-2">
+                          <ListChecks className="h-4 w-4" />
+                          Steps to Complete
+                        </FormLabel>
+                        <span className="text-xs text-muted-foreground">
+                          {taskSteps.length} step{taskSteps.length !== 1 ? 's' : ''}
+                        </span>
+                      </div>
+                      
+                      {/* Step List */}
+                      {taskSteps.length > 0 && (
+                        <div className="space-y-2 p-3 bg-muted/50 rounded-md max-h-40 overflow-y-auto">
+                          {taskSteps.map((step, index) => (
+                            <div key={index} className="flex items-center gap-2 group">
+                              <Checkbox
+                                checked={step.completed}
+                                onCheckedChange={() => handleToggleStep(index)}
+                                data-testid={`checkbox-step-${index}`}
+                              />
+                              <span className={`flex-1 text-sm ${step.completed ? 'line-through text-muted-foreground' : ''}`}>
+                                {step.text}
+                              </span>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleRemoveStep(index)}
+                                className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                                data-testid={`button-remove-step-${index}`}
+                              >
+                                <X className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      
+                      {/* Add Step Input */}
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="Add a step..."
+                          value={newStepText}
+                          onChange={(e) => setNewStepText(e.target.value)}
+                          onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddStep())}
+                          data-testid="input-new-step"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={handleAddStep}
+                          disabled={!newStepText.trim()}
+                          data-testid="button-add-step"
+                        >
+                          <Plus className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                    
                     <div className="grid grid-cols-2 gap-4">
                       <FormField
                         control={form.control}
@@ -366,6 +467,14 @@ export default function Tasks() {
                       {task.description && (
                         <CardDescription className="mt-2">{task.description}</CardDescription>
                       )}
+                      {task.steps && task.steps.length > 0 && (
+                        <div className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
+                          <ListChecks className="h-4 w-4" />
+                          <span>
+                            {task.steps.filter(s => s.completed).length}/{task.steps.length} steps completed
+                          </span>
+                        </div>
+                      )}
                     </div>
                     <Badge variant={getPriorityColor(task.priority)} data-testid={`badge-priority-${task.id}`}>
                       {task.priority}
@@ -507,6 +616,32 @@ function TaskDetailsDialog({
               </div>
             )}
           </div>
+
+          {/* Steps Section */}
+          {task.steps && task.steps.length > 0 && (
+            <div>
+              <h3 className="font-semibold mb-3 flex items-center gap-2">
+                <ListChecks className="h-5 w-5" />
+                Steps to Complete ({task.steps.filter(s => s.completed).length}/{task.steps.length})
+              </h3>
+              <div className="space-y-2 bg-muted/30 p-4 rounded-lg">
+                {task.steps
+                  .sort((a, b) => a.order - b.order)
+                  .map((step, index) => (
+                    <div key={index} className="flex items-center gap-3">
+                      <Checkbox
+                        checked={step.completed}
+                        disabled
+                        className="pointer-events-none"
+                      />
+                      <span className={`flex-1 ${step.completed ? 'line-through text-muted-foreground' : ''}`}>
+                        {step.text}
+                      </span>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
 
           {/* Notes Section */}
           <div>
