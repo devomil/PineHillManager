@@ -9322,19 +9322,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Convert database format to API format
-      const elements = filteredItems.map((item: any) => ({
-        id: item.cloverItemId || item.id,
-        name: item.itemName,
-        price: item.unitPrice ? parseFloat(item.unitPrice) * 100 : 0,
-        cost: item.unitCost ? parseFloat(item.unitCost) * 100 : 0,
-        stockCount: item.quantityOnHand ? parseFloat(item.quantityOnHand) : 0,
-        code: item.upc,
-        sku: item.sku,
-        isRevenue: item.isActive,
-        locationId: locationId ? parseInt(locationId as string) : null,
-        locationName: '',
-        merchantId: ''
-      }));
+      const elements = filteredItems.map((item: any) => {
+        // Find the location for this item
+        const itemLocation = activeLocations.find(loc => loc.id === item.locationId);
+        
+        return {
+          id: item.cloverItemId || item.id,
+          name: item.itemName,
+          price: item.unitPrice ? parseFloat(item.unitPrice) * 100 : 0,
+          cost: item.unitCost ? parseFloat(item.unitCost) * 100 : 0,
+          stockCount: item.quantityOnHand ? parseFloat(item.quantityOnHand) : 0,
+          quantityOnHand: item.quantityOnHand ? parseFloat(item.quantityOnHand) : 0,
+          code: item.upc,
+          sku: item.sku,
+          upc: item.upc,
+          vendor: item.vendor,
+          lastSyncAt: item.lastSyncAt,
+          syncStatus: item.syncStatus,
+          isRevenue: item.isActive,
+          locationId: item.locationId,
+          locationName: itemLocation?.merchantName || '',
+          merchantId: itemLocation?.merchantId || ''
+        };
+      });
 
       res.json({
         elements: elements.slice(
