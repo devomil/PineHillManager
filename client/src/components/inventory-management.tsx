@@ -1544,17 +1544,17 @@ export function InventoryManagement() {
 
       {activeTab === 'categories' && (
         <div className="space-y-4">
-          {categoriesLoading || itemsLoading ? (
-            <div className="text-center py-8">Loading categories and items...</div>
+          {categoriesLoading ? (
+            <div className="text-center py-8">Loading categories...</div>
           ) : (
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Tag className="h-5 w-5" />
-                  Categories & Items
+                  Categories
                 </CardTitle>
                 <CardDescription>
-                  All categories with their associated inventory items
+                  Product categories and unique item counts
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -1563,82 +1563,16 @@ export function InventoryManagement() {
                     <TableHeader>
                       <TableRow>
                         <TableHead>Category</TableHead>
-                        <TableHead>Location</TableHead>
-                        <TableHead>Item Name</TableHead>
-                        <TableHead>UPC/SKU</TableHead>
-                        <TableHead>Vendor</TableHead>
-                        <TableHead>Quantity</TableHead>
-                        <TableHead>Status</TableHead>
+                        <TableHead>Unique Items</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {categoriesData?.elements?.map((category: Category) => {
-                        // Get all items that belong to this category
-                        const categoryItems = itemsData?.elements?.filter((item: InventoryItem) => 
-                          item.categories?.some(cat => cat.id === category.id)
-                        ) || [];
-
-                        if (categoryItems.length === 0) {
-                          return (
-                            <TableRow key={`category-${category.id}-${category.locationId}`}>
-                              <TableCell className="font-medium">{category.name}</TableCell>
-                              <TableCell>
-                                <div className="flex items-center gap-1 text-sm">
-                                  <MapPin className="h-3 w-3" />
-                                  {category.locationName}
-                                </div>
-                              </TableCell>
-                              <TableCell colSpan={5} className="text-gray-500 italic text-center">
-                                No items in this category
-                              </TableCell>
-                            </TableRow>
-                          );
-                        }
-
-                        return categoryItems.map((item: InventoryItem, itemIndex: number) => (
-                          <TableRow key={`category-${category.id}-item-${item.id}-${itemIndex}`}>
-                            {itemIndex === 0 ? (
-                              <TableCell className="font-medium" rowSpan={categoryItems.length}>
-                                {category.name}
-                              </TableCell>
-                            ) : null}
-                            {itemIndex === 0 ? (
-                              <TableCell rowSpan={categoryItems.length}>
-                                <div className="flex items-center gap-1 text-sm">
-                                  <MapPin className="h-3 w-3" />
-                                  {category.locationName}
-                                </div>
-                              </TableCell>
-                            ) : null}
-                            <TableCell className="max-w-[300px] truncate">
-                              {item.name}
-                            </TableCell>
-                            <TableCell className="font-mono text-sm">
-                              {item.upc || item.sku || '-'}
-                            </TableCell>
-                            <TableCell>{item.vendor || '-'}</TableCell>
-                            <TableCell>{item.quantityOnHand || 0}</TableCell>
-                            <TableCell>
-                              {item.syncStatus === 'synced' ? (
-                                <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                                  <CheckCircle className="h-3 w-3 mr-1" />
-                                  Synced
-                                </Badge>
-                              ) : item.syncStatus === 'discrepancy' ? (
-                                <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
-                                  <AlertTriangle className="h-3 w-3 mr-1" />
-                                  Discrepancy
-                                </Badge>
-                              ) : (
-                                <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-                                  <InfoIcon className="h-3 w-3 mr-1" />
-                                  Unmatched
-                                </Badge>
-                              )}
-                            </TableCell>
-                          </TableRow>
-                        ));
-                      })}
+                      {categoriesData?.elements?.map((category: Category) => (
+                        <TableRow key={`category-${category.id}-${category.locationId}`}>
+                          <TableCell className="font-medium">{category.name}</TableCell>
+                          <TableCell>{category.itemCount || 0}</TableCell>
+                        </TableRow>
+                      ))}
                     </TableBody>
                   </Table>
                 </div>
