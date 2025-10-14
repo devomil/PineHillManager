@@ -108,9 +108,11 @@ export default function Tasks() {
   });
 
   const onSubmit = (data: TaskFormData) => {
+    if (!user?.id) return;
     const taskData = {
       ...data,
       steps: taskSteps.length > 0 ? taskSteps : undefined,
+      createdBy: user.id,
     };
     createTaskMutation.mutate(taskData);
   };
