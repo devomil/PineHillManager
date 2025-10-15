@@ -567,17 +567,13 @@ function TaskDetailsDialog({
   const [isQuestion, setIsQuestion] = useState(false);
   const [celebratingStep, setCelebratingStep] = useState<number | null>(null);
 
-  // Fetch live task data to avoid stale prop issues
-  const { data: liveTask } = useQuery<Task>({
-    queryKey: ['/api/tasks', initialTask.id],
-    queryFn: async () => {
-      const tasks = await fetch(`/api/tasks`).then(res => res.json());
-      return tasks.find((t: Task) => t.id === initialTask.id) || initialTask;
-    },
+  // Use live task data from the main query to ensure fresh data
+  const { data: allTasks = [] } = useQuery<Task[]>({
+    queryKey: ['/api/tasks'],
   });
 
-  // Use live task data if available, otherwise use initial prop
-  const task = liveTask || initialTask;
+  // Find the current task from the list (this will auto-update when cache changes)
+  const task = allTasks.find(t => t.id === initialTask.id) || initialTask;
 
   const { data: notes = [] } = useQuery({
     queryKey: [`/api/tasks/${task.id}/notes`],
