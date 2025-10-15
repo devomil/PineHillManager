@@ -69,23 +69,12 @@ export default function Tasks() {
   const createTaskMutation = useMutation({
     mutationFn: async (data: TaskFormData) => {
       const response = await apiRequest('POST', '/api/tasks', data);
-      const newTask = await response.json();
-      console.log('Created task:', newTask);
-      return newTask;
+      return response.json();
     },
-    onSuccess: (newTask) => {
-      console.log('onSuccess called with:', newTask);
-      
-      // Add the new task to the cache immediately (optimistic update)
-      queryClient.setQueryData(['/api/tasks'], (old: Task[] = []) => {
-        console.log('Old tasks:', old);
-        const updated = [newTask, ...old];
-        console.log('Updated tasks:', updated);
-        return updated;
-      });
-      
-      // Also invalidate to refresh stats
-      queryClient.invalidateQueries({ queryKey: ['/api/tasks/stats/overview'] });
+    onSuccess: async () => {
+      // Invalidate queries to trigger refetch
+      await queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
+      await queryClient.invalidateQueries({ queryKey: ['/api/tasks/stats/overview'] });
       
       // Close dialog and show success
       toast({ title: "Success", description: "Task created successfully" });
