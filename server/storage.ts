@@ -11551,15 +11551,23 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateTask(id: number, taskData: Partial<InsertTask>): Promise<Task> {
+    console.log('📝 updateTask called with:', JSON.stringify({ id, taskData }, null, 2));
+    
+    const updateData = {
+      ...taskData,
+      updatedAt: new Date(),
+      ...(taskData.status === 'completed' && !taskData.completedAt ? { completedAt: new Date() } : {}),
+    };
+    
+    console.log('📝 Update data being sent to DB:', JSON.stringify(updateData, null, 2));
+    
     const [task] = await db
       .update(tasks)
-      .set({
-        ...taskData,
-        updatedAt: new Date(),
-        ...(taskData.status === 'completed' && !taskData.completedAt ? { completedAt: new Date() } : {}),
-      })
+      .set(updateData)
       .where(eq(tasks.id, id))
       .returning();
+      
+    console.log('📝 Task returned from DB:', JSON.stringify(task, null, 2));
     return task;
   }
 
