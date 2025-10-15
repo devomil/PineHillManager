@@ -72,9 +72,9 @@ export default function Tasks() {
       return response.json();
     },
     onSuccess: async () => {
-      // Invalidate queries to trigger refetch
-      await queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
-      await queryClient.invalidateQueries({ queryKey: ['/api/tasks/stats/overview'] });
+      // Force immediate refetch of both queries
+      await queryClient.refetchQueries({ queryKey: ['/api/tasks'] });
+      await queryClient.refetchQueries({ queryKey: ['/api/tasks/stats/overview'] });
       
       // Close dialog and show success
       toast({ title: "Success", description: "Task created successfully" });
