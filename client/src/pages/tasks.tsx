@@ -68,9 +68,10 @@ export default function Tasks() {
   // Create task mutation
   const createTaskMutation = useMutation({
     mutationFn: (data: TaskFormData) => apiRequest('POST', '/api/tasks', data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/tasks/stats/overview'] });
+    onSuccess: async () => {
+      // Force immediate refetch to show new task
+      await queryClient.refetchQueries({ queryKey: ['/api/tasks'] });
+      await queryClient.refetchQueries({ queryKey: ['/api/tasks/stats/overview'] });
       toast({ title: "Success", description: "Task created successfully" });
       setIsCreateDialogOpen(false);
       form.reset();
