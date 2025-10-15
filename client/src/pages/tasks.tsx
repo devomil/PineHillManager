@@ -583,6 +583,7 @@ function TaskDetailsDialog({
   
   // Local state for instant UI updates
   const [localSteps, setLocalSteps] = useState<TaskStep[]>(initialTask.steps || []);
+  const [localStatus, setLocalStatus] = useState<string>(initialTask.status);
   
   // Sync local state with task prop changes
   useEffect(() => {
@@ -590,8 +591,12 @@ function TaskDetailsDialog({
       setLocalSteps(initialTask.steps);
     }
   }, [initialTask.steps]);
+  
+  useEffect(() => {
+    setLocalStatus(initialTask.status);
+  }, [initialTask.status]);
 
-  const task = { ...initialTask, steps: localSteps };
+  const task = { ...initialTask, steps: localSteps, status: localStatus };
 
   const { data: notes = [] } = useQuery({
     queryKey: [`/api/tasks/${task.id}/notes`],
@@ -653,6 +658,9 @@ function TaskDetailsDialog({
     mutationFn: (newStatus: string) =>
       apiRequest('PATCH', `/api/tasks/${task.id}`, { status: newStatus }),
     onSuccess: (_data, variables) => {
+      // Update local state immediately for instant UI feedback
+      setLocalStatus(variables);
+      
       queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
       queryClient.invalidateQueries({ queryKey: ['/api/tasks/stats/overview'] });
       toast({ 
