@@ -601,43 +601,33 @@ function TaskDetailsDialog({
     mutationFn: (steps: TaskStep[]) =>
       apiRequest('PATCH', `/api/tasks/${task.id}`, { steps }),
     onMutate: async (newSteps) => {
-      // Cancel any outgoing refetches
+      // Cancel ongoing queries to prevent overwrites
       await queryClient.cancelQueries({ queryKey: ['/api/tasks'] });
-      await queryClient.cancelQueries({ queryKey: ['/api/tasks', task.id] });
       
-      // Snapshot the previous value
-      const previousTasks = queryClient.getQueryData(['/api/tasks']);
+      // Save snapshot for potential rollback
+      const previousTasks = queryClient.getQueryData<Task[]>(['/api/tasks']);
       
-      // Optimistically update to the new value
-      queryClient.setQueryData(['/api/tasks'], (old: Task[] | undefined) => {
+      // Immediately update cache for instant UI feedback
+      queryClient.setQueryData<Task[]>(['/api/tasks'], (old) => {
         if (!old) return old;
         return old.map(t => 
-          t.id === task.id ? { ...t, steps: newSteps } : t
+          t.id === task.id ? { ...t, steps: newSteps, updatedAt: new Date().toISOString() } : t
         );
       });
       
-      queryClient.setQueryData(['/api/tasks', task.id], (old: Task | undefined) => {
-        if (!old) return old;
-        return { ...old, steps: newSteps };
-      });
-      
-      // Return a context object with the snapshotted value
       return { previousTasks };
     },
-    onError: (err, newSteps, context) => {
-      // If the mutation fails, use the context returned from onMutate to roll back
+    onError: (_err, _newSteps, context) => {
+      // Rollback on failure
       if (context?.previousTasks) {
         queryClient.setQueryData(['/api/tasks'], context.previousTasks);
       }
       toast({ title: "Error", description: "Failed to update step", variant: "destructive" });
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       toast({ title: "Success", description: "Step updated successfully" });
-    },
-    onSettled: () => {
-      // Always refetch after error or success to sync with server
-      queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/tasks', task.id] });
+      // Refetch in background to sync with server
+      await queryClient.refetchQueries({ queryKey: ['/api/tasks'] });
     },
   });
 
