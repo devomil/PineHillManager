@@ -576,6 +576,7 @@ function TaskDetailsDialog({
   currentUserId: string;
 }) {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [noteContent, setNoteContent] = useState("");
   const [isQuestion, setIsQuestion] = useState(false);
   const [celebratingStep, setCelebratingStep] = useState<number | null>(null);
@@ -648,6 +649,26 @@ function TaskDetailsDialog({
     },
   });
 
+  const updateStatusMutation = useMutation({
+    mutationFn: (newStatus: string) =>
+      apiRequest('PATCH', `/api/tasks/${task.id}`, { status: newStatus }),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks/stats/overview'] });
+      toast({ 
+        title: "Success", 
+        description: `Task status updated to ${variables.replace('_', ' ')}` 
+      });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to update task status", variant: "destructive" });
+    },
+  });
+
+  const handleStartTask = () => {
+    updateStatusMutation.mutate('in_progress');
+  };
+
   const handleAddNote = () => {
     if (!noteContent.trim()) return;
     addNoteMutation.mutate({ content: noteContent, isQuestion });
@@ -709,6 +730,36 @@ function TaskDetailsDialog({
               </div>
             )}
           </div>
+
+          {/* Start Task Button - Shows when task is pending and user can edit */}
+          {task.status === 'pending' && canEditSteps && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 p-4 rounded-lg border border-blue-200 dark:border-blue-800"
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="font-semibold text-blue-900 dark:text-blue-100 flex items-center gap-2">
+                    <Clock className="h-5 w-5" />
+                    Ready to begin?
+                  </h4>
+                  <p className="text-sm text-blue-700 dark:text-blue-300 mt-1">
+                    Click Start Task to begin working and update the status
+                  </p>
+                </div>
+                <Button
+                  onClick={handleStartTask}
+                  disabled={updateStatusMutation.isPending}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                  data-testid="button-start-task"
+                >
+                  <Sparkles className="h-4 w-4 mr-2" />
+                  Start Task
+                </Button>
+              </div>
+            </motion.div>
+          )}
 
           {/* Steps Section */}
           {task.steps && task.steps.length > 0 && (
