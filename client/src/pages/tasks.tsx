@@ -4,6 +4,8 @@ import { useAuth } from "@/hooks/use-auth";
 import AdminLayout from "@/components/admin-layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Progress } from "@/components/ui/progress";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
@@ -18,7 +20,7 @@ import { z } from "zod";
 import { insertTaskSchema, type Task, type User } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Calendar, User as UserIcon, AlertCircle, CheckCircle, Clock, MessageSquare, Filter, X, ListChecks, Check, XCircle, Sparkles } from "lucide-react";
+import { Plus, Calendar, User as UserIcon, AlertCircle, CheckCircle, Clock, MessageSquare, Filter, X, ListChecks, Check, XCircle, Sparkles, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { format } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -44,6 +46,12 @@ export default function Tasks() {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
+  const [assigneeFilter, setAssigneeFilter] = useState<string>("all");
+  const [creatorFilter, setCreatorFilter] = useState<string>("all");
+  const [dueDateFrom, setDueDateFrom] = useState<string>("");
+  const [dueDateTo, setDueDateTo] = useState<string>("");
+  const [sortField, setSortField] = useState<string>("createdAt");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
   const [taskSteps, setTaskSteps] = useState<TaskStep[]>([]);
   const [newStepText, setNewStepText] = useState("");
 
@@ -180,12 +188,82 @@ export default function Tasks() {
     }
   };
 
-  // Filter tasks
+  // Filter and sort tasks
   const filteredTasks = tasks.filter(task => {
     if (statusFilter !== "all" && task.status !== statusFilter) return false;
     if (priorityFilter !== "all" && task.priority !== priorityFilter) return false;
+    if (assigneeFilter !== "all" && task.assignedTo !== assigneeFilter) return false;
+    if (creatorFilter !== "all" && task.createdBy !== creatorFilter) return false;
+    
+    // Date range filter - exclude tasks without due date when range is specified
+    if (dueDateFrom || dueDateTo) {
+      if (!task.dueDate) return false; // Exclude tasks with no due date
+      
+      const taskDate = new Date(task.dueDate);
+      
+      if (dueDateFrom) {
+        const fromDate = new Date(dueDateFrom);
+        if (taskDate < fromDate) return false;
+      }
+      
+      if (dueDateTo) {
+        const toDate = new Date(dueDateTo);
+        toDate.setHours(23, 59, 59, 999); // Include the entire end date
+        if (taskDate > toDate) return false;
+      }
+    }
+    
     return true;
+  }).sort((a, b) => {
+    let aValue, bValue;
+    
+    switch (sortField) {
+      case "title":
+        aValue = a.title.toLowerCase();
+        bValue = b.title.toLowerCase();
+        break;
+      case "status":
+        aValue = a.status;
+        bValue = b.status;
+        break;
+      case "priority":
+        const priorityOrder = { urgent: 4, high: 3, medium: 2, low: 1 };
+        aValue = priorityOrder[a.priority as keyof typeof priorityOrder] || 0;
+        bValue = priorityOrder[b.priority as keyof typeof priorityOrder] || 0;
+        break;
+      case "dueDate":
+        aValue = a.dueDate ? new Date(a.dueDate).getTime() : 0;
+        bValue = b.dueDate ? new Date(b.dueDate).getTime() : 0;
+        break;
+      case "progress":
+        const aProgress = a.steps ? (a.steps.filter(s => s.completed).length / a.steps.length) : 0;
+        const bProgress = b.steps ? (b.steps.filter(s => s.completed).length / b.steps.length) : 0;
+        aValue = aProgress;
+        bValue = bProgress;
+        break;
+      default:
+        aValue = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        bValue = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+    }
+    
+    // Return 0 for equal values to ensure stable sorting
+    if (aValue === bValue) return 0;
+    
+    if (sortDirection === "asc") {
+      return aValue > bValue ? 1 : -1;
+    } else {
+      return aValue < bValue ? 1 : -1;
+    }
   });
+
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortDirection("asc");
+    }
+  };
 
   const getEmployeeName = (userId: string | null) => {
     if (!userId) return "Unassigned";
@@ -430,124 +508,229 @@ export default function Tasks() {
         )}
 
         {/* Filters */}
-        <div className="flex gap-4 items-center">
-          <Filter className="h-4 w-4 text-muted-foreground" />
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-[180px]" data-testid="filter-status">
-              <SelectValue placeholder="Filter by status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Status</SelectItem>
-              <SelectItem value="pending">Pending</SelectItem>
-              <SelectItem value="in_progress">In Progress</SelectItem>
-              <SelectItem value="completed">Completed</SelectItem>
-              <SelectItem value="blocked">Blocked</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-            <SelectTrigger className="w-[180px]" data-testid="filter-priority">
-              <SelectValue placeholder="Filter by priority" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Priority</SelectItem>
-              <SelectItem value="low">Low</SelectItem>
-              <SelectItem value="medium">Medium</SelectItem>
-              <SelectItem value="high">High</SelectItem>
-              <SelectItem value="urgent">Urgent</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+        <Card className="p-4">
+          <div className="flex gap-4 items-center flex-wrap">
+            <Filter className="h-4 w-4 text-muted-foreground" />
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-[180px]" data-testid="filter-status">
+                <SelectValue placeholder="Filter by status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="in_progress">In Progress</SelectItem>
+                <SelectItem value="completed">Completed</SelectItem>
+                <SelectItem value="blocked">Blocked</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+              <SelectTrigger className="w-[180px]" data-testid="filter-priority">
+                <SelectValue placeholder="Filter by priority" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Priority</SelectItem>
+                <SelectItem value="low">Low</SelectItem>
+                <SelectItem value="medium">Medium</SelectItem>
+                <SelectItem value="high">High</SelectItem>
+                <SelectItem value="urgent">Urgent</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={assigneeFilter} onValueChange={setAssigneeFilter}>
+              <SelectTrigger className="w-[200px]" data-testid="filter-assignee">
+                <SelectValue placeholder="Filter by assignee" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Assignees</SelectItem>
+                {employees.map(emp => (
+                  <SelectItem key={emp.id} value={emp.id}>
+                    {emp.firstName} {emp.lastName}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={creatorFilter} onValueChange={setCreatorFilter}>
+              <SelectTrigger className="w-[200px]" data-testid="filter-creator">
+                <SelectValue placeholder="Filter by creator" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Creators</SelectItem>
+                {employees.map(emp => (
+                  <SelectItem key={emp.id} value={emp.id}>
+                    {emp.firstName} {emp.lastName}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Due Date:</span>
+              <Input
+                type="date"
+                value={dueDateFrom}
+                onChange={(e) => setDueDateFrom(e.target.value)}
+                className="w-[160px]"
+                placeholder="From"
+                data-testid="filter-date-from"
+              />
+              <span className="text-sm text-muted-foreground">to</span>
+              <Input
+                type="date"
+                value={dueDateTo}
+                onChange={(e) => setDueDateTo(e.target.value)}
+                className="w-[160px]"
+                placeholder="To"
+                data-testid="filter-date-to"
+              />
+            </div>
+            {(statusFilter !== "all" || priorityFilter !== "all" || assigneeFilter !== "all" || creatorFilter !== "all" || dueDateFrom || dueDateTo) && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setStatusFilter("all");
+                  setPriorityFilter("all");
+                  setAssigneeFilter("all");
+                  setCreatorFilter("all");
+                  setDueDateFrom("");
+                  setDueDateTo("");
+                }}
+                data-testid="button-clear-filters"
+              >
+                <X className="h-4 w-4 mr-2" />
+                Clear Filters
+              </Button>
+            )}
+          </div>
+        </Card>
 
-        {/* Tasks List */}
-        <div className="space-y-4">
-          {isLoading ? (
-            <Card>
-              <CardContent className="py-8 text-center text-muted-foreground">
-                Loading tasks...
-              </CardContent>
-            </Card>
-          ) : filteredTasks.length === 0 ? (
-            <Card>
-              <CardContent className="py-8 text-center text-muted-foreground">
-                No tasks found
-              </CardContent>
-            </Card>
-          ) : (
-            filteredTasks.map((task) => (
-              <Card key={task.id} className="hover:shadow-md transition-shadow" data-testid={`card-task-${task.id}`}>
-                <CardHeader>
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        {getStatusIcon(task.status)}
-                        <CardTitle className="text-lg">{task.title}</CardTitle>
-                      </div>
-                      {task.description && (
-                        <CardDescription className="mt-2">{task.description}</CardDescription>
-                      )}
-                      {task.steps && task.steps.length > 0 && (
-                        <div className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
-                          <ListChecks className="h-4 w-4" />
-                          <span>
-                            {task.steps.filter(s => s.completed).length}/{task.steps.length} steps completed
-                          </span>
+        {/* Tasks Table */}
+        <Card>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="cursor-pointer" onClick={() => handleSort("title")}>
+                  <div className="flex items-center gap-2">
+                    Task
+                    {sortField === "title" && (sortDirection === "asc" ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />)}
+                  </div>
+                </TableHead>
+                <TableHead className="cursor-pointer" onClick={() => handleSort("status")}>
+                  <div className="flex items-center gap-2">
+                    Status
+                    {sortField === "status" && (sortDirection === "asc" ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />)}
+                  </div>
+                </TableHead>
+                <TableHead className="cursor-pointer" onClick={() => handleSort("priority")}>
+                  <div className="flex items-center gap-2">
+                    Priority
+                    {sortField === "priority" && (sortDirection === "asc" ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />)}
+                  </div>
+                </TableHead>
+                <TableHead className="cursor-pointer" onClick={() => handleSort("progress")}>
+                  <div className="flex items-center gap-2">
+                    Progress
+                    {sortField === "progress" && (sortDirection === "asc" ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />)}
+                  </div>
+                </TableHead>
+                <TableHead>Created By</TableHead>
+                <TableHead>Assigned To</TableHead>
+                <TableHead className="cursor-pointer" onClick={() => handleSort("dueDate")}>
+                  <div className="flex items-center gap-2">
+                    Due Date
+                    {sortField === "dueDate" && (sortDirection === "asc" ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />)}
+                  </div>
+                </TableHead>
+                <TableHead>Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isLoading ? (
+                <TableRow>
+                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                    Loading tasks...
+                  </TableCell>
+                </TableRow>
+              ) : filteredTasks.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                    No tasks found
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredTasks.map((task) => {
+                  const completedSteps = task.steps ? task.steps.filter(s => s.completed).length : 0;
+                  const totalSteps = task.steps ? task.steps.length : 0;
+                  const progressPercent = totalSteps > 0 ? (completedSteps / totalSteps) * 100 : 0;
+                  
+                  return (
+                    <TableRow key={task.id} className="hover:bg-muted/50" data-testid={`row-task-${task.id}`}>
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-2">
+                          {getStatusIcon(task.status)}
+                          <span>{task.title}</span>
                         </div>
-                      )}
-                    </div>
-                    <Badge variant={getPriorityColor(task.priority)} data-testid={`badge-priority-${task.id}`}>
-                      {task.priority}
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
-                    <div className="flex items-center gap-1">
-                      <UserIcon className="h-4 w-4" />
-                      <span data-testid={`text-assignee-${task.id}`}>Assigned: {task.assigneeName || getEmployeeName(task.assignedTo)}</span>
-                    </div>
-                    {(task as any).creatorName && (
-                      <div className="flex items-center gap-1 text-xs">
-                        <span className="font-medium">Created by: {(task as any).creatorName}</span>
-                      </div>
-                    )}
-                    {task.dueDate && (
-                      <div className="flex items-center gap-1">
-                        <Calendar className="h-4 w-4" />
-                        <span>{format(new Date(task.dueDate), 'MMM dd, yyyy')}</span>
-                      </div>
-                    )}
-                  </div>
-                  <div className="mt-4 flex gap-2">
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => setSelectedTask(task)}
-                      data-testid={`button-view-task-${task.id}`}
-                    >
-                      <MessageSquare className="h-4 w-4 mr-2" />
-                      View Details
-                    </Button>
-                    <Select 
-                      value={task.status} 
-                      onValueChange={(value) => handleStatusChange(task.id, value)}
-                      disabled={!isAdminOrManager && task.assignedTo !== user.id}
-                    >
-                      <SelectTrigger className="w-[180px]" data-testid={`select-status-${task.id}`}>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="pending">Pending</SelectItem>
-                        <SelectItem value="in_progress">In Progress</SelectItem>
-                        <SelectItem value="completed">Completed</SelectItem>
-                        <SelectItem value="blocked">Blocked</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </CardContent>
-              </Card>
-            ))
-          )}
-        </div>
+                        {task.description && (
+                          <div className="text-xs text-muted-foreground mt-1 max-w-xs truncate">
+                            {task.description}
+                          </div>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={task.status === "completed" ? "default" : task.status === "in_progress" ? "secondary" : "outline"}>
+                          {task.status.replace('_', ' ')}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={getPriorityColor(task.priority)} data-testid={`badge-priority-${task.id}`}>
+                          {task.priority}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {totalSteps > 0 ? (
+                          <div className="w-32">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-xs text-muted-foreground">
+                                {completedSteps}/{totalSteps}
+                              </span>
+                            </div>
+                            <Progress value={progressPercent} className="h-2" />
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">No steps</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-sm">{(task as any).creatorName || getEmployeeName(task.createdBy)}</span>
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-sm" data-testid={`text-assignee-${task.id}`}>
+                          {task.assigneeName || getEmployeeName(task.assignedTo)}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        {task.dueDate ? (
+                          <span className="text-sm">{format(new Date(task.dueDate), 'MMM dd, yyyy')}</span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">No due date</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => setSelectedTask(task)}
+                          data-testid={`button-view-task-${task.id}`}
+                        >
+                          <MessageSquare className="h-4 w-4 mr-2" />
+                          View
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
+              )}
+            </TableBody>
+          </Table>
+        </Card>
 
         {/* Task Details Dialog */}
         {selectedTask && (
