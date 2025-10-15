@@ -67,8 +67,11 @@ export default function Tasks() {
 
   // Create task mutation
   const createTaskMutation = useMutation({
-    mutationFn: (data: TaskFormData) => apiRequest('POST', '/api/tasks', data),
-    onSuccess: (newTask: Task) => {
+    mutationFn: async (data: TaskFormData) => {
+      const response = await apiRequest('POST', '/api/tasks', data);
+      return response.json();
+    },
+    onSuccess: (newTask) => {
       // Add the new task to the cache immediately (optimistic update)
       queryClient.setQueryData(['/api/tasks'], (old: Task[] = []) => [newTask, ...old]);
       
