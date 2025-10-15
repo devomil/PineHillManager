@@ -52,6 +52,9 @@ export default function Tasks() {
   const { data: tasks = [], isLoading } = useQuery<Task[]>({
     queryKey: ['/api/tasks'],
   });
+  
+  // Debug: Log when tasks change
+  console.log('Tasks in component:', tasks.length, 'tasks');
 
   // Fetch employees for assignment
   const { data: employees = [] } = useQuery<User[]>({
@@ -68,13 +71,12 @@ export default function Tasks() {
   // Create task mutation
   const createTaskMutation = useMutation({
     mutationFn: async (data: TaskFormData) => {
-      const response = await apiRequest('POST', '/api/tasks', data);
-      return response.json();
+      return apiRequest('POST', '/api/tasks', data);
     },
-    onSuccess: async () => {
-      // Force immediate refetch of both queries
-      await queryClient.refetchQueries({ queryKey: ['/api/tasks'] });
-      await queryClient.refetchQueries({ queryKey: ['/api/tasks/stats/overview'] });
+    onSuccess: () => {
+      // Invalidate to trigger refetch
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks/stats/overview'] });
       
       // Close dialog and show success
       toast({ title: "Success", description: "Task created successfully" });
@@ -117,14 +119,20 @@ export default function Tasks() {
     },
   });
 
-  const onSubmit = (data: TaskFormData) => {
+  const onSubmit = async (data: TaskFormData) => {
     if (!user?.id) return;
     const taskData = {
       ...data,
       steps: taskSteps.length > 0 ? taskSteps : undefined,
       createdBy: user.id,
     };
-    createTaskMutation.mutate(taskData);
+    
+    try {
+      await createTaskMutation.mutateAsync(taskData);
+      // Mutation succeeded, onSuccess will handle refetch and cleanup
+    } catch (error) {
+      // Error already handled in onError
+    }
   };
 
   const handleAddStep = () => {
