@@ -633,13 +633,13 @@ function TaskDetailsDialog({
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+      <DialogContent className="max-w-3xl max-h-[80vh] overflow-visible">
         <DialogHeader>
           <DialogTitle>{task.title}</DialogTitle>
           <DialogDescription>{task.description}</DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-6">
+        <div className="space-y-6 max-h-[calc(80vh-120px)] overflow-y-auto pr-2">
           {/* Task Info */}
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
@@ -665,13 +665,13 @@ function TaskDetailsDialog({
                 <ListChecks className="h-5 w-5" />
                 Steps to Complete ({task.steps.filter(s => s.completed).length}/{task.steps.length})
               </h3>
-              <div className="space-y-2 bg-muted/30 p-4 rounded-lg">
+              <div className="space-y-2 bg-muted/30 p-4 rounded-lg overflow-visible">
                 {task.steps
                   .sort((a, b) => a.order - b.order)
                   .map((step, index) => (
                     <motion.div 
                       key={index} 
-                      className="flex items-center gap-3 relative"
+                      className="flex items-center gap-3 relative overflow-visible"
                       initial={{ opacity: 0, x: -20 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: index * 0.1 }}
@@ -707,7 +707,7 @@ function TaskDetailsDialog({
                             {[...Array(6)].map((_, i) => (
                               <motion.div
                                 key={i}
-                                className="absolute"
+                                className="absolute z-50 pointer-events-none"
                                 initial={{ 
                                   scale: 0,
                                   x: 0,
@@ -716,21 +716,21 @@ function TaskDetailsDialog({
                                 }}
                                 animate={{ 
                                   scale: [0, 1, 0],
-                                  x: Math.cos(i * 60 * Math.PI / 180) * 40,
-                                  y: Math.sin(i * 60 * Math.PI / 180) * 40,
+                                  x: Math.cos(i * 60 * Math.PI / 180) * 60,
+                                  y: Math.sin(i * 60 * Math.PI / 180) * 60,
                                   opacity: [1, 1, 0]
                                 }}
                                 exit={{ opacity: 0 }}
                                 transition={{ duration: 1, ease: "easeOut" }}
                               >
-                                <Sparkles className="h-4 w-4 text-yellow-400 fill-yellow-400" />
+                                <Sparkles className="h-5 w-5 text-yellow-400 fill-yellow-400" />
                               </motion.div>
                             ))}
                             {/* Confetti particles */}
                             {[...Array(8)].map((_, i) => (
                               <motion.div
                                 key={`confetti-${i}`}
-                                className="absolute w-2 h-2 rounded-full"
+                                className="absolute w-3 h-3 rounded-full z-50 pointer-events-none"
                                 style={{
                                   backgroundColor: ['#FF6B6B', '#4ECDC4', '#FFE66D', '#95E1D3', '#F38181'][i % 5]
                                 }}
@@ -742,8 +742,8 @@ function TaskDetailsDialog({
                                 }}
                                 animate={{ 
                                   scale: [0, 1, 0.5],
-                                  x: (Math.random() - 0.5) * 80,
-                                  y: Math.random() * -60 - 20,
+                                  x: (Math.random() - 0.5) * 100,
+                                  y: Math.random() * -80 - 30,
                                   rotate: Math.random() * 360,
                                   opacity: [1, 1, 0]
                                 }}
