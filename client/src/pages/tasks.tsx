@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import AdminLayout from "@/components/admin-layout";
@@ -566,14 +566,18 @@ function TaskDetailsDialog({
   const [noteContent, setNoteContent] = useState("");
   const [isQuestion, setIsQuestion] = useState(false);
   const [celebratingStep, setCelebratingStep] = useState<number | null>(null);
+  
+  // Local state for instant UI updates
+  const [localSteps, setLocalSteps] = useState<TaskStep[]>(initialTask.steps || []);
+  
+  // Sync local state with task prop changes
+  useEffect(() => {
+    if (initialTask.steps) {
+      setLocalSteps(initialTask.steps);
+    }
+  }, [initialTask.steps]);
 
-  // Use live task data from the main query to ensure fresh data
-  const { data: allTasks = [] } = useQuery<Task[]>({
-    queryKey: ['/api/tasks'],
-  });
-
-  // Find the current task from the list (this will auto-update when cache changes)
-  const task = allTasks.find(t => t.id === initialTask.id) || initialTask;
+  const task = { ...initialTask, steps: localSteps };
 
   const { data: notes = [] } = useQuery({
     queryKey: [`/api/tasks/${task.id}/notes`],
@@ -637,13 +641,17 @@ function TaskDetailsDialog({
   };
 
   const handleToggleStep = (stepIndex: number) => {
-    if (!task.steps) return;
-    const currentStep = task.steps[stepIndex];
+    if (!localSteps || !localSteps[stepIndex]) return;
+    
+    const currentStep = localSteps[stepIndex];
     const isCompletingStep = !currentStep.completed;
     
-    const updatedSteps = task.steps.map((step, index) =>
+    const updatedSteps = localSteps.map((step, index) =>
       index === stepIndex ? { ...step, completed: !step.completed } : step
     );
+    
+    // Update local state IMMEDIATELY for instant UI feedback
+    setLocalSteps(updatedSteps);
     
     // Trigger celebration animation if completing
     if (isCompletingStep) {
@@ -651,6 +659,7 @@ function TaskDetailsDialog({
       setTimeout(() => setCelebratingStep(null), 2000);
     }
     
+    // Save to server in background
     updateStepsMutation.mutate(updatedSteps);
   };
 
