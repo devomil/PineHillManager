@@ -604,13 +604,44 @@ function TaskDetailsDialog({
   const updateStepsMutation = useMutation({
     mutationFn: (steps: TaskStep[]) =>
       apiRequest('PATCH', `/api/tasks/${task.id}`, { steps }),
+    onMutate: async (newSteps) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ['/api/tasks'] });
+      await queryClient.cancelQueries({ queryKey: ['/api/tasks', task.id] });
+      
+      // Snapshot the previous value
+      const previousTasks = queryClient.getQueryData(['/api/tasks']);
+      
+      // Optimistically update to the new value
+      queryClient.setQueryData(['/api/tasks'], (old: Task[] | undefined) => {
+        if (!old) return old;
+        return old.map(t => 
+          t.id === task.id ? { ...t, steps: newSteps } : t
+        );
+      });
+      
+      queryClient.setQueryData(['/api/tasks', task.id], (old: Task | undefined) => {
+        if (!old) return old;
+        return { ...old, steps: newSteps };
+      });
+      
+      // Return a context object with the snapshotted value
+      return { previousTasks };
+    },
+    onError: (err, newSteps, context) => {
+      // If the mutation fails, use the context returned from onMutate to roll back
+      if (context?.previousTasks) {
+        queryClient.setQueryData(['/api/tasks'], context.previousTasks);
+      }
+      toast({ title: "Error", description: "Failed to update step", variant: "destructive" });
+    },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/tasks', task.id] });
       toast({ title: "Success", description: "Step updated successfully" });
     },
-    onError: () => {
-      toast({ title: "Error", description: "Failed to update step", variant: "destructive" });
+    onSettled: () => {
+      // Always refetch after error or success to sync with server
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks', task.id] });
     },
   });
 
