@@ -53,9 +53,6 @@ export default function Tasks() {
   const { data: tasks = [], isLoading } = useQuery<Task[]>({
     queryKey: ['/api/tasks'],
   });
-  
-  // Debug: Log when tasks change
-  console.log('Tasks in component:', tasks.length, 'tasks');
 
   // Fetch employees for assignment
   const { data: employees = [] } = useQuery<User[]>({
