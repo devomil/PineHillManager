@@ -69,11 +69,20 @@ export default function Tasks() {
   const createTaskMutation = useMutation({
     mutationFn: async (data: TaskFormData) => {
       const response = await apiRequest('POST', '/api/tasks', data);
-      return response.json();
+      const newTask = await response.json();
+      console.log('Created task:', newTask);
+      return newTask;
     },
     onSuccess: (newTask) => {
+      console.log('onSuccess called with:', newTask);
+      
       // Add the new task to the cache immediately (optimistic update)
-      queryClient.setQueryData(['/api/tasks'], (old: Task[] = []) => [newTask, ...old]);
+      queryClient.setQueryData(['/api/tasks'], (old: Task[] = []) => {
+        console.log('Old tasks:', old);
+        const updated = [newTask, ...old];
+        console.log('Updated tasks:', updated);
+        return updated;
+      });
       
       // Also invalidate to refresh stats
       queryClient.invalidateQueries({ queryKey: ['/api/tasks/stats/overview'] });
@@ -85,7 +94,8 @@ export default function Tasks() {
       setTaskSteps([]);
       setNewStepText("");
     },
-    onError: () => {
+    onError: (error) => {
+      console.error('Task creation error:', error);
       toast({ title: "Error", description: "Failed to create task", variant: "destructive" });
     },
   });
