@@ -552,7 +552,7 @@ export default function Tasks() {
 
 // Task Details Dialog Component
 function TaskDetailsDialog({ 
-  task, 
+  task: initialTask, 
   onClose, 
   isAdminOrManager,
   currentUserId
@@ -566,6 +566,18 @@ function TaskDetailsDialog({
   const [noteContent, setNoteContent] = useState("");
   const [isQuestion, setIsQuestion] = useState(false);
   const [celebratingStep, setCelebratingStep] = useState<number | null>(null);
+
+  // Fetch live task data to avoid stale prop issues
+  const { data: liveTask } = useQuery<Task>({
+    queryKey: ['/api/tasks', initialTask.id],
+    queryFn: async () => {
+      const tasks = await fetch(`/api/tasks`).then(res => res.json());
+      return tasks.find((t: Task) => t.id === initialTask.id) || initialTask;
+    },
+  });
+
+  // Use live task data if available, otherwise use initial prop
+  const task = liveTask || initialTask;
 
   const { data: notes = [] } = useQuery({
     queryKey: [`/api/tasks/${task.id}/notes`],
@@ -594,6 +606,7 @@ function TaskDetailsDialog({
       apiRequest('PATCH', `/api/tasks/${task.id}`, { steps }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks', task.id] });
       toast({ title: "Success", description: "Step updated successfully" });
     },
     onError: () => {
