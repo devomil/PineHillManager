@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Progress } from "@/components/ui/progress";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -118,6 +119,45 @@ export default function Tasks() {
     },
     onError: () => {
       toast({ title: "Error", description: "Failed to update task", variant: "destructive" });
+    },
+  });
+
+  // Archive task mutation
+  const archiveTaskMutation = useMutation({
+    mutationFn: (taskId: number) => apiRequest('POST', `/api/tasks/${taskId}/archive`, {}),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks/stats/overview'] });
+      toast({ title: "Success", description: "Task archived successfully" });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to archive task", variant: "destructive" });
+    },
+  });
+
+  // Unarchive task mutation
+  const unarchiveTaskMutation = useMutation({
+    mutationFn: (taskId: number) => apiRequest('POST', `/api/tasks/${taskId}/unarchive`, {}),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks/stats/overview'] });
+      toast({ title: "Success", description: "Task unarchived successfully" });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to unarchive task", variant: "destructive" });
+    },
+  });
+
+  // Delete task mutation
+  const deleteTaskMutation = useMutation({
+    mutationFn: (taskId: number) => apiRequest('DELETE', `/api/tasks/${taskId}`, {}),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks/stats/overview'] });
+      toast({ title: "Success", description: "Task deleted successfully" });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to delete task", variant: "destructive" });
     },
   });
 
@@ -735,15 +775,72 @@ export default function Tasks() {
                         )}
                       </TableCell>
                       <TableCell>
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => setSelectedTask(task)}
-                          data-testid={`button-view-task-${task.id}`}
-                        >
-                          <MessageSquare className="h-4 w-4 mr-2" />
-                          View
-                        </Button>
+                        <div className="flex items-center gap-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => setSelectedTask(task)}
+                            data-testid={`button-view-task-${task.id}`}
+                          >
+                            <MessageSquare className="h-4 w-4 mr-2" />
+                            View
+                          </Button>
+                          {isAdminOrManager && (
+                            <>
+                              {task.archived ? (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => unarchiveTaskMutation.mutate(task.id)}
+                                  disabled={unarchiveTaskMutation.isPending}
+                                  data-testid={`button-unarchive-task-${task.id}`}
+                                >
+                                  Unarchive
+                                </Button>
+                              ) : (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => archiveTaskMutation.mutate(task.id)}
+                                  disabled={archiveTaskMutation.isPending}
+                                  data-testid={`button-archive-task-${task.id}`}
+                                >
+                                  Archive
+                                </Button>
+                              )}
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button
+                                    variant="destructive"
+                                    size="sm"
+                                    disabled={deleteTaskMutation.isPending}
+                                    data-testid={`button-delete-task-${task.id}`}
+                                  >
+                                    Delete
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Permanently Delete Task?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      Are you sure you want to permanently delete "{task.title}"? This action cannot be undone.
+                                      Consider archiving the task instead to preserve its history.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction
+                                      onClick={() => deleteTaskMutation.mutate(task.id)}
+                                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                    >
+                                      {deleteTaskMutation.isPending ? "Deleting..." : "Delete Permanently"}
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            </>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   );
