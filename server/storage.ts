@@ -6131,6 +6131,7 @@ export class DatabaseStorage implements IStorage {
 
       // Calculate COGS by looking up actual costs for line items
       let netCOGS = 0;
+      let cachedInventory: any[] | null = null; // Cache inventory for fuzzy matching
       if (order.lineItems && order.lineItems.elements) {
         // Disabled for performance: console.log(`[COGS DEBUG] Order ${order.id} Processing ${order.lineItems.elements.length} line items`);
         
@@ -6202,43 +6203,59 @@ export class DatabaseStorage implements IStorage {
             // If no SKU match found, try fuzzy name matching for Clover items
             if (inventoryItems.length === 0 && (lineItem.name || lineItem.item?.name)) {
               const lineItemName = lineItem.name || lineItem.item?.name || '';
-              const allInventory = await this.getAllInventoryItems();
               
-              // Normalize names for comparison
+              // Use cached inventory if available, otherwise fetch once
+              if (!cachedInventory) {
+                cachedInventory = await this.getAllInventoryItems();
+              }
+              
+              // Enhanced normalization for better matching
               const normalizeName = (name: string) => name.toUpperCase()
-                .replace(/&/g, ' AND ')
-                .replace(/[^A-Z0-9\s]/g, ' ')
-                .replace(/\s+/g, ' ')
+                .replace(/&/g, 'AND')
+                .replace(/GRASS FED.*?PASTURE RAISED/gi, 'GFPR')
+                .replace(/\bOZ\b/g, 'OUNCE')
+                .replace(/\bG\b/g, 'GRAM')
+                .replace(/\bLB\b/g, 'POUND')
+                .replace(/[^A-Z0-9]/g, '')
                 .trim();
+              
+              // Calculate Levenshtein distance for similarity scoring
+              const levenshtein = (a: string, b: string): number => {
+                const matrix: number[][] = [];
+                for (let i = 0; i <= b.length; i++) matrix[i] = [i];
+                for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
+                for (let i = 1; i <= b.length; i++) {
+                  for (let j = 1; j <= a.length; j++) {
+                    matrix[i][j] = b.charAt(i-1) === a.charAt(j-1) 
+                      ? matrix[i-1][j-1]
+                      : Math.min(matrix[i-1][j-1] + 1, matrix[i][j-1] + 1, matrix[i-1][j] + 1);
+                  }
+                }
+                return matrix[b.length][a.length];
+              };
               
               const normalizedLineItemName = normalizeName(lineItemName);
               
-              // Try exact normalized match first
-              let match = allInventory.find(inv => 
-                normalizeName(inv.itemName || '') === normalizedLineItemName
-              );
+              // Score all inventory items
+              const scoredMatches = cachedInventory.map(inv => {
+                const normalizedInvName = normalizeName(inv.itemName || '');
+                const distance = levenshtein(normalizedLineItemName, normalizedInvName);
+                const maxLen = Math.max(normalizedLineItemName.length, normalizedInvName.length);
+                const similarity = maxLen > 0 ? ((maxLen - distance) / maxLen) * 100 : 0;
+                
+                return { item: inv, similarity, distance };
+              });
               
-              // If no exact match, try partial match (all words from line item present in inventory name)
-              if (!match) {
-                const lineItemWords = normalizedLineItemName.split(' ').filter(w => w.length > 2);
-                match = allInventory.find(inv => {
-                  const invName = normalizeName(inv.itemName || '');
-                  return lineItemWords.every(word => invName.includes(word));
-                });
-              }
+              // Sort by similarity (highest first)
+              scoredMatches.sort((a, b) => b.similarity - a.similarity);
               
-              // If still no match, try reverse partial (all words from inventory present in line item)
-              if (!match) {
-                match = allInventory.find(inv => {
-                  const invName = normalizeName(inv.itemName || '');
-                  const invWords = invName.split(' ').filter(w => w.length > 2);
-                  return invWords.length > 0 && invWords.every(word => normalizedLineItemName.includes(word));
-                });
-              }
-              
-              if (match) {
-                inventoryItems = [match];
-                console.log(`✅ [FUZZY MATCH] "${lineItemName}" → "${match.itemName}"`);
+              // Use best match if similarity >= 70% (confidence threshold)
+              const bestMatch = scoredMatches[0];
+              if (bestMatch && bestMatch.similarity >= 70) {
+                inventoryItems = [bestMatch.item];
+                console.log(`✅ [FUZZY MATCH ${bestMatch.similarity.toFixed(0)}%] "${lineItemName}" → "${bestMatch.item.itemName}"`);
+              } else if (bestMatch) {
+                console.log(`⚠️ [LOW CONFIDENCE ${bestMatch.similarity.toFixed(0)}%] "${lineItemName}" closest: "${bestMatch.item.itemName}" (rejected, using fallback)`);
               }
             }
             
