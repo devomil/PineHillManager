@@ -1,7 +1,7 @@
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Clock, Calendar, FileText, Users, MessageSquare, MessageCircle, Bell, ChevronRight, HelpCircle, User, LogOut, ChevronDown, ShoppingCart, CheckSquare } from "lucide-react";
+import { Clock, Calendar, FileText, Users, MessageSquare, MessageCircle, Bell, ChevronRight, HelpCircle, User, LogOut, ChevronDown, ShoppingCart, CheckSquare, GraduationCap } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import UserAvatar from "@/components/user-avatar";
 import { Link } from "wouter";
@@ -13,6 +13,13 @@ export default function HomeDashboard() {
 
   const isAdmin = user?.role === 'admin';
   const isManager = user?.role === 'manager' || user?.role === 'admin';
+  
+  // Convert user to UserAvatar compatible type (null to undefined)
+  const avatarUser = user ? {
+    profileImageUrl: user.profileImageUrl ?? undefined,
+    firstName: user.firstName ?? undefined,
+    lastName: user.lastName ?? undefined,
+  } : undefined;
 
   // Fetch employee's assigned tasks
   const { data: tasks = [] } = useQuery<Task[]>({
@@ -49,12 +56,12 @@ export default function HomeDashboard() {
       iconColor: "text-blue-600"
     },
     {
-      title: "Support Center",
-      description: "Get help, submit tickets, and find answers to questions",
-      icon: HelpCircle,
-      href: "/support",
-      color: "bg-indigo-50 border-indigo-200",
-      iconColor: "text-indigo-600"
+      title: "Training",
+      description: "Access courses, track progress, and earn skills",
+      icon: GraduationCap,
+      href: "/training",
+      color: "bg-orange-50 border-orange-200",
+      iconColor: "text-orange-600"
     },
     {
       title: "My Tasks",
@@ -72,6 +79,14 @@ export default function HomeDashboard() {
       href: "/employee-purchases",
       color: "bg-green-50 border-green-200",
       iconColor: "text-green-600"
+    },
+    {
+      title: "Support Center",
+      description: "Get help, submit tickets, and find answers to questions",
+      icon: HelpCircle,
+      href: "/support",
+      color: "bg-indigo-50 border-indigo-200",
+      iconColor: "text-indigo-600"
     }
   ];
 
@@ -95,7 +110,7 @@ export default function HomeDashboard() {
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="flex items-center space-x-2 hover:bg-gray-50" data-testid="button-mobile-profile">
-                    <UserAvatar user={user} size="md" />
+                    <UserAvatar user={avatarUser} size="md" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56">
@@ -138,7 +153,7 @@ export default function HomeDashboard() {
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="flex items-center space-x-2 hover:bg-gray-50">
-                    <UserAvatar user={user} size="md" />
+                    <UserAvatar user={avatarUser} size="md" />
                     <div className="hidden sm:block text-left">
                       <p className="text-sm font-medium text-gray-900">
                         {user?.firstName} {user?.lastName}
@@ -209,6 +224,7 @@ export default function HomeDashboard() {
                       {action.title === "Time Clock" ? "Clock In/Out" :
                        action.title === "My Schedule" ? "View Schedule" :
                        action.title === "Communications" ? "View Communications" :
+                       action.title === "Training" ? "View Courses" :
                        action.title === "My Tasks" ? "View Tasks" :
                        "Open"}
                     </Button>
@@ -217,47 +233,6 @@ export default function HomeDashboard() {
               </Card>
             </Link>
           ))}
-        </div>
-
-        {/* Bottom Features Section */}
-        <div className="mt-16 text-center">
-          <div className="bg-white rounded-lg shadow-sm p-8">
-            <h3 className="text-xl font-semibold text-gray-900 mb-4">
-              Pine Hill Farm Employee Portal
-            </h3>
-            <p className="text-gray-600 mb-6">
-              Lake Geneva • Watertown Retail • Watertown Spa
-            </p>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              <div className="text-center">
-                <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Clock className="h-8 w-8 text-red-600" />
-                </div>
-                <h4 className="font-semibold text-gray-900 mb-2">Time Management</h4>
-                <p className="text-sm text-gray-600">
-                  Manage your schedule with integrated time off requests and shift swaps.
-                </p>
-              </div>
-              <div className="text-center">
-                <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <MessageCircle className="h-8 w-8 text-blue-600" />
-                </div>
-                <h4 className="font-semibold text-gray-900 mb-2">Communication</h4>
-                <p className="text-sm text-gray-600">
-                  Stay updated with company announcements and team communications.
-                </p>
-              </div>
-              <div className="text-center">
-                <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Users className="h-8 w-8 text-purple-600" />
-                </div>
-                <h4 className="font-semibold text-gray-900 mb-2">Team Collaboration</h4>
-                <p className="text-sm text-gray-600">
-                  Connect with your colleagues and access training materials.
-                </p>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     </div>

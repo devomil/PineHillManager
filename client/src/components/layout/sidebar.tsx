@@ -37,7 +37,7 @@ export default function Sidebar({ mobileMenuOpen, setMobileMenuOpen }: SidebarPr
 
   const adminItems = [
     { name: "Employees", href: "/employees", icon: Users, roles: ["admin"] },
-    { name: "Admin Training", href: "/admin-training", icon: GraduationCap, roles: ["admin"] },
+    { name: "Admin Training", href: "/admin/training", icon: GraduationCap, roles: ["admin"] },
     { name: "Logo Management", href: "/admin/logos", icon: Image, roles: ["admin"] },
   ];
 
