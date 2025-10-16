@@ -2203,14 +2203,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const allTasks = await storage.getAllTasks();
       
+      // Filter out archived tasks to match the main tasks list
+      const activeTasks = allTasks.filter(t => !t.archived);
+      
       const stats = {
-        total: allTasks.length,
-        pending: allTasks.filter(t => t.status === 'pending').length,
-        inProgress: allTasks.filter(t => t.status === 'in_progress').length,
-        completed: allTasks.filter(t => t.status === 'completed').length,
-        blocked: allTasks.filter(t => t.status === 'blocked').length,
-        urgent: allTasks.filter(t => t.priority === 'urgent').length,
-        overdue: allTasks.filter(t => t.dueDate && new Date(t.dueDate) < new Date() && t.status !== 'completed').length,
+        total: activeTasks.length,
+        pending: activeTasks.filter(t => t.status === 'pending').length,
+        inProgress: activeTasks.filter(t => t.status === 'in_progress').length,
+        completed: activeTasks.filter(t => t.status === 'completed').length,
+        blocked: activeTasks.filter(t => t.status === 'blocked').length,
+        urgent: activeTasks.filter(t => t.priority === 'urgent').length,
+        overdue: activeTasks.filter(t => t.dueDate && new Date(t.dueDate) < new Date() && t.status !== 'completed').length,
       };
 
       res.json(stats);
