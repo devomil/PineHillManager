@@ -266,6 +266,50 @@ import { db } from "./db";
 import { eq, and, desc, asc, gte, lte, or, sql, like, isNull, isNotNull, exists, sum, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 
+// Standard Chart of Accounts - Auto-populated accounts with data
+const STANDARD_ACCOUNTS = [
+  {
+    accountCode: '5000',
+    accountName: 'Cost of Goods Sold',
+    accountType: 'Expense',
+    subType: 'Cost of Goods Sold',
+    description: 'Direct costs of inventory sold - auto-populated from Clover & Thrive data',
+    balance: '0'
+  },
+  {
+    accountCode: '1500',
+    accountName: 'Inventory Asset',
+    accountType: 'Asset',
+    subType: 'Inventory',
+    description: 'Inventory on hand - auto-populated from Thrive inventory data',
+    balance: '0'
+  },
+  {
+    accountCode: '6700',
+    accountName: 'Payroll Expense',
+    accountType: 'Expense',
+    subType: 'Payroll Expenses',
+    description: 'Employee wages and salaries - auto-populated from time clock data',
+    balance: '0'
+  },
+  {
+    accountCode: '4000',
+    accountName: 'Sales Revenue',
+    accountType: 'Income',
+    subType: 'Sales of Product Income',
+    description: 'Revenue from sales - auto-populated from Clover POS & Amazon data',
+    balance: '0'
+  },
+  {
+    accountCode: '2200',
+    accountName: 'Sales Tax Payable',
+    accountType: 'Liability',
+    subType: 'Sales Tax Payable',
+    description: 'Sales tax collected - auto-populated from POS transactions',
+    balance: '0'
+  }
+] as const;
+
 export interface IStorage {
   // User operations - supports both Replit Auth and traditional email/password
   getUser(id: string): Promise<User | undefined>;
@@ -513,10 +557,12 @@ export interface IStorage {
   getAllFinancialAccounts(): Promise<FinancialAccount[]>;
   getFinancialAccountById(id: number): Promise<FinancialAccount | undefined>;
   getFinancialAccountByQBId(qbAccountId: string): Promise<FinancialAccount | undefined>;
+  getFinancialAccountByName(accountName: string): Promise<FinancialAccount | undefined>;
   updateFinancialAccount(id: number, account: Partial<InsertFinancialAccount>): Promise<FinancialAccount>;
   deleteFinancialAccount(id: number): Promise<void>;
   getAccountsByType(accountType: string): Promise<FinancialAccount[]>;
   getAccountsByName(accountName: string): Promise<FinancialAccount[]>;
+  ensureStandardAccounts(): Promise<void>;
 
   // Financial Transactions
   createFinancialTransaction(transaction: InsertFinancialTransaction): Promise<FinancialTransaction>;
@@ -4390,6 +4436,48 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(financialAccounts)
       .where(and(like(financialAccounts.accountName, `%${accountName}%`), eq(financialAccounts.isActive, true)))
       .orderBy(asc(financialAccounts.accountName));
+  }
+
+  async getFinancialAccountByName(accountName: string): Promise<FinancialAccount | undefined> {
+    const [account] = await db.select().from(financialAccounts)
+      .where(and(eq(financialAccounts.accountName, accountName), eq(financialAccounts.isActive, true)));
+    return account;
+  }
+
+  async ensureStandardAccounts(): Promise<void> {
+    console.log('📊 Ensuring standard Chart of Accounts...');
+    
+    for (const stdAccount of STANDARD_ACCOUNTS) {
+      // Check if account already exists by name or account code
+      const existing = await db.select().from(financialAccounts)
+        .where(
+          and(
+            or(
+              eq(financialAccounts.accountName, stdAccount.accountName),
+              eq(financialAccounts.accountCode, stdAccount.accountCode)
+            ),
+            eq(financialAccounts.isActive, true)
+          )
+        );
+
+      if (existing.length === 0) {
+        // Create the account if it doesn't exist
+        console.log(`  ✅ Creating standard account: ${stdAccount.accountCode} - ${stdAccount.accountName}`);
+        await this.createFinancialAccount({
+          accountCode: stdAccount.accountCode,
+          accountName: stdAccount.accountName,
+          accountType: stdAccount.accountType,
+          subType: stdAccount.subType,
+          description: stdAccount.description,
+          balance: stdAccount.balance,
+          isActive: true
+        });
+      } else {
+        console.log(`  ℹ️  Standard account already exists: ${stdAccount.accountCode} - ${stdAccount.accountName}`);
+      }
+    }
+    
+    console.log('✅ Standard accounts ensured successfully');
   }
 
   // Financial Transactions
