@@ -6199,6 +6199,49 @@ export class DatabaseStorage implements IStorage {
               }
             }
             
+            // If no SKU match found, try fuzzy name matching for Clover items
+            if (inventoryItems.length === 0 && (lineItem.name || lineItem.item?.name)) {
+              const lineItemName = lineItem.name || lineItem.item?.name || '';
+              const allInventory = await this.getAllInventoryItems();
+              
+              // Normalize names for comparison
+              const normalizeName = (name: string) => name.toUpperCase()
+                .replace(/&/g, ' AND ')
+                .replace(/[^A-Z0-9\s]/g, ' ')
+                .replace(/\s+/g, ' ')
+                .trim();
+              
+              const normalizedLineItemName = normalizeName(lineItemName);
+              
+              // Try exact normalized match first
+              let match = allInventory.find(inv => 
+                normalizeName(inv.itemName || '') === normalizedLineItemName
+              );
+              
+              // If no exact match, try partial match (all words from line item present in inventory name)
+              if (!match) {
+                const lineItemWords = normalizedLineItemName.split(' ').filter(w => w.length > 2);
+                match = allInventory.find(inv => {
+                  const invName = normalizeName(inv.itemName || '');
+                  return lineItemWords.every(word => invName.includes(word));
+                });
+              }
+              
+              // If still no match, try reverse partial (all words from inventory present in line item)
+              if (!match) {
+                match = allInventory.find(inv => {
+                  const invName = normalizeName(inv.itemName || '');
+                  const invWords = invName.split(' ').filter(w => w.length > 2);
+                  return invWords.length > 0 && invWords.every(word => normalizedLineItemName.includes(word));
+                });
+              }
+              
+              if (match) {
+                inventoryItems = [match];
+                console.log(`✅ [FUZZY MATCH] "${lineItemName}" → "${match.itemName}"`);
+              }
+            }
+            
             if (inventoryItems.length > 0) {
               const inventoryItem = inventoryItems[0];
               const rawUnitCost = inventoryItem.unitCost || '0';
@@ -6225,12 +6268,7 @@ export class DatabaseStorage implements IStorage {
               const fallbackCOGS = lineItemPrice * 0.6 * quantity;
               netCOGS += fallbackCOGS;
               
-              // Disabled for performance: console.log(`[COGS DEBUG] No inventory found, using 60% fallback:`, {
-              //   lineItemPrice,
-              //   quantity,
-              //   fallbackCOGS,
-              //   runningNetCOGS: netCOGS
-              // });
+              console.log(`⚠️ [COGS FALLBACK] "${lineItem.name || lineItem.item?.name}": No match found, estimated at 60% = $${fallbackCOGS.toFixed(2)}`);
             }
           } catch (error) {
             // Fallback for items not in inventory
