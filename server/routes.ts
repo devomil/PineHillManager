@@ -3289,6 +3289,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get('/api/admin/time-clock/scheduled-vs-actual', isAuthenticated, async (req, res) => {
+    try {
+      if (req.user?.role !== 'admin' && req.user?.role !== 'manager') {
+        return res.status(403).json({ message: 'Admin or Manager access required' });
+      }
+
+      const { startDate, endDate, employeeId } = req.query;
+      
+      if (!startDate || !endDate) {
+        return res.status(400).json({ message: 'Start date and end date are required' });
+      }
+
+      const report = await storage.getScheduledVsActualReport(
+        startDate as string,
+        endDate as string,
+        employeeId as string | undefined
+      );
+      
+      res.json(report);
+    } catch (error) {
+      console.error('Error generating scheduled vs actual report:', error);
+      res.status(500).json({ message: 'Failed to generate report' });
+    }
+  });
+
   app.get('/api/admin/time-clock/export', isAuthenticated, async (req, res) => {
     try {
       if (req.user?.role !== 'admin' && req.user?.role !== 'manager') {

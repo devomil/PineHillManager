@@ -421,6 +421,9 @@ export interface IStorage {
   getOrphanedTimeEntries(): Promise<any[]>;
   fixOrphanedTimeEntries(): Promise<number>;
   
+  // Time clock reporting - Scheduled vs Actual
+  getScheduledVsActualReport(startDate: string, endDate: string, employeeId?: string): Promise<any[]>;
+  
   // User presence system
   updateUserPresence(userId: string, status: string, locationId?: number, statusMessage?: string): Promise<any>;
   getUserPresence(userId: string): Promise<any | undefined>;
@@ -3184,6 +3187,166 @@ export class DatabaseStorage implements IStorage {
     }
 
     return fixedCount;
+  }
+
+  async getScheduledVsActualReport(startDate: string, endDate: string, employeeId?: string): Promise<any[]> {
+    const start = new Date(startDate + 'T00:00:00');
+    const end = new Date(endDate + 'T23:59:59');
+    
+    // Get scheduled hours
+    const scheduledQuery = db
+      .select({
+        userId: workSchedules.userId,
+        date: workSchedules.date,
+        startTime: workSchedules.startTime,
+        endTime: workSchedules.endTime,
+        shiftType: workSchedules.shiftType,
+        status: workSchedules.status,
+        locationId: workSchedules.locationId,
+        firstName: users.firstName,
+        lastName: users.lastName,
+        hourlyRate: users.hourlyRate,
+      })
+      .from(workSchedules)
+      .leftJoin(users, eq(workSchedules.userId, users.id))
+      .where(
+        and(
+          gte(workSchedules.date, startDate),
+          lte(workSchedules.date, endDate),
+          employeeId ? eq(workSchedules.userId, employeeId) : sql`true`
+        )
+      );
+    
+    // Get actual time entries
+    const actualQuery = db
+      .select({
+        userId: timeClockEntries.userId,
+        clockInTime: timeClockEntries.clockInTime,
+        clockOutTime: timeClockEntries.clockOutTime,
+        totalWorkedMinutes: timeClockEntries.totalWorkedMinutes,
+        totalBreakMinutes: timeClockEntries.totalBreakMinutes,
+        isManualEntry: timeClockEntries.isManualEntry,
+        notes: timeClockEntries.notes,
+        locationId: timeClockEntries.locationId,
+        firstName: users.firstName,
+        lastName: users.lastName,
+        hourlyRate: users.hourlyRate,
+      })
+      .from(timeClockEntries)
+      .leftJoin(users, eq(timeClockEntries.userId, users.id))
+      .where(
+        and(
+          gte(timeClockEntries.clockInTime, start),
+          lte(timeClockEntries.clockInTime, end),
+          employeeId ? eq(timeClockEntries.userId, employeeId) : sql`true`
+        )
+      );
+    
+    const [scheduledShifts, actualEntries] = await Promise.all([
+      scheduledQuery,
+      actualQuery
+    ]);
+    
+    // Group by employee and date
+    const reportMap = new Map<string, any>();
+    
+    // Process scheduled shifts
+    for (const shift of scheduledShifts) {
+      const key = `${shift.userId}-${shift.date}`;
+      const startParts = shift.startTime.split(':');
+      const endParts = shift.endTime.split(':');
+      const startMinutes = parseInt(startParts[0]) * 60 + parseInt(startParts[1]);
+      const endMinutes = parseInt(endParts[0]) * 60 + parseInt(endParts[1]);
+      const scheduledMinutes = endMinutes >= startMinutes 
+        ? endMinutes - startMinutes 
+        : (24 * 60 - startMinutes) + endMinutes; // Handle overnight shifts
+      
+      if (!reportMap.has(key)) {
+        reportMap.set(key, {
+          userId: shift.userId,
+          employeeName: `${shift.firstName} ${shift.lastName}`,
+          date: shift.date,
+          scheduledMinutes: 0,
+          actualMinutes: 0,
+          scheduledShifts: [],
+          actualEntries: [],
+          hourlyRate: parseFloat(shift.hourlyRate || '0'),
+        });
+      }
+      
+      const record = reportMap.get(key);
+      record.scheduledMinutes += scheduledMinutes;
+      record.scheduledShifts.push({
+        startTime: shift.startTime,
+        endTime: shift.endTime,
+        shiftType: shift.shiftType,
+        status: shift.status,
+        locationId: shift.locationId,
+      });
+    }
+    
+    // Process actual entries
+    for (const entry of actualEntries) {
+      const entryDate = new Date(entry.clockInTime).toISOString().split('T')[0];
+      const key = `${entry.userId}-${entryDate}`;
+      
+      if (!reportMap.has(key)) {
+        reportMap.set(key, {
+          userId: entry.userId,
+          employeeName: `${entry.firstName} ${entry.lastName}`,
+          date: entryDate,
+          scheduledMinutes: 0,
+          actualMinutes: 0,
+          scheduledShifts: [],
+          actualEntries: [],
+          hourlyRate: parseFloat(entry.hourlyRate || '0'),
+        });
+      }
+      
+      const record = reportMap.get(key);
+      record.actualMinutes += entry.totalWorkedMinutes || 0;
+      record.actualEntries.push({
+        clockInTime: entry.clockInTime,
+        clockOutTime: entry.clockOutTime,
+        totalWorkedMinutes: entry.totalWorkedMinutes,
+        totalBreakMinutes: entry.totalBreakMinutes,
+        isManualEntry: entry.isManualEntry,
+        notes: entry.notes,
+        locationId: entry.locationId,
+      });
+    }
+    
+    // Convert to array and calculate variance
+    const report = Array.from(reportMap.values()).map(record => {
+      const varianceMinutes = record.actualMinutes - record.scheduledMinutes;
+      const scheduledHours = (record.scheduledMinutes / 60).toFixed(2);
+      const actualHours = (record.actualMinutes / 60).toFixed(2);
+      const varianceHours = (varianceMinutes / 60).toFixed(2);
+      const scheduledCost = (parseFloat(scheduledHours) * record.hourlyRate).toFixed(2);
+      const actualCost = (parseFloat(actualHours) * record.hourlyRate).toFixed(2);
+      const varianceCost = (parseFloat(varianceHours) * record.hourlyRate).toFixed(2);
+      
+      return {
+        ...record,
+        scheduledHours: parseFloat(scheduledHours),
+        actualHours: parseFloat(actualHours),
+        varianceMinutes,
+        varianceHours: parseFloat(varianceHours),
+        scheduledCost: parseFloat(scheduledCost),
+        actualCost: parseFloat(actualCost),
+        varianceCost: parseFloat(varianceCost),
+        variancePercentage: record.scheduledMinutes > 0 
+          ? ((varianceMinutes / record.scheduledMinutes) * 100).toFixed(1)
+          : '0',
+      };
+    });
+    
+    // Sort by date descending, then by employee name
+    return report.sort((a, b) => {
+      const dateCompare = b.date.localeCompare(a.date);
+      if (dateCompare !== 0) return dateCompare;
+      return a.employeeName.localeCompare(b.employeeName);
+    });
   }
 
   async updateTimeEntry(entryId: number, updateData: any): Promise<any> {
