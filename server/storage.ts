@@ -5168,19 +5168,28 @@ export class DatabaseStorage implements IStorage {
   async getAccountBalance(accountId: number, asOfDate?: string): Promise<string> { return "0.00"; }
   async getTrialBalance(asOfDate?: string): Promise<{ accountName: string; balance: string; accountType: string }[]> { return []; }
   async getProfitLoss(startDate: string, endDate: string): Promise<{ revenue: string; expenses: string; netIncome: string }> {
-    // Calculate revenue from POS sales
-    const salesResult = await db
-      .select({ totalRevenue: sql<string>`COALESCE(SUM(${posSales.totalAmount}), 0)::text` })
-      .from(posSales)
-      .where(and(
-        gte(posSales.saleDate, startDate), 
-        lte(posSales.saleDate, endDate)
-      ));
+    // Pull P&L from Chart of Accounts - sum all Income and Expense account balances
+    const [revenueResult, expensesResult] = await Promise.all([
+      // Sum all Income type accounts
+      db
+        .select({ total: sql<string>`COALESCE(SUM(CAST(${financialAccounts.balance} AS NUMERIC)), 0)::text` })
+        .from(financialAccounts)
+        .where(and(
+          eq(financialAccounts.accountType, 'Income'),
+          eq(financialAccounts.isActive, true)
+        )),
+      // Sum all Expense type accounts (including COGS)
+      db
+        .select({ total: sql<string>`COALESCE(SUM(CAST(${financialAccounts.balance} AS NUMERIC)), 0)::text` })
+        .from(financialAccounts)
+        .where(and(
+          eq(financialAccounts.accountType, 'Expense'),
+          eq(financialAccounts.isActive, true)
+        ))
+    ]);
     
-    const revenue = salesResult[0]?.totalRevenue || "0.00";
-    
-    // For now, expenses are 0 (will be implemented with other integrations)
-    const expenses = "0.00";
+    const revenue = revenueResult[0]?.total || "0.00";
+    const expenses = expensesResult[0]?.total || "0.00";
     
     // Net income = revenue - expenses
     const netIncome = (parseFloat(revenue) - parseFloat(expenses)).toFixed(2);
