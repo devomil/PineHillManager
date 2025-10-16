@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -50,6 +51,7 @@ export default function Tasks() {
   const [creatorFilter, setCreatorFilter] = useState<string>("all");
   const [dueDateFrom, setDueDateFrom] = useState<string>("");
   const [dueDateTo, setDueDateTo] = useState<string>("");
+  const [showArchived, setShowArchived] = useState<boolean>(false);
   const [sortField, setSortField] = useState<string>("createdAt");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
   const [taskSteps, setTaskSteps] = useState<TaskStep[]>([]);
@@ -59,7 +61,14 @@ export default function Tasks() {
 
   // Fetch tasks
   const { data: tasks = [], isLoading } = useQuery<Task[]>({
-    queryKey: ['/api/tasks'],
+    queryKey: ['/api/tasks', showArchived ? { archived: 'true' } : {}],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (showArchived) params.append('archived', 'true');
+      const response = await fetch(`/api/tasks?${params.toString()}`);
+      if (!response.ok) throw new Error('Failed to fetch tasks');
+      return response.json();
+    },
   });
 
   // Fetch employees for assignment
@@ -511,6 +520,19 @@ export default function Tasks() {
         <Card className="p-4">
           <div className="flex gap-4 items-center flex-wrap">
             <Filter className="h-4 w-4 text-muted-foreground" />
+            {isAdminOrManager && (
+              <div className="flex items-center gap-2 px-3 py-2 bg-muted/50 rounded-md">
+                <Switch
+                  checked={showArchived}
+                  onCheckedChange={setShowArchived}
+                  id="show-archived"
+                  data-testid="toggle-archived"
+                />
+                <label htmlFor="show-archived" className="text-sm cursor-pointer">
+                  Show Archived
+                </label>
+              </div>
+            )}
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-[180px]" data-testid="filter-status">
                 <SelectValue placeholder="Filter by status" />
