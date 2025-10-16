@@ -342,23 +342,13 @@ export default function TimeClock() {
               </div>
             </div>
             
-            <div className="flex items-center gap-3">
-              <Button 
-                onClick={() => setShowManualEntryDialog(true)}
-                className="bg-[#FF8C00] hover:bg-[#FF8C00]/90 text-white"
-                data-testid="button-add-time-entry"
-              >
-                <Plus className="mr-2 h-4 w-4" />
-                Add Time Entry
-              </Button>
-              <Button 
-                variant="ghost" 
-                onClick={() => window.history.back()}
-                className="text-gray-700 hover:text-gray-900"
-              >
-                ← Back to Dashboard
-              </Button>
-            </div>
+            <Button 
+              variant="ghost" 
+              onClick={() => window.history.back()}
+              className="text-gray-700 hover:text-gray-900"
+            >
+              ← Back to Dashboard
+            </Button>
           </div>
         </div>
       </div>
@@ -431,6 +421,17 @@ export default function TimeClock() {
                   Clocked in at {formatTimeToCST(currentEntry.clockInTime)}
                 </div>
               )}
+
+              <div className="flex justify-center pt-4 border-t border-gray-200">
+                <Button 
+                  onClick={() => setShowManualEntryDialog(true)}
+                  className="bg-[#FF8C00] hover:bg-[#FF8C00]/90 text-white"
+                  data-testid="button-add-time-entry"
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Time Entry
+                </Button>
+              </div>
             </CardContent>
           </Card>
 
