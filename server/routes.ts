@@ -1949,6 +1949,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: 'Unauthorized' });
       }
 
+      const showArchived = req.query.archived === 'true';
+
       let tasks;
       if (user.role === 'admin' || user.role === 'manager') {
         // Admin/Manager sees all tasks
@@ -1956,6 +1958,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } else {
         // Employee sees only tasks assigned to them
         tasks = await storage.getTasksByAssignee(user.id);
+      }
+
+      // Filter out archived tasks unless specifically requested
+      if (!showArchived) {
+        tasks = tasks.filter(task => !task.archived);
       }
 
       // Enrich tasks with creator and assignee names
@@ -2054,7 +2061,65 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Delete task (admin/manager only)
+  // Archive task (admin/manager only)
+  app.post('/api/tasks/:id/archive', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      
+      if (user?.role !== 'admin' && user?.role !== 'manager') {
+        return res.status(403).json({ message: 'Only admins and managers can archive tasks' });
+      }
+
+      const taskId = parseInt(req.params.id);
+      const task = await storage.getTaskById(taskId);
+      
+      if (!task) {
+        return res.status(404).json({ message: 'Task not found' });
+      }
+
+      const updatedTask = await storage.updateTask(taskId, {
+        archived: true,
+        archivedAt: new Date(),
+        archivedBy: user.id,
+      });
+      
+      res.json(updatedTask);
+    } catch (error) {
+      console.error('Error archiving task:', error);
+      res.status(500).json({ message: 'Failed to archive task' });
+    }
+  });
+
+  // Unarchive task (admin/manager only)
+  app.post('/api/tasks/:id/unarchive', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      
+      if (user?.role !== 'admin' && user?.role !== 'manager') {
+        return res.status(403).json({ message: 'Only admins and managers can unarchive tasks' });
+      }
+
+      const taskId = parseInt(req.params.id);
+      const task = await storage.getTaskById(taskId);
+      
+      if (!task) {
+        return res.status(404).json({ message: 'Task not found' });
+      }
+
+      const updatedTask = await storage.updateTask(taskId, {
+        archived: false,
+        archivedAt: null,
+        archivedBy: null,
+      });
+      
+      res.json(updatedTask);
+    } catch (error) {
+      console.error('Error unarchiving task:', error);
+      res.status(500).json({ message: 'Failed to unarchive task' });
+    }
+  });
+
+  // Delete task (admin/manager only) - Hard delete
   app.delete('/api/tasks/:id', isAuthenticated, async (req, res) => {
     try {
       const user = req.user;
