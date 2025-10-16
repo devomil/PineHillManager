@@ -4,13 +4,19 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Clock, Play, Pause, Square, MapPin, Calendar, ArrowLeft, Home } from "lucide-react";
+import { Clock, Play, Pause, Square, MapPin, Calendar, ArrowLeft, Home, Plus } from "lucide-react";
 import { format } from "date-fns";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { Link } from "wouter";
 import { formatTimeToCST, formatDateTimeToCST, getCurrentTimeCST } from "@/lib/time-utils";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { CalendarIcon } from "lucide-react";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 
 export default function TimeClock() {
   const { user } = useAuth();
@@ -18,6 +24,12 @@ export default function TimeClock() {
   const queryClient = useQueryClient();
   const [currentTime, setCurrentTime] = useState(new Date());
   const [selectedLocation, setSelectedLocation] = useState("1");
+  const [showManualEntryDialog, setShowManualEntryDialog] = useState(false);
+  const [clockInDate, setClockInDate] = useState<Date>();
+  const [clockInTime, setClockInTime] = useState("09:00");
+  const [clockOutDate, setClockOutDate] = useState<Date>();
+  const [clockOutTime, setClockOutTime] = useState("17:00");
+  const [manualNotes, setManualNotes] = useState("");
 
   const locations = [
     {
@@ -175,6 +187,46 @@ export default function TimeClock() {
     }
   });
 
+  // Manual time entry mutation
+  const manualEntryMutation = useMutation({
+    mutationFn: async () => {
+      if (!clockInDate || !clockOutDate) {
+        throw new Error("Please select both clock in and clock out dates");
+      }
+      
+      const res = await apiRequest('POST', '/api/time-clock/manual-entry', {
+        clockInDate: format(clockInDate, 'yyyy-MM-dd'),
+        clockInTime,
+        clockOutDate: format(clockOutDate, 'yyyy-MM-dd'),
+        clockOutTime,
+        notes: manualNotes,
+        locationId: selectedLocation
+      });
+      return res;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/time-clock/today'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/time-clock/week'] });
+      setShowManualEntryDialog(false);
+      setClockInDate(undefined);
+      setClockOutDate(undefined);
+      setClockInTime("09:00");
+      setClockOutTime("17:00");
+      setManualNotes("");
+      toast({
+        title: "Time Entry Added",
+        description: "Your manual time entry has been recorded successfully.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to Add Entry",
+        description: error.message || "Failed to create manual time entry",
+        variant: "destructive",
+      });
+    }
+  });
+
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentTime(new Date());
@@ -290,13 +342,23 @@ export default function TimeClock() {
               </div>
             </div>
             
-            <Button 
-              variant="ghost" 
-              onClick={() => window.history.back()}
-              className="text-gray-700 hover:text-gray-900"
-            >
-              ← Back to Dashboard
-            </Button>
+            <div className="flex items-center gap-3">
+              <Button 
+                onClick={() => setShowManualEntryDialog(true)}
+                className="bg-[#FF8C00] hover:bg-[#FF8C00]/90 text-white"
+                data-testid="button-add-time-entry"
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Add Time Entry
+              </Button>
+              <Button 
+                variant="ghost" 
+                onClick={() => window.history.back()}
+                className="text-gray-700 hover:text-gray-900"
+              >
+                ← Back to Dashboard
+              </Button>
+            </div>
           </div>
         </div>
       </div>
@@ -488,6 +550,142 @@ export default function TimeClock() {
           </Card>
         </div>
       </div>
+
+      {/* Manual Time Entry Dialog */}
+      <Dialog open={showManualEntryDialog} onOpenChange={setShowManualEntryDialog}>
+        <DialogContent className="sm:max-w-[900px] bg-white" data-testid="dialog-manual-time-entry">
+          <DialogHeader className="bg-gray-600 -mx-6 -mt-6 px-6 py-4 mb-6">
+            <DialogTitle className="text-white text-xl">Add Time Entry</DialogTitle>
+          </DialogHeader>
+          
+          <div className="grid grid-cols-2 gap-6 bg-gray-100 p-6 rounded-lg">
+            {/* Clock In Section */}
+            <div className="space-y-4">
+              <div className="bg-[#0B4F6C] text-white px-4 py-2 font-semibold">
+                Clock In
+              </div>
+              
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Date:</label>
+                <div className="flex gap-2">
+                  <Input
+                    type="text"
+                    value={clockInDate ? format(clockInDate, 'MM/dd/yyyy') : ''}
+                    readOnly
+                    placeholder="Select date..."
+                    className="flex-1"
+                    data-testid="input-clockin-date"
+                  />
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button className="bg-[#FF8C00] hover:bg-[#FF8C00]/90 text-white px-4" data-testid="button-select-clockin-date">
+                        Select date...
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <CalendarComponent
+                        mode="single"
+                        selected={clockInDate}
+                        onSelect={setClockInDate}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Time:</label>
+                <Input
+                  type="time"
+                  value={clockInTime}
+                  onChange={(e) => setClockInTime(e.target.value)}
+                  className="w-full"
+                  data-testid="input-clockin-time"
+                />
+              </div>
+            </div>
+
+            {/* Clock Out Section */}
+            <div className="space-y-4">
+              <div className="bg-[#0B4F6C] text-white px-4 py-2 font-semibold">
+                Clock Out
+              </div>
+              
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Date:</label>
+                <div className="flex gap-2">
+                  <Input
+                    type="text"
+                    value={clockOutDate ? format(clockOutDate, 'MM/dd/yyyy') : ''}
+                    readOnly
+                    placeholder="Select date..."
+                    className="flex-1"
+                    data-testid="input-clockout-date"
+                  />
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button className="bg-[#FF8C00] hover:bg-[#FF8C00]/90 text-white px-4" data-testid="button-select-clockout-date">
+                        Select date...
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <CalendarComponent
+                        mode="single"
+                        selected={clockOutDate}
+                        onSelect={setClockOutDate}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Time:</label>
+                <Input
+                  type="time"
+                  value={clockOutTime}
+                  onChange={(e) => setClockOutTime(e.target.value)}
+                  className="w-full"
+                  data-testid="input-clockout-time"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Notes Section */}
+          <div className="space-y-2 mt-4">
+            <label className="text-sm font-medium">Notes</label>
+            <Textarea
+              value={manualNotes}
+              onChange={(e) => setManualNotes(e.target.value)}
+              placeholder="Add any notes about this time entry (e.g., travel time, forgot to clock in/out, etc.)"
+              className="min-h-[100px] resize-none"
+              data-testid="textarea-manual-notes"
+            />
+          </div>
+
+          <DialogFooter className="mt-6">
+            <Button
+              variant="outline"
+              onClick={() => setShowManualEntryDialog(false)}
+              className="bg-gray-500 text-white hover:bg-gray-600 px-8"
+              data-testid="button-cancel-entry"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => manualEntryMutation.mutate()}
+              disabled={manualEntryMutation.isPending}
+              className="bg-[#FF8C00] hover:bg-[#FF8C00]/90 text-white px-8"
+              data-testid="button-submit-entry"
+            >
+              {manualEntryMutation.isPending ? "Adding..." : "Add"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
