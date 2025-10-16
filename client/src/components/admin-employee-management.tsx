@@ -1749,42 +1749,66 @@ export default function AdminEmployeeManagement() {
           </div>
         ) : timeEntries.length > 0 ? (
           <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b">
-                  <th className="text-left py-3 px-4 font-medium">Date</th>
-                  <th className="text-left py-3 px-4 font-medium">Employee</th>
-                  <th className="text-left py-3 px-4 font-medium">Clock In</th>
-                  <th className="text-left py-3 px-4 font-medium">Clock Out</th>
-                  <th className="text-left py-3 px-4 font-medium">Total Hours</th>
-                  <th className="text-left py-3 px-4 font-medium">Break Time</th>
-                  <th className="text-left py-3 px-4 font-medium">Cost</th>
-                  <th className="text-left py-3 px-4 font-medium">Notes</th>
-                  <th className="text-left py-3 px-4 font-medium">Actions</th>
+            <table className="w-full border-collapse">
+              <thead className="bg-gray-50">
+                <tr className="border-b-2 border-gray-200">
+                  <th className="text-left py-3 px-4 font-semibold text-gray-700">Date</th>
+                  <th className="text-left py-3 px-4 font-semibold text-gray-700">Employee</th>
+                  <th className="text-left py-3 px-4 font-semibold text-gray-700">Status</th>
+                  <th className="text-left py-3 px-4 font-semibold text-gray-700">Entry Type</th>
+                  <th className="text-left py-3 px-4 font-semibold text-gray-700">Clock In</th>
+                  <th className="text-left py-3 px-4 font-semibold text-gray-700">Clock Out</th>
+                  <th className="text-left py-3 px-4 font-semibold text-gray-700">Total Hours</th>
+                  <th className="text-left py-3 px-4 font-semibold text-gray-700">Break Time</th>
+                  <th className="text-left py-3 px-4 font-semibold text-gray-700">Cost</th>
+                  <th className="text-left py-3 px-4 font-semibold text-gray-700">Notes</th>
+                  <th className="text-left py-3 px-4 font-semibold text-gray-700">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {timeEntries.map((entry: any, index: number) => {
-                  const { decimal: totalHours } = calculateHours(entry.totalMinutes || 0);
-                  const { decimal: breakHours } = calculateHours(entry.breakMinutes || 0);
+                  const { decimal: totalHours } = calculateHours(entry.totalWorkedMinutes || 0);
+                  const { decimal: breakHours } = calculateHours(entry.totalBreakMinutes || 0);
+                  const isManual = entry.isManualEntry === true;
+                  const isClockedOut = entry.clockOutTime !== null;
                   
                   return (
-                    <tr key={entry.id} className="border-b hover:bg-slate-50" data-testid={`time-entry-${entry.id}`}>
-                      <td className="py-3 px-4">{formatDate(entry.clockInTime)}</td>
+                    <tr key={entry.id} className="border-b border-gray-200 hover:bg-gray-50 transition-colors" data-testid={`time-entry-${entry.id}`}>
+                      <td className="py-3 px-4 text-sm">{formatDate(entry.clockInTime)}</td>
                       <td className="py-3 px-4">
-                        {entry.employee?.firstName} {entry.employee?.lastName}
+                        <div className="font-medium text-gray-900">
+                          {entry.firstName} {entry.lastName}
+                        </div>
                       </td>
-                      <td className="py-3 px-4">{formatTime(entry.clockInTime)}</td>
                       <td className="py-3 px-4">
-                        {entry.clockOutTime ? formatTime(entry.clockOutTime) : (
-                          <Badge variant="outline" className="bg-green-100 text-green-800">
-                            Still Working
+                        {isClockedOut ? (
+                          <Badge variant="outline" className="bg-gray-100 text-gray-700 border-gray-300">
+                            Clocked Out
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="bg-green-100 text-green-800 border-green-300">
+                            Clocked In
                           </Badge>
                         )}
                       </td>
-                      <td className="py-3 px-4 font-mono">{totalHours}h</td>
-                      <td className="py-3 px-4 font-mono">{breakHours}h</td>
-                      <td className="py-3 px-4 font-mono">
+                      <td className="py-3 px-4">
+                        {isManual ? (
+                          <Badge variant="outline" className="bg-orange-100 text-orange-800 border-orange-300">
+                            Manual
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-300">
+                            Automatic
+                          </Badge>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 text-sm font-mono">{formatTime(entry.clockInTime)}</td>
+                      <td className="py-3 px-4 text-sm font-mono">
+                        {entry.clockOutTime ? formatTime(entry.clockOutTime) : "—"}
+                      </td>
+                      <td className="py-3 px-4 text-sm font-mono font-medium">{totalHours}h</td>
+                      <td className="py-3 px-4 text-sm font-mono">{breakHours}h</td>
+                      <td className="py-3 px-4 text-sm font-mono font-medium">
                         {(() => {
                           const hourlyRateValue = entry.hourlyRate;
                           if (!hourlyRateValue || hourlyRateValue === null || hourlyRateValue === undefined) {
@@ -1802,16 +1826,17 @@ export default function AdminEmployeeManagement() {
                           return `$${cost.toFixed(2)}`;
                         })()}
                       </td>
-                      <td className="py-3 px-4 text-sm text-slate-600 max-w-xs truncate">
+                      <td className="py-3 px-4 text-sm text-gray-600 max-w-xs truncate">
                         {entry.notes || "—"}
                       </td>
                       <td className="py-3 px-4">
-                        <div className="flex items-center space-x-2">
+                        <div className="flex items-center space-x-1">
                           <Button 
                             variant="ghost" 
                             size="sm" 
                             onClick={() => handleEditTimeEntry(entry)}
                             data-testid={`button-edit-${entry.id}`}
+                            className="h-8 w-8 p-0"
                           >
                             <Edit className="w-4 h-4" />
                           </Button>
@@ -1821,6 +1846,7 @@ export default function AdminEmployeeManagement() {
                             onClick={() => deleteTimeEntryMutation.mutate(entry.id)}
                             disabled={deleteTimeEntryMutation.isPending}
                             data-testid={`button-delete-${entry.id}`}
+                            className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
                           >
                             <Trash2 className="w-4 h-4" />
                           </Button>

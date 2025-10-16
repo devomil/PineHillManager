@@ -3079,6 +3079,7 @@ export class DatabaseStorage implements IStorage {
         totalWorkedMinutes: timeClockEntries.totalWorkedMinutes,
         status: timeClockEntries.status,
         notes: timeClockEntries.notes,
+        isManualEntry: timeClockEntries.isManualEntry,
         firstName: users.firstName,
         lastName: users.lastName,
         email: users.email,
