@@ -20,7 +20,7 @@ The frontend uses React 18 with TypeScript and Vite. Radix UI provides accessibl
 - **Authentication**: Session-based, role-based access control (Admin, Manager, Employee), with employee invitation and password reset.
 
 ### Feature Specifications
-- **Time Management**: Clock in/out with break tracking, multi-location scheduling, time off requests, and manual time entry capabilities for employees.
+- **Time Management**: Clock in/out with break tracking, multi-location scheduling, time off requests, manual time entry capabilities for employees, and comprehensive Scheduled vs Actual Hours reporting for labor variance analysis and payroll expense tracking.
 - **Communication & Support**: Mobile-first SMS-integrated team messaging with interactive responses, TCPA-compliant consent tracking, and real-time integration via WebSockets.
 - **Document Management**: Role-based file sharing.
 - **Inventory Management**: Dedicated `/inventory` page with comprehensive dual-system tracking reconciling Clover POS (live inventory) and Thrive (vendor/cost data). Features include a unified dashboard, real-time sync status, profitability analytics with dual pricing systems, manual matching interface for unmatched items, discrepancy resolution workflow, and enhanced CSV import with sync status tracking.
