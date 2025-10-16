@@ -2484,8 +2484,15 @@ export class DatabaseStorage implements IStorage {
     return await db
       .select()
       .from(trainingModules)
-      .where(eq(trainingModules.isActive, true))
       .orderBy(asc(trainingModules.title));
+  }
+
+  async getTrainingModuleById(id: number): Promise<TrainingModule | undefined> {
+    const [module] = await db
+      .select()
+      .from(trainingModules)
+      .where(eq(trainingModules.id, id));
+    return module;
   }
 
   async updateTrainingModule(id: number, module: Partial<InsertTrainingModule>): Promise<TrainingModule> {
@@ -2495,6 +2502,89 @@ export class DatabaseStorage implements IStorage {
       .where(eq(trainingModules.id, id))
       .returning();
     return updated;
+  }
+
+  async deleteTrainingModule(id: number): Promise<void> {
+    await db.delete(trainingModules).where(eq(trainingModules.id, id));
+  }
+
+  async getActiveTrainingModules(): Promise<TrainingModule[]> {
+    return await db
+      .select()
+      .from(trainingModules)
+      .where(eq(trainingModules.isActive, true))
+      .orderBy(asc(trainingModules.title));
+  }
+
+  async getMandatoryModulesForUser(userId: string, userRole: string, userDepartment?: string | null): Promise<TrainingModule[]> {
+    const conditions = [
+      eq(trainingModules.isActive, true),
+      eq(trainingModules.isMandatory, true)
+    ];
+
+    // Filter by role if specific roles are set
+    if (userRole) {
+      conditions.push(
+        or(
+          eq(trainingModules.targetRoles, null),
+          sql`${trainingModules.targetRoles} @> ARRAY[${userRole}]::text[]`
+        )
+      );
+    }
+
+    // Filter by department if specific departments are set
+    if (userDepartment) {
+      conditions.push(
+        or(
+          eq(trainingModules.targetDepartments, null),
+          sql`${trainingModules.targetDepartments} @> ARRAY[${userDepartment}]::text[]`
+        )
+      );
+    }
+
+    return await db
+      .select()
+      .from(trainingModules)
+      .where(and(...conditions))
+      .orderBy(asc(trainingModules.title));
+  }
+
+  // Training lessons
+  async createTrainingLesson(lesson: InsertTrainingLesson): Promise<TrainingLesson> {
+    const [trainingLesson] = await db
+      .insert(trainingLessons)
+      .values(lesson)
+      .returning();
+    return trainingLesson;
+  }
+
+  async getModuleLessons(moduleId: number): Promise<TrainingLesson[]> {
+    return await db
+      .select()
+      .from(trainingLessons)
+      .where(eq(trainingLessons.moduleId, moduleId))
+      .orderBy(asc(trainingLessons.orderIndex));
+  }
+
+  async updateTrainingLesson(id: number, lesson: Partial<InsertTrainingLesson>): Promise<TrainingLesson> {
+    const [updated] = await db
+      .update(trainingLessons)
+      .set(lesson)
+      .where(eq(trainingLessons.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteTrainingLesson(id: number): Promise<void> {
+    await db.delete(trainingLessons).where(eq(trainingLessons.id, id));
+  }
+
+  async getLessonById(id: number): Promise<TrainingLesson | undefined> {
+    const [lesson] = await db
+      .select()
+      .from(trainingLessons)
+      .where(eq(trainingLessons.id, id));
+    return lesson;
   }
 
   // Training progress
@@ -2518,6 +2608,19 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(trainingProgress.startedAt));
   }
 
+  async getTrainingProgressByModule(userId: string, moduleId: number): Promise<TrainingProgress | undefined> {
+    const [progress] = await db
+      .select()
+      .from(trainingProgress)
+      .where(
+        and(
+          eq(trainingProgress.userId, userId),
+          eq(trainingProgress.moduleId, moduleId)
+        )
+      );
+    return progress;
+  }
+
   async updateTrainingProgress(id: number, progress: Partial<InsertTrainingProgress>): Promise<TrainingProgress> {
     const [updated] = await db
       .update(trainingProgress)
@@ -2525,6 +2628,339 @@ export class DatabaseStorage implements IStorage {
       .where(eq(trainingProgress.id, id))
       .returning();
     return updated;
+  }
+
+  async enrollUserInModule(userId: string, moduleId: number, assignedBy?: string, dueDate?: Date): Promise<TrainingProgress> {
+    const [enrollment] = await db
+      .insert(trainingProgress)
+      .values({
+        userId,
+        moduleId,
+        status: 'not_started',
+        progress: 0,
+        assignedBy,
+        dueDate,
+        startedAt: new Date()
+      })
+      .onConflictDoUpdate({
+        target: [trainingProgress.userId, trainingProgress.moduleId],
+        set: { assignedBy, dueDate }
+      })
+      .returning();
+    return enrollment;
+  }
+
+  async completeTrainingModule(userId: string, moduleId: number, finalScore?: number, certificateUrl?: string): Promise<TrainingProgress> {
+    const [completed] = await db
+      .update(trainingProgress)
+      .set({
+        status: 'completed',
+        progress: 100,
+        completedAt: new Date(),
+        finalScore,
+        certificateUrl
+      })
+      .where(
+        and(
+          eq(trainingProgress.userId, userId),
+          eq(trainingProgress.moduleId, moduleId)
+        )
+      )
+      .returning();
+    return completed;
+  }
+
+  async getAllEnrollments(): Promise<TrainingProgress[]> {
+    return await db
+      .select()
+      .from(trainingProgress)
+      .orderBy(desc(trainingProgress.startedAt));
+  }
+
+  async getOverdueTraining(userId?: string): Promise<TrainingProgress[]> {
+    const conditions = [
+      eq(trainingProgress.status, 'in_progress'),
+      sql`${trainingProgress.dueDate} < NOW()`
+    ];
+
+    if (userId) {
+      conditions.push(eq(trainingProgress.userId, userId));
+    }
+
+    return await db
+      .select()
+      .from(trainingProgress)
+      .where(and(...conditions))
+      .orderBy(asc(trainingProgress.dueDate));
+  }
+
+  // Lesson progress
+  async createOrUpdateLessonProgress(progress: InsertLessonProgress): Promise<LessonProgress> {
+    const [lessonProgress_] = await db
+      .insert(lessonProgress)
+      .values(progress)
+      .onConflictDoUpdate({
+        target: [lessonProgress.userId, lessonProgress.lessonId],
+        set: progress,
+      })
+      .returning();
+    return lessonProgress_;
+  }
+
+  async getUserLessonProgress(userId: string, lessonId: number): Promise<LessonProgress | undefined> {
+    const [progress] = await db
+      .select()
+      .from(lessonProgress)
+      .where(
+        and(
+          eq(lessonProgress.userId, userId),
+          eq(lessonProgress.lessonId, lessonId)
+        )
+      );
+    return progress;
+  }
+
+  async markLessonComplete(userId: string, lessonId: number, timeSpent?: number): Promise<LessonProgress> {
+    const [completed] = await db
+      .insert(lessonProgress)
+      .values({
+        userId,
+        lessonId,
+        completed: true,
+        completedAt: new Date(),
+        timeSpent
+      })
+      .onConflictDoUpdate({
+        target: [lessonProgress.userId, lessonProgress.lessonId],
+        set: {
+          completed: true,
+          completedAt: new Date(),
+          timeSpent
+        }
+      })
+      .returning();
+    return completed;
+  }
+
+  // Training assessments
+  async createTrainingAssessment(assessment: InsertTrainingAssessment): Promise<TrainingAssessment> {
+    const [trainingAssessment] = await db
+      .insert(trainingAssessments)
+      .values(assessment)
+      .returning();
+    return trainingAssessment;
+  }
+
+  async getModuleAssessment(moduleId: number): Promise<TrainingAssessment | undefined> {
+    const [assessment] = await db
+      .select()
+      .from(trainingAssessments)
+      .where(eq(trainingAssessments.moduleId, moduleId));
+    return assessment;
+  }
+
+  async updateTrainingAssessment(id: number, assessment: Partial<InsertTrainingAssessment>): Promise<TrainingAssessment> {
+    const [updated] = await db
+      .update(trainingAssessments)
+      .set(assessment)
+      .where(eq(trainingAssessments.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteTrainingAssessment(id: number): Promise<void> {
+    await db.delete(trainingAssessments).where(eq(trainingAssessments.id, id));
+  }
+
+  // Training questions
+  async createTrainingQuestion(question: InsertTrainingQuestion): Promise<TrainingQuestion> {
+    const [trainingQuestion] = await db
+      .insert(trainingQuestions)
+      .values(question)
+      .returning();
+    return trainingQuestion;
+  }
+
+  async getAssessmentQuestions(assessmentId: number): Promise<TrainingQuestion[]> {
+    return await db
+      .select()
+      .from(trainingQuestions)
+      .where(eq(trainingQuestions.assessmentId, assessmentId))
+      .orderBy(asc(trainingQuestions.orderIndex));
+  }
+
+  async updateTrainingQuestion(id: number, question: Partial<InsertTrainingQuestion>): Promise<TrainingQuestion> {
+    const [updated] = await db
+      .update(trainingQuestions)
+      .set(question)
+      .where(eq(trainingQuestions.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteTrainingQuestion(id: number): Promise<void> {
+    await db.delete(trainingQuestions).where(eq(trainingQuestions.id, id));
+  }
+
+  // Training attempts
+  async createTrainingAttempt(attempt: InsertTrainingAttempt): Promise<TrainingAttempt> {
+    const [trainingAttempt] = await db
+      .insert(trainingAttempts)
+      .values(attempt)
+      .returning();
+    return trainingAttempt;
+  }
+
+  async getUserAttempts(userId: string, assessmentId: number): Promise<TrainingAttempt[]> {
+    return await db
+      .select()
+      .from(trainingAttempts)
+      .where(
+        and(
+          eq(trainingAttempts.userId, userId),
+          eq(trainingAttempts.assessmentId, assessmentId)
+        )
+      )
+      .orderBy(desc(trainingAttempts.createdAt));
+  }
+
+  async getLatestAttempt(userId: string, assessmentId: number): Promise<TrainingAttempt | undefined> {
+    const [attempt] = await db
+      .select()
+      .from(trainingAttempts)
+      .where(
+        and(
+          eq(trainingAttempts.userId, userId),
+          eq(trainingAttempts.assessmentId, assessmentId)
+        )
+      )
+      .orderBy(desc(trainingAttempts.createdAt))
+      .limit(1);
+    return attempt;
+  }
+
+  async getUserAttemptsForModule(userId: string, moduleId: number): Promise<TrainingAttempt[]> {
+    const result = await db
+      .select({
+        attempt: trainingAttempts,
+      })
+      .from(trainingAttempts)
+      .innerJoin(trainingAssessments, eq(trainingAttempts.assessmentId, trainingAssessments.id))
+      .where(
+        and(
+          eq(trainingAttempts.userId, userId),
+          eq(trainingAssessments.moduleId, moduleId)
+        )
+      )
+      .orderBy(desc(trainingAttempts.createdAt));
+
+    return result.map(r => r.attempt);
+  }
+
+  // Training skills
+  async createTrainingSkill(skill: InsertTrainingSkill): Promise<TrainingSkill> {
+    const [trainingSkill] = await db
+      .insert(trainingSkills)
+      .values(skill)
+      .returning();
+    return trainingSkill;
+  }
+
+  async getAllTrainingSkills(): Promise<TrainingSkill[]> {
+    return await db
+      .select()
+      .from(trainingSkills)
+      .orderBy(asc(trainingSkills.name));
+  }
+
+  async getTrainingSkillsByCategory(category: string): Promise<TrainingSkill[]> {
+    return await db
+      .select()
+      .from(trainingSkills)
+      .where(eq(trainingSkills.category, category))
+      .orderBy(asc(trainingSkills.name));
+  }
+
+  async updateTrainingSkill(id: number, skill: Partial<InsertTrainingSkill>): Promise<TrainingSkill> {
+    const [updated] = await db
+      .update(trainingSkills)
+      .set(skill)
+      .where(eq(trainingSkills.id, id))
+      .returning();
+    return updated;
+  }
+
+  // Training module skills
+  async addSkillToModule(moduleSkill: InsertTrainingModuleSkill): Promise<TrainingModuleSkill> {
+    const [trainingModuleSkill] = await db
+      .insert(trainingModuleSkills)
+      .values(moduleSkill)
+      .returning();
+    return trainingModuleSkill;
+  }
+
+  async getModuleSkills(moduleId: number): Promise<TrainingModuleSkill[]> {
+    return await db
+      .select()
+      .from(trainingModuleSkills)
+      .where(eq(trainingModuleSkills.moduleId, moduleId));
+  }
+
+  async removeSkillFromModule(moduleId: number, skillId: number): Promise<void> {
+    await db
+      .delete(trainingModuleSkills)
+      .where(
+        and(
+          eq(trainingModuleSkills.moduleId, moduleId),
+          eq(trainingModuleSkills.skillId, skillId)
+        )
+      );
+  }
+
+  // Employee skills
+  async addEmployeeSkill(employeeSkill: InsertEmployeeSkill): Promise<EmployeeSkill> {
+    const [skill] = await db
+      .insert(employeeSkills)
+      .values(employeeSkill)
+      .onConflictDoUpdate({
+        target: [employeeSkills.userId, employeeSkills.skillId],
+        set: employeeSkill
+      })
+      .returning();
+    return skill;
+  }
+
+  async getEmployeeSkills(userId: string): Promise<EmployeeSkill[]> {
+    return await db
+      .select()
+      .from(employeeSkills)
+      .where(eq(employeeSkills.userId, userId))
+      .orderBy(desc(employeeSkills.acquiredAt));
+  }
+
+  async updateEmployeeSkill(id: number, skill: Partial<InsertEmployeeSkill>): Promise<EmployeeSkill> {
+    const [updated] = await db
+      .update(employeeSkills)
+      .set(skill)
+      .where(eq(employeeSkills.id, id))
+      .returning();
+    return updated;
+  }
+
+  async grantSkillsOnCompletion(userId: string, moduleId: number): Promise<void> {
+    // Get all skills associated with this module
+    const moduleSkills = await this.getModuleSkills(moduleId);
+
+    // Grant each skill to the user
+    for (const moduleSkill of moduleSkills) {
+      await this.addEmployeeSkill({
+        userId,
+        skillId: moduleSkill.skillId,
+        proficiencyLevel: moduleSkill.proficiencyLevel || 'basic',
+        acquiredFrom: moduleId,
+        acquiredAt: new Date()
+      });
+    }
   }
 
   // Messages
