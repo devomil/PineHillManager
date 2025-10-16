@@ -3442,6 +3442,9 @@ export const tasks = pgTable("tasks", {
   assignedTo: varchar("assigned_to").references(() => users.id), // Employee assigned to (nullable)
   dueDate: timestamp("due_date"),
   completedAt: timestamp("completed_at"),
+  archived: boolean("archived").notNull().default(false), // Soft delete for admins/managers
+  archivedAt: timestamp("archived_at"),
+  archivedBy: varchar("archived_by").references(() => users.id), // Who archived the task
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => ({
@@ -3450,6 +3453,7 @@ export const tasks = pgTable("tasks", {
   statusIdx: index("idx_tasks_status").on(table.status),
   priorityIdx: index("idx_tasks_priority").on(table.priority),
   dueDateIdx: index("idx_tasks_due_date").on(table.dueDate),
+  archivedIdx: index("idx_tasks_archived").on(table.archived),
 }));
 
 export const taskNotes = pgTable("task_notes", {
