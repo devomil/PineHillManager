@@ -98,6 +98,7 @@ export const timeClockEntries = pgTable("time_clock_entries", {
   totalBreakMinutes: integer("total_break_minutes").default(0),
   totalWorkedMinutes: integer("total_worked_minutes").default(0),
   status: varchar("status").notNull().default("clocked_in"), // clocked_in, on_break, clocked_out
+  isManualEntry: boolean("is_manual_entry").default(false), // true if manually added by employee, false if clocked in/out
   notes: text("notes"),
   ipAddress: varchar("ip_address"),
   deviceInfo: text("device_info"),
