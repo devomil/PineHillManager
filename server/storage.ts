@@ -5169,14 +5169,17 @@ export class DatabaseStorage implements IStorage {
   async getTrialBalance(asOfDate?: string): Promise<{ accountName: string; balance: string; accountType: string }[]> { return []; }
   async getProfitLoss(startDate: string, endDate: string): Promise<{ revenue: string; expenses: string; netIncome: string }> {
     // Pull P&L from Chart of Accounts - sum all Income and Expense account balances
+    // Exclude summary/rollup accounts like "Total Sales Revenue" (4100) which are meant to display the sum, not be summed themselves
     const [revenueResult, expensesResult] = await Promise.all([
-      // Sum all Income type accounts
+      // Sum all Income type accounts except the "Total Sales Revenue" summary account
       db
         .select({ total: sql<string>`COALESCE(SUM(CAST(${financialAccounts.balance} AS NUMERIC)), 0)::text` })
         .from(financialAccounts)
         .where(and(
           eq(financialAccounts.accountType, 'Income'),
-          eq(financialAccounts.isActive, true)
+          eq(financialAccounts.isActive, true),
+          // Exclude the Total Sales Revenue summary account (4100) from the sum
+          sql`${financialAccounts.accountNumber} != '4100'`
         )),
       // Sum all Expense type accounts (including COGS)
       db
