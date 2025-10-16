@@ -54,6 +54,11 @@ app.use((req, res, next) => {
 (async () => {
   const server = await registerRoutes(app);
 
+  // Ensure standard Chart of Accounts exists
+  const { storage } = await import('./storage');
+  await storage.ensureStandardAccounts();
+  log('📊 Standard Chart of Accounts initialized', 'accounting');
+
   // Import and initialize the message scheduler
   const { startMessageScheduler } = await import('./messageScheduler');
   startMessageScheduler();

@@ -8932,6 +8932,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Comprehensive Sync Route for All Accounting Data
   app.post('/api/accounting/sync', isAuthenticated, async (req, res) => {
     try {
+      // Ensure standard Chart of Accounts exists before sync
+      await storage.ensureStandardAccounts();
+      
       const syncResults = {
         quickbooks: { success: false, message: 'Not configured' },
         clover: { success: false, message: 'Not configured' },
