@@ -269,7 +269,7 @@ import { alias } from "drizzle-orm/pg-core";
 // Standard Chart of Accounts - Auto-populated accounts with data
 const STANDARD_ACCOUNTS = [
   {
-    accountCode: '5000',
+    accountNumber: '5000',
     accountName: 'Cost of Goods Sold',
     accountType: 'Expense',
     subType: 'Cost of Goods Sold',
@@ -277,35 +277,35 @@ const STANDARD_ACCOUNTS = [
     balance: '0'
   },
   {
-    accountCode: '1500',
-    accountName: 'Inventory Asset',
+    accountNumber: '1300',
+    accountName: 'Inventory',
     accountType: 'Asset',
-    subType: 'Inventory',
-    description: 'Inventory on hand - auto-populated from Thrive inventory data',
+    subType: 'Current Asset',
+    description: 'Products and materials inventory - auto-populated from Thrive inventory data',
     balance: '0'
   },
   {
-    accountCode: '6700',
+    accountNumber: '6700',
     accountName: 'Payroll Expense',
     accountType: 'Expense',
-    subType: 'Payroll Expenses',
+    subType: 'Operating Expense',
     description: 'Employee wages and salaries - auto-populated from time clock data',
     balance: '0'
   },
   {
-    accountCode: '4000',
-    accountName: 'Sales Revenue',
+    accountNumber: '4100',
+    accountName: 'Total Sales Revenue',
     accountType: 'Income',
-    subType: 'Sales of Product Income',
-    description: 'Revenue from sales - auto-populated from Clover POS & Amazon data',
+    subType: 'Revenue',
+    description: 'Consolidated sales revenue from all sources - auto-populated from Clover POS & Amazon data',
     balance: '0'
   },
   {
-    accountCode: '2200',
+    accountNumber: '2100',
     accountName: 'Sales Tax Payable',
     accountType: 'Liability',
-    subType: 'Sales Tax Payable',
-    description: 'Sales tax collected - auto-populated from POS transactions',
+    subType: 'Current Liability',
+    description: 'Sales tax collected from customers - auto-populated from POS transactions',
     balance: '0'
   }
 ] as const;
@@ -4448,13 +4448,13 @@ export class DatabaseStorage implements IStorage {
     console.log('📊 Ensuring standard Chart of Accounts...');
     
     for (const stdAccount of STANDARD_ACCOUNTS) {
-      // Check if account already exists by name or account code
+      // Check if account already exists by name or account number
       const existing = await db.select().from(financialAccounts)
         .where(
           and(
             or(
               eq(financialAccounts.accountName, stdAccount.accountName),
-              eq(financialAccounts.accountCode, stdAccount.accountCode)
+              eq(financialAccounts.accountNumber, stdAccount.accountNumber)
             ),
             eq(financialAccounts.isActive, true)
           )
@@ -4462,9 +4462,9 @@ export class DatabaseStorage implements IStorage {
 
       if (existing.length === 0) {
         // Create the account if it doesn't exist
-        console.log(`  ✅ Creating standard account: ${stdAccount.accountCode} - ${stdAccount.accountName}`);
+        console.log(`  ✅ Creating standard account: ${stdAccount.accountNumber} - ${stdAccount.accountName}`);
         await this.createFinancialAccount({
-          accountCode: stdAccount.accountCode,
+          accountNumber: stdAccount.accountNumber,
           accountName: stdAccount.accountName,
           accountType: stdAccount.accountType,
           subType: stdAccount.subType,
@@ -4473,7 +4473,7 @@ export class DatabaseStorage implements IStorage {
           isActive: true
         });
       } else {
-        console.log(`  ℹ️  Standard account already exists: ${stdAccount.accountCode} - ${stdAccount.accountName}`);
+        console.log(`  ℹ️  Standard account already exists: ${stdAccount.accountNumber} - ${stdAccount.accountName}`);
       }
     }
     
