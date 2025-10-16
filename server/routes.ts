@@ -2223,6 +2223,467 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ============================================
+  // Training Module Routes
+  // ============================================
+
+  // Get all training modules
+  app.get('/api/training/modules', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      const modules = user?.role === 'admin' || user?.role === 'manager'
+        ? await storage.getAllTrainingModules()
+        : await storage.getActiveTrainingModules();
+      
+      res.json(modules);
+    } catch (error) {
+      console.error('Error fetching training modules:', error);
+      res.status(500).json({ message: 'Failed to fetch training modules' });
+    }
+  });
+
+  // Get single training module with lessons
+  app.get('/api/training/modules/:id', isAuthenticated, async (req, res) => {
+    try {
+      const moduleId = parseInt(req.params.id);
+      const module = await storage.getTrainingModuleById(moduleId);
+      
+      if (!module) {
+        return res.status(404).json({ message: 'Training module not found' });
+      }
+
+      const lessons = await storage.getModuleLessons(moduleId);
+      const assessment = await storage.getModuleAssessment(moduleId);
+      const moduleSkills = await storage.getModuleSkills(moduleId);
+
+      res.json({
+        ...module,
+        lessons,
+        assessment,
+        skills: moduleSkills
+      });
+    } catch (error) {
+      console.error('Error fetching training module:', error);
+      res.status(500).json({ message: 'Failed to fetch training module' });
+    }
+  });
+
+  // Create training module (admin/manager only)
+  app.post('/api/training/modules', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      
+      if (user?.role !== 'admin' && user?.role !== 'manager') {
+        return res.status(403).json({ message: 'Only admins and managers can create training modules' });
+      }
+
+      const module = await storage.createTrainingModule({
+        ...req.body,
+        createdBy: user.id
+      });
+      
+      res.status(201).json(module);
+    } catch (error) {
+      console.error('Error creating training module:', error);
+      res.status(500).json({ message: 'Failed to create training module' });
+    }
+  });
+
+  // Update training module (admin/manager only)
+  app.patch('/api/training/modules/:id', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      
+      if (user?.role !== 'admin' && user?.role !== 'manager') {
+        return res.status(403).json({ message: 'Only admins and managers can update training modules' });
+      }
+
+      const moduleId = parseInt(req.params.id);
+      const updated = await storage.updateTrainingModule(moduleId, req.body);
+      
+      res.json(updated);
+    } catch (error) {
+      console.error('Error updating training module:', error);
+      res.status(500).json({ message: 'Failed to update training module' });
+    }
+  });
+
+  // Delete training module (admin only)
+  app.delete('/api/training/modules/:id', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      
+      if (user?.role !== 'admin') {
+        return res.status(403).json({ message: 'Only admins can delete training modules' });
+      }
+
+      const moduleId = parseInt(req.params.id);
+      await storage.deleteTrainingModule(moduleId);
+      
+      res.json({ message: 'Training module deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting training module:', error);
+      res.status(500).json({ message: 'Failed to delete training module' });
+    }
+  });
+
+  // Create lesson
+  app.post('/api/training/lessons', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      
+      if (user?.role !== 'admin' && user?.role !== 'manager') {
+        return res.status(403).json({ message: 'Only admins and managers can create lessons' });
+      }
+
+      const lesson = await storage.createTrainingLesson(req.body);
+      res.status(201).json(lesson);
+    } catch (error) {
+      console.error('Error creating lesson:', error);
+      res.status(500).json({ message: 'Failed to create lesson' });
+    }
+  });
+
+  // Update lesson
+  app.patch('/api/training/lessons/:id', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      
+      if (user?.role !== 'admin' && user?.role !== 'manager') {
+        return res.status(403).json({ message: 'Only admins and managers can update lessons' });
+      }
+
+      const lessonId = parseInt(req.params.id);
+      const updated = await storage.updateTrainingLesson(lessonId, req.body);
+      res.json(updated);
+    } catch (error) {
+      console.error('Error updating lesson:', error);
+      res.status(500).json({ message: 'Failed to update lesson' });
+    }
+  });
+
+  // Delete lesson
+  app.delete('/api/training/lessons/:id', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      
+      if (user?.role !== 'admin' && user?.role !== 'manager') {
+        return res.status(403).json({ message: 'Only admins and managers can delete lessons' });
+      }
+
+      const lessonId = parseInt(req.params.id);
+      await storage.deleteTrainingLesson(lessonId);
+      res.json({ message: 'Lesson deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting lesson:', error);
+      res.status(500).json({ message: 'Failed to delete lesson' });
+    }
+  });
+
+  // Get user's training progress
+  app.get('/api/training/progress', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      const progress = await storage.getUserTrainingProgress(user!.id);
+      res.json(progress);
+    } catch (error) {
+      console.error('Error fetching training progress:', error);
+      res.status(500).json({ message: 'Failed to fetch training progress' });
+    }
+  });
+
+  // Get user's progress for specific module
+  app.get('/api/training/progress/:moduleId', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      const moduleId = parseInt(req.params.moduleId);
+      const progress = await storage.getTrainingProgressByModule(user!.id, moduleId);
+      res.json(progress || null);
+    } catch (error) {
+      console.error('Error fetching module progress:', error);
+      res.status(500).json({ message: 'Failed to fetch module progress' });
+    }
+  });
+
+  // Enroll user in module
+  app.post('/api/training/enroll', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      const { moduleId, userId, dueDate } = req.body;
+      
+      // If enrolling another user, must be admin/manager
+      const targetUserId = userId || user!.id;
+      if (targetUserId !== user!.id && user?.role !== 'admin' && user?.role !== 'manager') {
+        return res.status(403).json({ message: 'Only admins and managers can enroll other users' });
+      }
+
+      const enrollment = await storage.enrollUserInModule(
+        targetUserId,
+        moduleId,
+        user!.id,
+        dueDate ? new Date(dueDate) : undefined
+      );
+      
+      res.status(201).json(enrollment);
+    } catch (error) {
+      console.error('Error enrolling in module:', error);
+      res.status(500).json({ message: 'Failed to enroll in module' });
+    }
+  });
+
+  // Update training progress
+  app.patch('/api/training/progress/:id', isAuthenticated, async (req, res) => {
+    try {
+      const progressId = parseInt(req.params.id);
+      const updated = await storage.updateTrainingProgress(progressId, req.body);
+      res.json(updated);
+    } catch (error) {
+      console.error('Error updating training progress:', error);
+      res.status(500).json({ message: 'Failed to update training progress' });
+    }
+  });
+
+  // Mark lesson complete
+  app.post('/api/training/lessons/:id/complete', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      const lessonId = parseInt(req.params.id);
+      const { timeSpent } = req.body;
+
+      const progress = await storage.markLessonComplete(user!.id, lessonId, timeSpent);
+      res.json(progress);
+    } catch (error) {
+      console.error('Error marking lesson complete:', error);
+      res.status(500).json({ message: 'Failed to mark lesson complete' });
+    }
+  });
+
+  // Get assessment questions
+  app.get('/api/training/assessments/:assessmentId/questions', isAuthenticated, async (req, res) => {
+    try {
+      const assessmentId = parseInt(req.params.assessmentId);
+      const questions = await storage.getAssessmentQuestions(assessmentId);
+      
+      // Remove correct answers for non-admin users
+      const user = req.user;
+      if (user?.role !== 'admin' && user?.role !== 'manager') {
+        res.json(questions.map(q => ({
+          ...q,
+          correctAnswer: undefined
+        })));
+      } else {
+        res.json(questions);
+      }
+    } catch (error) {
+      console.error('Error fetching assessment questions:', error);
+      res.status(500).json({ message: 'Failed to fetch assessment questions' });
+    }
+  });
+
+  // Submit assessment attempt
+  app.post('/api/training/assessments/:assessmentId/attempt', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      const assessmentId = parseInt(req.params.assessmentId);
+      const { answers, timeSpent, startedAt } = req.body;
+
+      // Get assessment and questions to calculate score
+      const questions = await storage.getAssessmentQuestions(assessmentId);
+      const assessment = await storage.getModuleAssessment(parseInt(req.params.assessmentId));
+      
+      if (!assessment) {
+        return res.status(404).json({ message: 'Assessment not found' });
+      }
+
+      // Calculate score
+      let correctCount = 0;
+      let totalPoints = 0;
+      let earnedPoints = 0;
+
+      questions.forEach((question) => {
+        totalPoints += question.points || 1;
+        const userAnswer = answers[question.id.toString()];
+        if (userAnswer === question.correctAnswer) {
+          correctCount++;
+          earnedPoints += question.points || 1;
+        }
+      });
+
+      const score = Math.round((earnedPoints / totalPoints) * 100);
+      const passed = score >= (assessment.passingScore || 70);
+
+      // Create attempt record
+      const attempt = await storage.createTrainingAttempt({
+        userId: user!.id,
+        assessmentId,
+        answers,
+        score,
+        passed,
+        timeSpent,
+        startedAt: new Date(startedAt),
+        completedAt: new Date()
+      });
+
+      // If passed, complete the module and grant skills
+      if (passed) {
+        await storage.completeTrainingModule(user!.id, assessment.moduleId, score);
+        await storage.grantSkillsOnCompletion(user!.id, assessment.moduleId);
+      }
+
+      res.status(201).json({ ...attempt, correctCount, totalQuestions: questions.length });
+    } catch (error) {
+      console.error('Error submitting assessment attempt:', error);
+      res.status(500).json({ message: 'Failed to submit assessment attempt' });
+    }
+  });
+
+  // Get user's assessment attempts
+  app.get('/api/training/assessments/:assessmentId/attempts', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      const assessmentId = parseInt(req.params.assessmentId);
+      const attempts = await storage.getUserAttempts(user!.id, assessmentId);
+      res.json(attempts);
+    } catch (error) {
+      console.error('Error fetching assessment attempts:', error);
+      res.status(500).json({ message: 'Failed to fetch assessment attempts' });
+    }
+  });
+
+  // Get employee skills
+  app.get('/api/training/skills/employee/:userId?', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      const targetUserId = req.params.userId || user!.id;
+      
+      // If viewing another user's skills, must be admin/manager
+      if (targetUserId !== user!.id && user?.role !== 'admin' && user?.role !== 'manager') {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+
+      const skills = await storage.getEmployeeSkills(targetUserId);
+      res.json(skills);
+    } catch (error) {
+      console.error('Error fetching employee skills:', error);
+      res.status(500).json({ message: 'Failed to fetch employee skills' });
+    }
+  });
+
+  // Get all available skills (admin/manager)
+  app.get('/api/training/skills', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      
+      if (user?.role !== 'admin' && user?.role !== 'manager') {
+        return res.status(403).json({ message: 'Only admins and managers can view all skills' });
+      }
+
+      const skills = await storage.getAllTrainingSkills();
+      res.json(skills);
+    } catch (error) {
+      console.error('Error fetching skills:', error);
+      res.status(500).json({ message: 'Failed to fetch skills' });
+    }
+  });
+
+  // Create skill (admin/manager)
+  app.post('/api/training/skills', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      
+      if (user?.role !== 'admin' && user?.role !== 'manager') {
+        return res.status(403).json({ message: 'Only admins and managers can create skills' });
+      }
+
+      const skill = await storage.createTrainingSkill(req.body);
+      res.status(201).json(skill);
+    } catch (error) {
+      console.error('Error creating skill:', error);
+      res.status(500).json({ message: 'Failed to create skill' });
+    }
+  });
+
+  // Get all enrollments (admin/manager)
+  app.get('/api/training/enrollments', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      
+      if (user?.role !== 'admin' && user?.role !== 'manager') {
+        return res.status(403).json({ message: 'Only admins and managers can view all enrollments' });
+      }
+
+      const enrollments = await storage.getAllEnrollments();
+      res.json(enrollments);
+    } catch (error) {
+      console.error('Error fetching enrollments:', error);
+      res.status(500).json({ message: 'Failed to fetch enrollments' });
+    }
+  });
+
+  // Get overdue training
+  app.get('/api/training/overdue', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      const userId = user?.role === 'admin' || user?.role === 'manager' ? undefined : user!.id;
+      
+      const overdue = await storage.getOverdueTraining(userId);
+      res.json(overdue);
+    } catch (error) {
+      console.error('Error fetching overdue training:', error);
+      res.status(500).json({ message: 'Failed to fetch overdue training' });
+    }
+  });
+
+  // Get mandatory modules for user
+  app.get('/api/training/mandatory', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      const mandatory = await storage.getMandatoryModulesForUser(
+        user!.id,
+        user!.role,
+        user!.department
+      );
+      res.json(mandatory);
+    } catch (error) {
+      console.error('Error fetching mandatory modules:', error);
+      res.status(500).json({ message: 'Failed to fetch mandatory modules' });
+    }
+  });
+
+  // Create assessment (admin/manager)
+  app.post('/api/training/assessments', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      
+      if (user?.role !== 'admin' && user?.role !== 'manager') {
+        return res.status(403).json({ message: 'Only admins and managers can create assessments' });
+      }
+
+      const assessment = await storage.createTrainingAssessment(req.body);
+      res.status(201).json(assessment);
+    } catch (error) {
+      console.error('Error creating assessment:', error);
+      res.status(500).json({ message: 'Failed to create assessment' });
+    }
+  });
+
+  // Create assessment question (admin/manager)
+  app.post('/api/training/questions', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      
+      if (user?.role !== 'admin' && user?.role !== 'manager') {
+        return res.status(403).json({ message: 'Only admins and managers can create questions' });
+      }
+
+      const question = await storage.createTrainingQuestion(req.body);
+      res.status(201).json(question);
+    } catch (error) {
+      console.error('Error creating question:', error);
+      res.status(500).json({ message: 'Failed to create question' });
+    }
+  });
+
   // Employee Financial Management - Admin/Manager only
   app.get('/api/employees/:id/financials', isAuthenticated, async (req, res) => {
     try {
