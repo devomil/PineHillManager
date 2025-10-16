@@ -6124,9 +6124,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const revenueData = await revenueResponse.json();
           
           // Calculate total revenue from location breakdown
+          // Use totalRevenue if available, otherwise totalSales (different locations use different field names)
           if (revenueData.locationBreakdown) {
             totalRevenue = revenueData.locationBreakdown.reduce((sum: number, location: any) => {
-              return sum + (parseFloat(location.totalRevenue) || 0);
+              const locationRevenue = parseFloat(location.totalRevenue || location.totalSales || '0');
+              return sum + locationRevenue;
             }, 0);
           }
         }
