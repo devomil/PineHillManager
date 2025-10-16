@@ -7,7 +7,15 @@ import {
   shiftCoverageRequests,
   announcements,
   trainingModules,
+  trainingLessons,
   trainingProgress,
+  lessonProgress,
+  trainingAssessments,
+  trainingQuestions,
+  trainingAttempts,
+  trainingSkills,
+  trainingModuleSkills,
+  employeeSkills,
   messages,
   smsDeliveries,
   pushSubscriptions,
@@ -82,8 +90,24 @@ import {
   type Announcement,
   type InsertTrainingModule,
   type TrainingModule,
+  type InsertTrainingLesson,
+  type TrainingLesson,
   type InsertTrainingProgress,
   type TrainingProgress,
+  type InsertLessonProgress,
+  type LessonProgress,
+  type InsertTrainingAssessment,
+  type TrainingAssessment,
+  type InsertTrainingQuestion,
+  type TrainingQuestion,
+  type InsertTrainingAttempt,
+  type TrainingAttempt,
+  type InsertTrainingSkill,
+  type TrainingSkill,
+  type InsertTrainingModuleSkill,
+  type TrainingModuleSkill,
+  type InsertEmployeeSkill,
+  type EmployeeSkill,
   type InsertMessage,
   type Message,
   insertSMSDeliverySchema,
@@ -378,12 +402,68 @@ export interface IStorage {
   // Training modules
   createTrainingModule(module: InsertTrainingModule): Promise<TrainingModule>;
   getAllTrainingModules(): Promise<TrainingModule[]>;
+  getTrainingModuleById(id: number): Promise<TrainingModule | undefined>;
   updateTrainingModule(id: number, module: Partial<InsertTrainingModule>): Promise<TrainingModule>;
+  deleteTrainingModule(id: number): Promise<void>;
+  getActiveTrainingModules(): Promise<TrainingModule[]>;
+  getMandatoryModulesForUser(userId: string, userRole: string, userDepartment?: string | null): Promise<TrainingModule[]>;
+
+  // Training lessons
+  createTrainingLesson(lesson: InsertTrainingLesson): Promise<TrainingLesson>;
+  getModuleLessons(moduleId: number): Promise<TrainingLesson[]>;
+  updateTrainingLesson(id: number, lesson: Partial<InsertTrainingLesson>): Promise<TrainingLesson>;
+  deleteTrainingLesson(id: number): Promise<void>;
+  getLessonById(id: number): Promise<TrainingLesson | undefined>;
 
   // Training progress
   createOrUpdateTrainingProgress(progress: InsertTrainingProgress): Promise<TrainingProgress>;
   getUserTrainingProgress(userId: string): Promise<TrainingProgress[]>;
+  getTrainingProgressByModule(userId: string, moduleId: number): Promise<TrainingProgress | undefined>;
   updateTrainingProgress(id: number, progress: Partial<InsertTrainingProgress>): Promise<TrainingProgress>;
+  enrollUserInModule(userId: string, moduleId: number, assignedBy?: string, dueDate?: Date): Promise<TrainingProgress>;
+  completeTrainingModule(userId: string, moduleId: number, finalScore?: number, certificateUrl?: string): Promise<TrainingProgress>;
+  getAllEnrollments(): Promise<TrainingProgress[]>;
+  getOverdueTraining(userId?: string): Promise<TrainingProgress[]>;
+
+  // Lesson progress
+  createOrUpdateLessonProgress(progress: InsertLessonProgress): Promise<LessonProgress>;
+  getUserLessonProgress(userId: string, lessonId: number): Promise<LessonProgress | undefined>;
+  markLessonComplete(userId: string, lessonId: number, timeSpent?: number): Promise<LessonProgress>;
+
+  // Training assessments
+  createTrainingAssessment(assessment: InsertTrainingAssessment): Promise<TrainingAssessment>;
+  getModuleAssessment(moduleId: number): Promise<TrainingAssessment | undefined>;
+  updateTrainingAssessment(id: number, assessment: Partial<InsertTrainingAssessment>): Promise<TrainingAssessment>;
+  deleteTrainingAssessment(id: number): Promise<void>;
+
+  // Training questions
+  createTrainingQuestion(question: InsertTrainingQuestion): Promise<TrainingQuestion>;
+  getAssessmentQuestions(assessmentId: number): Promise<TrainingQuestion[]>;
+  updateTrainingQuestion(id: number, question: Partial<InsertTrainingQuestion>): Promise<TrainingQuestion>;
+  deleteTrainingQuestion(id: number): Promise<void>;
+
+  // Training attempts
+  createTrainingAttempt(attempt: InsertTrainingAttempt): Promise<TrainingAttempt>;
+  getUserAttempts(userId: string, assessmentId: number): Promise<TrainingAttempt[]>;
+  getLatestAttempt(userId: string, assessmentId: number): Promise<TrainingAttempt | undefined>;
+  getUserAttemptsForModule(userId: string, moduleId: number): Promise<TrainingAttempt[]>;
+
+  // Training skills
+  createTrainingSkill(skill: InsertTrainingSkill): Promise<TrainingSkill>;
+  getAllTrainingSkills(): Promise<TrainingSkill[]>;
+  getTrainingSkillsByCategory(category: string): Promise<TrainingSkill[]>;
+  updateTrainingSkill(id: number, skill: Partial<InsertTrainingSkill>): Promise<TrainingSkill>;
+
+  // Training module skills
+  addSkillToModule(moduleSkill: InsertTrainingModuleSkill): Promise<TrainingModuleSkill>;
+  getModuleSkills(moduleId: number): Promise<TrainingModuleSkill[]>;
+  removeSkillFromModule(moduleId: number, skillId: number): Promise<void>;
+
+  // Employee skills
+  addEmployeeSkill(employeeSkill: InsertEmployeeSkill): Promise<EmployeeSkill>;
+  getEmployeeSkills(userId: string): Promise<EmployeeSkill[]>;
+  updateEmployeeSkill(id: number, skill: Partial<InsertEmployeeSkill>): Promise<EmployeeSkill>;
+  grantSkillsOnCompletion(userId: string, moduleId: number): Promise<void>;
 
   // Messages
   createMessage(message: InsertMessage): Promise<Message>;
