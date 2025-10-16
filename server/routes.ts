@@ -3111,6 +3111,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post('/api/time-clock/manual-entry', isAuthenticated, async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ message: 'Authentication required' });
+      }
+      
+      const { clockInDate, clockInTime, clockOutDate, clockOutTime, notes, locationId } = req.body;
+      
+      // Validate required fields
+      if (!clockInDate || !clockInTime || !clockOutDate || !clockOutTime) {
+        return res.status(400).json({ message: 'Clock in/out date and time are required' });
+      }
+      
+      // Parse and validate dates
+      const clockInDateTime = new Date(`${clockInDate}T${clockInTime}`);
+      const clockOutDateTime = new Date(`${clockOutDate}T${clockOutTime}`);
+      
+      if (isNaN(clockInDateTime.getTime()) || isNaN(clockOutDateTime.getTime())) {
+        return res.status(400).json({ message: 'Invalid date or time format' });
+      }
+      
+      if (clockOutDateTime <= clockInDateTime) {
+        return res.status(400).json({ message: 'Clock out time must be after clock in time' });
+      }
+      
+      // Calculate total worked minutes
+      const totalWorkedMinutes = Math.floor((clockOutDateTime.getTime() - clockInDateTime.getTime()) / (1000 * 60));
+      
+      const userId = req.user.id;
+      console.log('Creating manual time entry for user:', userId, { clockInDateTime, clockOutDateTime, totalWorkedMinutes });
+      
+      const timeEntry = await storage.createManualTimeEntry({
+        userId,
+        locationId: locationId ? parseInt(locationId) : null,
+        clockInTime: clockInDateTime,
+        clockOutTime: clockOutDateTime,
+        totalWorkedMinutes,
+        notes,
+        ipAddress: req.ip,
+        deviceInfo: req.get('User-Agent')
+      });
+      
+      console.log('Manual time entry created successfully:', timeEntry);
+      res.json(timeEntry);
+    } catch (error) {
+      console.error('Error creating manual time entry:', error);
+      res.status(400).json({ message: error instanceof Error ? error.message : 'Failed to create manual time entry' });
+    }
+  });
+
   app.get('/api/time-clock/current', isAuthenticated, async (req, res) => {
     try {
       if (!req.user) {

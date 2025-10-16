@@ -2981,6 +2981,36 @@ export class DatabaseStorage implements IStorage {
     return timeEntry;
   }
 
+  async createManualTimeEntry(data: {
+    userId: string;
+    locationId: number | null;
+    clockInTime: Date;
+    clockOutTime: Date;
+    totalWorkedMinutes: number;
+    notes?: string;
+    ipAddress?: string;
+    deviceInfo?: string;
+  }): Promise<any> {
+    const [timeEntry] = await db
+      .insert(timeClockEntries)
+      .values({
+        userId: data.userId,
+        locationId: data.locationId,
+        clockInTime: data.clockInTime,
+        clockOutTime: data.clockOutTime,
+        status: 'clocked_out',
+        totalWorkedMinutes: data.totalWorkedMinutes,
+        totalBreakMinutes: 0,
+        notes: data.notes,
+        ipAddress: data.ipAddress,
+        deviceInfo: data.deviceInfo,
+        isManualEntry: true,
+      })
+      .returning();
+
+    return timeEntry;
+  }
+
   async getCurrentTimeEntry(userId: string): Promise<any | undefined> {
     const today = new Date().toISOString().split('T')[0];
     const todayStart = new Date(today + 'T00:00:00');
