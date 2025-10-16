@@ -39,7 +39,10 @@ import {
   Eye,
   FileText,
   LogOut,
-  ShoppingCart
+  ShoppingCart,
+  TrendingUp,
+  TrendingDown,
+  Minus
 } from "lucide-react";
 import { format } from "date-fns";
 import type { User as UserType } from "@shared/schema";
@@ -104,6 +107,195 @@ function SMSConsentHistoryComponent({ employeeId }: { employeeId: string }) {
           ))}
         </div>
       </details>
+    </div>
+  );
+}
+
+// Scheduled vs Actual Hours Report Component
+function ScheduledVsActualReport() {
+  const [dateRange, setDateRange] = useState({
+    startDate: new Date().toISOString().split('T')[0],
+    endDate: new Date().toISOString().split('T')[0],
+  });
+  const [selectedEmployee, setSelectedEmployee] = useState<string>('all');
+  
+  const { data: employees } = useQuery({
+    queryKey: ['/api/employees'],
+  });
+
+  const { data: reportData, isLoading } = useQuery({
+    queryKey: ['/api/admin/time-clock/scheduled-vs-actual', dateRange.startDate, dateRange.endDate, selectedEmployee],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        startDate: dateRange.startDate,
+        endDate: dateRange.endDate,
+      });
+      if (selectedEmployee && selectedEmployee !== 'all') {
+        params.append('employeeId', selectedEmployee);
+      }
+      const response = await apiRequest('GET', `/api/admin/time-clock/scheduled-vs-actual?${params.toString()}`);
+      return response.json();
+    },
+    enabled: !!dateRange.startDate && !!dateRange.endDate,
+  });
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString + 'T12:00:00');
+    return format(date, 'MMM d, yyyy');
+  };
+
+  const totalScheduledHours = reportData?.reduce((sum: number, item: any) => sum + item.scheduledHours, 0) || 0;
+  const totalActualHours = reportData?.reduce((sum: number, item: any) => sum + item.actualHours, 0) || 0;
+  const totalScheduledCost = reportData?.reduce((sum: number, item: any) => sum + item.scheduledCost, 0) || 0;
+  const totalActualCost = reportData?.reduce((sum: number, item: any) => sum + item.actualCost, 0) || 0;
+  const totalVarianceHours = totalActualHours - totalScheduledHours;
+  const totalVarianceCost = totalActualCost - totalScheduledCost;
+
+  return (
+    <div className="space-y-6">
+      {/* Filters */}
+      <div className="grid grid-cols-3 gap-4">
+        <div>
+          <Label>From Date</Label>
+          <Input
+            type="date"
+            value={dateRange.startDate}
+            onChange={(e) => setDateRange({ ...dateRange, startDate: e.target.value })}
+            data-testid="input-start-date"
+          />
+        </div>
+        <div>
+          <Label>To Date</Label>
+          <Input
+            type="date"
+            value={dateRange.endDate}
+            onChange={(e) => setDateRange({ ...dateRange, endDate: e.target.value })}
+            data-testid="input-end-date"
+          />
+        </div>
+        <div>
+          <Label>Employee</Label>
+          <Select value={selectedEmployee} onValueChange={setSelectedEmployee}>
+            <SelectTrigger data-testid="select-employee">
+              <SelectValue placeholder="All Employees" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Employees</SelectItem>
+              {employees?.map((emp: UserType) => (
+                <SelectItem key={emp.id} value={emp.id}>
+                  {emp.firstName} {emp.lastName}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      {/* Summary Cards */}
+      <div className="grid grid-cols-4 gap-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-gray-600">Scheduled Hours</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{totalScheduledHours.toFixed(2)}h</div>
+            <div className="text-sm text-gray-500">${totalScheduledCost.toFixed(2)}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-gray-600">Actual Hours</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{totalActualHours.toFixed(2)}h</div>
+            <div className="text-sm text-gray-500">${totalActualCost.toFixed(2)}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-gray-600">Variance Hours</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className={`text-2xl font-bold flex items-center gap-1 ${totalVarianceHours > 0 ? 'text-orange-600' : totalVarianceHours < 0 ? 'text-green-600' : 'text-gray-900'}`}>
+              {totalVarianceHours > 0 && <TrendingUp className="w-5 h-5" />}
+              {totalVarianceHours < 0 && <TrendingDown className="w-5 h-5" />}
+              {totalVarianceHours === 0 && <Minus className="w-5 h-5" />}
+              {Math.abs(totalVarianceHours).toFixed(2)}h
+            </div>
+            <div className="text-sm text-gray-500">{totalVarianceHours > 0 ? 'Over' : totalVarianceHours < 0 ? 'Under' : 'On Target'}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-gray-600">Cost Variance</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className={`text-2xl font-bold ${totalVarianceCost > 0 ? 'text-orange-600' : totalVarianceCost < 0 ? 'text-green-600' : 'text-gray-900'}`}>
+              {totalVarianceCost > 0 ? '+' : ''} ${totalVarianceCost.toFixed(2)}
+            </div>
+            <div className="text-sm text-gray-500">{totalVarianceCost > 0 ? 'Over Budget' : totalVarianceCost < 0 ? 'Under Budget' : 'On Budget'}</div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Report Table */}
+      {isLoading ? (
+        <div className="flex justify-center py-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        </div>
+      ) : reportData && reportData.length > 0 ? (
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse">
+            <thead className="bg-gray-50">
+              <tr className="border-b-2 border-gray-200">
+                <th className="text-left py-3 px-4 font-semibold text-gray-700">Date</th>
+                <th className="text-left py-3 px-4 font-semibold text-gray-700">Employee</th>
+                <th className="text-left py-3 px-4 font-semibold text-gray-700">Scheduled</th>
+                <th className="text-left py-3 px-4 font-semibold text-gray-700">Actual</th>
+                <th className="text-left py-3 px-4 font-semibold text-gray-700">Variance</th>
+                <th className="text-left py-3 px-4 font-semibold text-gray-700">Scheduled Cost</th>
+                <th className="text-left py-3 px-4 font-semibold text-gray-700">Actual Cost</th>
+                <th className="text-left py-3 px-4 font-semibold text-gray-700">Cost Variance</th>
+              </tr>
+            </thead>
+            <tbody>
+              {reportData.map((row: any, index: number) => (
+                <tr key={`${row.userId}-${row.date}`} className="border-b border-gray-200 hover:bg-gray-50 transition-colors" data-testid={`report-row-${index}`}>
+                  <td className="py-3 px-4 text-sm">{formatDate(row.date)}</td>
+                  <td className="py-3 px-4">
+                    <div className="font-medium text-gray-900">{row.employeeName}</div>
+                  </td>
+                  <td className="py-3 px-4 text-sm font-mono">{row.scheduledHours.toFixed(2)}h</td>
+                  <td className="py-3 px-4 text-sm font-mono">{row.actualHours.toFixed(2)}h</td>
+                  <td className="py-3 px-4">
+                    <div className={`flex items-center gap-1 text-sm font-mono ${row.varianceHours > 0 ? 'text-orange-600' : row.varianceHours < 0 ? 'text-green-600' : 'text-gray-900'}`}>
+                      {row.varianceHours > 0 && <TrendingUp className="w-4 h-4" />}
+                      {row.varianceHours < 0 && <TrendingDown className="w-4 h-4" />}
+                      {row.varianceHours === 0 && <Minus className="w-4 h-4" />}
+                      {row.varianceHours > 0 ? '+' : ''}{row.varianceHours.toFixed(2)}h ({row.variancePercentage}%)
+                    </div>
+                  </td>
+                  <td className="py-3 px-4 text-sm font-mono">${row.scheduledCost.toFixed(2)}</td>
+                  <td className="py-3 px-4 text-sm font-mono">${row.actualCost.toFixed(2)}</td>
+                  <td className="py-3 px-4">
+                    <div className={`text-sm font-mono ${row.varianceCost > 0 ? 'text-orange-600' : row.varianceCost < 0 ? 'text-green-600' : 'text-gray-900'}`}>
+                      {row.varianceCost > 0 ? '+' : ''}${row.varianceCost.toFixed(2)}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="text-center py-8">
+          <FileText className="w-12 h-12 text-slate-400 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-slate-900 mb-2">No data found</h3>
+          <p className="text-slate-500">
+            No scheduled shifts or time entries found for the selected date range.
+          </p>
+        </div>
+      )}
     </div>
   );
 }
@@ -891,7 +1083,7 @@ export default function AdminEmployeeManagement() {
 
       {/* Main Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="employees" data-testid="tab-employees">
             <Users className="w-4 h-4 mr-2" />
             Employee Management
@@ -903,6 +1095,10 @@ export default function AdminEmployeeManagement() {
           <TabsTrigger value="time-clock" data-testid="tab-time-clock">
             <Clock className="w-4 h-4 mr-2" />
             Time Clock
+          </TabsTrigger>
+          <TabsTrigger value="reporting" data-testid="tab-reporting">
+            <FileText className="w-4 h-4 mr-2" />
+            Reporting
           </TabsTrigger>
         </TabsList>
 
@@ -1921,6 +2117,21 @@ export default function AdminEmployeeManagement() {
             </div>
           </div>
         )}
+      </CardContent>
+    </Card>
+  </TabsContent>
+
+  {/* Reporting Tab - Scheduled vs Actual */}
+  <TabsContent value="reporting" className="space-y-6">
+    <Card>
+      <CardHeader>
+        <CardTitle>Scheduled vs Actual Hours Report</CardTitle>
+        <CardDescription>
+          Compare scheduled shifts against actual time clock entries (automatic & manual)
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <ScheduledVsActualReport />
       </CardContent>
     </Card>
   </TabsContent>
