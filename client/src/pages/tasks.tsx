@@ -613,6 +613,7 @@ export default function Tasks() {
                     {sortField === "title" && (sortDirection === "asc" ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />)}
                   </div>
                 </TableHead>
+                <TableHead>Description</TableHead>
                 <TableHead className="cursor-pointer" onClick={() => handleSort("status")}>
                   <div className="flex items-center gap-2">
                     Status
@@ -645,13 +646,13 @@ export default function Tasks() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                     Loading tasks...
                   </TableCell>
                 </TableRow>
               ) : filteredTasks.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                     No tasks found
                   </TableCell>
                 </TableRow>
@@ -668,11 +669,9 @@ export default function Tasks() {
                           {getStatusIcon(task.status)}
                           <span>{task.title}</span>
                         </div>
-                        {task.description && (
-                          <div className="text-xs text-muted-foreground mt-1 max-w-xs truncate">
-                            {task.description}
-                          </div>
-                        )}
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground max-w-md">
+                        {task.description || <span className="text-xs italic">No description</span>}
                       </TableCell>
                       <TableCell>
                         <Badge variant={task.status === "completed" ? "default" : task.status === "in_progress" ? "secondary" : "outline"}>
