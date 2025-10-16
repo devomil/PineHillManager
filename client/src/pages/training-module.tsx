@@ -12,30 +12,26 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { ArrowLeft, BookOpen, CheckCircle, Clock, Award, PlayCircle, FileText } from "lucide-react";
 import { useRoute, Link } from "wouter";
+import type { 
+  TrainingLesson, 
+  TrainingAssessment, 
+  TrainingQuestion, 
+  TrainingProgress,
+  TrainingAttempt,
+  TrainingModule as BaseTrainingModule,
+  TrainingSkill
+} from "@shared/schema";
 
-interface Lesson {
-  id: number;
-  title: string;
-  content: any;
-  orderIndex: number;
-  estimatedDuration?: number;
+interface TrainingModuleWithRelations extends BaseTrainingModule {
+  lessons?: TrainingLesson[];
+  assessment?: TrainingAssessment;
+  skills?: TrainingSkill[];
 }
 
-interface Assessment {
-  id: number;
-  title: string;
-  passingScore: number;
-  timeLimit?: number;
-  maxAttempts?: number;
-}
-
-interface Question {
-  id: number;
-  questionText: string;
-  questionType: string;
-  options: any;
-  orderIndex: number;
-  points: number;
+interface AssessmentAttemptResult {
+  passed: boolean;
+  score: number;
+  attemptId: number;
 }
 
 export default function TrainingModulePage() {
@@ -49,33 +45,31 @@ export default function TrainingModulePage() {
   const [assessmentAnswers, setAssessmentAnswers] = useState<Record<string, string>>({});
   const [assessmentStartTime, setAssessmentStartTime] = useState<Date | null>(null);
 
-  const { data: module, isLoading: moduleLoading } = useQuery({
+  const { data: module, isLoading: moduleLoading } = useQuery<TrainingModuleWithRelations>({
     queryKey: ["/api/training/modules", moduleId],
     enabled: isAuthenticated && moduleId > 0,
   });
 
-  const { data: moduleProgress } = useQuery({
+  const { data: moduleProgress } = useQuery<TrainingProgress>({
     queryKey: ["/api/training/progress", moduleId],
     enabled: isAuthenticated && moduleId > 0,
   });
 
-  const { data: questions } = useQuery<Question[]>({
+  const { data: questions } = useQuery<TrainingQuestion[]>({
     queryKey: ["/api/training/assessments", module?.assessment?.id, "questions"],
     enabled: isAuthenticated && !!module?.assessment?.id,
   });
 
-  const { data: attempts } = useQuery({
+  const { data: attempts } = useQuery<TrainingAttempt[]>({
     queryKey: ["/api/training/assessments", module?.assessment?.id, "attempts"],
     enabled: isAuthenticated && !!module?.assessment?.id,
   });
 
   const completeLessonMutation = useMutation({
-    mutationFn: (data: { lessonId: number; timeSpent?: number }) =>
-      apiRequest(`/api/training/lessons/${data.lessonId}/complete`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ timeSpent: data.timeSpent }),
-      }),
+    mutationFn: async (data: { lessonId: number; timeSpent?: number }) => {
+      const response = await apiRequest("POST", `/api/training/lessons/${data.lessonId}/complete`, { timeSpent: data.timeSpent });
+      return response.json();
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/training/progress", moduleId] });
       toast({
@@ -92,13 +86,11 @@ export default function TrainingModulePage() {
   });
 
   const submitAssessmentMutation = useMutation({
-    mutationFn: (data: any) =>
-      apiRequest(`/api/training/assessments/${module?.assessment?.id}/attempt`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      }),
-    onSuccess: (result: any) => {
+    mutationFn: async (data: any) => {
+      const response = await apiRequest("POST", `/api/training/assessments/${module?.assessment?.id}/attempt`, data);
+      return response.json() as Promise<AssessmentAttemptResult>;
+    },
+    onSuccess: (result: AssessmentAttemptResult) => {
       queryClient.invalidateQueries({ queryKey: ["/api/training/progress", moduleId] });
       queryClient.invalidateQueries({ queryKey: ["/api/training/progress"] });
       queryClient.invalidateQueries({ queryKey: ["/api/training/assessments", module?.assessment?.id, "attempts"] });
@@ -124,12 +116,10 @@ export default function TrainingModulePage() {
   });
 
   const enrollMutation = useMutation({
-    mutationFn: (moduleId: number) =>
-      apiRequest("/api/training/enroll", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ moduleId }),
-      }),
+    mutationFn: async (moduleId: number) => {
+      const response = await apiRequest("POST", "/api/training/enroll", { moduleId });
+      return response.json();
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/training/progress", moduleId] });
       toast({
@@ -165,7 +155,7 @@ export default function TrainingModulePage() {
   const progressPercentage = moduleProgress?.progress || 0;
   const isCompleted = moduleProgress?.status === "completed";
   const attemptsCount = attempts?.length || 0;
-  const maxAttemptsReached = module.assessment?.maxAttempts && attemptsCount >= module.assessment.maxAttempts;
+  const maxAttemptsReached = !!(module.assessment?.maxAttempts && attemptsCount >= module.assessment.maxAttempts);
   const latestAttempt = attempts?.[0];
 
   const handleCompleteLesson = () => {
@@ -384,10 +374,12 @@ export default function TrainingModulePage() {
                         setAssessmentAnswers({ ...assessmentAnswers, [question.id.toString()]: value })
                       }
                     >
-                      {Object.entries(question.options).map(([key, value]) => (
+                      {Object.entries(question.options as Record<string, any>).map(([key, value]) => (
                         <div key={key} className="flex items-center space-x-2">
                           <RadioGroupItem value={key} id={`q${question.id}-${key}`} />
-                          <Label htmlFor={`q${question.id}-${key}`}>{value as string}</Label>
+                          <Label htmlFor={`q${question.id}-${key}`}>
+                            {typeof value === 'string' ? value : (value?.text || value?.label || JSON.stringify(value))}
+                          </Label>
                         </div>
                       ))}
                     </RadioGroup>
@@ -435,7 +427,7 @@ export default function TrainingModulePage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              {attempts.map((attempt: any, index: number) => (
+              {attempts.map((attempt: TrainingAttempt, index: number) => (
                 <div
                   key={attempt.id}
                   className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-lg"
