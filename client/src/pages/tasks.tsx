@@ -22,9 +22,12 @@ import { z } from "zod";
 import { insertTaskSchema, type Task, type User } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Calendar, User as UserIcon, AlertCircle, CheckCircle, Clock, MessageSquare, Filter, X, ListChecks, Check, XCircle, Sparkles, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { Plus, Calendar, User as UserIcon, AlertCircle, CheckCircle, Clock, MessageSquare, Filter, X, ListChecks, Check, XCircle, Sparkles, ArrowUpDown, ArrowUp, ArrowDown, ChevronDown, LogOut, Bell } from "lucide-react";
 import { format } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import UserAvatar from "@/components/user-avatar";
+import { Link } from "wouter";
 
 const taskFormSchema = insertTaskSchema.omit({
   createdBy: true,
@@ -41,7 +44,7 @@ type TaskFormData = z.infer<typeof taskFormSchema>;
 type TaskStep = { text: string; completed: boolean; order: number };
 
 export default function Tasks() {
-  const { user } = useAuth();
+  const { user, logoutMutation } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
@@ -322,18 +325,72 @@ export default function Tasks() {
 
   if (!user) return null;
 
-  return (
-    <AdminLayout currentTab="tasks">
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold">Task Management</h1>
-            <p className="text-muted-foreground mt-1">
-              {isAdminOrManager ? "Create, assign, and manage tasks" : "View and manage your assigned tasks"}
-            </p>
+  // Convert user to UserAvatar compatible type (null to undefined)
+  const avatarUser = {
+    profileImageUrl: user.profileImageUrl ?? undefined,
+    firstName: user.firstName ?? undefined,
+    lastName: user.lastName ?? undefined,
+  };
+
+  // Employee header (for non-admin/manager users)
+  const EmployeeHeader = () => (
+    <header className="bg-white border-b sticky top-0 z-50">
+      <div className="flex items-center justify-between px-6 py-3">
+        <Link href="/dashboard">
+          <div className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity">
+            <div className="text-2xl font-['Great_Vibes'] text-green-800">Pine Hill Farm</div>
           </div>
-          {isAdminOrManager && (
+        </Link>
+        
+        <div className="flex items-center gap-4">
+          <Link href="/notifications">
+            <Button variant="ghost" size="icon" className="relative" data-testid="button-notifications">
+              <Bell className="h-5 w-5" />
+            </Button>
+          </Link>
+          
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" className="flex items-center gap-2" data-testid="button-user-menu">
+                <UserAvatar user={avatarUser} size="sm" />
+                <span className="hidden sm:inline">{user?.firstName} {user?.lastName}</span>
+                <ChevronDown className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <Link href="/profile">
+                <DropdownMenuItem data-testid="menu-item-profile">
+                  <UserIcon className="mr-2 h-4 w-4" />
+                  Profile
+                </DropdownMenuItem>
+              </Link>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem 
+                onClick={() => logoutMutation.mutate()}
+                data-testid="menu-item-logout"
+              >
+                <LogOut className="mr-2 h-4 w-4" />
+                Logout
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
+    </header>
+  );
+
+  // Task content (shared between both layouts)
+  const TaskContent = () => (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold">Task Management</h1>
+          <p className="text-muted-foreground mt-1">
+            {isAdminOrManager ? "Create, assign, and manage tasks" : "View and manage your assigned tasks"}
+          </p>
+        </div>
+        {isAdminOrManager && (
             <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
               <DialogTrigger asChild>
                 <Button data-testid="button-create-task">
@@ -860,7 +917,25 @@ export default function Tasks() {
           />
         )}
       </div>
-    </AdminLayout>
+  );
+
+  // Conditional rendering based on user role
+  if (isAdminOrManager) {
+    return (
+      <AdminLayout currentTab="tasks">
+        <TaskContent />
+      </AdminLayout>
+    );
+  }
+
+  // Employee view without admin sidebar
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <EmployeeHeader />
+      <div className="max-w-7xl mx-auto px-6 py-8">
+        <TaskContent />
+      </div>
+    </div>
   );
 }
 
