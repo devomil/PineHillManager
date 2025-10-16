@@ -15,6 +15,7 @@ import TimeManagement from "@/pages/time-management";
 import ShiftScheduling from "@/pages/shift-scheduling";
 import ShiftSwapMarketplace from "@/pages/shift-swap-marketplace";
 import Training from "@/pages/training";
+import TrainingModule from "@/pages/training-module";
 import AdminTraining from "@/pages/admin-training";
 import Profile from "@/pages/profile";
 import Reports from "@/pages/reports";
@@ -55,6 +56,7 @@ function AuthenticatedApp() {
       <Route path="/shift-swaps" component={ShiftSwapMarketplace} />
       <Route path="/communication" component={CommunicationsPage} />
       <Route path="/training" component={Training} />
+      <Route path="/training/module/:id" component={TrainingModule} />
       <Route path="/admin/training" component={AdminTraining} />
       <Route path="/profile" component={Profile} />
       <Route path="/reports" component={Reports} />
