@@ -334,56 +334,28 @@ export default function Tasks() {
 
   // Employee header (for non-admin/manager users)
   const EmployeeHeader = () => (
-    <header className="bg-white border-b sticky top-0 z-50">
-      <div className="flex items-center justify-between px-6 py-3">
-        <div className="flex items-center gap-4">
-          <Link href="/dashboard">
-            <Button variant="ghost" size="icon" data-testid="button-back">
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-          </Link>
-          <Link href="/dashboard">
-            <div className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity">
-              <div className="text-2xl font-semibold text-green-800">Pine Hill Farm</div>
+    <div className="bg-white shadow-sm">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex justify-between items-center py-6">
+          <div className="flex items-center space-x-4">
+            <div>
+              <h1 className="text-3xl font-semibold text-gray-900">
+                Pine Hill Farm
+              </h1>
+              <p className="text-sm text-gray-600">Task Management</p>
             </div>
-          </Link>
-        </div>
-        
-        <div className="flex items-center gap-4">
-          <Link href="/notifications">
-            <Button variant="ghost" size="icon" className="relative" data-testid="button-notifications">
-              <Bell className="h-5 w-5" />
-            </Button>
-          </Link>
+          </div>
           
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="flex items-center gap-2" data-testid="button-user-menu">
-                <UserAvatar user={avatarUser} size="sm" />
-                <span className="hidden sm:inline">{user?.firstName} {user?.lastName}</span>
-                <ChevronDown className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <Link href="/profile">
-                <DropdownMenuItem data-testid="menu-item-profile">
-                  <UserIcon className="mr-2 h-4 w-4" />
-                  Profile
-                </DropdownMenuItem>
-              </Link>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem 
-                onClick={() => logoutMutation.mutate()}
-                data-testid="menu-item-logout"
-              >
-                <LogOut className="mr-2 h-4 w-4" />
-                Logout
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <Button 
+            variant="ghost" 
+            onClick={() => window.location.href = "/"}
+            className="text-gray-700 hover:text-gray-900"
+          >
+            ← Back to Dashboard
+          </Button>
         </div>
       </div>
-    </header>
+    </div>
   );
 
   // Task content (shared between both layouts)
@@ -937,9 +909,9 @@ export default function Tasks() {
 
   // Employee view without admin sidebar
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100">
       <EmployeeHeader />
-      <div className="max-w-7xl mx-auto px-6 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <TaskContent />
       </div>
     </div>

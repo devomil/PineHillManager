@@ -2873,8 +2873,7 @@ export default function CommunicationsPage() {
             <div className="flex justify-between items-center py-6">
               <div className="flex items-center space-x-4">
                 <div>
-                  <h1 className="text-3xl font-bold text-gray-900 font-brand" 
-                      style={{ fontFamily: "'Great Vibes', cursive" }}>
+                  <h1 className="text-3xl font-semibold text-gray-900">
                     Pine Hill Farm
                   </h1>
                   <p className="text-sm text-gray-600">Communications</p>

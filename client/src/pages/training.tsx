@@ -156,14 +156,34 @@ export default function Training() {
   };
 
   return (
-    <div className="space-y-6" data-testid="training-page">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Training Portal</h1>
-        <p className="text-slate-500 dark:text-slate-400 mt-1">
-          Access training modules and track your progress
-        </p>
+      <div className="bg-white shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center py-6">
+            <div className="flex items-center space-x-4">
+              <div>
+                <h1 className="text-3xl font-semibold text-gray-900">
+                  Pine Hill Farm
+                </h1>
+                <p className="text-sm text-gray-600">Training Portal</p>
+              </div>
+            </div>
+            
+            <Button 
+              variant="ghost" 
+              onClick={() => window.location.href = "/"}
+              className="text-gray-700 hover:text-gray-900"
+            >
+              ← Back to Dashboard
+            </Button>
+          </div>
+        </div>
       </div>
+
+      {/* Main Content */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="space-y-6" data-testid="training-page">
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -432,6 +452,8 @@ export default function Training() {
           </CardContent>
         </Card>
       )}
+        </div>
+      </div>
     </div>
   );
 }

@@ -235,13 +235,33 @@ export default function EmployeePurchases() {
   }
 
   return (
-    <div className="container mx-auto p-6 max-w-6xl">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold mb-2">Employee Purchase Portal</h1>
-        <p className="text-muted-foreground">
-          Scan items to purchase with your employee allowance
-        </p>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100">
+      {/* Header */}
+      <div className="bg-white shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center py-6">
+            <div className="flex items-center space-x-4">
+              <div>
+                <h1 className="text-3xl font-semibold text-gray-900">
+                  Pine Hill Farm
+                </h1>
+                <p className="text-sm text-gray-600">Employee Purchase Portal</p>
+              </div>
+            </div>
+            
+            <Button 
+              variant="ghost" 
+              onClick={() => window.location.href = "/"}
+              className="text-gray-700 hover:text-gray-900"
+            >
+              ← Back to Dashboard
+            </Button>
+          </div>
+        </div>
       </div>
+
+      {/* Main Content */}
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
@@ -472,6 +492,7 @@ export default function EmployeePurchases() {
             </CardContent>
           </Card>
         </div>
+      </div>
       </div>
     </div>
   );
