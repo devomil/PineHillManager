@@ -7523,10 +7523,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } else {
         // All locations - combine ALL Clover orders with Amazon orders for accurate totals
         allOrdersForTotals = [...allCloverOrdersForTotals, ...amazonOrdersWithMetrics]; 
-        // For display, combine paginated Clover with Amazon
-        const combinedOrdersForPage = [...dbResult.orders, ...amazonOrdersWithMetrics];
-        allOrdersForCurrentPage = combinedOrdersForPage.slice(offsetNum, offsetNum + limitNum);
-        totalItems = dbResult.total + amazonOrdersWithMetrics.length;
+        // For display, combine ALL Clover orders with Amazon, then paginate the combined result
+        const combinedAllOrders = [...allCloverOrdersForTotals, ...amazonOrdersWithMetrics];
+        allOrdersForCurrentPage = combinedAllOrders.slice(offsetNum, offsetNum + limitNum);
+        totalItems = combinedAllOrders.length;
         console.log(`📍 [ALL LOCATIONS] Returning ${allOrdersForCurrentPage.length} orders for display. Totals from ${allOrdersForTotals.length} orders (${allCloverOrdersForTotals.length} Clover + ${amazonOrdersWithMetrics.length} Amazon)`);
       }
 
