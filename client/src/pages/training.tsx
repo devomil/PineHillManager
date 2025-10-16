@@ -75,12 +75,20 @@ export default function Training() {
   });
 
   const enrollMutation = useMutation({
-    mutationFn: (moduleId: number) =>
-      apiRequest("/api/training/enroll", {
+    mutationFn: async (moduleId: number) => {
+      const response = await fetch("/api/training/enroll", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ moduleId }),
-      }),
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Failed to enroll in module");
+      }
+      
+      return response.json();
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/training/progress"] });
       toast({
@@ -122,7 +130,7 @@ export default function Training() {
 
   const completedCount = progress?.filter((p) => p.status === "completed").length || 0;
   const totalEnrolled = progress?.length || 0;
-  const overdueCount = overdueTraining?.length || 0;
+  const overdueCount = (overdueTraining as any[])?.length || 0;
 
   const filteredModules = modules?.filter((module) => {
     if (activeTab === "all") return true;
@@ -270,8 +278,8 @@ export default function Training() {
           <TabsTrigger value="all" data-testid="tab-all">All Modules</TabsTrigger>
           <TabsTrigger value="mandatory" data-testid="tab-mandatory">
             Mandatory
-            {mandatoryModules?.length > 0 && (
-              <Badge variant="secondary" className="ml-2">{mandatoryModules.length}</Badge>
+            {(mandatoryModules as any[])?.length > 0 && (
+              <Badge variant="secondary" className="ml-2">{(mandatoryModules as any[]).length}</Badge>
             )}
           </TabsTrigger>
           <TabsTrigger value="in_progress" data-testid="tab-in-progress">In Progress</TabsTrigger>
@@ -303,7 +311,7 @@ export default function Training() {
                 const moduleProgress = getProgressForModule(module.id);
                 const isCompleted = moduleProgress?.status === "completed";
                 const isInProgress = moduleProgress?.status === "in_progress";
-                const isOverdue = overdueTraining?.some((o: any) => o.moduleId === module.id);
+                const isOverdue = (overdueTraining as any[])?.some((o: any) => o.moduleId === module.id);
                 
                 return (
                   <Card key={module.id} className={`hover:shadow-md transition-shadow ${isOverdue ? 'border-red-300' : ''}`} data-testid={`card-module-${module.id}`}>
