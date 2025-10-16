@@ -3253,10 +3253,24 @@ export class DatabaseStorage implements IStorage {
     // Process scheduled shifts
     for (const shift of scheduledShifts) {
       const key = `${shift.userId}-${shift.date}`;
-      const startParts = shift.startTime.split(':');
-      const endParts = shift.endTime.split(':');
-      const startMinutes = parseInt(startParts[0]) * 60 + parseInt(startParts[1]);
-      const endMinutes = parseInt(endParts[0]) * 60 + parseInt(endParts[1]);
+      
+      // Handle both timestamp and time-only formats
+      let startMinutes, endMinutes;
+      
+      if (shift.startTime.includes('T')) {
+        // It's a timestamp, extract time portion
+        const startTime = new Date(shift.startTime);
+        const endTime = new Date(shift.endTime);
+        startMinutes = startTime.getHours() * 60 + startTime.getMinutes();
+        endMinutes = endTime.getHours() * 60 + endTime.getMinutes();
+      } else {
+        // It's a time string (HH:MM format)
+        const startParts = shift.startTime.split(':');
+        const endParts = shift.endTime.split(':');
+        startMinutes = parseInt(startParts[0]) * 60 + parseInt(startParts[1]);
+        endMinutes = parseInt(endParts[0]) * 60 + parseInt(endParts[1]);
+      }
+      
       const scheduledMinutes = endMinutes >= startMinutes 
         ? endMinutes - startMinutes 
         : (24 * 60 - startMinutes) + endMinutes; // Handle overnight shifts
