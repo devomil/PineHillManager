@@ -459,6 +459,33 @@ export class AmazonIntegration {
     return await this.makeAmazonAPICall(endpoint);
   }
 
+  // Get revenue for a date range
+  async getRevenue(startDate: Date, endDate: Date): Promise<number> {
+    try {
+      // Get all orders in the date range
+      const ordersResponse = await this.getOrders(startDate.toISOString(), endDate.toISOString());
+      
+      if (!ordersResponse || !ordersResponse.payload || !ordersResponse.payload.Orders) {
+        return 0;
+      }
+      
+      const orders = ordersResponse.payload.Orders;
+      let totalRevenue = 0;
+      
+      for (const order of orders) {
+        // Sum OrderTotal.Amount for each order
+        if (order.OrderTotal && order.OrderTotal.Amount) {
+          totalRevenue += parseFloat(order.OrderTotal.Amount);
+        }
+      }
+      
+      return totalRevenue;
+    } catch (error) {
+      console.error(`Error getting revenue for Amazon:`, error);
+      return 0;
+    }
+  }
+
   // Sync daily sales data for Amazon
   async syncDailySalesWithConfig(config: any, targetDate: Date = new Date()): Promise<void> {
     console.log(`Starting Amazon daily sales sync for ${config.merchantName} on ${targetDate.toDateString()}`);

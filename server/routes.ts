@@ -5620,6 +5620,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Sync Chart of Accounts with Live Data
+  app.post('/api/accounting/accounts/sync', isAuthenticated, async (req, res) => {
+    try {
+      const { startDate, endDate } = req.body;
+      
+      if (!startDate || !endDate) {
+        return res.status(400).json({ message: 'startDate and endDate are required' });
+      }
+      
+      await storage.syncAccountBalancesWithLiveData(startDate, endDate);
+      
+      res.json({ 
+        success: true,
+        message: 'Chart of Accounts synced successfully',
+        period: `${startDate} to ${endDate}`
+      });
+    } catch (error) {
+      console.error('Error syncing account balances:', error);
+      res.status(500).json({ message: 'Failed to sync account balances' });
+    }
+  });
+
   // Financial Accounts (Chart of Accounts) Routes
   app.get('/api/accounting/accounts', isAuthenticated, async (req, res) => {
     try {

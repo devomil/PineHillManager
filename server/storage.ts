@@ -265,6 +265,8 @@ import {
 import { db } from "./db";
 import { eq, and, desc, asc, gte, lte, or, sql, like, isNull, isNotNull, exists, sum, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
+import { CloverIntegration } from "./integrations/clover";
+import { AmazonIntegration } from "./integrations/amazon";
 
 // Standard Chart of Accounts - Auto-populated accounts with data
 const STANDARD_ACCOUNTS = [
@@ -563,6 +565,7 @@ export interface IStorage {
   getAccountsByType(accountType: string): Promise<FinancialAccount[]>;
   getAccountsByName(accountName: string): Promise<FinancialAccount[]>;
   ensureStandardAccounts(): Promise<void>;
+  syncAccountBalancesWithLiveData(startDate: string, endDate: string): Promise<void>;
 
   // Financial Transactions
   createFinancialTransaction(transaction: InsertFinancialTransaction): Promise<FinancialTransaction>;
@@ -4478,6 +4481,92 @@ export class DatabaseStorage implements IStorage {
     }
     
     console.log('✅ Standard accounts ensured successfully');
+  }
+
+  async syncAccountBalancesWithLiveData(startDate: string, endDate: string): Promise<void> {
+    console.log(`🔄 Syncing Chart of Accounts balances with live data (${startDate} to ${endDate})...`);
+    
+    try {
+      // Get all Clover configurations
+      const cloverMerchants = await db.select().from(cloverConfig).where(eq(cloverConfig.isActive, true));
+      
+      // Get Amazon configuration
+      const [amazonConfiguration] = await db.select().from(amazonConfig).where(eq(amazonConfig.isActive, true)).limit(1);
+      
+      // Sync each Clover location
+      for (const merchant of cloverMerchants) {
+        if (!merchant.merchantId || !merchant.apiToken) {
+          console.log(`  ⏭️ Skipping ${merchant.merchantName} - missing credentials`);
+          continue;
+        }
+        
+        const clover = new CloverIntegration({
+          merchantId: merchant.merchantId,
+          apiToken: merchant.apiToken,
+          merchantName: merchant.merchantName || 'Unknown'
+        });
+        
+        const revenue = await clover.getRevenue(new Date(startDate), new Date(endDate));
+        
+        // Find the sales account for this location
+        const accountName = `Sales - ${merchant.merchantName}`;
+        const [account] = await db.select().from(financialAccounts)
+          .where(and(
+            eq(financialAccounts.accountName, accountName),
+            eq(financialAccounts.isActive, true)
+          ))
+          .limit(1);
+        
+        if (account) {
+          await db.update(financialAccounts)
+            .set({ 
+              balance: revenue.toFixed(2),
+              updatedAt: new Date()
+            })
+            .where(eq(financialAccounts.id, account.id));
+          console.log(`  ✅ Updated ${accountName}: $${revenue.toFixed(2)}`);
+        }
+      }
+      
+      // Sync Amazon Store
+      if (amazonConfiguration && amazonConfiguration.sellerId && amazonConfiguration.sellerId !== 'AMAZON_SELLER_ID') {
+        try {
+          const amazon = new AmazonIntegration({
+            sellerId: amazonConfiguration.sellerId,
+            merchantName: 'Amazon Store'
+          });
+          
+          // Use getSalesMetrics instead of getRevenue
+          const metrics = await amazon.getSalesMetrics(startDate, endDate, 'Total');
+          const revenue = metrics?.totalSales?.amount || 0;
+          
+          const accountName = 'Sales - Amazon Store';
+          const [account] = await db.select().from(financialAccounts)
+            .where(and(
+              eq(financialAccounts.accountName, accountName),
+              eq(financialAccounts.isActive, true)
+            ))
+            .limit(1);
+          
+          if (account) {
+            await db.update(financialAccounts)
+              .set({ 
+                balance: revenue.toFixed(2),
+                updatedAt: new Date()
+              })
+              .where(eq(financialAccounts.id, account.id));
+            console.log(`  ✅ Updated ${accountName}: $${revenue.toFixed(2)}`);
+          }
+        } catch (error) {
+          console.log(`  ⚠️ Skipped Amazon Store: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+      
+      console.log('✅ Chart of Accounts sync completed successfully');
+    } catch (error) {
+      console.error('❌ Error syncing account balances:', error);
+      throw error;
+    }
   }
 
   // Financial Transactions

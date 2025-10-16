@@ -674,29 +674,56 @@ export class CloverIntegration {
     return await this.makeCloverAPICall(endpoint);
   }
 
-  // Fetch credit refunds for complete refund visibility
-  async fetchCreditRefunds(params: {
-    orderId?: string;
-    paymentId?: string;
-    startDate?: string;
-    endDate?: string;
-    limit?: number;
-    offset?: number;
-  } = {}) {
-    console.log(`🔄 Fetching credit refunds`);
-    
-    const queryParams = new URLSearchParams();
-    if (params.orderId) queryParams.append('filter', `order.id=${params.orderId}`);
-    if (params.paymentId) queryParams.append('filter', `payment.id=${params.paymentId}`);
-    if (params.startDate) queryParams.append('filter', `modifiedTime>=${new Date(params.startDate).getTime()}`);
-    if (params.endDate) queryParams.append('filter', `modifiedTime<=${new Date(params.endDate).getTime()}`);
-    if (params.limit) queryParams.append('limit', params.limit.toString());
-    if (params.offset) queryParams.append('offset', params.offset.toString());
-
-    const queryString = queryParams.toString();
-    const endpoint = queryString ? `refunds?${queryString}` : 'refunds';
-    
-    return await this.makeCloverAPICall(endpoint);
+  // Get revenue for a date range
+  async getRevenue(startDate: Date, endDate: Date): Promise<number> {
+    try {
+      const startMs = startDate.getTime();
+      const endMs = endDate.getTime();
+      
+      // Fetch all orders in the date range with payments expanded
+      const ordersResponse = await this.fetchOrders({
+        createdTimeMin: startMs,
+        createdTimeMax: endMs,
+        expand: 'lineItems,payments,discounts',
+        limit: 1000
+      });
+      
+      const orders = ordersResponse?.elements || [];
+      let totalRevenue = 0;
+      
+      for (const order of orders) {
+        // Skip voided or refunded orders
+        if (order.state === 'open' || order.paymentState !== 'PAID') {
+          continue;
+        }
+        
+        // Sum all payments for this order (amounts are in cents)
+        if (order.payments && Array.isArray(order.payments)) {
+          for (const payment of order.payments) {
+            if (payment.result === 'SUCCESS') {
+              totalRevenue += (payment.amount || 0) / 100; // Convert cents to dollars
+            }
+          }
+        }
+      }
+      
+      // Fetch and subtract refunds
+      const refundsResponse = await this.fetchCreditRefunds({
+        createdTimeMin: startMs,
+        createdTimeMax: endMs,
+        limit: 1000
+      });
+      
+      const refunds = refundsResponse?.elements || [];
+      for (const refund of refunds) {
+        totalRevenue -= (refund.amount || 0) / 100; // Convert cents to dollars and subtract
+      }
+      
+      return totalRevenue;
+    } catch (error) {
+      console.error(`Error getting revenue:`, error);
+      return 0;
+    }
   }
 
   // Comprehensive order data aggregation for single source of truth

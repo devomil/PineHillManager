@@ -58,6 +58,57 @@ app.use((req, res, next) => {
   const { storage } = await import('./storage');
   await storage.ensureStandardAccounts();
   log('📊 Standard Chart of Accounts initialized', 'accounting');
+  
+  // Sync Chart of Accounts with live data on startup
+  const currentMonth = new Date();
+  const monthStart = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1).toISOString().split('T')[0];
+  const today = new Date().toISOString().split('T')[0];
+  
+  try {
+    await storage.syncAccountBalancesWithLiveData(monthStart, today);
+    log(`✅ Chart of Accounts synced with live data (${monthStart} to ${today})`, 'accounting');
+  } catch (error) {
+    log('⚠️ Initial Chart of Accounts sync failed: ' + (error instanceof Error ? error.message : String(error)), 'accounting');
+  }
+
+  // Schedule daily Chart of Accounts sync at 12:01 AM CT
+  const startChartOfAccountsSync = () => {
+    const checkAndSync = async () => {
+      const now = new Date();
+      const ctHour = parseInt(now.toLocaleString('en-US', { 
+        hour: '2-digit', 
+        hour12: false,
+        timeZone: 'America/Chicago'
+      }));
+      const ctMinute = parseInt(now.toLocaleString('en-US', { 
+        minute: '2-digit',
+        timeZone: 'America/Chicago'
+      }));
+      
+      // Run sync at 12:01 AM CT
+      if (ctHour === 0 && ctMinute === 1) {
+        const currentMonth = new Date();
+        const monthStart = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1).toISOString().split('T')[0];
+        const today = now.toISOString().split('T')[0];
+        
+        log('🕛 Scheduler checking at: ' + now.toLocaleString('en-US', { timeZone: 'America/Chicago' }) + ' CT', 'sync-chart');
+        log(`🔄 Starting daily Chart of Accounts sync for ${monthStart} to ${today}`, 'sync-chart');
+        
+        try {
+          await storage.syncAccountBalancesWithLiveData(monthStart, today);
+          log('✅ Chart of Accounts sync completed successfully', 'sync-chart');
+        } catch (error) {
+          log('❌ Chart of Accounts sync failed: ' + (error instanceof Error ? error.message : String(error)), 'sync-chart');
+        }
+      }
+    };
+    
+    // Check every minute
+    setInterval(checkAndSync, 60 * 1000);
+    log('📅 Chart of Accounts daily sync scheduler initialized (12:01 AM CT)', 'sync-chart');
+  };
+  
+  startChartOfAccountsSync();
 
   // Import and initialize the message scheduler
   const { startMessageScheduler } = await import('./messageScheduler');
