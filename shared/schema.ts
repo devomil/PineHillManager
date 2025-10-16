@@ -279,7 +279,7 @@ export const announcements = pgTable("announcements", {
   authorIdx: index("idx_announcements_author").on(table.authorId),
 }));
 
-// Training modules
+// Training modules - Enhanced with comprehensive learning features
 export const trainingModules = pgTable("training_modules", {
   id: serial("id").primaryKey(),
   title: varchar("title").notNull(),
@@ -288,22 +288,170 @@ export const trainingModules = pgTable("training_modules", {
   duration: integer("duration"), // in minutes
   category: varchar("category"),
   requiredForRole: varchar("required_for_role"),
+  difficulty: varchar("difficulty").default("beginner"), // beginner, intermediate, advanced
+  isMandatory: boolean("is_mandatory").default(false), // Required for all employees
+  requiredForRoles: text("required_for_roles").array(), // Roles that must complete this
+  requiredForDepartments: text("required_for_departments").array(), // Departments that must complete this
+  prerequisites: integer("prerequisites").array(), // Module IDs that must be completed first
+  thumbnailUrl: varchar("thumbnail_url"),
+  createdBy: varchar("created_by").references(() => users.id),
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => ({
+  categoryIdx: index("idx_training_modules_category").on(table.category),
+  isActiveIdx: index("idx_training_modules_is_active").on(table.isActive),
+  isMandatoryIdx: index("idx_training_modules_is_mandatory").on(table.isMandatory),
+}));
 
-// Training progress
+// Training lessons - Break modules into individual lessons
+export const trainingLessons = pgTable("training_lessons", {
+  id: serial("id").primaryKey(),
+  moduleId: integer("module_id").notNull().references(() => trainingModules.id, { onDelete: "cascade" }),
+  title: varchar("title", { length: 255 }).notNull(),
+  content: text("content").notNull(), // Markdown or HTML content
+  contentType: varchar("content_type").default("markdown"), // markdown, html, video, pdf
+  videoUrl: varchar("video_url"),
+  attachmentUrl: varchar("attachment_url"),
+  orderIndex: integer("order_index").notNull(), // Lesson order within module
+  duration: integer("duration"), // Estimated minutes
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  moduleIdIdx: index("idx_training_lessons_module_id").on(table.moduleId),
+  orderIdx: index("idx_training_lessons_order").on(table.moduleId, table.orderIndex),
+}));
+
+// Training progress - Enhanced with enrollment features
 export const trainingProgress = pgTable("training_progress", {
   id: serial("id").primaryKey(),
   userId: varchar("user_id").notNull().references(() => users.id),
   moduleId: integer("module_id").notNull().references(() => trainingModules.id),
-  status: varchar("status").default("not_started"), // not_started, in_progress, completed
+  status: varchar("status").default("not_started"), // not_started, in_progress, completed, failed
   progress: integer("progress").default(0), // percentage
+  enrolledAt: timestamp("enrolled_at").defaultNow(),
   startedAt: timestamp("started_at"),
   completedAt: timestamp("completed_at"),
-  score: integer("score"),
-});
+  dueDate: timestamp("due_date"),
+  assignedBy: varchar("assigned_by").references(() => users.id), // Admin/Manager who assigned
+  finalScore: integer("final_score"), // Percentage score on assessment (renamed from score)
+  attempts: integer("attempts").default(0), // Number of assessment attempts
+  certificateUrl: varchar("certificate_url"), // Generated certificate if passed
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  userModuleIdx: unique("idx_training_progress_user_module").on(table.userId, table.moduleId),
+  userIdIdx: index("idx_training_progress_user_id").on(table.userId),
+  moduleIdIdx: index("idx_training_progress_module_id").on(table.moduleId),
+  statusIdx: index("idx_training_progress_status").on(table.status),
+  dueDateIdx: index("idx_training_progress_due_date").on(table.dueDate),
+}));
+
+// Lesson progress - Track individual lesson completion
+export const lessonProgress = pgTable("lesson_progress", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  lessonId: integer("lesson_id").notNull().references(() => trainingLessons.id, { onDelete: "cascade" }),
+  completed: boolean("completed").default(false),
+  timeSpent: integer("time_spent").default(0), // Seconds spent on lesson
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  userLessonIdx: unique("idx_lesson_progress_user_lesson").on(table.userId, table.lessonId),
+  userIdIdx: index("idx_lesson_progress_user_id").on(table.userId),
+  lessonIdIdx: index("idx_lesson_progress_lesson_id").on(table.lessonId),
+}));
+
+// Training assessments - Quiz/test for each module
+export const trainingAssessments = pgTable("training_assessments", {
+  id: serial("id").primaryKey(),
+  moduleId: integer("module_id").notNull().references(() => trainingModules.id, { onDelete: "cascade" }),
+  title: varchar("title", { length: 255 }).notNull(),
+  description: text("description"),
+  passingScore: integer("passing_score").default(70), // Minimum percentage to pass
+  timeLimit: integer("time_limit"), // Minutes (null = unlimited)
+  maxAttempts: integer("max_attempts").default(3), // Maximum number of attempts allowed
+  randomizeQuestions: boolean("randomize_questions").default(false),
+  showCorrectAnswers: boolean("show_correct_answers").default(true), // Show answers after completion
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  moduleIdIdx: index("idx_training_assessments_module_id").on(table.moduleId),
+}));
+
+// Assessment questions
+export const trainingQuestions = pgTable("training_questions", {
+  id: serial("id").primaryKey(),
+  assessmentId: integer("assessment_id").notNull().references(() => trainingAssessments.id, { onDelete: "cascade" }),
+  questionText: text("question_text").notNull(),
+  questionType: varchar("question_type").notNull(), // multiple_choice, true_false, multiple_answer
+  options: jsonb("options").$type<Array<{ id: string; text: string; isCorrect: boolean }>>().notNull(),
+  explanation: text("explanation"), // Explanation shown after answering
+  points: integer("points").default(1), // Point value for this question
+  orderIndex: integer("order_index").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  assessmentIdIdx: index("idx_training_questions_assessment_id").on(table.assessmentId),
+  orderIdx: index("idx_training_questions_order").on(table.assessmentId, table.orderIndex),
+}));
+
+// Assessment attempts - Record each quiz attempt
+export const trainingAttempts = pgTable("training_attempts", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  assessmentId: integer("assessment_id").notNull().references(() => trainingAssessments.id, { onDelete: "cascade" }),
+  answers: jsonb("answers").$type<Array<{ questionId: number; selectedOptions: string[]; isCorrect: boolean }>>().notNull(),
+  score: integer("score").notNull(), // Percentage score
+  passed: boolean("passed").notNull(),
+  timeSpent: integer("time_spent"), // Seconds spent on assessment
+  startedAt: timestamp("started_at").notNull(),
+  completedAt: timestamp("completed_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  userIdIdx: index("idx_training_attempts_user_id").on(table.userId),
+  assessmentIdIdx: index("idx_training_attempts_assessment_id").on(table.assessmentId),
+  createdAtIdx: index("idx_training_attempts_created_at").on(table.createdAt),
+}));
+
+// Skills database - Track employee skills acquired through training
+export const trainingSkills = pgTable("training_skills", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 255 }).notNull().unique(),
+  description: text("description"),
+  category: varchar("category"), // e.g., "Technical", "Soft Skills", "Compliance"
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  categoryIdx: index("idx_training_skills_category").on(table.category),
+}));
+
+// Link modules to skills they teach
+export const trainingModuleSkills = pgTable("training_module_skills", {
+  id: serial("id").primaryKey(),
+  moduleId: integer("module_id").notNull().references(() => trainingModules.id, { onDelete: "cascade" }),
+  skillId: integer("skill_id").notNull().references(() => trainingSkills.id, { onDelete: "cascade" }),
+  proficiencyLevel: varchar("proficiency_level").default("basic"), // basic, intermediate, advanced, expert
+}, (table) => ({
+  moduleSkillIdx: unique("idx_training_module_skills_unique").on(table.moduleId, table.skillId),
+  moduleIdIdx: index("idx_training_module_skills_module_id").on(table.moduleId),
+  skillIdIdx: index("idx_training_module_skills_skill_id").on(table.skillId),
+}));
+
+// Employee skills - Track which skills each employee has
+export const employeeSkills = pgTable("employee_skills", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  skillId: integer("skill_id").notNull().references(() => trainingSkills.id, { onDelete: "cascade" }),
+  proficiencyLevel: varchar("proficiency_level").default("basic"), // basic, intermediate, advanced, expert
+  acquiredFrom: integer("acquired_from").references(() => trainingModules.id), // Module that granted this skill
+  acquiredAt: timestamp("acquired_at").defaultNow(),
+  lastAssessedAt: timestamp("last_assessed_at"),
+}, (table) => ({
+  userSkillIdx: unique("idx_employee_skills_unique").on(table.userId, table.skillId),
+  userIdIdx: index("idx_employee_skills_user_id").on(table.userId),
+  skillIdIdx: index("idx_employee_skills_skill_id").on(table.skillId),
+}));
 
 // Messages
 export const messages = pgTable("messages", {
@@ -804,13 +952,59 @@ export const announcementsRelations = relations(announcements, ({ one, many }) =
   responses: many(responses),
 }));
 
-export const trainingModulesRelations = relations(trainingModules, ({ many }) => ({
+export const trainingModulesRelations = relations(trainingModules, ({ one, many }) => ({
+  creator: one(users, { fields: [trainingModules.createdBy], references: [users.id] }),
+  lessons: many(trainingLessons),
   progress: many(trainingProgress),
+  assessments: many(trainingAssessments),
+  moduleSkills: many(trainingModuleSkills),
+}));
+
+export const trainingLessonsRelations = relations(trainingLessons, ({ one, many }) => ({
+  module: one(trainingModules, { fields: [trainingLessons.moduleId], references: [trainingModules.id] }),
+  lessonProgress: many(lessonProgress),
 }));
 
 export const trainingProgressRelations = relations(trainingProgress, ({ one }) => ({
   user: one(users, { fields: [trainingProgress.userId], references: [users.id] }),
   module: one(trainingModules, { fields: [trainingProgress.moduleId], references: [trainingModules.id] }),
+  assigner: one(users, { fields: [trainingProgress.assignedBy], references: [users.id], relationName: "assignedTraining" }),
+}));
+
+export const lessonProgressRelations = relations(lessonProgress, ({ one }) => ({
+  user: one(users, { fields: [lessonProgress.userId], references: [users.id] }),
+  lesson: one(trainingLessons, { fields: [lessonProgress.lessonId], references: [trainingLessons.id] }),
+}));
+
+export const trainingAssessmentsRelations = relations(trainingAssessments, ({ one, many }) => ({
+  module: one(trainingModules, { fields: [trainingAssessments.moduleId], references: [trainingModules.id] }),
+  questions: many(trainingQuestions),
+  attempts: many(trainingAttempts),
+}));
+
+export const trainingQuestionsRelations = relations(trainingQuestions, ({ one }) => ({
+  assessment: one(trainingAssessments, { fields: [trainingQuestions.assessmentId], references: [trainingAssessments.id] }),
+}));
+
+export const trainingAttemptsRelations = relations(trainingAttempts, ({ one }) => ({
+  user: one(users, { fields: [trainingAttempts.userId], references: [users.id] }),
+  assessment: one(trainingAssessments, { fields: [trainingAttempts.assessmentId], references: [trainingAssessments.id] }),
+}));
+
+export const trainingSkillsRelations = relations(trainingSkills, ({ many }) => ({
+  moduleSkills: many(trainingModuleSkills),
+  employeeSkills: many(employeeSkills),
+}));
+
+export const trainingModuleSkillsRelations = relations(trainingModuleSkills, ({ one }) => ({
+  module: one(trainingModules, { fields: [trainingModuleSkills.moduleId], references: [trainingModules.id] }),
+  skill: one(trainingSkills, { fields: [trainingModuleSkills.skillId], references: [trainingSkills.id] }),
+}));
+
+export const employeeSkillsRelations = relations(employeeSkills, ({ one }) => ({
+  user: one(users, { fields: [employeeSkills.userId], references: [users.id] }),
+  skill: one(trainingSkills, { fields: [employeeSkills.skillId], references: [trainingSkills.id] }),
+  acquiredFromModule: one(trainingModules, { fields: [employeeSkills.acquiredFrom], references: [trainingModules.id] }),
 }));
 
 export const messagesRelations = relations(messages, ({ one, many }) => ({
@@ -940,10 +1134,52 @@ export const insertTrainingModuleSchema = createInsertSchema(trainingModules).om
   updatedAt: true,
 });
 
+export const insertTrainingLessonSchema = createInsertSchema(trainingLessons).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 export const insertTrainingProgressSchema = createInsertSchema(trainingProgress).omit({
   id: true,
-  startedAt: true,
-  completedAt: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertLessonProgressSchema = createInsertSchema(lessonProgress).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertTrainingAssessmentSchema = createInsertSchema(trainingAssessments).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertTrainingQuestionSchema = createInsertSchema(trainingQuestions).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertTrainingAttemptSchema = createInsertSchema(trainingAttempts).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertTrainingSkillSchema = createInsertSchema(trainingSkills).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertTrainingModuleSkillSchema = createInsertSchema(trainingModuleSkills).omit({
+  id: true,
+});
+
+export const insertEmployeeSkillSchema = createInsertSchema(employeeSkills).omit({
+  id: true,
 });
 
 export const insertMessageSchema = createInsertSchema(messages).omit({
@@ -1207,10 +1443,37 @@ export type InsertShiftCoverageRequest = z.infer<typeof insertShiftCoverageReque
 export type ShiftCoverageRequest = typeof shiftCoverageRequests.$inferSelect;
 export type InsertAnnouncement = z.infer<typeof insertAnnouncementSchema>;
 export type Announcement = typeof announcements.$inferSelect;
+
 export type InsertTrainingModule = z.infer<typeof insertTrainingModuleSchema>;
 export type TrainingModule = typeof trainingModules.$inferSelect;
+
+export type InsertTrainingLesson = z.infer<typeof insertTrainingLessonSchema>;
+export type TrainingLesson = typeof trainingLessons.$inferSelect;
+
 export type InsertTrainingProgress = z.infer<typeof insertTrainingProgressSchema>;
 export type TrainingProgress = typeof trainingProgress.$inferSelect;
+
+export type InsertLessonProgress = z.infer<typeof insertLessonProgressSchema>;
+export type LessonProgress = typeof lessonProgress.$inferSelect;
+
+export type InsertTrainingAssessment = z.infer<typeof insertTrainingAssessmentSchema>;
+export type TrainingAssessment = typeof trainingAssessments.$inferSelect;
+
+export type InsertTrainingQuestion = z.infer<typeof insertTrainingQuestionSchema>;
+export type TrainingQuestion = typeof trainingQuestions.$inferSelect;
+
+export type InsertTrainingAttempt = z.infer<typeof insertTrainingAttemptSchema>;
+export type TrainingAttempt = typeof trainingAttempts.$inferSelect;
+
+export type InsertTrainingSkill = z.infer<typeof insertTrainingSkillSchema>;
+export type TrainingSkill = typeof trainingSkills.$inferSelect;
+
+export type InsertTrainingModuleSkill = z.infer<typeof insertTrainingModuleSkillSchema>;
+export type TrainingModuleSkill = typeof trainingModuleSkills.$inferSelect;
+
+export type InsertEmployeeSkill = z.infer<typeof insertEmployeeSkillSchema>;
+export type EmployeeSkill = typeof employeeSkills.$inferSelect;
+
 export type InsertMessage = z.infer<typeof insertMessageSchema>;
 export type Message = typeof messages.$inferSelect;
 export type InsertPushSubscription = z.infer<typeof insertPushSubscriptionSchema>;
