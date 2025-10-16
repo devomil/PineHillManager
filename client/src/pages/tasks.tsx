@@ -22,7 +22,7 @@ import { z } from "zod";
 import { insertTaskSchema, type Task, type User } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Calendar, User as UserIcon, AlertCircle, CheckCircle, Clock, MessageSquare, Filter, X, ListChecks, Check, XCircle, Sparkles, ArrowUpDown, ArrowUp, ArrowDown, ChevronDown, LogOut, Bell } from "lucide-react";
+import { Plus, Calendar, User as UserIcon, AlertCircle, CheckCircle, Clock, MessageSquare, Filter, X, ListChecks, Check, XCircle, Sparkles, ArrowUpDown, ArrowUp, ArrowDown, ChevronDown, LogOut, Bell, ArrowLeft } from "lucide-react";
 import { format } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -336,11 +336,18 @@ export default function Tasks() {
   const EmployeeHeader = () => (
     <header className="bg-white border-b sticky top-0 z-50">
       <div className="flex items-center justify-between px-6 py-3">
-        <Link href="/dashboard">
-          <div className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity">
-            <div className="text-2xl font-['Great_Vibes'] text-green-800">Pine Hill Farm</div>
-          </div>
-        </Link>
+        <div className="flex items-center gap-4">
+          <Link href="/dashboard">
+            <Button variant="ghost" size="icon" data-testid="button-back">
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+          </Link>
+          <Link href="/dashboard">
+            <div className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity">
+              <div className="text-2xl font-semibold text-green-800">Pine Hill Farm</div>
+            </div>
+          </Link>
+        </div>
         
         <div className="flex items-center gap-4">
           <Link href="/notifications">
