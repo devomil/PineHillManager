@@ -459,7 +459,7 @@ export class AmazonIntegration {
     return await this.makeAmazonAPICall(endpoint);
   }
 
-  // Get revenue for a date range
+  // Get revenue for a date range (gross sales minus refunds)
   async getRevenue(startDate: Date, endDate: Date): Promise<number> {
     try {
       // Get all orders in the date range
@@ -470,16 +470,57 @@ export class AmazonIntegration {
       }
       
       const orders = ordersResponse.payload.Orders;
-      let totalRevenue = 0;
+      let grossRevenue = 0;
       
       for (const order of orders) {
-        // Sum OrderTotal.Amount for each order
+        // Sum OrderTotal.Amount for each order (gross sales)
         if (order.OrderTotal && order.OrderTotal.Amount) {
-          totalRevenue += parseFloat(order.OrderTotal.Amount);
+          grossRevenue += parseFloat(order.OrderTotal.Amount);
         }
       }
       
-      return totalRevenue;
+      // Get financial events for refunds/chargebacks
+      // TODO: Amazon SP-API has complex refund structure - amounts are spread across:
+      // - RefundEventList: OrderChargeAdjustmentList, ShipmentItemAdjustmentList (ItemChargeAdjustmentList)
+      // - ChargebackEventList: ChargebackChargeList with Principal, Tax, Fee components
+      // This needs to be implemented when Amazon credentials are configured
+      let refundsTotal = 0;
+      try {
+        const financialEvents = await this.getFinancialEvents(
+          startDate.toISOString(),
+          endDate.toISOString()
+        );
+        
+        if (financialEvents && financialEvents.payload && financialEvents.payload.FinancialEvents) {
+          const events = financialEvents.payload.FinancialEvents;
+          
+          // Process refund events - Need to aggregate from adjustment lists
+          if (events.RefundEventList) {
+            for (const refund of events.RefundEventList) {
+              // Simple extraction (incomplete - see TODO above)
+              if (refund.RefundAmount && refund.RefundAmount.CurrencyAmount) {
+                refundsTotal += Math.abs(parseFloat(refund.RefundAmount.CurrencyAmount));
+              }
+            }
+          }
+          
+          // Process chargeback events - Need to aggregate from charge lists
+          if (events.ChargebackEventList) {
+            for (const chargeback of events.ChargebackEventList) {
+              // Simple extraction (incomplete - see TODO above)
+              if (chargeback.ChargebackAmount && chargeback.ChargebackAmount.CurrencyAmount) {
+                refundsTotal += Math.abs(parseFloat(chargeback.ChargebackAmount.CurrencyAmount));
+              }
+            }
+          }
+        }
+      } catch (refundError) {
+        console.warn(`Warning: Could not fetch Amazon refunds/chargebacks:`, refundError);
+        // Continue with gross revenue if refund fetch fails
+      }
+      
+      // Return net revenue (gross - refunds)
+      return grossRevenue - refundsTotal;
     } catch (error) {
       console.error(`Error getting revenue for Amazon:`, error);
       return 0;
