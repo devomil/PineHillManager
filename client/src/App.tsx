@@ -2,6 +2,7 @@ import { Router, Route, Switch } from "wouter";
 import { useAuth, AuthProvider } from "@/hooks/use-auth";
 import { useFontLoader } from "@/hooks/use-font-loader";
 import { ThemeProvider } from "@/contexts/ThemeContext";
+import { ProtectedRoute } from "@/components/protected-route";
 import AuthPage from "@/pages/auth-page";
 import HomeDashboard from "@/pages/home-dashboard";
 import AdminDashboard from "@/pages/admin-dashboard";
@@ -46,23 +47,108 @@ function AuthenticatedApp() {
     <Switch>
       <Route path="/" component={isAdmin ? AdminDashboard : HomeDashboard} />
       <Route path="/dashboard" component={HomeDashboard} />
-      <Route path="/admin/dashboard" component={AdminDashboard} />
-      <Route path="/admin" component={AdminDashboard} />
+      
+      {/* Admin/Manager Only Routes */}
+      <Route path="/admin/dashboard">
+        <ProtectedRoute allowedRoles={['admin', 'manager']}>
+          <AdminDashboard />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/admin">
+        <ProtectedRoute allowedRoles={['admin', 'manager']}>
+          <AdminDashboard />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/admin/employees">
+        <ProtectedRoute allowedRoles={['admin', 'manager']}>
+          <AdminEmployeesPage />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/admin/training">
+        <ProtectedRoute allowedRoles={['admin']}>
+          <AdminTraining />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/admin/logos">
+        <ProtectedRoute allowedRoles={['admin', 'manager']}>
+          <LogosPage />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/admin/accounting">
+        <ProtectedRoute allowedRoles={['admin', 'manager']}>
+          <AccountingDashboard />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/admin/integrations">
+        <ProtectedRoute allowedRoles={['admin', 'manager']}>
+          <IntegrationsPage />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/admin/marketing">
+        <ProtectedRoute allowedRoles={['admin', 'manager']}>
+          <MarketingPage />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/shift-scheduling">
+        <ProtectedRoute allowedRoles={['admin', 'manager']}>
+          <ShiftScheduling />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/time-management">
+        <ProtectedRoute allowedRoles={['admin', 'manager']}>
+          <TimeManagement />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/employees">
+        <ProtectedRoute allowedRoles={['admin', 'manager']}>
+          <Employees />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/reports">
+        <ProtectedRoute allowedRoles={['admin', 'manager']}>
+          <Reports />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/system-support">
+        <ProtectedRoute allowedRoles={['admin', 'manager']}>
+          <SystemSupport />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/user-management">
+        <ProtectedRoute allowedRoles={['admin', 'manager']}>
+          <UserManagement />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/accounting">
+        <ProtectedRoute allowedRoles={['admin', 'manager']}>
+          <AccountingDashboard />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/inventory">
+        <ProtectedRoute allowedRoles={['admin', 'manager']}>
+          <InventoryPage />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/orders">
+        <ProtectedRoute allowedRoles={['admin', 'manager']}>
+          <OrdersPage />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/integrations">
+        <ProtectedRoute allowedRoles={['admin', 'manager']}>
+          <IntegrationsPage />
+        </ProtectedRoute>
+      </Route>
+      
+      {/* Employee & Shared Routes */}
       <Route path="/calendar" component={Calendar} />
-      <Route path="/employees" component={Employees} />
-      <Route path="/admin/employees" component={AdminEmployeesPage} />
-      <Route path="/time-management" component={TimeManagement} />
-      <Route path="/shift-scheduling" component={ShiftScheduling} />
       <Route path="/shift-swaps" component={ShiftSwapMarketplace} />
       <Route path="/communication" component={CommunicationsPage} />
       <Route path="/training" component={Training} />
       <Route path="/training/module/:id" component={TrainingModule} />
-      <Route path="/admin/training" component={AdminTraining} />
       <Route path="/profile" component={Profile} />
-      <Route path="/reports" component={Reports} />
       <Route path="/notifications" component={Notifications} />
       <Route path="/documents" component={Documents} />
-      <Route path="/admin/logos" component={LogosPage} />
       <Route path="/announcements" component={CommunicationsPage} />
       <Route path="/communications" component={CommunicationsPage} />
       <Route path="/time-clock" component={TimeClock} />
@@ -70,16 +156,7 @@ function AuthenticatedApp() {
       <Route path="/time-off" component={TimeOff} />
       <Route path="/shift-coverage" component={ShiftCoverage} />
       <Route path="/team-communication" component={CommunicationsPage} />
-      <Route path="/system-support" component={SystemSupport} />
       <Route path="/support" component={EmployeeSupport} />
-      <Route path="/user-management" component={UserManagement} />
-      <Route path="/accounting" component={AccountingDashboard} />
-      <Route path="/inventory" component={InventoryPage} />
-      <Route path="/orders" component={OrdersPage} />
-      <Route path="/integrations" component={IntegrationsPage} />
-      <Route path="/admin/accounting" component={AccountingDashboard} />
-      <Route path="/admin/integrations" component={IntegrationsPage} />
-      <Route path="/admin/marketing" component={MarketingPage} />
       <Route path="/employee-purchases" component={EmployeePurchases} />
       <Route path="/tasks" component={Tasks} />
       <Route path="/emergency-contact" component={EmergencyContactPage} />

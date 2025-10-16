@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import * as QRCode from 'qrcode';
 import { WebSocketServer, WebSocket } from "ws";
-import { setupAuth, isAuthenticated } from "./auth";
+import { setupAuth, isAuthenticated, requireAdmin, requireRole } from "./auth";
 import { storage } from "./storage";
 import { performanceMiddleware, getPerformanceMetrics, resetPerformanceMetrics } from "./performance-middleware";
 import { notificationService } from "./notificationService";
@@ -635,7 +635,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Admin stats route
-  app.get('/api/admin/stats', isAuthenticated, async (req, res) => {
+  app.get('/api/admin/stats', isAuthenticated, requireRole(['admin', 'manager']), async (req, res) => {
     try {
       const users = await storage.getAllUsers();
       const timeOffRequests = await storage.getPendingTimeOffRequests();
@@ -1459,7 +1459,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Admin endpoint to clear all work schedules (for removing mock data)
-  app.delete('/api/admin/work-schedules/clear', isAuthenticated, async (req, res) => {
+  app.delete('/api/admin/work-schedules/clear', isAuthenticated, requireRole(['admin', 'manager']), async (req, res) => {
     try {
       if (!req.user || (req.user.role !== 'admin' && req.user.role !== 'manager')) {
         return res.status(403).json({ error: 'Admin or Manager access required' });
@@ -1477,7 +1477,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Admin endpoints for schedule modification
-  app.put('/api/admin/work-schedules/:id', isAuthenticated, async (req, res) => {
+  app.put('/api/admin/work-schedules/:id', isAuthenticated, requireRole(['admin', 'manager']), async (req, res) => {
     try {
       if (!req.user || (req.user.role !== 'admin' && req.user.role !== 'manager')) {
         return res.status(403).json({ error: 'Admin or Manager access required' });
@@ -1521,7 +1521,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete('/api/admin/work-schedules/:id', isAuthenticated, async (req, res) => {
+  app.delete('/api/admin/work-schedules/:id', isAuthenticated, requireRole(['admin', 'manager']), async (req, res) => {
     try {
       if (!req.user || (req.user.role !== 'admin' && req.user.role !== 'manager')) {
         return res.status(403).json({ error: 'Admin or Manager access required' });
@@ -1536,7 +1536,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch('/api/admin/work-schedules/:id/status', isAuthenticated, async (req, res) => {
+  app.patch('/api/admin/work-schedules/:id/status', isAuthenticated, requireRole(['admin', 'manager']), async (req, res) => {
     try {
       if (!req.user || (req.user.role !== 'admin' && req.user.role !== 'manager')) {
         return res.status(403).json({ error: 'Admin or Manager access required' });
@@ -3205,7 +3205,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Employee invitation system for admin registration
-  app.post('/api/admin/invite-employee', isAuthenticated, async (req, res) => {
+  app.post('/api/admin/invite-employee', isAuthenticated, requireAdmin, async (req, res) => {
     try {
       // Only admins can send invitations
       if (!req.user || req.user.role !== 'admin') {
@@ -3264,7 +3264,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get all employee invitations (admin only)
-  app.get('/api/admin/invitations', isAuthenticated, async (req, res) => {
+  app.get('/api/admin/invitations', isAuthenticated, requireAdmin, async (req, res) => {
     try {
       if (!req.user || req.user.role !== 'admin') {
         return res.status(403).json({ error: 'Admin access required' });
@@ -3281,7 +3281,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Delete invitation (admin only)
-  app.delete('/api/admin/invitations/:id', isAuthenticated, async (req, res) => {
+  app.delete('/api/admin/invitations/:id', isAuthenticated, requireAdmin, async (req, res) => {
     try {
       if (!req.user || req.user.role !== 'admin') {
         return res.status(403).json({ error: 'Admin access required' });
@@ -3376,7 +3376,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Update user role (admin only)
-  app.patch('/api/admin/users/:id/role', isAuthenticated, async (req, res) => {
+  app.patch('/api/admin/users/:id/role', isAuthenticated, requireAdmin, async (req, res) => {
     try {
       if (!req.user || req.user.role !== 'admin') {
         return res.status(403).json({ error: 'Admin access required' });
@@ -3413,7 +3413,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Admin password reset for users
-  app.post('/api/admin/reset-user-password', isAuthenticated, async (req, res) => {
+  app.post('/api/admin/reset-user-password', isAuthenticated, requireAdmin, async (req, res) => {
     try {
       if (!req.user || req.user.role !== 'admin') {
         return res.status(403).json({ error: 'Admin access required' });
@@ -3678,7 +3678,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Admin Time Clock Management Endpoints
-  app.get('/api/admin/time-clock/entries', isAuthenticated, async (req, res) => {
+  app.get('/api/admin/time-clock/entries', isAuthenticated, requireRole(['admin', 'manager']), async (req, res) => {
     try {
       if (req.user?.role !== 'admin' && req.user?.role !== 'manager') {
         return res.status(403).json({ message: 'Admin or Manager access required' });
@@ -3703,7 +3703,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/admin/time-clock/who-checked-in', isAuthenticated, async (req, res) => {
+  app.get('/api/admin/time-clock/who-checked-in', isAuthenticated, requireRole(['admin', 'manager']), async (req, res) => {
     try {
       if (req.user?.role !== 'admin' && req.user?.role !== 'manager') {
         return res.status(403).json({ message: 'Admin or Manager access required' });
@@ -3717,7 +3717,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch('/api/admin/time-clock/entries/:entryId', isAuthenticated, async (req, res) => {
+  app.patch('/api/admin/time-clock/entries/:entryId', isAuthenticated, requireRole(['admin', 'manager']), async (req, res) => {
     try {
       if (req.user?.role !== 'admin' && req.user?.role !== 'manager') {
         return res.status(403).json({ message: 'Admin or Manager access required' });
@@ -3734,7 +3734,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete('/api/admin/time-clock/entries/:entryId', isAuthenticated, async (req, res) => {
+  app.delete('/api/admin/time-clock/entries/:entryId', isAuthenticated, requireRole(['admin', 'manager']), async (req, res) => {
     try {
       if (req.user?.role !== 'admin' && req.user?.role !== 'manager') {
         return res.status(403).json({ message: 'Admin or Manager access required' });
@@ -3750,7 +3750,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/admin/time-clock/scheduled-vs-actual', isAuthenticated, async (req, res) => {
+  app.get('/api/admin/time-clock/scheduled-vs-actual', isAuthenticated, requireRole(['admin', 'manager']), async (req, res) => {
     try {
       if (req.user?.role !== 'admin' && req.user?.role !== 'manager') {
         return res.status(403).json({ message: 'Admin or Manager access required' });
@@ -3775,7 +3775,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/admin/time-clock/export', isAuthenticated, async (req, res) => {
+  app.get('/api/admin/time-clock/export', isAuthenticated, requireRole(['admin', 'manager']), async (req, res) => {
     try {
       if (req.user?.role !== 'admin' && req.user?.role !== 'manager') {
         return res.status(403).json({ message: 'Admin or Manager access required' });
@@ -3810,7 +3810,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Admin Clock-Out Employee Endpoint
-  app.post('/api/admin/time-clock/clock-out/:userId', isAuthenticated, async (req, res) => {
+  app.post('/api/admin/time-clock/clock-out/:userId', isAuthenticated, requireRole(['admin', 'manager']), async (req, res) => {
     try {
       if (!req.user || (req.user.role !== 'admin' && req.user.role !== 'manager')) {
         return res.status(403).json({ error: 'Admin or Manager access required' });
