@@ -197,19 +197,46 @@ export default function EmployeePurchases() {
   // Show loading state while balance data is being fetched
   if (balanceLoading) {
     return (
-      <div className="container mx-auto p-6 max-w-4xl">
-        <Card>
-          <CardHeader>
-            <CardTitle>Employee Purchase Portal</CardTitle>
-            <CardDescription>Loading your purchase information...</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-center py-12 text-muted-foreground">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-              <p>Please wait...</p>
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100">
+        {/* Header */}
+        <div className="bg-white shadow-sm">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex justify-between items-center py-6">
+              <div className="flex items-center space-x-4">
+                <div>
+                  <h1 className="text-3xl font-semibold text-gray-900">
+                    Pine Hill Farm
+                  </h1>
+                  <p className="text-sm text-gray-600">Employee Purchase Portal</p>
+                </div>
+              </div>
+              
+              <Button 
+                variant="ghost" 
+                onClick={() => window.location.href = "/"}
+                className="text-gray-700 hover:text-gray-900"
+              >
+                ← Back to Dashboard
+              </Button>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
+
+        {/* Main Content */}
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <Card>
+            <CardHeader>
+              <CardTitle>Employee Purchase Portal</CardTitle>
+              <CardDescription>Loading your purchase information...</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-center py-12 text-muted-foreground">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+                <p>Please wait...</p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     );
   }
@@ -217,19 +244,46 @@ export default function EmployeePurchases() {
   // Show disabled message if benefit is not enabled
   if (!balance?.isEnabled) {
     return (
-      <div className="container mx-auto p-6 max-w-4xl">
-        <Card>
-          <CardHeader>
-            <CardTitle>Employee Purchase Portal</CardTitle>
-            <CardDescription>Purchase benefit not enabled</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-muted-foreground">
-              The employee purchase benefit is not currently enabled for your account. 
-              Please contact your manager or administrator for more information.
-            </p>
-          </CardContent>
-        </Card>
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100">
+        {/* Header */}
+        <div className="bg-white shadow-sm">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex justify-between items-center py-6">
+              <div className="flex items-center space-x-4">
+                <div>
+                  <h1 className="text-3xl font-semibold text-gray-900">
+                    Pine Hill Farm
+                  </h1>
+                  <p className="text-sm text-gray-600">Employee Purchase Portal</p>
+                </div>
+              </div>
+              
+              <Button 
+                variant="ghost" 
+                onClick={() => window.location.href = "/"}
+                className="text-gray-700 hover:text-gray-900"
+              >
+                ← Back to Dashboard
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        {/* Main Content */}
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <Card>
+            <CardHeader>
+              <CardTitle>Employee Purchase Portal</CardTitle>
+              <CardDescription>Purchase benefit not enabled</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <p className="text-muted-foreground">
+                The employee purchase benefit is not currently enabled for your account. 
+                Please contact your manager or administrator for more information.
+              </p>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     );
   }
