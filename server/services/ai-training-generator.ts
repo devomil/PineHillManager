@@ -1,12 +1,9 @@
 /**
  * AI Training Generation Service
- * Uses Hugging Face Inference API and web search to generate comprehensive training content
- * 
- * From blueprint:javascript_anthropic - Using AI for content generation
- * Note: Using Hugging Face as primary AI provider
+ * Uses Anthropic Claude AI to generate comprehensive training content
  */
 
-import { HfInference } from '@huggingface/inference';
+import Anthropic from '@anthropic-ai/sdk';
 
 interface ProductInfo {
   name: string;
@@ -40,23 +37,23 @@ interface TrainingContent {
 }
 
 export class AITrainingGenerator {
-  private hf: HfInference;
+  private anthropic: Anthropic;
   
   constructor(apiKey?: string) {
-    const key = apiKey || process.env.HUGGINGFACE_API_TOKEN || process.env.HUGGING_FACE_API_KEY || process.env.HF_API_KEY;
+    const key = apiKey || process.env.ANTHROPIC_API_KEY;
     if (!key) {
-      throw new Error('Hugging Face API key is required for AI training generation');
+      throw new Error('Anthropic API key is required for AI training generation');
     }
-    this.hf = new HfInference(key);
+    this.anthropic = new Anthropic({ apiKey: key });
   }
 
   /**
    * Generate comprehensive training content for a product
    */
   async generateTrainingContent(product: ProductInfo): Promise<TrainingContent> {
-    console.log(`🤖 Generating AI training for: ${product.name}`);
+    console.log(`🤖 Generating AI training with Claude for: ${product.name}`);
 
-    // Step 1: Enrich product description with web research
+    // Step 1: Enrich product description
     const enrichedDescription = await this.enrichProductDescription(product);
 
     // Step 2: Generate comprehensive lessons
@@ -68,9 +65,9 @@ export class AITrainingGenerator {
     // Step 4: Identify skills gained
     const skills = await this.identifySkills(product, lessons);
 
-    const estimatedDuration = lessons.reduce((sum, lesson) => sum + lesson.duration, 0) + 10; // +10 for assessment
+    const estimatedDuration = lessons.reduce((sum, lesson) => sum + lesson.duration, 0) + 10;
 
-    console.log(`✅ Generated ${lessons.length} lessons and ${questions.length} questions`);
+    console.log(`✅ Generated ${lessons.length} lessons and ${questions.length} questions with Claude`);
 
     return {
       enrichedDescription,
@@ -100,18 +97,20 @@ Provide a comprehensive training description (150-200 words) that includes:
 Write in a professional, educational tone suitable for employee training.`;
 
     try {
-      const response = await this.hf.textGeneration({
-        model: 'mistralai/Mixtral-8x7B-Instruct-v0.1',
-        inputs: prompt,
-        parameters: {
-          max_new_tokens: 300,
-          temperature: 0.7,
-          top_p: 0.9,
-          return_full_text: false,
-        },
+      const message = await this.anthropic.messages.create({
+        model: 'claude-3-5-sonnet-20241022',
+        max_tokens: 400,
+        messages: [{
+          role: 'user',
+          content: prompt
+        }]
       });
 
-      return response.generated_text.trim() || product.description;
+      const content = message.content[0];
+      if (content.type === 'text') {
+        return content.text.trim() || product.description;
+      }
+      return product.description;
     } catch (error) {
       console.warn('Failed to enrich description, using original:', error);
       return product.description;
@@ -139,7 +138,9 @@ Write in a professional, educational tone suitable for employee training.`;
 - Main purpose and benefits
 - When to recommend it
 
-Base your content on: ${enrichedDescription}`
+Base your content on: ${enrichedDescription}
+
+Format using markdown with headers (##) and bullet points where appropriate.`
     );
 
     lessons.push({
@@ -159,7 +160,9 @@ Base your content on: ${enrichedDescription}`
 - How to explain these to customers
 - Competitive advantages
 
-Base your content on: ${enrichedDescription}`
+Base your content on: ${enrichedDescription}
+
+Format using markdown with headers (##) and bullet points.`
     );
 
     lessons.push({
@@ -179,7 +182,9 @@ Base your content on: ${enrichedDescription}`
 - Best practices for recommending this product
 - Important disclaimers or warnings
 
-Base your content on: ${enrichedDescription}`
+Base your content on: ${enrichedDescription}
+
+Format using markdown with headers (##) and bullet points.`
     );
 
     lessons.push({
@@ -197,18 +202,20 @@ Base your content on: ${enrichedDescription}`
    */
   private async generateLessonContent(product: ProductInfo, lessonType: string, prompt: string): Promise<string> {
     try {
-      const response = await this.hf.textGeneration({
-        model: 'mistralai/Mixtral-8x7B-Instruct-v0.1',
-        inputs: prompt,
-        parameters: {
-          max_new_tokens: 400,
-          temperature: 0.7,
-          top_p: 0.9,
-          return_full_text: false,
-        },
+      const message = await this.anthropic.messages.create({
+        model: 'claude-3-5-sonnet-20241022',
+        max_tokens: 500,
+        messages: [{
+          role: 'user',
+          content: prompt
+        }]
       });
 
-      return response.generated_text.trim();
+      const content = message.content[0];
+      if (content.type === 'text') {
+        return content.text.trim();
+      }
+      return this.getFallbackLessonContent(product, lessonType);
     } catch (error) {
       console.warn(`Failed to generate ${lessonType}, using template:`, error);
       return this.getFallbackLessonContent(product, lessonType);
@@ -224,52 +231,52 @@ Base your content on: ${enrichedDescription}`
     // Combine lesson content for context
     const lessonContext = lessons.map(l => `${l.title}:\n${l.content}`).join('\n\n---\n\n');
 
-    // Generate 5 questions covering different aspects - now with actual lesson context
+    // Generate 5 unique questions covering different aspects
     const questionPrompts = [
       {
         topic: 'Product Knowledge',
-        prompt: `Based on the following training content about ${product.name}, create a multiple-choice question about the main purpose or use of this product. Make it specific to the product details provided.
+        prompt: `Based on this training content about ${product.name}, create a multiple-choice question about the main purpose or use of this product:
 
 Training Content:
-${lessonContext.substring(0, 1000)}
+${lessonContext.substring(0, 1500)}
 
-Provide 4 options with one correct answer based on the actual product information.`,
+Create a unique, specific question with 4 answer options based on the actual product information above.`,
       },
       {
         topic: 'Features',
-        prompt: `Based on the following training content about ${product.name}, create a multiple-choice question about a specific feature or benefit mentioned in the lessons.
+        prompt: `Based on this training content about ${product.name}, create a multiple-choice question about a specific feature or benefit mentioned:
 
 Training Content:
-${lessonContext.substring(0, 1000)}
+${lessonContext.substring(0, 1500)}
 
-Provide 4 options with one correct answer based on actual features discussed.`,
+Create a unique question with 4 answer options based on actual features discussed in the content.`,
       },
       {
         topic: 'Customer Service',
-        prompt: `Based on the following training content about ${product.name}, create a multiple-choice question about when or how to recommend this product to customers.
+        prompt: `Based on this training content about ${product.name}, create a multiple-choice question about when or how to recommend this product:
 
 Training Content:
-${lessonContext.substring(0, 1000)}
+${lessonContext.substring(0, 1500)}
 
-Provide 4 options with one correct answer based on the customer service information provided.`,
+Create a unique question with 4 answer options based on the customer service information provided.`,
       },
       {
         topic: 'Best Practices',
-        prompt: `Based on the following training content about ${product.name}, create a multiple-choice question about best practices for selling or explaining this product.
+        prompt: `Based on this training content about ${product.name}, create a multiple-choice question about best practices for selling or explaining this product:
 
 Training Content:
-${lessonContext.substring(0, 1000)}
+${lessonContext.substring(0, 1500)}
 
-Provide 4 options with one correct answer.`,
+Create a unique question with 4 answer options.`,
       },
       {
         topic: 'Product Details',
-        prompt: `Based on the following training content about ${product.name}, create a multiple-choice question testing specific product knowledge or details mentioned in the lessons.
+        prompt: `Based on this training content about ${product.name}, create a multiple-choice question testing specific product knowledge:
 
 Training Content:
-${lessonContext.substring(0, 1000)}
+${lessonContext.substring(0, 1500)}
 
-Provide 4 options with one correct answer based on specific details from the content.`,
+Create a unique question with 4 answer options based on specific details from the content.`,
       },
     ];
 
@@ -298,43 +305,45 @@ Provide 4 options with one correct answer based on specific details from the con
   ): Promise<GeneratedQuestion> {
     const fullPrompt = `${prompt}
 
-Format your response as JSON:
+Format your response as JSON only:
 {
   "question": "The question text",
   "options": ["Option A", "Option B", "Option C", "Option D"],
   "correctIndex": 0,
   "explanation": "Why this answer is correct"
-}`;
+}
+
+Respond with ONLY the JSON object, no other text.`;
 
     try {
-      const response = await this.hf.textGeneration({
-        model: 'mistralai/Mixtral-8x7B-Instruct-v0.1',
-        inputs: fullPrompt,
-        parameters: {
-          max_new_tokens: 300,
-          temperature: 0.8,
-          top_p: 0.9,
-          return_full_text: false,
-        },
+      const message = await this.anthropic.messages.create({
+        model: 'claude-3-5-sonnet-20241022',
+        max_tokens: 400,
+        messages: [{
+          role: 'user',
+          content: fullPrompt
+        }]
       });
 
-      // Parse the response
-      const jsonMatch = response.generated_text.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0]);
-        
-        return {
-          questionText: parsed.question,
-          questionType: 'multiple_choice',
-          options: parsed.options.map((text: string, idx: number) => ({
-            id: `option_${idx}`,
-            text,
-            isCorrect: idx === parsed.correctIndex,
-          })),
-          explanation: parsed.explanation,
-          points: 1,
-          orderIndex,
-        };
+      const content = message.content[0];
+      if (content.type === 'text') {
+        const jsonMatch = content.text.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0]);
+          
+          return {
+            questionText: parsed.question,
+            questionType: 'multiple_choice',
+            options: parsed.options.map((text: string, idx: number) => ({
+              id: `option_${idx}`,
+              text,
+              isCorrect: idx === parsed.correctIndex,
+            })),
+            explanation: parsed.explanation,
+            points: 1,
+            orderIndex,
+          };
+        }
       }
     } catch (error) {
       console.warn('Failed to parse AI question, using fallback');
@@ -349,15 +358,12 @@ Format your response as JSON:
   private async identifySkills(product: ProductInfo, lessons: GeneratedLesson[]): Promise<string[]> {
     const skills: string[] = [];
 
-    // Add product-specific skill
     skills.push(`${product.name} Product Knowledge`);
 
-    // Add category skill if available
-    if (product.category) {
+    if (product.category && product.category !== 'Product Training') {
       skills.push(`${product.category} Expertise`);
     }
 
-    // Add general skills
     skills.push('Customer Service');
     skills.push('Product Recommendation');
 
@@ -369,45 +375,45 @@ Format your response as JSON:
    */
   private getFallbackLessonContent(product: ProductInfo, lessonType: string): string {
     const templates: Record<string, string> = {
-      'Product Overview': `# ${product.name} - Product Overview
+      'Product Overview': `## ${product.name} - Product Overview
 
 ${product.description}
 
 This product is designed to meet customer needs and provide value through its key features and benefits. As a team member, you should be familiar with this product to effectively assist customers.
 
-## Key Points to Remember:
+### Key Points to Remember:
 - Product name: ${product.name}
 - Category: ${product.category || 'General'}
 - Target customers: Varies based on needs
 
 Review this information and be prepared to answer customer questions about this product.`,
       
-      'Features & Benefits': `# ${product.name} - Key Features & Benefits
+      'Features & Benefits': `## ${product.name} - Key Features & Benefits
 
 This lesson covers the main features and benefits of ${product.name}.
 
-## Features:
+### Features:
 - High-quality product design
 - Meets customer expectations
 - Reliable performance
 
-## Benefits:
+### Benefits:
 - Provides value to customers
 - Solves specific problems
 - Easy to use and recommend
 
 When discussing this product with customers, focus on how these features translate into real benefits for their specific situation.`,
       
-      'Customer Service': `# ${product.name} - Customer Service Guide
+      'Customer Service': `## ${product.name} - Customer Service Guide
 
-## Common Questions:
-- What is this product?
-  Answer: ${product.name} is a quality product designed for customer needs.
+### Common Questions:
+**What is this product?**
+Answer: ${product.name} is a quality product designed for customer needs.
   
-- Who is this for?
-  Answer: This product is suitable for customers looking for ${product.category || 'this type of solution'}.
+**Who is this for?**
+Answer: This product is suitable for customers looking for ${product.category || 'this type of solution'}.
 
-## Best Practices:
+### Best Practices:
 - Listen to customer needs first
 - Match product benefits to their situation
 - Be honest about what the product can and cannot do
@@ -421,7 +427,6 @@ When discussing this product with customers, focus on how these features transla
    * Fallback question when AI generation fails
    */
   private getFallbackQuestion(product: ProductInfo, topic: string, orderIndex: number): GeneratedQuestion {
-    // Extract key info from description
     const descWords = product.description.split(' ').slice(0, 20).join(' ');
     
     return {
