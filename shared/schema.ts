@@ -453,6 +453,37 @@ export const employeeSkills = pgTable("employee_skills", {
   skillIdIdx: index("idx_employee_skills_skill_id").on(table.skillId),
 }));
 
+// AI Training Generation Jobs - Track async AI content generation
+export const trainingGenerationJobs = pgTable("training_generation_jobs", {
+  id: serial("id").primaryKey(),
+  moduleId: integer("module_id").notNull().references(() => trainingModules.id, { onDelete: "cascade" }),
+  status: varchar("status").notNull().default("pending"), // pending, processing, completed, failed
+  jobType: varchar("job_type").notNull(), // full_training, lessons_only, assessment_only, enrichment
+  progress: integer("progress").default(0), // 0-100 percentage
+  generatedContent: jsonb("generated_content").$type<{
+    lessons?: Array<{ title: string; content: string; duration: number }>;
+    questions?: Array<{ questionText: string; options: any[]; explanation: string }>;
+    skills?: string[];
+    enrichedDescription?: string;
+  }>(),
+  sourceData: jsonb("source_data").$type<{
+    productName?: string;
+    productDescription?: string;
+    webSearchResults?: any[];
+  }>(),
+  errorMessage: text("error_message"),
+  requestedBy: varchar("requested_by").notNull().references(() => users.id),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  moduleIdIdx: index("idx_training_generation_jobs_module_id").on(table.moduleId),
+  statusIdx: index("idx_training_generation_jobs_status").on(table.status),
+  requestedByIdx: index("idx_training_generation_jobs_requested_by").on(table.requestedBy),
+  createdAtIdx: index("idx_training_generation_jobs_created_at").on(table.createdAt),
+}));
+
 // Messages
 export const messages = pgTable("messages", {
   id: serial("id").primaryKey(),
@@ -1134,6 +1165,12 @@ export const insertTrainingModuleSchema = createInsertSchema(trainingModules).om
   updatedAt: true,
 });
 
+export const insertTrainingGenerationJobSchema = createInsertSchema(trainingGenerationJobs).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 export const insertTrainingLessonSchema = createInsertSchema(trainingLessons).omit({
   id: true,
   createdAt: true,
@@ -1446,6 +1483,9 @@ export type Announcement = typeof announcements.$inferSelect;
 
 export type InsertTrainingModule = z.infer<typeof insertTrainingModuleSchema>;
 export type TrainingModule = typeof trainingModules.$inferSelect;
+
+export type InsertTrainingGenerationJob = z.infer<typeof insertTrainingGenerationJobSchema>;
+export type TrainingGenerationJob = typeof trainingGenerationJobs.$inferSelect;
 
 export type InsertTrainingLesson = z.infer<typeof insertTrainingLessonSchema>;
 export type TrainingLesson = typeof trainingLessons.$inferSelect;
