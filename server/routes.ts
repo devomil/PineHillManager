@@ -2509,7 +2509,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       questions.forEach((question) => {
         totalPoints += question.points || 1;
         const userAnswer = answers[question.id.toString()];
-        if (userAnswer === question.correctAnswer) {
+        
+        // Check if user's answer matches any correct option
+        const isCorrect = question.options?.some((option: any) => 
+          option.isCorrect && option.text === userAnswer
+        );
+        
+        if (isCorrect) {
           correctCount++;
           earnedPoints += question.points || 1;
         }
@@ -2529,6 +2535,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         startedAt: new Date(startedAt),
         completedAt: new Date()
       });
+
+      // Update module progress
+      const moduleProgress = await storage.getTrainingProgressByModule(user!.id, assessment.moduleId);
+      if (moduleProgress) {
+        // Update attempts count
+        await storage.updateTrainingProgress(moduleProgress.id, {
+          attempts: (moduleProgress.attempts || 0) + 1
+        });
+      }
 
       // If passed, complete the module and grant skills
       if (passed) {
