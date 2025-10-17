@@ -2495,7 +2495,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Get assessment and questions to calculate score
       const questions = await storage.getAssessmentQuestions(assessmentId);
-      const assessment = await storage.getModuleAssessment(parseInt(req.params.assessmentId));
+      const assessment = await storage.getAssessmentById(assessmentId);
       
       if (!assessment) {
         return res.status(404).json({ message: 'Assessment not found' });

@@ -437,6 +437,7 @@ export interface IStorage {
   // Training assessments
   createTrainingAssessment(assessment: InsertTrainingAssessment): Promise<TrainingAssessment>;
   getModuleAssessment(moduleId: number): Promise<TrainingAssessment | undefined>;
+  getAssessmentById(assessmentId: number): Promise<TrainingAssessment | undefined>;
   updateTrainingAssessment(id: number, assessment: Partial<InsertTrainingAssessment>): Promise<TrainingAssessment>;
   deleteTrainingAssessment(id: number): Promise<void>;
 
@@ -2769,6 +2770,14 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(trainingAssessments)
       .where(eq(trainingAssessments.moduleId, moduleId));
+    return assessment;
+  }
+
+  async getAssessmentById(assessmentId: number): Promise<TrainingAssessment | undefined> {
+    const [assessment] = await db
+      .select()
+      .from(trainingAssessments)
+      .where(eq(trainingAssessments.id, assessmentId));
     return assessment;
   }
 
