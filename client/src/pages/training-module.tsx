@@ -150,6 +150,43 @@ export default function TrainingModulePage() {
     return module.thumbnailUrl || null;
   };
 
+  // Helper function to format lesson content (convert plain text with newlines to HTML)
+  const formatLessonContent = (content: string) => {
+    // If content already has HTML tags, return as is
+    if (content.includes('<p>') || content.includes('<div>')) {
+      return content;
+    }
+    
+    // Split by double newlines for paragraphs
+    const paragraphs = content.split('\n\n').filter(p => p.trim());
+    
+    return paragraphs.map(para => {
+      // If it's a heading (no bullet or colon at end or short text)
+      const lines = para.split('\n').filter(l => l.trim());
+      
+      if (lines.length === 1 && !lines[0].includes('•') && lines[0].length < 100) {
+        // Single line that looks like a heading
+        return `<h3 class="font-semibold text-lg mt-6 mb-3">${lines[0]}</h3>`;
+      }
+      
+      // Check if it's a list (has bullet points)
+      const hasBullets = lines.some(l => l.trim().startsWith('•'));
+      
+      if (hasBullets) {
+        const listItems = lines
+          .filter(l => l.trim().startsWith('•'))
+          .map(l => `<li>${l.replace('•', '').trim()}</li>`)
+          .join('');
+        const heading = lines.find(l => !l.trim().startsWith('•'));
+        return (heading ? `<h3 class="font-semibold text-lg mt-6 mb-3">${heading}</h3>` : '') + 
+               `<ul class="list-disc list-inside space-y-2 mb-4">${listItems}</ul>`;
+      }
+      
+      // Regular paragraph
+      return `<p class="mb-4">${para.replace(/\n/g, '<br>')}</p>`;
+    }).join('');
+  };
+
   if (moduleLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -355,7 +392,7 @@ export default function TrainingModulePage() {
                   }}
                 >
                   {typeof currentLesson.content === 'string' 
-                    ? <div dangerouslySetInnerHTML={{ __html: currentLesson.content }} />
+                    ? <div dangerouslySetInnerHTML={{ __html: formatLessonContent(currentLesson.content) }} />
                     : <div>{JSON.stringify(currentLesson.content)}</div>
                   }
                 </div>

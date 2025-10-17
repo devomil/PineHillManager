@@ -56,7 +56,7 @@ export default function AdminTraining() {
   });
 
   const { data: moduleDetails } = useQuery<any>({
-    queryKey: ["/api/training/modules", selectedModule?.id],
+    queryKey: [`/api/training/modules/${selectedModule?.id}`],
     enabled: !!selectedModule?.id,
   });
 
