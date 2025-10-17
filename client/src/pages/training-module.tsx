@@ -95,22 +95,20 @@ export default function TrainingModulePage() {
       queryClient.invalidateQueries({ queryKey: ["/api/training/progress"] });
       queryClient.invalidateQueries({ queryKey: [`/api/training/assessments/${module?.assessment?.id}/attempts`] });
       
+      setShowAssessment(false);
+      setAssessmentAnswers({});
+      
       if (result.passed) {
         toast({
           title: "Congratulations!",
           description: `You passed with a score of ${result.score}%!`,
         });
-        setTimeout(() => {
-          window.location.href = "/training";
-        }, 2000);
       } else {
         toast({
           title: "Assessment Failed",
           description: `You scored ${result.score}%. The passing score is ${module?.assessment?.passingScore}%. Please try again.`,
           variant: "destructive",
         });
-        setShowAssessment(false);
-        setAssessmentAnswers({});
       }
     },
   });
@@ -456,7 +454,7 @@ export default function TrainingModulePage() {
           )}
 
           {/* Assessment Section */}
-          {(showAssessment || (isCompleted && module.assessment)) && (
+          {(showAssessment || (isCompleted && module.assessment) || (!showAssessment && module.lessons?.every((_, idx) => idx === currentLessonIndex || true))) && (
             <Card>
               <CardHeader className="text-white" style={{ background: 'linear-gradient(135deg, #6c97ab 0%, #5b7c99 100%)' }}>
                 <CardTitle className="flex items-center text-xl">
@@ -465,7 +463,7 @@ export default function TrainingModulePage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-8">
-                {!showAssessment && !isCompleted && (
+                {!showAssessment && !isCompleted && attemptsCount === 0 && (
                   <div className="text-center py-12">
                     <Award className="w-16 h-16 mx-auto mb-4" style={{ color: '#6c97ab' }} />
                     <h3 className="text-xl font-semibold mb-2" style={{ color: '#5e637a' }}>Ready for Assessment?</h3>
@@ -475,7 +473,7 @@ export default function TrainingModulePage() {
                     <Button
                       size="lg"
                       onClick={handleStartAssessment}
-                      disabled={!isCompleted}
+                      disabled={currentLessonIndex < (module.lessons?.length || 1) - 1}
                       className="text-white hover:opacity-90"
                       style={{ backgroundColor: '#6c97ab' }}
                       data-testid="button-start-assessment"
@@ -542,19 +540,66 @@ export default function TrainingModulePage() {
                   </div>
                 )}
 
-                {isCompleted && latestAttempt && (
+                {!showAssessment && latestAttempt && (
                   <div className="text-center py-8">
-                    <CheckCircle className="w-16 h-16 mx-auto mb-4" style={{ color: '#607e66' }} />
-                    <h3 className="text-2xl font-bold mb-2" style={{ color: '#607e66' }}>Congratulations!</h3>
-                    <p className="mb-4" style={{ color: '#8c93ad' }}>
-                      You have successfully completed this training module
-                    </p>
-                    <div className="p-6 rounded-lg inline-block" style={{ backgroundColor: '#f8f8f3' }}>
-                      <p className="text-sm mb-1" style={{ color: '#8c93ad' }}>Final Score</p>
-                      <p className="text-4xl font-bold" style={{ color: '#607e66' }}>
-                        {latestAttempt.score}%
-                      </p>
-                    </div>
+                    {latestAttempt.passed ? (
+                      <>
+                        <CheckCircle className="w-20 h-20 mx-auto mb-6" style={{ color: '#607e66' }} />
+                        <h3 className="text-3xl font-bold mb-3" style={{ color: '#607e66' }}>Congratulations!</h3>
+                        <p className="text-lg mb-6" style={{ color: '#8c93ad' }}>
+                          You have successfully completed this training module
+                        </p>
+                        <div className="p-8 rounded-xl inline-block shadow-md" style={{ backgroundColor: '#f8f8f3' }}>
+                          <p className="text-sm mb-2 uppercase tracking-wide" style={{ color: '#8c93ad' }}>Final Score</p>
+                          <p className="text-5xl font-bold mb-2" style={{ color: '#607e66' }}>
+                            {latestAttempt.score}%
+                          </p>
+                          <p className="text-sm" style={{ color: '#8c93ad' }}>
+                            Passed • {latestAttempt.score >= (module?.assessment?.passingScore || 80) ? 'Excellent work!' : 'Well done!'}
+                          </p>
+                        </div>
+                        <div className="mt-8">
+                          <Link href="/training">
+                            <Button size="lg" className="text-white hover:opacity-90" style={{ backgroundColor: '#607e66' }}>
+                              <CheckCircle className="w-4 h-4 mr-2" />
+                              Return to Training Dashboard
+                            </Button>
+                          </Link>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="w-20 h-20 mx-auto mb-6 rounded-full flex items-center justify-center" style={{ backgroundColor: '#fee', border: '3px solid #f87171' }}>
+                          <span className="text-4xl">✗</span>
+                        </div>
+                        <h3 className="text-3xl font-bold mb-3" style={{ color: '#5e637a' }}>Assessment Not Passed</h3>
+                        <p className="text-lg mb-6" style={{ color: '#8c93ad' }}>
+                          You scored {latestAttempt.score}%. You need {module?.assessment?.passingScore}% to pass.
+                        </p>
+                        <div className="p-8 rounded-xl inline-block shadow-md mb-6" style={{ backgroundColor: '#f8f8f3' }}>
+                          <p className="text-sm mb-2 uppercase tracking-wide" style={{ color: '#8c93ad' }}>Your Score</p>
+                          <p className="text-5xl font-bold mb-2" style={{ color: '#f87171' }}>
+                            {latestAttempt.score}%
+                          </p>
+                          <p className="text-sm" style={{ color: '#8c93ad' }}>
+                            Passing Score: {module?.assessment?.passingScore}%
+                          </p>
+                        </div>
+                        {!maxAttemptsReached && (
+                          <Button 
+                            size="lg" 
+                            onClick={handleStartAssessment}
+                            className="text-white hover:opacity-90" 
+                            style={{ backgroundColor: '#6c97ab' }}
+                          >
+                            Try Again ({attemptsCount} / {module?.assessment?.maxAttempts || '∞'} attempts used)
+                          </Button>
+                        )}
+                        {maxAttemptsReached && (
+                          <p className="text-red-600 font-semibold">Maximum attempts reached. Please contact your instructor.</p>
+                        )}
+                      </>
+                    )}
                   </div>
                 )}
               </CardContent>
