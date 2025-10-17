@@ -43,7 +43,7 @@ export class AITrainingGenerator {
   private hf: HfInference;
   
   constructor(apiKey?: string) {
-    const key = apiKey || process.env.HUGGING_FACE_API_KEY || process.env.HF_API_KEY;
+    const key = apiKey || process.env.HUGGINGFACE_API_TOKEN || process.env.HUGGING_FACE_API_KEY || process.env.HF_API_KEY;
     if (!key) {
       throw new Error('Hugging Face API key is required for AI training generation');
     }
