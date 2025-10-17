@@ -2510,10 +2510,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         totalPoints += question.points || 1;
         const userAnswer = answers[question.id.toString()];
         
+        console.log('=== SCORING DEBUG ===');
+        console.log('Question ID:', question.id);
+        console.log('User Answer:', userAnswer);
+        console.log('Question Options:', JSON.stringify(question.options));
+        
         // Check if user's answer matches any correct option
-        const isCorrect = question.options?.some((option: any) => 
-          option.isCorrect && option.text === userAnswer
-        );
+        const isCorrect = question.options?.some((option: any) => {
+          const matches = option.isCorrect && option.text === userAnswer;
+          console.log(`  Option "${option.text}" (isCorrect=${option.isCorrect}) === userAnswer: ${matches}`);
+          return matches;
+        });
+        
+        console.log('Final isCorrect:', isCorrect);
         
         if (isCorrect) {
           correctCount++;
