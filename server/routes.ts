@@ -2890,6 +2890,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Update generated content (for editing before approval)
+  app.patch('/api/training/generation-jobs/:id/content', isAuthenticated, requireAdmin, async (req, res) => {
+    try {
+      const jobId = parseInt(req.params.id);
+      const { generatedContent } = req.body;
+
+      const job = await storage.getGenerationJobById(jobId);
+
+      if (!job) {
+        return res.status(404).json({ message: 'Generation job not found' });
+      }
+
+      if (job.status !== 'completed') {
+        return res.status(400).json({ message: 'Can only edit completed jobs' });
+      }
+
+      await storage.updateGenerationJobContent(jobId, generatedContent);
+      res.json({ message: 'Content updated successfully' });
+    } catch (error) {
+      console.error('Error updating generated content:', error);
+      res.status(500).json({ message: 'Failed to update content' });
+    }
+  });
+
   // Approve and publish generated content
   app.post('/api/training/generation-jobs/:id/approve', isAuthenticated, requireAdmin, async (req, res) => {
     try {

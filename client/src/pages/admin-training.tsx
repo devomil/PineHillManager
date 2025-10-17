@@ -33,6 +33,7 @@ export default function AdminTraining() {
   const [selectedModuleForAI, setSelectedModuleForAI] = useState<any>(null);
   const [showPreview, setShowPreview] = useState(false);
   const [previewJob, setPreviewJob] = useState<any>(null);
+  const [editedContent, setEditedContent] = useState<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [newModule, setNewModule] = useState({
     title: "",
@@ -831,12 +832,13 @@ export default function AdminTraining() {
                               variant="outline"
                               onClick={() => {
                                 setPreviewJob(job);
+                                setEditedContent(JSON.parse(JSON.stringify(job.generatedContent))); // Deep clone
                                 setShowPreview(true);
                               }}
                               data-testid={`button-preview-${job.id}`}
                             >
                               <Eye className="w-4 h-4 mr-1" />
-                              Preview
+                              Preview & Edit
                             </Button>
                             <Button
                               size="sm"
@@ -885,33 +887,63 @@ export default function AdminTraining() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Eye className="w-5 h-5 text-purple-500" />
-              AI Generated Content Preview
+              AI Generated Content - Preview & Edit
             </DialogTitle>
           </DialogHeader>
-          {previewJob?.generatedContent && (
+          {editedContent && (
             <div className="space-y-6">
               {/* Module Info */}
               <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-4">
-                <h3 className="font-semibold mb-2">Module: {previewJob.sourceData?.name}</h3>
-                {previewJob.generatedContent.enrichedDescription && (
-                  <p className="text-sm text-slate-600 dark:text-slate-400">{stripHtml(previewJob.generatedContent.enrichedDescription)}</p>
+                <h3 className="font-semibold mb-2">Module: {previewJob?.sourceData?.name}</h3>
+                {editedContent.enrichedDescription && (
+                  <Textarea
+                    value={editedContent.enrichedDescription}
+                    onChange={(e) => setEditedContent({...editedContent, enrichedDescription: e.target.value})}
+                    className="text-sm mt-2"
+                    rows={3}
+                  />
                 )}
               </div>
 
               {/* Lessons */}
-              {previewJob.generatedContent.lessons && previewJob.generatedContent.lessons.length > 0 && (
+              {editedContent.lessons && editedContent.lessons.length > 0 && (
                 <div>
-                  <h3 className="font-semibold mb-3 text-lg">📚 Lessons ({previewJob.generatedContent.lessons.length})</h3>
+                  <h3 className="font-semibold mb-3 text-lg">📚 Lessons ({editedContent.lessons.length})</h3>
                   <div className="space-y-4">
-                    {previewJob.generatedContent.lessons.map((lesson: any, idx: number) => (
+                    {editedContent.lessons.map((lesson: any, idx: number) => (
                       <div key={idx} className="border rounded-lg p-4 bg-white dark:bg-slate-900">
                         <div className="flex items-center justify-between mb-2">
-                          <h4 className="font-medium">{lesson.title}</h4>
-                          <Badge variant="secondary">{lesson.duration} min</Badge>
+                          <Input
+                            value={lesson.title}
+                            onChange={(e) => {
+                              const newLessons = [...editedContent.lessons];
+                              newLessons[idx].title = e.target.value;
+                              setEditedContent({...editedContent, lessons: newLessons});
+                            }}
+                            className="font-medium flex-1 mr-2"
+                          />
+                          <Input
+                            type="number"
+                            value={lesson.duration}
+                            onChange={(e) => {
+                              const newLessons = [...editedContent.lessons];
+                              newLessons[idx].duration = parseInt(e.target.value) || 0;
+                              setEditedContent({...editedContent, lessons: newLessons});
+                            }}
+                            className="w-20"
+                          />
+                          <span className="ml-1 text-sm">min</span>
                         </div>
-                        <div className="prose dark:prose-invert max-w-none text-sm">
-                          <pre className="whitespace-pre-wrap text-xs bg-slate-50 dark:bg-slate-800 p-3 rounded">{lesson.content}</pre>
-                        </div>
+                        <Textarea
+                          value={lesson.content}
+                          onChange={(e) => {
+                            const newLessons = [...editedContent.lessons];
+                            newLessons[idx].content = e.target.value;
+                            setEditedContent({...editedContent, lessons: newLessons});
+                          }}
+                          className="text-sm font-mono"
+                          rows={8}
+                        />
                       </div>
                     ))}
                   </div>
@@ -919,34 +951,75 @@ export default function AdminTraining() {
               )}
 
               {/* Quiz Questions */}
-              {previewJob.generatedContent.questions && previewJob.generatedContent.questions.length > 0 && (
+              {editedContent.questions && editedContent.questions.length > 0 && (
                 <div>
-                  <h3 className="font-semibold mb-3 text-lg">❓ Quiz Questions ({previewJob.generatedContent.questions.length})</h3>
+                  <h3 className="font-semibold mb-3 text-lg">❓ Quiz Questions ({editedContent.questions.length})</h3>
                   <div className="space-y-4">
-                    {previewJob.generatedContent.questions.map((question: any, idx: number) => (
+                    {editedContent.questions.map((question: any, idx: number) => (
                       <div key={idx} className="border rounded-lg p-4 bg-white dark:bg-slate-900">
-                        <h4 className="font-medium mb-3">Question {idx + 1}: {question.questionText}</h4>
+                        <Input
+                          value={question.questionText}
+                          onChange={(e) => {
+                            const newQuestions = [...editedContent.questions];
+                            newQuestions[idx].questionText = e.target.value;
+                            setEditedContent({...editedContent, questions: newQuestions});
+                          }}
+                          className="font-medium mb-3"
+                          placeholder="Question text"
+                        />
                         <div className="space-y-2 mb-3">
                           {question.options?.map((option: any, optIdx: number) => (
-                            <div
-                              key={optIdx}
-                              className={`p-2 rounded ${
-                                option.isCorrect
-                                  ? 'bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800'
-                                  : 'bg-slate-50 dark:bg-slate-800'
-                              }`}
-                            >
-                              <span className="font-medium">{String.fromCharCode(65 + optIdx)}.</span> {option.text}
-                              {option.isCorrect && <Badge className="ml-2 bg-green-500">Correct</Badge>}
+                            <div key={optIdx} className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                checked={option.isCorrect}
+                                onChange={(e) => {
+                                  const newQuestions = [...editedContent.questions];
+                                  // Uncheck all others first (only one correct answer)
+                                  newQuestions[idx].options = newQuestions[idx].options.map((opt: any) => ({...opt, isCorrect: false}));
+                                  newQuestions[idx].options[optIdx].isCorrect = e.target.checked;
+                                  setEditedContent({...editedContent, questions: newQuestions});
+                                }}
+                                className="w-4 h-4"
+                              />
+                              <Input
+                                value={option.text}
+                                onChange={(e) => {
+                                  const newQuestions = [...editedContent.questions];
+                                  newQuestions[idx].options[optIdx].text = e.target.value;
+                                  setEditedContent({...editedContent, questions: newQuestions});
+                                }}
+                                className={`flex-1 ${option.isCorrect ? 'border-green-500' : ''}`}
+                                placeholder={`Option ${String.fromCharCode(65 + optIdx)}`}
+                              />
+                              {option.isCorrect && <Badge className="bg-green-500">Correct</Badge>}
                             </div>
                           ))}
                         </div>
-                        {question.explanation && (
-                          <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded p-2 text-sm">
-                            <strong>Explanation:</strong> {question.explanation}
-                          </div>
-                        )}
-                        <div className="mt-2 text-xs text-slate-500">Points: {question.points}</div>
+                        <Textarea
+                          value={question.explanation || ''}
+                          onChange={(e) => {
+                            const newQuestions = [...editedContent.questions];
+                            newQuestions[idx].explanation = e.target.value;
+                            setEditedContent({...editedContent, questions: newQuestions});
+                          }}
+                          className="text-sm"
+                          rows={2}
+                          placeholder="Explanation (optional)"
+                        />
+                        <div className="mt-2 flex items-center gap-2">
+                          <Label className="text-xs">Points:</Label>
+                          <Input
+                            type="number"
+                            value={question.points}
+                            onChange={(e) => {
+                              const newQuestions = [...editedContent.questions];
+                              newQuestions[idx].points = parseInt(e.target.value) || 1;
+                              setEditedContent({...editedContent, questions: newQuestions});
+                            }}
+                            className="w-16 text-xs"
+                          />
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -954,12 +1027,22 @@ export default function AdminTraining() {
               )}
 
               {/* Skills */}
-              {previewJob.generatedContent.skills && previewJob.generatedContent.skills.length > 0 && (
+              {editedContent.skills && editedContent.skills.length > 0 && (
                 <div>
                   <h3 className="font-semibold mb-3 text-lg">🏆 Skills Earned</h3>
                   <div className="flex gap-2 flex-wrap">
-                    {previewJob.generatedContent.skills.map((skill: string, idx: number) => (
-                      <Badge key={idx} className="bg-green-500">{skill}</Badge>
+                    {editedContent.skills.map((skill: string, idx: number) => (
+                      <div key={idx} className="flex items-center gap-1">
+                        <Input
+                          value={skill}
+                          onChange={(e) => {
+                            const newSkills = [...editedContent.skills];
+                            newSkills[idx] = e.target.value;
+                            setEditedContent({...editedContent, skills: newSkills});
+                          }}
+                          className="w-auto"
+                        />
+                      </div>
                     ))}
                   </div>
                 </div>
@@ -970,9 +1053,24 @@ export default function AdminTraining() {
                   Close
                 </Button>
                 <Button
-                  onClick={() => {
-                    setShowPreview(false);
-                    approveAIMutation.mutate(previewJob.id);
+                  onClick={async () => {
+                    // Update the job with edited content before approving
+                    try {
+                      await fetch(`/api/training/generation-jobs/${previewJob.id}/content`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'include',
+                        body: JSON.stringify({ generatedContent: editedContent }),
+                      });
+                      setShowPreview(false);
+                      approveAIMutation.mutate(previewJob.id);
+                    } catch (error) {
+                      toast({
+                        title: "Error",
+                        description: "Failed to save edits",
+                        variant: "destructive",
+                      });
+                    }
                   }}
                   disabled={approveAIMutation.isPending}
                   className="bg-purple-600 hover:bg-purple-700"
@@ -982,7 +1080,7 @@ export default function AdminTraining() {
                   ) : (
                     <>
                       <CheckCircle className="w-4 h-4 mr-2" />
-                      Approve & Publish
+                      Save & Publish
                     </>
                   )}
                 </Button>

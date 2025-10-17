@@ -1645,6 +1645,7 @@ export interface IStorage {
   getAllGenerationJobs(): Promise<TrainingGenerationJob[]>;
   updateGenerationJobStatus(id: number, status: string, errorMessage?: string | null): Promise<TrainingGenerationJob>;
   updateGenerationJobResults(id: number, results: any): Promise<TrainingGenerationJob>;
+  updateGenerationJobContent(id: number, content: any): Promise<TrainingGenerationJob>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -12636,6 +12637,19 @@ export class DatabaseStorage implements IStorage {
       .update(trainingGenerationJobs)
       .set({
         generatedContent: results,
+        updatedAt: new Date(),
+      })
+      .where(eq(trainingGenerationJobs.id, id))
+      .returning();
+
+    return updated;
+  }
+
+  async updateGenerationJobContent(id: number, content: any): Promise<TrainingGenerationJob> {
+    const [updated] = await db
+      .update(trainingGenerationJobs)
+      .set({
+        generatedContent: content,
         updatedAt: new Date(),
       })
       .where(eq(trainingGenerationJobs.id, id))
