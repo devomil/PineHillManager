@@ -14,6 +14,13 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { BookOpen, Plus, Users, Award, TrendingUp, Upload, ShoppingCart, Loader2, Eye, Sparkles, CheckCircle, XCircle, Clock } from "lucide-react";
 import AdminLayout from "@/components/admin-layout";
 
+// Helper function to strip HTML tags from description for preview
+function stripHtml(html: string): string {
+  const tmp = document.createElement('div');
+  tmp.innerHTML = html;
+  return tmp.textContent || tmp.innerText || '';
+}
+
 export default function AdminTraining() {
   const { toast } = useToast();
   const { user } = useAuth();
@@ -357,7 +364,7 @@ export default function AdminTraining() {
                 >
                   <div className="flex-1">
                     <h3 className="font-semibold text-slate-900 dark:text-white">{module.title}</h3>
-                    <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{module.description}</p>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{stripHtml(module.description || '')}</p>
                     <div className="flex items-center gap-2 mt-2">
                       {module.category && (
                         <Badge variant="outline">{module.category}</Badge>
@@ -673,7 +680,10 @@ export default function AdminTraining() {
             <div className="space-y-6">
               {/* Module Info */}
               <div>
-                <p className="text-slate-600 dark:text-slate-400 mb-4">{moduleDetails.description}</p>
+                <div 
+                  className="text-slate-600 dark:text-slate-400 mb-4 prose dark:prose-invert max-w-none"
+                  dangerouslySetInnerHTML={{ __html: moduleDetails.description || '' }}
+                />
                 <div className="flex gap-2 flex-wrap">
                   {moduleDetails.category && (
                     <Badge variant="outline">{moduleDetails.category}</Badge>
