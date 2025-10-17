@@ -18,6 +18,7 @@ import ShiftSwapMarketplace from "@/pages/shift-swap-marketplace";
 import Training from "@/pages/training";
 import TrainingModule from "@/pages/training-module";
 import AdminTraining from "@/pages/admin-training";
+import TrainingReports from "@/pages/training-reports";
 import Profile from "@/pages/profile";
 import Reports from "@/pages/reports";
 import Notifications from "@/pages/notifications";
@@ -67,6 +68,11 @@ function AuthenticatedApp() {
       <Route path="/admin/training">
         <ProtectedRoute allowedRoles={['admin', 'manager']}>
           <AdminTraining />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/admin/training-reports">
+        <ProtectedRoute allowedRoles={['admin', 'manager']}>
+          <TrainingReports />
         </ProtectedRoute>
       </Route>
       <Route path="/admin/logos">

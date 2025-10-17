@@ -20,7 +20,8 @@ import {
   LayoutDashboard,
   X,
   ListTodo,
-  GraduationCap
+  GraduationCap,
+  BarChart
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -40,6 +41,7 @@ const navigationItems: NavItem[] = [
   { label: "Employee Management", icon: Users, value: "employees", href: "/employees", section: "operations" },
   { label: "Task Management", icon: ListTodo, value: "tasks", href: "/tasks", section: "operations" },
   { label: "Training Management", icon: GraduationCap, value: "training", href: "/admin/training", section: "operations" },
+  { label: "Training Reports", icon: BarChart, value: "training-reports", href: "/admin/training-reports", section: "operations" },
   { label: "Schedule Management", icon: Calendar, value: "scheduling", href: "/shift-scheduling", section: "operations" },
   { label: "Accounting", icon: DollarSign, value: "accounting", href: "/accounting", section: "operations" },
   { label: "Inventory", icon: Package, value: "inventory", href: "/inventory", section: "operations" },

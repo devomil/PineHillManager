@@ -2650,6 +2650,60 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get comprehensive training reports with employee and module details (admin/manager)
+  app.get('/api/training/reports', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      
+      if (user?.role !== 'admin' && user?.role !== 'manager') {
+        return res.status(403).json({ message: 'Only admins and managers can view training reports' });
+      }
+
+      // Get all enrollments with progress data
+      const enrollments = await storage.getAllEnrollments();
+      
+      // Get all users and modules to join the data
+      const users = await storage.getAllUsers();
+      const modules = await storage.getAllTrainingModules();
+      
+      // Create lookup maps for efficient joining
+      const userMap = new Map(users.map(u => [u.id, u]));
+      const moduleMap = new Map(modules.map(m => [m.id, m]));
+      
+      // Join the data
+      const reports = enrollments.map(enrollment => {
+        const employee = userMap.get(enrollment.userId);
+        const module = moduleMap.get(enrollment.moduleId);
+        
+        return {
+          id: enrollment.id,
+          employeeId: enrollment.userId,
+          employeeName: employee ? `${employee.firstName} ${employee.lastName}` : 'Unknown User',
+          employeeEmail: employee?.email || '',
+          employeeRole: employee?.role || '',
+          moduleId: enrollment.moduleId,
+          moduleTitle: module?.title || 'Unknown Module',
+          moduleCategory: module?.category || '',
+          isMandatory: module?.isMandatory || false,
+          status: enrollment.status,
+          progress: enrollment.progress || 0,
+          enrolledAt: enrollment.enrolledAt,
+          startedAt: enrollment.startedAt,
+          completedAt: enrollment.completedAt,
+          dueDate: enrollment.dueDate,
+          finalScore: enrollment.finalScore,
+          attempts: enrollment.attempts || 0,
+          assignedBy: enrollment.assignedBy,
+        };
+      });
+      
+      res.json(reports);
+    } catch (error) {
+      console.error('Error fetching training reports:', error);
+      res.status(500).json({ message: 'Failed to fetch training reports' });
+    }
+  });
+
   // Get overdue training
   app.get('/api/training/overdue', isAuthenticated, async (req, res) => {
     try {
