@@ -2255,11 +2255,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const lessons = await storage.getModuleLessons(moduleId);
       const assessment = await storage.getModuleAssessment(moduleId);
       const moduleSkills = await storage.getModuleSkills(moduleId);
+      
+      // Fetch assessment questions if assessment exists
+      let questions = [];
+      if (assessment) {
+        questions = await storage.getAssessmentQuestions(assessment.id);
+      }
 
       res.json({
         ...module,
         lessons,
-        assessment,
+        assessment: assessment ? { ...assessment, questions } : null,
         skills: moduleSkills
       });
     } catch (error) {

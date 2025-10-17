@@ -736,6 +736,47 @@ export default function AdminTraining() {
                 </div>
               )}
 
+              {/* Assessment Questions */}
+              {moduleDetails.assessment && moduleDetails.assessment.questions && moduleDetails.assessment.questions.length > 0 && (
+                <div>
+                  <h3 className="font-semibold mb-3">Assessment Questions ({moduleDetails.assessment.questions.length})</h3>
+                  <div className="space-y-3">
+                    {moduleDetails.assessment.questions.map((question: any, idx: number) => (
+                      <div
+                        key={question.id}
+                        className="border rounded-lg p-4 bg-white dark:bg-slate-900"
+                      >
+                        <div className="flex items-start gap-2">
+                          <Badge variant="outline" className="mt-1">Q{idx + 1}</Badge>
+                          <div className="flex-1">
+                            <p className="font-medium mb-2">{question.questionText}</p>
+                            {question.questionType === 'multiple_choice' && question.options && (
+                              <div className="space-y-1 text-sm">
+                                {question.options.map((option: any, optIdx: number) => (
+                                  <div key={optIdx} className="flex items-center gap-2">
+                                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${option.isCorrect ? 'border-green-500 bg-green-50 dark:bg-green-950' : 'border-slate-300'}`}>
+                                      {option.isCorrect && <span className="text-green-600 text-xs">✓</span>}
+                                    </div>
+                                    <span className={option.isCorrect ? 'text-green-600 font-medium' : 'text-slate-600 dark:text-slate-400'}>
+                                      {option.text}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            {question.explanation && (
+                              <div className="mt-2 text-sm text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 p-2 rounded">
+                                <span className="font-medium">Explanation:</span> {question.explanation}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Skills */}
               {moduleDetails.skills && moduleDetails.skills.length > 0 && (
                 <div>
@@ -857,6 +898,21 @@ export default function AdminTraining() {
                               )}
                             </Button>
                           </>
+                        )}
+                        {job.status === 'approved' && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setSelectedModule(modules?.find(m => m.id === job.moduleId));
+                              setShowModuleDetail(true);
+                            }}
+                            className="border-purple-500 text-purple-600 hover:bg-purple-50"
+                            data-testid={`button-view-published-${job.id}`}
+                          >
+                            <Eye className="w-4 h-4 mr-1" />
+                            View Published
+                          </Button>
                         )}
                       </div>
                     </div>
