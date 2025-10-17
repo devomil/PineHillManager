@@ -368,52 +368,54 @@ export default function Training() {
                         )}
                       </div>
                     </CardHeader>
-                    <CardContent className="space-y-4">
-                      {moduleProgress && (
-                        <div>
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="text-xs font-medium">Progress</span>
-                            <span className="text-xs text-slate-500 dark:text-slate-400">
-                              {moduleProgress.progress}%
-                            </span>
+                    <CardContent>
+                      <div className="space-y-3">
+                        {moduleProgress && (
+                          <div>
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-xs font-medium">Progress</span>
+                              <span className="text-xs text-slate-500 dark:text-slate-400">
+                                {moduleProgress.progress}%
+                              </span>
+                            </div>
+                            <Progress value={moduleProgress.progress} className="h-1.5" />
+                            {moduleProgress.dueDate && (
+                              <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
+                                Due: {new Date(moduleProgress.dueDate).toLocaleDateString()}
+                              </p>
+                            )}
                           </div>
-                          <Progress value={moduleProgress.progress} className="h-1.5" />
-                          {moduleProgress.dueDate && (
-                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
-                              Due: {new Date(moduleProgress.dueDate).toLocaleDateString()}
-                            </p>
-                          )}
-                        </div>
-                      )}
-
-                      <Button 
-                        className={`w-full ${
-                          isCompleted 
-                            ? 'bg-green-600 hover:bg-green-700' 
-                            : 'bg-farm-green hover:bg-green-600'
-                        }`}
-                        disabled={!module.isActive}
-                        onClick={() => handleStartModule(module)}
-                        data-testid={`button-start-module-${module.id}`}
-                      >
-                        {isCompleted ? (
-                          <>
-                            <CheckCircle className="w-4 h-4 mr-2" />
-                            Review
-                          </>
-                        ) : isInProgress ? (
-                          <>
-                            <Play className="w-4 h-4 mr-2" />
-                            Continue
-                          </>
-                        ) : (
-                          <>
-                            <Play className="w-4 h-4 mr-2" />
-                            Start
-                          </>
                         )}
-                        <ChevronRight className="w-4 h-4 ml-auto" />
-                      </Button>
+
+                        <Button 
+                          className={`w-full ${
+                            isCompleted 
+                              ? 'bg-green-600 hover:bg-green-700' 
+                              : 'bg-farm-green hover:bg-green-600'
+                          }`}
+                          disabled={!module.isActive}
+                          onClick={() => handleStartModule(module)}
+                          data-testid={`button-start-module-${module.id}`}
+                        >
+                          {isCompleted ? (
+                            <>
+                              <CheckCircle className="w-4 h-4 mr-2" />
+                              Review
+                            </>
+                          ) : isInProgress ? (
+                            <>
+                              <Play className="w-4 h-4 mr-2" />
+                              Continue
+                            </>
+                          ) : (
+                            <>
+                              <Play className="w-4 h-4 mr-2" />
+                              Start
+                            </>
+                          )}
+                          <ChevronRight className="w-4 h-4 ml-auto" />
+                        </Button>
+                      </div>
                     </CardContent>
                   </Card>
                 );
