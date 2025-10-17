@@ -903,9 +903,28 @@ export default function AdminTraining() {
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => {
-                              setSelectedModule(modules?.find(m => m.id === job.moduleId));
-                              setShowModuleDetail(true);
+                            onClick={async () => {
+                              try {
+                                // Fetch the published module directly by ID
+                                const response = await fetch(`/api/training/modules/${job.moduleId}`);
+                                if (response.ok) {
+                                  const module = await response.json();
+                                  setSelectedModule(module);
+                                  setShowModuleDetail(true);
+                                } else {
+                                  toast({
+                                    title: "Error",
+                                    description: "Failed to load published module",
+                                    variant: "destructive",
+                                  });
+                                }
+                              } catch (error) {
+                                toast({
+                                  title: "Error",
+                                  description: "Failed to load published module",
+                                  variant: "destructive",
+                                });
+                              }
                             }}
                             className="border-purple-500 text-purple-600 hover:bg-purple-50"
                             data-testid={`button-view-published-${job.id}`}
