@@ -2804,6 +2804,175 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ============================================
+  // AI Training Generation Routes
+  // ============================================
+
+  // Generate AI training content for a module (admin/manager only)
+  app.post('/api/training/generate-ai', isAuthenticated, requireAdmin, async (req, res) => {
+    try {
+      const user = req.user;
+      const { moduleId, productInfo } = req.body;
+
+      if (!moduleId || !productInfo) {
+        return res.status(400).json({ message: 'Module ID and product info are required' });
+      }
+
+      // Create generation job
+      const job = await storage.createGenerationJob({
+        moduleId,
+        status: 'pending',
+        initiatedBy: user!.id,
+        productInfo,
+      });
+
+      // Start AI generation asynchronously
+      const { AITrainingGenerator } = await import('./services/ai-training-generator');
+      
+      // Process in background
+      (async () => {
+        try {
+          await storage.updateGenerationJobStatus(job.id, 'processing');
+          
+          const generator = new AITrainingGenerator();
+          const content = await generator.generateTrainingContent({
+            name: productInfo.name,
+            description: productInfo.description,
+            images: productInfo.images,
+            category: productInfo.category,
+          });
+
+          await storage.updateGenerationJobResults(job.id, content);
+          await storage.updateGenerationJobStatus(job.id, 'completed');
+        } catch (error) {
+          console.error('AI generation failed:', error);
+          await storage.updateGenerationJobStatus(
+            job.id,
+            'failed',
+            error instanceof Error ? error.message : 'Unknown error'
+          );
+        }
+      })();
+
+      res.json({ job, message: 'AI generation started' });
+    } catch (error) {
+      console.error('Error starting AI generation:', error);
+      res.status(500).json({ message: 'Failed to start AI generation' });
+    }
+  });
+
+  // Get generation job status
+  app.get('/api/training/generation-jobs/:id', isAuthenticated, requireAdmin, async (req, res) => {
+    try {
+      const jobId = parseInt(req.params.id);
+      const job = await storage.getGenerationJobById(jobId);
+
+      if (!job) {
+        return res.status(404).json({ message: 'Generation job not found' });
+      }
+
+      res.json(job);
+    } catch (error) {
+      console.error('Error fetching generation job:', error);
+      res.status(500).json({ message: 'Failed to fetch generation job' });
+    }
+  });
+
+  // Get all generation jobs
+  app.get('/api/training/generation-jobs', isAuthenticated, requireAdmin, async (req, res) => {
+    try {
+      const jobs = await storage.getAllGenerationJobs();
+      res.json(jobs);
+    } catch (error) {
+      console.error('Error fetching generation jobs:', error);
+      res.status(500).json({ message: 'Failed to fetch generation jobs' });
+    }
+  });
+
+  // Approve and publish generated content
+  app.post('/api/training/generation-jobs/:id/approve', isAuthenticated, requireAdmin, async (req, res) => {
+    try {
+      const jobId = parseInt(req.params.id);
+      const job = await storage.getGenerationJobById(jobId);
+
+      if (!job) {
+        return res.status(404).json({ message: 'Generation job not found' });
+      }
+
+      if (job.status !== 'completed') {
+        return res.status(400).json({ message: 'Job is not completed' });
+      }
+
+      const content = job.generatedContent as any;
+
+      // Update module description
+      await storage.updateTrainingModule(job.moduleId, {
+        description: content.enrichedDescription,
+        duration: content.estimatedDuration,
+      });
+
+      // Create lessons
+      for (const lesson of content.lessons) {
+        await storage.createTrainingLesson({
+          moduleId: job.moduleId,
+          title: lesson.title,
+          content: lesson.content,
+          duration: lesson.duration,
+          orderIndex: lesson.orderIndex,
+        });
+      }
+
+      // Create assessment and questions
+      const assessment = await storage.createAssessment({
+        moduleId: job.moduleId,
+        title: `${content.lessons[0]?.title || 'Training'} - Assessment`,
+        passingScore: 80,
+        duration: 10,
+        maxAttempts: 3,
+      });
+
+      for (const question of content.questions) {
+        await storage.createTrainingQuestion({
+          assessmentId: assessment.id,
+          questionText: question.questionText,
+          questionType: question.questionType,
+          options: question.options,
+          explanation: question.explanation,
+          points: question.points,
+          orderIndex: question.orderIndex,
+        });
+      }
+
+      // Add skills
+      for (const skillName of content.skills) {
+        const skills = await storage.getAllTrainingSkills();
+        let skill = skills.find(s => s.name === skillName);
+        
+        if (!skill) {
+          skill = await storage.createTrainingSkill({
+            name: skillName,
+            description: `Competency in ${skillName}`,
+            category: 'product',
+          });
+        }
+
+        await storage.addSkillToModule({
+          moduleId: job.moduleId,
+          skillId: skill.id,
+          proficiencyLevel: 'basic',
+        });
+      }
+
+      // Mark job as approved
+      await storage.updateGenerationJobStatus(jobId, 'approved');
+
+      res.json({ message: 'Training content published successfully' });
+    } catch (error) {
+      console.error('Error approving content:', error);
+      res.status(500).json({ message: 'Failed to approve content' });
+    }
+  });
+
   // Employee Financial Management - Admin/Manager only
   app.get('/api/employees/:id/financials', isAuthenticated, async (req, res) => {
     try {

@@ -285,6 +285,10 @@ import {
   type InsertTask,
   type TaskNote,
   type InsertTaskNote,
+  // AI Training Generation Tables & Types
+  trainingGenerationJobs,
+  type TrainingGenerationJob,
+  type InsertTrainingGenerationJob,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, asc, gte, lte, or, sql, like, isNull, isNotNull, exists, sum, inArray } from "drizzle-orm";
@@ -1633,6 +1637,14 @@ export interface IStorage {
   createTaskNote(note: InsertTaskNote): Promise<TaskNote>;
   getTaskNotes(taskId: number): Promise<TaskNote[]>;
   deleteTaskNote(id: number): Promise<void>;
+
+  // AI Training Generation Job Operations
+  createGenerationJob(job: InsertTrainingGenerationJob): Promise<TrainingGenerationJob>;
+  getGenerationJobById(id: number): Promise<TrainingGenerationJob | undefined>;
+  getGenerationJobsByModuleId(moduleId: number): Promise<TrainingGenerationJob[]>;
+  getAllGenerationJobs(): Promise<TrainingGenerationJob[]>;
+  updateGenerationJobStatus(id: number, status: string, errorMessage?: string | null): Promise<TrainingGenerationJob>;
+  updateGenerationJobResults(id: number, results: any): Promise<TrainingGenerationJob>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -12565,6 +12577,71 @@ export class DatabaseStorage implements IStorage {
 
   async deleteTaskNote(id: number): Promise<void> {
     await db.delete(taskNotes).where(eq(taskNotes.id, id));
+  }
+
+  // AI Training Generation Job Operations
+  async createGenerationJob(job: InsertTrainingGenerationJob): Promise<TrainingGenerationJob> {
+    const [result] = await db.insert(trainingGenerationJobs).values(job).returning();
+    return result;
+  }
+
+  async getGenerationJobById(id: number): Promise<TrainingGenerationJob | undefined> {
+    const [job] = await db
+      .select()
+      .from(trainingGenerationJobs)
+      .where(eq(trainingGenerationJobs.id, id));
+    return job;
+  }
+
+  async getGenerationJobsByModuleId(moduleId: number): Promise<TrainingGenerationJob[]> {
+    return db
+      .select()
+      .from(trainingGenerationJobs)
+      .where(eq(trainingGenerationJobs.moduleId, moduleId))
+      .orderBy(desc(trainingGenerationJobs.createdAt));
+  }
+
+  async getAllGenerationJobs(): Promise<TrainingGenerationJob[]> {
+    return db
+      .select()
+      .from(trainingGenerationJobs)
+      .orderBy(desc(trainingGenerationJobs.createdAt));
+  }
+
+  async updateGenerationJobStatus(id: number, status: string, errorMessage?: string | null): Promise<TrainingGenerationJob> {
+    const updateData: any = {
+      status,
+      updatedAt: new Date(),
+    };
+
+    if (status === 'completed') {
+      updateData.completedAt = new Date();
+    }
+
+    if (errorMessage !== undefined) {
+      updateData.errorMessage = errorMessage;
+    }
+
+    const [updated] = await db
+      .update(trainingGenerationJobs)
+      .set(updateData)
+      .where(eq(trainingGenerationJobs.id, id))
+      .returning();
+
+    return updated;
+  }
+
+  async updateGenerationJobResults(id: number, results: any): Promise<TrainingGenerationJob> {
+    const [updated] = await db
+      .update(trainingGenerationJobs)
+      .set({
+        generatedContent: results,
+        updatedAt: new Date(),
+      })
+      .where(eq(trainingGenerationJobs.id, id))
+      .returning();
+
+    return updated;
   }
 }
 
