@@ -2822,8 +2822,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const job = await storage.createGenerationJob({
         moduleId,
         status: 'pending',
-        initiatedBy: user!.id,
-        productInfo,
+        jobType: 'full_training', // Generate lessons, assessment, and skills
+        requestedBy: user!.id,
+        sourceData: productInfo,
       });
 
       // Start AI generation asynchronously
