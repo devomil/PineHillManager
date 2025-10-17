@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { BookOpen, Plus, Users, Award, TrendingUp, Upload, ShoppingCart, Loader2 } from "lucide-react";
+import { BookOpen, Plus, Users, Award, TrendingUp, Upload, ShoppingCart, Loader2, Eye } from "lucide-react";
 import AdminLayout from "@/components/admin-layout";
 
 export default function AdminTraining() {
@@ -19,6 +19,8 @@ export default function AdminTraining() {
   const { user } = useAuth();
   const [showCreateModule, setShowCreateModule] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
+  const [showModuleDetail, setShowModuleDetail] = useState(false);
+  const [selectedModule, setSelectedModule] = useState<any>(null);
   const [importMethod, setImportMethod] = useState<'csv' | 'bigcommerce' | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [newModule, setNewModule] = useState({
@@ -41,23 +43,30 @@ export default function AdminTraining() {
     queryKey: ["/api/training/skills"],
   });
 
+  const { data: moduleDetails } = useQuery<any>({
+    queryKey: ["/api/training/modules", selectedModule?.id],
+    enabled: !!selectedModule?.id,
+  });
+
   const createModuleMutation = useMutation({
     mutationFn: async (moduleData: any) => {
       const response = await fetch("/api/training/modules", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify(moduleData),
       });
-      
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || "Failed to create module");
+        throw new Error("Failed to create module");
       }
-      
       return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/training/modules"] });
+      toast({
+        title: "Success",
+        description: "Training module created successfully",
+      });
       setShowCreateModule(false);
       setNewModule({
         title: "",
@@ -66,63 +75,58 @@ export default function AdminTraining() {
         duration: 0,
         isMandatory: false,
       });
-      toast({
-        title: "Module Created",
-        description: "Training module has been created successfully",
-      });
     },
-    onError: (error: Error) => {
+    onError: () => {
       toast({
         title: "Error",
-        description: error.message,
+        description: "Failed to create training module",
         variant: "destructive",
       });
     },
   });
 
-  // CSV Import mutation
   const importCSVMutation = useMutation({
     mutationFn: async (products: any[]) => {
-      const response = await apiRequest('POST', '/api/training/import/csv', { products });
-      return response.json();
+      return await apiRequest('POST', '/api/training/import/csv', { products });
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/training/modules"] });
       toast({
-        title: "Import Complete",
-        description: `Successfully created ${data.created} training modules. ${data.failed > 0 ? `Failed: ${data.failed}` : ''}`,
+        title: "Success",
+        description: `Successfully imported ${data.count} product training modules`,
       });
       setShowImportDialog(false);
       setImportMethod(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     },
-    onError: (error: Error) => {
+    onError: (error: any) => {
       toast({
         title: "Import Failed",
-        description: error.message,
+        description: error.message || "Failed to import products from CSV",
         variant: "destructive",
       });
     },
   });
 
-  // BigCommerce Import mutation
   const importBigCommerceMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest('POST', '/api/training/import/bigcommerce', {});
-      return response.json();
+      return await apiRequest('POST', '/api/training/import/bigcommerce', {});
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/training/modules"] });
       toast({
-        title: "Import Complete",
-        description: `Created ${data.created} modules. Skipped ${data.skipped} existing. ${data.failed > 0 ? `Failed: ${data.failed}` : ''}`,
+        title: "Success",
+        description: `Successfully imported ${data.count} product training modules from BigCommerce`,
       });
       setShowImportDialog(false);
       setImportMethod(null);
     },
-    onError: (error: Error) => {
+    onError: (error: any) => {
       toast({
-        title: "Import Failed",
-        description: error.message,
+        title: "BigCommerce Sync Failed",
+        description: error.message || "Failed to import products from BigCommerce",
         variant: "destructive",
       });
     },
@@ -140,19 +144,20 @@ export default function AdminTraining() {
     reader.onload = async (e) => {
       try {
         const text = e.target?.result as string;
-        const lines = text.split('\n');
+        const lines = text.split('\n').filter(line => line.trim());
         const headers = lines[0].split(',');
         
-        const products = lines.slice(1).map(line => {
+        const allRows = lines.slice(1).map(line => {
           const values = line.split(',');
           const row: any = {};
           headers.forEach((header, index) => {
             row[header.trim()] = values[index]?.trim() || '';
           });
           return row;
-        }).filter(row => row.Item); // Filter out empty rows
+        });
 
-        importCSVMutation.mutate(products);
+        // Keep all rows (products and images) - backend will parse them correctly
+        importCSVMutation.mutate(allRows);
       } catch (error) {
         toast({
           title: "File Error",
@@ -168,33 +173,44 @@ export default function AdminTraining() {
     importBigCommerceMutation.mutate();
   };
 
+  const handleViewModule = (module: any) => {
+    setSelectedModule(module);
+    setShowModuleDetail(true);
+  };
+
   const totalEnrollments = enrollments?.length || 0;
   const completedEnrollments = enrollments?.filter((e) => e.status === "completed").length || 0;
   const completionRate = totalEnrollments ? Math.round((completedEnrollments / totalEnrollments) * 100) : 0;
 
   if (user?.role !== "admin" && user?.role !== "manager") {
     return (
-      <AdminLayout currentTab="training">
-        <div className="text-center py-12">
-          <p className="text-slate-500">Access denied. Admin or manager role required.</p>
+      <AdminLayout>
+        <div className="flex items-center justify-center h-full">
+          <Card className="w-96">
+            <CardContent className="p-6 text-center">
+              <p className="text-red-500">Access denied. Admin privileges required.</p>
+            </CardContent>
+          </Card>
         </div>
       </AdminLayout>
     );
   }
 
   return (
-    <AdminLayout currentTab="training">
-      <div className="space-y-6" data-testid="admin-training-page">
+    <AdminLayout>
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 p-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Training Management</h1>
-          <p className="text-slate-500 dark:text-slate-400 mt-1">
-            Manage training modules, enrollments, and employee progress
+          <h1 className="text-3xl font-semibold font-poppins text-slate-900 dark:text-white">
+            Training Management
+          </h1>
+          <p className="text-slate-600 dark:text-slate-400 mt-2">
+            Manage employee training modules, track progress, and build skills
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setShowImportDialog(true)} data-testid="button-import">
+          <Button onClick={() => setShowImportDialog(true)} variant="outline" data-testid="button-import-training">
             <Upload className="w-4 h-4 mr-2" />
             Import Training
           </Button>
@@ -208,21 +224,21 @@ export default function AdminTraining() {
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
-          <CardContent className="pt-6">
+          <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-slate-500 dark:text-slate-400">Total Modules</p>
-                <p className="text-2xl font-bold text-slate-900 dark:text-white" data-testid="text-total-modules">
-                  {modules?.length || 0}
+                <p className="text-sm text-slate-500 dark:text-slate-400">Active Modules</p>
+                <p className="text-2xl font-bold text-slate-900 dark:text-white" data-testid="text-active-modules">
+                  {modules?.filter((m) => m.isActive).length || 0}
                 </p>
               </div>
-              <BookOpen className="w-8 h-8 text-farm-green" />
+              <BookOpen className="w-8 h-8 text-blue-500" />
             </div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="pt-6">
+          <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-slate-500 dark:text-slate-400">Total Enrollments</p>
@@ -230,13 +246,13 @@ export default function AdminTraining() {
                   {totalEnrollments}
                 </p>
               </div>
-              <Users className="w-8 h-8 text-blue-500" />
+              <Users className="w-8 h-8 text-green-500" />
             </div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="pt-6">
+          <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-slate-500 dark:text-slate-400">Completion Rate</p>
@@ -244,13 +260,13 @@ export default function AdminTraining() {
                   {completionRate}%
                 </p>
               </div>
-              <TrendingUp className="w-8 h-8 text-green-500" />
+              <TrendingUp className="w-8 h-8 text-purple-500" />
             </div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="pt-6">
+          <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-slate-500 dark:text-slate-400">Total Skills</p>
@@ -293,10 +309,21 @@ export default function AdminTraining() {
                       )}
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-sm text-slate-500 dark:text-slate-400">
-                      {module.duration} minutes
-                    </p>
+                  <div className="flex items-center gap-4">
+                    <div className="text-right">
+                      <p className="text-sm text-slate-500 dark:text-slate-400">
+                        {module.duration} minutes
+                      </p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleViewModule(module)}
+                      data-testid={`button-view-module-${module.id}`}
+                    >
+                      <Eye className="w-4 h-4 mr-2" />
+                      View
+                    </Button>
                   </div>
                 </div>
               ))
@@ -362,7 +389,7 @@ export default function AdminTraining() {
                 id="title"
                 value={newModule.title}
                 onChange={(e) => setNewModule({ ...newModule, title: e.target.value })}
-                placeholder="Enter module title"
+                placeholder="Module title"
                 data-testid="input-module-title"
               />
             </div>
@@ -372,7 +399,7 @@ export default function AdminTraining() {
                 id="description"
                 value={newModule.description}
                 onChange={(e) => setNewModule({ ...newModule, description: e.target.value })}
-                placeholder="Enter module description"
+                placeholder="Module description"
                 data-testid="input-module-description"
               />
             </div>
@@ -382,7 +409,7 @@ export default function AdminTraining() {
                 id="category"
                 value={newModule.category}
                 onChange={(e) => setNewModule({ ...newModule, category: e.target.value })}
-                placeholder="e.g., Safety, Operations"
+                placeholder="e.g., Product Training"
                 data-testid="input-module-category"
               />
             </div>
@@ -393,30 +420,27 @@ export default function AdminTraining() {
                 type="number"
                 value={newModule.duration}
                 onChange={(e) => setNewModule({ ...newModule, duration: parseInt(e.target.value) || 0 })}
-                placeholder="30"
+                placeholder="0"
                 data-testid="input-module-duration"
               />
-            </div>
-            <div className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                id="mandatory"
-                checked={newModule.isMandatory}
-                onChange={(e) => setNewModule({ ...newModule, isMandatory: e.target.checked })}
-                data-testid="checkbox-module-mandatory"
-              />
-              <Label htmlFor="mandatory">Mandatory Training</Label>
             </div>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setShowCreateModule(false)}>
                 Cancel
               </Button>
-              <Button
-                onClick={handleCreateModule}
-                disabled={!newModule.title || !newModule.description || createModuleMutation.isPending}
+              <Button 
+                onClick={handleCreateModule} 
+                disabled={createModuleMutation.isPending}
                 data-testid="button-submit-module"
               >
-                Create Module
+                {createModuleMutation.isPending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  'Create Module'
+                )}
               </Button>
             </div>
           </div>
@@ -429,82 +453,90 @@ export default function AdminTraining() {
           <DialogHeader>
             <DialogTitle>Import Product Training</DialogTitle>
           </DialogHeader>
-          <div className="space-y-6">
-            <p className="text-sm text-slate-600 dark:text-slate-400">
-              Choose how you want to import product training modules:
+          <div className="space-y-4">
+            <p className="text-slate-600 dark:text-slate-400 text-sm">
+              Choose an import method to create training modules from your products:
             </p>
 
             {/* Import Method Selection */}
-            <div className="grid grid-cols-2 gap-4">
-              <button
-                onClick={() => setImportMethod('csv')}
-                className={`p-6 border-2 rounded-lg transition-all ${
-                  importMethod === 'csv'
-                    ? 'border-blue-600 bg-blue-50 dark:bg-blue-950'
-                    : 'border-slate-200 dark:border-slate-700 hover:border-blue-300'
-                }`}
-                data-testid="button-import-csv"
-              >
-                <Upload className="w-8 h-8 mx-auto mb-3 text-blue-600" />
-                <h3 className="font-semibold text-lg mb-2">Upload CSV File</h3>
-                <p className="text-sm text-slate-600 dark:text-slate-400">
-                  Upload a product list exported from BigCommerce
-                </p>
-              </button>
+            {!importMethod && (
+              <div className="grid grid-cols-2 gap-4">
+                <button
+                  onClick={() => setImportMethod('csv')}
+                  className="p-6 border-2 border-slate-200 dark:border-slate-700 rounded-lg hover:border-blue-500 dark:hover:border-blue-500 transition-colors text-left"
+                  data-testid="button-select-csv-import"
+                >
+                  <Upload className="w-8 h-8 text-blue-500 mb-2" />
+                  <h3 className="font-semibold text-slate-900 dark:text-white mb-1">CSV Upload</h3>
+                  <p className="text-sm text-slate-600 dark:text-slate-400">
+                    Upload a CSV file exported from BigCommerce
+                  </p>
+                </button>
 
-              <button
-                onClick={() => setImportMethod('bigcommerce')}
-                className={`p-6 border-2 rounded-lg transition-all ${
-                  importMethod === 'bigcommerce'
-                    ? 'border-blue-600 bg-blue-50 dark:bg-blue-950'
-                    : 'border-slate-200 dark:border-slate-700 hover:border-blue-300'
-                }`}
-                data-testid="button-import-bigcommerce"
-              >
-                <ShoppingCart className="w-8 h-8 mx-auto mb-3 text-blue-600" />
-                <h3 className="font-semibold text-lg mb-2">Sync from BigCommerce</h3>
-                <p className="text-sm text-slate-600 dark:text-slate-400">
-                  Automatically import products from your store
-                </p>
-              </button>
-            </div>
+                <button
+                  onClick={() => setImportMethod('bigcommerce')}
+                  className="p-6 border-2 border-slate-200 dark:border-slate-700 rounded-lg hover:border-blue-500 dark:hover:border-blue-500 transition-colors text-left"
+                  data-testid="button-select-bigcommerce-import"
+                >
+                  <ShoppingCart className="w-8 h-8 text-green-500 mb-2" />
+                  <h3 className="font-semibold text-slate-900 dark:text-white mb-1">BigCommerce API</h3>
+                  <p className="text-sm text-slate-600 dark:text-slate-400">
+                    Sync directly from your BigCommerce store
+                  </p>
+                </button>
+              </div>
+            )}
 
             {/* CSV Upload Section */}
             {importMethod === 'csv' && (
-              <div className="border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-lg p-8 text-center">
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  accept=".csv"
-                  onChange={handleFileUpload}
-                  className="hidden"
-                  data-testid="input-csv-file"
-                />
-                <Upload className="w-12 h-12 mx-auto mb-4 text-slate-400" />
-                <p className="text-lg font-medium mb-2">Drag and drop your CSV file here</p>
-                <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
-                  or click the button below to browse
-                </p>
+              <div className="space-y-4">
                 <Button
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={importCSVMutation.isPending}
-                  data-testid="button-browse-file"
+                  variant="outline"
+                  onClick={() => setImportMethod(null)}
+                  className="mb-2"
                 >
-                  {importCSVMutation.isPending ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Importing...
-                    </>
-                  ) : (
-                    'Browse Files'
-                  )}
+                  ← Back to Selection
                 </Button>
+                <div className="border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-lg p-8 text-center">
+                  <Upload className="w-12 h-12 text-slate-400 mx-auto mb-4" />
+                  <p className="text-slate-600 dark:text-slate-400 mb-4">
+                    Upload a CSV file exported from BigCommerce (with products and images)
+                  </p>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".csv"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                  />
+                  <Button
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={importCSVMutation.isPending}
+                    data-testid="button-browse-file"
+                  >
+                    {importCSVMutation.isPending ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Importing...
+                      </>
+                    ) : (
+                      'Browse Files'
+                    )}
+                  </Button>
+                </div>
               </div>
             )}
 
             {/* BigCommerce Sync Section */}
             {importMethod === 'bigcommerce' && (
               <div className="space-y-4">
+                <Button
+                  variant="outline"
+                  onClick={() => setImportMethod(null)}
+                  className="mb-2"
+                >
+                  ← Back to Selection
+                </Button>
                 <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
                   <p className="text-sm text-blue-900 dark:text-blue-100">
                     <strong>Note:</strong> This will import up to 100 products from your BigCommerce store. 
@@ -545,6 +577,97 @@ export default function AdminTraining() {
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Module Detail Dialog */}
+      <Dialog open={showModuleDetail} onOpenChange={setShowModuleDetail}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{selectedModule?.title}</DialogTitle>
+          </DialogHeader>
+          {moduleDetails ? (
+            <div className="space-y-6">
+              {/* Module Info */}
+              <div>
+                <p className="text-slate-600 dark:text-slate-400 mb-4">{moduleDetails.description}</p>
+                <div className="flex gap-2 flex-wrap">
+                  {moduleDetails.category && (
+                    <Badge variant="outline">{moduleDetails.category}</Badge>
+                  )}
+                  <Badge variant="outline">{moduleDetails.duration} minutes</Badge>
+                  {moduleDetails.difficulty && (
+                    <Badge variant="outline">{moduleDetails.difficulty}</Badge>
+                  )}
+                </div>
+              </div>
+
+              {/* Full Content */}
+              {moduleDetails.content && (
+                <div className="border rounded-lg p-4 bg-slate-50 dark:bg-slate-800">
+                  <h3 className="font-semibold mb-2">Content</h3>
+                  <div 
+                    className="prose dark:prose-invert max-w-none text-sm"
+                    dangerouslySetInnerHTML={{ __html: moduleDetails.content }}
+                  />
+                </div>
+              )}
+
+              {/* Lessons */}
+              {moduleDetails.lessons && moduleDetails.lessons.length > 0 && (
+                <div>
+                  <h3 className="font-semibold mb-3">Lessons ({moduleDetails.lessons.length})</h3>
+                  <div className="space-y-3">
+                    {moduleDetails.lessons.map((lesson: any) => (
+                      <div
+                        key={lesson.id}
+                        className="border rounded-lg p-4 bg-white dark:bg-slate-900"
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <h4 className="font-medium">{lesson.title}</h4>
+                          <Badge variant="secondary">{lesson.duration} min</Badge>
+                        </div>
+                        <div className="text-sm text-slate-600 dark:text-slate-400">
+                          {lesson.contentType === 'markdown' ? (
+                            <div className="whitespace-pre-wrap">{lesson.content}</div>
+                          ) : (
+                            <div dangerouslySetInnerHTML={{ __html: lesson.content }} />
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Skills */}
+              {moduleDetails.skills && moduleDetails.skills.length > 0 && (
+                <div>
+                  <h3 className="font-semibold mb-3">Skills Earned</h3>
+                  <div className="flex gap-2 flex-wrap">
+                    {moduleDetails.skills.map((skill: any) => (
+                      <Badge key={skill.id} className="bg-green-500">
+                        {skill.name}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2 pt-4 border-t">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowModuleDetail(false)}
+                >
+                  Close
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-8 h-8 animate-spin text-slate-400" />
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>
