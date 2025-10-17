@@ -2540,7 +2540,7 @@ export class DatabaseStorage implements IStorage {
       conditions.push(
         or(
           eq(trainingModules.targetRoles, null),
-          sql`${trainingModules.targetRoles} @> ARRAY[${userRole}]::text[]`
+          sql`${trainingModules.targetRoles} @> ARRAY[${sql.raw(`'${userRole}'`)}]::text[]`
         )
       );
     }
@@ -2550,7 +2550,7 @@ export class DatabaseStorage implements IStorage {
       conditions.push(
         or(
           eq(trainingModules.targetDepartments, null),
-          sql`${trainingModules.targetDepartments} @> ARRAY[${userDepartment}]::text[]`
+          sql`${trainingModules.targetDepartments} @> ARRAY[${sql.raw(`'${userDepartment}'`)}]::text[]`
         )
       );
     }

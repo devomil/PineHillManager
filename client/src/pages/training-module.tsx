@@ -509,14 +509,18 @@ export default function TrainingModulePage() {
                             }))
                           }
                         >
-                          {question.options?.map((option: string, optionIndex: number) => (
-                            <div key={optionIndex} className="flex items-center space-x-2 mb-2">
-                              <RadioGroupItem value={option} id={`q${question.id}-${optionIndex}`} />
-                              <Label htmlFor={`q${question.id}-${optionIndex}`} className="cursor-pointer">
-                                {option}
-                              </Label>
-                            </div>
-                          ))}
+                          {question.options?.map((option: any, optionIndex: number) => {
+                            const optionText = typeof option === 'string' ? option : option.text;
+                            const optionId = typeof option === 'string' ? optionText : option.id;
+                            return (
+                              <div key={optionIndex} className="flex items-center space-x-2 mb-2">
+                                <RadioGroupItem value={optionText} id={`q${question.id}-${optionIndex}`} />
+                                <Label htmlFor={`q${question.id}-${optionIndex}`} className="cursor-pointer">
+                                  {optionText}
+                                </Label>
+                              </div>
+                            );
+                          })}
                         </RadioGroup>
                       </div>
                     ))}
