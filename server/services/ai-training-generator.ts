@@ -124,6 +124,11 @@ Write in a professional, educational tone suitable for employee training.`;
   private async generateLessons(product: ProductInfo, enrichedDescription: string): Promise<GeneratedLesson[]> {
     const lessons: GeneratedLesson[] = [];
 
+    // Add product image if available
+    const imageHtml = product.images && product.images.length > 0 
+      ? `\n\n<img src="${product.images[0]}" alt="${product.name}" style="max-width: 100%; height: auto; border-radius: 8px; margin: 20px 0;" />\n\n`
+      : '';
+
     // Lesson 1: Product Overview
     const overviewContent = await this.generateLessonContent(
       product,
@@ -139,7 +144,7 @@ Base your content on: ${enrichedDescription}`
 
     lessons.push({
       title: `${product.name} - Product Overview`,
-      content: overviewContent,
+      content: imageHtml + overviewContent,
       duration: 5,
       orderIndex: 1,
     });
@@ -216,27 +221,55 @@ Base your content on: ${enrichedDescription}`
   private async generateQuestions(product: ProductInfo, lessons: GeneratedLesson[]): Promise<GeneratedQuestion[]> {
     const questions: GeneratedQuestion[] = [];
 
-    // Generate 5 questions covering different aspects
+    // Combine lesson content for context
+    const lessonContext = lessons.map(l => `${l.title}:\n${l.content}`).join('\n\n---\n\n');
+
+    // Generate 5 questions covering different aspects - now with actual lesson context
     const questionPrompts = [
       {
         topic: 'Product Knowledge',
-        prompt: `Create a multiple-choice question about the main purpose of ${product.name}. Provide 4 options with one correct answer.`,
+        prompt: `Based on the following training content about ${product.name}, create a multiple-choice question about the main purpose or use of this product. Make it specific to the product details provided.
+
+Training Content:
+${lessonContext.substring(0, 1000)}
+
+Provide 4 options with one correct answer based on the actual product information.`,
       },
       {
         topic: 'Features',
-        prompt: `Create a multiple-choice question about a key feature or benefit of ${product.name}. Provide 4 options with one correct answer.`,
+        prompt: `Based on the following training content about ${product.name}, create a multiple-choice question about a specific feature or benefit mentioned in the lessons.
+
+Training Content:
+${lessonContext.substring(0, 1000)}
+
+Provide 4 options with one correct answer based on actual features discussed.`,
       },
       {
         topic: 'Customer Service',
-        prompt: `Create a multiple-choice question about when to recommend ${product.name} to a customer. Provide 4 options with one correct answer.`,
+        prompt: `Based on the following training content about ${product.name}, create a multiple-choice question about when or how to recommend this product to customers.
+
+Training Content:
+${lessonContext.substring(0, 1000)}
+
+Provide 4 options with one correct answer based on the customer service information provided.`,
       },
       {
         topic: 'Best Practices',
-        prompt: `Create a multiple-choice question about best practices for selling or explaining ${product.name}. Provide 4 options with one correct answer.`,
+        prompt: `Based on the following training content about ${product.name}, create a multiple-choice question about best practices for selling or explaining this product.
+
+Training Content:
+${lessonContext.substring(0, 1000)}
+
+Provide 4 options with one correct answer.`,
       },
       {
         topic: 'Product Details',
-        prompt: `Create a multiple-choice question testing specific knowledge about ${product.name}. Provide 4 options with one correct answer.`,
+        prompt: `Based on the following training content about ${product.name}, create a multiple-choice question testing specific product knowledge or details mentioned in the lessons.
+
+Training Content:
+${lessonContext.substring(0, 1000)}
+
+Provide 4 options with one correct answer based on specific details from the content.`,
       },
     ];
 
@@ -388,16 +421,19 @@ When discussing this product with customers, focus on how these features transla
    * Fallback question when AI generation fails
    */
   private getFallbackQuestion(product: ProductInfo, topic: string, orderIndex: number): GeneratedQuestion {
+    // Extract key info from description
+    const descWords = product.description.split(' ').slice(0, 20).join(' ');
+    
     return {
-      questionText: `What is the primary purpose of ${product.name}?`,
+      questionText: `What is ${product.name} primarily used for?`,
       questionType: 'multiple_choice',
       options: [
-        { id: 'option_0', text: `To provide quality ${product.category || 'products'} to customers`, isCorrect: true },
-        { id: 'option_1', text: 'To generate sales revenue', isCorrect: false },
-        { id: 'option_2', text: 'To compete with other brands', isCorrect: false },
-        { id: 'option_3', text: 'To expand product line', isCorrect: false },
+        { id: 'option_0', text: descWords || `A quality ${product.category || 'product'} for customers`, isCorrect: true },
+        { id: 'option_1', text: 'General retail merchandise', isCorrect: false },
+        { id: 'option_2', text: 'Display purposes only', isCorrect: false },
+        { id: 'option_3', text: 'Store inventory management', isCorrect: false },
       ],
-      explanation: `The primary purpose is to provide value to customers through quality ${product.category || 'products'}.`,
+      explanation: `${product.name} is designed for the purpose described in the product training materials.`,
       points: 1,
       orderIndex,
     };
