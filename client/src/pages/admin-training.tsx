@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,14 +10,17 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { queryClient } from "@/lib/queryClient";
-import { BookOpen, Plus, Users, Award, TrendingUp } from "lucide-react";
+import { queryClient, apiRequest } from "@/lib/queryClient";
+import { BookOpen, Plus, Users, Award, TrendingUp, Upload, ShoppingCart, Loader2 } from "lucide-react";
 import AdminLayout from "@/components/admin-layout";
 
 export default function AdminTraining() {
   const { toast } = useToast();
   const { user } = useAuth();
   const [showCreateModule, setShowCreateModule] = useState(false);
+  const [showImportDialog, setShowImportDialog] = useState(false);
+  const [importMethod, setImportMethod] = useState<'csv' | 'bigcommerce' | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [newModule, setNewModule] = useState({
     title: "",
     description: "",
@@ -77,8 +80,90 @@ export default function AdminTraining() {
     },
   });
 
+  // CSV Import mutation
+  const importCSVMutation = useMutation({
+    mutationFn: async (products: any[]) => {
+      return apiRequest('/api/training/import/csv', 'POST', { products });
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/training/modules"] });
+      toast({
+        title: "Import Complete",
+        description: `Successfully created ${data.created} training modules. ${data.failed > 0 ? `Failed: ${data.failed}` : ''}`,
+      });
+      setShowImportDialog(false);
+      setImportMethod(null);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Import Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // BigCommerce Import mutation
+  const importBigCommerceMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest('/api/training/import/bigcommerce', 'POST', {});
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/training/modules"] });
+      toast({
+        title: "Import Complete",
+        description: `Created ${data.created} modules. Skipped ${data.skipped} existing. ${data.failed > 0 ? `Failed: ${data.failed}` : ''}`,
+      });
+      setShowImportDialog(false);
+      setImportMethod(null);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Import Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleCreateModule = () => {
     createModuleMutation.mutate(newModule);
+  };
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const text = e.target?.result as string;
+        const lines = text.split('\n');
+        const headers = lines[0].split(',');
+        
+        const products = lines.slice(1).map(line => {
+          const values = line.split(',');
+          const row: any = {};
+          headers.forEach((header, index) => {
+            row[header.trim()] = values[index]?.trim() || '';
+          });
+          return row;
+        }).filter(row => row.Item); // Filter out empty rows
+
+        importCSVMutation.mutate(products);
+      } catch (error) {
+        toast({
+          title: "File Error",
+          description: "Failed to parse CSV file",
+          variant: "destructive",
+        });
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const handleImportFromBigCommerce = () => {
+    importBigCommerceMutation.mutate();
   };
 
   const totalEnrollments = enrollments?.length || 0;
@@ -106,10 +191,16 @@ export default function AdminTraining() {
             Manage training modules, enrollments, and employee progress
           </p>
         </div>
-        <Button onClick={() => setShowCreateModule(true)} data-testid="button-create-module">
-          <Plus className="w-4 h-4 mr-2" />
-          Create Module
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setShowImportDialog(true)} data-testid="button-import">
+            <Upload className="w-4 h-4 mr-2" />
+            Import Training
+          </Button>
+          <Button onClick={() => setShowCreateModule(true)} data-testid="button-create-module">
+            <Plus className="w-4 h-4 mr-2" />
+            Create Module
+          </Button>
+        </div>
       </div>
 
       {/* Stats Cards */}
@@ -324,6 +415,131 @@ export default function AdminTraining() {
                 data-testid="button-submit-module"
               >
                 Create Module
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Import Training Dialog */}
+      <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Import Product Training</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-6">
+            <p className="text-sm text-slate-600 dark:text-slate-400">
+              Choose how you want to import product training modules:
+            </p>
+
+            {/* Import Method Selection */}
+            <div className="grid grid-cols-2 gap-4">
+              <button
+                onClick={() => setImportMethod('csv')}
+                className={`p-6 border-2 rounded-lg transition-all ${
+                  importMethod === 'csv'
+                    ? 'border-blue-600 bg-blue-50 dark:bg-blue-950'
+                    : 'border-slate-200 dark:border-slate-700 hover:border-blue-300'
+                }`}
+                data-testid="button-import-csv"
+              >
+                <Upload className="w-8 h-8 mx-auto mb-3 text-blue-600" />
+                <h3 className="font-semibold text-lg mb-2">Upload CSV File</h3>
+                <p className="text-sm text-slate-600 dark:text-slate-400">
+                  Upload a product list exported from BigCommerce
+                </p>
+              </button>
+
+              <button
+                onClick={() => setImportMethod('bigcommerce')}
+                className={`p-6 border-2 rounded-lg transition-all ${
+                  importMethod === 'bigcommerce'
+                    ? 'border-blue-600 bg-blue-50 dark:bg-blue-950'
+                    : 'border-slate-200 dark:border-slate-700 hover:border-blue-300'
+                }`}
+                data-testid="button-import-bigcommerce"
+              >
+                <ShoppingCart className="w-8 h-8 mx-auto mb-3 text-blue-600" />
+                <h3 className="font-semibold text-lg mb-2">Sync from BigCommerce</h3>
+                <p className="text-sm text-slate-600 dark:text-slate-400">
+                  Automatically import products from your store
+                </p>
+              </button>
+            </div>
+
+            {/* CSV Upload Section */}
+            {importMethod === 'csv' && (
+              <div className="border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-lg p-8 text-center">
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  accept=".csv"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                  data-testid="input-csv-file"
+                />
+                <Upload className="w-12 h-12 mx-auto mb-4 text-slate-400" />
+                <p className="text-lg font-medium mb-2">Drag and drop your CSV file here</p>
+                <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+                  or click the button below to browse
+                </p>
+                <Button
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={importCSVMutation.isPending}
+                  data-testid="button-browse-file"
+                >
+                  {importCSVMutation.isPending ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Importing...
+                    </>
+                  ) : (
+                    'Browse Files'
+                  )}
+                </Button>
+              </div>
+            )}
+
+            {/* BigCommerce Sync Section */}
+            {importMethod === 'bigcommerce' && (
+              <div className="space-y-4">
+                <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                  <p className="text-sm text-blue-900 dark:text-blue-100">
+                    <strong>Note:</strong> This will import up to 100 products from your BigCommerce store. 
+                    Existing modules with the same name will be skipped.
+                  </p>
+                </div>
+                <Button
+                  onClick={handleImportFromBigCommerce}
+                  disabled={importBigCommerceMutation.isPending}
+                  className="w-full"
+                  data-testid="button-start-bigcommerce-sync"
+                >
+                  {importBigCommerceMutation.isPending ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Syncing from BigCommerce...
+                    </>
+                  ) : (
+                    <>
+                      <ShoppingCart className="w-4 h-4 mr-2" />
+                      Start Import from BigCommerce
+                    </>
+                  )}
+                </Button>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2 pt-4">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowImportDialog(false);
+                  setImportMethod(null);
+                }}
+                disabled={importCSVMutation.isPending || importBigCommerceMutation.isPending}
+              >
+                Close
               </Button>
             </div>
           </div>

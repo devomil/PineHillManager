@@ -1,0 +1,142 @@
+/**
+ * BigCommerce API Integration
+ * Manages product data sync for training module creation
+ */
+
+export interface BigCommerceProduct {
+  id: number;
+  name: string;
+  description: string;
+  categories?: number[];
+  brand_id?: number;
+  images?: Array<{
+    url_standard: string;
+    is_thumbnail: boolean;
+    sort_order: number;
+  }>;
+  custom_fields?: Array<{
+    name: string;
+    value: string;
+  }>;
+}
+
+export class BigCommerceIntegration {
+  private storeHash: string;
+  private accessToken: string;
+  private baseUrl: string;
+
+  constructor() {
+    this.storeHash = process.env.BIGCOMMERCE_STORE_HASH || '';
+    this.accessToken = process.env.BIGCOMMERCE_ACCESS_TOKEN || '';
+    this.baseUrl = `https://api.bigcommerce.com/stores/${this.storeHash}/v3`;
+
+    if (!this.storeHash || !this.accessToken) {
+      console.warn('BigCommerce credentials not configured');
+    }
+  }
+
+  /**
+   * Fetch all products from BigCommerce
+   */
+  async getProducts(limit: number = 250): Promise<BigCommerceProduct[]> {
+    if (!this.storeHash || !this.accessToken) {
+      throw new Error('BigCommerce API credentials not configured');
+    }
+
+    try {
+      const products: BigCommerceProduct[] = [];
+      let page = 1;
+      let hasMore = true;
+
+      while (hasMore && products.length < limit) {
+        const response = await fetch(
+          `${this.baseUrl}/catalog/products?limit=250&page=${page}&include=images`,
+          {
+            headers: {
+              'X-Auth-Token': this.accessToken,
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            },
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error(`BigCommerce API error: ${response.status} ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        products.push(...data.data);
+
+        // Check if there are more pages
+        hasMore = data.meta.pagination.current_page < data.meta.pagination.total_pages;
+        page++;
+      }
+
+      return products;
+    } catch (error) {
+      console.error('Error fetching BigCommerce products:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get product by ID with full details
+   */
+  async getProductById(productId: number): Promise<BigCommerceProduct> {
+    if (!this.storeHash || !this.accessToken) {
+      throw new Error('BigCommerce API credentials not configured');
+    }
+
+    try {
+      const response = await fetch(
+        `${this.baseUrl}/catalog/products/${productId}?include=images,custom_fields`,
+        {
+          headers: {
+            'X-Auth-Token': this.accessToken,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`BigCommerce API error: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      return data.data;
+    } catch (error) {
+      console.error(`Error fetching product ${productId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get categories for organizing training modules
+   */
+  async getCategories(): Promise<Array<{ id: number; name: string; parent_id: number }>> {
+    if (!this.storeHash || !this.accessToken) {
+      throw new Error('BigCommerce API credentials not configured');
+    }
+
+    try {
+      const response = await fetch(`${this.baseUrl}/catalog/categories`, {
+        headers: {
+          'X-Auth-Token': this.accessToken,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`BigCommerce API error: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      return data.data;
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+      throw error;
+    }
+  }
+}

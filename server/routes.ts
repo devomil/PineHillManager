@@ -2684,6 +2684,126 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Import training from CSV (admin/manager)
+  app.post('/api/training/import/csv', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      
+      if (user?.role !== 'admin' && user?.role !== 'manager') {
+        return res.status(403).json({ message: 'Only admins and managers can import training' });
+      }
+
+      const { products } = req.body;
+      if (!Array.isArray(products) || products.length === 0) {
+        return res.status(400).json({ message: 'No products provided' });
+      }
+
+      const { parseCSVProducts, productToTrainingModule, createProductLessons } = await import('./utils/training-import');
+      
+      const parsedProducts = parseCSVProducts(products);
+      const results = {
+        created: 0,
+        failed: 0,
+        modules: [] as any[],
+      };
+
+      for (const product of parsedProducts) {
+        try {
+          const moduleData = productToTrainingModule(product, user!.id);
+          const module = await storage.createTrainingModule(moduleData);
+          
+          // Create lessons for this module
+          const lessons = createProductLessons(product, module.id);
+          for (const lessonData of lessons) {
+            await storage.createTrainingLesson(lessonData);
+          }
+          
+          results.created++;
+          results.modules.push(module);
+        } catch (error) {
+          console.error(`Failed to create module for ${product.name}:`, error);
+          results.failed++;
+        }
+      }
+
+      res.json(results);
+    } catch (error) {
+      console.error('Error importing training from CSV:', error);
+      res.status(500).json({ message: 'Failed to import training modules' });
+    }
+  });
+
+  // Import training from BigCommerce API (admin/manager)
+  app.post('/api/training/import/bigcommerce', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      
+      if (user?.role !== 'admin' && user?.role !== 'manager') {
+        return res.status(403).json({ message: 'Only admins and managers can import training' });
+      }
+
+      const { BigCommerceIntegration } = await import('./integrations/bigcommerce');
+      const { bigCommerceProductToModule, createProductLessons } = await import('./utils/training-import');
+      
+      const bc = new BigCommerceIntegration();
+      const products = await bc.getProducts(100); // Limit to 100 products for now
+      
+      const results = {
+        created: 0,
+        failed: 0,
+        skipped: 0,
+        modules: [] as any[],
+      };
+
+      for (const product of products) {
+        try {
+          // Check if module already exists
+          const existingModules = await storage.getActiveTrainingModules();
+          const exists = existingModules.some((m: any) => m.title === product.name);
+          
+          if (exists) {
+            results.skipped++;
+            continue;
+          }
+
+          const { module: moduleData } = bigCommerceProductToModule(product, user!.id);
+          const module = await storage.createTrainingModule(moduleData);
+          
+          // Create lessons
+          const parsedProduct = {
+            id: product.id.toString(),
+            name: product.name,
+            description: product.description,
+            images: (product.images || []).map((img, idx) => ({
+              url: img.url_standard,
+              isThumbnail: img.is_thumbnail,
+              sortOrder: img.sort_order || idx,
+            })),
+          };
+          
+          const lessons = createProductLessons(parsedProduct, module.id);
+          for (const lessonData of lessons) {
+            await storage.createTrainingLesson(lessonData);
+          }
+          
+          results.created++;
+          results.modules.push(module);
+        } catch (error) {
+          console.error(`Failed to create module for ${product.name}:`, error);
+          results.failed++;
+        }
+      }
+
+      res.json(results);
+    } catch (error) {
+      console.error('Error importing from BigCommerce:', error);
+      res.status(500).json({ 
+        message: 'Failed to import from BigCommerce', 
+        error: error instanceof Error ? error.message : 'Unknown error' 
+      });
+    }
+  });
+
   // Employee Financial Management - Admin/Manager only
   app.get('/api/employees/:id/financials', isAuthenticated, async (req, res) => {
     try {
