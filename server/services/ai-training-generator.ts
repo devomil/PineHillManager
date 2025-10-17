@@ -140,7 +140,11 @@ Write in a professional, educational tone suitable for employee training.`;
 
 Base your content on: ${enrichedDescription}
 
-Format using markdown with headers (##) and bullet points where appropriate.`
+Format using clean HTML with proper structure:
+- Use <h3 class="font-semibold text-lg mt-6 mb-3"> for headings
+- Use <ul class="list-disc list-inside space-y-2 mb-4"><li>item</li></ul> for bullet lists
+- Use <p class="mb-4"> for paragraphs
+Output only HTML, no markdown.`
     );
 
     lessons.push({
@@ -162,7 +166,11 @@ Format using markdown with headers (##) and bullet points where appropriate.`
 
 Base your content on: ${enrichedDescription}
 
-Format using markdown with headers (##) and bullet points.`
+Format using clean HTML with proper structure:
+- Use <h3 class="font-semibold text-lg mt-6 mb-3"> for headings
+- Use <ul class="list-disc list-inside space-y-2 mb-4"><li>item</li></ul> for bullet lists
+- Use <p class="mb-4"> for paragraphs
+Output only HTML, no markdown.`
     );
 
     lessons.push({
@@ -177,14 +185,25 @@ Format using markdown with headers (##) and bullet points.`
       product,
       'Customer Service',
       `Create a customer service guide for ${product.name} (150-200 words). Include:
-- Common customer questions and answers
+- Common customer questions and answers (format as Q&A pairs)
 - How to handle objections
 - Best practices for recommending this product
 - Important disclaimers or warnings
 
 Base your content on: ${enrichedDescription}
 
-Format using markdown with headers (##) and bullet points.`
+CRITICAL: Format using clean HTML with proper semantic structure:
+- Use <h3> for section headings
+- For Q&A sections, use this exact format:
+  <div class="qa-pair">
+    <p class="question"><strong>Q:</strong> Question text here?</p>
+    <p class="answer"><strong>A:</strong> Answer text here</p>
+  </div>
+- For bullet lists: <ul><li>item</li></ul>
+- For regular paragraphs: <p>text</p>
+- Include spacing with margin classes
+
+Output only clean HTML, no markdown.`
     );
 
     lessons.push({
