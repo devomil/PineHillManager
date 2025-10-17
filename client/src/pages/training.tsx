@@ -387,11 +387,11 @@ export default function Training() {
                       )}
 
                       <Button 
-                        className={`w-full text-white ${
-                          isCompleted 
-                            ? 'bg-green-600 hover:bg-green-700' 
-                            : 'bg-farm-green hover:bg-green-600'
-                        }`}
+                        style={{
+                          backgroundColor: isCompleted ? '#16a34a' : '#22c55e',
+                          color: 'white'
+                        }}
+                        className="w-full"
                         disabled={!module.isActive}
                         onClick={() => handleStartModule(module)}
                         data-testid={`button-start-module-${module.id}`}
