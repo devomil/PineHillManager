@@ -31,6 +31,8 @@ export default function AdminTraining() {
   const [importMethod, setImportMethod] = useState<'csv' | 'bigcommerce' | null>(null);
   const [showAIJobs, setShowAIJobs] = useState(false);
   const [selectedModuleForAI, setSelectedModuleForAI] = useState<any>(null);
+  const [showPreview, setShowPreview] = useState(false);
+  const [previewJob, setPreviewJob] = useState<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [newModule, setNewModule] = useState({
     title: "",
@@ -823,22 +825,36 @@ export default function AdminTraining() {
                       </div>
                       <div className="flex flex-col gap-2 ml-4">
                         {job.status === 'completed' && (
-                          <Button
-                            size="sm"
-                            onClick={() => approveAIMutation.mutate(job.id)}
-                            disabled={approveAIMutation.isPending}
-                            className="bg-purple-600 hover:bg-purple-700"
-                            data-testid={`button-approve-${job.id}`}
-                          >
-                            {approveAIMutation.isPending ? (
-                              <Loader2 className="w-4 h-4 animate-spin" />
-                            ) : (
-                              <>
-                                <CheckCircle className="w-4 h-4 mr-1" />
-                                Approve & Publish
-                              </>
-                            )}
-                          </Button>
+                          <>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setPreviewJob(job);
+                                setShowPreview(true);
+                              }}
+                              data-testid={`button-preview-${job.id}`}
+                            >
+                              <Eye className="w-4 h-4 mr-1" />
+                              Preview
+                            </Button>
+                            <Button
+                              size="sm"
+                              onClick={() => approveAIMutation.mutate(job.id)}
+                              disabled={approveAIMutation.isPending}
+                              className="bg-purple-600 hover:bg-purple-700"
+                              data-testid={`button-approve-${job.id}`}
+                            >
+                              {approveAIMutation.isPending ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <>
+                                  <CheckCircle className="w-4 h-4 mr-1" />
+                                  Approve & Publish
+                                </>
+                              )}
+                            </Button>
+                          </>
                         )}
                       </div>
                     </div>
@@ -860,6 +876,119 @@ export default function AdminTraining() {
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Preview Dialog */}
+      <Dialog open={showPreview} onOpenChange={setShowPreview}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Eye className="w-5 h-5 text-purple-500" />
+              AI Generated Content Preview
+            </DialogTitle>
+          </DialogHeader>
+          {previewJob?.generatedContent && (
+            <div className="space-y-6">
+              {/* Module Info */}
+              <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-4">
+                <h3 className="font-semibold mb-2">Module: {previewJob.sourceData?.name}</h3>
+                {previewJob.generatedContent.enrichedDescription && (
+                  <p className="text-sm text-slate-600 dark:text-slate-400">{stripHtml(previewJob.generatedContent.enrichedDescription)}</p>
+                )}
+              </div>
+
+              {/* Lessons */}
+              {previewJob.generatedContent.lessons && previewJob.generatedContent.lessons.length > 0 && (
+                <div>
+                  <h3 className="font-semibold mb-3 text-lg">📚 Lessons ({previewJob.generatedContent.lessons.length})</h3>
+                  <div className="space-y-4">
+                    {previewJob.generatedContent.lessons.map((lesson: any, idx: number) => (
+                      <div key={idx} className="border rounded-lg p-4 bg-white dark:bg-slate-900">
+                        <div className="flex items-center justify-between mb-2">
+                          <h4 className="font-medium">{lesson.title}</h4>
+                          <Badge variant="secondary">{lesson.duration} min</Badge>
+                        </div>
+                        <div className="prose dark:prose-invert max-w-none text-sm">
+                          <pre className="whitespace-pre-wrap text-xs bg-slate-50 dark:bg-slate-800 p-3 rounded">{lesson.content}</pre>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Quiz Questions */}
+              {previewJob.generatedContent.questions && previewJob.generatedContent.questions.length > 0 && (
+                <div>
+                  <h3 className="font-semibold mb-3 text-lg">❓ Quiz Questions ({previewJob.generatedContent.questions.length})</h3>
+                  <div className="space-y-4">
+                    {previewJob.generatedContent.questions.map((question: any, idx: number) => (
+                      <div key={idx} className="border rounded-lg p-4 bg-white dark:bg-slate-900">
+                        <h4 className="font-medium mb-3">Question {idx + 1}: {question.questionText}</h4>
+                        <div className="space-y-2 mb-3">
+                          {question.options?.map((option: any, optIdx: number) => (
+                            <div
+                              key={optIdx}
+                              className={`p-2 rounded ${
+                                option.isCorrect
+                                  ? 'bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800'
+                                  : 'bg-slate-50 dark:bg-slate-800'
+                              }`}
+                            >
+                              <span className="font-medium">{String.fromCharCode(65 + optIdx)}.</span> {option.text}
+                              {option.isCorrect && <Badge className="ml-2 bg-green-500">Correct</Badge>}
+                            </div>
+                          ))}
+                        </div>
+                        {question.explanation && (
+                          <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded p-2 text-sm">
+                            <strong>Explanation:</strong> {question.explanation}
+                          </div>
+                        )}
+                        <div className="mt-2 text-xs text-slate-500">Points: {question.points}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Skills */}
+              {previewJob.generatedContent.skills && previewJob.generatedContent.skills.length > 0 && (
+                <div>
+                  <h3 className="font-semibold mb-3 text-lg">🏆 Skills Earned</h3>
+                  <div className="flex gap-2 flex-wrap">
+                    {previewJob.generatedContent.skills.map((skill: string, idx: number) => (
+                      <Badge key={idx} className="bg-green-500">{skill}</Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2 pt-4 border-t">
+                <Button variant="outline" onClick={() => setShowPreview(false)}>
+                  Close
+                </Button>
+                <Button
+                  onClick={() => {
+                    setShowPreview(false);
+                    approveAIMutation.mutate(previewJob.id);
+                  }}
+                  disabled={approveAIMutation.isPending}
+                  className="bg-purple-600 hover:bg-purple-700"
+                >
+                  {approveAIMutation.isPending ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <>
+                      <CheckCircle className="w-4 h-4 mr-2" />
+                      Approve & Publish
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

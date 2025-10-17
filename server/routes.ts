@@ -2924,7 +2924,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Create assessment and questions
-      const assessment = await storage.createAssessment({
+      const assessment = await storage.createTrainingAssessment({
         moduleId: job.moduleId,
         title: `${content.lessons[0]?.title || 'Training'} - Assessment`,
         passingScore: 80,
