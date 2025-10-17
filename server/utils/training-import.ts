@@ -7,16 +7,18 @@ import type { BigCommerceProduct } from '../integrations/bigcommerce';
 import type { InsertTrainingModule, InsertTrainingLesson } from '@shared/schema';
 
 /**
- * CSV Product Row Interface
+ * CSV Product Row Interface (flexible - supports multiple formats)
  */
 export interface CSVProductRow {
   Item: string; // 'Product' or 'Image'
-  ID: string;
-  Name: string;
-  Description: string;
+  ID?: string;
+  Name?: string;
+  Description?: string;
   'Product URL'?: string;
   'Internal Image URL (Export)'?: string;
+  'Image URL'?: string;
   'Image is Thumbnail'?: string;
+  [key: string]: any; // Allow additional columns
 }
 
 /**
@@ -80,31 +82,91 @@ function extractTrainingContent(description: string): {
 }
 
 /**
+ * Normalize CSV row data - maps various column names to standard fields
+ */
+function normalizeCSVRow(row: CSVProductRow): {
+  id: string;
+  name: string;
+  description: string;
+  imageUrl?: string;
+  isThumbnail: boolean;
+} {
+  // Generate ID if not provided - use name slug or row index
+  const id = row.ID || row.id || slugify(row.Name || 'product');
+  
+  // Get name
+  const name = row.Name || row.name || '';
+  
+  // Get description
+  const description = row.Description || row.description || '';
+  
+  // Get image URL - check multiple possible column names
+  const imageUrl = row['Internal Image URL (Export)'] || row['Image URL'] || row.imageUrl;
+  
+  // Check if thumbnail
+  const isThumbnail = row['Image is Thumbnail'] === 'TRUE' || row.isThumbnail === true;
+  
+  return { id, name, description, imageUrl, isThumbnail };
+}
+
+/**
+ * Create a URL-friendly slug from a string
+ */
+function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
+}
+
+/**
  * Parse CSV data into products with images
  */
 export function parseCSVProducts(rows: CSVProductRow[]): ParsedProduct[] {
   const productsMap = new Map<string, ParsedProduct>();
+  let productCounter = 0;
   
   for (const row of rows) {
     if (row.Item === 'Product') {
+      const normalized = normalizeCSVRow(row);
+      
+      // Create unique ID if duplicate
+      let uniqueId = normalized.id || `product-${productCounter++}`;
+      if (productsMap.has(uniqueId)) {
+        uniqueId = `${uniqueId}-${productCounter++}`;
+      }
+      
       // Create new product entry
-      productsMap.set(row.ID, {
-        id: row.ID,
-        name: row.Name,
-        description: row.Description || '',
+      productsMap.set(uniqueId, {
+        id: uniqueId,
+        name: normalized.name,
+        description: normalized.description || '',
         images: [],
       });
+      
+      // If the product row has an image URL, add it as first image
+      if (normalized.imageUrl) {
+        const product = productsMap.get(uniqueId)!;
+        product.images.push({
+          url: normalized.imageUrl,
+          isThumbnail: true, // First image is usually thumbnail
+          sortOrder: 0,
+        });
+      }
     } else if (row.Item === 'Image') {
       // Find the last product (images follow their product)
       const products = Array.from(productsMap.values());
       const lastProduct = products[products.length - 1];
       
-      if (lastProduct && row['Internal Image URL (Export)']) {
-        lastProduct.images.push({
-          url: row['Internal Image URL (Export)'],
-          isThumbnail: row['Image is Thumbnail'] === 'TRUE',
-          sortOrder: lastProduct.images.length,
-        });
+      if (lastProduct) {
+        const normalized = normalizeCSVRow(row);
+        if (normalized.imageUrl) {
+          lastProduct.images.push({
+            url: normalized.imageUrl,
+            isThumbnail: normalized.isThumbnail,
+            sortOrder: lastProduct.images.length,
+          });
+        }
       }
     }
   }
