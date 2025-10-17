@@ -19,7 +19,8 @@ import {
   ChevronRight,
   LayoutDashboard,
   X,
-  ListTodo
+  ListTodo,
+  GraduationCap
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -38,6 +39,7 @@ const navigationItems: NavItem[] = [
   // Operations Section
   { label: "Employee Management", icon: Users, value: "employees", href: "/employees", section: "operations" },
   { label: "Task Management", icon: ListTodo, value: "tasks", href: "/tasks", section: "operations" },
+  { label: "Training Management", icon: GraduationCap, value: "training", href: "/admin/training", section: "operations" },
   { label: "Schedule Management", icon: Calendar, value: "scheduling", href: "/shift-scheduling", section: "operations" },
   { label: "Accounting", icon: DollarSign, value: "accounting", href: "/accounting", section: "operations" },
   { label: "Inventory", icon: Package, value: "inventory", href: "/inventory", section: "operations" },
@@ -47,7 +49,6 @@ const navigationItems: NavItem[] = [
   { label: "Marketing Videos", icon: Video, value: "marketing", href: "/admin/marketing", section: "tools" },
   { label: "Integrations", icon: Settings, value: "integrations", href: "/admin/integrations", section: "tools" },
   { label: "Communications", icon: MessageSquare, value: "communications", href: "/communications", section: "tools" },
-  { label: "Support", icon: FileText, value: "system-support", href: "/admin/training", section: "tools" },
   { label: "Users", icon: Settings, value: "user-management", href: "/user-management", section: "tools" },
   { label: "Employee View", icon: Eye, value: "employee-view", href: "/dashboard", section: "tools" },
   { label: "Reports", icon: Clock, value: "reports", href: "/reports", section: "tools" },

@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { BookOpen, Plus, Users, Award, TrendingUp } from "lucide-react";
+import AdminLayout from "@/components/admin-layout";
 
 export default function AdminTraining() {
   const { toast } = useToast();
@@ -86,14 +87,17 @@ export default function AdminTraining() {
 
   if (user?.role !== "admin" && user?.role !== "manager") {
     return (
-      <div className="text-center py-12">
-        <p className="text-slate-500">Access denied. Admin or manager role required.</p>
-      </div>
+      <AdminLayout currentTab="training">
+        <div className="text-center py-12">
+          <p className="text-slate-500">Access denied. Admin or manager role required.</p>
+        </div>
+      </AdminLayout>
     );
   }
 
   return (
-    <div className="space-y-6" data-testid="admin-training-page">
+    <AdminLayout currentTab="training">
+      <div className="space-y-6" data-testid="admin-training-page">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -326,5 +330,6 @@ export default function AdminTraining() {
         </DialogContent>
       </Dialog>
     </div>
+    </AdminLayout>
   );
 }

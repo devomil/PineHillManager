@@ -65,7 +65,7 @@ function AuthenticatedApp() {
         </ProtectedRoute>
       </Route>
       <Route path="/admin/training">
-        <ProtectedRoute allowedRoles={['admin']}>
+        <ProtectedRoute allowedRoles={['admin', 'manager']}>
           <AdminTraining />
         </ProtectedRoute>
       </Route>
