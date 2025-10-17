@@ -2936,7 +2936,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Check if content already exists (from a previous partial approval)
       const existingLessons = await storage.getModuleLessons(job.moduleId);
-      const existingAssessments = await storage.getModuleAssessments(job.moduleId);
+      const existingAssessment = await storage.getModuleAssessment(job.moduleId);
 
       // Update module description
       await storage.updateTrainingModule(job.moduleId, {
@@ -2959,7 +2959,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Create assessment and questions only if they don't exist
       let assessment;
-      if (existingAssessments.length === 0) {
+      if (!existingAssessment) {
         assessment = await storage.createTrainingAssessment({
           moduleId: job.moduleId,
           title: `${content.lessons[0]?.title || 'Training'} - Assessment`,
