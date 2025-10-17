@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { BookOpen, Plus, Users, Award, TrendingUp, Upload, ShoppingCart, Loader2, Eye } from "lucide-react";
+import { BookOpen, Plus, Users, Award, TrendingUp, Upload, ShoppingCart, Loader2, Eye, Sparkles, CheckCircle, XCircle, Clock } from "lucide-react";
 import AdminLayout from "@/components/admin-layout";
 
 export default function AdminTraining() {
@@ -22,6 +22,8 @@ export default function AdminTraining() {
   const [showModuleDetail, setShowModuleDetail] = useState(false);
   const [selectedModule, setSelectedModule] = useState<any>(null);
   const [importMethod, setImportMethod] = useState<'csv' | 'bigcommerce' | null>(null);
+  const [showAIJobs, setShowAIJobs] = useState(false);
+  const [selectedModuleForAI, setSelectedModuleForAI] = useState<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [newModule, setNewModule] = useState({
     title: "",
@@ -93,7 +95,7 @@ export default function AdminTraining() {
       queryClient.invalidateQueries({ queryKey: ["/api/training/modules"] });
       toast({
         title: "Success",
-        description: `Successfully imported ${data.count} product training modules`,
+        description: `Successfully imported ${(data as any).created || 0} product training modules`,
       });
       setShowImportDialog(false);
       setImportMethod(null);
@@ -118,7 +120,7 @@ export default function AdminTraining() {
       queryClient.invalidateQueries({ queryKey: ["/api/training/modules"] });
       toast({
         title: "Success",
-        description: `Successfully imported ${data.count} product training modules from BigCommerce`,
+        description: `Successfully imported ${(data as any).created || 0} product training modules from BigCommerce`,
       });
       setShowImportDialog(false);
       setImportMethod(null);
@@ -127,6 +129,58 @@ export default function AdminTraining() {
       toast({
         title: "BigCommerce Sync Failed",
         description: error.message || "Failed to import products from BigCommerce",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // AI Generation Jobs Query - Always enabled for badge counter
+  const { data: generationJobs, refetch: refetchJobs } = useQuery<any[]>({
+    queryKey: ["/api/training/generation-jobs"],
+    enabled: true, // Always enabled so badge counter works
+    refetchInterval: showAIJobs ? 5000 : 30000, // Poll every 5s when dialog open, 30s when closed
+  });
+
+  // Generate AI Training Mutation
+  const generateAIMutation = useMutation({
+    mutationFn: async (data: { moduleId: number; productInfo: any }) => {
+      return await apiRequest('POST', '/api/training/generate-ai', data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/training/generation-jobs"] });
+      toast({
+        title: "AI Generation Started",
+        description: "Your training content is being generated. Check the AI Jobs dialog for progress.",
+      });
+      refetchJobs();
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Generation Failed",
+        description: error.message || "Failed to start AI generation",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Approve AI Content Mutation
+  const approveAIMutation = useMutation({
+    mutationFn: async (jobId: number) => {
+      return await apiRequest('POST', `/api/training/generation-jobs/${jobId}/approve`, {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/training/modules"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/training/generation-jobs"] });
+      toast({
+        title: "Content Published",
+        description: "AI-generated training content has been published to the module",
+      });
+      refetchJobs();
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Approval Failed",
+        description: error.message || "Failed to approve AI content",
         variant: "destructive",
       });
     },
@@ -184,7 +238,7 @@ export default function AdminTraining() {
 
   if (user?.role !== "admin" && user?.role !== "manager") {
     return (
-      <AdminLayout>
+      <AdminLayout currentTab="training">
         <div className="flex items-center justify-center h-full">
           <Card className="w-96">
             <CardContent className="p-6 text-center">
@@ -197,7 +251,7 @@ export default function AdminTraining() {
   }
 
   return (
-    <AdminLayout>
+    <AdminLayout currentTab="training">
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 p-6 space-y-6">
       {/* Header */}
       <div className="flex justify-between items-center">
@@ -213,6 +267,13 @@ export default function AdminTraining() {
           <Button onClick={() => setShowImportDialog(true)} variant="outline" data-testid="button-import-training">
             <Upload className="w-4 h-4 mr-2" />
             Import Training
+          </Button>
+          <Button onClick={() => setShowAIJobs(true)} variant="outline" className="border-purple-500 text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-950" data-testid="button-ai-jobs">
+            <Sparkles className="w-4 h-4 mr-2" />
+            AI Jobs
+            {generationJobs && generationJobs.filter(j => j.status === 'processing' || j.status === 'pending').length > 0 && (
+              <Badge className="ml-2 bg-purple-500">{generationJobs.filter(j => j.status === 'processing' || j.status === 'pending').length}</Badge>
+            )}
           </Button>
           <Button onClick={() => setShowCreateModule(true)} data-testid="button-create-module">
             <Plus className="w-4 h-4 mr-2" />
@@ -309,12 +370,34 @@ export default function AdminTraining() {
                       )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-4">
-                    <div className="text-right">
+                  <div className="flex items-center gap-2">
+                    <div className="text-right mr-2">
                       <p className="text-sm text-slate-500 dark:text-slate-400">
                         {module.duration} minutes
                       </p>
                     </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        // Generate AI content for this module
+                        generateAIMutation.mutate({
+                          moduleId: module.id,
+                          productInfo: {
+                            name: module.title,
+                            description: module.description,
+                            category: module.category || 'Product',
+                            images: module.thumbnailUrl ? [module.thumbnailUrl] : [],
+                          }
+                        });
+                      }}
+                      disabled={generateAIMutation.isPending}
+                      className="border-purple-500 text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-950"
+                      data-testid={`button-generate-ai-${module.id}`}
+                    >
+                      <Sparkles className="w-4 h-4 mr-1" />
+                      Generate AI
+                    </Button>
                     <Button
                       variant="outline"
                       size="sm"
@@ -668,6 +751,105 @@ export default function AdminTraining() {
               <Loader2 className="w-8 h-8 animate-spin text-slate-400" />
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* AI Jobs Dialog */}
+      <Dialog open={showAIJobs} onOpenChange={setShowAIJobs}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-purple-500" />
+              AI Training Generation Jobs
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {generationJobs && generationJobs.length > 0 ? (
+              generationJobs.map((job: any) => (
+                <Card key={job.id} className="border-2" data-testid={`job-${job.id}`}>
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <h3 className="font-semibold">Module ID: {job.moduleId}</h3>
+                          <Badge
+                            className={
+                              job.status === 'completed' ? 'bg-green-500' :
+                              job.status === 'processing' ? 'bg-blue-500' :
+                              job.status === 'failed' ? 'bg-red-500' :
+                              job.status === 'approved' ? 'bg-purple-500' :
+                              'bg-gray-500'
+                            }
+                          >
+                            {job.status === 'processing' && <Loader2 className="w-3 h-3 mr-1 animate-spin inline" />}
+                            {job.status === 'completed' && <CheckCircle className="w-3 h-3 mr-1 inline" />}
+                            {job.status === 'failed' && <XCircle className="w-3 h-3 mr-1 inline" />}
+                            {job.status === 'pending' && <Clock className="w-3 h-3 mr-1 inline" />}
+                            {job.status}
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-slate-600 dark:text-slate-400 mb-2">
+                          {job.productInfo?.name || 'No product info'}
+                        </p>
+                        {job.errorMessage && (
+                          <div className="bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded p-2 mb-2">
+                            <p className="text-sm text-red-600 dark:text-red-400">
+                              Error: {job.errorMessage}
+                            </p>
+                          </div>
+                        )}
+                        {job.generatedContent && (
+                          <div className="mt-3 space-y-2">
+                            <div className="text-sm">
+                              <span className="font-medium">Generated:</span>
+                              <ul className="ml-4 mt-1 text-slate-600 dark:text-slate-400">
+                                <li>• {job.generatedContent.lessons?.length || 0} lessons</li>
+                                <li>• {job.generatedContent.questions?.length || 0} quiz questions</li>
+                                <li>• {job.generatedContent.skills?.length || 0} skills</li>
+                              </ul>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex flex-col gap-2 ml-4">
+                        {job.status === 'completed' && (
+                          <Button
+                            size="sm"
+                            onClick={() => approveAIMutation.mutate(job.id)}
+                            disabled={approveAIMutation.isPending}
+                            className="bg-purple-600 hover:bg-purple-700"
+                            data-testid={`button-approve-${job.id}`}
+                          >
+                            {approveAIMutation.isPending ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <>
+                                <CheckCircle className="w-4 h-4 mr-1" />
+                                Approve & Publish
+                              </>
+                            )}
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
+            ) : (
+              <div className="text-center py-8">
+                <Sparkles className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto mb-4" />
+                <p className="text-slate-500 dark:text-slate-400">No AI generation jobs yet</p>
+                <p className="text-sm text-slate-400 dark:text-slate-500 mt-2">
+                  Use "Generate AI" on modules to create training content automatically
+                </p>
+              </div>
+            )}
+            <div className="flex justify-end gap-2 pt-4 border-t">
+              <Button variant="outline" onClick={() => setShowAIJobs(false)}>
+                Close
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
