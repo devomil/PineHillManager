@@ -83,7 +83,8 @@ export default function AdminTraining() {
   // CSV Import mutation
   const importCSVMutation = useMutation({
     mutationFn: async (products: any[]) => {
-      return apiRequest('/api/training/import/csv', 'POST', { products });
+      const response = await apiRequest('POST', '/api/training/import/csv', { products });
+      return response.json();
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/training/modules"] });
@@ -106,7 +107,8 @@ export default function AdminTraining() {
   // BigCommerce Import mutation
   const importBigCommerceMutation = useMutation({
     mutationFn: async () => {
-      return apiRequest('/api/training/import/bigcommerce', 'POST', {});
+      const response = await apiRequest('POST', '/api/training/import/bigcommerce', {});
+      return response.json();
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/training/modules"] });
