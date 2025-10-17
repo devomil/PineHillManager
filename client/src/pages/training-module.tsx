@@ -46,22 +46,22 @@ export default function TrainingModulePage() {
   const [assessmentStartTime, setAssessmentStartTime] = useState<Date | null>(null);
 
   const { data: module, isLoading: moduleLoading } = useQuery<TrainingModuleWithRelations>({
-    queryKey: ["/api/training/modules", moduleId],
+    queryKey: [`/api/training/modules/${moduleId}`],
     enabled: isAuthenticated && moduleId > 0,
   });
 
   const { data: moduleProgress } = useQuery<TrainingProgress>({
-    queryKey: ["/api/training/progress", moduleId],
+    queryKey: [`/api/training/progress/${moduleId}`],
     enabled: isAuthenticated && moduleId > 0,
   });
 
   const { data: questions } = useQuery<TrainingQuestion[]>({
-    queryKey: ["/api/training/assessments", module?.assessment?.id, "questions"],
+    queryKey: [`/api/training/assessments/${module?.assessment?.id}/questions`],
     enabled: isAuthenticated && !!module?.assessment?.id,
   });
 
   const { data: attempts } = useQuery<TrainingAttempt[]>({
-    queryKey: ["/api/training/assessments", module?.assessment?.id, "attempts"],
+    queryKey: [`/api/training/assessments/${module?.assessment?.id}/attempts`],
     enabled: isAuthenticated && !!module?.assessment?.id,
   });
 
@@ -71,7 +71,7 @@ export default function TrainingModulePage() {
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/training/progress", moduleId] });
+      queryClient.invalidateQueries({ queryKey: [`/api/training/progress/${moduleId}`] });
       toast({
         title: "Lesson Complete",
         description: "Great job! Moving to the next lesson.",
@@ -91,9 +91,9 @@ export default function TrainingModulePage() {
       return response.json() as Promise<AssessmentAttemptResult>;
     },
     onSuccess: (result: AssessmentAttemptResult) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/training/progress", moduleId] });
+      queryClient.invalidateQueries({ queryKey: [`/api/training/progress/${moduleId}`] });
       queryClient.invalidateQueries({ queryKey: ["/api/training/progress"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/training/assessments", module?.assessment?.id, "attempts"] });
+      queryClient.invalidateQueries({ queryKey: [`/api/training/assessments/${module?.assessment?.id}/attempts`] });
       
       if (result.passed) {
         toast({
@@ -121,7 +121,7 @@ export default function TrainingModulePage() {
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/training/progress", moduleId] });
+      queryClient.invalidateQueries({ queryKey: [`/api/training/progress/${moduleId}`] });
       toast({
         title: "Enrolled Successfully",
         description: "You can now start the training module",
