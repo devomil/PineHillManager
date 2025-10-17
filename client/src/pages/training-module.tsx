@@ -81,6 +81,7 @@ export default function TrainingModulePage() {
         setCurrentLessonIndex(currentLessonIndex + 1);
       } else {
         setShowAssessment(true);
+        setAssessmentStartTime(new Date());
       }
     },
   });
