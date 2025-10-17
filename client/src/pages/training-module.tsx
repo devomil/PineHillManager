@@ -161,18 +161,33 @@ export default function TrainingModulePage() {
     const paragraphs = content.split('\n\n').filter(p => p.trim());
     
     return paragraphs.map(para => {
-      // If it's a heading (no bullet or colon at end or short text)
       const lines = para.split('\n').filter(l => l.trim());
       
+      // Check if it's a Q&A format (bullet Q: followed by A:)
+      if (lines.length === 2 && lines[0].includes('• Q:') && lines[1].startsWith('A:')) {
+        const question = lines[0].replace('•', '').replace('Q:', '').trim();
+        const answer = lines[1].replace('A:', '').trim();
+        return `
+          <div class="mb-4">
+            <p class="text-slate-600 dark:text-slate-400 mb-2">
+              <span class="font-medium">Q:</span> ${question}
+            </p>
+            <p class="font-semibold text-slate-900 dark:text-slate-100">
+              A: ${answer}
+            </p>
+          </div>
+        `;
+      }
+      
+      // If it's a heading (single line, no bullet, short text)
       if (lines.length === 1 && !lines[0].includes('•') && lines[0].length < 100) {
-        // Single line that looks like a heading
         return `<h3 class="font-semibold text-lg mt-6 mb-3">${lines[0]}</h3>`;
       }
       
-      // Check if it's a list (has bullet points)
+      // Check if it's a regular list (has bullet points but not Q&A)
       const hasBullets = lines.some(l => l.trim().startsWith('•'));
       
-      if (hasBullets) {
+      if (hasBullets && !lines.some(l => l.includes('Q:'))) {
         const listItems = lines
           .filter(l => l.trim().startsWith('•'))
           .map(l => `<li>${l.replace('•', '').trim()}</li>`)
