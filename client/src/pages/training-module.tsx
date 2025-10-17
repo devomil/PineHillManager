@@ -198,24 +198,25 @@ export default function TrainingModulePage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100" data-testid="training-module-page">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50" data-testid="training-module-page">
       {/* Header */}
-      <div className="bg-white shadow-sm">
+      <div className="bg-white shadow-sm border-b-4" style={{ borderBottomColor: '#607e66' }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-6">
             <div className="flex items-center space-x-4">
               <div>
-                <h1 className="text-3xl font-semibold text-gray-900">
+                <h1 className="text-3xl font-semibold" style={{ color: '#5e637a' }}>
                   Pine Hill Farm
                 </h1>
-                <p className="text-sm text-gray-600">Training Portal</p>
+                <p className="text-sm" style={{ color: '#8c93ad' }}>Training Portal</p>
               </div>
             </div>
             
             <Link href="/training">
               <Button 
                 variant="ghost" 
-                className="text-gray-700 hover:text-gray-900"
+                className="hover:bg-slate-100"
+                style={{ color: '#5e637a' }}
                 data-testid="button-back"
               >
                 <ArrowLeft className="w-4 h-4 mr-2" />
@@ -245,7 +246,7 @@ export default function TrainingModulePage() {
                     }}
                   />
                 ) : (
-                  <div className="w-full h-64 md:h-full bg-gradient-to-br from-farm-green to-green-600 flex items-center justify-center">
+                  <div className="w-full h-64 md:h-full flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #607e66 0%, #5b7c99 100%)' }}>
                     <BookOpen className="w-24 h-24 text-white opacity-50" />
                   </div>
                 )}
@@ -256,16 +257,16 @@ export default function TrainingModulePage() {
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-2">
-                      <h2 className="text-3xl font-bold text-slate-900">{module.title}</h2>
+                      <h2 className="text-3xl font-bold" style={{ color: '#5e637a' }}>{module.title}</h2>
                       {isCompleted && (
-                        <Badge className="bg-green-500 text-white">
+                        <Badge className="text-white" style={{ backgroundColor: '#607e66' }}>
                           <CheckCircle className="w-4 h-4 mr-1" />
                           Completed
                         </Badge>
                       )}
                     </div>
                     {module.category && (
-                      <Badge variant="outline" className="mb-3">
+                      <Badge variant="outline" style={{ borderColor: '#607e66', color: '#607e66' }} className="mb-3">
                         {module.category}
                       </Badge>
                     )}
@@ -275,8 +276,8 @@ export default function TrainingModulePage() {
                 {/* Progress Bar */}
                 <div className="mb-6">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-slate-700">Overall Progress</span>
-                    <span className="text-sm font-bold text-farm-green">
+                    <span className="text-sm font-medium" style={{ color: '#5e637a' }}>Overall Progress</span>
+                    <span className="text-sm font-bold" style={{ color: '#607e66' }}>
                       {progressPercentage}%
                     </span>
                   </div>
@@ -285,22 +286,22 @@ export default function TrainingModulePage() {
 
                 {/* Stats Grid */}
                 <div className="grid grid-cols-3 gap-4">
-                  <div className="text-center p-3 bg-blue-50 rounded-lg">
-                    <BookOpen className="w-6 h-6 text-blue-600 mx-auto mb-1" />
-                    <p className="text-2xl font-bold text-slate-900">{module.lessons?.length || 0}</p>
-                    <p className="text-xs text-slate-600">Lessons</p>
+                  <div className="text-center p-3 rounded-lg" style={{ backgroundColor: '#f8f8f3' }}>
+                    <BookOpen className="w-6 h-6 mx-auto mb-1" style={{ color: '#607e66' }} />
+                    <p className="text-2xl font-bold" style={{ color: '#5e637a' }}>{module.lessons?.length || 0}</p>
+                    <p className="text-xs" style={{ color: '#8c93ad' }}>Lessons</p>
                   </div>
                   
-                  <div className="text-center p-3 bg-purple-50 rounded-lg">
-                    <Clock className="w-6 h-6 text-purple-600 mx-auto mb-1" />
-                    <p className="text-2xl font-bold text-slate-900">{module.duration || 0}</p>
-                    <p className="text-xs text-slate-600">Minutes</p>
+                  <div className="text-center p-3 rounded-lg" style={{ backgroundColor: '#f8f8f3' }}>
+                    <Clock className="w-6 h-6 mx-auto mb-1" style={{ color: '#5b7c99' }} />
+                    <p className="text-2xl font-bold" style={{ color: '#5e637a' }}>{module.duration || 0}</p>
+                    <p className="text-xs" style={{ color: '#8c93ad' }}>Minutes</p>
                   </div>
                   
-                  <div className="text-center p-3 bg-yellow-50 rounded-lg">
-                    <Award className="w-6 h-6 text-yellow-600 mx-auto mb-1" />
-                    <p className="text-2xl font-bold text-slate-900">{module.skills?.length || 0}</p>
-                    <p className="text-xs text-slate-600">Skills</p>
+                  <div className="text-center p-3 rounded-lg" style={{ backgroundColor: '#f8f8f3' }}>
+                    <Award className="w-6 h-6 mx-auto mb-1" style={{ color: '#6c97ab' }} />
+                    <p className="text-2xl font-bold" style={{ color: '#5e637a' }}>{module.skills?.length || 0}</p>
+                    <p className="text-xs" style={{ color: '#8c93ad' }}>Skills</p>
                   </div>
                 </div>
               </div>
@@ -312,20 +313,21 @@ export default function TrainingModulePage() {
             <Card className="bg-white shadow-sm">
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold text-slate-900">
+                  <h3 className="text-lg font-semibold" style={{ color: '#5e637a' }}>
                     Lesson {currentLessonIndex + 1} of {module.lessons.length}
                   </h3>
                   <div className="flex items-center gap-2">
                     {module.lessons.map((_, index) => (
                       <div
                         key={index}
-                        className={`h-2 w-12 rounded-full transition-colors ${
-                          index === currentLessonIndex
-                            ? 'bg-farm-green'
+                        className="h-2 w-12 rounded-full transition-colors"
+                        style={{
+                          backgroundColor: index === currentLessonIndex
+                            ? '#607e66'
                             : index < currentLessonIndex
-                            ? 'bg-green-300'
-                            : 'bg-gray-200'
-                        }`}
+                            ? '#8c93ad'
+                            : '#e5e7eb'
+                        }}
                       />
                     ))}
                   </div>
@@ -337,7 +339,7 @@ export default function TrainingModulePage() {
           {/* Lesson Content */}
           {!showAssessment && currentLesson && (
             <Card>
-              <CardHeader className="bg-gradient-to-r from-farm-green to-green-600 text-white">
+              <CardHeader className="text-white" style={{ background: 'linear-gradient(135deg, #607e66 0%, #5b7c99 100%)' }}>
                 <CardTitle className="flex items-center text-xl">
                   <PlayCircle className="w-6 h-6 mr-3" />
                   {currentLesson.title}
@@ -374,7 +376,8 @@ export default function TrainingModulePage() {
                   {currentLessonIndex < (module.lessons?.length || 0) - 1 ? (
                     <Button
                       size="lg"
-                      className="bg-farm-green hover:bg-green-700"
+                      className="text-white hover:opacity-90"
+                      style={{ backgroundColor: '#607e66' }}
                       onClick={handleCompleteLesson}
                       disabled={completeLessonMutation.isPending}
                       data-testid="button-next-lesson"
@@ -385,7 +388,8 @@ export default function TrainingModulePage() {
                   ) : (
                     <Button
                       size="lg"
-                      className="bg-farm-green hover:bg-green-700"
+                      className="text-white hover:opacity-90"
+                      style={{ backgroundColor: '#607e66' }}
                       onClick={handleCompleteLesson}
                       disabled={completeLessonMutation.isPending}
                       data-testid="button-finish-lessons"
@@ -402,7 +406,7 @@ export default function TrainingModulePage() {
           {/* Assessment Section */}
           {(showAssessment || (isCompleted && module.assessment)) && (
             <Card>
-              <CardHeader className="bg-gradient-to-r from-yellow-500 to-orange-500 text-white">
+              <CardHeader className="text-white" style={{ background: 'linear-gradient(135deg, #6c97ab 0%, #5b7c99 100%)' }}>
                 <CardTitle className="flex items-center text-xl">
                   <Award className="w-6 h-6 mr-3" />
                   Final Assessment
@@ -411,16 +415,17 @@ export default function TrainingModulePage() {
               <CardContent className="p-8">
                 {!showAssessment && !isCompleted && (
                   <div className="text-center py-12">
-                    <Award className="w-16 h-16 text-yellow-500 mx-auto mb-4" />
-                    <h3 className="text-xl font-semibold mb-2">Ready for Assessment?</h3>
-                    <p className="text-slate-600 mb-6">
+                    <Award className="w-16 h-16 mx-auto mb-4" style={{ color: '#6c97ab' }} />
+                    <h3 className="text-xl font-semibold mb-2" style={{ color: '#5e637a' }}>Ready for Assessment?</h3>
+                    <p className="mb-6" style={{ color: '#8c93ad' }}>
                       Complete all lessons to unlock the final assessment
                     </p>
                     <Button
                       size="lg"
                       onClick={handleStartAssessment}
                       disabled={!isCompleted}
-                      className="bg-yellow-500 hover:bg-yellow-600 text-white"
+                      className="text-white hover:opacity-90"
+                      style={{ backgroundColor: '#6c97ab' }}
                       data-testid="button-start-assessment"
                     >
                       Start Assessment
@@ -430,8 +435,8 @@ export default function TrainingModulePage() {
 
                 {showAssessment && questions && questions.length > 0 && (
                   <div className="space-y-6">
-                    <div className="bg-blue-50 p-4 rounded-lg mb-6">
-                      <p className="text-sm text-blue-900">
+                    <div className="p-4 rounded-lg mb-6" style={{ backgroundColor: '#f8f8f3' }}>
+                      <p className="text-sm" style={{ color: '#5e637a' }}>
                         <strong>Passing Score:</strong> {module.assessment?.passingScore}% | 
                         <strong className="ml-3">Time Limit:</strong> {module.assessment?.timeLimit ? `${module.assessment.timeLimit} minutes` : 'No limit'} |
                         <strong className="ml-3">Attempts:</strong> {attemptsCount} / {module.assessment?.maxAttempts || '∞'}
@@ -472,7 +477,8 @@ export default function TrainingModulePage() {
                         Object.keys(assessmentAnswers).length < questions.length ||
                         maxAttemptsReached
                       }
-                      className="w-full bg-farm-green hover:bg-green-700"
+                      className="w-full text-white hover:opacity-90"
+                      style={{ backgroundColor: '#607e66' }}
                       data-testid="button-submit-assessment"
                     >
                       {submitAssessmentMutation.isPending ? "Submitting..." : "Submit Assessment"}
@@ -482,14 +488,14 @@ export default function TrainingModulePage() {
 
                 {isCompleted && latestAttempt && (
                   <div className="text-center py-8">
-                    <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
-                    <h3 className="text-2xl font-bold text-green-600 mb-2">Congratulations!</h3>
-                    <p className="text-slate-600 mb-4">
+                    <CheckCircle className="w-16 h-16 mx-auto mb-4" style={{ color: '#607e66' }} />
+                    <h3 className="text-2xl font-bold mb-2" style={{ color: '#607e66' }}>Congratulations!</h3>
+                    <p className="mb-4" style={{ color: '#8c93ad' }}>
                       You have successfully completed this training module
                     </p>
-                    <div className="bg-green-50 p-6 rounded-lg inline-block">
-                      <p className="text-sm text-slate-600 mb-1">Final Score</p>
-                      <p className="text-4xl font-bold text-green-600">
+                    <div className="p-6 rounded-lg inline-block" style={{ backgroundColor: '#f8f8f3' }}>
+                      <p className="text-sm mb-1" style={{ color: '#8c93ad' }}>Final Score</p>
+                      <p className="text-4xl font-bold" style={{ color: '#607e66' }}>
                         {latestAttempt.score}%
                       </p>
                     </div>
