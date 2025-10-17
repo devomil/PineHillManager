@@ -387,7 +387,7 @@ export default function Training() {
                       )}
 
                       <Button 
-                        className={`w-full ${
+                        className={`w-full text-white ${
                           isCompleted 
                             ? 'bg-green-600 hover:bg-green-700' 
                             : 'bg-farm-green hover:bg-green-600'
