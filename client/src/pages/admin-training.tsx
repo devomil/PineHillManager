@@ -9,10 +9,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { BookOpen, Plus, Users, Award, TrendingUp, Upload, ShoppingCart, Loader2, Eye, Sparkles, CheckCircle, XCircle, Clock } from "lucide-react";
 import AdminLayout from "@/components/admin-layout";
+import TrainingReports from "@/pages/training-reports";
 
 // Helper function to strip HTML tags from description for preview
 function stripHtml(html: string): string {
@@ -292,6 +294,14 @@ export default function AdminTraining() {
         </div>
       </div>
 
+      {/* Tabs */}
+      <Tabs defaultValue="modules" className="w-full">
+        <TabsList className="grid w-full max-w-md grid-cols-2">
+          <TabsTrigger value="modules" data-testid="tab-modules">Modules</TabsTrigger>
+          <TabsTrigger value="reports" data-testid="tab-reports">Reports</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="modules" className="space-y-6 mt-6">
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
@@ -1164,6 +1174,12 @@ export default function AdminTraining() {
           )}
         </DialogContent>
       </Dialog>
+        </TabsContent>
+
+        <TabsContent value="reports">
+          <TrainingReports />
+        </TabsContent>
+      </Tabs>
     </div>
     </AdminLayout>
   );

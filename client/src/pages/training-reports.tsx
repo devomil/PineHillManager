@@ -157,14 +157,7 @@ export default function TrainingReportsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-4 sm:p-6 lg:p-8" data-testid="training-reports-page">
-      {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-3xl font-semibold mb-2" style={{ color: '#5e637a' }}>
-          Training Reports
-        </h1>
-        <p className="text-slate-600">Monitor employee training progress and completion across all modules</p>
-      </div>
+    <div className="space-y-6" data-testid="training-reports-page">
 
       {/* Statistics Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
@@ -393,7 +386,7 @@ export default function TrainingReportsPage() {
 
       {/* Summary Footer */}
       {filteredReports.length > 0 && (
-        <div className="mt-4 text-sm text-slate-600">
+        <div className="mt-4 text-sm text-slate-600 dark:text-slate-400">
           Showing {filteredReports.length} of {totalEnrollments} total enrollments
         </div>
       )}
