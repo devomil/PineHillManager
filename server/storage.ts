@@ -2905,10 +2905,25 @@ export class DatabaseStorage implements IStorage {
 
   // Training module skills
   async addSkillToModule(moduleSkill: InsertTrainingModuleSkill): Promise<TrainingModuleSkill> {
+    // Check if skill already exists for this module
+    const existing = await db
+      .select()
+      .from(trainingModuleSkills)
+      .where(
+        and(
+          eq(trainingModuleSkills.moduleId, moduleSkill.moduleId),
+          eq(trainingModuleSkills.skillId, moduleSkill.skillId)
+        )
+      )
+      .limit(1);
+
+    if (existing.length > 0) {
+      return existing[0];
+    }
+
     const [trainingModuleSkill] = await db
       .insert(trainingModuleSkills)
       .values(moduleSkill)
-      .onConflictDoNothing()
       .returning();
     return trainingModuleSkill;
   }
