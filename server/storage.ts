@@ -2908,6 +2908,7 @@ export class DatabaseStorage implements IStorage {
     const [trainingModuleSkill] = await db
       .insert(trainingModuleSkills)
       .values(moduleSkill)
+      .onConflictDoNothing()
       .returning();
     return trainingModuleSkill;
   }

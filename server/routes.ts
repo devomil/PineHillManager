@@ -2924,11 +2924,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: 'Generation job not found' });
       }
 
+      if (job.status === 'approved') {
+        return res.json({ message: 'Content already published' });
+      }
+
       if (job.status !== 'completed') {
         return res.status(400).json({ message: 'Job is not completed' });
       }
 
       const content = job.generatedContent as any;
+
+      // Check if content already exists (from a previous partial approval)
+      const existingLessons = await storage.getModuleLessons(job.moduleId);
+      const existingAssessments = await storage.getModuleAssessments(job.moduleId);
 
       // Update module description
       await storage.updateTrainingModule(job.moduleId, {
@@ -2936,39 +2944,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
         duration: content.estimatedDuration,
       });
 
-      // Create lessons
-      for (const lesson of content.lessons) {
-        await storage.createTrainingLesson({
+      // Create lessons only if they don't exist
+      if (existingLessons.length === 0) {
+        for (const lesson of content.lessons) {
+          await storage.createTrainingLesson({
+            moduleId: job.moduleId,
+            title: lesson.title,
+            content: lesson.content,
+            duration: lesson.duration,
+            orderIndex: lesson.orderIndex,
+          });
+        }
+      }
+
+      // Create assessment and questions only if they don't exist
+      let assessment;
+      if (existingAssessments.length === 0) {
+        assessment = await storage.createTrainingAssessment({
           moduleId: job.moduleId,
-          title: lesson.title,
-          content: lesson.content,
-          duration: lesson.duration,
-          orderIndex: lesson.orderIndex,
+          title: `${content.lessons[0]?.title || 'Training'} - Assessment`,
+          passingScore: 80,
+          duration: 10,
+          maxAttempts: 3,
         });
+
+        for (const question of content.questions) {
+          await storage.createTrainingQuestion({
+            assessmentId: assessment.id,
+            questionText: question.questionText,
+            questionType: question.questionType,
+            options: question.options,
+            explanation: question.explanation,
+            points: question.points,
+            orderIndex: question.orderIndex,
+          });
+        }
       }
 
-      // Create assessment and questions
-      const assessment = await storage.createTrainingAssessment({
-        moduleId: job.moduleId,
-        title: `${content.lessons[0]?.title || 'Training'} - Assessment`,
-        passingScore: 80,
-        duration: 10,
-        maxAttempts: 3,
-      });
-
-      for (const question of content.questions) {
-        await storage.createTrainingQuestion({
-          assessmentId: assessment.id,
-          questionText: question.questionText,
-          questionType: question.questionType,
-          options: question.options,
-          explanation: question.explanation,
-          points: question.points,
-          orderIndex: question.orderIndex,
-        });
-      }
-
-      // Add skills
+      // Add skills (onConflictDoNothing handles duplicates)
       for (const skillName of content.skills) {
         const skills = await storage.getAllTrainingSkills();
         let skill = skills.find(s => s.name === skillName);
