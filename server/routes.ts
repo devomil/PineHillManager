@@ -665,6 +665,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
           endDate as string, 
           userId as string | undefined
         );
+        
+        // Debug logging
+        if (userId) {
+          const today = new Date().toISOString().split('T')[0];
+          const todaySchedules = schedules.filter(s => s.date === today);
+          console.log(`[SCHEDULE DEBUG] User: ${userId}, Today: ${today}, Total schedules: ${schedules.length}, Today's schedules: ${todaySchedules.length}`);
+          if (todaySchedules.length > 0) {
+            console.log(`[SCHEDULE DEBUG] Today's shift:`, todaySchedules[0]);
+          } else {
+            console.log(`[SCHEDULE DEBUG] All schedule dates:`, schedules.map(s => s.date));
+          }
+        }
+        
         res.json(schedules);
       } else {
         // Default to today's schedules
