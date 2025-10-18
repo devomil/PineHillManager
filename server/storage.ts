@@ -9821,9 +9821,7 @@ export class DatabaseStorage implements IStorage {
       status: 'closed',
       closedBy,
       notes,
-      transactionCount: summaries.reduce((sum, s) => sum + s.transactionCount, 0),
-      totalDebits: balances.reduce((sum, b) => sum + parseFloat(b.totalDebits), 0).toString(),
-      totalCredits: balances.reduce((sum, b) => sum + parseFloat(b.totalCredits), 0).toString()
+      transactionCount: summaries.reduce((sum, s) => sum + s.transactionCount, 0)
     });
 
     // Store account balances
@@ -10766,7 +10764,7 @@ export class DatabaseStorage implements IStorage {
         }
         
         const deptData = departmentTotals.get(department);
-        deptData.totalPay += parseFloat(entry.grossPay);
+        deptData.totalPay += parseFloat(entry.grossPay || '0');
         deptData.employees.add(entry.userId);
       }
     }
@@ -10873,7 +10871,7 @@ export class DatabaseStorage implements IStorage {
 
     const results = await query;
 
-    return results.map(r => ({
+    return results.map((r: any) => ({
       periodId: r.periodId,
       startDate: r.startDate,
       endDate: r.endDate,
@@ -11053,7 +11051,7 @@ export class DatabaseStorage implements IStorage {
       }
 
       // Determine if this was a create or update operation
-      const isNew = result.createdAt.getTime() === result.updatedAt.getTime();
+      const isNew = (result.createdAt ?? new Date()).getTime() === (result.updatedAt ?? new Date()).getTime();
       const operation = isNew ? 'created' : 'updated';
 
       console.log(`✅ Merchant ${merchant.merchantId} was ${operation} (DB ID: ${result.id})`);
@@ -11106,7 +11104,7 @@ export class DatabaseStorage implements IStorage {
       // Determine if this was a create or update operation
       // If the createdAt and updatedAt timestamps are the same (within 1 second), it was created
       const wasCreated = !result.updatedAt || 
-        Math.abs(new Date(result.createdAt).getTime() - new Date(result.updatedAt).getTime()) < 1000;
+        Math.abs(new Date(result.createdAt ?? new Date()).getTime() - new Date(result.updatedAt ?? new Date()).getTime()) < 1000;
       
       const operation = wasCreated ? 'created' : 'updated';
       
@@ -11213,7 +11211,7 @@ export class DatabaseStorage implements IStorage {
       const [{ count: total }] = await countQuery;
       
       // Get orders with pagination (select specific columns to avoid missing field errors)
-      let ordersQuery = db
+      let ordersQuery: any = db
         .select({
           id: orders.id,
           merchantId: orders.merchantId,
@@ -11271,7 +11269,7 @@ export class DatabaseStorage implements IStorage {
       console.log(`🚀 [DATABASE QUERY] Completed in ${queryTime}ms, found ${orderResults.length} orders`);
       
       return {
-        orders: orderResults,
+        orders: orderResults as any,
         total
       };
     } catch (error) {
@@ -11314,8 +11312,27 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async updateOrder(id: number, updates: Partial<InsertOrder>): Promise<Order> {
+  async updateOrder(id: number | string, updates: Partial<InsertOrder> | any): Promise<Order | any> {
     try {
+      // Handle the string overload (legacy Clover API compatibility)
+      if (typeof id === 'string') {
+        // This is the legacy signature for Clover sync
+        const orderId = id;
+        const updateData: any = {};
+        if ('state' in updates) updateData.orderState = updates.state;
+        if ('paymentState' in updates) updateData.paymentState = updates.paymentState;
+        if ('note' in updates) updateData.notes = updates.note;
+        if ('modifiedTime' in updates) updateData.modifiedTime = new Date(updates.modifiedTime);
+        
+        const [result] = await db
+          .update(orders)
+          .set({ ...updateData, updatedAt: new Date() })
+          .where(eq(orders.externalOrderId, orderId))
+          .returning();
+        return result;
+      }
+      
+      // Handle the number overload (standard database ID)
       const [result] = await db
         .update(orders)
         .set({ ...updates, updatedAt: new Date() })
@@ -11398,7 +11415,7 @@ export class DatabaseStorage implements IStorage {
       const [result] = await db
         .select()
         .from(discounts)
-        .where(eq(discounts.externalDiscountId, externalDiscountId))
+        .where(eq(discounts.id, parseInt(externalDiscountId)))
         .limit(1);
       return result;
     } catch (error) {
@@ -11409,7 +11426,36 @@ export class DatabaseStorage implements IStorage {
 
   // Refund Operations
   async getOrderRefunds(orderId: number): Promise<Refund[]> {
-    return this.getRefunds(orderId);
+    try {
+      return await db
+        .select()
+        .from(refunds)
+        .where(eq(refunds.orderId, orderId))
+        .orderBy(asc(refunds.createdAt));
+    } catch (error) {
+      console.error('Error getting order refunds:', error);
+      return [];
+    }
+  }
+  
+  async getRefunds(orderId?: number): Promise<Refund[]> {
+    try {
+      if (orderId) {
+        return await db
+          .select()
+          .from(refunds)
+          .where(eq(refunds.orderId, orderId))
+          .orderBy(asc(refunds.createdAt));
+      } else {
+        return await db
+          .select()
+          .from(refunds)
+          .orderBy(desc(refunds.createdAt));
+      }
+    } catch (error) {
+      console.error('Error getting refunds:', error);
+      return [];
+    }
   }
 
   async getRefundByExternalId(externalRefundId: string): Promise<Refund | undefined> {
@@ -11433,10 +11479,10 @@ export class DatabaseStorage implements IStorage {
         .select()
         .from(itemCostHistory)
         .where(and(
-          eq(itemCostHistory.itemId, itemId),
+          eq(itemCostHistory.itemId, parseInt(itemId)),
           eq(itemCostHistory.merchantId, merchantId)
         ))
-        .orderBy(desc(itemCostHistory.effectiveDate))
+        .orderBy(desc(itemCostHistory.effectiveFrom))
         .limit(1);
       return result;
     } catch (error) {
@@ -11478,8 +11524,26 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async getOrderLineItems(orderId: number): Promise<OrderLineItem[]> {
+  async getOrderLineItems(orderId: number | string): Promise<OrderLineItem[] | any[]> {
     try {
+      // Handle string overload (externalOrderId for Clover API compatibility)
+      if (typeof orderId === 'string') {
+        const order = await db
+          .select()
+          .from(orders)
+          .where(eq(orders.externalOrderId, orderId))
+          .limit(1);
+        
+        if (!order || order.length === 0) return [];
+        
+        return await db
+          .select()
+          .from(orderLineItems)
+          .where(eq(orderLineItems.orderId, order[0].id))
+          .orderBy(asc(orderLineItems.createdAt));
+      }
+      
+      // Handle number overload (database ID)
       return await db
         .select()
         .from(orderLineItems)
@@ -11556,7 +11620,7 @@ export class DatabaseStorage implements IStorage {
     try {
       const [result] = await db
         .update(discounts)
-        .set({ ...updates, updatedAt: new Date() })
+        .set(updates)
         .where(eq(discounts.id, id))
         .returning();
       return result;
@@ -11635,7 +11699,7 @@ export class DatabaseStorage implements IStorage {
 
   async getSyncCursors(system?: string, merchantId?: number): Promise<SyncCursor[]> {
     try {
-      let query = db.select().from(syncCursors);
+      let query: any = db.select().from(syncCursors);
       
       const conditions = [];
       if (system) {
@@ -11657,9 +11721,9 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Daily Sales Operations
-  async createDailySales(dailySales: InsertDailySales): Promise<DailySales> {
+  async createDailySales(dailySalesData: InsertDailySales): Promise<DailySales> {
     try {
-      const [result] = await db.insert(dailySales).values(dailySales).returning();
+      const [result] = await db.insert(dailySales).values(dailySalesData).returning();
       return result;
     } catch (error) {
       console.error('Error creating daily sales:', error);
@@ -12023,9 +12087,9 @@ export class DatabaseStorage implements IStorage {
       const comparisonPeriods = new Map(comparisonData.analytics.map(p => [p.period, p]));
 
       // Get all unique periods
-      const allPeriods = new Set([...currentPeriods.keys(), ...comparisonPeriods.keys()]);
+      const allPeriods = new Set([...Array.from(currentPeriods.keys()), ...Array.from(comparisonPeriods.keys())]);
 
-      for (const period of allPeriods) {
+      for (const period of Array.from(allPeriods)) {
         const current = currentPeriods.get(period);
         const comparison = comparisonPeriods.get(period);
 
@@ -12458,11 +12522,7 @@ export class DatabaseStorage implements IStorage {
   async createTask(taskData: InsertTask): Promise<Task> {
     const [task] = await db
       .insert(tasks)
-      .values({
-        ...taskData,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      })
+      .values([taskData])
       .returning();
     return task;
   }
@@ -12503,11 +12563,15 @@ export class DatabaseStorage implements IStorage {
   async updateTask(id: number, taskData: Partial<InsertTask>): Promise<Task> {
     console.log('📝 updateTask called with:', JSON.stringify({ id, taskData }, null, 2));
     
-    const updateData = {
+    const updateData: any = {
       ...taskData,
       updatedAt: new Date(),
       ...(taskData.status === 'completed' && !taskData.completedAt ? { completedAt: new Date() } : {}),
     };
+    
+    if (taskData.steps) {
+      updateData.steps = taskData.steps as any;
+    }
     
     console.log('📝 Update data being sent to DB:', JSON.stringify(updateData, null, 2));
     
@@ -12551,7 +12615,11 @@ export class DatabaseStorage implements IStorage {
 
   // AI Training Generation Job Operations
   async createGenerationJob(job: InsertTrainingGenerationJob): Promise<TrainingGenerationJob> {
-    const [result] = await db.insert(trainingGenerationJobs).values(job).returning();
+    const jobData: any = { ...job };
+    if (job.generatedContent) {
+      jobData.generatedContent = job.generatedContent as any;
+    }
+    const [result] = await db.insert(trainingGenerationJobs).values([jobData]).returning();
     return result;
   }
 
