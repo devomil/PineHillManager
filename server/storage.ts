@@ -1880,22 +1880,23 @@ export class DatabaseStorage implements IStorage {
     const conditions = [eq(timeOffRequests.status, "approved")];
     
     if (startDate && endDate) {
-      conditions.push(
-        or(
-          and(
-            gte(timeOffRequests.startDate, startDate),
-            lte(timeOffRequests.startDate, endDate)
-          ),
-          and(
-            gte(timeOffRequests.endDate, startDate),
-            lte(timeOffRequests.endDate, endDate)
-          ),
-          and(
-            lte(timeOffRequests.startDate, startDate),
-            gte(timeOffRequests.endDate, endDate)
-          )
+      const dateCondition = or(
+        and(
+          gte(timeOffRequests.startDate, startDate),
+          lte(timeOffRequests.startDate, endDate)
+        ),
+        and(
+          gte(timeOffRequests.endDate, startDate),
+          lte(timeOffRequests.endDate, endDate)
+        ),
+        and(
+          lte(timeOffRequests.startDate, startDate),
+          gte(timeOffRequests.endDate, endDate)
         )
       );
+      if (dateCondition) {
+        conditions.push(dateCondition);
+      }
     }
     
     if (userId) {
@@ -1996,12 +1997,13 @@ export class DatabaseStorage implements IStorage {
       }
       
       if (userId) {
-        conditions.push(
-          or(
-            eq(shiftSwapRequests.requesterId, userId),
-            eq(shiftSwapRequests.takerId, userId)
-          )
+        const userCondition = or(
+          eq(shiftSwapRequests.requesterId, userId),
+          eq(shiftSwapRequests.takerId, userId)
         );
+        if (userCondition) {
+          conditions.push(userCondition);
+        }
       }
       
       const results = await db
@@ -2398,18 +2400,25 @@ export class DatabaseStorage implements IStorage {
       
       // Check if announcement targets specific employees
       if (announcement.targetEmployees && announcement.targetEmployees.length > 0) {
-        // Handle PostgreSQL array format: "{emp_1,emp_2}" or actual array
-        let targetEmployeeIds: string[] = [];
-        
-        if (typeof announcement.targetEmployees === 'string') {
-          // Handle PostgreSQL array format like "{emp_1748972104870_mr83mj8jz,emp_1748972535874_ysrqsakt1}"
-          if (announcement.targetEmployees.startsWith('{') && announcement.targetEmployees.endsWith('}')) {
-            targetEmployeeIds = announcement.targetEmployees.slice(1, -1).split(',').map((id: string) => id.trim());
-          } else {
-            targetEmployeeIds = [announcement.targetEmployees];
-          }
-        } else if (Array.isArray(announcement.targetEmployees)) {
+        // Handle both PostgreSQL array strings, plain strings, and actual arrays
+        let targetEmployeeIds: string[];
+        if (Array.isArray(announcement.targetEmployees)) {
+          // Already an array
           targetEmployeeIds = announcement.targetEmployees;
+        } else if (typeof announcement.targetEmployees === 'string') {
+          if (announcement.targetEmployees.startsWith('{') && announcement.targetEmployees.endsWith('}')) {
+            // PostgreSQL array format: "{emp_1,emp_2}" → ["emp_1", "emp_2"]
+            // Also trim quotes and whitespace: '{"emp_1","emp_2"}' → ["emp_1", "emp_2"]
+            targetEmployeeIds = announcement.targetEmployees
+              .slice(1, -1)  // Remove { and }
+              .split(',')     // Split by comma
+              .map(id => id.trim().replace(/^["']|["']$/g, ''));  // Trim whitespace and quotes
+          } else {
+            // Plain string value: "emp_1" → ["emp_1"]
+            targetEmployeeIds = [announcement.targetEmployees.trim().replace(/^["']|["']$/g, '')];
+          }
+        } else {
+          targetEmployeeIds = [];
         }
         
         return targetEmployeeIds.includes(userId);
@@ -2527,22 +2536,24 @@ export class DatabaseStorage implements IStorage {
 
     // Filter by role if specific roles are set
     if (userRole) {
-      conditions.push(
-        or(
-          eq(trainingModules.targetRoles, null),
-          sql`${trainingModules.targetRoles} @> ARRAY[${sql.raw(`'${userRole}'`)}]::text[]`
-        )
+      const roleCondition = or(
+        isNull(trainingModules.requiredForRoles),
+        sql`${trainingModules.requiredForRoles} @> ARRAY[${sql.raw(`'${userRole}'`)}]::text[]`
       );
+      if (roleCondition) {
+        conditions.push(roleCondition);
+      }
     }
 
     // Filter by department if specific departments are set
     if (userDepartment) {
-      conditions.push(
-        or(
-          eq(trainingModules.targetDepartments, null),
-          sql`${trainingModules.targetDepartments} @> ARRAY[${sql.raw(`'${userDepartment}'`)}]::text[]`
-        )
+      const deptCondition = or(
+        isNull(trainingModules.requiredForDepartments),
+        sql`${trainingModules.requiredForDepartments} @> ARRAY[${sql.raw(`'${userDepartment}'`)}]::text[]`
       );
+      if (deptCondition) {
+        conditions.push(deptCondition);
+      }
     }
 
     return await db
@@ -2787,7 +2798,7 @@ export class DatabaseStorage implements IStorage {
   async createTrainingQuestion(question: InsertTrainingQuestion): Promise<TrainingQuestion> {
     const [trainingQuestion] = await db
       .insert(trainingQuestions)
-      .values(question)
+      .values(question as any)
       .returning();
     return trainingQuestion;
   }
@@ -2803,7 +2814,7 @@ export class DatabaseStorage implements IStorage {
   async updateTrainingQuestion(id: number, question: Partial<InsertTrainingQuestion>): Promise<TrainingQuestion> {
     const [updated] = await db
       .update(trainingQuestions)
-      .set(question)
+      .set(question as any)
       .where(eq(trainingQuestions.id, id))
       .returning();
     return updated;
@@ -2817,7 +2828,7 @@ export class DatabaseStorage implements IStorage {
   async createTrainingAttempt(attempt: InsertTrainingAttempt): Promise<TrainingAttempt> {
     const [trainingAttempt] = await db
       .insert(trainingAttempts)
-      .values(attempt)
+      .values(attempt as any)
       .returning();
     return trainingAttempt;
   }
@@ -3017,17 +3028,6 @@ export class DatabaseStorage implements IStorage {
       .offset(offset);
   }
 
-  async markMessageAsRead(id: number): Promise<Message> {
-    const [message] = await db
-      .update(messages)
-      .set({
-        isRead: true,
-        readAt: new Date(),
-      })
-      .where(eq(messages.id, id))
-      .returning();
-    return message;
-  }
 
   // Push subscription operations
   async savePushSubscription(subscription: InsertPushSubscription): Promise<PushSubscription> {
@@ -3225,7 +3225,7 @@ export class DatabaseStorage implements IStorage {
         )
         .where(
           and(
-            eq(announcements.status, 'published'),
+            eq(announcements.isPublished, true),
             or(
               eq(announcements.targetAudience, 'all'),
               eq(announcements.targetAudience, userRole),
@@ -3457,11 +3457,6 @@ export class DatabaseStorage implements IStorage {
     // For now, return empty array as we need to implement announcement_reads table
     // This would normally query a junction table tracking which announcements each user has read
     return [];
-  }
-
-  async markAnnouncementAsRead(userId: string, announcementId: number): Promise<boolean> {
-    // For now, return true - this would normally insert into announcement_reads table
-    return true;
   }
 
   // Time clock system implementation
@@ -4041,7 +4036,7 @@ export class DatabaseStorage implements IStorage {
     }
 
     if (conditions.length > 0) {
-      query = query.where(and(...conditions));
+      query = query.where(and(...conditions)) as any; // Drizzle type inference issue with complex query chains
     }
 
     return await query.orderBy(desc(timeClockEntries.clockInTime));
@@ -5174,9 +5169,9 @@ export class DatabaseStorage implements IStorage {
 
       // Create the financial transaction
       const transaction = await this.createFinancialTransaction({
-        transactionDate: new Date(data.expenseDate),
+        transactionDate: new Date(data.expenseDate).toISOString(),
         description: `${data.category}: ${data.description}`,
-        totalAmount: data.amount,
+        totalAmount: data.amount.toString(),
         sourceSystem: 'quick_expense',
         reference: `EXPENSE-${Date.now()}`,
         externalId: `quick_expense_${data.userId}_${Date.now()}`
@@ -5187,8 +5182,8 @@ export class DatabaseStorage implements IStorage {
       await this.createTransactionLine({
         transactionId: transaction.id,
         accountId: expenseAccount[0].id,
-        debitAmount: data.amount,
-        creditAmount: 0,
+        debitAmount: data.amount.toString(),
+        creditAmount: '0',
         description: `${data.category}: ${data.description}`
       });
 
@@ -5196,8 +5191,8 @@ export class DatabaseStorage implements IStorage {
       await this.createTransactionLine({
         transactionId: transaction.id,
         accountId: cashAccount[0].id,
-        debitAmount: 0,
-        creditAmount: data.amount,
+        debitAmount: '0',
+        creditAmount: data.amount.toString(),
         description: `Payment for ${data.category}: ${data.description}`
       });
 
@@ -5305,7 +5300,7 @@ export class DatabaseStorage implements IStorage {
       ));
 
     if (locationId) {
-      query = query.where(eq(workSchedules.locationId, locationId));
+      query = query.where(eq(workSchedules.locationId, locationId)) as any; // Drizzle type inference issue
     }
 
     const schedules = await query;
@@ -5372,7 +5367,7 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(financialAccounts)
       .where(and(
-        eq(financialAccounts.accountCode, accountIdentifier),
+        eq(financialAccounts.accountNumber, accountIdentifier),
         eq(financialAccounts.isActive, true)
       ));
 
@@ -5456,10 +5451,10 @@ export class DatabaseStorage implements IStorage {
     const lastDayOfMonth = new Date(year, month, 0);
     
     const transaction = await this.createFinancialTransaction({
-      transactionDate: lastDayOfMonth,
+      transactionDate: lastDayOfMonth.toISOString(),
       description,
       reference: `PAYROLL-${year}-${month}`,
-      totalAmount,
+      totalAmount: totalAmount.toString(),
       sourceSystem: 'system'
     });
 
@@ -5468,7 +5463,7 @@ export class DatabaseStorage implements IStorage {
       transactionId: transaction.id,
       accountId: payrollExpenseAccount.id,
       description: `Scheduled payroll accrual for ${employeeBreakdown.length} employees`,
-      debitAmount: totalAmount,
+      debitAmount: totalAmount.toString(),
       creditAmount: null,
       lineNumber: 1
     });
@@ -5479,7 +5474,7 @@ export class DatabaseStorage implements IStorage {
       accountId: payrollLiabilityAccount.id,
       description: 'Accrued payroll liability',
       debitAmount: null,
-      creditAmount: totalAmount,
+      creditAmount: totalAmount.toString(),
       lineNumber: 2
     });
 
@@ -5496,7 +5491,7 @@ export class DatabaseStorage implements IStorage {
     balance: number;
     isActive: boolean;
   }>> {
-    let dateFilter;
+    let dateFilter: any; // Complex Drizzle filter type
     
     if (month && year) {
       // Calculate balance up to the end of the specified month
@@ -5509,7 +5504,7 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(financialAccounts)
       .where(eq(financialAccounts.isActive, true))
-      .orderBy(asc(financialAccounts.accountCode), asc(financialAccounts.accountName));
+      .orderBy(asc(financialAccounts.accountNumber), asc(financialAccounts.accountName));
 
     // Calculate balances for each account
     const result = await Promise.all(accounts.map(async (account) => {
@@ -5523,7 +5518,7 @@ export class DatabaseStorage implements IStorage {
         .where(eq(financialTransactionLines.accountId, account.id));
 
       if (dateFilter) {
-        balanceQuery = balanceQuery.where(dateFilter);
+        balanceQuery = balanceQuery.where(dateFilter) as any; // Drizzle type inference issue
       }
 
       const [balanceResult] = await balanceQuery;
@@ -5545,9 +5540,9 @@ export class DatabaseStorage implements IStorage {
         id: account.id,
         accountName: account.accountName,
         accountType: account.accountType,
-        accountCode: account.accountCode,
+        accountCode: account.accountNumber,
         balance: Math.round(balance * 100) / 100, // Round to 2 decimal places
-        isActive: account.isActive
+        isActive: account.isActive ?? true // Handle nullable boolean
       };
     }));
 
@@ -5731,14 +5726,13 @@ export class DatabaseStorage implements IStorage {
   async getSalesByLocation(locationId: number, startDate?: string, endDate?: string): Promise<PosSale[]> { return []; }
   async getUnpostedSales(): Promise<PosSale[]> { return []; }
   async updatePosSale(id: number, sale: Partial<InsertPosSale>): Promise<PosSale> {
-    const [updated] = await db.update(posSales).set({ ...sale, updatedAt: new Date() }).where(eq(posSales.id, id)).returning();
+    const [updated] = await db.update(posSales).set(sale).where(eq(posSales.id, id)).returning();
     return updated;
   }
   async markSaleAsPostedToQB(id: number, qbTransactionId: string): Promise<PosSale> {
     const [updated] = await db.update(posSales).set({ 
-      isPostedToQB: true, 
-      qbTransactionId: qbTransactionId,
-      updatedAt: new Date() 
+      qbPosted: true, 
+      qbTransactionId: qbTransactionId
     }).where(eq(posSales.id, id)).returning();
     return updated;
   }
@@ -7542,8 +7536,8 @@ export class DatabaseStorage implements IStorage {
                 let grossTax = 0;
                 if (order.taxAmount !== null && order.taxAmount !== undefined && order.taxAmount !== '') {
                   grossTax = parseFloat(order.taxAmount) / 100;
-                } else if (order.tax !== null && order.tax !== undefined && order.tax !== '') {
-                  grossTax = parseFloat(order.tax) / 100;
+                } else if ((order as any).tax !== null && (order as any).tax !== undefined && (order as any).tax !== '') {
+                  grossTax = parseFloat((order as any).tax) / 100;
                 }
                 
                 // Calculate actual financial metrics for this order (skip if requested for performance)
@@ -7581,8 +7575,8 @@ export class DatabaseStorage implements IStorage {
                       netSale: financialMetrics.netSale,
                       netProfit: financialMetrics.netProfit,
                       rawOrderTotal: order.total,
-                      rawDiscountsCount: order.discounts?.elements?.length || 0,
-                      rawRefundsCount: order.refunds?.elements?.length || 0
+                      rawDiscountsCount: (order as any).discounts?.elements?.length || 0,
+                      rawRefundsCount: (order as any).refunds?.elements?.length || 0
                     });
                   }
                   
@@ -7747,13 +7741,13 @@ export class DatabaseStorage implements IStorage {
       }
 
       if (conditions.length > 0) {
-        query = query.where(and(...conditions));
+        query = query.where(and(...conditions)) as any; // Drizzle type inference issue
       }
 
       // Get total count
       let countQuery = db.select({ count: sql<number>`COUNT(*)` }).from(posSales);
       if (conditions.length > 0) {
-        countQuery = countQuery.where(and(...conditions));
+        countQuery = countQuery.where(and(...conditions)) as any; // Drizzle type inference issue
       }
       const totalResult = await countQuery;
       const total = totalResult[0]?.count || 0;
@@ -8100,41 +8094,6 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async getOrderLineItems(orderId: string): Promise<any[]> {
-    try {
-      // Get line items from POS sale items
-      const lineItems = await db.select({
-        id: sql<string>`CONCAT('item_', ${posSaleItems.id})`,
-        name: posSaleItems.itemName,
-        price: sql<number>`CAST(${posSaleItems.unitPrice} AS DECIMAL) * 100`,
-        quantity: sql<number>`${posSaleItems.quantity}`,
-        unitQty: sql<number>`1`,
-        isRevenue: sql<boolean>`true`,
-        printed: sql<boolean>`true`,
-        exchanged: sql<boolean>`false`,
-        refunded: sql<boolean>`false`,
-        modifications: sql<any>`NULL`,
-        discounts: sql<any>`NULL`
-      }).from(posSaleItems)
-      .leftJoin(posSales, eq(posSaleItems.saleId, posSales.id))
-      .where(eq(posSales.cloverOrderId, orderId));
-
-      return lineItems;
-    } catch (error) {
-      console.error('Error fetching order line items:', error);
-      return [];
-    }
-  }
-
-  async getOrderDiscounts(orderId: string): Promise<any[]> {
-    try {
-      // No discounts in current schema - return empty array
-      return [];
-    } catch (error) {
-      console.error('Error fetching order discounts:', error);
-      return [];
-    }
-  }
 
   async getOrderAnalytics(filters: {
     startDate?: string;
@@ -8381,21 +8340,6 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async updateOrder(orderId: string, updates: {
-    state?: string;
-    paymentState?: string;
-    note?: string;
-    modifiedTime?: number;
-  }): Promise<any> {
-    try {
-      // Update operations would need proper order table implementation
-      // For now, return the order as-is
-      return await this.getOrderDetails(orderId);
-    } catch (error) {
-      console.error('Error updating order:', error);
-      throw error;
-    }
-  }
 
 
   // SMS delivery methods
@@ -8953,11 +8897,12 @@ export class DatabaseStorage implements IStorage {
     priority?: string; 
     smsEnabled?: boolean;
   }): Promise<any> {
+    // Use messages table since channelMessages doesn't exist
     const [newMessage] = await db
-      .insert(channelMessages)
+      .insert(messages)
       .values({
-        channelId: message.channelId,
         senderId: message.senderId,
+        recipientId: '', // Channel messages don't have individual recipients
         content: message.content,
         messageType: message.messageType || 'message',
         priority: message.priority || 'normal',
@@ -9267,8 +9212,6 @@ export class DatabaseStorage implements IStorage {
         totalSMS: sql<number>`COUNT(*)`,
         totalDelivered: sql<number>`SUM(CASE WHEN ${smsDeliveries.status} = 'delivered' THEN 1 ELSE 0 END)`,
         totalFailed: sql<number>`SUM(CASE WHEN ${smsDeliveries.status} IN ('failed', 'undelivered') THEN 1 ELSE 0 END)`,
-        totalCost: sql<number>`SUM(${smsDeliveries.cost})`,
-        totalSegments: sql<number>`SUM(${smsDeliveries.segments})`,
       })
       .from(smsDeliveries)
       .where(
@@ -9317,15 +9260,15 @@ export class DatabaseStorage implements IStorage {
         )
       );
 
-    const sms = smsStats[0] || {};
-    const announcements = announcementStats[0] || {};
-    const reactions = reactionStats[0] || {};
-    const responses = responseStats[0] || {};
+    const sms = smsStats[0] || { totalSMS: 0, totalDelivered: 0, totalFailed: 0 };
+    const announcements = announcementStats[0] || { totalAnnouncements: 0 };
+    const reactions = reactionStats[0] || { totalReactions: 0 };
+    const responses = responseStats[0] || { totalResponses: 0 };
 
     // Calculate rates
-    const deliveryRate = sms.totalSMS > 0 ? (sms.totalDelivered / sms.totalSMS) * 100 : 0;
+    const deliveryRate = sms.totalSMS > 0 ? (Number(sms.totalDelivered) / Number(sms.totalSMS)) * 100 : 0;
     const engagementRate = announcements.totalAnnouncements > 0 
-      ? ((reactions.totalReactions + responses.totalResponses) / announcements.totalAnnouncements) * 100 
+      ? ((Number(reactions.totalReactions) + Number(responses.totalResponses)) / Number(announcements.totalAnnouncements)) * 100 
       : 0;
 
     // Insert or update daily analytics
@@ -9333,28 +9276,28 @@ export class DatabaseStorage implements IStorage {
       .insert(communicationAnalytics)
       .values({
         date,
-        totalMessages: announcements.totalAnnouncements || 0,
-        totalAnnouncements: announcements.totalAnnouncements || 0,
-        totalSMS: sms.totalSMS || 0,
-        totalReactions: reactions.totalReactions || 0,
-        totalResponses: responses.totalResponses || 0,
-        smsDelivered: sms.totalDelivered || 0,
-        smsFailed: sms.totalFailed || 0,
-        smsCost: sms.totalCost || 0,
+        totalMessages: Number(announcements.totalAnnouncements) || 0,
+        totalAnnouncements: Number(announcements.totalAnnouncements) || 0,
+        totalSMS: Number(sms.totalSMS) || 0,
+        totalReactions: Number(reactions.totalReactions) || 0,
+        totalResponses: Number(responses.totalResponses) || 0,
+        smsDelivered: Number(sms.totalDelivered) || 0,
+        smsFailed: Number(sms.totalFailed) || 0,
+        smsCost: 0, // Cost not tracked in smsDeliveries schema
         engagementRate: engagementRate.toFixed(2),
         smsDeliveryRate: deliveryRate.toFixed(2),
       })
       .onConflictDoUpdate({
         target: communicationAnalytics.date,
         set: {
-          totalMessages: announcements.totalAnnouncements || 0,
-          totalAnnouncements: announcements.totalAnnouncements || 0,
-          totalSMS: sms.totalSMS || 0,
-          totalReactions: reactions.totalReactions || 0,
-          totalResponses: responses.totalResponses || 0,
-          smsDelivered: sms.totalDelivered || 0,
-          smsFailed: sms.totalFailed || 0,
-          smsCost: sms.totalCost || 0,
+          totalMessages: Number(announcements.totalAnnouncements) || 0,
+          totalAnnouncements: Number(announcements.totalAnnouncements) || 0,
+          totalSMS: Number(sms.totalSMS) || 0,
+          totalReactions: Number(reactions.totalReactions) || 0,
+          totalResponses: Number(responses.totalResponses) || 0,
+          smsDelivered: Number(sms.totalDelivered) || 0,
+          smsFailed: Number(sms.totalFailed) || 0,
+          smsCost: 0, // Cost not tracked in smsDeliveries schema
           engagementRate: engagementRate.toFixed(2),
           smsDeliveryRate: deliveryRate.toFixed(2),
           updatedAt: new Date(),
