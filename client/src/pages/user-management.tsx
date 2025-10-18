@@ -56,9 +56,9 @@ export default function UserManagement() {
   }
 
   // Fetch employees
-  const { data: employees, isLoading: employeesLoading } = useQuery({
+  const { data: employees, isLoading: employeesLoading } = useQuery<any[]>({
     queryKey: ["/api/employees"],
-    select: (data) => {
+    select: (data: any[]) => {
       if (!data) return [];
       return data.filter((emp: any) => emp.isActive);
     }

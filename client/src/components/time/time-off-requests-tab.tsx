@@ -22,7 +22,7 @@ export default function TimeOffRequestsTab() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: requests, isLoading } = useQuery({
+  const { data: requests, isLoading } = useQuery<any[]>({
     queryKey: ["/api/time-off-requests"],
   });
 

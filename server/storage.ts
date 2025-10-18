@@ -1245,14 +1245,6 @@ export interface IStorage {
   // Atomic upsert method using unique constraint (merchantId, channel)
   upsertMerchant(merchant: InsertMerchant): Promise<{ merchant: Merchant; operation: 'created' | 'updated' }>;
 
-  // POS Location Management
-  createPosLocation(location: InsertPosLocation): Promise<PosLocation>;
-  getPosLocations(merchantId?: number, channel?: string): Promise<PosLocation[]>;
-  getPosLocation(id: number): Promise<PosLocation | undefined>;
-  getPosLocationByExternalId(externalLocationId: string, channel: string): Promise<PosLocation | undefined>;
-  updatePosLocation(id: number, updates: Partial<InsertPosLocation>): Promise<PosLocation>;
-  deletePosLocation(id: number): Promise<void>;
-
   // Item Management
   createItem(item: InsertItem): Promise<Item>;
   getItems(merchantId: number, filters?: { 

@@ -119,7 +119,7 @@ function ScheduledVsActualReport() {
   });
   const [selectedEmployee, setSelectedEmployee] = useState<string>('all');
   
-  const { data: employees } = useQuery({
+  const { data: employees } = useQuery<any[]>({
     queryKey: ['/api/employees'],
   });
 
@@ -1554,7 +1554,11 @@ export default function AdminEmployeeManagement() {
                 className="flex items-center justify-between p-4 border border-slate-200 rounded-lg hover:bg-slate-50"
               >
                 <div className="flex items-center space-x-4">
-                  <UserAvatar user={employee} size="lg" />
+                  <UserAvatar user={{
+                    ...employee,
+                    firstName: employee.firstName ?? undefined,
+                    lastName: employee.lastName ?? undefined,
+                  }} size="lg" />
                   
                   <div className="flex-1">
                     <div className="flex items-center space-x-2">

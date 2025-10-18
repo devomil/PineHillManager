@@ -53,9 +53,12 @@ export default function Documents() {
   });
 
   // Fetch documents
-  const { data: documents = [], isLoading } = useQuery({
+  const { data: documents = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/documents", { category: selectedCategory !== "all" ? selectedCategory : undefined }],
-    queryFn: () => apiRequest(`/api/documents${selectedCategory !== "all" ? `?category=${selectedCategory}` : ""}`),
+    queryFn: async () => {
+      const response = await apiRequest('GET', `/api/documents${selectedCategory !== "all" ? `?category=${selectedCategory}` : ""}`);
+      return await response.json();
+    },
   });
 
   // Fetch employees for permission management

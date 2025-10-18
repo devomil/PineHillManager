@@ -57,14 +57,14 @@ export function MessageReactions({ messageId, announcementId, existingReactions 
   const reactions = existingReactions.length > 0 ? existingReactions : fetchedReactions;
 
   // Group reactions by type and count them
-  const reactionCounts = reactions.reduce((acc, reaction) => {
+  const reactionCounts = reactions.reduce((acc: Record<string, number>, reaction: any) => {
     acc[reaction.reactionType] = (acc[reaction.reactionType] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);
 
   // Check if current user has reacted
-  const userReactions = reactions.filter(r => r.userId === user?.id);
-  const userReactionTypes = new Set(userReactions.map(r => r.reactionType));
+  const userReactions = reactions.filter((r: any) => r.userId === user?.id);
+  const userReactionTypes = new Set(userReactions.map((r: any) => r.reactionType));
 
   const reactionMutation = useMutation({
     mutationFn: async ({ reactionType, action }: { reactionType: string; action: 'add' | 'remove' }) => {

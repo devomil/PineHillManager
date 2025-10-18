@@ -34,13 +34,21 @@ interface IntegrationStatus {
   color: string;
 }
 
+interface CloverConfig {
+  id?: number;
+  merchantId: string;
+  merchantName?: string;
+  apiToken: string;
+  isActive: boolean;
+}
+
 const IntegrationsPage = () => {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState('overview');
   const [, setLocation] = useLocation();
 
   // Integration status mapping
-  const getIntegrationStatuses = (healthData: any, cloverConfigs: any[]) => {
+  const getIntegrationStatuses = (healthData: any, cloverConfigs: CloverConfig[]) => {
     const statuses = [
       {
         name: 'Database',
@@ -95,7 +103,7 @@ const IntegrationsPage = () => {
     environment: 'production'
   });
 
-  const [savedMerchants, setSavedMerchants] = useState([]);
+  const [savedMerchants, setSavedMerchants] = useState<CloverConfig[]>([]);
 
   const [hsaCredentials, setHsaCredentials] = useState({
     providerId: '',
@@ -132,7 +140,7 @@ const IntegrationsPage = () => {
   });
 
   // Fetch all Clover configurations for multi-location support
-  const { data: allCloverConfigs = [], refetch: refetchClover } = useQuery({
+  const { data: allCloverConfigs = [], refetch: refetchClover } = useQuery<CloverConfig[]>({
     queryKey: ['/api/accounting/config/clover/all'],
     queryFn: async () => {
       const response = await fetch('/api/accounting/config/clover/all', {
@@ -152,14 +160,14 @@ const IntegrationsPage = () => {
     },
     retry: 1,
     staleTime: 0,
-    cacheTime: 0,
+    gcTime: 0,
     enabled: true,
     refetchOnMount: true,
     refetchOnWindowFocus: true
   });
 
   // Get the first active config for form loading (backward compatibility)
-  const cloverConfig = allCloverConfigs.find(config => config.isActive) || allCloverConfigs[0] || null;
+  const cloverConfig = allCloverConfigs.find((config: CloverConfig) => config.isActive) || allCloverConfigs[0] || null;
 
   // Update form when data is loaded
   useEffect(() => {

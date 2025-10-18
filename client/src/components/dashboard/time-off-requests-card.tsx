@@ -15,7 +15,7 @@ export default function TimeOffRequestsCard() {
   const queryClient = useQueryClient();
 
   // Get user's own requests or pending requests for admins
-  const { data: requests, isLoading } = useQuery({
+  const { data: requests, isLoading } = useQuery<any[]>({
     queryKey: user?.role === 'admin' ? ["/api/time-off-requests/pending"] : ["/api/time-off-requests"],
   });
 

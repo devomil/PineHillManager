@@ -18,12 +18,12 @@ export default function ShiftCoverageTab() {
   const queryClient = useQueryClient();
 
   // Get user's upcoming work schedules
-  const { data: schedules, isLoading: schedulesLoading } = useQuery({
+  const { data: schedules, isLoading: schedulesLoading } = useQuery<any[]>({
     queryKey: ["/api/work-schedules"],
   });
 
   // Get shift coverage requests
-  const { data: coverageRequests, isLoading: requestsLoading } = useQuery({
+  const { data: coverageRequests, isLoading: requestsLoading } = useQuery<any[]>({
     queryKey: ["/api/shift-coverage-requests"],
   });
 
@@ -254,7 +254,7 @@ export default function ShiftCoverageTab() {
                   </div>
                 ))}
               </div>
-            ) : coverageRequests?.filter((req: any) => req.status === 'open').length > 0 ? (
+            ) : coverageRequests && coverageRequests.filter((req: any) => req.status === 'open').length > 0 ? (
               <div className="space-y-4">
                 {coverageRequests
                   .filter((req: any) => req.status === 'open')
@@ -322,7 +322,7 @@ export default function ShiftCoverageTab() {
                   </div>
                 ))}
               </div>
-            ) : coverageRequests?.length > 0 ? (
+            ) : coverageRequests && coverageRequests.length > 0 ? (
               <div className="space-y-4">
                 {coverageRequests
                   .slice(0, 5)

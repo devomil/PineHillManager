@@ -192,14 +192,14 @@ export function RevenueAnalytics() {
   };
 
   // Calculate totals for summary cards (using multi-location data like the pie chart)
-  const totalRevenue = multiLocationData?.locationBreakdown?.reduce((sum, location) => {
+  const totalRevenue = multiLocationData?.locationBreakdown?.reduce((sum: number, location: any) => {
     return sum + parseFloat(location.totalSales || location.totalRevenue || '0');
   }, 0) || 0;
-  const totalTransactions = revenueTrends?.data.reduce((sum, item) => sum + item.transactions, 0) || 0;
+  const totalTransactions = revenueTrends?.data.reduce((sum: number, item: any) => sum + item.transactions, 0) || 0;
   const avgSaleOverall = totalTransactions > 0 ? totalRevenue / totalTransactions : 0;
 
   // Prepare data for location comparison pie chart using multi-location data (includes Amazon)
-  const locationPieData = multiLocationData?.locationBreakdown?.map((location, index) => ({
+  const locationPieData = multiLocationData?.locationBreakdown?.map((location: any, index: number) => ({
     name: location.locationName,
     value: parseFloat(location.totalSales),
     color: location.platform === 'Amazon Store' ? '#FF9900' : (location.locationName?.includes('HSA') ? HSA_COLOR : COLORS[index % COLORS.length]),
@@ -427,7 +427,7 @@ export function RevenueAnalytics() {
                         dataKey="value"
                         label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
                       >
-                        {locationPieData.map((entry, index) => (
+                        {locationPieData.map((entry: any, index: number) => (
                           <Cell key={`cell-${index}`} fill={entry.color} />
                         ))}
                       </Pie>
@@ -447,7 +447,7 @@ export function RevenueAnalytics() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {multiLocationData?.locationBreakdown?.map((location) => {
+                  {multiLocationData?.locationBreakdown?.map((location: any) => {
                     const totalLocationRevenue = parseFloat(location.totalSales);
                     const totalLocationTransactions = location.transactionCount;
                     

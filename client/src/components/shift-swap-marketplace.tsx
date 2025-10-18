@@ -421,12 +421,12 @@ export default function ShiftSwapMarketplace() {
                 <CardHeader className="pb-3">
                   <div className="flex justify-between items-start">
                     <div className="flex items-center gap-2">
-                      <Badge className={`${getUrgencyStyle(swap.urgencyLevel)} flex items-center gap-1`}>
-                        {getUrgencyIcon(swap.urgencyLevel)}
-                        {swap.urgencyLevel}
+                      <Badge className={`${getUrgencyStyle((swap.urgencyLevel || 'normal') as string)} flex items-center gap-1`}>
+                        {getUrgencyIcon((swap.urgencyLevel || 'normal') as string)}
+                        {swap.urgencyLevel ?? 'normal'}
                       </Badge>
-                      <Badge className={getStatusStyle(swap.status)}>
-                        {swap.status}
+                      <Badge className={getStatusStyle(swap.status ?? 'open')}>
+                        {swap.status ?? 'open'}
                       </Badge>
                     </div>
                     {swap.incentive && (
@@ -529,7 +529,7 @@ export default function ShiftSwapMarketplace() {
                   {swap.expiresAt && (
                     <div className="text-xs text-orange-600 flex items-center gap-1">
                       <Timer className="h-3 w-3" />
-                      Expires: {format(parseISO(swap.expiresAt), "MMM d, h:mm a")}
+                      Expires: {format(typeof swap.expiresAt === 'string' ? parseISO(swap.expiresAt) : swap.expiresAt, "MMM d, h:mm a")}
                     </div>
                   )}
                 </CardContent>

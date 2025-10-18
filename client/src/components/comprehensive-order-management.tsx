@@ -107,6 +107,17 @@ interface OrdersResponse {
     hasMore: boolean;
     limit: number;
   };
+  aggregatedTotals?: {
+    totalRevenue: number;
+    orderCount: number;
+    totalCOGS: number;
+    totalProfit: number;
+    totalDiscounts: number;
+    giftCardTotal: number;
+    totalGrossTax: number;
+    totalAmazonFees: number;
+    marginSum: number;
+  };
 }
 
 interface VoidedItemsResponse {

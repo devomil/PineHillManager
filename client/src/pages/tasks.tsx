@@ -82,7 +82,12 @@ export default function Tasks() {
   });
 
   // Fetch stats
-  const { data: stats } = useQuery({
+  const { data: stats } = useQuery<{
+    total: number;
+    inProgress: number;
+    completed: number;
+    urgent: number;
+  }>({
     queryKey: ['/api/tasks/stats/overview'],
     enabled: isAdminOrManager,
   });
@@ -333,7 +338,7 @@ export default function Tasks() {
   };
 
   // Employee header (for non-admin/manager users)
-  const EmployeeHeader = () => (
+  const EmployeeHeader = (): JSX.Element => (
     <div className="bg-white shadow-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center py-6">
@@ -800,7 +805,7 @@ export default function Tasks() {
                       </TableCell>
                       <TableCell>
                         <span className="text-sm" data-testid={`text-assignee-${task.id}`}>
-                          {task.assigneeName || getEmployeeName(task.assignedTo)}
+                          {(task as any).assigneeName || getEmployeeName(task.assignedTo)}
                         </span>
                       </TableCell>
                       <TableCell>
@@ -953,7 +958,7 @@ function TaskDetailsDialog({
 
   const task = { ...initialTask, steps: localSteps, status: localStatus };
 
-  const { data: notes = [] } = useQuery({
+  const { data: notes = [] } = useQuery<any[]>({
     queryKey: [`/api/tasks/${task.id}/notes`],
   });
 
@@ -989,7 +994,7 @@ function TaskDetailsDialog({
       queryClient.setQueryData<Task[]>(['/api/tasks'], (old) => {
         if (!old) return old;
         return old.map(t => 
-          t.id === task.id ? { ...t, steps: newSteps, updatedAt: new Date().toISOString() } : t
+          t.id === task.id ? { ...t, steps: newSteps as any, updatedAt: new Date().toISOString() as any } : t
         );
       });
       

@@ -2517,8 +2517,33 @@ function CSVImportDialog({
 };
 
 // Pricing Diagnostic Component
+interface PricingDiagnosticData {
+  summary?: {
+    cloverOnly?: {
+      count: number;
+      inventoryValue: number;
+      percentage: number;
+    };
+    thriveOnly?: {
+      count: number;
+      inventoryValue: number;
+      percentage: number;
+    };
+    both?: {
+      count: number;
+      cloverInventoryValue: number;
+      thriveInventoryValue: number;
+      percentage: number;
+    };
+    neither?: {
+      count: number;
+      percentage: number;
+    };
+  };
+}
+
 function PricingDiagnostic() {
-  const { data: diagnostic, isLoading } = useQuery({
+  const { data: diagnostic, isLoading } = useQuery<PricingDiagnosticData>({
     queryKey: ['/api/accounting/inventory/pricing-diagnostic'],
   });
 

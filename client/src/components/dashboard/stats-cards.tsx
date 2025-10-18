@@ -2,8 +2,15 @@ import { Card, CardContent } from "@/components/ui/card";
 import { useQuery } from "@tanstack/react-query";
 import { CalendarCheck, Clock, AlertTriangle, GraduationCap } from "lucide-react";
 
+interface DashboardStats {
+  timeOffBalance?: number;
+  hoursThisWeek?: number;
+  pendingRequests?: number;
+  trainingProgress?: number;
+}
+
 export default function StatsCards() {
-  const { data: stats, isLoading } = useQuery({
+  const { data: stats, isLoading } = useQuery<DashboardStats>({
     queryKey: ["/api/dashboard/stats"],
   });
 

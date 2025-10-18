@@ -91,11 +91,14 @@ export function useNotifications() {
       // Send subscription to server using the standard format
       console.log('Raw subscription object:', subscription);
       
+      const authKey = subscription.getKey('auth');
+      const p256dhKey = subscription.getKey('p256dh');
+      
       const subscriptionData = {
         endpoint: subscription.endpoint,
         keys: {
-          auth: subscription.getKey ? btoa(String.fromCharCode(...new Uint8Array(subscription.getKey('auth')))) : '',
-          p256dh: subscription.getKey ? btoa(String.fromCharCode(...new Uint8Array(subscription.getKey('p256dh')))) : ''
+          auth: authKey ? btoa(String.fromCharCode.apply(null, Array.from(new Uint8Array(authKey)) as any)) : '',
+          p256dh: p256dhKey ? btoa(String.fromCharCode.apply(null, Array.from(new Uint8Array(p256dhKey)) as any)) : ''
         }
       };
 

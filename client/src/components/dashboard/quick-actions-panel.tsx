@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 
 export default function QuickActionsPanel() {
-  const { data: announcements, isLoading: announcementsLoading } = useQuery({
+  const { data: announcements, isLoading: announcementsLoading } = useQuery<any[]>({
     queryKey: ["/api/announcements"],
   });
 

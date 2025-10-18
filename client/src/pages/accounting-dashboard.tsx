@@ -1563,7 +1563,7 @@ function AccountingContent() {
                         </div>
                         <Select 
                           value={selectedMonth?.toString() || "all"} 
-                          onValueChange={(value) => setSelectedMonth(value === "all" ? null : parseInt(value))}
+                          onValueChange={(value) => setSelectedMonth(value === "all" ? null as any : parseInt(value))}
                         >
                           <SelectTrigger className="w-32">
                             <SelectValue placeholder="Month" />
@@ -1579,7 +1579,7 @@ function AccountingContent() {
                         </Select>
                         <Select 
                           value={selectedYear?.toString() || "all"} 
-                          onValueChange={(value) => setSelectedYear(value === "all" ? null : parseInt(value))}
+                          onValueChange={(value) => setSelectedYear(value === "all" ? null as any : parseInt(value))}
                         >
                           <SelectTrigger className="w-24">
                             <SelectValue placeholder="Year" />
@@ -1598,8 +1598,8 @@ function AccountingContent() {
                             variant="ghost"
                             size="sm"
                             onClick={() => {
-                              setSelectedMonth(null);
-                              setSelectedYear(null);
+                              setSelectedMonth(null as any);
+                              setSelectedYear(null as any);
                             }}
                             className="text-gray-500 hover:text-gray-700"
                           >
@@ -4138,7 +4138,7 @@ function PayrollAccrualDialog({ isOpen, onClose }: {
       const response = await apiRequest('GET', `/api/accounting/payroll/preview?month=${selectedMonth}&year=${selectedYear}`);
       return await response.json();
     },
-    enabled: isOpen && selectedMonth && selectedYear,
+    enabled: isOpen && !!selectedMonth && !!selectedYear,
   });
 
   // Payroll accrual mutation

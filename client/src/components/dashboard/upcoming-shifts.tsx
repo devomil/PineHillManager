@@ -14,7 +14,7 @@ export default function UpcomingShifts() {
   const endOfWeek = new Date(startOfWeek);
   endOfWeek.setDate(startOfWeek.getDate() + 6);
 
-  const { data: schedules, isLoading } = useQuery({
+  const { data: schedules, isLoading } = useQuery<any[]>({
     queryKey: ["/api/work-schedules", { 
       startDate: startOfWeek.toISOString().split('T')[0],
       endDate: endOfWeek.toISOString().split('T')[0]
