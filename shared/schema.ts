@@ -11,6 +11,7 @@ import {
   date,
   decimal,
   unique,
+  type PgTableWithColumns,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
@@ -591,7 +592,7 @@ export const messageTemplates = pgTable("message_templates", {
 }));
 
 // Employee responses to announcements and messages (supports threaded conversations)
-export const responses = pgTable("responses", {
+export const responses: PgTableWithColumns<any> = pgTable("responses", {
   id: serial("id").primaryKey(),
   authorId: varchar("author_id").notNull().references(() => users.id),
   content: text("content").notNull(),
@@ -601,7 +602,7 @@ export const responses = pgTable("responses", {
   messageId: integer("message_id").references(() => messages.id, { onDelete: 'cascade' }),
   
   // For threaded responses (responses to responses)
-  parentResponseId: integer("parent_response_id").references(() => responses.id, { onDelete: 'cascade' }),
+  parentResponseId: integer("parent_response_id").references((): any => responses.id, { onDelete: 'cascade' }),
   
   // Response metadata
   responseType: varchar("response_type").notNull().default("reply"), // 'reply', 'question', 'confirmation', 'concern'
