@@ -2590,6 +2590,7 @@ export default function AdminEmployeeManagement() {
                     <div className="space-y-2">
                       {[
                         { value: 'emergency', label: 'Emergency Alerts', description: 'Critical and urgent notifications' },
+                        { value: 'direct_messages', label: 'Direct Messages', description: 'One-on-one messages from team members' },
                         { value: 'schedule', label: 'Schedule Changes', description: 'Shift updates and schedule modifications' },
                         { value: 'announcements', label: 'Announcements', description: 'Team announcements and updates' },
                         { value: 'reminders', label: 'Reminders', description: 'Task and appointment reminders' },
