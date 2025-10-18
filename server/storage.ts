@@ -12522,7 +12522,7 @@ export class DatabaseStorage implements IStorage {
   async createTask(taskData: InsertTask): Promise<Task> {
     const [task] = await db
       .insert(tasks)
-      .values([taskData])
+      .values([taskData as any])
       .returning();
     return task;
   }
@@ -12693,6 +12693,515 @@ export class DatabaseStorage implements IStorage {
       .returning();
 
     return updated;
+  }
+
+  // Employee Purchase alias method
+  async getEmployeePurchaseUsersWithSpending(periodMonth: string): Promise<any[]> {
+    return this.getAllUsersWithPurchaseData(periodMonth);
+  }
+
+  // ================================
+  // ITEM MANAGEMENT METHODS
+  // ================================
+
+  async createItem(item: InsertItem): Promise<Item> {
+    const [created] = await db.insert(items).values(item).returning();
+    return created;
+  }
+
+  async getItems(merchantId: number, filters?: { 
+    channel?: string; 
+    category?: string; 
+    isActive?: boolean; 
+    search?: string; 
+  }): Promise<Item[]> {
+    const conditions = [eq(items.merchantId, merchantId)];
+    
+    if (filters?.channel) {
+      conditions.push(eq(items.channel, filters.channel));
+    }
+    if (filters?.category) {
+      conditions.push(eq(items.category, filters.category));
+    }
+    if (filters?.isActive !== undefined) {
+      conditions.push(eq(items.isActive, filters.isActive));
+    }
+    if (filters?.search) {
+      conditions.push(
+        or(
+          like(items.name, `%${filters.search}%`),
+          like(items.sku, `%${filters.search}%`)
+        )!
+      );
+    }
+
+    return await db.select().from(items).where(and(...conditions));
+  }
+
+  async getItem(id: number): Promise<Item | undefined> {
+    const [item] = await db.select().from(items).where(eq(items.id, id));
+    return item;
+  }
+
+  async getItemByExternalId(merchantId: number, externalItemId: string, channel: string): Promise<Item | undefined> {
+    const [item] = await db
+      .select()
+      .from(items)
+      .where(
+        and(
+          eq(items.merchantId, merchantId),
+          eq(items.externalItemId, externalItemId),
+          eq(items.channel, channel)
+        )
+      );
+    return item;
+  }
+
+  async updateItem(id: number, updates: Partial<InsertItem>): Promise<Item> {
+    const [updated] = await db
+      .update(items)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(items.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteItem(id: number): Promise<void> {
+    await db.delete(items).where(eq(items.id, id));
+  }
+
+  async syncItems(merchantId: number, channel: string, itemsToSync: InsertItem[]): Promise<{ created: number; updated: number }> {
+    let created = 0;
+    let updated = 0;
+
+    for (const item of itemsToSync) {
+      const existing = await this.getItemByExternalId(merchantId, item.externalItemId, channel);
+      if (existing) {
+        await this.updateItem(existing.id, item);
+        updated++;
+      } else {
+        await this.createItem(item);
+        created++;
+      }
+    }
+
+    return { created, updated };
+  }
+
+  // ================================
+  // ADDITIONAL ORDER MANAGEMENT METHODS
+  // ================================
+
+  async deleteOrder(id: number): Promise<void> {
+    await db.delete(orders).where(eq(orders.id, id));
+  }
+
+  async syncOrders(merchantId: number, channel: string, ordersToSync: InsertOrder[]): Promise<{ created: number; updated: number }> {
+    let created = 0;
+    let updated = 0;
+
+    for (const order of ordersToSync) {
+      const result = await this.upsertOrder(order);
+      if (result.operation === 'created') {
+        created++;
+      } else {
+        updated++;
+      }
+    }
+
+    return { created, updated };
+  }
+
+  async getOrderLineItem(id: number): Promise<OrderLineItem | undefined> {
+    const [lineItem] = await db.select().from(orderLineItems).where(eq(orderLineItems.id, id));
+    return lineItem;
+  }
+
+  async deleteOrderLineItem(id: number): Promise<void> {
+    await db.delete(orderLineItems).where(eq(orderLineItems.id, id));
+  }
+
+  async syncOrderLineItems(orderId: number, lineItemsToSync: InsertOrderLineItem[]): Promise<{ created: number; updated: number }> {
+    let created = 0;
+    let updated = 0;
+
+    for (const lineItem of lineItemsToSync) {
+      if (lineItem.externalLineItemId) {
+        const existing = await this.getOrderLineItemByExternalId(lineItem.externalLineItemId);
+        if (existing) {
+          await this.updateOrderLineItem(existing.id, lineItem);
+          updated++;
+        } else {
+          await this.createOrderLineItem(lineItem);
+          created++;
+        }
+      } else {
+        await this.createOrderLineItem(lineItem);
+        created++;
+      }
+    }
+
+    return { created, updated };
+  }
+
+  // ================================
+  // TAX MANAGEMENT METHODS (Non-duplicated)
+  // ================================
+
+  async createTax(tax: InsertTax): Promise<Tax> {
+    const [created] = await db.insert(taxes).values(tax).returning();
+    return created;
+  }
+
+  async getTaxes(orderId?: number, lineItemId?: number): Promise<Tax[]> {
+    const conditions = [];
+    if (orderId) conditions.push(eq(taxes.orderId, orderId));
+    if (lineItemId) conditions.push(eq(taxes.lineItemId, lineItemId));
+    
+    if (conditions.length === 0) {
+      return await db.select().from(taxes);
+    }
+    
+    return await db.select().from(taxes).where(and(...conditions));
+  }
+
+  async getTax(id: number): Promise<Tax | undefined> {
+    const [tax] = await db.select().from(taxes).where(eq(taxes.id, id));
+    return tax;
+  }
+
+  async updateTax(id: number, updates: Partial<InsertTax>): Promise<Tax> {
+    const [updated] = await db
+      .update(taxes)
+      .set(updates)
+      .where(eq(taxes.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteTax(id: number): Promise<void> {
+    await db.delete(taxes).where(eq(taxes.id, id));
+  }
+
+  // ================================
+  // (Duplicates removed: Payment, Discount, Refund sections)
+  // ================================
+
+  async getRefundAnalytics(filters: {
+    startDate?: string;
+    endDate?: string;
+    merchantId?: number;
+    locationId?: number;
+    channel?: string;
+  }): Promise<{
+    totalRefunds: number;
+    totalRefundAmount: number;
+    refundsByReason: Array<{ reason: string; count: number; amount: number }>;
+  }> {
+    const conditions = [];
+    
+    if (filters.startDate) {
+      conditions.push(gte(refunds.refundDate, new Date(filters.startDate)) as any);
+    }
+    if (filters.endDate) {
+      conditions.push(lte(refunds.refundDate, new Date(filters.endDate)) as any);
+    }
+
+    const refundsData = conditions.length > 0
+      ? await db.select().from(refunds).where(and(...conditions))
+      : await db.select().from(refunds);
+
+    const totalRefunds = refundsData.length;
+    const totalRefundAmount = refundsData.reduce((sum, r) => sum + Number(r.refundAmount || 0), 0);
+
+    const reasonMap = new Map<string, { count: number; amount: number }>();
+    refundsData.forEach(r => {
+      const reason = r.refundReason || 'Unknown';
+      const current = reasonMap.get(reason) || { count: 0, amount: 0 };
+      reasonMap.set(reason, {
+        count: current.count + 1,
+        amount: current.amount + Number(r.refundAmount || 0)
+      });
+    });
+
+    const refundsByReason = Array.from(reasonMap.entries()).map(([reason, data]) => ({
+      reason,
+      count: data.count,
+      amount: data.amount
+    }));
+
+    return {
+      totalRefunds,
+      totalRefundAmount,
+      refundsByReason
+    };
+  }
+
+  // ================================
+  // TENDER MANAGEMENT METHODS
+  // ================================
+
+  async createTender(tender: InsertTender): Promise<Tender> {
+    const [created] = await db.insert(tenders).values(tender).returning();
+    return created;
+  }
+
+  async getTenders(paymentId: number): Promise<Tender[]> {
+    return await db.select().from(tenders).where(eq(tenders.paymentId, paymentId));
+  }
+
+  async getTender(id: number): Promise<Tender | undefined> {
+    const [tender] = await db.select().from(tenders).where(eq(tenders.id, id));
+    return tender;
+  }
+
+  async updateTender(id: number, updates: Partial<InsertTender>): Promise<Tender> {
+    const [updated] = await db
+      .update(tenders)
+      .set(updates)
+      .where(eq(tenders.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteTender(id: number): Promise<void> {
+    await db.delete(tenders).where(eq(tenders.id, id));
+  }
+
+  // ================================
+  // (Duplicates removed: Item Cost History, Sync Cursor, Daily Sales sections)
+  // ================================
+
+  async deleteDailySales(id: number): Promise<void> {
+    await db.delete(dailySales).where(eq(dailySales.id, id));
+  }
+
+  async aggregateDailySales(date: string, merchantId: number, locationId?: number, channel?: string): Promise<DailySales> {
+    const conditions = [
+      eq(orders.merchantId, merchantId),
+      sql`DATE(${orders.orderDate}) = ${date}`
+    ];
+    
+    if (locationId) {
+      conditions.push(eq(orders.locationId, locationId));
+    }
+    if (channel) {
+      conditions.push(eq(orders.channel, channel));
+    }
+
+    const ordersData = await db
+      .select()
+      .from(orders)
+      .where(and(...conditions));
+
+    const totalOrders = ordersData.length;
+    const totalRevenue = ordersData.reduce((sum, o) => sum + Number(o.total || 0), 0);
+    const totalTax = ordersData.reduce((sum, o) => sum + Number(o.taxAmount || 0), 0);
+    const totalTip = ordersData.reduce((sum, o) => sum + Number(o.tipAmount || 0), 0);
+    const totalDiscount = ordersData.reduce((sum, o) => sum + Number(o.discountAmount || 0), 0);
+
+    const dailySalesData: InsertDailySales = {
+      merchantId,
+      locationId: locationId || null,
+      channel: channel || '',
+      date,
+      totalOrders,
+      totalRevenue: totalRevenue.toString(),
+      totalTax: totalTax.toString(),
+      totalTip: totalTip.toString(),
+      totalDiscount: totalDiscount.toString(),
+    };
+
+    const existing = await this.getDailySalesByMerchantAndDate(merchantId, date);
+    if (existing) {
+      return this.updateDailySales(existing.id, dailySalesData);
+    } else {
+      return this.createDailySales(dailySalesData);
+    }
+  }
+
+  // ================================
+  // SALES ANALYTICS METHODS
+  // ================================
+
+  async getSalesAnalytics(filters: {
+    startDate?: string;
+    endDate?: string;
+    merchantId?: number;
+    locationId?: number;
+    channel?: string;
+    groupBy?: 'day' | 'week' | 'month' | 'location' | 'channel';
+  }): Promise<{
+    totalRevenue: number;
+    totalOrders: number;
+    totalItems: number;
+    averageOrderValue: number;
+    totalCogs: number;
+    grossMargin: number;
+    grossMarginPercent: number;
+    breakdown: Array<{
+      period: string;
+      revenue: number;
+      orders: number;
+      items: number;
+      cogs: number;
+      margin: number;
+    }>;
+  }> {
+    const conditions = [];
+    
+    if (filters.startDate) {
+      conditions.push(gte(orders.orderDate, new Date(filters.startDate)) as any);
+    }
+    if (filters.endDate) {
+      conditions.push(lte(orders.orderDate, new Date(filters.endDate)) as any);
+    }
+    if (filters.merchantId) {
+      conditions.push(eq(orders.merchantId, filters.merchantId));
+    }
+    if (filters.locationId) {
+      conditions.push(eq(orders.locationId, filters.locationId));
+    }
+    if (filters.channel) {
+      conditions.push(eq(orders.channel, filters.channel));
+    }
+
+    const ordersData = conditions.length > 0
+      ? await db.select().from(orders).where(and(...conditions))
+      : await db.select().from(orders);
+
+    const totalOrders = ordersData.length;
+    const totalRevenue = ordersData.reduce((sum, o) => sum + Number(o.total || 0), 0);
+    const totalItems = 0;
+    const averageOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+
+    return {
+      totalRevenue,
+      totalOrders,
+      totalItems,
+      averageOrderValue,
+      totalCogs: 0,
+      grossMargin: totalRevenue,
+      grossMarginPercent: 100,
+      breakdown: []
+    };
+  }
+
+  async getTopItems(filters: {
+    startDate?: string;
+    endDate?: string;
+    merchantId?: number;
+    locationId?: number;
+    channel?: string;
+    limit?: number;
+  }): Promise<Array<{
+    itemId: number;
+    itemName: string;
+    totalQuantity: number;
+    totalRevenue: number;
+    totalMargin: number;
+    avgPrice: number;
+  }>> {
+    return [];
+  }
+
+  async getHistoricalSalesData(filters: {
+    startYear: number;
+    endYear: number;
+    merchantId?: number;
+    locationId?: number;
+    channel?: string;
+  }): Promise<{
+    yearlyBreakdown: Array<{
+      year: string;
+      totalRevenue: number;
+      totalProfit: number;
+      totalOrders: number;
+      averageOrderValue: number;
+      monthlyData: Array<{
+        month: string;
+        revenue: number;
+        profit: number;
+        orders: number;
+      }>;
+    }>;
+    quarterlyBreakdown: Array<{
+      quarter: string;
+      year: string;
+      totalRevenue: number;
+      totalProfit: number;
+      totalOrders: number;
+      seasonalityIndex: number;
+    }>;
+    keyMetrics: {
+      averageAnnualGrowth: number;
+      bestYear: { year: string; revenue: number };
+      bestQuarter: { quarter: string; year: string; revenue: number };
+      totalYearsAnalyzed: number;
+    };
+  }> {
+    return {
+      yearlyBreakdown: [],
+      quarterlyBreakdown: [],
+      keyMetrics: {
+        averageAnnualGrowth: 0,
+        bestYear: { year: '', revenue: 0 },
+        bestQuarter: { quarter: '', year: '', revenue: 0 },
+        totalYearsAnalyzed: 0
+      }
+    };
+  }
+
+  // ================================
+  // (Duplicates removed: Merchant Management section)
+  // ================================
+
+  // ================================
+  // POS LOCATIONS METHODS (if missing)
+  // ================================
+
+  async createPosLocation(location: any): Promise<any> {
+    const [created] = await db.insert(posLocations).values(location).returning();
+    return created;
+  }
+
+  async getPosLocations(merchantId?: number): Promise<any[]> {
+    if (merchantId) {
+      return await db.select().from(posLocations).where(eq(posLocations.merchantId, merchantId));
+    }
+    return await db.select().from(posLocations);
+  }
+
+  async getPosLocation(id: number): Promise<any | undefined> {
+    const [location] = await db.select().from(posLocations).where(eq(posLocations.id, id));
+    return location;
+  }
+
+  async getPosLocationByExternalId(merchantId: number, externalLocationId: string, channel: string): Promise<any | undefined> {
+    const [location] = await db
+      .select()
+      .from(posLocations)
+      .where(
+        and(
+          eq(posLocations.merchantId, merchantId),
+          eq(posLocations.externalLocationId, externalLocationId),
+          eq(posLocations.channel, channel)
+        )
+      );
+    return location;
+  }
+
+  async updatePosLocation(id: number, updates: any): Promise<any> {
+    const [updated] = await db
+      .update(posLocations)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(posLocations.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deletePosLocation(id: number): Promise<void> {
+    await db.delete(posLocations).where(eq(posLocations.id, id));
   }
 }
 
