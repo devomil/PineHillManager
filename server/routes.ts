@@ -660,7 +660,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (startDate && endDate) {
         // Get schedules for date range
-        const schedules = await storage.getWorkSchedulesByDateRange(
+        let schedules = await storage.getWorkSchedulesByDateRange(
           startDate as string, 
           endDate as string, 
           userId as string | undefined
