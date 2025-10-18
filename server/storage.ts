@@ -383,7 +383,7 @@ export interface IStorage {
   getUserWorkSchedules(userId: string, startDate?: string, endDate?: string): Promise<WorkSchedule[]>;
   getWorkSchedulesByDate(date: string): Promise<WorkSchedule[]>;
   getWorkSchedulesByLocation(locationId: number, startDate?: string, endDate?: string): Promise<WorkSchedule[]>;
-  getWorkSchedulesByDateRange(startDate: string, endDate: string): Promise<WorkSchedule[]>;
+  getWorkSchedulesByDateRange(startDate: string, endDate: string, userId?: string): Promise<WorkSchedule[]>;
   getCalendarEvents(startDate: string, endDate: string): Promise<CalendarEvent[]>;
   updateWorkSchedule(id: number, schedule: Partial<InsertWorkSchedule>): Promise<WorkSchedule>;
   deleteWorkSchedule(id: number): Promise<void>;
