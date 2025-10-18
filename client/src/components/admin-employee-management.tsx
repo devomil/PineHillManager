@@ -346,6 +346,9 @@ const editEmployeeSchema = z.object({
   notes: z.string().optional(),
   isActive: z.boolean(),
   timeOffBalance: z.number().optional(),
+  smsConsent: z.boolean().optional(),
+  smsEnabled: z.boolean().optional(),
+  smsNotificationTypes: z.array(z.string()).optional(),
 });
 
 // Financial form schema to handle decimal inputs and benefits
@@ -915,6 +918,9 @@ export default function AdminEmployeeManagement() {
       notes: employee.notes || "",
       isActive: employee.isActive ?? true,
       timeOffBalance: employee.timeOffBalance || 24,
+      smsConsent: employee.smsConsent || false,
+      smsEnabled: employee.smsEnabled || true,
+      smsNotificationTypes: employee.smsNotificationTypes || ['emergency'],
     });
     setEditDialogOpen(true);
   };
@@ -2500,13 +2506,14 @@ export default function AdminEmployeeManagement() {
             </div>
           </TabsContent>
           
-          <TabsContent value="settings" className="space-y-4">
+          <TabsContent value="settings" className="space-y-6">
             <div className="grid grid-cols-2 gap-4">
               <div className="flex items-center space-x-2">
                 <Switch
                   id="edit-isActive"
                   checked={editForm.watch("isActive")}
                   onCheckedChange={(checked) => editForm.setValue("isActive", checked)}
+                  data-testid="switch-active-employee"
                 />
                 <Label htmlFor="edit-isActive">Active Employee</Label>
               </div>
@@ -2518,8 +2525,114 @@ export default function AdminEmployeeManagement() {
                   id="edit-timeOffBalance"
                   type="number"
                   {...editForm.register("timeOffBalance", { valueAsNumber: true })}
+                  data-testid="input-time-off-balance"
                 />
               </div>
+            </div>
+
+            {/* SMS Notification Settings */}
+            <div className="space-y-4 pt-4 border-t">
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900 mb-3">SMS Notifications</h3>
+                <p className="text-xs text-slate-500 mb-4">
+                  Manage employee's SMS consent and notification preferences
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                {/* SMS Consent Toggle */}
+                <div className="flex items-start space-x-3 p-3 bg-slate-50 rounded-lg">
+                  <Switch
+                    id="edit-smsConsent"
+                    checked={editForm.watch("smsConsent") || false}
+                    onCheckedChange={(checked) => {
+                      editForm.setValue("smsConsent", checked);
+                      if (!checked) {
+                        editForm.setValue("smsEnabled", false);
+                      }
+                    }}
+                    data-testid="switch-sms-consent"
+                  />
+                  <div className="flex-1">
+                    <Label htmlFor="edit-smsConsent" className="font-medium cursor-pointer">
+                      SMS Consent
+                    </Label>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Employee has agreed to receive SMS messages (TCPA compliant)
+                    </p>
+                  </div>
+                </div>
+
+                {/* SMS Enabled Toggle - only available if consent is given */}
+                {editForm.watch("smsConsent") && (
+                  <div className="flex items-start space-x-3 p-3 bg-slate-50 rounded-lg">
+                    <Switch
+                      id="edit-smsEnabled"
+                      checked={editForm.watch("smsEnabled") || false}
+                      onCheckedChange={(checked) => editForm.setValue("smsEnabled", checked)}
+                      data-testid="switch-sms-enabled"
+                    />
+                    <div className="flex-1">
+                      <Label htmlFor="edit-smsEnabled" className="font-medium cursor-pointer">
+                        SMS Notifications Enabled
+                      </Label>
+                      <p className="text-xs text-slate-500 mt-1">
+                        Employee will receive SMS notifications for selected types
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Notification Types - only available if SMS is enabled */}
+                {editForm.watch("smsConsent") && editForm.watch("smsEnabled") && (
+                  <div className="p-3 bg-slate-50 rounded-lg">
+                    <Label className="text-sm font-medium mb-3 block">Notification Types</Label>
+                    <div className="space-y-2">
+                      {[
+                        { value: 'emergency', label: 'Emergency Alerts', description: 'Critical and urgent notifications' },
+                        { value: 'schedule', label: 'Schedule Changes', description: 'Shift updates and schedule modifications' },
+                        { value: 'announcements', label: 'Announcements', description: 'Team announcements and updates' },
+                        { value: 'reminders', label: 'Reminders', description: 'Task and appointment reminders' },
+                      ].map((type) => (
+                        <div key={type.value} className="flex items-start space-x-2">
+                          <input
+                            type="checkbox"
+                            id={`sms-type-${type.value}`}
+                            checked={(editForm.watch("smsNotificationTypes") || []).includes(type.value)}
+                            onChange={(e) => {
+                              const currentTypes = editForm.watch("smsNotificationTypes") || [];
+                              if (e.target.checked) {
+                                editForm.setValue("smsNotificationTypes", [...currentTypes, type.value]);
+                              } else {
+                                editForm.setValue("smsNotificationTypes", currentTypes.filter(t => t !== type.value));
+                              }
+                            }}
+                            className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            data-testid={`checkbox-sms-${type.value}`}
+                          />
+                          <div className="flex-1">
+                            <Label htmlFor={`sms-type-${type.value}`} className="text-sm font-normal cursor-pointer">
+                              {type.label}
+                            </Label>
+                            <p className="text-xs text-slate-500">{type.description}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {!editForm.watch("smsConsent") && (
+                  <div className="text-xs text-slate-500 italic p-3 bg-amber-50 border border-amber-200 rounded">
+                    ⚠️ SMS consent must be enabled before employee can receive notifications
+                  </div>
+                )}
+              </div>
+
+              {/* SMS Consent History */}
+              {selectedEmployee && (
+                <SMSConsentHistoryComponent employeeId={selectedEmployee.id} />
+              )}
             </div>
           </TabsContent>
         </Tabs>
