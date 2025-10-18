@@ -186,7 +186,6 @@ import {
   type VideoAsset,
   type InsertVideoAsset,
   // Phase 3: Enhanced Messaging
-  readReceipts,
   voiceMessages,
   messageTemplates,
   type MessageReaction,
@@ -256,8 +255,6 @@ import {
   // Order Management Types
   type Merchant,
   type InsertMerchant,
-  type PosLocation,
-  type InsertPosLocation,
   type Item,
   type InsertItem,
   type Order,
