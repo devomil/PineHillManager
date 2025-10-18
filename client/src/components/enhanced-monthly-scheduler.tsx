@@ -972,16 +972,10 @@ export default function EnhancedMonthlyScheduler() {
               {/* Status Message */}
               {(() => {
                 const today = format(new Date(), 'yyyy-MM-dd');
-                console.log('[FRONTEND DEBUG] Today:', today);
-                console.log('[FRONTEND DEBUG] Schedules array:', schedules);
-                console.log('[FRONTEND DEBUG] Schedules count:', schedules.length);
-                console.log('[FRONTEND DEBUG] Schedules dates:', schedules.map((s: any) => s.date));
                 const todaySchedules = schedules.filter((s: WorkSchedule) => s.date === today);
-                console.log('[FRONTEND DEBUG] Today schedules after filter:', todaySchedules);
-                console.log('[FRONTEND DEBUG] Time off array:', approvedTimeOff);
-                console.log('[FRONTEND DEBUG] Time off dates:', approvedTimeOff.map((t: any) => ({ start: t.startDate, end: t.endDate })));
-                const todayTimeOff = approvedTimeOff.filter((t: any) => t.startDate === today);
-                console.log('[FRONTEND DEBUG] Today time off after filter:', todayTimeOff);
+                const todayTimeOff = approvedTimeOff.filter((t: any) => 
+                  t.startDate === today && t.userId === user?.id
+                );
                 
                 if (todayTimeOff.length > 0) {
                   return (
