@@ -489,11 +489,11 @@ export class SMSTestingFramework {
    */
   generateTestReport(): string {
     let report = '\n📋 SMS Testing Framework - Comprehensive Report\n';
-    report += '=' * 60 + '\n\n';
+    report += '='.repeat(60) + '\n\n';
 
-    for (const [suiteName, results] of this.testResults.entries()) {
+    for (const [suiteName, results] of Array.from(this.testResults.entries())) {
       report += `📦 ${suiteName}\n`;
-      report += '-' * 40 + '\n';
+      report += '-'.repeat(40) + '\n';
 
       for (const result of results) {
         const status = result.passed ? '✅ PASS' : '❌ FAIL';
@@ -508,7 +508,7 @@ export class SMSTestingFramework {
     const failedTests = totalTests - passedTests;
 
     report += '📊 Summary\n';
-    report += '-' * 20 + '\n';
+    report += '-'.repeat(20) + '\n';
     report += `Total Tests: ${totalTests}\n`;
     report += `Passed: ${passedTests} (${((passedTests / totalTests) * 100).toFixed(1)}%)\n`;
     report += `Failed: ${failedTests} (${((failedTests / totalTests) * 100).toFixed(1)}%)\n\n`;

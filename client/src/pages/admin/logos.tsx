@@ -59,9 +59,7 @@ export default function LogosPage() {
 
   const deleteMutation = useMutation({
     mutationFn: async (logoId: number) => {
-      await apiRequest(`/api/admin/logos/${logoId}`, {
-        method: "DELETE",
-      });
+      await apiRequest("DELETE", `/api/admin/logos/${logoId}`);
     },
     onSuccess: () => {
       toast({
@@ -81,10 +79,7 @@ export default function LogosPage() {
 
   const toggleActiveMutation = useMutation({
     mutationFn: async ({ logoId, isActive }: { logoId: number; isActive: boolean }) => {
-      await apiRequest(`/api/admin/logos/${logoId}/toggle`, {
-        method: "PATCH",
-        body: JSON.stringify({ isActive }),
-      });
+      await apiRequest("PATCH", `/api/admin/logos/${logoId}/toggle`, { isActive });
     },
     onSuccess: () => {
       toast({

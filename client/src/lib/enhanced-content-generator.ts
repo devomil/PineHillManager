@@ -228,6 +228,6 @@ ${content.callToAction}. Your health deserves the best.
       ...content,
       voiceoverScript: this.generateVoiceoverScript(content, config),
       sceneNarratives: this.createSceneNarratives(content)
-    } as EnhancedVideoContent;
+    } as unknown as EnhancedVideoContent;
   }
 }

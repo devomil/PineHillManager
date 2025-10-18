@@ -165,7 +165,7 @@ export default function QrCodeHistory({ onSelectQrCode }: QrCodeHistoryProps) {
     : qrCodes.filter(qr => qr.category === selectedCategory);
 
   // Get unique categories
-  const categories = ['all', ...new Set(qrCodes.map(qr => qr.category).filter(Boolean))];
+  const categories = ['all', ...Array.from(new Set(qrCodes.map(qr => qr.category).filter(Boolean)))];
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -216,8 +216,8 @@ export default function QrCodeHistory({ onSelectQrCode }: QrCodeHistoryProps) {
               </SelectTrigger>
               <SelectContent>
                 {categories.map(category => (
-                  <SelectItem key={category} value={category}>
-                    {category === 'all' ? 'All Categories' : category}
+                  <SelectItem key={category || 'unknown'} value={category || 'unknown'}>
+                    {category === 'all' ? 'All Categories' : (category || 'Unknown')}
                   </SelectItem>
                 ))}
               </SelectContent>

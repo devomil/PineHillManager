@@ -192,7 +192,7 @@ export default function EmployeeRoster() {
                 className="flex items-center justify-between p-4 border rounded-lg hover:bg-slate-50"
               >
                 <div className="flex items-center space-x-4">
-                  <UserAvatar user={employee} size="md" />
+                  <UserAvatar user={employee as any} size="md" />
                   <div>
                     <div className="font-medium">
                       {employee.firstName && employee.lastName

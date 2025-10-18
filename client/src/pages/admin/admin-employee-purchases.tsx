@@ -52,12 +52,7 @@ export default function AdminEmployeePurchases() {
   // Update employee purchase settings mutation
   const updateSettingsMutation = useMutation({
     mutationFn: async (data: { userId: string; settings: any }) => {
-      const res = await apiRequest(`/api/admin/employee-purchases/users/${data.userId}`, {
-        method: 'PUT',
-        body: JSON.stringify(data.settings),
-        headers: { 'Content-Type': 'application/json' }
-      });
-      return res;
+      return await apiRequest('PUT', `/api/admin/employee-purchases/users/${data.userId}`, data.settings);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/employee-purchases/users'] });

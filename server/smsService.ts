@@ -11,7 +11,7 @@ class SMSService {
   private initializeTwilio() {
     const accountSid = process.env.TWILIO_ACCOUNT_SID;
     const authToken = process.env.TWILIO_AUTH_TOKEN;
-    this.fromPhoneNumber = process.env.TWILIO_PHONE_NUMBER;
+    this.fromPhoneNumber = process.env.TWILIO_PHONE_NUMBER || null;
 
     if (accountSid && authToken && this.fromPhoneNumber) {
       this.client = twilio(accountSid, authToken);

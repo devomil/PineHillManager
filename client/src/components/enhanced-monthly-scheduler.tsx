@@ -958,7 +958,7 @@ export default function EnhancedMonthlyScheduler() {
               {/* Greeting */}
               <div className="flex items-center gap-4">
                 <UserAvatar 
-                  user={user} 
+                  user={user as any} 
                   size="lg"
                 />
                 <div>

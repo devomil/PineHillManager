@@ -190,7 +190,7 @@ export class ProfessionalImageryService {
     };
 
     // Add premium authentication if available
-    if (this.applicationId && this.secretKey) {
+    if (this.applicationId) {
       console.log('Using premium Unsplash credentials for enhanced search');
       // Additional headers for premium access could be added here
     }

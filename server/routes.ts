@@ -5534,7 +5534,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { messageId } = req.params;
       const userId = req.user.id;
 
-      const receipt = await storage.markMessageAsRead(parseInt(messageId));
+      const receipt = await storage.markMessageAsRead(parseInt(messageId), userId);
       res.json(receipt);
     } catch (error) {
       console.error("Error marking message as read:", error);
@@ -8243,7 +8243,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       // Fetch from Clover only if not filtering for Amazon exclusively
-      let dbResult = { orders: [], total: 0, hasMore: false };
+      let dbResult: { orders: any[], total: number, hasMore: boolean } = { orders: [], total: 0, hasMore: false };
       let allCloverOrdersForTotals: any[] = []; // For accurate aggregated totals
       
       if (!locationType || locationType === 'clover') {
@@ -8266,7 +8266,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             limit: 10000, // High limit to get all orders
             offset: 0
           });
-          allCloverOrdersForTotals = allOrdersResult.orders;
+          allCloverOrdersForTotals = allOrdersResult.orders as any[];
           console.log(`📊 [ALL LOCATIONS] Fetched ${allCloverOrdersForTotals.length} Clover orders for totals calculation`);
         }
         
@@ -8458,7 +8458,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const amazonOrdersWithMetrics = await Promise.all(amazonOrders.map(async (order: any) => {
         try {
           // Calculate financial metrics for Amazon orders (including COGS)
-          const metrics = await storage.calculateOrderFinancialMetrics(order);
+          const metrics = await storage.calculateOrderFinancialMetrics(order, order.locationId || 0);
           return {
             ...order,
             ...metrics,
@@ -9966,7 +9966,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           light: '#FFFFFF'
         },
         width: 256
-      });
+      } as any);
 
       // Save to history if requested
       let savedQrCode = null;
@@ -10072,7 +10072,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             light: '#FFFFFF'
           },
           width: 256
-        });
+        } as any);
 
         updateData.qrCodeData = qrCodeDataUrl;
       }
@@ -10832,7 +10832,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         matchedBySku: 0,
         matchedBySkuLocation: 0,
         matchedByNameLocation: 0,
-        matchedByName: 0
+        matchedByName: 0,
+        matchedByBarcode: 0
       };
 
       // Helper function to normalize SKU for comparison
@@ -11621,7 +11622,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.updateUnmatchedThriveItem(thriveItem.id, {
         status: 'matched', 
         matchedItemId: cloverItem.id,
-        notes: `Manually matched to ${cloverItem.name} (ID: ${cloverItem.id})`
+        notes: `Manually matched to ${cloverItem.itemName} (ID: ${cloverItem.id})`
       });
 
       res.json({
@@ -14287,10 +14288,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: 'You are not a member of this channel' });
       }
 
-      const messages = await storage.getChannelMessages(parseInt(channelId), {
-        limit: typeof limit === 'string' ? parseInt(limit) : 50,
-        offset: typeof offset === 'string' ? parseInt(offset) : 0
-      });
+      const messages = await storage.getChannelMessages(channelId, typeof limit === 'string' ? parseInt(limit) : 50);
 
       res.json(messages);
 
@@ -14736,7 +14734,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(401).json({ message: 'Authentication required' });
         }
         const { status, limit, offset } = req.validatedQuery;
-        const periods = await storage.getPayrollPeriods(status, limit, offset);
+        const periods = await storage.getPayrollPeriods(status);
         
         payrollLogger.info('Payroll periods retrieved', {
           userId: req.user.id,
@@ -15120,13 +15118,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const userId = req.params.userId;
         const { limit, offset, startDate, endDate } = req.validatedQuery;
 
-        const history = await storage.getEmployeePayHistory(
-          userId, 
-          limit,
-          offset,
-          startDate,
-          endDate
-        );
+        const history = await storage.getEmployeePayHistory(userId, limit);
         
         payrollLogger.info('Employee pay history retrieved', {
           requestingUserId: req.user.id,

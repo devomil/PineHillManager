@@ -11,7 +11,6 @@ export interface PushNotificationData {
   badge?: string;
   tag?: string;
   data?: any;
-  actions?: NotificationAction[];
 }
 
 export class NotificationService {
@@ -127,9 +126,7 @@ export class NotificationService {
       badge: data.badge || '/favicon.ico',
       tag: data.tag,
       data: data.data,
-      actions: data.actions,
-      requireInteraction: true,
-      vibrate: [200, 100, 200]
+      requireInteraction: true
     });
   }
 

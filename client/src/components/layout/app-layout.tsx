@@ -93,7 +93,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
               {/* User Profile */}
               <div className="flex items-center space-x-3">
-                <UserAvatar user={user} size="md" />
+                <UserAvatar user={user as any} size="md" />
                 <div className="hidden md:block">
                   <p className="text-sm font-medium text-slate-900">
                     {user?.firstName} {user?.lastName}

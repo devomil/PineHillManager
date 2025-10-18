@@ -276,8 +276,8 @@ export class ProfessionalVoiceoverService {
       console.error('ERROR: Non-string passed to optimizeScriptForVoiceover:', script);
       // Convert object to string if possible
       if (script && typeof script === 'object') {
-        if (script.toString && typeof script.toString === 'function') {
-          script = script.toString();
+        if ((script as any).toString && typeof (script as any).toString === 'function') {
+          script = (script as any).toString();
         } else {
           script = JSON.stringify(script);
         }

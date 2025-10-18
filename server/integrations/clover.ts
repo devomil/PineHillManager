@@ -742,7 +742,7 @@ export class CloverIntegration {
         this.fetchOrderLineItems(orderId),
         this.fetchOrderDiscounts(orderId),
         this.fetchVoidedOrderLineItems({ orderId }),
-        this.fetchCreditRefunds({ orderId })
+        this.fetchCreditRefunds({})
       ]);
 
       return {

@@ -207,7 +207,7 @@ export default function UserProfile() {
           <div className="flex items-center space-x-4">
             <div className="relative group">
               <UserAvatar 
-                user={user} 
+                user={user as any} 
                 size="lg"
                 className="w-16 h-16"
               />

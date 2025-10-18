@@ -2,9 +2,9 @@ import twilio from 'twilio';
 import { storage } from './storage';
 
 // Environment variables for Twilio configuration
-const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID!;
-const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN!;
-const TWILIO_PHONE_NUMBER = process.env.TWILIO_PHONE_NUMBER!;
+const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID || null;
+const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN || null;
+const TWILIO_PHONE_NUMBER = process.env.TWILIO_PHONE_NUMBER || null;
 
 // Check Twilio configuration
 let client: any = null;
@@ -18,7 +18,7 @@ try {
       console.warn('Please check your Twilio credentials configuration.');
       twilioConfigured = false;
     } else {
-      client = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
+      client = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN) || null;
       twilioConfigured = true;
       console.log('✅ Twilio SMS service configured successfully');
     }
@@ -67,9 +67,11 @@ export class SMSService {
 
   constructor() {
     // Format phone number to E.164 format (+1XXXXXXXXXX)
-    this.fromPhoneNumber = TWILIO_PHONE_NUMBER.startsWith('+') 
-      ? TWILIO_PHONE_NUMBER 
-      : `+1${TWILIO_PHONE_NUMBER.replace(/\D/g, '')}`;
+    this.fromPhoneNumber = TWILIO_PHONE_NUMBER 
+      ? (TWILIO_PHONE_NUMBER.startsWith('+') 
+        ? TWILIO_PHONE_NUMBER 
+        : `+1${TWILIO_PHONE_NUMBER.replace(/\D/g, '')}`)
+      : '';
     
     console.log(`SMS Service initialized with phone number: ${this.fromPhoneNumber}`);
     
