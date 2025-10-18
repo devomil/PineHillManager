@@ -134,7 +134,7 @@ export class AmazonIntegration {
           console.log(`✅ Token refreshed successfully, retrying request...`);
         } catch (refreshError) {
           console.error(`❌ Token refresh failed:`, refreshError);
-          throw new Error(`Failed to refresh Amazon token: ${refreshError.message}`);
+          throw new Error(`Failed to refresh Amazon token: ${refreshError instanceof Error ? refreshError.message : String(refreshError)}`);
         }
         
         const retryFetchOptions: RequestInit = {
@@ -250,7 +250,7 @@ export class AmazonIntegration {
       return result;
     } catch (error) {
       // If we hit rate limits, return cached data if available (even if expired)
-      if (cached && error.message.includes('429')) {
+      if (cached && error instanceof Error && error.message.includes('429')) {
         console.log(`Amazon API: Rate limited, using stale cache for ${cacheKey}`);
         return cached.data;
       }
@@ -346,7 +346,7 @@ export class AmazonIntegration {
     } catch (error) {
       console.error(`❌ [AMAZON FEES] Failed to fetch fees for SKU ${sku}:`, error);
       // Return zero fees on error to avoid breaking the order processing
-      return { totalFees: 0, feeDetails: [], error: error.message };
+      return { totalFees: 0, feeDetails: [], error: error instanceof Error ? error.message : String(error) };
     }
   }
 
@@ -397,7 +397,7 @@ export class AmazonIntegration {
       return { totalFees: 0, feeDetails: [], timeOfEstimation: null };
     } catch (error) {
       console.error(`❌ [AMAZON FEES] Failed to fetch fees for ASIN ${asin}:`, error);
-      return { totalFees: 0, feeDetails: [], error: error.message };
+      return { totalFees: 0, feeDetails: [], error: error instanceof Error ? error.message : String(error) };
     }
   }
 

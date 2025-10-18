@@ -65,7 +65,7 @@ export class HSAIntegration {
         throw new Error('HSA provider not configured');
       }
 
-      const url = `${config.baseUrl}/${endpoint}`;
+      const url = `${config.apiEndpoint || this.config.baseUrl}/${endpoint}`;
       
       const response = await fetch(url, {
         method,
@@ -109,20 +109,18 @@ export class HSAIntegration {
         }
 
         const expenseData = {
-          externalId: transaction.id,
+          hsaSystemId: transaction.id,
           employeeId: transaction.memberId, // Map to employee
-          expenseDate: new Date(transaction.date),
+          expenseDate: transaction.date,
           amount: transaction.amount.toString(),
           description: transaction.description,
           category: transaction.category,
-          merchantName: transaction.merchantName,
-          receiptRequired: transaction.receiptRequired,
+          receiptUrl: null,
           status: transaction.status,
-          isEligible: true,
-          source: 'hsa' as const
+          isEligible: true
         };
 
-        await storage.upsertHsaExpense(expenseData);
+        await storage.createHsaExpense(expenseData);
 
         // Create financial transaction for accounting
         await this.createFinancialTransactionForHSAExpense(expenseData);
@@ -130,20 +128,18 @@ export class HSAIntegration {
 
       // Log successful sync
       await storage.createIntegrationLog({
-        integration: 'hsa',
+        system: 'hsa',
         operation: 'sync_expenses',
         status: 'success',
-        details: `Synced ${transactions.length} HSA eligible expenses`,
-        timestamp: new Date()
+        message: `Synced ${transactions.length} HSA eligible expenses`
       });
 
     } catch (error) {
       await storage.createIntegrationLog({
-        integration: 'hsa',
+        system: 'hsa',
         operation: 'sync_expenses',
         status: 'error',
-        details: error instanceof Error ? error.message : 'Unknown error',
-        timestamp: new Date()
+        message: error instanceof Error ? error.message : 'Unknown error'
       });
       throw error;
     }
@@ -161,11 +157,13 @@ export class HSAIntegration {
       }
 
       const transactionData = {
-        transactionDate: expense.expenseDate,
+        transactionDate: typeof expense.expenseDate === 'string' ? expense.expenseDate : expense.expenseDate.toISOString().split('T')[0],
+        transactionType: 'HSA Expense',
         description: `HSA Expense: ${expense.description}`,
-        reference: expense.externalId,
+        referenceNumber: expense.hsaSystemId || '',
         totalAmount: expense.amount,
-        source: 'hsa' as const
+        sourceSystem: 'hsa',
+        sourceId: expense.hsaSystemId || undefined
       };
 
       const transaction = await storage.createFinancialTransaction(transactionData);
@@ -223,14 +221,13 @@ export class HSAIntegration {
       // Store the expense for review/processing
       const hsaExpenseData = {
         employeeId: expenseData.employeeId,
-        expenseDate: new Date(),
+        expenseDate: new Date().toISOString().split('T')[0],
         amount: expenseData.amount.toString(),
         description: expenseData.description,
         category: expenseData.category,
-        receiptRequired: expenseData.amount > 100, // Require receipts over $100
-        status: 'pending' as const,
-        isEligible: true,
-        source: 'manual' as const
+        receiptUrl: expenseData.receiptFile || null,
+        status: 'pending',
+        isEligible: true
       };
 
       await storage.createHsaExpense(hsaExpenseData);
@@ -251,8 +248,8 @@ export class HSAIntegration {
   // Generate HSA compliance reports
   async generateComplianceReport(year: number): Promise<any> {
     try {
-      const startDate = new Date(year, 0, 1);
-      const endDate = new Date(year, 11, 31);
+      const startDate = `${year}-01-01`;
+      const endDate = `${year}-12-31`;
 
       const expenses = await storage.getHsaExpensesByDateRange(startDate, endDate);
       
@@ -284,7 +281,7 @@ export class HSAIntegration {
         report.byCategory[expense.category] += amount;
 
         // Check for compliance issues
-        if (expense.receiptRequired && !expense.receiptPath) {
+        if (amount > 100 && !expense.receiptUrl) {
           report.complianceIssues.push(`Missing receipt for expense: ${expense.description}`);
         }
       }
@@ -319,8 +316,7 @@ export class HSAIntegration {
     const config = await storage.getHsaConfig();
     if (config) {
       this.config.apiKey = config.apiKey || '';
-      this.config.apiSecret = config.apiSecret || '';
-      this.config.baseUrl = config.baseUrl || '';
+      this.config.baseUrl = config.apiEndpoint || '';
     }
   }
 
@@ -337,7 +333,8 @@ export class HSAIntegration {
   // Submit expense for HSA reimbursement
   async submitExpenseForReimbursement(expenseId: number): Promise<{ success: boolean; message: string }> {
     try {
-      const expense = await storage.getHsaExpense(expenseId);
+      const allExpenses = await storage.getAllHsaExpenses();
+      const expense = allExpenses.find(e => e.id === expenseId);
       if (!expense) {
         throw new Error('Expense not found');
       }
@@ -353,13 +350,13 @@ export class HSAIntegration {
         description: expense.description,
         category: expense.category,
         date: expense.expenseDate,
-        receiptData: expense.receiptPath ? 'attached' : null
+        receiptData: expense.receiptUrl ? 'attached' : null
       };
 
       const response = await this.makeHSAAPICall('reimbursements', 'POST', submissionData);
 
       // Update expense status
-      await storage.updateHsaExpenseStatus(expenseId, 'approved');
+      await storage.updateHsaExpense(expenseId, { status: 'approved' });
 
       return {
         success: true,

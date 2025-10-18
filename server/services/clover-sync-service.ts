@@ -241,7 +241,7 @@ export class CloverSyncService {
       console.log(`🔧 Configuring Clover integration for merchant: ${merchantConfig.merchantName}`);
       this.cloverIntegration.setConfig({
         merchantId: merchantConfig.merchantId,
-        accessToken: merchantConfig.apiToken,
+        accessToken: merchantConfig.apiToken || '',
         baseUrl: merchantConfig.baseUrl || 'https://api.clover.com'
       });
 
@@ -302,7 +302,7 @@ export class CloverSyncService {
           
           try {
             console.log(`📦 Processing order ${order.id} for merchant ${merchantConfig.merchantName}`);
-            const processResult = await this.processOrder(order, merchantDbId, merchantConfig);
+            const processResult = await this.processOrder(order as any, merchantDbId, merchantConfig);
             
             // ARCHITECT'S FIX: Validate return value before counting as processed
             if (!processResult || (processResult.op !== 'created' && processResult.op !== 'updated')) {
@@ -327,11 +327,19 @@ export class CloverSyncService {
             }
             
             // Count line items and payments processed
-            if (order.lineItems?.elements) {
-              result.lineItemsProcessed += order.lineItems.elements.length;
+            if (order.lineItems) {
+              if (Array.isArray(order.lineItems)) {
+                result.lineItemsProcessed += (order.lineItems as any).length;
+              } else if ((order.lineItems as any).elements) {
+                result.lineItemsProcessed += (order.lineItems as any).elements.length;
+              }
             }
-            if (order.payments?.elements) {
-              result.paymentsProcessed += order.payments.elements.length;
+            if (order.payments) {
+              if (Array.isArray(order.payments)) {
+                result.paymentsProcessed += (order.payments as any).length;
+              } else if ((order.payments as any).elements) {
+                result.paymentsProcessed += (order.payments as any).elements.length;
+              }
             }
             
           } catch (orderError) {
@@ -374,8 +382,7 @@ export class CloverSyncService {
           lastModifiedMs: maxModifiedTime.toString(),
           lastSyncAt: new Date(),
           lastSuccessAt: new Date(),
-          errorCount: 0,
-          nextSyncCursor: maxModifiedTime.toString()
+          errorCount: 0
         });
       }
 
@@ -504,8 +511,7 @@ export class CloverSyncService {
       orderType: 'sale',
       orderSource: 'in_store',
       employeeId: cloverOrder.employee?.id || null,
-      note: cloverOrder.note || null,
-      testMode: cloverOrder.testMode || false
+      notes: cloverOrder.note || null
     };
 
     // Use atomic upsert instead of check-then-create/update pattern
@@ -600,17 +606,15 @@ export class CloverSyncService {
         const lineItemData: InsertOrderLineItem = {
           orderId,
           externalLineItemId: lineItem.id,
-          itemId: lineItem.item?.id || null,
+          itemId: lineItem.item?.id ? Number(lineItem.item.id) : null,
           itemName: lineItem.name,
-          quantity: lineItem.unitQty || 1,
+          quantity: (lineItem.unitQty || 1).toString(),
           unitPrice: (lineItem.price / 100).toFixed(2),
-          lineTotal: ((lineItem.price * (lineItem.unitQty || 1)) / 100).toFixed(2),
+          lineSubtotal: ((lineItem.price * (lineItem.unitQty || 1)) / 100).toFixed(2),
           unitCostAtSale: unitCostAtSale,
           lineCogs: ((parseFloat(unitCostAtSale) * (lineItem.unitQty || 1))).toFixed(2),
           discountAmount: lineItem.discountAmount ? (lineItem.discountAmount / 100).toFixed(2) : '0.00',
-          isRevenue: lineItem.isRevenue !== false,
-          note: lineItem.note || null,
-          userData: lineItem.userData || null
+          notes: lineItem.note || null
         };
 
         if (existingLineItem) {
@@ -640,7 +644,7 @@ export class CloverSyncService {
         
         const paymentData: InsertPayment = {
           orderId,
-          externalPaymentId: payment.id,
+          externalPaymentId: payment.externalPaymentId || payment.id,
           amount: (payment.amount / 100).toFixed(2),
           tipAmount: payment.tipAmount ? (payment.tipAmount / 100).toFixed(2) : '0.00',
           taxAmount: payment.taxAmount ? (payment.taxAmount / 100).toFixed(2) : '0.00',
@@ -648,11 +652,9 @@ export class CloverSyncService {
           paymentMethod: payment.tender?.labelKey || payment.tender?.label || 'unknown',
           result: payment.result,
           createdTime: new Date(payment.createdTime),
-          employeeId: payment.employee?.id || null,
           cardType: payment.cardTransaction?.type || null,
-          last4: payment.cardTransaction?.last4 || null,
-          authCode: payment.cardTransaction?.authCode || null,
-          externalPaymentId: payment.externalPaymentId || null
+          cardLast4: payment.cardTransaction?.last4 || null,
+          authCode: payment.cardTransaction?.authCode || null
         };
 
         if (existingPayment) {
@@ -677,11 +679,10 @@ export class CloverSyncService {
         
         const discountData: InsertDiscount = {
           orderId,
-          externalDiscountId: discount.id,
-          name: discount.name,
+          discountName: discount.name,
           discountType: discount.discType || 'unknown',
-          percentage: discount.percentage || null,
-          amount: discount.amount ? (discount.amount / 100).toFixed(2) : '0.00'
+          discountValue: discount.percentage ? discount.percentage.toString() : null,
+          discountAmount: discount.amount ? (discount.amount / 100).toFixed(2) : '0.00'
         };
 
         if (existingDiscount) {
@@ -707,10 +708,11 @@ export class CloverSyncService {
         const refundData: InsertRefund = {
           orderId,
           externalRefundId: refund.id,
-          amount: (refund.amount / 100).toFixed(2),
+          refundAmount: (refund.amount / 100).toFixed(2),
+          refundType: 'partial',
+          refundDate: new Date(refund.createdTime).toISOString().split('T')[0],
           createdTime: new Date(refund.createdTime),
-          employeeId: refund.employee?.id || null,
-          paymentId: refund.payment?.id || null
+          originalPaymentId: refund.payment?.id ? Number(refund.payment.id) : null
         };
 
         if (existingRefund) {
@@ -752,14 +754,14 @@ export class CloverSyncService {
       const discounts = await storage.getOrderDiscounts(orderId.toString());
       let totalDiscounts = 0;
       for (const discount of discounts) {
-        totalDiscounts += parseFloat(discount.amount || '0');
+        totalDiscounts += parseFloat(discount.discountAmount || '0');
       }
 
       // Get refunds
       const refunds = await storage.getOrderRefunds(orderId);
       let totalRefunds = 0;
       for (const refund of refunds) {
-        totalRefunds += parseFloat(refund.amount || '0');
+        totalRefunds += parseFloat(refund.refundAmount || '0');
       }
 
       // Calculate gross margin
@@ -811,16 +813,9 @@ export class CloverSyncService {
    */
   private async recordItemCostHistory(itemId: string, unitCost: string, merchantDbId: number): Promise<void> {
     try {
-      const costHistoryData: InsertItemCostHistory = {
-        itemId,
-        merchantId: merchantDbId,
-        unitCost,
-        effectiveDate: new Date(),
-        source: 'sync',
-        notes: 'Recorded during order sync'
-      };
-
-      await storage.createItemCostHistory(costHistoryData);
+      // Note: Item cost history tracking not implemented yet
+      // This would require adding an itemCostHistory table to the schema
+      console.log(`📝 Would record cost history for item ${itemId}: ${unitCost}`);
     } catch (error) {
       // Don't fail the sync for cost history errors
       console.warn(`⚠️ Could not record cost history for item ${itemId}:`, error);
@@ -850,7 +845,7 @@ export class CloverSyncService {
     }
 
     // Process each date
-    for (const [dateKey, dayOrders] of ordersByDate) {
+    for (const [dateKey, dayOrders] of Array.from(ordersByDate.entries())) {
       try {
         const dailySalesData = await this.calculateDailySalesMetrics(merchantDbId, dateKey, dayOrders);
         
@@ -913,7 +908,7 @@ export class CloverSyncService {
       const refunds = await storage.getOrderRefunds(order.id);
       refundCount += refunds.length;
       for (const refund of refunds) {
-        refundAmount += parseFloat(refund.amount);
+        refundAmount += parseFloat(refund.refundAmount);
       }
     }
 
@@ -1156,7 +1151,7 @@ export class CloverSyncService {
       const syncCursor = await storage.getSyncCursor('clover', merchant.id, 'orders');
       statuses.push({
         merchantId: merchant.id,
-        merchantName: merchant.merchantName,
+        merchantName: merchant.merchantName || 'Unknown',
         lastSync: syncCursor?.lastSyncAt || null,
         status: syncCursor?.backfillState || 'none',
         errorCount: syncCursor?.errorCount || 0

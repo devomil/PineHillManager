@@ -104,13 +104,16 @@ export class QuickBooksIntegration {
       const tokens = await response.json();
       
       // Store configuration in database
-      await storage.updateQuickbooksConfig({
-        accessToken: tokens.access_token,
-        refreshToken: tokens.refresh_token,
-        realmId: realmId,
-        tokenExpiresAt: new Date(Date.now() + tokens.expires_in * 1000),
-        isActive: true
-      });
+      const existingConfig = await storage.getQuickbooksConfig(realmId);
+      if (existingConfig) {
+        await storage.updateQuickbooksConfig(existingConfig.id, {
+          accessToken: tokens.access_token,
+          refreshToken: tokens.refresh_token,
+          realmId: realmId,
+          tokenExpiry: new Date(Date.now() + tokens.expires_in * 1000),
+          isActive: true
+        });
+      }
 
       this.config.accessToken = tokens.access_token;
       this.config.refreshToken = tokens.refresh_token;
@@ -155,12 +158,15 @@ export class QuickBooksIntegration {
       const tokens = await response.json();
       
       // Update stored configuration
-      await storage.updateQuickbooksConfig({
-        accessToken: tokens.access_token,
-        refreshToken: tokens.refresh_token || this.config.refreshToken,
-        tokenExpiresAt: new Date(Date.now() + tokens.expires_in * 1000),
-        isActive: true
-      });
+      const existingConfig = await storage.getQuickbooksConfig(this.config.realmId || '');
+      if (existingConfig) {
+        await storage.updateQuickbooksConfig(existingConfig.id, {
+          accessToken: tokens.access_token,
+          refreshToken: tokens.refresh_token || this.config.refreshToken,
+          tokenExpiry: new Date(Date.now() + tokens.expires_in * 1000),
+          isActive: true
+        });
+      }
 
       this.config.accessToken = tokens.access_token;
       if (tokens.refresh_token) {
@@ -178,12 +184,12 @@ export class QuickBooksIntegration {
   private async makeQBAPICall(endpoint: string, method: 'GET' | 'POST' = 'GET', body?: any): Promise<any> {
     try {
       // Check if token needs refresh
-      const config = await storage.getQuickbooksConfig();
+      const config = await storage.getQuickbooksConfig(this.config.realmId || '');
       if (!config || !config.accessToken) {
         throw new Error('QuickBooks not configured');
       }
 
-      if (config.tokenExpiresAt && config.tokenExpiresAt < new Date()) {
+      if (config.tokenExpiry && config.tokenExpiry < new Date()) {
         await this.refreshAccessToken();
       }
 
@@ -258,19 +264,16 @@ export class QuickBooksIntegration {
 
       for (const qbCustomer of customers) {
         const customer = {
-          externalId: qbCustomer.Id,
+          qbId: qbCustomer.Id,
           name: qbCustomer.Name,
           type: 'customer' as const,
           email: qbCustomer.PrimaryEmailAddr?.Address || null,
           phone: qbCustomer.PrimaryPhone?.FreeFormNumber || null,
-          address: qbCustomer.BillAddr ? {
-            line1: qbCustomer.BillAddr.Line1,
-            city: qbCustomer.BillAddr.City,
-            state: qbCustomer.BillAddr.CountrySubDivisionCode,
-            zipCode: qbCustomer.BillAddr.PostalCode
-          } : null,
-          isActive: true,
-          source: 'quickbooks' as const
+          address: qbCustomer.BillAddr?.Line1 || null,
+          city: qbCustomer.BillAddr?.City || null,
+          state: qbCustomer.BillAddr?.CountrySubDivisionCode || null,
+          zipCode: qbCustomer.BillAddr?.PostalCode || null,
+          isActive: true
         };
 
         await storage.createCustomerVendor(customer);
@@ -282,19 +285,16 @@ export class QuickBooksIntegration {
 
       for (const qbVendor of vendors) {
         const vendor = {
-          externalId: qbVendor.Id,
+          qbId: qbVendor.Id,
           name: qbVendor.Name,
           type: 'vendor' as const,
           email: qbVendor.PrimaryEmailAddr?.Address || null,
           phone: qbVendor.PrimaryPhone?.FreeFormNumber || null,
-          address: qbVendor.BillAddr ? {
-            line1: qbVendor.BillAddr.Line1,
-            city: qbVendor.BillAddr.City,
-            state: qbVendor.BillAddr.CountrySubDivisionCode,
-            zipCode: qbVendor.BillAddr.PostalCode
-          } : null,
-          isActive: true,
-          source: 'quickbooks' as const
+          address: qbVendor.BillAddr?.Line1 || null,
+          city: qbVendor.BillAddr?.City || null,
+          state: qbVendor.BillAddr?.CountrySubDivisionCode || null,
+          zipCode: qbVendor.BillAddr?.PostalCode || null,
+          isActive: true
         };
 
         await storage.createCustomerVendor(vendor);
@@ -344,12 +344,12 @@ export class QuickBooksIntegration {
 
   // Load configuration from database
   async loadConfig(): Promise<void> {
-    const config = await storage.getQuickbooksConfig();
+    const config = await storage.getQuickbooksConfig(this.config.realmId || '');
     if (config) {
       this.config.accessToken = config.accessToken || undefined;
       this.config.refreshToken = config.refreshToken || undefined;
       this.config.realmId = config.realmId || undefined;
-      this.config.tokenExpiresAt = config.tokenExpiresAt || undefined;
+      this.config.tokenExpiresAt = config.tokenExpiry || undefined;
     }
   }
 }
