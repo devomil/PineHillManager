@@ -402,7 +402,6 @@ export default function Tasks() {
                             <Input 
                               placeholder="Task title" 
                               {...field} 
-                              value={field.value || ''} 
                               data-testid="input-task-title" 
                             />
                           </FormControl>
@@ -420,7 +419,7 @@ export default function Tasks() {
                             <Textarea 
                               placeholder="Task description" 
                               {...field} 
-                              value={field.value || ''}
+                              value={field.value ?? ''}
                               data-testid="input-task-description"
                             />
                           </FormControl>
@@ -500,7 +499,7 @@ export default function Tasks() {
                             <FormLabel>Priority</FormLabel>
                             <Select 
                               onValueChange={field.onChange} 
-                              value={field.value || "medium"}
+                              value={field.value}
                             >
                               <FormControl>
                                 <SelectTrigger data-testid="select-task-priority">
@@ -526,7 +525,7 @@ export default function Tasks() {
                             <FormLabel>Assign To</FormLabel>
                             <Select 
                               onValueChange={field.onChange} 
-                              value={field.value || undefined}
+                              value={field.value ?? undefined}
                             >
                               <FormControl>
                                 <SelectTrigger data-testid="select-task-assignee">
@@ -556,7 +555,6 @@ export default function Tasks() {
                             <Input 
                               type="datetime-local" 
                               {...field} 
-                              value={field.value || ''}
                               data-testid="input-task-due-date"
                             />
                           </FormControl>
