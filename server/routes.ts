@@ -1332,8 +1332,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }).toLowerCase().replace(' ', '');
             
             const employeeName = getEmployeeName(schedule.userId);
-            const firstName = employeeName.split(' ')[0]; // Use first name only
+            
+            // Get employee initials (e.g., "Rozalyn Wolter" -> "RW")
+            const nameParts = employeeName.split(' ');
+            const initials = nameParts.map(part => part.charAt(0).toUpperCase()).join('');
+            
             const timeRange = `${startTime}-${endTime}`;
+            const locationAbbr = getLocationAbbreviation(schedule.locationId || 1);
+            
+            // Compact one-line format: "RW 7am-2pm WTSPA"
+            const shiftText = `${initials} ${timeRange} ${locationAbbr}`;
             
             // Get vibrant color for employee
             const shiftColor = employeeColors[employeeName] || '#9CA3AF';
@@ -1342,21 +1350,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
             doc.roundedRect(x + 3, shiftY, columnWidth - 6, shiftBoxHeight, 3)
                .fill(shiftColor);
             
-            // Adaptive font sizes based on box height
-            const nameFontSize = Math.min(9, Math.max(7, Math.floor(shiftBoxHeight / 3)));
-            const timeFontSize = Math.min(8, Math.max(6, nameFontSize - 1));
+            // Adaptive font size based on box height (single line format)
+            const fontSize = Math.min(9, Math.max(7, Math.floor(shiftBoxHeight / 2.5)));
             
-            // White text on colored background
-            doc.fontSize(nameFontSize)
+            // Centered white text on colored background - all on one line
+            const textY = shiftY + (shiftBoxHeight / 2) - (fontSize / 2);
+            doc.fontSize(fontSize)
                .font('Helvetica-Bold')
                .fillColor('#FFFFFF')
-               .text(firstName, x + 6, shiftY + 2, { width: columnWidth - 12, align: 'left' });
-            
-            // Time range in white
-            doc.fontSize(timeFontSize)
-               .font('Helvetica')
-               .fillColor('#FFFFFF')
-               .text(timeRange, x + 6, shiftY + nameFontSize + 3, { width: columnWidth - 12, align: 'left' });
+               .text(shiftText, x + 6, textY, { width: columnWidth - 12, align: 'center' });
             
             shiftY += shiftBoxHeight + shiftSpacing;
           });
