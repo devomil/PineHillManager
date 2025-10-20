@@ -620,6 +620,14 @@ export default function EnhancedMonthlyScheduler() {
     return employee ? `${employee.firstName} ${employee.lastName}` : "Unknown";
   };
 
+  const getEmployeeInitials = (userId: string) => {
+    const employee = employees.find((emp: UserType) => emp.id === userId);
+    if (!employee) return "?";
+    const firstInitial = employee.firstName?.charAt(0).toUpperCase() || "";
+    const lastInitial = employee.lastName?.charAt(0).toUpperCase() || "";
+    return `${firstInitial}${lastInitial}`;
+  };
+
   const getEmployeeColor = (userId: string) => {
     const employee = employees.find((emp: UserType) => emp.id === userId);
     return employee?.displayColor || "#3b82f6";
@@ -1239,7 +1247,7 @@ export default function EnhancedMonthlyScheduler() {
                                   onClick={() => handleEditSchedule(schedule)}
                                 >
                                   <div className="font-medium text-blue-800 flex items-center justify-between">
-                                    {index === 0 ? getEmployeeName(userId) : ""}
+                                    {index === 0 ? getEmployeeInitials(userId) : ""}
                                     <Edit className="h-3 w-3" />
                                   </div>
                                   <div className="text-blue-600 text-xs">
@@ -1258,23 +1266,28 @@ export default function EnhancedMonthlyScheduler() {
                       })()}
 
                       {/* Display Time Off Requests */}
-                      {dayData.timeOff.map((timeOff: any) => (
-                        <div
-                          key={`timeoff-${timeOff.id}`}
-                          className="text-xs p-1 rounded border border-orange-200 bg-orange-50 mb-1"
-                        >
-                          <div className="font-medium text-orange-800 flex items-center gap-1">
-                            <Clock className="h-3 w-3" />
-                            {timeOff.user ? `${timeOff.user.firstName} ${timeOff.user.lastName}` : 'Time Off'}
+                      {dayData.timeOff.map((timeOff: any) => {
+                        const initials = timeOff.user 
+                          ? `${timeOff.user.firstName?.charAt(0) || ''}${timeOff.user.lastName?.charAt(0) || ''}`.toUpperCase()
+                          : 'TO';
+                        return (
+                          <div
+                            key={`timeoff-${timeOff.id}`}
+                            className="text-xs p-1 rounded border border-orange-200 bg-orange-50 mb-1"
+                          >
+                            <div className="font-medium text-orange-800 flex items-center gap-1">
+                              <Clock className="h-3 w-3" />
+                              {initials}
+                            </div>
+                            <div className="text-orange-600 text-xs">
+                              Time Off
+                              {timeOff.reason && (
+                                <span className="text-orange-500 ml-1">• {timeOff.reason}</span>
+                              )}
+                            </div>
                           </div>
-                          <div className="text-orange-600 text-xs">
-                            Time Off
-                            {timeOff.reason && (
-                              <span className="text-orange-500 ml-1">• {timeOff.reason}</span>
-                            )}
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   );
                 })}
