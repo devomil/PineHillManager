@@ -1086,15 +1086,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { month, locationId } = req.body;
       
-      // Get schedule data for the month
-      const startDate = new Date(month + '-01');
-      const endDate = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0);
+      // Calculate month boundaries (use UTC to avoid timezone issues)
+      const monthStartDate = new Date(month + '-01T00:00:00Z');
+      const monthEndDate = new Date(Date.UTC(monthStartDate.getUTCFullYear(), monthStartDate.getUTCMonth() + 1, 0));
       
+      // Calculate calendar boundaries with padding (matching UI calendar)
+      // This ensures full weeks are shown, including days from previous/next months
+      // Use UTC methods to ensure consistent week alignment across timezones
+      const firstDayOfMonth = monthStartDate.getUTCDay(); // 0 = Sunday, 6 = Saturday
+      const lastDayOfMonth = monthEndDate.getUTCDay();
+      
+      // Calendar starts on the Sunday of the week containing the 1st of the month
+      const calendarStart = new Date(monthStartDate);
+      calendarStart.setUTCDate(calendarStart.getUTCDate() - firstDayOfMonth);
+      
+      // Calendar ends on the Saturday of the week containing the last day of the month
+      const calendarEnd = new Date(monthEndDate);
+      calendarEnd.setUTCDate(calendarEnd.getUTCDate() + (6 - lastDayOfMonth));
+      
+      // Get schedule data for the full calendar range (including padding days)
       const schedules = await storage.getAllWorkSchedules();
       
-      // Filter by date range and location if specified
+      // Filter by calendar range and location if specified
       let filteredSchedules = schedules
-        .filter((s: any) => s.date >= startDate.toISOString().split('T')[0] && s.date <= endDate.toISOString().split('T')[0])
+        .filter((s: any) => s.date >= calendarStart.toISOString().split('T')[0] && s.date <= calendarEnd.toISOString().split('T')[0])
         .filter((s: any) => locationId ? s.locationId === parseInt(locationId) : true);
       
       // If user is an employee, only show their own shifts
@@ -1144,32 +1159,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return acc;
       }, {} as Record<string, any[]>);
 
-      // Get all dates in the month and organize by weeks
-      const monthStartDate = new Date(month + '-01');
-      const monthEndDate = new Date(monthStartDate.getFullYear(), monthStartDate.getMonth() + 1, 0);
+      // Generate all dates for the full calendar view (including padding days)
       const allDates: string[] = [];
-      
-      for (let d = new Date(monthStartDate); d <= monthEndDate; d.setDate(d.getDate() + 1)) {
+      for (let d = new Date(calendarStart); d <= calendarEnd; d.setDate(d.getDate() + 1)) {
         allDates.push(new Date(d).toISOString().split('T')[0]);
       }
       
-      // Organize into weeks (Sunday to Saturday)
+      // Organize into weeks (Sunday to Saturday) - now with full weeks
       const weeks: string[][] = [];
-      let currentWeek: string[] = [];
-      
-      allDates.forEach(dateStr => {
-        const date = new Date(dateStr + 'T00:00:00');
-        const dayOfWeek = date.getDay();
-        
-        if (dayOfWeek === 0 && currentWeek.length > 0) {
-          weeks.push(currentWeek);
-          currentWeek = [];
-        }
-        currentWeek.push(dateStr);
-      });
-      
-      if (currentWeek.length > 0) {
-        weeks.push(currentWeek);
+      for (let i = 0; i < allDates.length; i += 7) {
+        weeks.push(allDates.slice(i, i + 7));
       }
 
       // Extract month name and year from the month parameter
@@ -1265,30 +1264,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
       weeks.forEach((week, weekIndex) => {
         // Professional day headers with brand styling
         week.forEach((dateStr, dayIndex) => {
-          const date = new Date(dateStr + 'T00:00:00');
-          const dayName = dayNames[date.getDay()];
-          const dayNumber = date.getDate();
+          const date = new Date(dateStr + 'T00:00:00Z'); // Use UTC
+          const dayName = dayNames[date.getUTCDay()];
+          const dayNumber = date.getUTCDate();
           const x = sideMargin + (dayIndex * columnWidth);
-          const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+          const isWeekend = date.getUTCDay() === 0 || date.getUTCDay() === 6;
           const isAlternateWeek = weekIndex % 2 === 1;
           
+          // Check if this date is in the current month (not a padding day)
+          // Use UTC methods to avoid timezone issues
+          const isCurrentMonth = date.getUTCMonth() === monthStartDate.getUTCMonth() && 
+                                 date.getUTCFullYear() === monthStartDate.getUTCFullYear();
+          
           // Professional header with thin light grid lines
-          const headerBg = isAlternateWeek ? lightBg : 'white';
+          // Use lighter background for padding days
+          const headerBg = !isCurrentMonth ? '#E5E7EB' : (isAlternateWeek ? lightBg : 'white');
           doc.rect(x, currentY, columnWidth, headerHeight)
              .fill(headerBg)
              .stroke('#D3D3D3')  // Light gray for subtle grid lines
              .lineWidth(0.75);
           
           // Clean day name styling - compact but readable
+          // Use lighter text for padding days
+          const dayNameColor = !isCurrentMonth ? '#9CA3AF' : (isWeekend ? primaryColor : textColor);
           doc.fontSize(7)
              .font('Helvetica-Bold')
-             .fillColor(isWeekend ? primaryColor : textColor)
+             .fillColor(dayNameColor)
              .text(dayName, x, currentY + 1, { width: columnWidth, align: 'center' });
           
           // Date numbers - compact but clear
+          // Use lighter text for padding days
+          const dateColor = !isCurrentMonth ? '#9CA3AF' : primaryColor;
           doc.fontSize(10)
              .font('Helvetica-Bold')
-             .fillColor(primaryColor)
+             .fillColor(dateColor)
              .text(dayNumber.toString(), x, currentY + 10, { width: columnWidth, align: 'center' });
         });
 
@@ -1296,12 +1305,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         // CONSISTENT calendar cells - all same height for perfect single-page layout
         week.forEach((dateStr, dayIndex) => {
+          const date = new Date(dateStr + 'T00:00:00Z'); // Use UTC
           const daySchedules = schedulesByDate[dateStr] || [];
           const x = sideMargin + (dayIndex * columnWidth);
           const isAlternateWeek = weekIndex % 2 === 1;
           
+          // Check if this date is in the current month (not a padding day)
+          // Use UTC methods to avoid timezone issues
+          const isCurrentMonth = date.getUTCMonth() === monthStartDate.getUTCMonth() && 
+                                 date.getUTCFullYear() === monthStartDate.getUTCFullYear();
+          
           // Cell with thin light grid lines and alternating backgrounds
-          const cellBg = isAlternateWeek ? lightBg : 'white';
+          // Use lighter background for padding days
+          const cellBg = !isCurrentMonth ? '#E5E7EB' : (isAlternateWeek ? lightBg : 'white');
           doc.rect(x, currentY, columnWidth, finalCellHeight)
              .fill(cellBg)
              .stroke('#D3D3D3')  // Light gray for subtle day separation
