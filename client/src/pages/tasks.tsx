@@ -180,7 +180,7 @@ export default function Tasks() {
       dueDate: "",
       steps: [],
     },
-    mode: "onChange",
+    mode: "onSubmit",
   });
 
   const onSubmit = async (data: TaskFormData) => {
