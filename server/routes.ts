@@ -1125,6 +1125,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const employee = employees.find((e: any) => e.id === userId);
         return employee ? `${employee.firstName} ${employee.lastName}` : 'Unknown';
       };
+
+      const getEmployeeInitials = (userId: string) => {
+        const employee = employees.find((e: any) => e.id === userId);
+        if (!employee) return '?';
+        const firstInitial = employee.firstName?.charAt(0).toUpperCase() || '';
+        const lastInitial = employee.lastName?.charAt(0).toUpperCase() || '';
+        return `${firstInitial}${lastInitial}`;
+      };
+
+      const getEmployeeColor = (userId: string) => {
+        const employee = employees.find((e: any) => e.id === userId);
+        return employee?.displayColor || '#9CA3AF';
+      };
       
       const getLocationName = (locationId: number) => {
         const location = locations.find((l: any) => l.id === locationId);
@@ -1242,19 +1255,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const availableForCells = totalAvailableHeight - totalHeadersHeight;
       const cellHeight = Math.floor(availableForCells / totalWeeks); // Dynamic height based on weeks
       
-      // Employee colors exactly matching UI calendar with vibrant fills
-      const employeeColors: { [key: string]: string } = {
-        'Diane Zubke': '#C084FC',        // Purple
-        'Danielle Clark': '#A78BFA',     // Violet  
-        'Jacalyn Phillips': '#FB923C',   // Orange
-        'Rozalyn Wolter': '#34D399',     // Green
-        'Janell Gray': '#22D3EE',        // Cyan
-        'Kristi Orbeck': '#EF4444',      // Red
-        'Becca Prox': '#F472B6',         // Pink
-        'Ryan Sorensen': '#FBBF24',      // Yellow
-        'Caitlin Krueger': '#60A5FA'     // Blue
-      };
-      
       let currentY = startY;
 
       // Clean calendar grid matching UI layout
@@ -1331,11 +1331,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
               timeZone: 'America/Chicago'
             }).toLowerCase().replace(' ', '');
             
-            const employeeName = getEmployeeName(schedule.userId);
-            
             // Get employee initials (e.g., "Rozalyn Wolter" -> "RW")
-            const nameParts = employeeName.split(' ');
-            const initials = nameParts.map(part => part.charAt(0).toUpperCase()).join('');
+            const initials = getEmployeeInitials(schedule.userId);
             
             const timeRange = `${startTime}-${endTime}`;
             const locationAbbr = getLocationAbbreviation(schedule.locationId || 1);
@@ -1343,8 +1340,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             // Compact one-line format: "RW 7am-2pm WTSPA"
             const shiftText = `${initials} ${timeRange} ${locationAbbr}`;
             
-            // Get vibrant color for employee
-            const shiftColor = employeeColors[employeeName] || '#9CA3AF';
+            // Get employee color from database (warmer pastels matching UI)
+            const shiftColor = getEmployeeColor(schedule.userId);
             
             // Draw colored box (filled, matching UI exactly)
             doc.roundedRect(x + 3, shiftY, columnWidth - 6, shiftBoxHeight, 3)
