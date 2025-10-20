@@ -183,13 +183,6 @@ export default function Tasks() {
     mode: "onChange",
   });
 
-  // DEBUG: Track dialog open/close only (removed form.watch() to prevent re-render loop)
-  useEffect(() => {
-    if (isCreateDialogOpen) {
-      console.log('🔍 DIALOG OPENED');
-    }
-  }, [isCreateDialogOpen]);
-
   const onSubmit = async (data: TaskFormData) => {
     if (!user?.id) return;
     const taskData = {
@@ -424,9 +417,12 @@ export default function Tasks() {
                           <FormLabel>Description</FormLabel>
                           <FormControl>
                             <Textarea 
-                              placeholder="Task description" 
-                              {...field} 
-                              value={field.value ?? ''}
+                              placeholder="Task description"
+                              value={field.value || ''}
+                              onChange={field.onChange}
+                              onBlur={field.onBlur}
+                              name={field.name}
+                              ref={field.ref}
                               data-testid="input-task-description"
                             />
                           </FormControl>
