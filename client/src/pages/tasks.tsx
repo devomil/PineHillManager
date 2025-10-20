@@ -183,6 +183,16 @@ export default function Tasks() {
     mode: "onChange",
   });
 
+  // DEBUG: Track form values and dialog state
+  console.log('🔍 TASK FORM DEBUG:', {
+    isCreateDialogOpen,
+    formValues: form.watch(),
+    formState: form.formState,
+    taskSteps: taskSteps.length,
+    isValid: form.formState.isValid,
+    errors: form.formState.errors,
+  });
+
   const onSubmit = async (data: TaskFormData) => {
     if (!user?.id) return;
     const taskData = {
