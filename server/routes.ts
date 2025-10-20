@@ -1227,113 +1227,96 @@ export async function registerRoutes(app: Express): Promise<Server> {
            .text(`Location: ${getLocationName(parseInt(locationId))}`, 0, 78, { align: 'center', width: doc.page.width });
       }
 
-      // SINGLE-PAGE CONSTRAINT: Calculate exact dimensions to fit everything on one page
-      const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-      const startY = 110; // Reduced header space to give more cell room
-      const footerSpace = 45; // Reduced footer space for more calendar area
-      const sideMargin = 20;
-      const columnWidth = (doc.page.width - (sideMargin * 2)) / 7; // ~105px per column
-      const headerHeight = 22; // Compact but readable header
+      // Clean calendar layout matching UI design  
+      const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      const startY = 110;
+      const footerSpace = 50;
+      const sideMargin = 30;
+      const columnWidth = (doc.page.width - (sideMargin * 2)) / 7;
+      const headerHeight = 26;
       
-      // FORCE single-page layout: Calculate available space and divide evenly
+      // Calculate dynamic cell height to fit all weeks on one page
       const totalAvailableHeight = doc.page.height - startY - footerSpace;
-      const totalRows = weeks.length;
-      const totalHeadersHeight = totalRows * headerHeight;
-      const availableGridHeight = totalAvailableHeight - totalHeadersHeight;
+      const totalWeeks = weeks.length;
+      const totalHeadersHeight = totalWeeks * headerHeight;
+      const availableForCells = totalAvailableHeight - totalHeadersHeight;
+      const cellHeight = Math.floor(availableForCells / totalWeeks); // Dynamic height based on weeks
       
-      // CONSISTENT cell height for all weeks - guarantees single page
-      const consistentCellHeight = Math.floor(availableGridHeight / totalRows);
-      
-      // Ensure minimum readability while maintaining single-page constraint
-      const finalCellHeight = Math.max(consistentCellHeight, 45); // Minimum for text readability
-      
-      console.log(`📊 Single-Page PDF: ${totalRows} weeks, ${finalCellHeight}px cell height, fits in ${totalAvailableHeight}px`);
-      
-      // Employee colors exactly matching UI calendar
+      // Employee colors exactly matching UI calendar with vibrant fills
       const employeeColors: { [key: string]: string } = {
-        'Dianne Zubke': '#E879F9',        // Purple/magenta to match UI exactly
-        'Jacalyn Phillips': '#60A5FA',    // Blue to match UI exactly
-        'Danielle Clark': '#FBBF24',      // Yellow/orange to match UI exactly
-        'Rozalyn Wolter': '#34D399',      // Green to match UI exactly  
-        'Janell Gray': '#22D3EE'          // Teal to match UI exactly
+        'Diane Zubke': '#C084FC',        // Purple
+        'Danielle Clark': '#A78BFA',     // Violet  
+        'Jacalyn Phillips': '#FB923C',   // Orange
+        'Rozalyn Wolter': '#34D399',     // Green
+        'Janell Gray': '#22D3EE',        // Cyan
+        'Kristi Orbeck': '#EF4444',      // Red
+        'Becca Prox': '#F472B6',         // Pink
+        'Ryan Sorensen': '#FBBF24',      // Yellow
+        'Caitlin Krueger': '#60A5FA'     // Blue
       };
       
       let currentY = startY;
 
       // Clean calendar grid matching UI layout
       weeks.forEach((week, weekIndex) => {
-        // Professional day headers with brand styling
+        // Clean day headers
         week.forEach((dateStr, dayIndex) => {
-          const date = new Date(dateStr + 'T00:00:00Z'); // Use UTC
+          const date = new Date(dateStr + 'T00:00:00Z');
           const dayName = dayNames[date.getUTCDay()];
           const dayNumber = date.getUTCDate();
           const x = sideMargin + (dayIndex * columnWidth);
-          const isWeekend = date.getUTCDay() === 0 || date.getUTCDay() === 6;
-          const isAlternateWeek = weekIndex % 2 === 1;
           
-          // Check if this date is in the current month (not a padding day)
-          // Use UTC methods to avoid timezone issues
+          // Check if this date is in the current month
           const isCurrentMonth = date.getUTCMonth() === monthStartDate.getUTCMonth() && 
                                  date.getUTCFullYear() === monthStartDate.getUTCFullYear();
           
-          // Professional header with thin light grid lines
-          // Use lighter background for padding days
-          const headerBg = !isCurrentMonth ? '#E5E7EB' : (isAlternateWeek ? lightBg : 'white');
+          // Simple white background with grid
           doc.rect(x, currentY, columnWidth, headerHeight)
-             .fill(headerBg)
-             .stroke('#D3D3D3')  // Light gray for subtle grid lines
-             .lineWidth(0.75);
+             .fillAndStroke('white', '#E5E7EB')
+             .lineWidth(1);
           
-          // Clean day name styling - compact but readable
-          // Use lighter text for padding days
-          const dayNameColor = !isCurrentMonth ? '#9CA3AF' : (isWeekend ? primaryColor : textColor);
-          doc.fontSize(7)
-             .font('Helvetica-Bold')
-             .fillColor(dayNameColor)
-             .text(dayName, x, currentY + 1, { width: columnWidth, align: 'center' });
-          
-          // Date numbers - compact but clear
-          // Use lighter text for padding days
-          const dateColor = !isCurrentMonth ? '#9CA3AF' : primaryColor;
+          // Day name
+          const textColor = isCurrentMonth ? '#374151' : '#9CA3AF';
           doc.fontSize(10)
              .font('Helvetica-Bold')
-             .fillColor(dateColor)
-             .text(dayNumber.toString(), x, currentY + 10, { width: columnWidth, align: 'center' });
+             .fillColor(textColor)
+             .text(dayName, x, currentY + 4, { width: columnWidth, align: 'center' });
+          
+          // Date number
+          doc.fontSize(12)
+             .font('Helvetica-Bold')
+             .fillColor(textColor)
+             .text(dayNumber.toString(), x, currentY + 15, { width: columnWidth, align: 'center' });
         });
 
         currentY += headerHeight;
 
-        // CONSISTENT calendar cells - all same height for perfect single-page layout
+        // Calendar cells with colored shift boxes
         week.forEach((dateStr, dayIndex) => {
-          const date = new Date(dateStr + 'T00:00:00Z'); // Use UTC
+          const date = new Date(dateStr + 'T00:00:00Z');
           const daySchedules = schedulesByDate[dateStr] || [];
           const x = sideMargin + (dayIndex * columnWidth);
-          const isAlternateWeek = weekIndex % 2 === 1;
           
-          // Check if this date is in the current month (not a padding day)
-          // Use UTC methods to avoid timezone issues
+          // Check if this date is in the current month
           const isCurrentMonth = date.getUTCMonth() === monthStartDate.getUTCMonth() && 
                                  date.getUTCFullYear() === monthStartDate.getUTCFullYear();
           
-          // Cell with thin light grid lines and alternating backgrounds
-          // Use lighter background for padding days
-          const cellBg = !isCurrentMonth ? '#E5E7EB' : (isAlternateWeek ? lightBg : 'white');
-          doc.rect(x, currentY, columnWidth, finalCellHeight)
-             .fill(cellBg)
-             .stroke('#D3D3D3')  // Light gray for subtle day separation
-             .lineWidth(0.75);
+          // White cell background with grid
+          doc.rect(x, currentY, columnWidth, cellHeight)
+             .fillAndStroke('white', '#E5E7EB')
+             .lineWidth(1);
           
-          // SMART shift rendering - PRINT-FRIENDLY with high contrast
-          const availableShiftSpace = finalCellHeight - 8;
-          const shiftHeight = Math.min(20, Math.floor(availableShiftSpace / Math.max(daySchedules.length, 1)));
-          const fontSize = Math.min(9, Math.max(7, shiftHeight - 6)); // Larger fonts: 7-9pt
-          const timeFont = Math.min(8, Math.max(6, fontSize - 1)); // Larger time: 6-8pt
-          
+          // Render shifts as colored boxes matching UI with adaptive sizing
           let shiftY = currentY + 4;
+          const maxShifts = Math.max(daySchedules.length, 1);
+          const availableShiftSpace = cellHeight - 8;
+          const shiftBoxHeight = Math.min(24, Math.floor(availableShiftSpace / maxShifts) - 3);
+          const shiftSpacing = 3;
+          
           daySchedules.forEach((schedule: any, shiftIndex: number) => {
-            if (shiftY + shiftHeight > currentY + finalCellHeight - 2) return;
+            if (shiftY + shiftBoxHeight > currentY + cellHeight - 4) return; // Don't overflow cell
             
-            // 12-hour format
+            // Format times in 12-hour format
             const startTime = new Date(schedule.startTime).toLocaleString('en-US', {
               hour: 'numeric',
               minute: '2-digit',
@@ -1349,34 +1332,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }).toLowerCase().replace(' ', '');
             
             const employeeName = getEmployeeName(schedule.userId);
+            const firstName = employeeName.split(' ')[0]; // Use first name only
             const timeRange = `${startTime}-${endTime}`;
-            const locationName = getLocationAbbreviation(schedule.locationId || 1);
             
-            // PRINT-FRIENDLY: Dark borders with light fill for better printing
-            const uiColor = employeeColors[employeeName] || '#CCCCCC';
+            // Get vibrant color for employee
+            const shiftColor = employeeColors[employeeName] || '#9CA3AF';
             
-            // Light pastel background for printing
-            doc.roundedRect(x + 3, shiftY, columnWidth - 6, shiftHeight, 3)
-               .fillAndStroke('#F5F5F5', uiColor) // Light gray fill with colored border
-               .lineWidth(2); // Thick border for visibility
+            // Draw colored box (filled, matching UI exactly)
+            doc.roundedRect(x + 3, shiftY, columnWidth - 6, shiftBoxHeight, 3)
+               .fill(shiftColor);
             
-            // DARK text for maximum print contrast
-            doc.fontSize(fontSize)
+            // Adaptive font sizes based on box height
+            const nameFontSize = Math.min(9, Math.max(7, Math.floor(shiftBoxHeight / 3)));
+            const timeFontSize = Math.min(8, Math.max(6, nameFontSize - 1));
+            
+            // White text on colored background
+            doc.fontSize(nameFontSize)
                .font('Helvetica-Bold')
-               .fillColor('#000000') // Black text
-               .text(employeeName, x + 6, shiftY + 2, { width: columnWidth - 12, align: 'left' });
+               .fillColor('#FFFFFF')
+               .text(firstName, x + 6, shiftY + 2, { width: columnWidth - 12, align: 'left' });
             
-            // Dark time and location text
-            doc.fontSize(timeFont)
+            // Time range in white
+            doc.fontSize(timeFontSize)
                .font('Helvetica')
-               .fillColor('#333333') // Dark gray text
-               .text(`${timeRange} • ${locationName}`, x + 6, shiftY + fontSize + 3, { width: columnWidth - 12, align: 'left' });
+               .fillColor('#FFFFFF')
+               .text(timeRange, x + 6, shiftY + nameFontSize + 3, { width: columnWidth - 12, align: 'left' });
             
-            shiftY += shiftHeight + 2;
+            shiftY += shiftBoxHeight + shiftSpacing;
           });
         });
 
-        currentY += finalCellHeight + 1; // Minimal separation between weeks
+        currentY += cellHeight;
       });
 
       // No schedules message
