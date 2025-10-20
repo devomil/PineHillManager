@@ -176,10 +176,11 @@ export default function Tasks() {
       description: "",
       status: "pending",
       priority: "medium",
-      assignedTo: undefined,
+      assignedTo: "",
       dueDate: "",
       steps: [],
     },
+    mode: "onChange",
   });
 
   const onSubmit = async (data: TaskFormData) => {
@@ -398,7 +399,12 @@ export default function Tasks() {
                         <FormItem>
                           <FormLabel>Title</FormLabel>
                           <FormControl>
-                            <Input placeholder="Task title" {...field} data-testid="input-task-title" />
+                            <Input 
+                              placeholder="Task title" 
+                              {...field} 
+                              value={field.value || ''} 
+                              data-testid="input-task-title" 
+                            />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -492,7 +498,10 @@ export default function Tasks() {
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel>Priority</FormLabel>
-                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <Select 
+                              onValueChange={field.onChange} 
+                              value={field.value || "medium"}
+                            >
                               <FormControl>
                                 <SelectTrigger data-testid="select-task-priority">
                                   <SelectValue placeholder="Select priority" />
@@ -515,13 +524,17 @@ export default function Tasks() {
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel>Assign To</FormLabel>
-                            <Select onValueChange={field.onChange} value={field.value || undefined}>
+                            <Select 
+                              onValueChange={field.onChange} 
+                              value={field.value || ""}
+                            >
                               <FormControl>
                                 <SelectTrigger data-testid="select-task-assignee">
                                   <SelectValue placeholder="Unassigned" />
                                 </SelectTrigger>
                               </FormControl>
                               <SelectContent>
+                                <SelectItem value="">Unassigned</SelectItem>
                                 {employees.map((emp) => (
                                   <SelectItem key={emp.id} value={emp.id}>
                                     {emp.firstName} {emp.lastName}
