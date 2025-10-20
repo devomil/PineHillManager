@@ -43,6 +43,306 @@ const taskFormSchema = insertTaskSchema.omit({
 type TaskFormData = z.infer<typeof taskFormSchema>;
 type TaskStep = { text: string; completed: boolean; order: number };
 
+// Separate component for Create Task Dialog to prevent re-render issues
+function CreateTaskDialog({ 
+  open, 
+  onOpenChange, 
+  userId, 
+  employees 
+}: { 
+  open: boolean; 
+  onOpenChange: (open: boolean) => void; 
+  userId: string;
+  employees: User[];
+}) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [taskSteps, setTaskSteps] = useState<TaskStep[]>([]);
+  const [newStepText, setNewStepText] = useState("");
+
+  const form = useForm<TaskFormData>({
+    resolver: zodResolver(taskFormSchema),
+    defaultValues: {
+      title: "",
+      description: "",
+      status: "pending",
+      priority: "medium",
+      assignedTo: undefined,
+      dueDate: "",
+      steps: [],
+    },
+    mode: "onSubmit",
+  });
+
+  const createTaskMutation = useMutation({
+    mutationFn: async (data: TaskFormData) => {
+      return apiRequest('POST', '/api/tasks', data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks/stats/overview'] });
+      toast({ title: "Success", description: "Task created successfully" });
+      onOpenChange(false);
+      form.reset();
+      setTaskSteps([]);
+      setNewStepText("");
+    },
+    onError: (error) => {
+      console.error('Task creation error:', error);
+      toast({ title: "Error", description: "Failed to create task", variant: "destructive" });
+    },
+  });
+
+  const onSubmit = async (data: TaskFormData) => {
+    const taskData = {
+      ...data,
+      steps: taskSteps.length > 0 ? taskSteps : undefined,
+      createdBy: userId,
+    };
+    
+    try {
+      await createTaskMutation.mutateAsync(taskData);
+    } catch (error) {
+      // Error already handled in onError
+    }
+  };
+
+  const handleAddStep = () => {
+    if (!newStepText.trim()) return;
+    const newStep: TaskStep = {
+      text: newStepText,
+      completed: false,
+      order: taskSteps.length,
+    };
+    setTaskSteps([...taskSteps, newStep]);
+    setNewStepText("");
+  };
+
+  const handleRemoveStep = (index: number) => {
+    setTaskSteps(taskSteps.filter((_, i) => i !== index).map((step, i) => ({ ...step, order: i })));
+  };
+
+  const handleToggleStep = (index: number) => {
+    setTaskSteps(taskSteps.map((step, i) => 
+      i === index ? { ...step, completed: !step.completed } : step
+    ));
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogTrigger asChild>
+        <Button data-testid="button-create-task">
+          <Plus className="h-4 w-4 mr-2" />
+          Create Task
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Create New Task</DialogTitle>
+          <DialogDescription>
+            Assign a new task to an employee or yourself
+          </DialogDescription>
+        </DialogHeader>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <FormField
+              control={form.control}
+              name="title"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Title</FormLabel>
+                  <FormControl>
+                    <Input 
+                      placeholder="Task title" 
+                      {...field} 
+                      data-testid="input-task-title" 
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="description"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Description</FormLabel>
+                  <FormControl>
+                    <Textarea 
+                      placeholder="Task description"
+                      value={field.value || ''}
+                      onChange={field.onChange}
+                      onBlur={field.onBlur}
+                      name={field.name}
+                      ref={field.ref}
+                      data-testid="input-task-description"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            
+            {/* Steps Section */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <FormLabel className="flex items-center gap-2">
+                  <ListChecks className="h-4 w-4" />
+                  Steps to Complete
+                </FormLabel>
+                <span className="text-xs text-muted-foreground">
+                  {taskSteps.length} step{taskSteps.length !== 1 ? 's' : ''}
+                </span>
+              </div>
+              
+              {/* Step List */}
+              {taskSteps.length > 0 && (
+                <div className="space-y-2 p-3 bg-muted/50 rounded-md max-h-40 overflow-y-auto">
+                  {taskSteps.map((step, index) => (
+                    <div key={index} className="flex items-center gap-2 group">
+                      <Checkbox
+                        checked={step.completed}
+                        onCheckedChange={() => handleToggleStep(index)}
+                        data-testid={`checkbox-step-${index}`}
+                      />
+                      <span className={`flex-1 text-sm ${step.completed ? 'line-through text-muted-foreground' : ''}`}>
+                        {step.text}
+                      </span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleRemoveStep(index)}
+                        className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                        data-testid={`button-remove-step-${index}`}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              
+              {/* Add Step Input */}
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Add a step..."
+                  value={newStepText}
+                  onChange={(e) => setNewStepText(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddStep())}
+                  data-testid="input-new-step"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleAddStep}
+                  disabled={!newStepText.trim()}
+                  data-testid="button-add-step"
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="priority"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Priority</FormLabel>
+                    <Select 
+                      onValueChange={field.onChange} 
+                      value={field.value}
+                    >
+                      <FormControl>
+                        <SelectTrigger data-testid="select-task-priority">
+                          <SelectValue placeholder="Select priority" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="low">Low</SelectItem>
+                        <SelectItem value="medium">Medium</SelectItem>
+                        <SelectItem value="high">High</SelectItem>
+                        <SelectItem value="urgent">Urgent</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="assignedTo"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Assign To</FormLabel>
+                    <Select 
+                      onValueChange={field.onChange} 
+                      value={field.value ?? undefined}
+                    >
+                      <FormControl>
+                        <SelectTrigger data-testid="select-task-assignee">
+                          <SelectValue placeholder="Unassigned" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {employees.map((emp) => (
+                          <SelectItem key={emp.id} value={emp.id}>
+                            {emp.firstName} {emp.lastName}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+            <FormField
+              control={form.control}
+              name="dueDate"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Due Date</FormLabel>
+                  <FormControl>
+                    <Input 
+                      type="date" 
+                      {...field} 
+                      value={field.value || ''}
+                      data-testid="input-task-due-date" 
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <div className="flex justify-end gap-2 pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+                data-testid="button-cancel-task"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={createTaskMutation.isPending}
+                data-testid="button-submit-task"
+              >
+                {createTaskMutation.isPending ? "Creating..." : "Create Task"}
+              </Button>
+            </div>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function Tasks() {
   const { user, logoutMutation } = useAuth();
   const { toast } = useToast();
@@ -58,8 +358,6 @@ export default function Tasks() {
   const [showArchived, setShowArchived] = useState<boolean>(false);
   const [sortField, setSortField] = useState<string>("createdAt");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
-  const [taskSteps, setTaskSteps] = useState<TaskStep[]>([]);
-  const [newStepText, setNewStepText] = useState("");
 
   const isAdminOrManager = user?.role === 'admin' || user?.role === 'manager';
 
@@ -90,29 +388,6 @@ export default function Tasks() {
   }>({
     queryKey: ['/api/tasks/stats/overview'],
     enabled: isAdminOrManager,
-  });
-
-  // Create task mutation
-  const createTaskMutation = useMutation({
-    mutationFn: async (data: TaskFormData) => {
-      return apiRequest('POST', '/api/tasks', data);
-    },
-    onSuccess: () => {
-      // Invalidate to trigger refetch
-      queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/tasks/stats/overview'] });
-      
-      // Close dialog and show success
-      toast({ title: "Success", description: "Task created successfully" });
-      setIsCreateDialogOpen(false);
-      form.reset();
-      setTaskSteps([]);
-      setNewStepText("");
-    },
-    onError: (error) => {
-      console.error('Task creation error:', error);
-      toast({ title: "Error", description: "Failed to create task", variant: "destructive" });
-    },
   });
 
   // Update task mutation
@@ -168,57 +443,6 @@ export default function Tasks() {
       toast({ title: "Error", description: "Failed to delete task", variant: "destructive" });
     },
   });
-
-  const form = useForm<TaskFormData>({
-    resolver: zodResolver(taskFormSchema),
-    defaultValues: {
-      title: "",
-      description: "",
-      status: "pending",
-      priority: "medium",
-      assignedTo: undefined,
-      dueDate: "",
-      steps: [],
-    },
-    mode: "onSubmit",
-  });
-
-  const onSubmit = async (data: TaskFormData) => {
-    if (!user?.id) return;
-    const taskData = {
-      ...data,
-      steps: taskSteps.length > 0 ? taskSteps : undefined,
-      createdBy: user.id,
-    };
-    
-    try {
-      await createTaskMutation.mutateAsync(taskData);
-      // Mutation succeeded, onSuccess will handle refetch and cleanup
-    } catch (error) {
-      // Error already handled in onError
-    }
-  };
-
-  const handleAddStep = () => {
-    if (!newStepText.trim()) return;
-    const newStep: TaskStep = {
-      text: newStepText,
-      completed: false,
-      order: taskSteps.length,
-    };
-    setTaskSteps([...taskSteps, newStep]);
-    setNewStepText("");
-  };
-
-  const handleRemoveStep = (index: number) => {
-    setTaskSteps(taskSteps.filter((_, i) => i !== index).map((step, i) => ({ ...step, order: i })));
-  };
-
-  const handleToggleStep = (index: number) => {
-    setTaskSteps(taskSteps.map((step, i) => 
-      i === index ? { ...step, completed: !step.completed } : step
-    ));
-  };
 
   const handleStatusChange = (taskId: number, newStatus: string) => {
     updateTaskMutation.mutate({
@@ -375,209 +599,14 @@ export default function Tasks() {
             {isAdminOrManager ? "Create, assign, and manage tasks" : "View and manage your assigned tasks"}
           </p>
         </div>
-        {isAdminOrManager && (
-            <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-              <DialogTrigger asChild>
-                <Button data-testid="button-create-task">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Create Task
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-2xl">
-                <DialogHeader>
-                  <DialogTitle>Create New Task</DialogTitle>
-                  <DialogDescription>
-                    Assign a new task to an employee or yourself
-                  </DialogDescription>
-                </DialogHeader>
-                <Form {...form}>
-                  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                    <FormField
-                      control={form.control}
-                      name="title"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Title</FormLabel>
-                          <FormControl>
-                            <Input 
-                              placeholder="Task title" 
-                              {...field} 
-                              data-testid="input-task-title" 
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="description"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Description</FormLabel>
-                          <FormControl>
-                            <Textarea 
-                              placeholder="Task description"
-                              value={field.value || ''}
-                              onChange={field.onChange}
-                              onBlur={field.onBlur}
-                              name={field.name}
-                              ref={field.ref}
-                              data-testid="input-task-description"
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    
-                    {/* Steps Section */}
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <FormLabel className="flex items-center gap-2">
-                          <ListChecks className="h-4 w-4" />
-                          Steps to Complete
-                        </FormLabel>
-                        <span className="text-xs text-muted-foreground">
-                          {taskSteps.length} step{taskSteps.length !== 1 ? 's' : ''}
-                        </span>
-                      </div>
-                      
-                      {/* Step List */}
-                      {taskSteps.length > 0 && (
-                        <div className="space-y-2 p-3 bg-muted/50 rounded-md max-h-40 overflow-y-auto">
-                          {taskSteps.map((step, index) => (
-                            <div key={index} className="flex items-center gap-2 group">
-                              <Checkbox
-                                checked={step.completed}
-                                onCheckedChange={() => handleToggleStep(index)}
-                                data-testid={`checkbox-step-${index}`}
-                              />
-                              <span className={`flex-1 text-sm ${step.completed ? 'line-through text-muted-foreground' : ''}`}>
-                                {step.text}
-                              </span>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleRemoveStep(index)}
-                                className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                                data-testid={`button-remove-step-${index}`}
-                              >
-                                <X className="h-3 w-3" />
-                              </Button>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                      
-                      {/* Add Step Input */}
-                      <div className="flex gap-2">
-                        <Input
-                          placeholder="Add a step..."
-                          value={newStepText}
-                          onChange={(e) => setNewStepText(e.target.value)}
-                          onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddStep())}
-                          data-testid="input-new-step"
-                        />
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={handleAddStep}
-                          disabled={!newStepText.trim()}
-                          data-testid="button-add-step"
-                        >
-                          <Plus className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                    
-                    <div className="grid grid-cols-2 gap-4">
-                      <FormField
-                        control={form.control}
-                        name="priority"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Priority</FormLabel>
-                            <Select 
-                              onValueChange={field.onChange} 
-                              value={field.value}
-                            >
-                              <FormControl>
-                                <SelectTrigger data-testid="select-task-priority">
-                                  <SelectValue placeholder="Select priority" />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                <SelectItem value="low">Low</SelectItem>
-                                <SelectItem value="medium">Medium</SelectItem>
-                                <SelectItem value="high">High</SelectItem>
-                                <SelectItem value="urgent">Urgent</SelectItem>
-                              </SelectContent>
-                            </Select>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="assignedTo"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Assign To</FormLabel>
-                            <Select 
-                              onValueChange={field.onChange} 
-                              value={field.value ?? undefined}
-                            >
-                              <FormControl>
-                                <SelectTrigger data-testid="select-task-assignee">
-                                  <SelectValue placeholder="Unassigned" />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                {employees.map((emp) => (
-                                  <SelectItem key={emp.id} value={emp.id}>
-                                    {emp.firstName} {emp.lastName}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-                    <FormField
-                      control={form.control}
-                      name="dueDate"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Due Date</FormLabel>
-                          <FormControl>
-                            <Input 
-                              type="datetime-local" 
-                              {...field} 
-                              data-testid="input-task-due-date"
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <div className="flex justify-end gap-2 pt-4">
-                      <Button type="button" variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
-                        Cancel
-                      </Button>
-                      <Button type="submit" disabled={createTaskMutation.isPending} data-testid="button-submit-task">
-                        {createTaskMutation.isPending ? "Creating..." : "Create Task"}
-                      </Button>
-                    </div>
-                  </form>
-                </Form>
-              </DialogContent>
-            </Dialog>
-          )}
+        {isAdminOrManager && user && (
+          <CreateTaskDialog
+            open={isCreateDialogOpen}
+            onOpenChange={setIsCreateDialogOpen}
+            userId={user.id}
+            employees={employees}
+          />
+        )}
         </div>
 
         {/* Stats Cards - Admin/Manager Only */}
