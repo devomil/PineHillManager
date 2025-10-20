@@ -176,7 +176,7 @@ export default function Tasks() {
       description: "",
       status: "pending",
       priority: "medium",
-      assignedTo: "",
+      assignedTo: undefined,
       dueDate: "",
       steps: [],
     },
@@ -526,7 +526,7 @@ export default function Tasks() {
                             <FormLabel>Assign To</FormLabel>
                             <Select 
                               onValueChange={field.onChange} 
-                              value={field.value || ""}
+                              value={field.value || undefined}
                             >
                               <FormControl>
                                 <SelectTrigger data-testid="select-task-assignee">
@@ -534,7 +534,6 @@ export default function Tasks() {
                                 </SelectTrigger>
                               </FormControl>
                               <SelectContent>
-                                <SelectItem value="">Unassigned</SelectItem>
                                 {employees.map((emp) => (
                                   <SelectItem key={emp.id} value={emp.id}>
                                     {emp.firstName} {emp.lastName}
