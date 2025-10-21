@@ -13925,8 +13925,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get presigned URL for uploading to Object Storage
   app.post('/api/objects/upload', isAuthenticated, async (req, res) => {
     try {
+      const userId = req.user!.id;
       const objectStorageService = new ObjectStorageService();
-      const uploadURL = await objectStorageService.getObjectEntityUploadURL();
+      const uploadURL = await objectStorageService.getObjectEntityUploadURL(userId);
       res.json({ uploadURL });
     } catch (error) {
       console.error('Error getting upload URL:', error);
@@ -13969,9 +13970,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user!.id;
       const objectStorageService = new ObjectStorageService();
       
-      // Set ACL policy for each uploaded image
+      // Verify ownership and set ACL policy for each uploaded image
       const normalizedPaths = await Promise.all(
         imageUrls.map(async (imageUrl: string) => {
+          // Security: Verify the user owns this presigned upload before allowing ACL changes
+          const normalizedPath = objectStorageService.normalizeObjectEntityPath(imageUrl);
+          
+          if (!objectStorageService.verifyPresignedUpload(normalizedPath, userId)) {
+            throw new Error(`Unauthorized: Cannot set ACL policy for object not uploaded by this user`);
+          }
+          
           return await objectStorageService.trySetObjectEntityAclPolicy(
             imageUrl,
             {

@@ -15,7 +15,7 @@ The frontend uses React 18 with TypeScript and Vite. Radix UI provides accessibl
 - **Frontend**: React 18, TypeScript, Vite, Radix UI, Tailwind CSS, TanStack Query, Wouter.
 - **Backend**: Express.js, TypeScript, PostgreSQL with Drizzle ORM, bcrypt, session-based authentication.
 - **Database**: PostgreSQL hosted on Neon Database, Drizzle ORM for type-safe operations and migrations.
-- **Data Storage**: Local file system for document uploads.
+- **Data Storage**: Replit Object Storage (Google Cloud Storage) for announcement images with presigned URL uploads and ACL policies. Local file system for other document uploads.
 - **Communication**: Mobile-first SMS integration via Twilio API, SendGrid for email, WebSocket support for real-time features.
 - **Authentication**: Session-based, role-based access control (Admin, Manager, Employee), with employee invitation and password reset.
 

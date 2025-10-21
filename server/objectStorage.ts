@@ -40,6 +40,19 @@ export class ObjectNotFoundError extends Error {
 }
 
 // The object storage service is used to interact with the object storage service.
+// Track presigned uploads: objectId -> { userId, expiresAt }
+const presignedUploads = new Map<string, { userId: string; expiresAt: number }>();
+
+// Clean up expired presigned uploads every 5 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [objectId, data] of Array.from(presignedUploads.entries())) {
+    if (now > data.expiresAt) {
+      presignedUploads.delete(objectId);
+    }
+  }
+}, 5 * 60 * 1000);
+
 export class ObjectStorageService {
   constructor() {}
 
@@ -132,7 +145,7 @@ export class ObjectStorageService {
   }
 
   // Gets the upload URL for an object entity.
-  async getObjectEntityUploadURL(): Promise<string> {
+  async getObjectEntityUploadURL(userId: string): Promise<string> {
     const privateObjectDir = this.getPrivateObjectDir();
     if (!privateObjectDir) {
       throw new Error(
@@ -146,13 +159,46 @@ export class ObjectStorageService {
 
     const { bucketName, objectName } = parseObjectPath(fullPath);
 
+    // Track this presigned upload with userId and expiration
+    const ttlSec = 900; // 15 minutes
+    presignedUploads.set(objectId, {
+      userId,
+      expiresAt: Date.now() + ttlSec * 1000,
+    });
+
     // Sign URL for PUT method with TTL
     return signObjectURL({
       bucketName,
       objectName,
       method: "PUT",
-      ttlSec: 900,
+      ttlSec,
     });
+  }
+
+  // Verifies that the object was presigned for the given userId
+  verifyPresignedUpload(objectPath: string, userId: string): boolean {
+    // Extract objectId from path like "/objects/uploads/833e6620-718c-4287-aae8-d54a144383d5"
+    const match = objectPath.match(/\/objects\/uploads\/([a-f0-9-]+)/);
+    if (!match) {
+      return false;
+    }
+
+    const objectId = match[1];
+    const presignData = presignedUploads.get(objectId);
+    
+    if (!presignData) {
+      // Object ID not found in presigned uploads
+      return false;
+    }
+
+    if (Date.now() > presignData.expiresAt) {
+      // Presigned upload has expired
+      presignedUploads.delete(objectId);
+      return false;
+    }
+
+    // Verify the userId matches
+    return presignData.userId === userId;
   }
 
   // Gets the object entity file from the object path.
