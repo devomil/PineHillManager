@@ -8140,8 +8140,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         hasDiscounts,
         hasRefunds,
         page = '1',
-        limit = '20'
+        limit = '20',
+        includeAmazonFees = 'false' // Skip expensive fee calculations by default
       } = req.query as Record<string, string>;
+      
+      const shouldIncludeAmazonFees = includeAmazonFees === 'true';
 
       const offset = (parseInt(page) - 1) * parseInt(limit);
 
@@ -8302,7 +8305,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Add timeout wrapper for Amazon integration
           const amazonFetchWithTimeout = async (): Promise<any[]> => {
             const timeoutPromise = new Promise((_, reject) => 
-              setTimeout(() => reject(new Error('Amazon API timeout')), 30000) // 30 second timeout to handle rate limiting
+              setTimeout(() => reject(new Error('Amazon API timeout')), 10000) // 10 second timeout (reduced since we skip expensive fee calculations)
             );
             
             const fetchPromise = async (): Promise<any[]> => {
@@ -8362,7 +8365,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
                       paymentState = 'paid';
                     }
                     
-                    // Fetch order items to calculate Amazon fees AND build line items structure
+                    // Fetch order items to build line items structure
+                    // Skip expensive fee calculations unless specifically requested
                     let totalAmazonFees = 0;
                     let lineItems: any[] = [];
                     try {
@@ -8370,7 +8374,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                       if (itemsResponse && itemsResponse.payload && itemsResponse.payload.OrderItems) {
                         const orderItems = itemsResponse.payload.OrderItems;
                         
-                        // Calculate fees for each item AND transform to Clover format
+                        // Transform to Clover format
                         for (const item of orderItems) {
                           const itemPrice = parseFloat(item.ItemPrice?.Amount || '0');
                           const itemTax = parseFloat(item.ItemTax?.Amount || '0');
@@ -8386,7 +8390,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
                             isRevenue: true
                           });
                           
-                          if (item.SellerSKU) {
+                          // Only calculate fees if explicitly requested (expensive operation)
+                          if (shouldIncludeAmazonFees && item.SellerSKU) {
                             try {
                               // Always use FBA fees for consistent estimates
                               let fees = await amazonIntegration.getProductFees(item.SellerSKU, itemPrice, true);
@@ -8407,7 +8412,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
                       console.error(`❌ Error fetching items for order ${order.AmazonOrderId}:`, error);
                     }
                     
-                    console.log(`💰 [AMAZON ORDER] ${order.AmazonOrderId}: Total=$${parseFloat(order.OrderTotal?.Amount || '0').toFixed(2)}, Fees=$${totalAmazonFees.toFixed(2)}`);
+                    if (shouldIncludeAmazonFees) {
+                      console.log(`💰 [AMAZON ORDER] ${order.AmazonOrderId}: Total=$${parseFloat(order.OrderTotal?.Amount || '0').toFixed(2)}, Fees=$${totalAmazonFees.toFixed(2)}`);
+                    }
                     
                     return {
                       ...order,
@@ -8447,7 +8454,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           amazonOrders = [];
           // Log specifically if it's a timeout vs API error
           if (error instanceof Error && error.message === 'Amazon API timeout') {
-            console.log('🛒 [AMAZON ORDERS] Request timed out after 3 seconds - continuing without Amazon data');
+            console.log('🛒 [AMAZON ORDERS] Request timed out after 10 seconds - continuing without Amazon data');
           }
         }
       }
