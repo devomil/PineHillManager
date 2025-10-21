@@ -1317,20 +1317,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
           daySchedules.forEach((schedule: any, shiftIndex: number) => {
             if (shiftY + shiftBoxHeight > currentY + cellHeight - 4) return; // Don't overflow cell
             
-            // Format times in 12-hour format
-            const startTime = new Date(schedule.startTime).toLocaleString('en-US', {
-              hour: 'numeric',
-              minute: '2-digit',
-              hour12: true,
-              timeZone: 'America/Chicago'
-            }).toLowerCase().replace(' ', '');
+            // Format times in 12-hour format (matching UI logic)
+            const formatCompactTime = (isoString: string) => {
+              try {
+                const date = new Date(isoString);
+                const hours = date.getHours();
+                const minutes = date.getMinutes();
+                const period = hours >= 12 ? 'pm' : 'am';
+                const displayHours = hours % 12 || 12;
+                
+                // Only show minutes if not :00
+                if (minutes === 0) {
+                  return `${displayHours}${period}`;
+                } else {
+                  return `${displayHours}:${minutes.toString().padStart(2, '0')}${period}`;
+                }
+              } catch {
+                return isoString;
+              }
+            };
             
-            const endTime = new Date(schedule.endTime).toLocaleString('en-US', {
-              hour: 'numeric', 
-              minute: '2-digit',
-              hour12: true,
-              timeZone: 'America/Chicago'
-            }).toLowerCase().replace(' ', '');
+            const startTime = formatCompactTime(schedule.startTime);
+            const endTime = formatCompactTime(schedule.endTime);
             
             // Get employee initials (e.g., "Rozalyn Wolter" -> "RW")
             const initials = getEmployeeInitials(schedule.userId);
