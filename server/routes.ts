@@ -8253,6 +8253,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         if (needAllOrders) {
           // Fetch ALL Clover orders for accurate totals (no pagination)
+          // Skip expensive COGS calculations for totals-only query
           const allOrdersResult = await storage.getOrdersFromCloverAPI({
             createdTimeMin: createdTimeMinMs,
             createdTimeMax: createdTimeMaxMs,
@@ -8265,10 +8266,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
             hasDiscounts: hasDiscountsParam,
             hasRefunds: hasRefundsParam,
             limit: 10000, // High limit to get all orders
-            offset: 0
+            offset: 0,
+            skipCogs: true // Skip expensive COGS fuzzy matching for totals calculation
           });
           allCloverOrdersForTotals = allOrdersResult.orders as any[];
-          console.log(`📊 [ALL LOCATIONS] Fetched ${allCloverOrdersForTotals.length} Clover orders for totals calculation`);
+          console.log(`📊 [ALL LOCATIONS] Fetched ${allCloverOrdersForTotals.length} Clover orders for totals calculation (COGS skipped)`);
         }
         
         // Fetch paginated orders for display

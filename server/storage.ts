@@ -6677,7 +6677,7 @@ export class DatabaseStorage implements IStorage {
   // ================================
 
   // Helper method to calculate detailed financial metrics for an order
-  async calculateOrderFinancialMetrics(order: any, locationId: number, merchantConfig?: any, normalizedTotalForDiscounts?: number): Promise<{
+  async calculateOrderFinancialMetrics(order: any, locationId: number, merchantConfig?: any, normalizedTotalForDiscounts?: number, skipCogs?: boolean): Promise<{
     grossTax: number;
     totalDiscounts: number;
     giftCardTotal: number;
@@ -7067,10 +7067,10 @@ export class DatabaseStorage implements IStorage {
         });
       }
 
-      // Calculate COGS by looking up actual costs for line items
+      // Calculate COGS by looking up actual costs for line items (skip if requested for performance)
       let netCOGS = 0;
       let cachedInventory: any[] | null = null; // Cache inventory for fuzzy matching
-      if (order.lineItems && order.lineItems.elements) {
+      if (!skipCogs && order.lineItems && order.lineItems.elements) {
         // Disabled for performance: console.log(`[COGS DEBUG] Order ${order.id} Processing ${order.lineItems.elements.length} line items`);
         
         for (const [index, lineItem] of order.lineItems.elements.entries()) {
@@ -7314,6 +7314,7 @@ export class DatabaseStorage implements IStorage {
     limit: number;
     offset: number;
     skipFinancialCalculations?: boolean;
+    skipCogs?: boolean; // NEW: Skip expensive COGS fuzzy matching
   }): Promise<{
     orders: any[];
     total: number;
@@ -7572,7 +7573,7 @@ export class DatabaseStorage implements IStorage {
                   // Full calculation version for detailed views
                   // ✅ CRITICAL FIX: Use normalizedTotalForDiscounts for accurate discount calculation
                   // Pass the normalized value separately without overwriting order.total
-                  const financialMetrics = await this.calculateOrderFinancialMetrics(order, config.id, config, normalizedTotalForDiscounts);
+                  const financialMetrics = await this.calculateOrderFinancialMetrics(order, config.id, config, normalizedTotalForDiscounts, filters.skipCogs);
                   
                   
                   // 🔧 DEBUG: Log financial metrics for problematic orders
