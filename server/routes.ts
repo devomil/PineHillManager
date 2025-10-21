@@ -11,6 +11,8 @@ import { syncScheduler } from "./services/sync-scheduler";
 import { sendSupportTicketNotification } from "./emailService";
 import { smsService } from "./sms-service";
 import { smartNotificationService } from './smart-notifications';
+import { ObjectStorageService, ObjectNotFoundError } from './objectStorage';
+import { ObjectPermission } from './objectAcl';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -13850,7 +13852,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ENHANCED COMMUNICATION ENDPOINTS
   // ================================
 
-  // Upload images for communications (messages/announcements)
+  // Upload images for communications (messages/announcements) - Legacy local filesystem upload
+  // DEPRECATED: Use /api/objects/upload for new uploads to Object Storage
   app.post('/api/communications/upload-images', isAuthenticated, upload.array('images', 5), async (req, res) => {
     try {
       const files = req.files as Express.Multer.File[];
@@ -13912,6 +13915,82 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error uploading images:', error);
       res.status(500).json({ error: 'Failed to upload images' });
+    }
+  });
+
+  // ================================
+  // OBJECT STORAGE ENDPOINTS
+  // ================================
+  
+  // Get presigned URL for uploading to Object Storage
+  app.post('/api/objects/upload', isAuthenticated, async (req, res) => {
+    try {
+      const objectStorageService = new ObjectStorageService();
+      const uploadURL = await objectStorageService.getObjectEntityUploadURL();
+      res.json({ uploadURL });
+    } catch (error) {
+      console.error('Error getting upload URL:', error);
+      res.status(500).json({ error: 'Failed to get upload URL' });
+    }
+  });
+
+  // Serve uploaded objects from Object Storage
+  app.get('/objects/:objectPath(*)', isAuthenticated, async (req, res) => {
+    const objectStorageService = new ObjectStorageService();
+    try {
+      const objectFile = await objectStorageService.getObjectEntityFile(req.path);
+      const canAccess = await objectStorageService.canAccessObjectEntity({
+        objectFile,
+        userId: req.user!.id,
+        requestedPermission: ObjectPermission.READ,
+      });
+      if (!canAccess) {
+        return res.sendStatus(401);
+      }
+      objectStorageService.downloadObject(objectFile, res);
+    } catch (error) {
+      console.error('Error accessing object:', error);
+      if (error instanceof ObjectNotFoundError) {
+        return res.sendStatus(404);
+      }
+      return res.sendStatus(500);
+    }
+  });
+
+  // Finalize upload and set ACL policy for communication images
+  app.post('/api/communications/finalize-upload', isAuthenticated, async (req, res) => {
+    try {
+      const { imageUrls } = req.body;
+      
+      if (!imageUrls || !Array.isArray(imageUrls)) {
+        return res.status(400).json({ error: 'imageUrls array is required' });
+      }
+
+      const userId = req.user!.id;
+      const objectStorageService = new ObjectStorageService();
+      
+      // Set ACL policy for each uploaded image
+      const normalizedPaths = await Promise.all(
+        imageUrls.map(async (imageUrl: string) => {
+          return await objectStorageService.trySetObjectEntityAclPolicy(
+            imageUrl,
+            {
+              owner: userId,
+              visibility: "public", // Communication images are publicly accessible
+            }
+          );
+        })
+      );
+
+      res.json({
+        success: true,
+        imageUrls: normalizedPaths,
+        message: `${normalizedPaths.length} image(s) uploaded successfully`
+      });
+
+    } catch (error) {
+      console.error('Error finalizing upload:', error);
+      res.status(500).json({ error: 'Failed to finalize upload' });
     }
   });
 
