@@ -82,16 +82,37 @@ export function PhotoUpload({
     setIsUploading(true);
 
     try {
-      // Create FormData for upload
-      const formData = new FormData();
-      validFiles.forEach(file => {
-        formData.append('images', file);
+      // Upload each file to Object Storage using presigned URLs
+      const uploadedUrls: string[] = [];
+
+      for (const file of validFiles) {
+        // Step 1: Get presigned URL from backend
+        const uploadUrlResponse = await apiRequest('POST', '/api/objects/upload');
+        const { uploadURL } = await uploadUrlResponse.json();
+
+        // Step 2: Upload file directly to Object Storage
+        const uploadResponse = await fetch(uploadURL, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': file.type,
+          },
+          body: file,
+        });
+
+        if (!uploadResponse.ok) {
+          throw new Error(`Failed to upload ${file.name} to storage`);
+        }
+
+        // Store the upload URL (will be normalized on finalize)
+        uploadedUrls.push(uploadURL.split('?')[0]); // Remove query params
+      }
+
+      // Step 3: Finalize upload and set ACL policies
+      const finalizeResponse = await apiRequest('POST', '/api/communications/finalize-upload', {
+        imageUrls: uploadedUrls
       });
 
-      // Upload to backend
-      const response = await apiRequest('POST', '/api/communications/upload-images', formData);
-
-      const result = await response.json();
+      const result = await finalizeResponse.json();
 
       if (result.success && result.imageUrls) {
         // Create local preview objects
@@ -110,7 +131,7 @@ export function PhotoUpload({
 
         toast({
           title: "Upload successful",
-          description: `${validFiles.length} image(s) uploaded successfully`
+          description: `${validFiles.length} image(s) uploaded successfully to permanent storage`
         });
       } else {
         throw new Error(result.error || 'Upload failed');
