@@ -1136,7 +1136,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const getEmployeeColor = (userId: string) => {
         const employee = employees.find((e: any) => e.id === userId);
-        return employee?.displayColor || '#9CA3AF';
+        const baseColor = employee?.displayColor || '#9CA3AF';
+        
+        // Convert to lighter pastel version to match UI (which uses 20% opacity overlay)
+        // Parse hex color and lighten it significantly
+        const hex = baseColor.replace('#', '');
+        const r = parseInt(hex.substring(0, 2), 16);
+        const g = parseInt(hex.substring(2, 4), 16);
+        const b = parseInt(hex.substring(4, 6), 16);
+        
+        // Blend with white background (simulating 20% opacity = 80% white + 20% color)
+        const lightenedR = Math.round(r * 0.2 + 255 * 0.8);
+        const lightenedG = Math.round(g * 0.2 + 255 * 0.8);
+        const lightenedB = Math.round(b * 0.2 + 255 * 0.8);
+        
+        return `#${lightenedR.toString(16).padStart(2, '0')}${lightenedG.toString(16).padStart(2, '0')}${lightenedB.toString(16).padStart(2, '0')}`;
       };
       
       const getLocationName = (locationId: number) => {
@@ -1212,38 +1226,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       doc.pipe(res);
 
-      // Professional branded header
-      doc.rect(0, 0, doc.page.width, 100).fill(primaryColor);
-      
-      // Add subtle gradient effect with secondary color
-      doc.rect(0, 80, doc.page.width, 20)
-         .fill(secondaryColor)
-         .opacity(0.3);
-      doc.opacity(1); // Reset opacity
+      // Compact branded header
+      doc.rect(0, 0, doc.page.width, 60).fill(primaryColor);
       
       // Company title with professional typography
-      doc.fontSize(32)
+      doc.fontSize(24)
          .font('Helvetica-Bold')
          .fillColor('white')
-         .text('PINE HILL FARM', 0, 25, { align: 'center', width: doc.page.width });
+         .text('PINE HILL FARM', 0, 12, { align: 'center', width: doc.page.width });
       
-      // Prominent month/year with better contrast
-      doc.fontSize(20)
+      // Month/year schedule
+      doc.fontSize(16)
          .font('Helvetica-Bold')
          .fillColor('#ffffff')
-         .text(`${monthName.toUpperCase()} ${year} SCHEDULE`, 0, 55, { align: 'center', width: doc.page.width });
-      
-      if (locationId) {
-        doc.fontSize(14)
-           .font('Helvetica')
-           .fillColor('#e8f1f8')
-           .text(`Location: ${getLocationName(parseInt(locationId))}`, 0, 78, { align: 'center', width: doc.page.width });
-      }
+         .text(`${monthName.toUpperCase()} ${year} SCHEDULE`, 0, 38, { align: 'center', width: doc.page.width });
 
       // Clean calendar layout matching UI design  
       const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-      const startY = 110;
-      const footerSpace = 50;
+      const startY = 70;
+      const footerSpace = 20;
       const sideMargin = 30;
       const columnWidth = (doc.page.width - (sideMargin * 2)) / 7;
       const headerHeight = 26;
@@ -1350,11 +1351,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
             // Adaptive font size based on box height (single line format)
             const fontSize = Math.min(9, Math.max(7, Math.floor(shiftBoxHeight / 2.5)));
             
-            // Centered white text on colored background - all on one line
+            // Centered darker text on pastel background (matching UI)
             const textY = shiftY + (shiftBoxHeight / 2) - (fontSize / 2);
             doc.fontSize(fontSize)
                .font('Helvetica-Bold')
-               .fillColor('#FFFFFF')
+               .fillColor('#1f2937')
                .text(shiftText, x + 6, textY, { width: columnWidth - 12, align: 'center' });
             
             shiftY += shiftBoxHeight + shiftSpacing;
@@ -1372,21 +1373,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
            .text('NO SCHEDULES FOUND FOR THIS PERIOD', 40, currentY + 50, { align: 'center' });
       }
 
-      // Footer
-      const footerY = doc.page.height - 60;
-      doc.rect(40, footerY - 10, doc.page.width - 80, 40).fill(lightBg);
-      
-      doc.fontSize(8)
-         .font('Helvetica')
-         .fillColor(textColor)
-         .text(`Generated on ${new Date().toLocaleDateString('en-US')} at ${new Date().toLocaleTimeString('en-US')}`, 
-               40, footerY, { align: 'center' });
-      
-      doc.fontSize(7)
-         .fillColor('#666666')
-         .text('Pine Hill Farm Employee Management System', 40, footerY + 15, { align: 'center' });
-      
-      // Finalize PDF
+      // Finalize PDF (footer removed)
       doc.end();
 
       
