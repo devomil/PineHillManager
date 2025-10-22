@@ -6679,6 +6679,7 @@ export class DatabaseStorage implements IStorage {
 
   // Helper method to calculate detailed financial metrics for an order
   async calculateOrderFinancialMetrics(order: any, locationId: number, merchantConfig?: any, normalizedTotalForDiscounts?: number, skipCogs?: boolean): Promise<{
+    revenue: number;
     grossTax: number;
     totalDiscounts: number;
     giftCardTotal: number;
@@ -6789,6 +6790,7 @@ export class DatabaseStorage implements IStorage {
         console.log(`💰 [AMAZON FINANCIALS] ${orderId}: Revenue=$${netSale.toFixed(2)}, COGS=$${totalCOGS.toFixed(2)}, Fees=$${amazonFees.toFixed(2)}, Profit=$${netProfit.toFixed(2)}, Margin=${netMargin.toFixed(2)}%`);
         
         return {
+          revenue: netSale, // For Amazon, revenue equals netSale since we don't track gross subtotal before discounts
           grossTax: 0, // Amazon doesn't separate tax in the Orders API
           totalDiscounts: 0, // Amazon doesn't provide discount details in Orders API
           giftCardTotal: 0,
@@ -7234,8 +7236,14 @@ export class DatabaseStorage implements IStorage {
         }
       }
 
-      // Calculate net sale (total - tax - discounts - refunds)
-      const netSale = orderTotal - grossTax - totalDiscounts - totalRefunds;
+      // CORRECTED CALCULATION:
+      // Revenue = Subtotal before discounts (line items total)
+      // Net Revenue = Revenue - Discounts = Subtotal - Discounts (or Order Total - Tax - Refunds)
+      // Net Profit = Net Revenue - COGS
+      // Margin = Net Profit / Net Revenue
+      
+      const revenue = subtotalBeforeDiscounts; // Revenue is subtotal BEFORE discounts
+      const netSale = subtotalBeforeDiscounts - totalDiscounts - totalRefunds; // Net revenue after discounts/refunds
       
       // Calculate net profit (net sale - COGS)
       const netProfit = netSale - netCOGS;
@@ -7276,6 +7284,7 @@ export class DatabaseStorage implements IStorage {
       }
 
       return {
+        revenue, // Subtotal before discounts
         grossTax,
         totalDiscounts,
         giftCardTotal,
@@ -7288,6 +7297,7 @@ export class DatabaseStorage implements IStorage {
     } catch (error) {
       console.error('Error calculating financial metrics for order:', order.id, error);
       return {
+        revenue: 0,
         grossTax: 0,
         totalDiscounts: 0,
         giftCardTotal: 0,
@@ -7635,6 +7645,7 @@ export class DatabaseStorage implements IStorage {
                     locationId: config.id,
                     locationName: config.merchantName,
                     orderTotal: orderTotalInDollars,
+                    revenue: orderTotalInDollars, // Fallback: Use orderTotal as revenue estimate when skipping full calculations
                     grossTax,
                     totalDiscounts: 0,
                     giftCardTotal: 0,
@@ -7657,6 +7668,7 @@ export class DatabaseStorage implements IStorage {
                   // 🔧 DEBUG: Log financial metrics for problematic orders
                   if (isProblematicOrder) {
                     console.log(`🔧 [FINANCIAL METRICS] ${order.id}:`, {
+                      revenue: financialMetrics.revenue,
                       totalDiscounts: financialMetrics.totalDiscounts,
                       giftCardTotal: financialMetrics.giftCardTotal,
                       totalRefunds: financialMetrics.totalRefunds,
@@ -7673,6 +7685,7 @@ export class DatabaseStorage implements IStorage {
                     ...order,
                     locationId: config.id,
                     locationName: config.merchantName,
+                    revenue: financialMetrics.revenue, // Subtotal before discounts
                     grossTax: financialMetrics.grossTax,
                     totalDiscounts: financialMetrics.totalDiscounts,
                     giftCardTotal: financialMetrics.giftCardTotal,
@@ -7705,6 +7718,7 @@ export class DatabaseStorage implements IStorage {
                   ...order,
                   locationId: config.id,
                   locationName: config.merchantName,
+                  revenue: 0,
                   grossTax: 0,
                   totalDiscounts: 0,
                   totalRefunds: 0,
@@ -8037,6 +8051,7 @@ export class DatabaseStorage implements IStorage {
               // Calculate financial metrics for Amazon orders (now with fees)
               const financialMetrics = await this.calculateOrderFinancialMetrics(amazonOrder, config.id, config);
               
+              amazonOrder.revenue = financialMetrics.revenue;
               amazonOrder.grossTax = financialMetrics.grossTax;
               amazonOrder.totalDiscounts = financialMetrics.totalDiscounts;
               amazonOrder.totalRefunds = financialMetrics.totalRefunds;
@@ -8091,6 +8106,7 @@ export class DatabaseStorage implements IStorage {
               },
               discounts: { elements: [] },
               refunds: { elements: [] },
+              revenue: 0,
               grossTax: 0,
               totalDiscounts: 0,
               totalRefunds: 0,
@@ -8192,6 +8208,7 @@ export class DatabaseStorage implements IStorage {
       const financialMetrics = await this.calculateOrderFinancialMetrics(foundOrder, foundConfig.id, foundConfig);
       
       // Add financial calculations and employee/discount details to the order object
+      foundOrder.revenue = financialMetrics.revenue;
       foundOrder.grossTax = financialMetrics.grossTax;
       foundOrder.totalDiscounts = financialMetrics.totalDiscounts;
       foundOrder.totalRefunds = financialMetrics.totalRefunds;
