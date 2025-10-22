@@ -8125,6 +8125,193 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get financial metrics with COGS calculation (lazy-loaded separately from orders list)
+  app.get('/api/orders/financial-metrics', isAuthenticated, async (req, res) => {
+    try {
+      const {
+        createdTimeMin,
+        createdTimeMax,
+        startDate,
+        endDate,
+        locationId,
+        search,
+        state,
+        paymentState,
+        hasDiscounts,
+        hasRefunds
+      } = req.query as Record<string, string>;
+
+      console.log('💰 [FINANCIAL METRICS] Starting financial analysis calculation with COGS');
+
+      // Parse epoch milliseconds
+      const ctMin = req.query.createdTimeMin != null ? Number(String(req.query.createdTimeMin)) : undefined;
+      const ctMax = req.query.createdTimeMax != null ? Number(String(req.query.createdTimeMax)) : undefined;
+      
+      let createdTimeMinMs: number | undefined;
+      let createdTimeMaxMs: number | undefined;
+      
+      if (ctMin != null && ctMax != null && !isNaN(ctMin) && !isNaN(ctMax)) {
+        createdTimeMinMs = ctMin;
+        createdTimeMaxMs = ctMax;
+      }
+
+      let normalizedStartDate = createdTimeMinMs ? new Date(createdTimeMinMs).toISOString().slice(0,10) : startDate;
+      let normalizedEndDate = createdTimeMaxMs ? new Date(createdTimeMaxMs).toISOString().slice(0,10) : endDate;
+
+      const stateParam = state && state !== 'all' ? String(state) : undefined;
+      const paymentStateParam = paymentState && paymentState !== 'all' ? String(paymentState) : undefined;
+      const hasDiscountsParam = hasDiscounts && hasDiscounts !== 'all' ? String(hasDiscounts) : undefined;
+      const hasRefundsParam = hasRefunds && hasRefunds !== 'all' ? String(hasRefunds) : undefined;
+
+      // Parse location filter
+      let locationType: string | undefined;
+      let locationIdNum: number | undefined;
+      
+      if (locationId && locationId !== 'all') {
+        if (locationId === 'clover_all') {
+          locationType = 'clover';
+          locationIdNum = undefined;
+        } else {
+          const parts = locationId.split('_');
+          if (parts.length === 2) {
+            locationType = parts[0];
+            locationIdNum = Number(parts[1]);
+          } else {
+            locationIdNum = Number(locationId);
+            locationType = 'clover';
+          }
+        }
+      }
+
+      // Fetch ALL Clover orders with COGS for accurate financial metrics
+      let allCloverOrdersForMetrics: any[] = [];
+      
+      if (!locationType || locationType === 'clover') {
+        const allOrdersResult = await storage.getOrdersFromCloverAPI({
+          createdTimeMin: createdTimeMinMs,
+          createdTimeMax: createdTimeMaxMs,
+          startDate: normalizedStartDate,
+          endDate: normalizedEndDate,
+          locationId: locationType === 'clover' && locationIdNum ? locationIdNum : undefined,
+          search,
+          state: stateParam,
+          paymentState: paymentStateParam,
+          hasDiscounts: hasDiscountsParam,
+          hasRefunds: hasRefundsParam,
+          limit: 10000,
+          offset: 0,
+          skipCogs: false // MUST calculate COGS for financial metrics
+        });
+        allCloverOrdersForMetrics = allOrdersResult.orders as any[];
+        console.log(`💰 [FINANCIAL METRICS] Fetched ${allCloverOrdersForMetrics.length} Clover orders with COGS`);
+      }
+
+      // Fetch Amazon orders if needed
+      let amazonOrders: any[] = [];
+      
+      if ((!locationType || locationType === 'amazon') && ((createdTimeMinMs && createdTimeMaxMs) || (startDate && endDate))) {
+        try {
+          let amazonConfigs = await storage.getAllAmazonConfigs();
+          
+          if (locationType === 'amazon' && locationIdNum) {
+            amazonConfigs = amazonConfigs.filter(config => config.id === locationIdNum);
+          }
+          
+          if (amazonConfigs && amazonConfigs.length > 0) {
+            let amazonStartDate: string;
+            let amazonEndDate: string;
+            
+            if (createdTimeMinMs && createdTimeMaxMs) {
+              amazonStartDate = new Date(createdTimeMinMs).toISOString();
+              amazonEndDate = new Date(createdTimeMaxMs).toISOString();
+            } else {
+              amazonStartDate = new Date(startDate + 'T00:00:00.000Z').toISOString();
+              amazonEndDate = new Date(endDate + 'T23:59:59.999Z').toISOString();
+            }
+            
+            const { AmazonIntegration } = await import('./integrations/amazon');
+            const allAmazonOrders: any[] = [];
+            
+            for (const config of amazonConfigs) {
+              const amazonIntegration = new AmazonIntegration(config);
+              const amazonResponse = await amazonIntegration.getOrders(amazonStartDate, amazonEndDate);
+              
+              if (amazonResponse?.orders) {
+                const transformedOrders = await Promise.all(amazonResponse.orders.map(async (order: any) => {
+                  // Get line items for COGS calculation
+                  let lineItems: any[] = [];
+                  try {
+                    const itemsResponse = await amazonIntegration.getOrderItems(order.AmazonOrderId);
+                    if (itemsResponse?.payload?.OrderItems) {
+                      for (const item of itemsResponse.payload.OrderItems) {
+                        lineItems.push({
+                          id: item.OrderItemId,
+                          name: item.Title,
+                          price: Math.round(parseFloat(item.ItemPrice?.Amount || '0') * 100),
+                          quantity: item.QuantityOrdered,
+                          sku: item.SellerSKU,
+                          isRevenue: true
+                        });
+                      }
+                    }
+                  } catch (error) {
+                    console.error(`Error fetching Amazon order items:`, error);
+                  }
+                  
+                  const baseOrder = {
+                    id: order.AmazonOrderId,
+                    total: parseFloat(order.OrderTotal?.Amount || '0') * 100,
+                    createdTime: new Date(order.PurchaseDate).getTime(),
+                    locationId: `amazon_${config.id}`,
+                    isAmazonOrder: true,
+                    lineItems: { elements: lineItems }
+                  };
+                  
+                  // Calculate financial metrics including COGS
+                  const metrics = await storage.calculateOrderFinancialMetrics(baseOrder, config.id || 0);
+                  return { ...baseOrder, ...metrics };
+                }));
+                
+                allAmazonOrders.push(...transformedOrders);
+              }
+            }
+            
+            amazonOrders = allAmazonOrders;
+            console.log(`💰 [FINANCIAL METRICS] Fetched ${amazonOrders.length} Amazon orders with COGS`);
+          }
+        } catch (error) {
+          console.error('Error fetching Amazon orders for financial metrics:', error);
+          amazonOrders = [];
+        }
+      }
+
+      // Combine all orders for metrics calculation
+      const allOrdersForMetrics = [...allCloverOrdersForMetrics, ...amazonOrders];
+
+      // Calculate aggregated financial metrics
+      const financialMetrics = allOrdersForMetrics.reduce((acc, order) => {
+        return {
+          totalRevenue: acc.totalRevenue + (order.total / 100),
+          orderCount: acc.orderCount + 1,
+          totalCOGS: acc.totalCOGS + (typeof order.netCOGS === 'number' ? order.netCOGS : parseFloat(String(order.netCOGS || 0))),
+          totalProfit: acc.totalProfit + (typeof order.netProfit === 'number' ? order.netProfit : parseFloat(String(order.netProfit || 0))),
+          totalDiscounts: acc.totalDiscounts + (typeof order.totalDiscounts === 'number' ? order.totalDiscounts : parseFloat(String(order.totalDiscounts || 0))),
+          giftCardTotal: acc.giftCardTotal + (typeof order.giftCardTotal === 'number' ? order.giftCardTotal : parseFloat(String(order.giftCardTotal || 0))),
+          totalGrossTax: acc.totalGrossTax + (typeof order.grossTax === 'number' ? order.grossTax : parseFloat(String(order.grossTax || 0))),
+          totalAmazonFees: acc.totalAmazonFees + (typeof order.amazonFees === 'number' ? order.amazonFees : parseFloat(String(order.amazonFees || 0))),
+          marginSum: acc.marginSum + (parseFloat(String(order.netMargin || '0').replace('%', '')))
+        };
+      }, { totalRevenue: 0, orderCount: 0, totalCOGS: 0, totalProfit: 0, totalDiscounts: 0, giftCardTotal: 0, totalGrossTax: 0, totalAmazonFees: 0, marginSum: 0 });
+
+      console.log(`💰 [FINANCIAL METRICS] Calculated from ${allOrdersForMetrics.length} orders: ${financialMetrics.orderCount} orders, $${financialMetrics.totalRevenue.toFixed(2)} revenue, $${financialMetrics.totalCOGS.toFixed(2)} COGS`);
+
+      res.json(financialMetrics);
+    } catch (error) {
+      console.error('Error calculating financial metrics:', error);
+      res.status(500).json({ error: 'Failed to calculate financial metrics' });
+    }
+  });
+
   // Get orders with comprehensive filtering using Clover API
   app.get('/api/orders', isAuthenticated, async (req, res) => {
     try {

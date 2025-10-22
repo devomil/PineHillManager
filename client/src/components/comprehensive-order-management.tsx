@@ -523,30 +523,66 @@ export function ComprehensiveOrderManagement() {
     refetchOnWindowFocus: false,
   });
 
+  // LAZY-LOADED: Fetch financial metrics with COGS calculation separately (doesn't block page load)
+  const financialMetricsParams = new URLSearchParams();
+  if (dateParams?.startEpoch) financialMetricsParams.set('createdTimeMin', dateParams.startEpoch.toString());
+  if (dateParams?.endEpoch) financialMetricsParams.set('createdTimeMax', dateParams.endEpoch.toString());
+  financialMetricsParams.set('locationId', filters.locationId);
+  financialMetricsParams.set('search', filters.search);
+  financialMetricsParams.set('state', filters.state);
+  financialMetricsParams.set('paymentState', filters.paymentState);
+  financialMetricsParams.set('hasDiscounts', filters.hasDiscounts);
+  financialMetricsParams.set('hasRefunds', filters.hasRefunds);
+  const financialMetricsUrl = `/api/orders/financial-metrics?${financialMetricsParams.toString()}`;
+
+  const { data: financialMetrics, isLoading: financialMetricsLoading } = useQuery({
+    queryKey: ['/api/orders/financial-metrics', {
+      createdTimeMin: dateParams?.startEpoch,
+      createdTimeMax: dateParams?.endEpoch,
+      locationId: filters.locationId,
+      search: filters.search,
+      state: filters.state,
+      paymentState: filters.paymentState,
+      hasDiscounts: filters.hasDiscounts,
+      hasRefunds: filters.hasRefunds
+    }],
+    queryFn: async () => {
+      console.log(`💰 [FINANCIAL METRICS QUERY] Calling endpoint: ${financialMetricsUrl}`);
+      const response = await fetch(financialMetricsUrl, {
+        credentials: 'include'
+      });
+      if (!response.ok) {
+        console.error(`❌ [FINANCIAL METRICS QUERY] Failed: ${response.status} ${response.statusText}`);
+        throw new Error(`Failed to fetch financial metrics: ${response.status} ${response.statusText}`);
+      }
+      const data = await response.json();
+      console.log(`✅ [FINANCIAL METRICS QUERY] Response:`, data);
+      return data;
+    },
+    enabled: !!dateParams,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
+
   // Comprehensive stats aggregation from all data sources - Single Source of Truth
   const comprehensiveStats = useMemo(() => {
-    // PERFORMANCE FIX: Don't block on analytics - it can take 100+ seconds
-    // Only require ordersData to render the page
+    // PERFORMANCE FIX: Don't block on page load
+    // Orders list loads immediately, financial metrics load in background
     if (!ordersData) return null;
 
-    // Use aggregatedTotals from API if available (calculated from ALL orders, not just paginated results)
-    // This fixes the bug where metrics were calculated from only the first page of results
-    const orderMetrics = ordersData.aggregatedTotals || ordersData.orders.reduce((acc, order) => {
-      return {
-        // Core metrics (previously from analytics)
-        totalRevenue: acc.totalRevenue + (order.total / 100), // total is in cents, convert to dollars
-        orderCount: acc.orderCount + 1,
-        
-        // Financial metrics (previously from orderMetrics)
-        totalCOGS: acc.totalCOGS + (typeof order.netCOGS === 'number' ? order.netCOGS : parseFloat(String(order.netCOGS || 0))),
-        totalProfit: acc.totalProfit + (typeof order.netProfit === 'number' ? order.netProfit : parseFloat(String(order.netProfit || 0))),
-        totalDiscounts: acc.totalDiscounts + (typeof order.totalDiscounts === 'number' ? order.totalDiscounts : parseFloat(String(order.totalDiscounts || 0))),
-        giftCardTotal: acc.giftCardTotal + (typeof order.giftCardTotal === 'number' ? order.giftCardTotal : parseFloat(String(order.giftCardTotal || 0))),
-        totalGrossTax: acc.totalGrossTax + (typeof order.grossTax === 'number' ? order.grossTax : parseFloat(String(order.grossTax || 0))),
-        totalAmazonFees: acc.totalAmazonFees + (typeof order.amazonFees === 'number' ? order.amazonFees : parseFloat(String(order.amazonFees || 0))),
-        marginSum: acc.marginSum + (parseFloat(String(order.netMargin || '0').replace('%', '')))
-      };
-    }, { totalRevenue: 0, orderCount: 0, totalCOGS: 0, totalProfit: 0, totalDiscounts: 0, giftCardTotal: 0, totalGrossTax: 0, totalAmazonFees: 0, marginSum: 0 });
+    // Use financial metrics from separate lazy-loaded query (includes COGS calculation)
+    // Falls back to empty metrics if still loading
+    const orderMetrics = financialMetrics || {
+      totalRevenue: 0,
+      orderCount: 0,
+      totalCOGS: 0,
+      totalProfit: 0,
+      totalDiscounts: 0,
+      giftCardTotal: 0,
+      totalGrossTax: 0,
+      totalAmazonFees: 0,
+      marginSum: 0
+    };
 
     // Comprehensive reporting metrics from new API endpoints
     const voidedMetrics = voidedData?.totals || {};
@@ -590,7 +626,7 @@ export function ComprehensiveOrderManagement() {
       refundRate: creditRefundMetrics.count > 0 && orderMetrics.orderCount > 0 ? 
         (creditRefundMetrics.count / orderMetrics.orderCount) * 100 : 0
     };
-  }, [ordersData, analyticsData, voidedData, employeePaymentsData, creditRefundsData]);
+  }, [ordersData, financialMetrics, analyticsData, voidedData, employeePaymentsData, creditRefundsData]);
 
   // All useEffects AFTER useQuery declarations to avoid initialization errors
   // Log API errors and success for debugging
@@ -961,7 +997,15 @@ export function ComprehensiveOrderManagement() {
 
           {/* Financial Analysis */}
           <div>
-            <h3 className="text-lg font-semibold mb-4">Financial Analysis</h3>
+            <div className="flex items-center gap-2 mb-4">
+              <h3 className="text-lg font-semibold">Financial Analysis</h3>
+              {financialMetricsLoading && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                  <span>Calculating COGS...</span>
+                </div>
+              )}
+            </div>
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -969,7 +1013,11 @@ export function ComprehensiveOrderManagement() {
                   <TrendingDown className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{formatCurrencyDirect(comprehensiveStats.totalCOGS)}</div>
+                  {financialMetricsLoading ? (
+                    <div className="text-2xl font-bold text-muted-foreground">Calculating...</div>
+                  ) : (
+                    <div className="text-2xl font-bold">{formatCurrencyDirect(comprehensiveStats.totalCOGS)}</div>
+                  )}
                 </CardContent>
               </Card>
 
@@ -999,7 +1047,11 @@ export function ComprehensiveOrderManagement() {
                   <DollarSign className="h-4 w-4 text-green-600" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold text-green-600">{formatCurrencyDirect(comprehensiveStats.totalProfit)}</div>
+                  {financialMetricsLoading ? (
+                    <div className="text-2xl font-bold text-muted-foreground">Calculating...</div>
+                  ) : (
+                    <div className="text-2xl font-bold text-green-600">{formatCurrencyDirect(comprehensiveStats.totalProfit)}</div>
+                  )}
                 </CardContent>
               </Card>
               <Card>
@@ -1008,7 +1060,11 @@ export function ComprehensiveOrderManagement() {
                   <Percent className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{formatPercentage(comprehensiveStats.avgMargin)}</div>
+                  {financialMetricsLoading ? (
+                    <div className="text-2xl font-bold text-muted-foreground">Calculating...</div>
+                  ) : (
+                    <div className="text-2xl font-bold">{formatPercentage(comprehensiveStats.avgMargin)}</div>
+                  )}
                 </CardContent>
               </Card>
               <Card>
