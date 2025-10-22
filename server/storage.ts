@@ -292,6 +292,7 @@ import { eq, and, desc, asc, gte, lte, or, sql, like, isNull, isNotNull, exists,
 import { alias } from "drizzle-orm/pg-core";
 import { CloverIntegration } from "./integrations/clover";
 import { AmazonIntegration } from "./integrations/amazon";
+import { ordersCache } from "./cache";
 
 // Standard Chart of Accounts - Auto-populated accounts with data
 const STANDARD_ACCOUNTS = [
@@ -7321,6 +7322,63 @@ export class DatabaseStorage implements IStorage {
     hasMore: boolean;
   }> {
     try {
+      // 🚀 CACHING: Parse and normalize timestamps for cache logic
+      // Parse createdTimeMin/Max to epoch milliseconds for proper date calculations
+      let createdTimeMaxMs: number | null = null;
+      if (filters.createdTimeMax) {
+        if (typeof filters.createdTimeMax === 'number') {
+          createdTimeMaxMs = filters.createdTimeMax;
+        } else if (typeof filters.createdTimeMax === 'string') {
+          // Check if it's a pure numeric string (epoch ms) or an ISO date
+          if (/^\d+$/.test(filters.createdTimeMax)) {
+            // Pure digits - parse as epoch milliseconds
+            createdTimeMaxMs = parseInt(filters.createdTimeMax, 10);
+          } else {
+            // ISO date string or other format - use Date constructor
+            const dateMs = new Date(filters.createdTimeMax).getTime();
+            createdTimeMaxMs = isNaN(dateMs) ? null : dateMs;
+          }
+        }
+      }
+      
+      // Normalize all filter values for consistent cache keys
+      const normalizedFilters = {
+        createdTimeMin: filters.createdTimeMin?.toString() || '',
+        createdTimeMax: filters.createdTimeMax?.toString() || '',
+        startDate: filters.startDate || '',
+        endDate: filters.endDate || '',
+        locationId: filters.locationId?.toString() || '',
+        search: filters.search || '',
+        state: filters.state || '',
+        paymentState: filters.paymentState || '',
+        hasDiscounts: filters.hasDiscounts || '',
+        hasRefunds: filters.hasRefunds || '',
+        limit: filters.limit.toString(),
+        offset: filters.offset.toString(),
+        skipFinancialCalculations: filters.skipFinancialCalculations?.toString() || 'false',
+        skipCogs: filters.skipCogs?.toString() || 'false'
+      };
+      
+      const cacheKey = ordersCache.generateKey('orders', normalizedFilters);
+      
+      // Bypass cache for very recent data (today) to ensure real-time accuracy
+      const now = Date.now();
+      const isToday = createdTimeMaxMs !== null && 
+        !isNaN(createdTimeMaxMs) &&
+        (now - createdTimeMaxMs) < (24 * 60 * 60 * 1000);
+      
+      if (!isToday) {
+        // Try to get from cache for older data
+        const cachedResult = ordersCache.get<{ orders: any[]; total: number; hasMore: boolean }>(cacheKey);
+        if (cachedResult) {
+          console.log(`🚀 [CACHE HIT] Returning ${cachedResult.orders.length} cached orders`);
+          return cachedResult;
+        }
+        console.log(`🔍 [CACHE MISS] No cached data found, fetching from Clover API`);
+      } else {
+        console.log(`⚡ [CACHE BYPASS] Querying today's data (age: ${Math.round((now - createdTimeMaxMs!) / (1000 * 60))} min) - bypassing cache for real-time accuracy`);
+      }
+      
       const { CloverIntegration } = await import('./integrations/clover');
       const allOrders: any[] = [];
       
@@ -7685,11 +7743,43 @@ export class DatabaseStorage implements IStorage {
       
       console.log(`Total orders after filtering: ${filteredOrders.length}`);
       
-      return {
+      // 🚀 CACHING: Prepare result for caching
+      const result = {
         orders: filteredOrders,
         total: filteredOrders.length,
         hasMore: filteredOrders.length >= filters.limit
       };
+      
+      // Only cache if NOT today's data (we bypassed cache for today earlier)
+      if (!isToday) {
+        // Determine cache TTL based on date range
+        let cacheTTL = 10 * 60 * 1000; // Default: 10 minutes
+        
+        if (createdTimeMaxMs !== null && !isNaN(createdTimeMaxMs)) {
+          const now = Date.now();
+          const ageInHours = (now - createdTimeMaxMs) / (1000 * 60 * 60);
+          
+          if (ageInHours < 24) {
+            // Yesterday or recent: 2 minute cache (short to catch late orders)
+            cacheTTL = 2 * 60 * 1000;
+            console.log(`📅 [CACHE TTL] Yesterday/recent data (${Math.round(ageInHours)}h old): 2 min cache`);
+          } else if (ageInHours < 168) {
+            // This week: 10 minute cache
+            cacheTTL = 10 * 60 * 1000;
+            console.log(`📅 [CACHE TTL] This week data (${Math.round(ageInHours)}h old): 10 min cache`);
+          } else {
+            // Older data: 30 minute cache (historical data changes rarely)
+            cacheTTL = 30 * 60 * 1000;
+            console.log(`📅 [CACHE TTL] Older data (${Math.round(ageInHours)}h old): 30 min cache`);
+          }
+        }
+        
+        // Cache the result
+        ordersCache.set(cacheKey, result, cacheTTL);
+        console.log(`💾 [CACHE SET] Cached ${filteredOrders.length} orders with TTL ${Math.round(cacheTTL / 1000)}s`);
+      }
+      
+      return result;
     } catch (error) {
       console.error('Error fetching orders from Clover API:', error);
       return {
