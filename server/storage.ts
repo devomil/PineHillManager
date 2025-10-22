@@ -6679,7 +6679,6 @@ export class DatabaseStorage implements IStorage {
 
   // Helper method to calculate detailed financial metrics for an order
   async calculateOrderFinancialMetrics(order: any, locationId: number, merchantConfig?: any, normalizedTotalForDiscounts?: number, skipCogs?: boolean): Promise<{
-    revenue: number;
     grossTax: number;
     totalDiscounts: number;
     giftCardTotal: number;
@@ -6790,7 +6789,6 @@ export class DatabaseStorage implements IStorage {
         console.log(`💰 [AMAZON FINANCIALS] ${orderId}: Revenue=$${netSale.toFixed(2)}, COGS=$${totalCOGS.toFixed(2)}, Fees=$${amazonFees.toFixed(2)}, Profit=$${netProfit.toFixed(2)}, Margin=${netMargin.toFixed(2)}%`);
         
         return {
-          revenue: netSale, // For Amazon, revenue equals netSale since we don't track gross subtotal before discounts
           grossTax: 0, // Amazon doesn't separate tax in the Orders API
           totalDiscounts: 0, // Amazon doesn't provide discount details in Orders API
           giftCardTotal: 0,
@@ -6871,87 +6869,37 @@ export class DatabaseStorage implements IStorage {
       }
       
       // ============================================
-      // CLOVER-ACCURATE DISCOUNT CALCULATION VIA RECONCILIATION
+      // SIMPLIFIED DISCOUNT TRACKING FOR DISPLAY
       // ============================================
-      // Calculate total discounts by reconciling line item subtotal vs final order total
-      // This captures BOTH order-level AND line-item discounts without needing Clover's expand parameter
+      // We still calculate discounts to show users what was applied,
+      // but we use a simpler approach for net sale: Order Total - Tax
       let totalDiscounts = 0;
+      
+      // Calculate subtotal from line items (only needed for percentage discount calculation)
       let subtotalBeforeDiscounts = 0;
+      if (order.lineItems && order.lineItems.elements) {
+        subtotalBeforeDiscounts = order.lineItems.elements.reduce((sum: number, lineItem: any) => {
+          if (lineItem.refund || lineItem.exchanged || lineItem.voided) {
+            return sum;
+          }
+          const price = parseFloat(lineItem.price || '0') / 100;
+          const quantity = parseInt(lineItem.unitQty || lineItem.quantity || '1');
+          return sum + (price * quantity);
+        }, 0);
+      }
       
       // Track gift card items separately (they're not discounts, just complimentary items)
       let giftCardTotal = 0;
       
-      // Calculate subtotal from all non-voided line items
-      if (order.lineItems && order.lineItems.elements) {
-        order.lineItems.elements.forEach((lineItem: any) => {
-          // Skip voided, refunded, or non-revenue items
-          if (lineItem.refund || lineItem.exchanged || lineItem.voided) {
-            return;
-          }
-          
-          // Calculate line base: (price + modifications) × quantity
-          const price = parseFloat(lineItem.price || '0') / 100;
-          const quantity = parseInt(lineItem.unitQty || lineItem.quantity || '1');
-          
-          let modificationTotal = 0;
-          if (lineItem.modifications && lineItem.modifications.elements) {
-            modificationTotal = lineItem.modifications.elements.reduce((sum: number, mod: any) => {
-              return sum + (parseFloat(mod.price || '0') / 100);
-            }, 0);
-          }
-          
-          const lineBase = (price + modificationTotal) * quantity;
-          
-          // Check if this is a gift card item
-          const isGiftCard = lineItem.name && 
-            (lineItem.name.toLowerCase().includes('gift card') || 
-             lineItem.itemCode?.toLowerCase().includes('giftcard'));
-          
-          if (isGiftCard) {
-            giftCardTotal += lineBase;
-          } else {
-            subtotalBeforeDiscounts += lineBase;
-          }
-        });
-      }
-      
-      // Service charges (Clover can add these)
-      let totalServiceCharges = 0;
-      if (order.serviceCharge && order.serviceCharge.elements) {
-        totalServiceCharges = order.serviceCharge.elements.reduce((sum: number, charge: any) => {
-          return sum + (parseFloat(charge.amount || '0') / 100);
-        }, 0);
-      }
-      
       // ============================================
-      // 🚨 CRITICAL: DISCOUNT CALCULATION LOGIC 🚨
+      // 🚨 DISCOUNT CALCULATION FOR DISPLAY ONLY 🚨
       // ============================================
-      // ⚠️  DO NOT MODIFY WITHOUT AUTHORIZATION ⚠️
+      // We extract discount details from Clover's API to show users what discounts were applied.
+      // However, for financial calculations, we use the simpler approach:
+      // Net Sale = Order Total - Tax - Refunds
       //
-      // This discount calculation logic achieves 100% accuracy with Clover reports.
-      // It was developed through extensive testing and validation (Sept 2025).
-      //
-      // CRITICAL REQUIREMENTS (must maintain 100% accuracy):
-      // 1. Use Clover's discount objects (order.discounts.elements AND lineItem.discounts.elements)
-      // 2. Calculate percentage discounts from SUBTOTAL before discount (not order total)
-      // 3. Round EACH discount individually to nearest cent BEFORE summing
-      // 4. Handle BOTH order-level AND line-item level discounts
-      // 5. Report $0 if no discount objects exist (even if reconciliation shows difference)
-      //
-      // MODIFICATIONS REQUIRE:
-      // - Full regression testing across all locations and date ranges
-      // - Validation that discount totals match Clover reports exactly
-      // - Documentation of changes in replit.md
-      //
-      // Last validated: September 30, 2025
+      // This discount extraction is purely for transparency/reporting.
       // ============================================
-      
-      // ✅ OPTIMIZED APPROACH: Use already-expanded Clover discount objects from order
-      // Calculate reconciliation discount as a fallback
-      const totalForDiscountCalc = normalizedTotalForDiscounts !== undefined ? normalizedTotalForDiscounts : orderTotal;
-      const reconciliationDiscount = Math.max(0, subtotalBeforeDiscounts + grossTax + totalServiceCharges - totalForDiscountCalc);
-      
-      console.log(`💰 [RECONCILIATION] Order ${order.id}: Subtotal=$${subtotalBeforeDiscounts.toFixed(2)}, Tax=$${grossTax.toFixed(2)}, ServiceChg=$${totalServiceCharges.toFixed(2)}, OrderTotal=$${orderTotal.toFixed(2)}, DiscountCalcTotal=$${totalForDiscountCalc.toFixed(2)} => ReconciliationDiscount=$${reconciliationDiscount.toFixed(2)}`);
       
       // ✅ ALWAYS prefer Clover's actual discount objects (already expanded in order fetch)
       // Check BOTH order-level discounts AND line-item level discounts
@@ -7023,12 +6971,7 @@ export class DatabaseStorage implements IStorage {
         }
         
         totalDiscounts = orderLevelTotal + lineItemDiscountTotal;
-        console.log(`💰 [CLOVER DISCOUNT] Order ${order.id} total Clover discounts: $${totalDiscounts.toFixed(2)} (order-level: $${orderLevelTotal.toFixed(2)}, line-item: $${lineItemDiscountTotal.toFixed(2)}, reconciliation was $${reconciliationDiscount.toFixed(2)})`);
-      } else if (reconciliationDiscount > 0) {
-        // No Clover discount objects found, but reconciliation shows a discount
-        // This means the line items were created at a discounted price, not an actual "discount"
-        console.log(`⚠️ [CLOVER DISCOUNT] No discount objects for order ${order.id}, but reconciliation shows $${reconciliationDiscount.toFixed(2)} - likely line items at discounted prices, NOT actual discounts`);
-        totalDiscounts = 0; // Don't count as discount if Clover doesn't have discount objects
+        console.log(`💰 [CLOVER DISCOUNT] Order ${order.id} total Clover discounts: $${totalDiscounts.toFixed(2)} (order-level: $${orderLevelTotal.toFixed(2)}, line-item: $${lineItemDiscountTotal.toFixed(2)})`);
       } else {
         // No discounts at all
         totalDiscounts = 0;
@@ -7236,14 +7179,12 @@ export class DatabaseStorage implements IStorage {
         }
       }
 
-      // CORRECTED CALCULATION:
-      // Revenue = Subtotal before discounts (line items total)
-      // Net Revenue = Revenue - Discounts = Subtotal - Discounts (or Order Total - Tax - Refunds)
-      // Net Profit = Net Revenue - COGS
-      // Margin = Net Profit / Net Revenue
+      // SIMPLIFIED CALCULATION:
+      // Net Sale = Order Total - Tax - Refunds
+      // Net Profit = Net Sale - COGS
+      // Margin = Net Profit / Net Sale
       
-      const revenue = subtotalBeforeDiscounts; // Revenue is subtotal BEFORE discounts
-      const netSale = subtotalBeforeDiscounts - totalDiscounts - totalRefunds; // Net revenue after discounts/refunds
+      const netSale = orderTotal - grossTax - totalRefunds; // Net revenue (actual payment minus tax and refunds)
       
       // Calculate net profit (net sale - COGS)
       const netProfit = netSale - netCOGS;
@@ -7284,7 +7225,6 @@ export class DatabaseStorage implements IStorage {
       }
 
       return {
-        revenue, // Subtotal before discounts
         grossTax,
         totalDiscounts,
         giftCardTotal,
@@ -7297,7 +7237,6 @@ export class DatabaseStorage implements IStorage {
     } catch (error) {
       console.error('Error calculating financial metrics for order:', order.id, error);
       return {
-        revenue: 0,
         grossTax: 0,
         totalDiscounts: 0,
         giftCardTotal: 0,
@@ -7645,7 +7584,6 @@ export class DatabaseStorage implements IStorage {
                     locationId: config.id,
                     locationName: config.merchantName,
                     orderTotal: orderTotalInDollars,
-                    revenue: orderTotalInDollars, // Fallback: Use orderTotal as revenue estimate when skipping full calculations
                     grossTax,
                     totalDiscounts: 0,
                     giftCardTotal: 0,
@@ -7668,7 +7606,6 @@ export class DatabaseStorage implements IStorage {
                   // 🔧 DEBUG: Log financial metrics for problematic orders
                   if (isProblematicOrder) {
                     console.log(`🔧 [FINANCIAL METRICS] ${order.id}:`, {
-                      revenue: financialMetrics.revenue,
                       totalDiscounts: financialMetrics.totalDiscounts,
                       giftCardTotal: financialMetrics.giftCardTotal,
                       totalRefunds: financialMetrics.totalRefunds,
@@ -7685,7 +7622,6 @@ export class DatabaseStorage implements IStorage {
                     ...order,
                     locationId: config.id,
                     locationName: config.merchantName,
-                    revenue: financialMetrics.revenue, // Subtotal before discounts
                     grossTax: financialMetrics.grossTax,
                     totalDiscounts: financialMetrics.totalDiscounts,
                     giftCardTotal: financialMetrics.giftCardTotal,
@@ -7718,7 +7654,6 @@ export class DatabaseStorage implements IStorage {
                   ...order,
                   locationId: config.id,
                   locationName: config.merchantName,
-                  revenue: 0,
                   grossTax: 0,
                   totalDiscounts: 0,
                   totalRefunds: 0,
@@ -8051,7 +7986,6 @@ export class DatabaseStorage implements IStorage {
               // Calculate financial metrics for Amazon orders (now with fees)
               const financialMetrics = await this.calculateOrderFinancialMetrics(amazonOrder, config.id, config);
               
-              amazonOrder.revenue = financialMetrics.revenue;
               amazonOrder.grossTax = financialMetrics.grossTax;
               amazonOrder.totalDiscounts = financialMetrics.totalDiscounts;
               amazonOrder.totalRefunds = financialMetrics.totalRefunds;
@@ -8106,7 +8040,6 @@ export class DatabaseStorage implements IStorage {
               },
               discounts: { elements: [] },
               refunds: { elements: [] },
-              revenue: 0,
               grossTax: 0,
               totalDiscounts: 0,
               totalRefunds: 0,
@@ -8208,7 +8141,6 @@ export class DatabaseStorage implements IStorage {
       const financialMetrics = await this.calculateOrderFinancialMetrics(foundOrder, foundConfig.id, foundConfig);
       
       // Add financial calculations and employee/discount details to the order object
-      foundOrder.revenue = financialMetrics.revenue;
       foundOrder.grossTax = financialMetrics.grossTax;
       foundOrder.totalDiscounts = financialMetrics.totalDiscounts;
       foundOrder.totalRefunds = financialMetrics.totalRefunds;
