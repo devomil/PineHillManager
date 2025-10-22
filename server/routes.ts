@@ -8141,10 +8141,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         hasRefunds,
         page = '1',
         limit = '20',
-        includeAmazonFees = 'false' // Skip expensive fee calculations by default
+        includeAmazonFees = 'false', // Skip expensive fee calculations by default
+        skipCogs = 'false' // Skip expensive COGS calculations by default
       } = req.query as Record<string, string>;
       
       const shouldIncludeAmazonFees = includeAmazonFees === 'true';
+      const shouldSkipCogs = skipCogs === 'true';
 
       const offset = (parseInt(page) - 1) * parseInt(limit);
 
@@ -8286,7 +8288,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           hasDiscounts: hasDiscountsParam,
           hasRefunds: hasRefundsParam,
           limit: limitNum,
-          offset: offsetNum
+          offset: offsetNum,
+          skipCogs: shouldSkipCogs // Pass through skipCogs parameter from frontend
         });
         
         // For single location, use paginated results for totals
