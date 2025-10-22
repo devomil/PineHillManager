@@ -8111,8 +8111,7 @@ export class DatabaseStorage implements IStorage {
       }
       
       // CLOVER ORDER PROCESSING BELOW
-      // Instead of making separate API calls, use the same method as getOrders
-      // to fetch orders and then find the specific one we need
+      // Make a direct API call to get a single order (much faster than fetching 1000 orders)
       const allConfigs = await db.select().from(cloverConfig);
       
       let foundOrder = null;
@@ -8121,17 +8120,11 @@ export class DatabaseStorage implements IStorage {
       // Try each configuration to find the order
       for (const config of allConfigs) {
         try {
-          // Disabled for performance: console.log('🔧 [ORDER DETAILS DEBUG] Trying config:', {
-          //   configId: config.id,
-          //   merchantId: config.merchantId,
-          //   merchantName: config.merchantName
-          // });
-          
-          // Make direct API call to avoid circular dependency
+          // Make direct API call for a single order by ID
           const baseUrl = config.baseUrl || 'https://api.clover.com';
-          const url = `${baseUrl}/v3/merchants/${config.merchantId}/orders?limit=1000&expand=lineItems,lineItems.discounts,payments,discounts,refunds`;
+          const url = `${baseUrl}/v3/merchants/${config.merchantId}/orders/${orderId}?expand=lineItems,lineItems.discounts,lineItems.modifications,payments,payments.employee,discounts,refunds,employee,customers,serviceCharge`;
           
-          // Disabled for performance: console.log(`🔧 [ORDER DETAILS DEBUG] Making direct Clover API call to: ${url}`);
+          console.log(`🔧 [ORDER DETAILS] Fetching single order ${orderId} from ${config.merchantName}`);
           
           const response = await fetch(url, {
             method: 'GET',
@@ -8143,30 +8136,25 @@ export class DatabaseStorage implements IStorage {
           });
 
           if (!response.ok) {
+            if (response.status === 404) {
+              // Order not found in this merchant, try next config
+              console.log(`🔧 [ORDER DETAILS] Order ${orderId} not found in ${config.merchantName}`);
+              continue;
+            }
             const errorBody = await response.text();
-            // Disabled for performance: console.log(`🔧 [ORDER DETAILS DEBUG] API error: ${response.status} ${response.statusText} - ${errorBody}`);
-            throw new Error(`Clover API error: ${response.status} ${response.statusText}`);
+            throw new Error(`Clover API error: ${response.status} ${response.statusText} - ${errorBody}`);
           }
 
-          const cloverOrders = await response.json();
+          const targetOrder = await response.json();
           
-          // Look for our specific order in the batch
-          const targetOrder = cloverOrders.elements?.find((order: any) => order.id === orderId);
-          
-          if (targetOrder) {
-            // Disabled for performance: console.log('🔧 [ORDER DETAILS DEBUG] Found order in batch via config:', {
-            //   configId: config.id,
-            //   merchantId: config.merchantId,
-            //   merchantName: config.merchantName,
-            //   orderId: targetOrder.id
-            // });
-            
+          if (targetOrder && targetOrder.id === orderId) {
+            console.log(`🔧 [ORDER DETAILS] Found order ${orderId} in ${config.merchantName}`);
             foundOrder = targetOrder;
             foundConfig = config;
             break;
           }
         } catch (configError) {
-          // Disabled for performance: console.log(`🔧 [ORDER DETAILS DEBUG] Config ${config.id} failed for order ${orderId}:`, configError.message);
+          console.log(`🔧 [ORDER DETAILS] Config ${config.id} failed for order ${orderId}:`, (configError as Error).message);
           continue;
         }
       }
@@ -8180,11 +8168,30 @@ export class DatabaseStorage implements IStorage {
       foundOrder.locationName = foundConfig.merchantName || 'Unknown Location';
       foundOrder.merchantId = foundConfig.merchantId;
       
+      // Extract employee information
+      const employeeName = foundOrder.employee?.name || null;
+      const employeeId = foundOrder.employee?.id || null;
+      console.log(`👤 [ORDER DETAILS] Employee: ${employeeName || 'None'}`);
+      
+      // Extract and format discount details with names
+      const discountDetails = [];
+      if (foundOrder.discounts?.elements && Array.isArray(foundOrder.discounts.elements)) {
+        for (const discount of foundOrder.discounts.elements) {
+          discountDetails.push({
+            id: discount.id,
+            name: discount.name || 'Unnamed Discount',
+            amount: discount.amount ? Math.abs(discount.amount / 100) : 0,
+            percentage: discount.percentage ? discount.percentage / 100 : 0  // Convert basis points to percentage (2500 → 25)
+          });
+        }
+        console.log(`💰 [ORDER DETAILS] Found ${discountDetails.length} discount(s):`, discountDetails.map(d => `${d.name} ($${d.amount})`).join(', '));
+      }
+      
       // Calculate financial metrics for this order
       console.log('🔧 [ORDER DETAILS DEBUG] Calculating financial metrics for order:', foundOrder.id);
       const financialMetrics = await this.calculateOrderFinancialMetrics(foundOrder, foundConfig.id, foundConfig);
       
-      // Add financial calculations to the order object
+      // Add financial calculations and employee/discount details to the order object
       foundOrder.grossTax = financialMetrics.grossTax;
       foundOrder.totalDiscounts = financialMetrics.totalDiscounts;
       foundOrder.totalRefunds = financialMetrics.totalRefunds;
@@ -8192,6 +8199,9 @@ export class DatabaseStorage implements IStorage {
       foundOrder.netSale = financialMetrics.netSale;
       foundOrder.netProfit = financialMetrics.netProfit;
       foundOrder.netMargin = financialMetrics.netMargin;
+      foundOrder.employeeName = employeeName;
+      foundOrder.employeeId = employeeId;
+      foundOrder.discountDetails = discountDetails;
       
       // Format order date/time for frontend display
       if (foundOrder.createdTime) {
