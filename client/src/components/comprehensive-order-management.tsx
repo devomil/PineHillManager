@@ -360,6 +360,7 @@ export function ComprehensiveOrderManagement() {
     params.set('hasRefunds', filters.hasRefunds);
     params.set('page', filters.page.toString());
     params.set('limit', filters.limit.toString());
+    params.set('skipCogs', 'true'); // Skip expensive COGS calculations for list view
     return `/api/orders?${params.toString()}`;
   }, [dateParams, filters]);
 
@@ -374,7 +375,8 @@ export function ComprehensiveOrderManagement() {
     hasDiscounts: filters.hasDiscounts,
     hasRefunds: filters.hasRefunds,
     page: filters.page,
-    limit: filters.limit
+    limit: filters.limit,
+    skipCogs: 'true' // Include in cache key to prevent conflicts
   }];
 
   const { data: ordersData, isLoading: ordersLoading, isFetching: ordersFetching, error: ordersError } = useQuery<OrdersResponse>({
