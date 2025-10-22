@@ -1,0 +1,50 @@
+Customer Gets
+https://docs.clover.com/dev/reference/handlersgetcustomerscsv
+https://docs.clover.com/dev/reference/customersgetcustomers
+https://docs.clover.com/dev/reference/customersgetcustomer
+
+Payments
+https://docs.clover.com/dev/reference/paygetorderpayments
+https://docs.clover.com/dev/reference/paygetauthorizations
+https://docs.clover.com/dev/reference/paygetauthorization
+https://docs.clover.com/dev/reference/paygetpayments
+https://docs.clover.com/dev/reference/paygetpayment
+https://docs.clover.com/dev/reference/paygetrefunds-3
+https://docs.clover.com/dev/reference/paygetcreditrefunds-3
+https://docs.clover.com/dev/reference/paygetrefund-3
+
+Order Gets
+https://docs.clover.com/dev/reference/lineitemgetvoidedorderlineitems
+https://docs.clover.com/dev/reference/ordergetorderdiscounts
+https://docs.clover.com/dev/reference/handlergetvoidedlineitemstotals
+https://docs.clover.com/dev/reference/ordergetorder
+https://docs.clover.com/dev/reference/ordergetorders
+https://docs.clover.com/dev/reference/ordergetorderlineitems
+https://docs.clover.com/dev/reference/paygetemployeepayments
+https://docs.clover.com/dev/reference/paygetcreditrefund-3
+
+
+
+Merchants
+https://docs.clover.com/dev/reference/merchantgetmerchant
+https://docs.clover.com/dev/reference/merchantgetordertypes
+https://docs.clover.com/dev/reference/merchantgetordertype
+
+Cash
+https://docs.clover.com/dev/reference/cashgetallcashevents
+https://docs.clover.com/dev/reference/cashgetallcashevents
+
+Stores orders
+https://docs.clover.com/dev/reference/orderupdateorder
+https://docs.clover.com/dev/reference/ordergetorderdiscounts
+https://docs.clover.com/dev/reference/ordergetorderlineitems
+https://docs.clover.com/dev/reference/lineitemgetvoidedorderlineitems
+https://docs.clover.com/dev/reference/handlergetvoidedlineitemstotals
+
+Ecom orders
+https://docs.clover.com/dev/reference/getorders
+https://docs.clover.com/dev/reference/getordersid
+
+Refunds
+https://docs.clover.com/dev/reference/listrefunds
+https://docs.clover.com/dev/reference/getrefund
