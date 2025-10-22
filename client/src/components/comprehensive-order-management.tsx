@@ -185,7 +185,7 @@ export function ComprehensiveOrderManagement() {
 
   
   const [filters, setFilters] = useState({
-    locationId: "all",
+    locationId: "clover_all",
     state: "all",
     paymentState: "all",
     hasDiscounts: "all",
@@ -790,11 +790,12 @@ export function ComprehensiveOrderManagement() {
                 value={filters.locationId}
                 onValueChange={(value) => setFilters(prev => ({ ...prev, locationId: value, page: 1 }))}
               >
-                <SelectTrigger className="w-48">
-                  <SelectValue placeholder="All Locations" />
+                <SelectTrigger className="w-64">
+                  <SelectValue placeholder="All Clover Locations" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Locations</SelectItem>
+                  <SelectItem value="clover_all">All Clover Locations</SelectItem>
+                  <SelectItem value="all">All Locations (Clover + Amazon)</SelectItem>
                   {locationsLoading ? (
                     <SelectItem value="loading" disabled>Loading locations...</SelectItem>
                   ) : locationsError ? (
@@ -802,14 +803,34 @@ export function ComprehensiveOrderManagement() {
                   ) : (locations || []).length === 0 ? (
                     <SelectItem value="empty" disabled>No locations available</SelectItem>
                   ) : (
-                    (locations || []).map((location: any) => {
-                      console.log('📁 [LOCATIONS DEBUG] Rendering location:', location);
-                      return (
-                        <SelectItem key={location.id} value={location.id}>
-                          {location.name || `Location ${location.id}`}
-                        </SelectItem>
-                      );
-                    })
+                    <>
+                      {/* Clover Locations */}
+                      {(locations || []).filter((loc: any) => loc.type === 'clover').length > 0 && (
+                        <>
+                          <SelectItem value="clover_separator" disabled className="text-xs font-semibold text-muted-foreground">
+                            — Clover Locations —
+                          </SelectItem>
+                          {(locations || []).filter((loc: any) => loc.type === 'clover').map((location: any) => (
+                            <SelectItem key={location.id} value={location.id}>
+                              {location.name || `Clover ${location.internalId}`}
+                            </SelectItem>
+                          ))}
+                        </>
+                      )}
+                      {/* Amazon Locations */}
+                      {(locations || []).filter((loc: any) => loc.type === 'amazon').length > 0 && (
+                        <>
+                          <SelectItem value="amazon_separator" disabled className="text-xs font-semibold text-muted-foreground">
+                            — Amazon Stores —
+                          </SelectItem>
+                          {(locations || []).filter((loc: any) => loc.type === 'amazon').map((location: any) => (
+                            <SelectItem key={location.id} value={location.id}>
+                              {location.name || `Amazon ${location.internalId}`}
+                            </SelectItem>
+                          ))}
+                        </>
+                      )}
+                    </>
                   )}
                 </SelectContent>
               </Select>

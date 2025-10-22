@@ -8221,20 +8221,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const limitNum = Number.isFinite(Number(limit)) && Number(limit) > 0 ? Number(limit) : 20;
       const offsetNum = Number.isFinite(Number(offset)) && Number(offset) >= 0 ? Number(offset) : 0;
       
-      // Parse new unified location ID format: clover_X, amazon_X, etc.
+      // Parse new unified location ID format: clover_X, amazon_X, clover_all, etc.
       let locationType: string | undefined;
       let locationIdNum: number | undefined;
       
       if (locationId && locationId !== 'all') {
-        const parts = locationId.split('_');
-        if (parts.length === 2) {
-          locationType = parts[0]; // 'clover' or 'amazon'
-          locationIdNum = Number(parts[1]);
-          console.log(`📍 [LOCATION FILTER] Parsed location: type=${locationType}, id=${locationIdNum}`);
-        } else {
-          // Fallback for old numeric format (Clover only)
-          locationIdNum = Number(locationId);
+        // Handle special "clover_all" filter (all Clover locations, skip Amazon)
+        if (locationId === 'clover_all') {
           locationType = 'clover';
+          locationIdNum = undefined; // All Clover locations
+          console.log(`📍 [LOCATION FILTER] Clover-only mode (all Clover locations, skip Amazon)`);
+        } else {
+          const parts = locationId.split('_');
+          if (parts.length === 2) {
+            locationType = parts[0]; // 'clover' or 'amazon'
+            locationIdNum = Number(parts[1]);
+            console.log(`📍 [LOCATION FILTER] Parsed location: type=${locationType}, id=${locationIdNum}`);
+          } else {
+            // Fallback for old numeric format (Clover only)
+            locationIdNum = Number(locationId);
+            locationType = 'clover';
+          }
         }
       }
 
