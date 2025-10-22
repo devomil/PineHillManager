@@ -68,6 +68,16 @@ interface Order {
   netMargin?: number;
   amazonFees?: number;
   isAmazonOrder?: boolean;
+  // Employee information
+  employeeName?: string | null;
+  employeeId?: string | null;
+  // Discount details with names
+  discountDetails?: Array<{
+    id: string;
+    name: string;
+    amount: number;
+    percentage: number;
+  }>;
   // Formatted date fields
   formattedDate?: string;
   orderDate?: string;
@@ -1375,6 +1385,46 @@ export function ComprehensiveOrderManagement() {
                     </div>
                   </div>
                 </div>
+
+                {/* Employee Information */}
+                {selectedOrder.employeeName && (
+                  <div className="p-3 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
+                    <div className="flex items-center space-x-2">
+                      <Users className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                      <label className="text-sm font-medium text-blue-900 dark:text-blue-100">Order Employee</label>
+                    </div>
+                    <p className="text-base font-semibold text-blue-900 dark:text-blue-100 mt-1">{selectedOrder.employeeName}</p>
+                  </div>
+                )}
+
+                {/* Discount Details */}
+                {selectedOrder.discountDetails && selectedOrder.discountDetails.length > 0 && (
+                  <div className="p-4 bg-red-50 dark:bg-red-950 rounded-lg border border-red-200 dark:border-red-800">
+                    <div className="flex items-center space-x-2 mb-3">
+                      <Percent className="h-4 w-4 text-red-600 dark:text-red-400" />
+                      <label className="text-sm font-medium text-red-900 dark:text-red-100">Discounts Applied</label>
+                    </div>
+                    <div className="space-y-2">
+                      {selectedOrder.discountDetails.map((discount) => (
+                        <div key={discount.id} className="flex justify-between items-center">
+                          <span className="text-sm font-medium text-red-900 dark:text-red-100">{discount.name}</span>
+                          <span className="text-sm font-semibold text-red-600 dark:text-red-400">
+                            {discount.percentage > 0 
+                              ? `${discount.percentage}%` 
+                              : `-${formatCurrencyDirect(discount.amount)}`
+                            }
+                          </span>
+                        </div>
+                      ))}
+                      <div className="pt-2 border-t border-red-300 dark:border-red-700 flex justify-between items-center">
+                        <span className="text-sm font-bold text-red-900 dark:text-red-100">Total Discounts</span>
+                        <span className="text-base font-bold text-red-600 dark:text-red-400">
+                          -{formatCurrencyDirect(selectedOrder.totalDiscounts || 0)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 <Separator />
 

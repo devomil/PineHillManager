@@ -7357,7 +7357,7 @@ export class DatabaseStorage implements IStorage {
           const options: any = {
             limit: filters.limit <= 50 ? 1000 : Math.min(filters.limit || 50, 1000), // Use high limit for comprehensive fetching
             offset: filters.offset || 0,
-            expand: 'lineItems,lineItems.discounts,payments,discounts,refunds',
+            expand: 'lineItems,lineItems.discounts,lineItems.modifications,payments,payments.employee,discounts,refunds,employee,customers,serviceCharge',
             orderBy: 'modifiedTime DESC'
           };
           
@@ -7553,6 +7553,23 @@ export class DatabaseStorage implements IStorage {
                 // Calculate actual financial metrics for this order (skip if requested for performance)
                 let enhancedOrder;
                 
+                // Extract employee information (needed for both lightweight and full versions)
+                const employeeName = (order as any).employee?.name || null;
+                const employeeId = (order as any).employee?.id || null;
+                
+                // Extract and format discount details with names (needed for both lightweight and full versions)
+                const discountDetails = [];
+                if ((order as any).discounts?.elements && Array.isArray((order as any).discounts.elements)) {
+                  for (const discount of (order as any).discounts.elements) {
+                    discountDetails.push({
+                      id: discount.id,
+                      name: discount.name || 'Unnamed Discount',
+                      amount: discount.amount ? Math.abs(discount.amount / 100) : 0,
+                      percentage: discount.percentage ? discount.percentage / 100 : 0  // Convert basis points to percentage (2500 → 25)
+                    });
+                  }
+                }
+                
                 if (filters.skipFinancialCalculations) {
                   // Lightweight version: Skip expensive financial calculations
                   enhancedOrder = {
@@ -7567,7 +7584,10 @@ export class DatabaseStorage implements IStorage {
                     netCOGS: 0,
                     netSale: orderTotalInDollars,
                     netProfit: 0,
-                    netMargin: '0.00%'
+                    netMargin: '0.00%',
+                    employeeName,
+                    employeeId,
+                    discountDetails
                   };
                 } else {
                   // Full calculation version for detailed views
@@ -7602,7 +7622,10 @@ export class DatabaseStorage implements IStorage {
                     netCOGS: financialMetrics.netCOGS,
                     netSale: financialMetrics.netSale,
                     netProfit: financialMetrics.netProfit,
-                    netMargin: financialMetrics.netMargin
+                    netMargin: financialMetrics.netMargin,
+                    employeeName,
+                    employeeId,
+                    discountDetails
                   };
                 }
                 
