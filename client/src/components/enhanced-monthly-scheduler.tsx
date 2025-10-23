@@ -69,6 +69,12 @@ interface ScheduleForDay {
   timeOff: any[];
 }
 
+// Helper function to parse date string as local date (not UTC)
+const parseLocalDate = (dateString: string): Date => {
+  const [year, month, day] = dateString.split('-').map(Number);
+  return new Date(year, month - 1, day);
+};
+
 export default function EnhancedMonthlyScheduler() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -1028,10 +1034,11 @@ export default function EnhancedMonthlyScheduler() {
                 <CardContent className="space-y-4">
                   {(() => {
                     const today = new Date();
+                    today.setHours(0, 0, 0, 0); // Reset to start of day for accurate comparison
                     const upcomingSchedules = schedules
-                      .filter((s: WorkSchedule) => new Date(s.date) >= today)
+                      .filter((s: WorkSchedule) => parseLocalDate(s.date) >= today)
                       .sort((a: WorkSchedule, b: WorkSchedule) => 
-                        new Date(a.date).getTime() - new Date(b.date).getTime()
+                        parseLocalDate(a.date).getTime() - parseLocalDate(b.date).getTime()
                       )
                       .slice(0, 5);
                     
@@ -1042,7 +1049,7 @@ export default function EnhancedMonthlyScheduler() {
                     }
                     
                     return upcomingSchedules.map((schedule: WorkSchedule) => {
-                      const scheduleDate = new Date(schedule.date);
+                      const scheduleDate = parseLocalDate(schedule.date);
                       const location = locations.find((loc: Location) => loc.id === schedule.locationId);
                       
                       return (
