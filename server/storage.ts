@@ -6694,7 +6694,10 @@ export class DatabaseStorage implements IStorage {
       
       if (isAmazonOrder) {
         // Amazon orders have a different structure - extract financial data
-        const orderTotal = parseFloat(order.OrderTotal?.Amount || '0');
+        // Use the normalized 'total' field (in cents) if OrderTotal isn't available
+        const orderTotal = order.OrderTotal?.Amount 
+          ? parseFloat(order.OrderTotal.Amount) 
+          : (order.total || 0) / 100; // Convert cents to dollars if using total field
         const orderId = order.AmazonOrderId || order.id;
         const amazonFees = order.amazonFees || 0;
         
