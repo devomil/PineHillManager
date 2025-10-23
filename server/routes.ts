@@ -8258,13 +8258,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
                     console.error(`Error fetching Amazon order items:`, error);
                   }
                   
+                  // Calculate total - for canceled orders, Amazon zeros out OrderTotal but preserves line items
+                  let orderTotal = parseFloat(order.OrderTotal?.Amount || '0');
+                  if (orderTotal === 0 && lineItems.length > 0) {
+                    // Calculate from line items - item.price is already the extended price (unit × quantity) in cents
+                    orderTotal = lineItems.reduce((sum, item) => sum + (item.price / 100), 0);
+                    console.log(`📦 [AMAZON CANCELED - METRICS] Order ${order.AmazonOrderId}: Calculated total from ${lineItems.length} line items = $${orderTotal.toFixed(2)}`);
+                  }
+                  
                   const baseOrder = {
                     id: order.AmazonOrderId,
-                    total: parseFloat(order.OrderTotal?.Amount || '0') * 100,
+                    total: orderTotal * 100, // Convert dollars to cents
                     createdTime: new Date(order.PurchaseDate).getTime(),
                     locationId: `amazon_${config.id}`,
                     isAmazonOrder: true,
-                    lineItems: { elements: lineItems }
+                    lineItems: { elements: lineItems },
+                    OrderTotal: { Amount: orderTotal.toString(), CurrencyCode: order.OrderTotal?.CurrencyCode || 'USD' } // Override with calculated value
                   };
                   
                   // Calculate financial metrics including COGS
@@ -8613,14 +8622,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
                       console.error(`❌ Error fetching items for order ${order.AmazonOrderId}:`, error);
                     }
                     
+                    // Calculate total - for canceled orders, Amazon zeros out OrderTotal but preserves line items
+                    let orderTotal = parseFloat(order.OrderTotal?.Amount || '0');
+                    if (orderTotal === 0 && lineItems.length > 0) {
+                      // Calculate from line items - item.price is already the extended price (unit × quantity) in cents
+                      orderTotal = lineItems.reduce((sum, item) => sum + (item.price / 100), 0);
+                      console.log(`📦 [AMAZON CANCELED] Order ${order.AmazonOrderId}: Calculated total from ${lineItems.length} line items = $${orderTotal.toFixed(2)}`);
+                    }
+                    
                     if (shouldIncludeAmazonFees) {
-                      console.log(`💰 [AMAZON ORDER] ${order.AmazonOrderId}: Total=$${parseFloat(order.OrderTotal?.Amount || '0').toFixed(2)}, Fees=$${totalAmazonFees.toFixed(2)}`);
+                      console.log(`💰 [AMAZON ORDER] ${order.AmazonOrderId}: Total=$${orderTotal.toFixed(2)}, Fees=$${totalAmazonFees.toFixed(2)}`);
                     }
                     
                     return {
                       ...order,
                       id: order.AmazonOrderId, // Add id field for compatibility
-                      total: parseFloat(order.OrderTotal?.Amount || '0') * 100, // Convert dollars to cents for compatibility
+                      total: orderTotal * 100, // Convert dollars to cents for compatibility
                       createdTime: new Date(order.PurchaseDate).getTime(), // Convert to timestamp
                       locationName: config.merchantName || 'Amazon Store',
                       locationId: `amazon_${config.id}`,
@@ -8631,7 +8648,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
                       amazonFees: totalAmazonFees, // Add calculated fees
                       lineItems: {
                         elements: lineItems // Add line items for COGS calculation
-                      }
+                      },
+                      OrderTotal: { Amount: orderTotal.toString(), CurrencyCode: order.OrderTotal?.CurrencyCode || 'USD' } // Override with calculated value for downstream use
                     };
                   }));
                   
