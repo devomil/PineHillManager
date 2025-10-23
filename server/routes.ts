@@ -943,7 +943,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         endDate as string,
         userId as string | undefined
       );
-      res.json(approvedRequests);
+      
+      // For employee users, redact the reason field to protect privacy
+      // Only managers and admins should see time off reasons
+      const isEmployee = req.user?.role === 'employee';
+      if (isEmployee) {
+        const redactedRequests = approvedRequests.map(request => ({
+          ...request,
+          reason: undefined // Remove reason for employee users
+        }));
+        res.json(redactedRequests);
+      } else {
+        res.json(approvedRequests);
+      }
     } catch (error) {
       console.error('Error fetching approved time off requests:', error);
       res.status(500).json({ error: 'Failed to fetch approved time off requests' });

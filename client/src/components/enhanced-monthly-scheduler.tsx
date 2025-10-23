@@ -1288,7 +1288,7 @@ export default function EnhancedMonthlyScheduler() {
                             </div>
                             <div className="text-orange-600 text-xs">
                               Time Off
-                              {timeOff.reason && (
+                              {!isEmployee && timeOff.reason && (
                                 <span className="text-orange-500 ml-1">• {timeOff.reason}</span>
                               )}
                             </div>
