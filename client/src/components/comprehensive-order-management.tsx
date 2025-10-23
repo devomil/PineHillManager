@@ -1458,7 +1458,10 @@ export function ComprehensiveOrderManagement() {
                   <div>
                     <label className="text-sm font-medium text-muted-foreground">Order State</label>
                     <div className="mt-1">
-                      <Badge variant={selectedOrder.state === 'locked' ? 'default' : 'outline'}>
+                      <Badge variant={
+                        selectedOrder.state === 'Canceled' ? 'destructive' :
+                        selectedOrder.state === 'locked' ? 'default' : 'outline'
+                      }>
                         {selectedOrder.state}
                       </Badge>
                     </div>

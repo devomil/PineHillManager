@@ -8258,12 +8258,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
                     console.error(`Error fetching Amazon order items:`, error);
                   }
                   
-                  // Calculate total - for canceled orders, Amazon zeros out OrderTotal but preserves line items
+                  // Calculate order total - for canceled orders keep $0.00, otherwise calculate from line items if needed
                   let orderTotal = parseFloat(order.OrderTotal?.Amount || '0');
-                  if (orderTotal === 0 && lineItems.length > 0) {
-                    // Calculate from line items - item.price is already the extended price (unit × quantity) in cents
+                  let calculatedFromLineItems = false;
+                  
+                  // Only calculate from line items for non-canceled orders with $0 total
+                  if (orderTotal === 0 && lineItems.length > 0 && order.OrderStatus !== 'Canceled') {
+                    // Calculate from line items - item.price is already the extended price in cents
                     orderTotal = lineItems.reduce((sum, item) => sum + (item.price / 100), 0);
-                    console.log(`📦 [AMAZON CANCELED - METRICS] Order ${order.AmazonOrderId}: Calculated total from ${lineItems.length} line items = $${orderTotal.toFixed(2)}`);
+                    calculatedFromLineItems = true;
+                    console.log(`📦 [AMAZON MISSING TOTAL - METRICS] Order ${order.AmazonOrderId}: Calculated total from ${lineItems.length} line items = $${orderTotal.toFixed(2)}`);
                   }
                   
                   const baseOrder = {
@@ -8273,7 +8277,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
                     locationId: `amazon_${config.id}`,
                     isAmazonOrder: true,
                     lineItems: { elements: lineItems },
-                    OrderTotal: { Amount: orderTotal.toString(), CurrencyCode: order.OrderTotal?.CurrencyCode || 'USD' } // Override with calculated value
+                    // Override OrderTotal.Amount if we calculated from line items, otherwise preserve Amazon's value
+                    OrderTotal: calculatedFromLineItems
+                      ? { ...(order.OrderTotal ?? {}), Amount: orderTotal.toString(), CurrencyCode: order.OrderTotal?.CurrencyCode || 'USD' }
+                      : order.OrderTotal || { Amount: orderTotal.toString(), CurrencyCode: 'USD' }
                   };
                   
                   // Calculate financial metrics including COGS
@@ -8559,13 +8566,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 if (amazonResponse && amazonResponse.payload && amazonResponse.payload.Orders) {
                   // Transform Amazon orders to match Clover format WITH fee calculation
                   const transformedOrders = await Promise.all(amazonResponse.payload.Orders.map(async (order: any) => {
-                    // Map Amazon OrderStatus to Clover state (locked/open)
-                    const state = order.OrderStatus === 'Shipped' || order.OrderStatus === 'Delivered' ? 'locked' : 'open';
+                    // Map Amazon OrderStatus to Clover state
+                    let state = 'open'; // Default
+                    if (order.OrderStatus === 'Canceled') {
+                      state = 'Canceled';
+                    } else if (order.OrderStatus === 'Shipped' || order.OrderStatus === 'Delivered') {
+                      state = 'locked';
+                    }
                     
                     // Map Amazon PaymentMethodDetails to paymentState (paid/unpaid)
                     // PaymentMethodDetails is an array of payment methods used
                     let paymentState = 'open'; // Default to unpaid
-                    if (order.PaymentMethodDetails && order.PaymentMethodDetails.length > 0) {
+                    if (order.OrderStatus === 'Canceled') {
+                      // Canceled orders should show as unpaid/open
+                      paymentState = 'open';
+                    } else if (order.PaymentMethodDetails && order.PaymentMethodDetails.length > 0) {
                       // If payment methods are present and order is not pending, it's paid
                       if (order.OrderStatus !== 'Pending' && order.OrderStatus !== 'PendingAvailability') {
                         paymentState = 'paid';
@@ -8622,16 +8637,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
                       console.error(`❌ Error fetching items for order ${order.AmazonOrderId}:`, error);
                     }
                     
-                    // Calculate total - for canceled orders, Amazon zeros out OrderTotal but preserves line items
+                    // Calculate order total - for canceled orders keep $0.00, otherwise calculate from line items if needed
                     let orderTotal = parseFloat(order.OrderTotal?.Amount || '0');
-                    if (orderTotal === 0 && lineItems.length > 0) {
-                      // Calculate from line items - item.price is already the extended price (unit × quantity) in cents
+                    let calculatedFromLineItems = false;
+                    
+                    // Only calculate from line items for non-canceled orders with $0 total
+                    if (orderTotal === 0 && lineItems.length > 0 && order.OrderStatus !== 'Canceled') {
+                      // Calculate from line items - item.price is already the extended price in cents
                       orderTotal = lineItems.reduce((sum, item) => sum + (item.price / 100), 0);
-                      console.log(`📦 [AMAZON CANCELED] Order ${order.AmazonOrderId}: Calculated total from ${lineItems.length} line items = $${orderTotal.toFixed(2)}`);
+                      calculatedFromLineItems = true;
+                      console.log(`📦 [AMAZON MISSING TOTAL] Order ${order.AmazonOrderId}: Calculated total from ${lineItems.length} line items = $${orderTotal.toFixed(2)}`);
                     }
                     
                     if (shouldIncludeAmazonFees) {
-                      console.log(`💰 [AMAZON ORDER] ${order.AmazonOrderId}: Total=$${orderTotal.toFixed(2)}, Fees=$${totalAmazonFees.toFixed(2)}`);
+                      console.log(`💰 [AMAZON ORDER] ${order.AmazonOrderId}: Status=${order.OrderStatus}, Total=$${orderTotal.toFixed(2)}, Fees=$${totalAmazonFees.toFixed(2)}`);
                     }
                     
                     return {
@@ -8642,14 +8661,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
                       locationName: config.merchantName || 'Amazon Store',
                       locationId: `amazon_${config.id}`,
                       merchantId: config.sellerId,
-                      state, // Add mapped order state
+                      state, // Add mapped order state (shows "Canceled" for canceled orders)
                       paymentState, // Add mapped payment state
                       isAmazonOrder: true,
                       amazonFees: totalAmazonFees, // Add calculated fees
                       lineItems: {
                         elements: lineItems // Add line items for COGS calculation
                       },
-                      OrderTotal: { Amount: orderTotal.toString(), CurrencyCode: order.OrderTotal?.CurrencyCode || 'USD' } // Override with calculated value for downstream use
+                      // Override OrderTotal.Amount if we calculated from line items, otherwise preserve Amazon's value
+                      OrderTotal: calculatedFromLineItems 
+                        ? { ...(order.OrderTotal ?? {}), Amount: orderTotal.toString(), CurrencyCode: order.OrderTotal?.CurrencyCode || 'USD' }
+                        : order.OrderTotal
                     };
                   }));
                   
