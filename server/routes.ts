@@ -8503,8 +8503,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           // Add timeout wrapper for Amazon integration
           const amazonFetchWithTimeout = async (): Promise<any[]> => {
+            // Use longer timeout for Amazon-only queries (rate limiting can take 15+ seconds)
+            const timeoutMs = locationType === 'amazon' ? 20000 : 10000;
             const timeoutPromise = new Promise((_, reject) => 
-              setTimeout(() => reject(new Error('Amazon API timeout')), 10000) // 10 second timeout (reduced since we skip expensive fee calculations)
+              setTimeout(() => reject(new Error('Amazon API timeout')), timeoutMs)
             );
             
             const fetchPromise = async (): Promise<any[]> => {
