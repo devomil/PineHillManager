@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ShoppingCart, Scan, Trash2, Plus, Minus, DollarSign, Package } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { EmployeePurchase, InventoryItem } from "@shared/schema";
+import { CloverPaymentDialog } from "@/components/clover-payment-dialog";
 
 interface CartItem {
   item: InventoryItem;
@@ -29,6 +30,9 @@ export default function EmployeePurchases() {
   const { toast } = useToast();
   const [barcode, setBarcode] = useState("");
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [showPaymentDialog, setShowPaymentDialog] = useState(false);
+  const [paymentAmount, setPaymentAmount] = useState(0);
+  const [pendingPurchaseIds, setPendingPurchaseIds] = useState<number[]>([]);
   const barcodeInputRef = useRef<HTMLInputElement>(null);
 
   // Calculate price based on monthly allowance model and user role
@@ -118,7 +122,26 @@ export default function EmployeePurchases() {
         throw new Error('Balance data not available');
       }
 
-      // Use pre-calculated prices from cartItemsWithPrices
+      // Calculate how much requires payment (items that exceed allowance cap)
+      let runningTotal = balance.monthlyTotal;
+      const cap = parseFloat(balance.monthlyCap?.toString() || '0');
+      let amountRequiringPayment = 0;
+      
+      // For each cart item, determine how much needs payment
+      for (const { item, quantity, unitPrice, lineTotal } of cartItemsWithPrices) {
+        for (let i = 0; i < quantity; i++) {
+          const itemPrice = calculatePrice(item, balance, runningTotal - balance.monthlyTotal);
+          
+          // If this item pushes us over the cap, it requires payment
+          if (runningTotal + itemPrice > cap && itemPrice > 0) {
+            amountRequiringPayment += itemPrice;
+          }
+          
+          runningTotal += itemPrice;
+        }
+      }
+
+      // Create purchase records first
       const purchases = cartItemsWithPrices.map(({ item, quantity, unitPrice, lineTotal }) => {
         return {
           employeeId: balance.periodMonth, // This will be replaced by the backend with the actual employee ID from session
@@ -134,19 +157,34 @@ export default function EmployeePurchases() {
 
       const results = [];
       for (const purchase of purchases) {
-        const result = await apiRequest('POST', '/api/employee-purchases', purchase);
+        const response = await apiRequest('POST', '/api/employee-purchases', purchase);
+        const result = await response.json();
         results.push(result);
       }
-      return results;
+
+      // If payment is required, show payment dialog
+      if (amountRequiringPayment > 0) {
+        const purchaseIds = results.map((r: any) => r.id);
+        setPendingPurchaseIds(purchaseIds);
+        setPaymentAmount(amountRequiringPayment);
+        setShowPaymentDialog(true);
+        return { requiresPayment: true, purchaseIds, amount: amountRequiringPayment };
+      }
+
+      return { requiresPayment: false, results };
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/employee-purchases'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/employee-purchases/balance'] });
-      setCart([]);
-      toast({
-        title: "Purchase complete",
-        description: "Your items have been recorded",
-      });
+    onSuccess: (data: any) => {
+      if (!data.requiresPayment) {
+        // Free purchase completed successfully
+        queryClient.invalidateQueries({ queryKey: ['/api/employee-purchases'] });
+        queryClient.invalidateQueries({ queryKey: ['/api/employee-purchases/balance'] });
+        setCart([]);
+        toast({
+          title: "Purchase complete",
+          description: "Your items have been recorded",
+        });
+      }
+      // If payment required, wait for payment dialog to complete
     },
     onError: (error: any) => {
       toast({
@@ -156,6 +194,41 @@ export default function EmployeePurchases() {
       });
     },
   });
+
+  const handlePaymentSuccess = async (paymentData: any) => {
+    // Payment completed successfully
+    queryClient.invalidateQueries({ queryKey: ['/api/employee-purchases'] });
+    queryClient.invalidateQueries({ queryKey: ['/api/employee-purchases/balance'] });
+    setCart([]);
+    setPendingPurchaseIds([]);
+    setPaymentAmount(0);
+    setShowPaymentDialog(false);
+    
+    toast({
+      title: "Purchase complete",
+      description: `Payment of $${paymentAmount.toFixed(2)} processed successfully`,
+    });
+  };
+
+  const handlePaymentError = (error: string) => {
+    toast({
+      variant: "destructive",
+      title: "Payment failed",
+      description: error,
+    });
+  };
+
+  const handlePaymentCancel = () => {
+    setShowPaymentDialog(false);
+    setPendingPurchaseIds([]);
+    setPaymentAmount(0);
+    
+    toast({
+      title: "Payment cancelled",
+      description: "Your purchase has been cancelled. Please complete payment to finalize your order.",
+      variant: "destructive",
+    });
+  };
 
   const handleScan = (e: React.FormEvent) => {
     e.preventDefault();
@@ -568,6 +641,16 @@ export default function EmployeePurchases() {
         </div>
       </div>
       </div>
+
+      {/* Payment Dialog */}
+      <CloverPaymentDialog
+        open={showPaymentDialog}
+        onClose={handlePaymentCancel}
+        amount={paymentAmount}
+        purchaseIds={pendingPurchaseIds}
+        onPaymentSuccess={handlePaymentSuccess}
+        onPaymentError={handlePaymentError}
+      />
     </div>
   );
 }
