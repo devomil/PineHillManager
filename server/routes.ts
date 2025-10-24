@@ -3404,6 +3404,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Initialize Clover payment service
   const cloverPaymentService = createCloverPaymentService();
 
+  // Get Clover public API key for iframe tokenization
+  app.get('/api/employee-purchases/payment/public-key', isAuthenticated, async (req, res) => {
+    try {
+      if (!cloverPaymentService) {
+        return res.status(503).json({ 
+          message: 'Payment processing is not configured',
+          error: 'PAYMENT_SERVICE_UNAVAILABLE'
+        });
+      }
+
+      console.log('🔑 [Payment Public Key] Fetching Clover public API key...');
+
+      const publicKey = await cloverPaymentService.getPublicApiKey();
+
+      res.json({
+        success: true,
+        publicKey,
+      });
+    } catch (error: any) {
+      console.error('Error fetching Clover public key:', error);
+      res.status(500).json({ 
+        message: 'Failed to fetch payment configuration',
+        error: error.message 
+      });
+    }
+  });
+
   // Create payment intent for over-cap purchases
   app.post('/api/employee-purchases/payment/create-intent', isAuthenticated, async (req, res) => {
     try {

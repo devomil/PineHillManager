@@ -209,17 +209,43 @@ export class CloverPaymentService {
   }
 
   /**
-   * Generate Clover iframe token for secure card entry
-   * This is used by the frontend to display the secure payment form
+   * Get the public API key (PAKMS key) for Clover iframe tokenization
+   * This key is used by the frontend Clover SDK to securely tokenize cards
    */
-  async generateIframeToken(): Promise<string> {
+  async getPublicApiKey(): Promise<string> {
     try {
-      // For Clover's hosted iframe, we use the merchant's publishable key
-      // This is typically configured separately from the API token
-      // For now, we'll return the merchant ID which is used in the iframe URL
-      return this.config.merchantId;
+      // Clover PAKMS endpoint to get public API access key
+      const url = `https://scl.clover.com/pakms/apikey`;
+      
+      console.log('🔑 [Clover Payment] Fetching public API key...');
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${this.config.apiToken}`,
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        console.error('❌ [Clover Payment] Failed to fetch public API key:', {
+          status: response.status,
+          error: errorText,
+        });
+        throw new Error(`Failed to get public API key: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      
+      if (!result.apiAccessKey) {
+        throw new Error('No apiAccessKey returned from PAKMS');
+      }
+
+      console.log('✅ [Clover Payment] Public API key retrieved');
+      
+      return result.apiAccessKey;
     } catch (error) {
-      console.error('❌ [Clover Payment] Error generating iframe token:', error);
+      console.error('❌ [Clover Payment] Error getting public API key:', error);
       throw error;
     }
   }

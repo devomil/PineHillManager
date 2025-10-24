@@ -56,6 +56,19 @@ export function CloverPaymentDialog({
           return;
         }
 
+        // Get public API key from backend
+        const publicKeyResponse = await fetch('/api/employee-purchases/payment/public-key');
+        if (!publicKeyResponse.ok) {
+          const errorData = await publicKeyResponse.json();
+          throw new Error(errorData.message || 'Failed to fetch payment configuration');
+        }
+
+        const { publicKey } = await publicKeyResponse.json();
+        
+        if (!publicKey) {
+          throw new Error('No public key received from server');
+        }
+
         // Get payment intent from backend
         const intentResponse = await fetch('/api/employee-purchases/payment/create-intent', {
           method: 'POST',
@@ -74,16 +87,10 @@ export function CloverPaymentDialog({
 
         const intent = await intentResponse.json();
         setPaymentIntent(intent);
-
-        // Note: Clover uses private API token on backend for actual charges
-        // The public key is only needed if using client-side checkout (not our case)
-        // We'll use iframe tokenizer with server-side processing
         
-        const merchantId = intent.merchantId || process.env.VITE_CLOVER_MERCHANT_ID;
-        
-        // Initialize Clover with a dummy public key (we don't need it for tokenization)
-        // The actual payment happens server-side with the private token
-        cloverInstanceRef.current = new window.Clover('dummy_public_key');
+        // Initialize Clover SDK with the public API key from backend
+        console.log('🔑 Initializing Clover SDK with public API key');
+        cloverInstanceRef.current = new window.Clover(publicKey);
         elementsRef.current = cloverInstanceRef.current.elements();
 
         // Define custom styles matching our design system
