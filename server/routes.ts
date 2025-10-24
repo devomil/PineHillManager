@@ -13,6 +13,7 @@ import { smsService } from "./sms-service";
 import { smartNotificationService } from './smart-notifications';
 import { ObjectStorageService, ObjectNotFoundError } from './objectStorage';
 import { ObjectPermission } from './objectAcl';
+import { createCloverPaymentService } from './integrations/clover-payments';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -3393,6 +3394,222 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error generating employee purchase report:', error);
       res.status(500).json({ message: 'Failed to generate purchase report' });
+    }
+  });
+
+  // ================================
+  // CLOVER PAYMENT INTEGRATION
+  // ================================
+
+  // Initialize Clover payment service
+  const cloverPaymentService = createCloverPaymentService();
+
+  // Create payment intent for over-cap purchases
+  app.post('/api/employee-purchases/payment/create-intent', isAuthenticated, async (req, res) => {
+    try {
+      if (!cloverPaymentService) {
+        return res.status(503).json({ 
+          message: 'Payment processing is not configured',
+          error: 'PAYMENT_SERVICE_UNAVAILABLE'
+        });
+      }
+
+      const { amount, purchaseIds, description } = req.body;
+
+      if (!amount || amount <= 0) {
+        return res.status(400).json({ message: 'Invalid payment amount' });
+      }
+
+      if (!purchaseIds || !Array.isArray(purchaseIds) || purchaseIds.length === 0) {
+        return res.status(400).json({ message: 'Purchase IDs required' });
+      }
+
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ message: 'User not authenticated' });
+      }
+
+      // Generate a unique external payment ID for tracking
+      const externalPaymentId = `emp_purchase_${userId}_${Date.now()}`;
+
+      console.log('💳 [Payment Intent] Creating for user:', {
+        userId,
+        amount,
+        purchaseCount: purchaseIds.length,
+        externalId: externalPaymentId,
+      });
+
+      // Return payment intent data for frontend
+      res.json({
+        success: true,
+        externalPaymentId,
+        amount,
+        purchaseIds,
+        merchantId: process.env.CLOVER_MERCHANT_ID,
+        description: description || 'Employee Purchase',
+      });
+    } catch (error: any) {
+      console.error('Error creating payment intent:', error);
+      res.status(500).json({ 
+        message: 'Failed to create payment intent',
+        error: error.message 
+      });
+    }
+  });
+
+  // Process payment with Clover token
+  app.post('/api/employee-purchases/payment/process', isAuthenticated, async (req, res) => {
+    try {
+      if (!cloverPaymentService) {
+        return res.status(503).json({ 
+          message: 'Payment processing is not configured',
+          error: 'PAYMENT_SERVICE_UNAVAILABLE'
+        });
+      }
+
+      const { cardToken, amount, externalPaymentId, purchaseIds } = req.body;
+
+      if (!cardToken || !amount || !externalPaymentId || !purchaseIds) {
+        return res.status(400).json({ message: 'Missing required payment data' });
+      }
+
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ message: 'User not authenticated' });
+      }
+
+      console.log('💳 [Payment Process] Processing payment:', {
+        userId,
+        amount,
+        purchaseCount: purchaseIds.length,
+        externalId: externalPaymentId,
+      });
+
+      // Process payment through Clover
+      const amountInCents = Math.round(parseFloat(amount) * 100);
+      const paymentResult = await cloverPaymentService.createPayment(
+        {
+          amount: amountInCents,
+          currency: 'USD',
+          externalPaymentId,
+          note: `Employee purchase payment - ${purchaseIds.length} items`,
+        },
+        cardToken
+      );
+
+      if (paymentResult.status !== 'success') {
+        console.error('❌ [Payment Process] Payment declined:', paymentResult);
+        return res.status(400).json({
+          success: false,
+          message: paymentResult.errorMessage || 'Payment was declined',
+          result: paymentResult.result,
+        });
+      }
+
+      // Update purchase records with payment information
+      for (const purchaseId of purchaseIds) {
+        await storage.updateEmployeePurchasePayment(purchaseId, {
+          paymentStatus: 'paid',
+          cloverPaymentId: paymentResult.id,
+          paymentAmount: amount,
+          paymentDate: new Date(),
+          paymentMethod: paymentResult.cardType || 'credit_card',
+          last4: paymentResult.last4,
+        });
+      }
+
+      console.log('✅ [Payment Process] Payment successful:', {
+        paymentId: paymentResult.id,
+        amount,
+        last4: paymentResult.last4,
+      });
+
+      res.json({
+        success: true,
+        paymentId: paymentResult.id,
+        amount: paymentResult.amount / 100,
+        last4: paymentResult.last4,
+        cardType: paymentResult.cardType,
+        authCode: paymentResult.authCode,
+      });
+    } catch (error: any) {
+      console.error('Error processing payment:', error);
+      res.status(500).json({ 
+        success: false,
+        message: 'Failed to process payment',
+        error: error.message 
+      });
+    }
+  });
+
+  // Get payment status
+  app.get('/api/employee-purchases/payment/:paymentId', isAuthenticated, async (req, res) => {
+    try {
+      if (!cloverPaymentService) {
+        return res.status(503).json({ 
+          message: 'Payment processing is not configured' 
+        });
+      }
+
+      const { paymentId } = req.params;
+      const paymentDetails = await cloverPaymentService.getPayment(paymentId);
+
+      res.json({
+        success: true,
+        payment: paymentDetails,
+      });
+    } catch (error: any) {
+      console.error('Error fetching payment status:', error);
+      res.status(500).json({ 
+        message: 'Failed to fetch payment status',
+        error: error.message 
+      });
+    }
+  });
+
+  // Refund a payment (admin/manager only)
+  app.post('/api/admin/employee-purchases/payment/:paymentId/refund', isAuthenticated, isManagerOrAdmin, async (req, res) => {
+    try {
+      if (!cloverPaymentService) {
+        return res.status(503).json({ 
+          message: 'Payment processing is not configured' 
+        });
+      }
+
+      const { paymentId } = req.params;
+      const { amount, purchaseIds } = req.body;
+
+      console.log('🔄 [Payment Refund] Processing refund:', {
+        paymentId,
+        amount,
+        purchaseCount: purchaseIds?.length,
+      });
+
+      const amountInCents = amount ? Math.round(parseFloat(amount) * 100) : undefined;
+      const refundResult = await cloverPaymentService.refundPayment(paymentId, amountInCents);
+
+      // Update purchase records if provided
+      if (purchaseIds && Array.isArray(purchaseIds)) {
+        for (const purchaseId of purchaseIds) {
+          await storage.updateEmployeePurchasePayment(purchaseId, {
+            paymentStatus: 'refunded',
+          });
+        }
+      }
+
+      console.log('✅ [Payment Refund] Refund successful:', refundResult.id);
+
+      res.json({
+        success: true,
+        refundId: refundResult.id,
+        amount: amount || 'full',
+      });
+    } catch (error: any) {
+      console.error('Error processing refund:', error);
+      res.status(500).json({ 
+        message: 'Failed to process refund',
+        error: error.message 
+      });
     }
   });
 

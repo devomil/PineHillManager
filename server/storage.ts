@@ -589,6 +589,16 @@ export interface IStorage {
     employeePurchaseCostMarkup?: string;
     employeePurchaseRetailDiscount?: string;
   }): Promise<User>;
+  updateEmployeePurchasePayment(purchaseId: number, paymentData: {
+    paymentStatus?: string;
+    cloverPaymentId?: string;
+    cloverOrderId?: string;
+    paymentAmount?: string;
+    paymentDate?: Date;
+    paymentMethod?: string;
+    last4?: string;
+    requiresPayment?: boolean;
+  }): Promise<EmployeePurchase>;
   getEmployeePurchaseReport(periodMonth: string): Promise<any>;
 
   // System analytics methods for technical support
@@ -4381,6 +4391,27 @@ export class DatabaseStorage implements IStorage {
       ))
       .limit(1);
     return item;
+  }
+
+  async updateEmployeePurchasePayment(
+    purchaseId: number,
+    paymentData: {
+      paymentStatus?: string;
+      cloverPaymentId?: string;
+      cloverOrderId?: string;
+      paymentAmount?: string;
+      paymentDate?: Date;
+      paymentMethod?: string;
+      last4?: string;
+      requiresPayment?: boolean;
+    }
+  ): Promise<EmployeePurchase> {
+    const [updatedPurchase] = await db
+      .update(employeePurchases)
+      .set(paymentData)
+      .where(eq(employeePurchases.id, purchaseId))
+      .returning();
+    return updatedPurchase;
   }
 
   // Admin: Get all users with their employee purchase settings and spending
