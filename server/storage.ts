@@ -4393,6 +4393,7 @@ export class DatabaseStorage implements IStorage {
         email: users.email,
         department: users.department,
         position: users.position,
+        role: users.role,
         employeePurchaseEnabled: users.employeePurchaseEnabled,
         employeePurchaseCap: users.employeePurchaseCap,
         employeePurchaseCostMarkup: users.employeePurchaseCostMarkup,
