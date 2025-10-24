@@ -35,7 +35,7 @@ export default function EmployeePurchases() {
   // Managers/Admins: Always get 100% discount (COG pricing only)
   // Regular Employees:
   //   - Before reaching monthly cap: charge full retail price (company pays, employee doesn't)
-  //   - After exceeding monthly cap: charge cost + markup% (employee pays out of pocket with discount)
+  //   - After exceeding monthly cap: charge 25% off retail (employee pays out of pocket with discount)
   const calculatePrice = (item: InventoryItem, balance: PurchaseBalance | undefined, currentCartTotal: number = 0): number => {
     if (!balance) return parseFloat(item.unitCost || '0');
     
@@ -56,9 +56,8 @@ export default function EmployeePurchases() {
       return retailPrice;
     }
     
-    // If over allowance cap: use cost + markup% (employee discount - employee pays)
-    const markup = parseFloat(balance.costMarkup?.toString() || '0');
-    return cost * (1 + markup / 100);
+    // If over allowance cap: use 25% off retail (employee discount - employee pays)
+    return retailPrice * 0.75;
   };
 
   const { data: balance, isLoading: balanceLoading } = useQuery<PurchaseBalance>({
