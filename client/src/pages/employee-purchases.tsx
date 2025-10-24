@@ -114,15 +114,21 @@ export default function EmployeePurchases() {
 
   const purchaseMutation = useMutation({
     mutationFn: async () => {
+      if (!balance) {
+        throw new Error('Balance data not available');
+      }
+
       // Use pre-calculated prices from cartItemsWithPrices
       const purchases = cartItemsWithPrices.map(({ item, quantity, unitPrice, lineTotal }) => {
         return {
+          employeeId: balance.periodMonth, // This will be replaced by the backend with the actual employee ID from session
           inventoryItemId: item.id,
           itemName: item.itemName,
           barcode: item.sku || item.asin || '',
-          quantity,
-          unitPrice,
-          totalAmount: lineTotal,
+          quantity: quantity.toString(),
+          unitPrice: unitPrice.toFixed(2),
+          totalAmount: lineTotal.toFixed(2),
+          periodMonth: balance.periodMonth,
         };
       });
 
