@@ -32,7 +32,9 @@ export default function EmployeePurchases() {
   const barcodeInputRef = useRef<HTMLInputElement>(null);
 
   // Calculate price based on monthly allowance model and user role
-  // Managers/Admins: Always get 100% discount (COG pricing only)
+  // Managers/Admins:
+  //   - Before reaching monthly cap: 100% discount (no charge until allowance used)
+  //   - After exceeding monthly cap: COGS + % markup
   // Regular Employees:
   //   - Before reaching monthly cap: charge full retail price (company pays, employee doesn't)
   //   - After exceeding monthly cap: charge 25% off retail (employee pays out of pocket with discount)
@@ -41,16 +43,21 @@ export default function EmployeePurchases() {
     
     const cost = parseFloat(item.unitCost || '0');
     const retailPrice = parseFloat(item.unitPrice || '0');
-    
-    // Managers and admins always get COG pricing (100% discount)
-    if (balance.userRole === 'manager' || balance.userRole === 'admin') {
-      return cost;
-    }
-    
-    // For regular employees: check if we've already exceeded the cap (including current cart)
     const totalSpending = balance.monthlyTotal + currentCartTotal;
     const cap = parseFloat(balance.monthlyCap?.toString() || '0');
     
+    // Managers and admins get special pricing
+    if (balance.userRole === 'manager' || balance.userRole === 'admin') {
+      // Before cap: 100% discount (no charge)
+      if (totalSpending < cap) {
+        return 0;
+      }
+      // After cap: COGS + % markup
+      const markup = parseFloat(balance.costMarkup?.toString() || '0');
+      return cost * (1 + markup / 100);
+    }
+    
+    // For regular employees: check if we've already exceeded the cap (including current cart)
     // If under allowance cap: use full retail price (no discount - company pays)
     if (totalSpending < cap) {
       return retailPrice;
