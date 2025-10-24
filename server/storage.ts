@@ -589,6 +589,7 @@ export interface IStorage {
     employeePurchaseCostMarkup?: string;
     employeePurchaseRetailDiscount?: string;
   }): Promise<User>;
+  getEmployeePurchaseReport(periodMonth: string): Promise<any>;
 
   // System analytics methods for technical support
   getAllTimeEntries(): Promise<any[]>;
@@ -4431,6 +4432,125 @@ export class DatabaseStorage implements IStorage {
       .where(eq(users.id, userId))
       .returning();
     return updatedUser;
+  }
+
+  // Admin: Get detailed employee purchase report with COGS for QuickBooks
+  async getEmployeePurchaseReport(periodMonth: string): Promise<any> {
+    const purchases = await db
+      .select({
+        purchaseId: employeePurchases.id,
+        employeeId: users.id,
+        employeeFirstName: users.firstName,
+        employeeLastName: users.lastName,
+        employeeRole: users.role,
+        employeeDepartment: users.department,
+        employeePosition: users.position,
+        employeeCap: users.employeePurchaseCap,
+        employeeCostMarkup: users.employeePurchaseCostMarkup,
+        itemName: employeePurchases.itemName,
+        barcode: employeePurchases.barcode,
+        quantity: employeePurchases.quantity,
+        amountCharged: employeePurchases.unitPrice,
+        totalCharged: employeePurchases.totalAmount,
+        retailPrice: inventoryItems.unitPrice,
+        cogsPrice: inventoryItems.unitCost,
+        purchaseDate: employeePurchases.purchaseDate,
+        notes: employeePurchases.notes
+      })
+      .from(employeePurchases)
+      .innerJoin(users, eq(employeePurchases.employeeId, users.id))
+      .leftJoin(inventoryItems, eq(employeePurchases.inventoryItemId, inventoryItems.id))
+      .where(and(
+        eq(employeePurchases.periodMonth, periodMonth),
+        eq(employeePurchases.status, 'completed')
+      ))
+      .orderBy(users.lastName, users.firstName, employeePurchases.purchaseDate);
+
+    const employeeData = new Map<string, any>();
+    
+    purchases.forEach(purchase => {
+      const employeeKey = purchase.employeeId;
+      
+      if (!employeeData.has(employeeKey)) {
+        employeeData.set(employeeKey, {
+          employeeId: purchase.employeeId,
+          employeeName: `${purchase.employeeFirstName} ${purchase.employeeLastName}`,
+          employeeRole: purchase.employeeRole,
+          department: purchase.employeeDepartment,
+          position: purchase.employeePosition,
+          monthlyCap: parseFloat(purchase.employeeCap || '0'),
+          costMarkup: parseFloat(purchase.employeeCostMarkup || '0'),
+          purchases: [],
+          totals: {
+            totalRetailValue: 0,
+            totalAmountCharged: 0,
+            totalCogsValue: 0,
+            totalDiscountGiven: 0,
+            totalFreeItemsCogs: 0
+          }
+        });
+      }
+      
+      const employee = employeeData.get(employeeKey)!;
+      const qty = parseFloat(purchase.quantity || '0');
+      const retailPrice = parseFloat(purchase.retailPrice || '0');
+      const cogsPrice = parseFloat(purchase.cogsPrice || '0');
+      const chargedPrice = parseFloat(purchase.amountCharged || '0');
+      
+      const retailValue = retailPrice * qty;
+      const cogsValue = cogsPrice * qty;
+      const chargedAmount = parseFloat(purchase.totalCharged || '0');
+      const discountGiven = retailValue - chargedAmount;
+      const isFreeItem = chargedAmount === 0;
+      
+      employee.purchases.push({
+        purchaseId: purchase.purchaseId,
+        itemName: purchase.itemName,
+        barcode: purchase.barcode,
+        quantity: qty,
+        retailPrice,
+        cogsPrice,
+        chargedPrice,
+        retailValue,
+        cogsValue,
+        chargedAmount,
+        discountGiven,
+        isFreeItem,
+        purchaseDate: purchase.purchaseDate,
+        notes: purchase.notes
+      });
+      
+      employee.totals.totalRetailValue += retailValue;
+      employee.totals.totalAmountCharged += chargedAmount;
+      employee.totals.totalCogsValue += cogsValue;
+      employee.totals.totalDiscountGiven += discountGiven;
+      
+      if (isFreeItem) {
+        employee.totals.totalFreeItemsCogs += cogsValue;
+      }
+    });
+    
+    const reportData = Array.from(employeeData.values());
+    
+    const grandTotals = reportData.reduce((totals, employee) => ({
+      totalRetailValue: totals.totalRetailValue + employee.totals.totalRetailValue,
+      totalAmountCharged: totals.totalAmountCharged + employee.totals.totalAmountCharged,
+      totalCogsValue: totals.totalCogsValue + employee.totals.totalCogsValue,
+      totalDiscountGiven: totals.totalDiscountGiven + employee.totals.totalDiscountGiven,
+      totalFreeItemsCogs: totals.totalFreeItemsCogs + employee.totals.totalFreeItemsCogs
+    }), {
+      totalRetailValue: 0,
+      totalAmountCharged: 0,
+      totalCogsValue: 0,
+      totalDiscountGiven: 0,
+      totalFreeItemsCogs: 0
+    });
+    
+    return {
+      periodMonth,
+      employees: reportData,
+      grandTotals
+    };
   }
 
   // Enhanced chat and messaging functionality

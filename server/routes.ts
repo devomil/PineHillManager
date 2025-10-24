@@ -3382,6 +3382,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Admin/Manager: Get detailed purchase reporting with COGS for QuickBooks
+  app.get('/api/admin/employee-purchases/report', isAuthenticated, isManagerOrAdmin, async (req, res) => {
+    try {
+      const periodMonth = req.query.periodMonth as string || new Date().toISOString().slice(0, 7);
+      
+      const report = await storage.getEmployeePurchaseReport(periodMonth);
+      
+      res.json(report);
+    } catch (error) {
+      console.error('Error generating employee purchase report:', error);
+      res.status(500).json({ message: 'Failed to generate purchase report' });
+    }
+  });
+
   // Admin-only password management routes
 
   // Reset user password (admin only)

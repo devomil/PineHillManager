@@ -9,8 +9,9 @@ import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { DollarSign, ShoppingCart, TrendingUp, Users, Search, Edit2, History } from "lucide-react";
+import { DollarSign, ShoppingCart, TrendingUp, Users, Search, Edit2, History, FileText, Download } from "lucide-react";
 import UserAvatar from "@/components/user-avatar";
 
 export default function AdminEmployeePurchases() {
@@ -111,6 +112,19 @@ export default function AdminEmployeePurchases() {
           <p className="text-gray-600">Manage employee purchase allowances, discounts, and monitor spending</p>
         </div>
 
+        <Tabs defaultValue="management" className="w-full">
+          <TabsList className="grid w-full max-w-md grid-cols-2 mb-8">
+            <TabsTrigger value="management" data-testid="tab-management">
+              <Users className="h-4 w-4 mr-2" />
+              Employee Management
+            </TabsTrigger>
+            <TabsTrigger value="reporting" data-testid="tab-reporting">
+              <FileText className="h-4 w-4 mr-2" />
+              Detailed Reporting
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="management">
         {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <Card>
@@ -406,7 +420,245 @@ export default function AdminEmployeePurchases() {
             </div>
           </DialogContent>
         </Dialog>
+          </TabsContent>
+
+          <TabsContent value="reporting">
+            <PurchaseReportingTab currentMonth={currentMonth} />
+          </TabsContent>
+        </Tabs>
       </div>
+    </div>
+  );
+}
+
+function PurchaseReportingTab({ currentMonth }: { currentMonth: string }) {
+  const { toast } = useToast();
+  const [selectedMonth, setSelectedMonth] = useState(currentMonth);
+
+  const { data: reportData, isLoading } = useQuery({
+    queryKey: ['/api/admin/employee-purchases/report', selectedMonth],
+    queryFn: async () => {
+      const res = await fetch(`/api/admin/employee-purchases/report?periodMonth=${selectedMonth}`, {
+        credentials: 'include'
+      });
+      if (!res.ok) throw new Error('Failed to fetch report');
+      return res.json();
+    }
+  });
+
+  const handleExportCSV = () => {
+    if (!reportData) return;
+
+    const csvRows = [];
+    csvRows.push(['Employee Name', 'Role', 'Department', 'Item Name', 'Quantity', 'Retail Price', 'Charged Price', 'COGS Price', 'Retail Value', 'Charged Amount', 'COGS Value', 'Discount Given', 'Free Item', 'Purchase Date']);
+
+    reportData.employees.forEach((employee: any) => {
+      employee.purchases.forEach((purchase: any) => {
+        csvRows.push([
+          employee.employeeName,
+          employee.employeeRole,
+          employee.department || 'N/A',
+          purchase.itemName,
+          purchase.quantity,
+          purchase.retailPrice.toFixed(2),
+          purchase.chargedPrice.toFixed(2),
+          purchase.cogsPrice.toFixed(2),
+          purchase.retailValue.toFixed(2),
+          purchase.chargedAmount.toFixed(2),
+          purchase.cogsValue.toFixed(2),
+          purchase.discountGiven.toFixed(2),
+          purchase.isFreeItem ? 'Yes' : 'No',
+          new Date(purchase.purchaseDate).toLocaleDateString()
+        ]);
+      });
+    });
+
+    const csvContent = csvRows.map(row => row.join(',')).join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `employee-purchases-report-${selectedMonth}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+
+    toast({
+      title: "Report exported",
+      description: "CSV file has been downloaded successfully"
+    });
+  };
+
+  if (isLoading) {
+    return <div className="text-center py-8 text-gray-500">Loading report...</div>;
+  }
+
+  if (!reportData || reportData.employees.length === 0) {
+    return (
+      <Card>
+        <CardContent className="py-12">
+          <div className="text-center text-gray-500">
+            <FileText className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+            <p className="text-lg font-medium">No purchase data available</p>
+            <p className="text-sm">No employee purchases found for this period</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const { employees, grandTotals } = reportData;
+
+  return (
+    <div className="space-y-6">
+      {/* Header with Export */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>QuickBooks Purchase Report</CardTitle>
+              <CardDescription>
+                Detailed employee purchase data with COGS tracking for period {selectedMonth}
+              </CardDescription>
+            </div>
+            <Button onClick={handleExportCSV} data-testid="button-export-csv">
+              <Download className="h-4 w-4 mr-2" />
+              Export CSV
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <div className="p-4 bg-blue-50 rounded-lg">
+              <p className="text-sm text-blue-600 font-medium">Total Retail Value</p>
+              <p className="text-2xl font-bold text-blue-900">${grandTotals.totalRetailValue.toFixed(2)}</p>
+            </div>
+            <div className="p-4 bg-green-50 rounded-lg">
+              <p className="text-sm text-green-600 font-medium">Amount Charged</p>
+              <p className="text-2xl font-bold text-green-900">${grandTotals.totalAmountCharged.toFixed(2)}</p>
+            </div>
+            <div className="p-4 bg-purple-50 rounded-lg">
+              <p className="text-sm text-purple-600 font-medium">Total COGS</p>
+              <p className="text-2xl font-bold text-purple-900">${grandTotals.totalCogsValue.toFixed(2)}</p>
+            </div>
+            <div className="p-4 bg-orange-50 rounded-lg">
+              <p className="text-sm text-orange-600 font-medium">Free Items COGS</p>
+              <p className="text-2xl font-bold text-orange-900">${grandTotals.totalFreeItemsCogs.toFixed(2)}</p>
+              <p className="text-xs text-orange-600 mt-1">100% discounted items</p>
+            </div>
+            <div className="p-4 bg-red-50 rounded-lg">
+              <p className="text-sm text-red-600 font-medium">Total Discount</p>
+              <p className="text-2xl font-bold text-red-900">${grandTotals.totalDiscountGiven.toFixed(2)}</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Employee Details */}
+      {employees.map((employee: any) => (
+        <Card key={employee.employeeId}>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  {employee.employeeName}
+                  <Badge variant={employee.employeeRole === 'manager' || employee.employeeRole === 'admin' ? 'default' : 'secondary'}>
+                    {employee.employeeRole}
+                  </Badge>
+                </CardTitle>
+                <CardDescription>
+                  {employee.department && `${employee.department} - `}
+                  {employee.position || 'No position specified'}
+                </CardDescription>
+              </div>
+              <div className="text-right">
+                <p className="text-sm text-gray-600">Monthly Cap: ${employee.monthlyCap.toFixed(2)}</p>
+                {(employee.employeeRole === 'manager' || employee.employeeRole === 'admin') && employee.costMarkup > 0 && (
+                  <p className="text-sm text-gray-600">Cost Markup: {employee.costMarkup}%</p>
+                )}
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Item</TableHead>
+                  <TableHead className="text-right">Qty</TableHead>
+                  <TableHead className="text-right">Retail</TableHead>
+                  <TableHead className="text-right">Charged</TableHead>
+                  <TableHead className="text-right">COGS</TableHead>
+                  <TableHead className="text-right">Retail Value</TableHead>
+                  <TableHead className="text-right">Charged Amt</TableHead>
+                  <TableHead className="text-right">COGS Value</TableHead>
+                  <TableHead className="text-right">Discount</TableHead>
+                  <TableHead>Date</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {employee.purchases.map((purchase: any) => (
+                  <TableRow key={purchase.purchaseId} className={purchase.isFreeItem ? 'bg-orange-50' : ''}>
+                    <TableCell>
+                      <div>
+                        <div className="font-medium">{purchase.itemName}</div>
+                        {purchase.barcode && <div className="text-xs text-gray-500">{purchase.barcode}</div>}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right">{purchase.quantity}</TableCell>
+                    <TableCell className="text-right">${purchase.retailPrice.toFixed(2)}</TableCell>
+                    <TableCell className="text-right">
+                      {purchase.isFreeItem ? (
+                        <span className="text-orange-600 font-medium">$0.00 (Free)</span>
+                      ) : (
+                        `$${purchase.chargedPrice.toFixed(2)}`
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right text-purple-600 font-medium">
+                      ${purchase.cogsPrice.toFixed(2)}
+                    </TableCell>
+                    <TableCell className="text-right">${purchase.retailValue.toFixed(2)}</TableCell>
+                    <TableCell className="text-right">
+                      {purchase.isFreeItem ? (
+                        <span className="text-orange-600 font-medium">$0.00</span>
+                      ) : (
+                        `$${purchase.chargedAmount.toFixed(2)}`
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right text-purple-600 font-medium">
+                      ${purchase.cogsValue.toFixed(2)}
+                    </TableCell>
+                    <TableCell className="text-right text-red-600">
+                      ${purchase.discountGiven.toFixed(2)}
+                    </TableCell>
+                    <TableCell className="text-sm text-gray-600">
+                      {new Date(purchase.purchaseDate).toLocaleDateString()}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+
+            {/* Employee Totals */}
+            <div className="mt-4 pt-4 border-t grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div>
+                <p className="text-sm text-gray-600">Retail Value</p>
+                <p className="text-lg font-bold">${employee.totals.totalRetailValue.toFixed(2)}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Amount Charged</p>
+                <p className="text-lg font-bold text-green-600">${employee.totals.totalAmountCharged.toFixed(2)}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Total COGS</p>
+                <p className="text-lg font-bold text-purple-600">${employee.totals.totalCogsValue.toFixed(2)}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Free Items COGS</p>
+                <p className="text-lg font-bold text-orange-600">${employee.totals.totalFreeItemsCogs.toFixed(2)}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      ))}
     </div>
   );
 }
