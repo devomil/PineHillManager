@@ -91,7 +91,8 @@ export default function AdminEmployeePurchases() {
       settings: {
         employeePurchaseEnabled: formData.get('enabled') === 'on',
         employeePurchaseCap: formData.get('cap'),
-        employeePurchaseDiscountPercent: formData.get('discount')
+        employeePurchaseCostMarkup: formData.get('costMarkup'),
+        employeePurchaseRetailDiscount: formData.get('retailDiscount')
       }
     });
   };
@@ -195,7 +196,7 @@ export default function AdminEmployeePurchases() {
                     <TableHead>Department</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Monthly Allowance</TableHead>
-                    <TableHead className="text-right">Discount</TableHead>
+                    <TableHead className="text-right">Cost Markup</TableHead>
                     <TableHead className="text-right">Spent This Month</TableHead>
                     <TableHead className="text-right">Remaining</TableHead>
                     <TableHead className="text-center">Actions</TableHead>
@@ -206,7 +207,7 @@ export default function AdminEmployeePurchases() {
                     const spent = parseFloat(user.monthlySpent || '0');
                     const cap = parseFloat(user.employeePurchaseCap || '0');
                     const remaining = cap - spent;
-                    const discount = parseFloat(user.employeePurchaseDiscountPercent || '0');
+                    const costMarkup = parseFloat(user.employeePurchaseCostMarkup || '0');
                     
                     return (
                       <TableRow key={user.id}>
@@ -228,7 +229,7 @@ export default function AdminEmployeePurchases() {
                           )}
                         </TableCell>
                         <TableCell className="text-right font-medium">${cap.toFixed(2)}</TableCell>
-                        <TableCell className="text-right">{discount > 0 ? `${discount}%` : '-'}</TableCell>
+                        <TableCell className="text-right">{costMarkup > 0 ? `${costMarkup}%` : '-'}</TableCell>
                         <TableCell className="text-right">${spent.toFixed(2)}</TableCell>
                         <TableCell className="text-right">
                           <span className={remaining < 0 ? 'text-red-600 font-medium' : ''}>
@@ -300,21 +301,38 @@ export default function AdminEmployeePurchases() {
                   defaultValue={selectedUser?.employeePurchaseCap || '0'}
                   data-testid="input-cap"
                 />
+                <p className="text-sm text-gray-500 mt-1">Free monthly allowance charged at retail price</p>
               </div>
 
               <div>
-                <Label htmlFor="discount">Employee Discount (%)</Label>
+                <Label htmlFor="costMarkup">Cost Markup % (After Cap)</Label>
                 <Input
-                  id="discount"
-                  name="discount"
+                  id="costMarkup"
+                  name="costMarkup"
                   type="number"
                   step="0.01"
                   min="0"
                   max="100"
-                  defaultValue={selectedUser?.employeePurchaseDiscountPercent || '0'}
-                  data-testid="input-discount"
+                  defaultValue={selectedUser?.employeePurchaseCostMarkup || '0'}
+                  data-testid="input-cost-markup"
                 />
-                <p className="text-sm text-gray-500 mt-1">Discount percentage applied to all purchases (0-100)</p>
+                <p className="text-sm text-gray-500 mt-1">Markup % added to cost for out-of-pocket purchases (after cap exceeded)</p>
+              </div>
+
+              <div>
+                <Label htmlFor="retailDiscount">Retail Discount % (Legacy)</Label>
+                <Input
+                  id="retailDiscount"
+                  name="retailDiscount"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max="100"
+                  defaultValue={selectedUser?.employeePurchaseRetailDiscount || '0'}
+                  data-testid="input-retail-discount"
+                  disabled
+                />
+                <p className="text-sm text-gray-500 mt-1">Not currently used in pricing calculation</p>
               </div>
 
               <div className="flex justify-end space-x-2 pt-4">

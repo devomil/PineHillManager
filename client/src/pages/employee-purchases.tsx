@@ -22,6 +22,7 @@ interface PurchaseBalance {
   isEnabled: boolean;
   costMarkup: number;
   retailDiscount: number;
+  userRole: 'employee' | 'manager' | 'admin';
 }
 
 export default function EmployeePurchases() {
@@ -30,16 +31,23 @@ export default function EmployeePurchases() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const barcodeInputRef = useRef<HTMLInputElement>(null);
 
-  // Calculate price based on monthly allowance model
-  // Before reaching monthly cap: charge full retail price (company pays, employee doesn't)
-  // After exceeding monthly cap: charge cost + markup% (employee pays out of pocket with discount)
+  // Calculate price based on monthly allowance model and user role
+  // Managers/Admins: Always get 100% discount (COG pricing only)
+  // Regular Employees:
+  //   - Before reaching monthly cap: charge full retail price (company pays, employee doesn't)
+  //   - After exceeding monthly cap: charge cost + markup% (employee pays out of pocket with discount)
   const calculatePrice = (item: InventoryItem, balance: PurchaseBalance | undefined, currentCartTotal: number = 0): number => {
     if (!balance) return parseFloat(item.unitCost || '0');
     
     const cost = parseFloat(item.unitCost || '0');
     const retailPrice = parseFloat(item.unitPrice || '0');
     
-    // Check if we've already exceeded the cap (including current cart)
+    // Managers and admins always get COG pricing (100% discount)
+    if (balance.userRole === 'manager' || balance.userRole === 'admin') {
+      return cost;
+    }
+    
+    // For regular employees: check if we've already exceeded the cap (including current cart)
     const totalSpending = balance.monthlyTotal + currentCartTotal;
     const cap = parseFloat(balance.monthlyCap?.toString() || '0');
     

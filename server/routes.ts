@@ -3310,6 +3310,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         isEnabled: user.employeePurchaseEnabled || false,
         costMarkup: user.employeePurchaseCostMarkup || 0,
         retailDiscount: user.employeePurchaseRetailDiscount || 0,
+        userRole: user.role || 'employee',
       });
     } catch (error) {
       console.error('Error fetching employee purchase balance:', error);
