@@ -1896,8 +1896,19 @@ export const employeePurchases = pgTable("employee_purchases", {
   totalAmount: decimal("total_amount", { precision: 10, scale: 2 }).notNull(),
   purchaseDate: timestamp("purchase_date").defaultNow().notNull(),
   periodMonth: varchar("period_month").notNull(), // YYYY-MM format for monthly allowance tracking
-  status: varchar("status").default("completed").notNull(), // completed, voided
+  status: varchar("status").default("completed").notNull(), // completed, voided, pending_payment
   notes: text("notes"),
+  
+  // Clover payment integration fields
+  requiresPayment: boolean("requires_payment").default(false), // true if purchase exceeds allowance
+  paymentStatus: varchar("payment_status").default("not_required"), // not_required, pending, paid, failed
+  cloverPaymentId: varchar("clover_payment_id"), // Clover payment ID for tracking
+  cloverOrderId: varchar("clover_order_id"), // Clover order ID for reference
+  paymentAmount: decimal("payment_amount", { precision: 10, scale: 2 }), // Amount employee actually paid
+  paymentDate: timestamp("payment_date"), // When payment was completed
+  paymentMethod: varchar("payment_method"), // credit_card, debit_card, etc.
+  last4: varchar("last_4"), // Last 4 digits of card used
+  
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => ({
   employeeIdIdx: index("idx_ep_employee_id").on(table.employeeId),
@@ -1905,6 +1916,8 @@ export const employeePurchases = pgTable("employee_purchases", {
   periodMonthIdx: index("idx_ep_period_month").on(table.periodMonth),
   statusIdx: index("idx_ep_status").on(table.status),
   employeePeriodIdx: index("idx_ep_employee_period").on(table.employeeId, table.periodMonth),
+  paymentStatusIdx: index("idx_ep_payment_status").on(table.paymentStatus),
+  cloverPaymentIdIdx: index("idx_ep_clover_payment_id").on(table.cloverPaymentId),
 }));
 
 // HSA Expenses
