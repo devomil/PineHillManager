@@ -86,12 +86,19 @@ export default function AdminEmployeePurchases() {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     
+    const settings: any = {
+      employeePurchaseEnabled: formData.get('enabled') === 'on',
+      employeePurchaseCap: formData.get('cap')
+    };
+    
+    // Only include cost markup for managers/admins
+    if (selectedUser?.role === 'manager' || selectedUser?.role === 'admin') {
+      settings.employeePurchaseCostMarkup = formData.get('costMarkup') || '0';
+    }
+    
     updateSettingsMutation.mutate({
       userId: selectedUser.id,
-      settings: {
-        employeePurchaseEnabled: formData.get('enabled') === 'on',
-        employeePurchaseCap: formData.get('cap')
-      }
+      settings
     });
   };
 
@@ -229,7 +236,9 @@ export default function AdminEmployeePurchases() {
                         <TableCell className="text-right font-medium">${cap.toFixed(2)}</TableCell>
                         <TableCell className="text-right">
                           {user.role === 'manager' || user.role === 'admin' ? (
-                            <span className="text-green-600 font-medium">COG Only</span>
+                            <span className="text-green-600 font-medium">
+                              {costMarkup > 0 ? `COG + ${costMarkup}%` : 'COG Only'}
+                            </span>
                           ) : (
                             <span className="text-blue-600">25% Off Retail</span>
                           )}
@@ -305,16 +314,37 @@ export default function AdminEmployeePurchases() {
                   defaultValue={selectedUser?.employeePurchaseCap || '0'}
                   data-testid="input-cap"
                 />
-                <p className="text-sm text-gray-500 mt-1">Free monthly allowance charged at retail price</p>
+                <p className="text-sm text-gray-500 mt-1">
+                  {selectedUser?.role === 'manager' || selectedUser?.role === 'admin' 
+                    ? 'Free monthly allowance - 100% discount (no charge)'
+                    : 'Free monthly allowance charged at retail price'}
+                </p>
               </div>
 
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <h4 className="font-medium text-blue-900 mb-2">Pricing Model</h4>
-                <div className="space-y-2 text-sm text-blue-800">
+              {(selectedUser?.role === 'manager' || selectedUser?.role === 'admin') && (
+                <div>
+                  <Label htmlFor="costMarkup">Cost Markup % (After Cap)</Label>
+                  <Input
+                    id="costMarkup"
+                    name="costMarkup"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="100"
+                    defaultValue={selectedUser?.employeePurchaseCostMarkup || '0'}
+                    data-testid="input-cost-markup"
+                  />
+                  <p className="text-sm text-gray-500 mt-1">Markup % added to COGS for purchases after allowance exceeded</p>
+                </div>
+              )}
+
+              <div className={`${selectedUser?.role === 'manager' || selectedUser?.role === 'admin' ? 'bg-green-50 border-green-200' : 'bg-blue-50 border-blue-200'} border rounded-lg p-4`}>
+                <h4 className={`font-medium mb-2 ${selectedUser?.role === 'manager' || selectedUser?.role === 'admin' ? 'text-green-900' : 'text-blue-900'}`}>Pricing Model</h4>
+                <div className={`space-y-2 text-sm ${selectedUser?.role === 'manager' || selectedUser?.role === 'admin' ? 'text-green-800' : 'text-blue-800'}`}>
                   {selectedUser?.role === 'manager' || selectedUser?.role === 'admin' ? (
                     <>
-                      <p className="font-medium">✓ Manager/Admin Pricing: COG (Cost of Goods) Only</p>
-                      <p>All purchases charged at cost for accurate financial reporting</p>
+                      <p><strong>Before Cap:</strong> 100% discount (no charge until allowance used)</p>
+                      <p><strong>After Cap:</strong> COGS + markup % (employee pays cost + markup)</p>
                     </>
                   ) : (
                     <>
