@@ -90,9 +90,7 @@ export default function AdminEmployeePurchases() {
       userId: selectedUser.id,
       settings: {
         employeePurchaseEnabled: formData.get('enabled') === 'on',
-        employeePurchaseCap: formData.get('cap'),
-        employeePurchaseCostMarkup: formData.get('costMarkup'),
-        employeePurchaseRetailDiscount: formData.get('retailDiscount')
+        employeePurchaseCap: formData.get('cap')
       }
     });
   };
@@ -196,7 +194,7 @@ export default function AdminEmployeePurchases() {
                     <TableHead>Department</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Monthly Allowance</TableHead>
-                    <TableHead className="text-right">Cost Markup</TableHead>
+                    <TableHead className="text-right">After-Cap Pricing</TableHead>
                     <TableHead className="text-right">Spent This Month</TableHead>
                     <TableHead className="text-right">Remaining</TableHead>
                     <TableHead className="text-center">Actions</TableHead>
@@ -229,7 +227,13 @@ export default function AdminEmployeePurchases() {
                           )}
                         </TableCell>
                         <TableCell className="text-right font-medium">${cap.toFixed(2)}</TableCell>
-                        <TableCell className="text-right">{costMarkup > 0 ? `${costMarkup}%` : '-'}</TableCell>
+                        <TableCell className="text-right">
+                          {user.role === 'manager' || user.role === 'admin' ? (
+                            <span className="text-green-600 font-medium">COG Only</span>
+                          ) : (
+                            <span className="text-blue-600">25% Off Retail</span>
+                          )}
+                        </TableCell>
                         <TableCell className="text-right">${spent.toFixed(2)}</TableCell>
                         <TableCell className="text-right">
                           <span className={remaining < 0 ? 'text-red-600 font-medium' : ''}>
@@ -304,35 +308,21 @@ export default function AdminEmployeePurchases() {
                 <p className="text-sm text-gray-500 mt-1">Free monthly allowance charged at retail price</p>
               </div>
 
-              <div>
-                <Label htmlFor="costMarkup">Cost Markup % (After Cap)</Label>
-                <Input
-                  id="costMarkup"
-                  name="costMarkup"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  max="100"
-                  defaultValue={selectedUser?.employeePurchaseCostMarkup || '0'}
-                  data-testid="input-cost-markup"
-                />
-                <p className="text-sm text-gray-500 mt-1">Markup % added to cost for out-of-pocket purchases (after cap exceeded)</p>
-              </div>
-
-              <div>
-                <Label htmlFor="retailDiscount">Retail Discount % (Legacy)</Label>
-                <Input
-                  id="retailDiscount"
-                  name="retailDiscount"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  max="100"
-                  defaultValue={selectedUser?.employeePurchaseRetailDiscount || '0'}
-                  data-testid="input-retail-discount"
-                  disabled
-                />
-                <p className="text-sm text-gray-500 mt-1">Not currently used in pricing calculation</p>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h4 className="font-medium text-blue-900 mb-2">Pricing Model</h4>
+                <div className="space-y-2 text-sm text-blue-800">
+                  {selectedUser?.role === 'manager' || selectedUser?.role === 'admin' ? (
+                    <>
+                      <p className="font-medium">✓ Manager/Admin Pricing: COG (Cost of Goods) Only</p>
+                      <p>All purchases charged at cost for accurate financial reporting</p>
+                    </>
+                  ) : (
+                    <>
+                      <p><strong>Before Cap:</strong> Full retail price (free allowance)</p>
+                      <p><strong>After Cap:</strong> 25% off retail price (employee discount)</p>
+                    </>
+                  )}
+                </div>
               </div>
 
               <div className="flex justify-end space-x-2 pt-4">
