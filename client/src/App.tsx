@@ -9,6 +9,7 @@ import AdminDashboard from "@/pages/admin-dashboard";
 import Documents from "@/pages/documents";
 import LogosPage from "@/pages/admin/logos";
 import AdminEmployeesPage from "@/pages/admin/employees";
+import AdminEmployeePurchases from "@/pages/admin/admin-employee-purchases";
 import CommunicationsPage from "@/pages/communications";
 import Calendar from "@/pages/calendar";
 import Employees from "@/pages/employees";
@@ -63,6 +64,11 @@ function AuthenticatedApp() {
       <Route path="/admin/employees">
         <ProtectedRoute allowedRoles={['admin', 'manager']}>
           <AdminEmployeesPage />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/admin/employees/purchases">
+        <ProtectedRoute allowedRoles={['admin', 'manager']}>
+          <AdminEmployeePurchases />
         </ProtectedRoute>
       </Route>
       <Route path="/admin/training">
