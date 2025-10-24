@@ -30,8 +30,9 @@ export default function EmployeePurchases() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const barcodeInputRef = useRef<HTMLInputElement>(null);
 
-  // Calculate price based on dual discount model
-  // This function now takes the current cart total to properly handle mid-transaction cap crossing
+  // Calculate price based on monthly allowance model
+  // Before reaching monthly cap: charge full retail price (company pays, employee doesn't)
+  // After exceeding monthly cap: charge cost + markup% (employee pays out of pocket with discount)
   const calculatePrice = (item: InventoryItem, balance: PurchaseBalance | undefined, currentCartTotal: number = 0): number => {
     if (!balance) return parseFloat(item.unitCost || '0');
     
@@ -42,15 +43,14 @@ export default function EmployeePurchases() {
     const totalSpending = balance.monthlyTotal + currentCartTotal;
     const cap = parseFloat(balance.monthlyCap?.toString() || '0');
     
-    // If under allowance cap: use cost + markup%
+    // If under allowance cap: use full retail price (no discount - company pays)
     if (totalSpending < cap) {
-      const markup = parseFloat(balance.costMarkup?.toString() || '0');
-      return cost * (1 + markup / 100);
+      return retailPrice;
     }
     
-    // If over allowance cap: use retail - discount%
-    const discount = parseFloat(balance.retailDiscount?.toString() || '0');
-    return retailPrice * (1 - discount / 100);
+    // If over allowance cap: use cost + markup% (employee discount - employee pays)
+    const markup = parseFloat(balance.costMarkup?.toString() || '0');
+    return cost * (1 + markup / 100);
   };
 
   const { data: balance, isLoading: balanceLoading } = useQuery<PurchaseBalance>({
