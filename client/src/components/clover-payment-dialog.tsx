@@ -9,7 +9,14 @@ import {
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2, CreditCard, Lock } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Loader2, CreditCard, Lock, MapPin } from "lucide-react";
 
 declare global {
   interface Window {
@@ -26,6 +33,11 @@ interface CloverPaymentDialogProps {
   onPaymentError: (error: string) => void;
 }
 
+const MERCHANT_LOCATIONS = [
+  { value: 'QGFXZQXYG8M31', label: 'Watertown Retail', token: process.env.WATERTOWN_CLOVER_TOKEN || '' },
+  { value: 'S5TK30WEK0ZJ1', label: 'Lake Geneva Retail', token: process.env.LAKE_GENEVA_CLOVER_TOKEN || '' },
+];
+
 export function CloverPaymentDialog({
   open,
   onClose,
@@ -38,6 +50,7 @@ export function CloverPaymentDialog({
   const [error, setError] = useState<string | null>(null);
   const [cloverInitialized, setCloverInitialized] = useState(false);
   const [paymentIntent, setPaymentIntent] = useState<any>(null);
+  const [selectedLocation, setSelectedLocation] = useState<string>(MERCHANT_LOCATIONS[0].value);
   
   const cloverInstanceRef = useRef<any>(null);
   const elementsRef = useRef<any>(null);
@@ -56,8 +69,8 @@ export function CloverPaymentDialog({
           return;
         }
 
-        // Get public API key from backend
-        const publicKeyResponse = await fetch('/api/employee-purchases/payment/public-key');
+        // Get public API key from backend for selected location
+        const publicKeyResponse = await fetch(`/api/employee-purchases/payment/public-key?merchantId=${selectedLocation}`);
         if (!publicKeyResponse.ok) {
           const errorData = await publicKeyResponse.json();
           throw new Error(errorData.message || 'Failed to fetch payment configuration');
@@ -77,6 +90,7 @@ export function CloverPaymentDialog({
             amount: amount.toFixed(2),
             purchaseIds,
             description: `Employee Purchase - $${amount.toFixed(2)}`,
+            merchantId: selectedLocation,
           }),
         });
 
@@ -175,7 +189,7 @@ export function CloverPaymentDialog({
       setCloverInitialized(false);
       setPaymentIntent(null);
     };
-  }, [open, amount, purchaseIds]);
+  }, [open, amount, purchaseIds, selectedLocation]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -212,6 +226,7 @@ export function CloverPaymentDialog({
           amount: amount.toFixed(2),
           externalPaymentId: paymentIntent.externalPaymentId,
           purchaseIds: paymentIntent.purchaseIds,
+          merchantId: selectedLocation,
         }),
       });
 
@@ -248,6 +263,26 @@ export function CloverPaymentDialog({
         </DialogHeader>
 
         <div className="space-y-4">
+          {/* Location Selector */}
+          <div className="space-y-2">
+            <Label htmlFor="location-select" className="flex items-center gap-2">
+              <MapPin className="h-4 w-4" />
+              Select Store Location
+            </Label>
+            <Select value={selectedLocation} onValueChange={setSelectedLocation}>
+              <SelectTrigger id="location-select" data-testid="select-location">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {MERCHANT_LOCATIONS.map((location) => (
+                  <SelectItem key={location.value} value={location.value}>
+                    {location.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
           {/* Amount Display */}
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
             <div className="flex justify-between items-center">
