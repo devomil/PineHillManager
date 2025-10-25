@@ -13,7 +13,7 @@ import { smsService } from "./sms-service";
 import { smartNotificationService } from './smart-notifications';
 import { ObjectStorageService, ObjectNotFoundError } from './objectStorage';
 import { ObjectPermission } from './objectAcl';
-import { createCloverPaymentService, getCloverPaymentService } from './integrations/clover-payments';
+import { createCloverPaymentService, getCloverPaymentService, getCloverPaymentServiceFromDb } from './integrations/clover-payments';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -3457,7 +3457,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log('🔑 [Payment Public Key] Fetching Clover public API key for merchant:', merchantId);
 
-      const service = getCloverPaymentService(merchantId);
+      const service = await getCloverPaymentServiceFromDb(merchantId, storage);
       const publicKey = await service.getPublicApiKey();
 
       res.json({
@@ -3550,8 +3550,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         externalId: externalPaymentId,
       });
 
-      // Get merchant-specific Clover service
-      const service = getCloverPaymentService(merchantId);
+      // Get merchant-specific Clover service from database
+      const service = await getCloverPaymentServiceFromDb(merchantId, storage);
 
       // Process payment through Clover
       const amountInCents = Math.round(parseFloat(amount) * 100);

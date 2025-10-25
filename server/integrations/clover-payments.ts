@@ -267,7 +267,7 @@ const MERCHANT_CONFIGS: Record<string, { token: string; name: string }> = {
 
 /**
  * Create a Clover Payment Service instance from environment variables
- * @deprecated Use getCloverPaymentService with merchantId instead
+ * @deprecated Use getCloverPaymentServiceFromDb with merchantId and storage instead
  */
 export function createCloverPaymentService(): CloverPaymentService | null {
   const merchantId = process.env.CLOVER_MERCHANT_ID;
@@ -285,7 +285,38 @@ export function createCloverPaymentService(): CloverPaymentService | null {
 }
 
 /**
- * Get a Clover Payment Service instance for a specific merchant
+ * Get a Clover Payment Service instance for a specific merchant from the database
+ * @param merchantId - The merchant ID (e.g., 'QGFXZQXYG8M31' for Watertown)
+ * @param storage - The storage instance to fetch merchant config from database
+ * @returns CloverPaymentService instance for the specified merchant
+ */
+export async function getCloverPaymentServiceFromDb(merchantId: string, storage: any): Promise<CloverPaymentService> {
+  // Fetch merchant config from database
+  const configs = await storage.getAllCloverConfigs();
+  const config = configs.find((c: any) => c.merchantId === merchantId);
+  
+  if (!config) {
+    throw new Error(`Merchant configuration not found for ID: ${merchantId}`);
+  }
+  
+  if (!config.apiToken) {
+    throw new Error(`Missing API token for merchant: ${config.merchantName || merchantId}`);
+  }
+
+  console.log(`🔐 [Clover Payment] Using merchant config from database:`, {
+    merchantId: config.merchantId,
+    merchantName: config.merchantName,
+  });
+
+  return new CloverPaymentService({
+    merchantId: config.merchantId,
+    apiToken: config.apiToken,
+  });
+}
+
+/**
+ * Get a Clover Payment Service instance for a specific merchant (deprecated - uses env vars)
+ * @deprecated Use getCloverPaymentServiceFromDb instead
  * @param merchantId - The merchant ID (e.g., 'QGFXZQXYG8M31' for Watertown)
  * @returns CloverPaymentService instance for the specified merchant
  */
