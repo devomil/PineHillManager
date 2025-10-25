@@ -1892,8 +1892,10 @@ export const employeePurchases = pgTable("employee_purchases", {
   itemName: varchar("item_name").notNull(),
   barcode: varchar("barcode"), // Scanned barcode/SKU
   quantity: decimal("quantity", { precision: 10, scale: 3 }).notNull().default("1.000"),
-  unitPrice: decimal("unit_price", { precision: 10, scale: 2 }).notNull(),
-  totalAmount: decimal("total_amount", { precision: 10, scale: 2 }).notNull(),
+  unitPrice: decimal("unit_price", { precision: 10, scale: 2 }).notNull(), // Price employee pays per unit
+  totalAmount: decimal("total_amount", { precision: 10, scale: 2 }).notNull(), // Total amount employee pays
+  retailValue: decimal("retail_value", { precision: 10, scale: 2 }), // Retail value of items (for allowance tracking)
+  cogsValue: decimal("cogs_value", { precision: 10, scale: 2 }), // COGS value for loss accounting
   purchaseDate: timestamp("purchase_date").defaultNow().notNull(),
   periodMonth: varchar("period_month").notNull(), // YYYY-MM format for monthly allowance tracking
   status: varchar("status").default("completed").notNull(), // completed, voided, pending_payment

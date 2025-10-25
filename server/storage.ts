@@ -4364,7 +4364,7 @@ export class DatabaseStorage implements IStorage {
   async getEmployeePurchaseMonthlyTotal(employeeId: string, periodMonth: string): Promise<number> {
     const result = await db
       .select({
-        total: sql<string>`COALESCE(SUM(${employeePurchases.totalAmount}), 0)`
+        total: sql<string>`COALESCE(SUM(COALESCE(${employeePurchases.retailValue}, ${employeePurchases.totalAmount})), 0)`
       })
       .from(employeePurchases)
       .where(and(
