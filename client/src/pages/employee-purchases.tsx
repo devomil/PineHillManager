@@ -156,19 +156,26 @@ export default function EmployeePurchases() {
       });
 
       const results = [];
+      let totalPaymentRequired = 0;
+      
       for (const purchase of purchases) {
         const response = await apiRequest('POST', '/api/employee-purchases', purchase);
         const result = await response.json();
         results.push(result);
+        
+        // Check if this purchase requires payment (backend now tells us)
+        if (result.requiresPayment && result.paymentAmount) {
+          totalPaymentRequired += parseFloat(result.paymentAmount);
+        }
       }
 
       // If payment is required, show payment dialog
-      if (amountRequiringPayment > 0) {
+      if (totalPaymentRequired > 0) {
         const purchaseIds = results.map((r: any) => r.id);
         setPendingPurchaseIds(purchaseIds);
-        setPaymentAmount(amountRequiringPayment);
+        setPaymentAmount(totalPaymentRequired);
         setShowPaymentDialog(true);
-        return { requiresPayment: true, purchaseIds, amount: amountRequiringPayment };
+        return { requiresPayment: true, purchaseIds, amount: totalPaymentRequired };
       }
 
       return { requiresPayment: false, results };
@@ -550,7 +557,7 @@ export default function EmployeePurchases() {
                     </Button>
                     <Button
                       onClick={() => purchaseMutation.mutate()}
-                      disabled={wouldExceed || purchaseMutation.isPending}
+                      disabled={purchaseMutation.isPending}
                       className="flex-1"
                       data-testid="button-complete-purchase"
                     >

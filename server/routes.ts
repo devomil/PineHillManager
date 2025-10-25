@@ -3255,13 +3255,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ? Number(cogsValue || purchaseData.totalAmount)
         : Number(retailValue || purchaseData.totalAmount);
       
-      if (monthlyTotal + purchaseValue > Number(monthlyCap)) {
-        return res.status(400).json({ 
-          message: 'Purchase would exceed monthly allowance',
-          currentTotal: monthlyTotal,
-          monthlyCap: monthlyCap,
-          remainingBalance: Number(monthlyCap) - monthlyTotal
-        });
+      const wouldExceedCap = monthlyTotal + purchaseValue > Number(monthlyCap);
+      const exceedsBy = wouldExceedCap ? (monthlyTotal + purchaseValue - Number(monthlyCap)) : 0;
+      
+      // Determine if payment is required (purchases that exceed the cap)
+      let requiresPayment = false;
+      let paymentAmount = null;
+      
+      if (wouldExceedCap) {
+        requiresPayment = true;
+        // Payment amount is the portion that exceeds the cap
+        // For managers/admins: markup applies to the over-cap COGS
+        // For employees: 25% discount on retail for the over-cap portion
+        if (isManagerOrAdmin) {
+          const markup = parseFloat(user.employeePurchaseCostMarkup || '4');
+          paymentAmount = (exceedsBy * (1 + markup / 100)).toFixed(2);
+        } else {
+          // Employee pays 75% of retail price for over-cap portion
+          const overCapRetailValue = (exceedsBy / Number(retailValue)) * Number(retailValue);
+          paymentAmount = (overCapRetailValue * 0.75).toFixed(2);
+        }
       }
       
       // Create the purchase
@@ -3273,9 +3286,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         status: 'completed',
         retailValue,
         cogsValue,
+        requiresPayment,
+        paymentAmount,
       });
       
-      res.status(201).json(purchase);
+      res.status(201).json({
+        ...purchase,
+        requiresPayment,
+        paymentAmount,
+      });
     } catch (error: any) {
       if (error?.name === 'ZodError') {
         return res.status(400).json({ 
