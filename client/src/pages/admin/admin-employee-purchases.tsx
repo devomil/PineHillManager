@@ -10,8 +10,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useToast } from "@/hooks/use-toast";
-import { DollarSign, ShoppingCart, TrendingUp, Users, Search, Edit2, History, FileText, Download } from "lucide-react";
+import { DollarSign, ShoppingCart, TrendingUp, Users, Search, Edit2, History, FileText, Download, ChevronDown, ChevronRight } from "lucide-react";
 import UserAvatar from "@/components/user-avatar";
 
 export default function AdminEmployeePurchases() {
@@ -553,112 +554,145 @@ function PurchaseReportingTab({ currentMonth }: { currentMonth: string }) {
         </CardContent>
       </Card>
 
-      {/* Employee Details */}
-      {employees.map((employee: any) => (
-        <Card key={employee.employeeId}>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="flex items-center gap-2">
-                  {employee.employeeName}
-                  <Badge variant={employee.employeeRole === 'manager' || employee.employeeRole === 'admin' ? 'default' : 'secondary'}>
-                    {employee.employeeRole}
-                  </Badge>
-                </CardTitle>
-                <CardDescription>
-                  {employee.department && `${employee.department} - `}
-                  {employee.position || 'No position specified'}
-                </CardDescription>
-              </div>
-              <div className="text-right">
-                <p className="text-sm text-gray-600">Monthly Cap: ${employee.monthlyCap.toFixed(2)}</p>
-                {(employee.employeeRole === 'manager' || employee.employeeRole === 'admin') && employee.costMarkup > 0 && (
-                  <p className="text-sm text-gray-600">Cost Markup: {employee.costMarkup}%</p>
-                )}
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Item</TableHead>
-                  <TableHead className="text-right">Qty</TableHead>
-                  <TableHead className="text-right">Retail</TableHead>
-                  <TableHead className="text-right">Charged</TableHead>
-                  <TableHead className="text-right">COGS</TableHead>
-                  <TableHead className="text-right">Retail Value</TableHead>
-                  <TableHead className="text-right">Charged Amt</TableHead>
-                  <TableHead className="text-right">COGS Value</TableHead>
-                  <TableHead className="text-right">Discount</TableHead>
-                  <TableHead>Date</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {employee.purchases.map((purchase: any) => (
-                  <TableRow key={purchase.purchaseId} className={purchase.isFreeItem ? 'bg-orange-50' : ''}>
-                    <TableCell>
-                      <div>
-                        <div className="font-medium">{purchase.itemName}</div>
-                        {purchase.barcode && <div className="text-xs text-gray-500">{purchase.barcode}</div>}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right">{purchase.quantity}</TableCell>
-                    <TableCell className="text-right">${purchase.retailPrice.toFixed(2)}</TableCell>
-                    <TableCell className="text-right">
-                      {purchase.isFreeItem ? (
-                        <span className="text-orange-600 font-medium">$0.00 (Free)</span>
-                      ) : (
-                        `$${purchase.chargedPrice.toFixed(2)}`
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right text-purple-600 font-medium">
-                      ${purchase.cogsPrice.toFixed(2)}
-                    </TableCell>
-                    <TableCell className="text-right">${purchase.retailValue.toFixed(2)}</TableCell>
-                    <TableCell className="text-right">
-                      {purchase.isFreeItem ? (
-                        <span className="text-orange-600 font-medium">$0.00</span>
-                      ) : (
-                        `$${purchase.chargedAmount.toFixed(2)}`
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right text-purple-600 font-medium">
-                      ${purchase.cogsValue.toFixed(2)}
-                    </TableCell>
-                    <TableCell className="text-right text-red-600">
-                      ${purchase.discountGiven.toFixed(2)}
-                    </TableCell>
-                    <TableCell className="text-sm text-gray-600">
-                      {new Date(purchase.purchaseDate).toLocaleDateString()}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-
-            {/* Employee Totals */}
-            <div className="mt-4 pt-4 border-t grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div>
-                <p className="text-sm text-gray-600">Retail Value</p>
-                <p className="text-lg font-bold">${employee.totals.totalRetailValue.toFixed(2)}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Amount Charged</p>
-                <p className="text-lg font-bold text-green-600">${employee.totals.totalAmountCharged.toFixed(2)}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Total COGS</p>
-                <p className="text-lg font-bold text-purple-600">${employee.totals.totalCogsValue.toFixed(2)}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Free Items COGS</p>
-                <p className="text-lg font-bold text-orange-600">${employee.totals.totalFreeItemsCogs.toFixed(2)}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      ))}
+      {/* Employee Details - Collapsible Table */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Employee Purchase Details</CardTitle>
+          <CardDescription>Click on any employee to expand and view their detailed purchase history</CardDescription>
+        </CardHeader>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-12"></TableHead>
+                <TableHead>Employee</TableHead>
+                <TableHead>Role</TableHead>
+                <TableHead className="text-right">Retail Value</TableHead>
+                <TableHead className="text-right">Amount Charged</TableHead>
+                <TableHead className="text-right">COGS</TableHead>
+                <TableHead className="text-right">Free Items COGS</TableHead>
+                <TableHead className="text-right">Discount</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {employees.map((employee: any) => (
+                <EmployeeRow key={employee.employeeId} employee={employee} />
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
     </div>
+  );
+}
+
+function EmployeeRow({ employee }: { employee: any }) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <Collapsible asChild open={isOpen} onOpenChange={setIsOpen}>
+      <>
+        {/* Main Employee Row */}
+        <TableRow className="hover:bg-gray-50 cursor-pointer" data-testid={`employee-row-${employee.employeeId}`}>
+          <TableCell>
+            <CollapsibleTrigger asChild>
+              <Button variant="ghost" size="sm" className="p-0 h-6 w-6">
+                {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+              </Button>
+            </CollapsibleTrigger>
+          </TableCell>
+          <TableCell>
+            <div>
+              <div className="font-medium">{employee.employeeName}</div>
+              <div className="text-xs text-gray-500">
+                {employee.department && `${employee.department} - `}
+                Cap: ${employee.monthlyCap.toFixed(2)}
+                {(employee.employeeRole === 'manager' || employee.employeeRole === 'admin') && employee.costMarkup > 0 && ` | Markup: ${employee.costMarkup}%`}
+              </div>
+            </div>
+          </TableCell>
+          <TableCell>
+            <Badge variant={employee.employeeRole === 'manager' || employee.employeeRole === 'admin' ? 'default' : 'secondary'}>
+              {employee.employeeRole}
+            </Badge>
+          </TableCell>
+          <TableCell className="text-right font-medium">${employee.totals.totalRetailValue.toFixed(2)}</TableCell>
+          <TableCell className="text-right font-medium text-green-600">${employee.totals.totalAmountCharged.toFixed(2)}</TableCell>
+          <TableCell className="text-right font-medium text-purple-600">${employee.totals.totalCogsValue.toFixed(2)}</TableCell>
+          <TableCell className="text-right font-medium text-orange-600">${employee.totals.totalFreeItemsCogs.toFixed(2)}</TableCell>
+          <TableCell className="text-right font-medium text-red-600">${(employee.totals.totalRetailValue - employee.totals.totalAmountCharged).toFixed(2)}</TableCell>
+        </TableRow>
+
+        {/* Expanded Purchase Details */}
+        <CollapsibleContent asChild>
+          <TableRow>
+            <TableCell colSpan={8} className="p-0 bg-gray-50">
+              <div className="p-6">
+                <h4 className="text-sm font-semibold mb-4">Purchase Details</h4>
+                <div className="bg-white rounded-lg border overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Item</TableHead>
+                        <TableHead className="text-right">Qty</TableHead>
+                        <TableHead className="text-right">Retail</TableHead>
+                        <TableHead className="text-right">Charged</TableHead>
+                        <TableHead className="text-right">COGS</TableHead>
+                        <TableHead className="text-right">Retail Value</TableHead>
+                        <TableHead className="text-right">Charged Amt</TableHead>
+                        <TableHead className="text-right">COGS Value</TableHead>
+                        <TableHead className="text-right">Discount</TableHead>
+                        <TableHead>Date</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {employee.purchases.map((purchase: any) => (
+                        <TableRow key={purchase.purchaseId} className={purchase.isFreeItem ? 'bg-orange-50' : ''}>
+                          <TableCell>
+                            <div>
+                              <div className="font-medium">{purchase.itemName}</div>
+                              {purchase.barcode && <div className="text-xs text-gray-500">{purchase.barcode}</div>}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right">{purchase.quantity}</TableCell>
+                          <TableCell className="text-right">${purchase.retailPrice.toFixed(2)}</TableCell>
+                          <TableCell className="text-right">
+                            {purchase.isFreeItem ? (
+                              <span className="text-orange-600 font-medium">$0.00 (Free)</span>
+                            ) : (
+                              `$${purchase.chargedPrice.toFixed(2)}`
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right text-purple-600 font-medium">
+                            ${purchase.cogsPrice.toFixed(2)}
+                          </TableCell>
+                          <TableCell className="text-right">${purchase.retailValue.toFixed(2)}</TableCell>
+                          <TableCell className="text-right">
+                            {purchase.isFreeItem ? (
+                              <span className="text-orange-600 font-medium">$0.00</span>
+                            ) : (
+                              `$${purchase.chargedAmount.toFixed(2)}`
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right text-purple-600 font-medium">
+                            ${purchase.cogsValue.toFixed(2)}
+                          </TableCell>
+                          <TableCell className="text-right text-red-600">
+                            ${purchase.discountGiven.toFixed(2)}
+                          </TableCell>
+                          <TableCell className="text-sm text-gray-600">
+                            {new Date(purchase.purchaseDate).toLocaleDateString()}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            </TableCell>
+          </TableRow>
+        </CollapsibleContent>
+      </>
+    </Collapsible>
   );
 }
