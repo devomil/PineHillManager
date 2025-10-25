@@ -13,7 +13,7 @@ import { smsService } from "./sms-service";
 import { smartNotificationService } from './smart-notifications';
 import { ObjectStorageService, ObjectNotFoundError } from './objectStorage';
 import { ObjectPermission } from './objectAcl';
-import { createCloverPaymentService } from './integrations/clover-payments';
+import { createCloverPaymentService, getCloverPaymentService } from './integrations/clover-payments';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -3447,16 +3447,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get Clover public API key for iframe tokenization
   app.get('/api/employee-purchases/payment/public-key', isAuthenticated, async (req, res) => {
     try {
-      if (!cloverPaymentService) {
-        return res.status(503).json({ 
-          message: 'Payment processing is not configured',
-          error: 'PAYMENT_SERVICE_UNAVAILABLE'
+      const merchantId = req.query.merchantId as string;
+      
+      if (!merchantId) {
+        return res.status(400).json({ 
+          message: 'Merchant ID is required' 
         });
       }
 
-      console.log('🔑 [Payment Public Key] Fetching Clover public API key...');
+      console.log('🔑 [Payment Public Key] Fetching Clover public API key for merchant:', merchantId);
 
-      const publicKey = await cloverPaymentService.getPublicApiKey();
+      const service = getCloverPaymentService(merchantId);
+      const publicKey = await service.getPublicApiKey();
 
       res.json({
         success: true,
@@ -3474,14 +3476,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create payment intent for over-cap purchases
   app.post('/api/employee-purchases/payment/create-intent', isAuthenticated, async (req, res) => {
     try {
-      if (!cloverPaymentService) {
-        return res.status(503).json({ 
-          message: 'Payment processing is not configured',
-          error: 'PAYMENT_SERVICE_UNAVAILABLE'
-        });
-      }
+      const { amount, purchaseIds, description, merchantId } = req.body;
 
-      const { amount, purchaseIds, description } = req.body;
+      if (!merchantId) {
+        return res.status(400).json({ message: 'Merchant ID is required' });
+      }
 
       if (!amount || amount <= 0) {
         return res.status(400).json({ message: 'Invalid payment amount' });
@@ -3502,6 +3501,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log('💳 [Payment Intent] Creating for user:', {
         userId,
         amount,
+        merchantId,
         purchaseCount: purchaseIds.length,
         externalId: externalPaymentId,
       });
@@ -3512,7 +3512,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         externalPaymentId,
         amount,
         purchaseIds,
-        merchantId: process.env.CLOVER_MERCHANT_ID,
+        merchantId,
         description: description || 'Employee Purchase',
       });
     } catch (error: any) {
@@ -3527,14 +3527,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Process payment with Clover token
   app.post('/api/employee-purchases/payment/process', isAuthenticated, async (req, res) => {
     try {
-      if (!cloverPaymentService) {
-        return res.status(503).json({ 
-          message: 'Payment processing is not configured',
-          error: 'PAYMENT_SERVICE_UNAVAILABLE'
-        });
-      }
+      const { cardToken, amount, externalPaymentId, purchaseIds, merchantId } = req.body;
 
-      const { cardToken, amount, externalPaymentId, purchaseIds } = req.body;
+      if (!merchantId) {
+        return res.status(400).json({ message: 'Merchant ID is required' });
+      }
 
       if (!cardToken || !amount || !externalPaymentId || !purchaseIds) {
         return res.status(400).json({ message: 'Missing required payment data' });
@@ -3548,13 +3545,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log('💳 [Payment Process] Processing payment:', {
         userId,
         amount,
+        merchantId,
         purchaseCount: purchaseIds.length,
         externalId: externalPaymentId,
       });
 
+      // Get merchant-specific Clover service
+      const service = getCloverPaymentService(merchantId);
+
       // Process payment through Clover
       const amountInCents = Math.round(parseFloat(amount) * 100);
-      const paymentResult = await cloverPaymentService.createPayment(
+      const paymentResult = await service.createPayment(
         {
           amount: amountInCents,
           currency: 'USD',

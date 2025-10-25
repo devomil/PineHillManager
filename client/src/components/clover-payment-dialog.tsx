@@ -34,8 +34,8 @@ interface CloverPaymentDialogProps {
 }
 
 const MERCHANT_LOCATIONS = [
-  { value: 'QGFXZQXYG8M31', label: 'Watertown Retail', token: process.env.WATERTOWN_CLOVER_TOKEN || '' },
-  { value: 'S5TK30WEK0ZJ1', label: 'Lake Geneva Retail', token: process.env.LAKE_GENEVA_CLOVER_TOKEN || '' },
+  { value: 'QGFXZQXYG8M31', label: 'Watertown Retail' },
+  { value: 'S5TK30WEK0ZJ1', label: 'Lake Geneva Retail' },
 ];
 
 export function CloverPaymentDialog({

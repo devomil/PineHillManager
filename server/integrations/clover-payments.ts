@@ -252,7 +252,22 @@ export class CloverPaymentService {
 }
 
 /**
+ * Merchant configuration mapping
+ */
+const MERCHANT_CONFIGS: Record<string, { token: string; name: string }> = {
+  'QGFXZQXYG8M31': { 
+    token: process.env.WATERTOWN_CLOVER_TOKEN || process.env.CLOVER_API_TOKEN || '',
+    name: 'Watertown Retail'
+  },
+  'S5TK30WEK0ZJ1': { 
+    token: process.env.LAKE_GENEVA_CLOVER_TOKEN || process.env.CLOVER_API_TOKEN || '',
+    name: 'Lake Geneva Retail'
+  },
+};
+
+/**
  * Create a Clover Payment Service instance from environment variables
+ * @deprecated Use getCloverPaymentService with merchantId instead
  */
 export function createCloverPaymentService(): CloverPaymentService | null {
   const merchantId = process.env.CLOVER_MERCHANT_ID;
@@ -266,5 +281,27 @@ export function createCloverPaymentService(): CloverPaymentService | null {
   return new CloverPaymentService({
     merchantId,
     apiToken,
+  });
+}
+
+/**
+ * Get a Clover Payment Service instance for a specific merchant
+ * @param merchantId - The merchant ID (e.g., 'QGFXZQXYG8M31' for Watertown)
+ * @returns CloverPaymentService instance for the specified merchant
+ */
+export function getCloverPaymentService(merchantId: string): CloverPaymentService {
+  const config = MERCHANT_CONFIGS[merchantId];
+  
+  if (!config) {
+    throw new Error(`Unknown merchant ID: ${merchantId}`);
+  }
+  
+  if (!config.token) {
+    throw new Error(`Missing API token for merchant: ${config.name}`);
+  }
+
+  return new CloverPaymentService({
+    merchantId,
+    apiToken: config.token,
   });
 }
