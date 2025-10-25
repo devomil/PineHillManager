@@ -580,7 +580,7 @@ export interface IStorage {
   // Employee purchases (barcode scanning store purchases)
   createEmployeePurchase(purchase: InsertEmployeePurchase): Promise<EmployeePurchase>;
   getEmployeePurchasesByUser(employeeId: string, periodMonth?: string): Promise<EmployeePurchase[]>;
-  getEmployeePurchaseMonthlyTotal(employeeId: string, periodMonth: string): Promise<number>;
+  getEmployeePurchaseMonthlyTotal(employeeId: string, periodMonth: string, userRole?: string): Promise<number>;
   searchInventoryByBarcode(barcode: string): Promise<InventoryItem | undefined>;
   getEmployeePurchaseUsersWithSpending(periodMonth: string): Promise<any[]>;
   updateEmployeePurchaseSettings(userId: string, settings: {
@@ -4361,10 +4361,16 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(employeePurchases.purchaseDate));
   }
 
-  async getEmployeePurchaseMonthlyTotal(employeeId: string, periodMonth: string): Promise<number> {
+  async getEmployeePurchaseMonthlyTotal(employeeId: string, periodMonth: string, userRole?: string): Promise<number> {
+    // For managers and admins, track COGS (actual cost to company)
+    // For regular employees, track retail value (what's charged against their allowance)
+    const isManagerOrAdmin = userRole === 'manager' || userRole === 'admin';
+    const valueField = isManagerOrAdmin ? employeePurchases.cogsValue : employeePurchases.retailValue;
+    const fallbackField = employeePurchases.totalAmount;
+    
     const result = await db
       .select({
-        total: sql<string>`COALESCE(SUM(COALESCE(${employeePurchases.retailValue}, ${employeePurchases.totalAmount})), 0)`
+        total: sql<string>`COALESCE(SUM(COALESCE(${valueField}, ${fallbackField})), 0)`
       })
       .from(employeePurchases)
       .where(and(

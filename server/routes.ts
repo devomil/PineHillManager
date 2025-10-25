@@ -3244,12 +3244,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
-      // Check if purchase would exceed monthly cap (based on retail value)
-      const monthlyTotal = await storage.getEmployeePurchaseMonthlyTotal(userId, currentMonth);
+      // Check if purchase would exceed monthly cap
+      // For managers/admins: based on COGS value (actual cost to company)
+      // For employees: based on retail value (charged against allowance)
+      const monthlyTotal = await storage.getEmployeePurchaseMonthlyTotal(userId, currentMonth, user.role);
       const monthlyCap = user.employeePurchaseCap || 0;
       
-      const retailValueNumber = Number(retailValue || purchaseData.totalAmount);
-      if (monthlyTotal + retailValueNumber > Number(monthlyCap)) {
+      const isManagerOrAdmin = user.role === 'manager' || user.role === 'admin';
+      const purchaseValue = isManagerOrAdmin 
+        ? Number(cogsValue || purchaseData.totalAmount)
+        : Number(retailValue || purchaseData.totalAmount);
+      
+      if (monthlyTotal + purchaseValue > Number(monthlyCap)) {
         return res.status(400).json({ 
           message: 'Purchase would exceed monthly allowance',
           currentTotal: monthlyTotal,
@@ -3314,7 +3320,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const currentMonth = new Date().toISOString().slice(0, 7);
-      const monthlyTotal = await storage.getEmployeePurchaseMonthlyTotal(userId, currentMonth);
+      const monthlyTotal = await storage.getEmployeePurchaseMonthlyTotal(userId, currentMonth, user.role);
       const monthlyCap = user.employeePurchaseCap || 0;
       const remainingBalance = Number(monthlyCap) - monthlyTotal;
       
