@@ -16,6 +16,8 @@ export default function HomeDashboard() {
   const [location] = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
+  const [touchStart, setTouchStart] = useState<number | null>(null);
+  const [touchEnd, setTouchEnd] = useState<number | null>(null);
 
   const isAdmin = user?.role === 'admin';
   const isManager = user?.role === 'manager' || user?.role === 'admin';
@@ -129,6 +131,34 @@ export default function HomeDashboard() {
 
   const currentBanner = banners[currentBannerIndex];
 
+  const minSwipeDistance = 50;
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    setTouchEnd(null);
+    setTouchStart(e.targetTouches[0].clientX);
+  };
+
+  const onTouchMove = (e: React.TouchEvent) => {
+    setTouchEnd(e.targetTouches[0].clientX);
+  };
+
+  const onTouchEnd = () => {
+    if (touchStart === null || touchEnd === null) return;
+    
+    const distance = touchStart - touchEnd;
+    const isLeftSwipe = distance > minSwipeDistance;
+    const isRightSwipe = distance < -minSwipeDistance;
+
+    if (isLeftSwipe) {
+      nextBanner();
+    } else if (isRightSwipe) {
+      prevBanner();
+    }
+
+    setTouchStart(null);
+    setTouchEnd(null);
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Mobile Header */}
@@ -171,7 +201,7 @@ export default function HomeDashboard() {
         </div>
       </div>
 
-      <div className="flex flex-1">
+      <div className="flex flex-col xl:flex-row flex-1">
         {/* Left Navigation Sidebar - Desktop */}
         <aside className="hidden lg:flex lg:flex-col lg:w-64 bg-white border-r shadow-sm">
           <div className="p-6 border-b">
@@ -297,7 +327,12 @@ export default function HomeDashboard() {
           <div className="max-w-7xl mx-auto p-4 lg:p-8 space-y-8">
             {/* Welcome Banner Carousel */}
             {banners.length > 0 ? (
-              <div className="relative">
+              <div 
+                className="relative"
+                onTouchStart={onTouchStart}
+                onTouchMove={onTouchMove}
+                onTouchEnd={onTouchEnd}
+              >
                 <Card className="overflow-hidden bg-gradient-to-r from-blue-600 to-purple-600 text-white border-0 shadow-lg">
                   <CardContent className="p-0">
                     <div className="relative h-64 md:h-80">
@@ -474,8 +509,8 @@ export default function HomeDashboard() {
           </div>
         </main>
 
-        {/* Right Sidebar Widgets (Task 7) */}
-        <aside className="hidden xl:block xl:w-80 bg-white border-l shadow-sm p-6 space-y-6">
+        {/* Right Sidebar Widgets (Task 7 & 9) - Mobile stacked, desktop sidebar */}
+        <aside className="w-full xl:w-80 bg-white xl:border-l shadow-sm p-6 space-y-6">
           {/* Upcoming Tasks Widget */}
           <div>
             <div className="flex items-center justify-between mb-4">
