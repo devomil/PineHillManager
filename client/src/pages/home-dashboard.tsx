@@ -1,239 +1,491 @@
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Clock, Calendar, FileText, Users, MessageSquare, MessageCircle, Bell, ChevronRight, HelpCircle, User, LogOut, ChevronDown, ShoppingCart, CheckSquare, GraduationCap } from "lucide-react";
+import { Clock, Calendar, MessageSquare, CheckSquare, GraduationCap, ShoppingCart, HelpCircle, User, LogOut, ChevronDown, Menu, X, ExternalLink, ChevronLeft, ChevronRight } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import UserAvatar from "@/components/user-avatar";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import type { Task } from "@shared/schema";
+import type { Task, EmployeeBanner, EmployeeSpotlight } from "@shared/schema";
+import { useState, useEffect } from "react";
+import { cn } from "@/lib/utils";
 
 export default function HomeDashboard() {
   const { user, logoutMutation } = useAuth();
+  const [location] = useLocation();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
 
   const isAdmin = user?.role === 'admin';
   const isManager = user?.role === 'manager' || user?.role === 'admin';
   
-  // Convert user to UserAvatar compatible type (null to undefined)
   const avatarUser = user ? {
     profileImageUrl: user.profileImageUrl ?? undefined,
     firstName: user.firstName ?? undefined,
     lastName: user.lastName ?? undefined,
   } : undefined;
 
-  // Fetch employee's assigned tasks
   const { data: tasks = [] } = useQuery<Task[]>({
     queryKey: ['/api/tasks'],
     enabled: !!user?.id,
   });
 
+  const { data: employeeContent } = useQuery<{
+    banners: EmployeeBanner[];
+    spotlights: EmployeeSpotlight[];
+  }>({
+    queryKey: ['/api/employee-content'],
+  });
+
+  const banners = employeeContent?.banners || [];
+  const spotlights = employeeContent?.spotlights || [];
+
   const pendingTasks = tasks.filter(t => t.status === 'pending' || t.status === 'in_progress');
   const taskCount = pendingTasks.length;
 
-  const quickActions = [
+  const navItems = [
     {
       title: "Time Clock",
-      description: "Clock in/out, track breaks, and manage your work time",
       icon: Clock,
       href: "/time-clock",
-      color: "bg-red-50 border-red-200",
-      iconColor: "text-red-600"
+      badge: undefined as number | undefined,
     },
     {
       title: "My Schedule", 
-      description: "View shifts, request time off, and manage shift swaps - all in one place",
       icon: Calendar,
       href: "/schedule",
-      color: "bg-blue-50 border-blue-200",
-      iconColor: "text-blue-600"
+      badge: undefined as number | undefined,
     },
     {
       title: "Communications",
-      description: "Company announcements, team messages, and SMS notifications",
       icon: MessageSquare,
       href: "/communications",
-      color: "bg-blue-50 border-blue-200",
-      iconColor: "text-blue-600"
+      badge: undefined as number | undefined,
     },
     {
       title: "Training",
-      description: "Access courses, track progress, and earn skills",
       icon: GraduationCap,
       href: "/training",
-      color: "bg-orange-50 border-orange-200",
-      iconColor: "text-orange-600"
+      badge: undefined as number | undefined,
     },
     {
       title: "My Tasks",
-      description: taskCount > 0 ? `You have ${taskCount} active task${taskCount !== 1 ? 's' : ''} to complete` : "View and manage your assigned tasks",
       icon: CheckSquare,
       href: "/tasks",
-      color: "bg-purple-50 border-purple-200",
-      iconColor: "text-purple-600",
-      badge: taskCount > 0 ? taskCount : undefined
+      badge: taskCount > 0 ? taskCount : undefined,
     },
     {
       title: "Employee Purchases",
-      description: "Shop with your monthly employee purchase allowance",
       icon: ShoppingCart,
       href: "/employee-purchases",
-      color: "bg-green-50 border-green-200",
-      iconColor: "text-green-600"
+      badge: undefined as number | undefined,
     },
     {
       title: "Support Center",
-      description: "Get help, submit tickets, and find answers to questions",
       icon: HelpCircle,
       href: "/support",
-      color: "bg-indigo-50 border-indigo-200",
-      iconColor: "text-indigo-600"
+      badge: undefined as number | undefined,
     }
   ];
 
+  const nextBanner = () => {
+    setCurrentBannerIndex((prev) => (prev + 1) % banners.length);
+  };
+
+  const prevBanner = () => {
+    setCurrentBannerIndex((prev) => (prev - 1 + banners.length) % banners.length);
+  };
+
+  useEffect(() => {
+    if (currentBannerIndex >= banners.length && banners.length > 0) {
+      setCurrentBannerIndex(0);
+    }
+  }, [banners, currentBannerIndex]);
+
+  useEffect(() => {
+    if (banners.length <= 1) return;
+
+    const interval = setInterval(() => {
+      setCurrentBannerIndex((prev) => (prev + 1) % banners.length);
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [banners.length]);
+
+  const currentBanner = banners[currentBannerIndex];
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100">
-      {/* Header */}
-      <div className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-4">
-            <div className="flex items-center space-x-4">
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900 font-brand brand-title" data-brand="pine-hill">
-                  Pine Hill Farm
-                </h1>
-                <p className="text-sm text-gray-500">Employee Portal</p>
-              </div>
-            </div>
-            
-            {/* Mobile Profile Button - Only visible on small screens */}
-            <div className="md:hidden">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="flex items-center space-x-2 hover:bg-gray-50" data-testid="button-mobile-profile">
-                    <UserAvatar user={avatarUser} size="md" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56">
-                  <DropdownMenuItem onClick={() => window.location.href = '/profile'} className="cursor-pointer">
-                    <User className="mr-2 h-4 w-4" />
-                    Profile & Settings
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => logoutMutation.mutate()} className="cursor-pointer text-red-600 hover:text-red-700 hover:bg-red-50">
-                    <LogOut className="mr-2 h-4 w-4" />
-                    Sign Out
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-            
-            <nav className="hidden md:flex space-x-8">
-              <Link href="/dashboard">
-                <Button variant="default" className="bg-green-600 hover:bg-green-700">
-                  Dashboard
-                </Button>
-              </Link>
-              <Link href="/time-clock">
-                <Button variant="ghost">Time Clock</Button>
-              </Link>
-              <Link href="/schedule">
-                <Button variant="ghost">Schedule</Button>
-              </Link>
-              <Link href="/announcements">
-                <Button variant="ghost">Announcements</Button>
-              </Link>
+    <div className="min-h-screen bg-gray-50 flex flex-col">
+      {/* Mobile Header */}
+      <div className="lg:hidden bg-white border-b shadow-sm sticky top-0 z-40">
+        <div className="flex items-center justify-between p-4">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            data-testid="button-mobile-menu"
+          >
+            {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </Button>
+          <h1 className="text-xl font-bold font-brand brand-title" data-brand="pine-hill">
+            Pine Hill Farm
+          </h1>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" data-testid="button-mobile-profile">
+                <UserAvatar user={avatarUser} size="sm" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuItem onClick={() => window.location.href = '/profile'} className="cursor-pointer" data-testid="menu-profile">
+                <User className="mr-2 h-4 w-4" />
+                Profile & Settings
+              </DropdownMenuItem>
               {isManager && (
-                <Link href="/admin">
-                  <Button variant="outline" className="bg-blue-600 text-white hover:bg-blue-700 border-blue-600">
-                    ← Back to Admin View
-                  </Button>
-                </Link>
+                <DropdownMenuItem onClick={() => window.location.href = '/admin'} className="cursor-pointer" data-testid="menu-admin">
+                  Admin View
+                </DropdownMenuItem>
               )}
-              {/* User Profile Dropdown */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="flex items-center space-x-2 hover:bg-gray-50">
-                    <UserAvatar user={avatarUser} size="md" />
-                    <div className="hidden sm:block text-left">
-                      <p className="text-sm font-medium text-gray-900">
-                        {user?.firstName} {user?.lastName}
-                      </p>
-                      <p className="text-xs text-gray-500 capitalize">
-                        {user?.role || 'Employee'}
-                      </p>
-                    </div>
-                    <ChevronDown className="h-4 w-4 text-gray-500" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56">
-                  <DropdownMenuItem onClick={() => window.location.href = '/profile'} className="cursor-pointer">
-                    <User className="mr-2 h-4 w-4" />
-                    Profile & Settings
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => logoutMutation.mutate()} className="cursor-pointer text-red-600 hover:text-red-700 hover:bg-red-50">
-                    <LogOut className="mr-2 h-4 w-4" />
-                    Sign Out
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </nav>
-          </div>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => logoutMutation.mutate()} className="cursor-pointer text-red-600 hover:text-red-700 hover:bg-red-50" data-testid="menu-logout">
+                <LogOut className="mr-2 h-4 w-4" />
+                Sign Out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Welcome Section */}
-        <div className="text-center mb-12">
-          <h2 className="text-3xl font-bold text-gray-900 mb-4">
-            Welcome to Your Dashboard
-          </h2>
-          <p className="text-gray-600 max-w-2xl mx-auto">
-            Here's an overview of your work activities and quick access to important features.
-          </p>
-        </div>
+      <div className="flex flex-1">
+        {/* Left Navigation Sidebar - Desktop */}
+        <aside className="hidden lg:flex lg:flex-col lg:w-64 bg-white border-r shadow-sm">
+          <div className="p-6 border-b">
+            <h1 className="text-2xl font-bold font-brand brand-title" data-brand="pine-hill">
+              Pine Hill Farm
+            </h1>
+            <p className="text-sm text-muted-foreground mt-1">Employee Portal</p>
+          </div>
+          
+          <nav className="flex-1 p-4 space-y-1">
+            {navItems.map((item) => {
+              const isActive = location === item.href;
+              return (
+                <Link key={item.href} href={item.href}>
+                  <Button
+                    variant={isActive ? "secondary" : "ghost"}
+                    className={cn(
+                      "w-full justify-start relative",
+                      isActive && "bg-primary/10 text-primary hover:bg-primary/20"
+                    )}
+                    data-testid={`nav-${item.title.toLowerCase().replace(/\s+/g, '-')}`}
+                  >
+                    <item.icon className="h-5 w-5 mr-3" />
+                    {item.title}
+                    {item.badge && (
+                      <span className="ml-auto bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
+                        {item.badge}
+                      </span>
+                    )}
+                  </Button>
+                </Link>
+              );
+            })}
+          </nav>
 
-        {/* Quick Actions Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {quickActions.map((action, index) => (
-            <Link key={index} href={action.href}>
-              <Card className={`cursor-pointer transition-all duration-200 hover:shadow-lg hover:scale-105 ${action.color}`}>
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <div className={`p-3 rounded-lg ${action.color} relative`}>
-                      <action.icon className={`h-6 w-6 ${action.iconColor}`} />
-                      {action.badge && (
-                        <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
-                          {action.badge}
-                        </span>
+          <div className="p-4 border-t">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="w-full justify-start" data-testid="button-user-menu">
+                  <UserAvatar user={avatarUser} size="sm" />
+                  <div className="ml-3 text-left flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">
+                      {user?.firstName} {user?.lastName}
+                    </p>
+                    <p className="text-xs text-muted-foreground capitalize">
+                      {user?.role || 'Employee'}
+                    </p>
+                  </div>
+                  <ChevronDown className="h-4 w-4 ml-2" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuItem onClick={() => window.location.href = '/profile'} className="cursor-pointer" data-testid="desktop-menu-profile">
+                  <User className="mr-2 h-4 w-4" />
+                  Profile & Settings
+                </DropdownMenuItem>
+                {isManager && (
+                  <DropdownMenuItem onClick={() => window.location.href = '/admin'} className="cursor-pointer" data-testid="desktop-menu-admin">
+                    Admin View
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => logoutMutation.mutate()} className="cursor-pointer text-red-600 hover:text-red-700 hover:bg-red-50" data-testid="desktop-menu-logout">
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Sign Out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </aside>
+
+        {/* Mobile Navigation Menu */}
+        {mobileMenuOpen && (
+          <div className="lg:hidden fixed inset-0 z-50 bg-black/50" onClick={() => setMobileMenuOpen(false)}>
+            <aside
+              className="w-64 h-full bg-white shadow-xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-6 border-b flex items-center justify-between">
+                <div>
+                  <h1 className="text-xl font-bold font-brand brand-title" data-brand="pine-hill">
+                    Pine Hill Farm
+                  </h1>
+                  <p className="text-xs text-muted-foreground mt-1">Employee Portal</p>
+                </div>
+                <Button variant="ghost" size="sm" onClick={() => setMobileMenuOpen(false)} data-testid="button-close-mobile-menu">
+                  <X className="h-5 w-5" />
+                </Button>
+              </div>
+              
+              <nav className="p-4 space-y-1">
+                {navItems.map((item) => {
+                  const isActive = location === item.href;
+                  return (
+                    <Link key={item.href} href={item.href}>
+                      <Button
+                        variant={isActive ? "secondary" : "ghost"}
+                        className={cn(
+                          "w-full justify-start relative",
+                          isActive && "bg-primary/10 text-primary hover:bg-primary/20"
+                        )}
+                        onClick={() => setMobileMenuOpen(false)}
+                        data-testid={`mobile-nav-${item.title.toLowerCase().replace(/\s+/g, '-')}`}
+                      >
+                        <item.icon className="h-5 w-5 mr-3" />
+                        {item.title}
+                        {item.badge && (
+                          <span className="ml-auto bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
+                            {item.badge}
+                          </span>
+                        )}
+                      </Button>
+                    </Link>
+                  );
+                })}
+              </nav>
+            </aside>
+          </div>
+        )}
+
+        {/* Main Content Area */}
+        <main className="flex-1 overflow-auto">
+          <div className="max-w-7xl mx-auto p-4 lg:p-8 space-y-8">
+            {/* Welcome Banner Carousel */}
+            {banners.length > 0 ? (
+              <div className="relative">
+                <Card className="overflow-hidden bg-gradient-to-r from-blue-600 to-purple-600 text-white border-0 shadow-lg">
+                  <CardContent className="p-0">
+                    <div className="relative h-64 md:h-80">
+                      {currentBanner?.imageUrl && (
+                        <img
+                          src={currentBanner.imageUrl}
+                          alt={currentBanner.title || "Banner"}
+                          className="w-full h-full object-cover"
+                        />
                       )}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent flex flex-col justify-end p-6 md:p-8">
+                        <h2 className="text-3xl md:text-4xl font-bold mb-2" data-testid="banner-title">
+                          {currentBanner?.title}
+                        </h2>
+                        {currentBanner?.subtitle && (
+                          <p className="text-lg text-white/90 mb-4 max-w-2xl" data-testid="banner-description">
+                            {currentBanner.subtitle}
+                          </p>
+                        )}
+                        {currentBanner?.externalUrl && (
+                          <a
+                            href={currentBanner.externalUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-2 bg-white text-blue-600 px-6 py-2 rounded-lg font-semibold hover:bg-blue-50 transition-colors w-fit"
+                            data-testid="banner-link"
+                          >
+                            Learn More
+                            <ExternalLink className="h-4 w-4" />
+                          </a>
+                        )}
+                      </div>
                     </div>
-                    <ChevronRight className="h-5 w-5 text-gray-400" />
-                  </div>
-                  <CardTitle className="text-lg font-semibold text-gray-900">
-                    {action.title}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <CardDescription className="text-gray-600">
-                    {action.description}
-                  </CardDescription>
-                  <div className="mt-4">
-                    <Button className={`w-full ${action.iconColor.replace('text-', 'bg-').replace('600', '600')} hover:${action.iconColor.replace('text-', 'bg-').replace('600', '700')} text-white`}>
-                      {action.title === "Time Clock" ? "Clock In/Out" :
-                       action.title === "My Schedule" ? "View Schedule" :
-                       action.title === "Communications" ? "View Communications" :
-                       action.title === "Training" ? "View Courses" :
-                       action.title === "My Tasks" ? "View Tasks" :
-                       "Open"}
+                  </CardContent>
+                </Card>
+                
+                {banners.length > 1 && (
+                  <>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white shadow-lg"
+                      onClick={prevBanner}
+                      data-testid="button-prev-banner"
+                    >
+                      <ChevronLeft className="h-5 w-5" />
                     </Button>
-                  </div>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white shadow-lg"
+                      onClick={nextBanner}
+                      data-testid="button-next-banner"
+                    >
+                      <ChevronRight className="h-5 w-5" />
+                    </Button>
+                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
+                      {banners.map((_, index) => (
+                        <button
+                          key={index}
+                          className={cn(
+                            "w-2 h-2 rounded-full transition-all",
+                            index === currentBannerIndex
+                              ? "bg-white w-8"
+                              : "bg-white/50 hover:bg-white/75"
+                          )}
+                          onClick={() => setCurrentBannerIndex(index)}
+                          data-testid={`banner-indicator-${index}`}
+                        />
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            ) : (
+              <Card className="bg-gradient-to-r from-blue-600 to-purple-600 text-white border-0 shadow-lg">
+                <CardContent className="p-8 md:p-12">
+                  <h2 className="text-3xl md:text-4xl font-bold mb-2">
+                    Welcome to Pine Hill Farm
+                  </h2>
+                  <p className="text-lg text-white/90">
+                    Your employee dashboard for all work activities and updates
+                  </p>
                 </CardContent>
               </Card>
-            </Link>
-          ))}
-        </div>
+            )}
+
+            {/* Spotlights Section */}
+            {spotlights.length > 0 && (
+              <div>
+                <h3 className="text-2xl font-bold mb-4 text-gray-900">What's New</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {spotlights.map((spotlight) => (
+                    <Card
+                      key={spotlight.id}
+                      className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer"
+                      onClick={() => spotlight.externalUrl && window.open(spotlight.externalUrl, '_blank')}
+                      data-testid={`spotlight-${spotlight.id}`}
+                    >
+                      {spotlight.thumbnailUrl && (
+                        <div className="relative h-48 overflow-hidden">
+                          <img
+                            src={spotlight.thumbnailUrl}
+                            alt={spotlight.title}
+                            className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+                          />
+                          <div className="absolute top-2 right-2">
+                            <span className="px-3 py-1 bg-white/90 backdrop-blur-sm rounded-full text-xs font-medium text-gray-900">
+                              {spotlight.type}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                      <CardHeader>
+                        <CardTitle className="text-lg">{spotlight.title}</CardTitle>
+                        {spotlight.description && (
+                          <CardDescription className="line-clamp-2">
+                            {spotlight.description}
+                          </CardDescription>
+                        )}
+                      </CardHeader>
+                      {spotlight.externalUrl && (
+                        <CardContent className="pt-0">
+                          <div className="flex items-center gap-1 text-sm text-blue-600 font-medium">
+                            View More
+                            <ExternalLink className="h-4 w-4" />
+                          </div>
+                        </CardContent>
+                      )}
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Quick Links Placeholder (Task 8) */}
+            <div>
+              <h3 className="text-2xl font-bold mb-4 text-gray-900">Quick Links</h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <Link href="/employee-purchases">
+                  <Card className="hover:shadow-md transition-shadow cursor-pointer border-green-200 bg-green-50" data-testid="quicklink-employee-purchases">
+                    <CardContent className="p-6 text-center">
+                      <ShoppingCart className="h-8 w-8 text-green-600 mx-auto mb-2" />
+                      <p className="font-semibold text-gray-900">Employee Purchases</p>
+                    </CardContent>
+                  </Card>
+                </Link>
+                <Link href="/communications">
+                  <Card className="hover:shadow-md transition-shadow cursor-pointer border-blue-200 bg-blue-50" data-testid="quicklink-communications">
+                    <CardContent className="p-6 text-center">
+                      <MessageSquare className="h-8 w-8 text-blue-600 mx-auto mb-2" />
+                      <p className="font-semibold text-gray-900">Communications</p>
+                    </CardContent>
+                  </Card>
+                </Link>
+                <Link href="/time-clock">
+                  <Card className="hover:shadow-md transition-shadow cursor-pointer border-red-200 bg-red-50" data-testid="quicklink-time-clock">
+                    <CardContent className="p-6 text-center">
+                      <Clock className="h-8 w-8 text-red-600 mx-auto mb-2" />
+                      <p className="font-semibold text-gray-900">Time Clock</p>
+                    </CardContent>
+                  </Card>
+                </Link>
+                <Link href="/schedule">
+                  <Card className="hover:shadow-md transition-shadow cursor-pointer border-purple-200 bg-purple-50" data-testid="quicklink-schedule">
+                    <CardContent className="p-6 text-center">
+                      <Calendar className="h-8 w-8 text-purple-600 mx-auto mb-2" />
+                      <p className="font-semibold text-gray-900">My Schedule</p>
+                    </CardContent>
+                  </Card>
+                </Link>
+              </div>
+            </div>
+          </div>
+        </main>
+
+        {/* Right Sidebar Placeholder (Task 7) */}
+        <aside className="hidden xl:block xl:w-80 bg-white border-l shadow-sm p-6 space-y-6">
+          <div>
+            <h3 className="font-semibold text-lg mb-4">Upcoming Tasks</h3>
+            <Card>
+              <CardContent className="p-4 text-center text-muted-foreground text-sm">
+                Task widgets coming soon
+              </CardContent>
+            </Card>
+          </div>
+          <div>
+            <h3 className="font-semibold text-lg mb-4">Training Progress</h3>
+            <Card>
+              <CardContent className="p-4 text-center text-muted-foreground text-sm">
+                Training widgets coming soon
+              </CardContent>
+            </Card>
+          </div>
+          <div>
+            <h3 className="font-semibold text-lg mb-4">Work Calendar</h3>
+            <Card>
+              <CardContent className="p-4 text-center text-muted-foreground text-sm">
+                Calendar widgets coming soon
+              </CardContent>
+            </Card>
+          </div>
+        </aside>
       </div>
     </div>
   );
