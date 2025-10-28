@@ -702,7 +702,13 @@ function BannerForm({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit(formData);
+    // Convert date strings to Date objects for the API
+    const submitData = {
+      ...formData,
+      startDate: formData.startDate ? new Date(formData.startDate) : undefined,
+      endDate: formData.endDate ? new Date(formData.endDate) : undefined,
+    };
+    onSubmit(submitData as any);
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -747,6 +753,14 @@ function BannerForm({
         <div>
           <Label htmlFor="banner-image">Banner Image</Label>
           <div className="space-y-2">
+            <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-3 text-sm text-blue-900 dark:text-blue-100">
+              <p className="font-semibold mb-1">📐 Image Guidelines:</p>
+              <ul className="space-y-1 text-xs">
+                <li>• <strong>Recommended size:</strong> 1200 x 400 pixels (3:1 ratio)</li>
+                <li>• <strong>File size:</strong> Under 10 MB (ideally 500 KB - 2 MB)</li>
+                <li>• <strong>Format:</strong> JPG or PNG</li>
+              </ul>
+            </div>
             <Input
               id="banner-image"
               type="file"
@@ -843,7 +857,13 @@ function SpotlightForm({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit(formData);
+    // Convert date strings to Date objects for the API
+    const submitData = {
+      ...formData,
+      startDate: formData.startDate ? new Date(formData.startDate) : undefined,
+      endDate: formData.endDate ? new Date(formData.endDate) : undefined,
+    };
+    onSubmit(submitData as any);
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -906,6 +926,14 @@ function SpotlightForm({
         <div>
           <Label htmlFor="spotlight-image">Thumbnail Image</Label>
           <div className="space-y-2">
+            <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-3 text-sm text-blue-900 dark:text-blue-100">
+              <p className="font-semibold mb-1">📐 Image Guidelines:</p>
+              <ul className="space-y-1 text-xs">
+                <li>• <strong>Recommended size:</strong> 800 x 600 pixels (4:3 ratio)</li>
+                <li>• <strong>File size:</strong> Under 10 MB (ideally 300 KB - 1 MB)</li>
+                <li>• <strong>Format:</strong> JPG or PNG</li>
+              </ul>
+            </div>
             <Input
               id="spotlight-image"
               type="file"
