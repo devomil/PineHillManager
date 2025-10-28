@@ -18,6 +18,7 @@ export default function HomeDashboard() {
   const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
   const [touchStart, setTouchStart] = useState<number | null>(null);
   const [touchEnd, setTouchEnd] = useState<number | null>(null);
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   const isAdmin = user?.role === 'admin';
   const isManager = user?.role === 'manager' || user?.role === 'admin';
@@ -131,6 +132,21 @@ export default function HomeDashboard() {
 
   const currentBanner = banners[currentBannerIndex];
 
+  // Load collapsed state from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem('employee-sidebar-collapsed');
+    if (saved !== null) {
+      setIsCollapsed(saved === 'true');
+    }
+  }, []);
+
+  // Toggle collapsed state and save to localStorage
+  const toggleCollapsed = () => {
+    const newState = !isCollapsed;
+    setIsCollapsed(newState);
+    localStorage.setItem('employee-sidebar-collapsed', String(newState));
+  };
+
   const minSwipeDistance = 50;
 
   const onTouchStart = (e: React.TouchEvent) => {
@@ -203,12 +219,35 @@ export default function HomeDashboard() {
 
       <div className="flex flex-col xl:flex-row flex-1">
         {/* Left Navigation Sidebar - Desktop */}
-        <aside className="hidden lg:flex lg:flex-col lg:w-64 bg-white border-r shadow-sm">
-          <div className="p-6 border-b">
-            <h1 className="text-2xl font-bold font-brand brand-title" data-brand="pine-hill">
-              Pine Hill Farm
-            </h1>
-            <p className="text-sm text-muted-foreground mt-1">Employee Portal</p>
+        <aside className={cn(
+          "hidden lg:flex lg:flex-col bg-white border-r shadow-sm transition-all duration-300",
+          isCollapsed ? "lg:w-20" : "lg:w-64"
+        )}>
+          <div className={cn(
+            "p-6 border-b flex items-center justify-between",
+            isCollapsed && "p-4 justify-center"
+          )}>
+            {!isCollapsed && (
+              <div>
+                <h1 className="text-2xl font-bold font-brand brand-title" data-brand="pine-hill">
+                  Pine Hill Farm
+                </h1>
+                <p className="text-sm text-muted-foreground mt-1">Employee Portal</p>
+              </div>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={toggleCollapsed}
+              className={cn("h-8 w-8 p-0", isCollapsed && "mx-auto")}
+              data-testid="button-toggle-sidebar"
+            >
+              {isCollapsed ? (
+                <ChevronRight className="h-4 w-4" />
+              ) : (
+                <ChevronLeft className="h-4 w-4" />
+              )}
+            </Button>
           </div>
           
           <nav className="flex-1 p-4 space-y-1">
@@ -220,13 +259,18 @@ export default function HomeDashboard() {
                     variant={isActive ? "secondary" : "ghost"}
                     className={cn(
                       "w-full justify-start relative",
-                      isActive && "bg-primary/10 text-primary hover:bg-primary/20"
+                      isActive && "bg-primary/10 text-primary hover:bg-primary/20",
+                      isCollapsed && "justify-center px-0"
                     )}
                     data-testid={`nav-${item.title.toLowerCase().replace(/\s+/g, '-')}`}
                   >
-                    <item.icon className="h-5 w-5 mr-3" />
-                    {item.title}
-                    {item.badge && (
+                    <item.icon className={cn(
+                      "h-5 w-5",
+                      !isCollapsed && "mr-3",
+                      isCollapsed && "h-6 w-6"
+                    )} />
+                    {!isCollapsed && item.title}
+                    {!isCollapsed && item.badge && (
                       <span className="ml-auto bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
                         {item.badge}
                       </span>
@@ -240,17 +284,28 @@ export default function HomeDashboard() {
           <div className="p-4 border-t">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="w-full justify-start" data-testid="button-user-menu">
+                <Button 
+                  variant="ghost" 
+                  className={cn(
+                    "w-full justify-start",
+                    isCollapsed && "justify-center px-0"
+                  )} 
+                  data-testid="button-user-menu"
+                >
                   <UserAvatar user={avatarUser} size="sm" />
-                  <div className="ml-3 text-left flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">
-                      {user?.firstName} {user?.lastName}
-                    </p>
-                    <p className="text-xs text-muted-foreground capitalize">
-                      {user?.role || 'Employee'}
-                    </p>
-                  </div>
-                  <ChevronDown className="h-4 w-4 ml-2" />
+                  {!isCollapsed && (
+                    <>
+                      <div className="ml-3 text-left flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">
+                          {user?.firstName} {user?.lastName}
+                        </p>
+                        <p className="text-xs text-muted-foreground capitalize">
+                          {user?.role || 'Employee'}
+                        </p>
+                      </div>
+                      <ChevronDown className="h-4 w-4 ml-2" />
+                    </>
+                  )}
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">

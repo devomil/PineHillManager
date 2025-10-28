@@ -1929,6 +1929,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Alias for employee-content endpoint (shorter name)
+  app.get('/api/employee-content', isAuthenticated, async (req, res) => {
+    try {
+      // Get active banners and spotlights for employee dashboard
+      const [banners, spotlights] = await Promise.all([
+        storage.getActiveEmployeeBanners(),
+        storage.getActiveEmployeeSpotlights()
+      ]);
+
+      res.json({
+        banners,
+        spotlights
+      });
+    } catch (error) {
+      console.error('Error fetching employee dashboard content:', error);
+      res.status(500).json({ error: 'Failed to fetch employee dashboard content' });
+    }
+  });
+
   // Employee Dashboard Content - Banners Management
   app.get('/api/employee-banners', isAuthenticated, async (req, res) => {
     try {
