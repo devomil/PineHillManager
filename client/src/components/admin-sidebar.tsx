@@ -48,6 +48,7 @@ const navigationItems: NavItem[] = [
   // Tools Section
   { label: "Orders", icon: ShoppingCart, value: "orders", href: "/orders", section: "tools" },
   { label: "Marketing Videos", icon: Video, value: "marketing", href: "/admin/marketing", section: "tools" },
+  { label: "Employee Content", icon: FileText, value: "employee-content", href: "/admin/employee-content", section: "tools" },
   { label: "Integrations", icon: Settings, value: "integrations", href: "/admin/integrations", section: "tools" },
   { label: "Communications", icon: MessageSquare, value: "communications", href: "/communications", section: "tools" },
   { label: "Users", icon: Settings, value: "user-management", href: "/user-management", section: "tools" },
