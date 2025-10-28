@@ -4,8 +4,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { ShoppingCart, Scan, Trash2, Plus, Minus, DollarSign, Package } from "lucide-react";
+import { ShoppingCart, Scan, Trash2, Plus, Minus, DollarSign, Package, MapPin, FileText } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { EmployeePurchase, InventoryItem } from "@shared/schema";
 import { CloverPaymentDialog } from "@/components/clover-payment-dialog";
@@ -13,6 +15,13 @@ import { CloverPaymentDialog } from "@/components/clover-payment-dialog";
 interface CartItem {
   item: InventoryItem;
   quantity: number;
+}
+
+interface Location {
+  id: number;
+  name: string;
+  address: string;
+  merchantId?: string;
 }
 
 interface PurchaseBalance {
@@ -30,6 +39,8 @@ export default function EmployeePurchases() {
   const { toast } = useToast();
   const [barcode, setBarcode] = useState("");
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [selectedLocation, setSelectedLocation] = useState<number | null>(null);
+  const [purchaseNotes, setPurchaseNotes] = useState("");
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState(0);
   const [pendingPurchaseIds, setPendingPurchaseIds] = useState<number[]>([]);
@@ -79,6 +90,10 @@ export default function EmployeePurchases() {
     queryKey: ['/api/employee-purchases'],
   });
 
+  const { data: locations = [] } = useQuery<Location[]>({
+    queryKey: ['/api/locations'],
+  });
+
   const searchMutation = useMutation({
     mutationFn: async (barcode: string) => {
       const res = await fetch(`/api/inventory/search/${barcode}`);
@@ -122,6 +137,10 @@ export default function EmployeePurchases() {
         throw new Error('Balance data not available');
       }
 
+      if (!selectedLocation) {
+        throw new Error('Please select a store location');
+      }
+
       // Calculate how much requires payment (items that exceed allowance cap)
       let runningTotal = balance.monthlyTotal;
       const cap = parseFloat(balance.monthlyCap?.toString() || '0');
@@ -146,12 +165,14 @@ export default function EmployeePurchases() {
         return {
           employeeId: balance.periodMonth, // This will be replaced by the backend with the actual employee ID from session
           inventoryItemId: item.id,
+          locationId: selectedLocation,
           itemName: item.itemName,
           barcode: item.sku || item.asin || '',
           quantity: quantity.toString(),
           unitPrice: unitPrice.toFixed(2),
           totalAmount: lineTotal.toFixed(2),
           periodMonth: balance.periodMonth,
+          notes: purchaseNotes.trim() || null,
         };
       });
 
@@ -471,85 +492,161 @@ export default function EmployeePurchases() {
                   <p className="text-sm">Scan items to add them to your cart</p>
                 </div>
               ) : (
-                <div className="space-y-4">
-                  {cartItemsWithPrices.map(({ item, quantity, unitPrice, lineTotal }) => (
-                    <div 
-                      key={item.id} 
-                      className="flex items-center gap-4 p-4 border rounded-lg"
-                      data-testid={`cart-item-${item.id}`}
-                    >
-                      <div className="flex-1">
-                        <h4 className="font-medium">{item.itemName}</h4>
-                        <p className="text-sm text-muted-foreground">
-                          {item.sku && `SKU: ${item.sku}`}
-                          {item.asin && ` | ASIN: ${item.asin}`}
-                        </p>
-                        <p className="text-sm font-medium mt-1">
-                          ${unitPrice.toFixed(2)} each
-                        </p>
-                      </div>
-                      
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          onClick={() => updateQuantity(item.id, -1)}
-                          disabled={quantity <= 1}
-                          data-testid={`button-decrease-${item.id}`}
-                        >
-                          <Minus className="h-4 w-4" />
-                        </Button>
-                        <span className="w-12 text-center font-medium" data-testid={`quantity-${item.id}`}>
-                          {quantity}
-                        </span>
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          onClick={() => updateQuantity(item.id, 1)}
-                          data-testid={`button-increase-${item.id}`}
-                        >
-                          <Plus className="h-4 w-4" />
-                        </Button>
-                      </div>
-                      
-                      <div className="text-right">
-                        <p className="font-medium" data-testid={`total-${item.id}`}>
-                          ${lineTotal.toFixed(2)}
-                        </p>
-                      </div>
-                      
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => removeItem(item.id)}
-                        data-testid={`button-remove-${item.id}`}
+                <div className="space-y-6">
+                  {/* Cart Items */}
+                  <div className="space-y-4">
+                    {cartItemsWithPrices.map(({ item, quantity, unitPrice, lineTotal }) => (
+                      <div 
+                        key={item.id} 
+                        className="flex items-center gap-4 p-4 border rounded-lg bg-white"
+                        data-testid={`cart-item-${item.id}`}
                       >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </div>
-                  ))}
-                  
-                  <div className="flex items-center justify-between pt-4 border-t">
-                    <span className="text-lg font-semibold">Cart Total:</span>
-                    <span className="text-2xl font-bold" data-testid="cart-total">
-                      ${cartTotal.toFixed(2)}
-                    </span>
+                        <div className="flex-1">
+                          <h4 className="font-medium">{item.itemName}</h4>
+                          <p className="text-sm text-muted-foreground">
+                            {item.sku && `SKU: ${item.sku}`}
+                            {item.asin && ` | ASIN: ${item.asin}`}
+                          </p>
+                          <p className="text-sm font-medium mt-1">
+                            ${unitPrice.toFixed(2)} each
+                          </p>
+                        </div>
+                        
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={() => updateQuantity(item.id, -1)}
+                            disabled={quantity <= 1}
+                            data-testid={`button-decrease-${item.id}`}
+                          >
+                            <Minus className="h-4 w-4" />
+                          </Button>
+                          <span className="w-12 text-center font-medium" data-testid={`quantity-${item.id}`}>
+                            {quantity}
+                          </span>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={() => updateQuantity(item.id, 1)}
+                            data-testid={`button-increase-${item.id}`}
+                          >
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        
+                        <div className="text-right">
+                          <p className="font-medium" data-testid={`total-${item.id}`}>
+                            ${lineTotal.toFixed(2)}
+                          </p>
+                        </div>
+                        
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => removeItem(item.id)}
+                          data-testid={`button-remove-${item.id}`}
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Pricing Breakdown */}
+                  <div className="bg-blue-50 p-4 rounded-lg space-y-3">
+                    <h4 className="font-semibold text-sm flex items-center gap-2">
+                      <DollarSign className="h-4 w-4" />
+                      Pricing Breakdown
+                    </h4>
+                    {balance && (
+                      <>
+                        {balance.userRole === 'admin' || balance.userRole === 'manager' ? (
+                          <>
+                            <div className="text-sm space-y-1">
+                              <div className="flex justify-between">
+                                <span className="text-muted-foreground">Within Allowance:</span>
+                                <span className="font-medium text-green-600">FREE</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-muted-foreground">Over Cap Pricing:</span>
+                                <span className="font-medium">COGS + {balance.costMarkup}%</span>
+                              </div>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div className="text-sm space-y-1">
+                              <div className="flex justify-between">
+                                <span className="text-muted-foreground">Within Allowance:</span>
+                                <span className="font-medium text-blue-600">Retail Price</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-muted-foreground">Over Cap Discount:</span>
+                                <span className="font-medium text-green-600">25% OFF Retail</span>
+                              </div>
+                            </div>
+                          </>
+                        )}
+                        <div className="pt-2 border-t flex justify-between">
+                          <span className="font-semibold">Cart Total:</span>
+                          <span className="text-xl font-bold" data-testid="cart-total">
+                            ${cartTotal.toFixed(2)}
+                          </span>
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Location Selector */}
+                  <div className="space-y-2">
+                    <Label htmlFor="location" className="flex items-center gap-2">
+                      <MapPin className="h-4 w-4" />
+                      Store Location
+                    </Label>
+                    <Select
+                      value={selectedLocation?.toString() || ""}
+                      onValueChange={(value) => setSelectedLocation(parseInt(value))}
+                    >
+                      <SelectTrigger id="location" data-testid="select-location">
+                        <SelectValue placeholder="Select store location" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {locations.filter(l => l.name === 'Watertown Retail' || l.name === 'Lake Geneva Retail').map((location) => (
+                          <SelectItem key={location.id} value={location.id.toString()}>
+                            {location.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Notes Field */}
+                  <div className="space-y-2">
+                    <Label htmlFor="notes" className="flex items-center gap-2">
+                      <FileText className="h-4 w-4" />
+                      Special Instructions / Approvals (Optional)
+                    </Label>
+                    <Textarea
+                      id="notes"
+                      placeholder="e.g., Owner Jackie said I could get 3 PHF CoEnzyme Q10 Softgel for the price of one"
+                      value={purchaseNotes}
+                      onChange={(e) => setPurchaseNotes(e.target.value)}
+                      className="resize-none"
+                      rows={3}
+                      data-testid="textarea-notes"
+                    />
                   </div>
                   
-                  {wouldExceed && (
-                    <div className="bg-destructive/10 text-destructive p-4 rounded-lg" data-testid="alert-exceed">
-                      <p className="font-medium">Exceeds Monthly Allowance</p>
-                      <p className="text-sm">
-                        This purchase would exceed your monthly allowance. 
-                        Please remove items or wait until next month.
-                      </p>
-                    </div>
-                  )}
-                  
+                  {/* Action Buttons */}
                   <div className="flex gap-2">
                     <Button
                       variant="outline"
-                      onClick={() => setCart([])}
+                      onClick={() => {
+                        setCart([]);
+                        setPurchaseNotes("");
+                        setSelectedLocation(null);
+                      }}
                       className="flex-1"
                       data-testid="button-clear-cart"
                     >
@@ -557,7 +654,7 @@ export default function EmployeePurchases() {
                     </Button>
                     <Button
                       onClick={() => purchaseMutation.mutate()}
-                      disabled={purchaseMutation.isPending}
+                      disabled={purchaseMutation.isPending || !selectedLocation}
                       className="flex-1"
                       data-testid="button-complete-purchase"
                     >
