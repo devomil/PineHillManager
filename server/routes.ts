@@ -14,6 +14,7 @@ import { smartNotificationService } from './smart-notifications';
 import { ObjectStorageService, ObjectNotFoundError } from './objectStorage';
 import { ObjectPermission } from './objectAcl';
 import { createCloverPaymentService, getCloverPaymentService, getCloverPaymentServiceFromDb } from './integrations/clover-payments';
+import { CloverInventoryService } from './services/clover-inventory-service';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -3289,6 +3290,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
         requiresPayment,
         paymentAmount,
       });
+      
+      // Deduct from Clover inventory if location and barcode are provided
+      if (purchaseData.locationId && purchaseData.barcode) {
+        try {
+          // Get location to find the location name
+          const location = await storage.getLocationById(purchaseData.locationId);
+          
+          if (location) {
+            // Get all Clover configs and find one matching the location name
+            const cloverConfigs = await storage.getAllCloverConfigs();
+            const matchingConfig = cloverConfigs.find(
+              config => config.merchantName === location.name
+            );
+            
+            if (matchingConfig) {
+              // Create a fresh inventory service instance for this request to avoid credential mixing
+              const inventoryService = new CloverInventoryService();
+              await inventoryService.initialize(matchingConfig.merchantId);
+              
+              // Deduct stock
+              const deductResult = await inventoryService.deductStock(
+                purchaseData.barcode,
+                Number(purchaseData.quantity)
+              );
+              
+              if (deductResult.success) {
+                console.log(`✅ [Employee Purchase] Inventory deducted for ${purchaseData.itemName}. New stock: ${deductResult.newStockCount}`);
+              } else {
+                console.warn(`⚠️ [Employee Purchase] Could not deduct inventory: ${deductResult.error}`);
+              }
+            } else {
+              console.warn(`⚠️ [Employee Purchase] No Clover config found for location: ${location.name}`);
+            }
+          }
+        } catch (error) {
+          // Log error but don't fail the purchase
+          console.error('❌ [Employee Purchase] Error deducting inventory:', error);
+        }
+      }
       
       res.status(201).json({
         ...purchase,
