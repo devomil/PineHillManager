@@ -51,8 +51,8 @@ export default function EmployeePurchases() {
   //   - Before reaching monthly cap: 100% discount (no charge until allowance used)
   //   - After exceeding monthly cap: COGS + % markup
   // Regular Employees:
-  //   - Before reaching monthly cap: charge full retail price (company pays, employee doesn't)
-  //   - After exceeding monthly cap: charge 25% off retail (employee pays out of pocket with discount)
+  //   - Before reaching monthly cap: FREE (company pays via allowance)
+  //   - After exceeding monthly cap: employee gets retail discount % off (employee pays out of pocket with discount)
   const calculatePrice = (item: InventoryItem, balance: PurchaseBalance | undefined, currentCartTotal: number = 0): number => {
     if (!balance) return parseFloat(item.unitCost || '0');
     
@@ -73,13 +73,14 @@ export default function EmployeePurchases() {
     }
     
     // For regular employees: check if we've already exceeded the cap (including current cart)
-    // If under allowance cap: use full retail price (no discount - company pays)
+    // If under allowance cap: FREE (charged against allowance)
     if (totalSpending < cap) {
-      return retailPrice;
+      return 0; // FREE - no employee cost
     }
     
-    // If over allowance cap: use 25% off retail (employee discount - employee pays)
-    return retailPrice * 0.75;
+    // If over allowance cap: apply retail discount (e.g., 35% off = multiply by 0.65)
+    const discount = parseFloat(balance.retailDiscount?.toString() || '0');
+    return retailPrice * (1 - discount / 100);
   };
 
   const { data: balance, isLoading: balanceLoading } = useQuery<PurchaseBalance>({
@@ -579,11 +580,11 @@ export default function EmployeePurchases() {
                             <div className="text-sm space-y-1">
                               <div className="flex justify-between">
                                 <span className="text-muted-foreground">Within Allowance:</span>
-                                <span className="font-medium text-blue-600">Retail Price</span>
+                                <span className="font-medium text-green-600">Free</span>
                               </div>
                               <div className="flex justify-between">
                                 <span className="text-muted-foreground">Over Cap Discount:</span>
-                                <span className="font-medium text-green-600">25% OFF Retail</span>
+                                <span className="font-medium text-green-600">{balance.retailDiscount}% OFF Retail</span>
                               </div>
                             </div>
                           </>
