@@ -9,7 +9,9 @@
 
 interface CloverPaymentConfig {
   merchantId: string;
-  apiToken: string;
+  apiToken?: string; // Legacy API token (for REST API calls)
+  publicKey?: string; // Ecommerce public key for iframe tokenization
+  privateKey?: string; // Ecommerce private key for payment processing
   baseUrl?: string;
 }
 
@@ -40,12 +42,16 @@ export class CloverPaymentService {
     this.config = {
       merchantId: config.merchantId,
       apiToken: config.apiToken,
+      publicKey: config.publicKey,
+      privateKey: config.privateKey,
       baseUrl: config.baseUrl || 'https://api.clover.com',
     };
 
     console.log('🔧 [Clover Payment] Service initialized:', {
       merchantId: this.config.merchantId,
       baseUrl: this.config.baseUrl,
+      hasPublicKey: !!config.publicKey,
+      hasPrivateKey: !!config.privateKey,
     });
   }
 
@@ -61,29 +67,31 @@ export class CloverPaymentService {
     cardToken: string
   ): Promise<PaymentResponse> {
     try {
-      const url = `${this.config.baseUrl}/v1/payments`;
+      if (!this.config.privateKey) {
+        throw new Error('No private key configured for this merchant. Please configure ecommerce keys in the merchant dashboard.');
+      }
+
+      const url = `${this.config.baseUrl}/v1/charges`;
       
       const payload = {
         amount: Math.round(paymentRequest.amount), // Ensure cents
-        currency: paymentRequest.currency || 'USD',
+        currency: paymentRequest.currency || 'usd',
         source: cardToken,
-        externalPaymentId: paymentRequest.externalPaymentId,
-        note: paymentRequest.note,
-        taxAmount: paymentRequest.taxAmount,
+        external_reference_id: paymentRequest.externalPaymentId,
+        description: paymentRequest.note,
       };
 
-      console.log('💳 [Clover Payment] Creating payment:', {
+      console.log('💳 [Clover Payment] Creating charge:', {
         amount: payload.amount,
         currency: payload.currency,
-        externalId: payload.externalPaymentId,
+        externalId: payload.external_reference_id,
       });
 
       const response = await fetch(url, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${this.config.apiToken}`,
+          'Authorization': `Bearer ${this.config.privateKey}`,
           'Content-Type': 'application/json',
-          'X-Clover-Merchant-Id': this.config.merchantId,
         },
         body: JSON.stringify(payload),
       });
@@ -104,23 +112,23 @@ export class CloverPaymentService {
 
       const result = await response.json();
       
-      console.log('✅ [Clover Payment] Payment successful:', {
+      console.log('✅ [Clover Payment] Charge successful:', {
         id: result.id,
         amount: result.amount,
-        status: result.result,
-        last4: result.last4,
+        status: result.status,
+        last4: result.source?.last4,
       });
 
       return {
         id: result.id,
         amount: result.amount,
-        status: result.result === 'SUCCESS' ? 'success' : 'declined',
-        result: result.result,
-        cardType: result.cardType,
-        last4: result.last4,
-        authCode: result.authCode,
-        createdTime: result.createdTime,
-        errorMessage: result.message,
+        status: result.status === 'succeeded' ? 'success' : 'declined',
+        result: result.status?.toUpperCase() || 'UNKNOWN',
+        cardType: result.source?.brand,
+        last4: result.source?.last4,
+        authCode: result.authorization_code,
+        createdTime: result.created,
+        errorMessage: result.failure_message,
       };
     } catch (error) {
       console.error('❌ [Clover Payment] Error processing payment:', error);
@@ -209,45 +217,16 @@ export class CloverPaymentService {
   }
 
   /**
-   * Get the public API key (PAKMS key) for Clover iframe tokenization
+   * Get the public API key for Clover iframe tokenization
    * This key is used by the frontend Clover SDK to securely tokenize cards
    */
   async getPublicApiKey(): Promise<string> {
-    try {
-      // Clover PAKMS endpoint to get public API access key
-      const url = `https://scl.clover.com/pakms/apikey`;
-      
-      console.log('🔑 [Clover Payment] Fetching public API key...');
-
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${this.config.apiToken}`,
-        },
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text().catch(() => 'Unknown error');
-        console.error('❌ [Clover Payment] Failed to fetch public API key:', {
-          status: response.status,
-          error: errorText,
-        });
-        throw new Error(`Failed to get public API key: ${response.statusText}`);
-      }
-
-      const result = await response.json();
-      
-      if (!result.apiAccessKey) {
-        throw new Error('No apiAccessKey returned from PAKMS');
-      }
-
-      console.log('✅ [Clover Payment] Public API key retrieved');
-      
-      return result.apiAccessKey;
-    } catch (error) {
-      console.error('❌ [Clover Payment] Error getting public API key:', error);
-      throw error;
+    if (!this.config.publicKey) {
+      throw new Error('No public key configured for this merchant. Please configure ecommerce keys in the merchant dashboard.');
     }
+
+    console.log('✅ [Clover Payment] Returning stored public key');
+    return this.config.publicKey;
   }
 }
 
@@ -299,18 +278,22 @@ export async function getCloverPaymentServiceFromDb(merchantId: string, storage:
     throw new Error(`Merchant configuration not found for ID: ${merchantId}`);
   }
   
-  if (!config.apiToken) {
-    throw new Error(`Missing API token for merchant: ${config.merchantName || merchantId}`);
+  if (!config.publicKey || !config.privateKey) {
+    throw new Error(`Missing ecommerce keys for merchant: ${config.merchantName || merchantId}. Please configure in Clover dashboard.`);
   }
 
   console.log(`🔐 [Clover Payment] Using merchant config from database:`, {
     merchantId: config.merchantId,
     merchantName: config.merchantName,
+    hasPublicKey: !!config.publicKey,
+    hasPrivateKey: !!config.privateKey,
   });
 
   return new CloverPaymentService({
     merchantId: config.merchantId,
-    apiToken: config.apiToken,
+    apiToken: config.apiToken, // Optional, for legacy API calls
+    publicKey: config.publicKey,
+    privateKey: config.privateKey,
   });
 }
 
