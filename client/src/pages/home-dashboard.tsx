@@ -1,14 +1,15 @@
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Clock, Calendar, MessageSquare, CheckSquare, GraduationCap, ShoppingCart, HelpCircle, User, LogOut, ChevronDown, Menu, X, ExternalLink, ChevronLeft, ChevronRight } from "lucide-react";
+import { Clock, Calendar, MessageSquare, CheckSquare, GraduationCap, ShoppingCart, HelpCircle, User, LogOut, ChevronDown, Menu, X, ExternalLink, ChevronLeft, ChevronRight, ArrowRight, AlertCircle } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import UserAvatar from "@/components/user-avatar";
 import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import type { Task, EmployeeBanner, EmployeeSpotlight } from "@shared/schema";
+import type { Task, EmployeeBanner, EmployeeSpotlight, TrainingProgress, WorkSchedule } from "@shared/schema";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, parseISO, getDay } from "date-fns";
 
 export default function HomeDashboard() {
   const { user, logoutMutation } = useAuth();
@@ -42,6 +43,20 @@ export default function HomeDashboard() {
 
   const pendingTasks = tasks.filter(t => t.status === 'pending' || t.status === 'in_progress');
   const taskCount = pendingTasks.length;
+
+  const { data: trainingProgress = [] } = useQuery<TrainingProgress[]>({
+    queryKey: ['/api/training/progress'],
+    enabled: !!user?.id,
+  });
+
+  const currentMonth = new Date();
+  const monthStart = format(startOfMonth(currentMonth), 'yyyy-MM-dd');
+  const monthEnd = format(endOfMonth(currentMonth), 'yyyy-MM-dd');
+
+  const { data: monthlySchedules = [] } = useQuery<WorkSchedule[]>({
+    queryKey: ['/api/my-schedules', { start: monthStart, end: monthEnd }],
+    enabled: !!user?.id,
+  });
 
   const navItems = [
     {
@@ -459,29 +474,149 @@ export default function HomeDashboard() {
           </div>
         </main>
 
-        {/* Right Sidebar Placeholder (Task 7) */}
+        {/* Right Sidebar Widgets (Task 7) */}
         <aside className="hidden xl:block xl:w-80 bg-white border-l shadow-sm p-6 space-y-6">
+          {/* Upcoming Tasks Widget */}
           <div>
-            <h3 className="font-semibold text-lg mb-4">Upcoming Tasks</h3>
-            <Card>
-              <CardContent className="p-4 text-center text-muted-foreground text-sm">
-                Task widgets coming soon
-              </CardContent>
-            </Card>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-lg">Upcoming Tasks</h3>
+              <Link href="/tasks">
+                <Button variant="ghost" size="sm" className="text-xs" data-testid="widget-tasks-view-all">
+                  View All
+                  <ArrowRight className="h-3 w-3 ml-1" />
+                </Button>
+              </Link>
+            </div>
+            {pendingTasks.length === 0 ? (
+              <Card>
+                <CardContent className="p-4 text-center text-muted-foreground text-sm">
+                  No pending tasks
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-3">
+                {pendingTasks.slice(0, 3).map((task) => (
+                  <Card key={task.id} className="hover:shadow-sm transition-shadow" data-testid={`widget-task-${task.id}`}>
+                    <CardContent className="p-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm truncate">{task.title}</p>
+                          {task.dueDate && (
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Due: {format(new Date(task.dueDate), "MMM d")}
+                            </p>
+                          )}
+                        </div>
+                        {task.priority === 'high' && (
+                          <AlertCircle className="h-4 w-4 text-red-500 flex-shrink-0" />
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
           </div>
+
+          {/* Training Progress Widget */}
           <div>
-            <h3 className="font-semibold text-lg mb-4">Training Progress</h3>
-            <Card>
-              <CardContent className="p-4 text-center text-muted-foreground text-sm">
-                Training widgets coming soon
-              </CardContent>
-            </Card>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-lg">Training Progress</h3>
+              <Link href="/training">
+                <Button variant="ghost" size="sm" className="text-xs" data-testid="widget-training-view-all">
+                  View All
+                  <ArrowRight className="h-3 w-3 ml-1" />
+                </Button>
+              </Link>
+            </div>
+            {trainingProgress.length === 0 ? (
+              <Card>
+                <CardContent className="p-4 text-center text-muted-foreground text-sm">
+                  No active training modules
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-3">
+                {trainingProgress.slice(0, 3).map((progress) => (
+                  <Card key={progress.id} className="hover:shadow-sm transition-shadow" data-testid={`widget-training-${progress.id}`}>
+                    <CardContent className="p-3">
+                      <p className="font-medium text-sm mb-2">{progress.id}</p>
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 bg-gray-200 rounded-full h-2">
+                          <div
+                            className="bg-blue-600 h-2 rounded-full transition-all"
+                            style={{ width: `${progress.progress || 0}%` }}
+                          />
+                        </div>
+                        <span className="text-xs text-muted-foreground font-medium">
+                          {progress.progress || 0}%
+                        </span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
           </div>
+
+          {/* Work Calendar Widget */}
           <div>
-            <h3 className="font-semibold text-lg mb-4">Work Calendar</h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-lg">Work Calendar</h3>
+              <Link href="/schedule">
+                <Button variant="ghost" size="sm" className="text-xs" data-testid="widget-calendar-view-all">
+                  Full Schedule
+                  <ArrowRight className="h-3 w-3 ml-1" />
+                </Button>
+              </Link>
+            </div>
             <Card>
-              <CardContent className="p-4 text-center text-muted-foreground text-sm">
-                Calendar widgets coming soon
+              <CardContent className="p-4">
+                <div className="text-center mb-3">
+                  <p className="font-semibold">{format(currentMonth, "MMMM yyyy")}</p>
+                </div>
+                <div className="grid grid-cols-7 gap-1 text-center">
+                  {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, i) => (
+                    <div key={i} className="text-xs font-medium text-muted-foreground p-1">
+                      {day}
+                    </div>
+                  ))}
+                  {Array.from({ length: getDay(startOfMonth(currentMonth)) }).map((_, i) => (
+                    <div key={`empty-${i}`} className="text-xs p-1" />
+                  ))}
+                  {eachDayOfInterval({
+                    start: startOfMonth(currentMonth),
+                    end: endOfMonth(currentMonth)
+                  }).map((day, i) => {
+                    const hasSchedule = monthlySchedules.some(schedule => 
+                      isSameDay(parseISO(schedule.date), day)
+                    );
+                    const isToday = isSameDay(day, new Date());
+                    
+                    return (
+                      <div
+                        key={i}
+                        className={cn(
+                          "text-xs p-1 rounded relative",
+                          isToday && "bg-blue-100 font-bold text-blue-900",
+                          !isToday && "text-gray-700"
+                        )}
+                        data-testid={`calendar-day-${format(day, 'yyyy-MM-dd')}`}
+                      >
+                        {format(day, 'd')}
+                        {hasSchedule && (
+                          <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-1 h-1 bg-green-600 rounded-full" />
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="mt-3 pt-3 border-t text-xs text-muted-foreground">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 bg-green-600 rounded-full" />
+                    <span>Scheduled shifts</span>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </div>
