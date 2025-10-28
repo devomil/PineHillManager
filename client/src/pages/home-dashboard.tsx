@@ -523,39 +523,47 @@ export default function HomeDashboard() {
               </div>
             )}
 
-            {/* Quick Links Placeholder (Task 8) */}
+            {/* Quick Links */}
             <div>
               <h3 className="text-2xl font-bold mb-4 text-gray-900">Quick Links</h3>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <Link href="/employee-purchases">
-                  <Card className="hover:shadow-md transition-shadow cursor-pointer border-green-200 bg-green-50" data-testid="quicklink-employee-purchases">
+                  <Card className="group hover:shadow-lg transition-all cursor-pointer border-[#607e66]/20 bg-gradient-to-br from-[#607e66]/10 to-[#607e66]/5 hover:from-[#607e66]/20 hover:to-[#607e66]/10" data-testid="quicklink-employee-purchases">
                     <CardContent className="p-6 text-center">
-                      <ShoppingCart className="h-8 w-8 text-green-600 mx-auto mb-2" />
-                      <p className="font-semibold text-gray-900">Employee Purchases</p>
+                      <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-[#607e66]/10 flex items-center justify-center group-hover:bg-[#607e66]/20 transition-colors">
+                        <ShoppingCart className="h-6 w-6 text-[#607e66]" />
+                      </div>
+                      <p className="font-semibold text-gray-900 text-sm">Employee Purchases</p>
                     </CardContent>
                   </Card>
                 </Link>
                 <Link href="/communications">
-                  <Card className="hover:shadow-md transition-shadow cursor-pointer border-blue-200 bg-blue-50" data-testid="quicklink-communications">
+                  <Card className="group hover:shadow-lg transition-all cursor-pointer border-[#5c97ab]/20 bg-gradient-to-br from-[#5c97ab]/10 to-[#5c97ab]/5 hover:from-[#5c97ab]/20 hover:to-[#5c97ab]/10" data-testid="quicklink-communications">
                     <CardContent className="p-6 text-center">
-                      <MessageSquare className="h-8 w-8 text-blue-600 mx-auto mb-2" />
-                      <p className="font-semibold text-gray-900">Communications</p>
+                      <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-[#5c97ab]/10 flex items-center justify-center group-hover:bg-[#5c97ab]/20 transition-colors">
+                        <MessageSquare className="h-6 w-6 text-[#5c97ab]" />
+                      </div>
+                      <p className="font-semibold text-gray-900 text-sm">Communications</p>
                     </CardContent>
                   </Card>
                 </Link>
                 <Link href="/time-clock">
-                  <Card className="hover:shadow-md transition-shadow cursor-pointer border-red-200 bg-red-50" data-testid="quicklink-time-clock">
+                  <Card className="group hover:shadow-lg transition-all cursor-pointer border-[#56637a]/20 bg-gradient-to-br from-[#56637a]/10 to-[#56637a]/5 hover:from-[#56637a]/20 hover:to-[#56637a]/10" data-testid="quicklink-time-clock">
                     <CardContent className="p-6 text-center">
-                      <Clock className="h-8 w-8 text-red-600 mx-auto mb-2" />
-                      <p className="font-semibold text-gray-900">Time Clock</p>
+                      <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-[#56637a]/10 flex items-center justify-center group-hover:bg-[#56637a]/20 transition-colors">
+                        <Clock className="h-6 w-6 text-[#56637a]" />
+                      </div>
+                      <p className="font-semibold text-gray-900 text-sm">Time Clock</p>
                     </CardContent>
                   </Card>
                 </Link>
                 <Link href="/schedule">
-                  <Card className="hover:shadow-md transition-shadow cursor-pointer border-purple-200 bg-purple-50" data-testid="quicklink-schedule">
+                  <Card className="group hover:shadow-lg transition-all cursor-pointer border-[#5b7c99]/20 bg-gradient-to-br from-[#5b7c99]/10 to-[#5b7c99]/5 hover:from-[#5b7c99]/20 hover:to-[#5b7c99]/10" data-testid="quicklink-schedule">
                     <CardContent className="p-6 text-center">
-                      <Calendar className="h-8 w-8 text-purple-600 mx-auto mb-2" />
-                      <p className="font-semibold text-gray-900">My Schedule</p>
+                      <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-[#5b7c99]/10 flex items-center justify-center group-hover:bg-[#5b7c99]/20 transition-colors">
+                        <Calendar className="h-6 w-6 text-[#5b7c99]" />
+                      </div>
+                      <p className="font-semibold text-gray-900 text-sm">My Schedule</p>
                     </CardContent>
                   </Card>
                 </Link>
