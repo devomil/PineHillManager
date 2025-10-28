@@ -3272,9 +3272,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const markup = parseFloat(user.employeePurchaseCostMarkup || '4');
           paymentAmount = (exceedsBy * (1 + markup / 100)).toFixed(2);
         } else {
-          // Employee pays 75% of retail price for over-cap portion
+          // Employee pays discounted retail price for over-cap portion (e.g., 35% off = 0.65 multiplier)
+          const discount = parseFloat(user.employeePurchaseRetailDiscount || '0');
           const overCapRetailValue = (exceedsBy / Number(retailValue)) * Number(retailValue);
-          paymentAmount = (overCapRetailValue * 0.75).toFixed(2);
+          paymentAmount = (overCapRetailValue * (1 - discount / 100)).toFixed(2);
         }
       }
       

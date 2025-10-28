@@ -51,8 +51,8 @@ export default function EmployeePurchases() {
   //   - Before reaching monthly cap: 100% discount (no charge until allowance used)
   //   - After exceeding monthly cap: COGS + % markup
   // Regular Employees:
-  //   - Before reaching monthly cap: FREE (company pays via allowance)
-  //   - After exceeding monthly cap: employee gets retail discount % off (employee pays out of pocket with discount)
+  //   - Before reaching monthly cap: Retail price charged against allowance (employee pays $0 out of pocket)
+  //   - After exceeding monthly cap: employee pays discounted retail price out of pocket
   const calculatePrice = (item: InventoryItem, balance: PurchaseBalance | undefined, currentCartTotal: number = 0): number => {
     if (!balance) return parseFloat(item.unitCost || '0');
     
@@ -73,9 +73,9 @@ export default function EmployeePurchases() {
     }
     
     // For regular employees: check if we've already exceeded the cap (including current cart)
-    // If under allowance cap: FREE (charged against allowance)
+    // If under allowance cap: charge retail price against allowance (employee pays $0 out of pocket)
     if (totalSpending < cap) {
-      return 0; // FREE - no employee cost
+      return retailPrice; // Charged against allowance
     }
     
     // If over allowance cap: apply retail discount (e.g., 35% off = multiply by 0.65)
@@ -587,10 +587,34 @@ export default function EmployeePurchases() {
                                 <span className="font-medium text-green-600">{balance.retailDiscount}% OFF Retail</span>
                               </div>
                             </div>
+                            {/* Detailed breakdown for employees */}
+                            {cart.length > 0 && (() => {
+                              const retailSubtotal = cart.reduce((total, cartItem) => {
+                                const retailPrice = parseFloat(cartItem.item.unitPrice || '0');
+                                return total + (retailPrice * cartItem.quantity);
+                              }, 0);
+                              const youPay = cartTotal;
+                              const allowanceUsed = Math.min(retailSubtotal, Math.max(0, balance.remainingBalance));
+                              
+                              return (
+                                <div className="text-sm space-y-1 pt-2 border-t">
+                                  <div className="flex justify-between">
+                                    <span className="text-muted-foreground">Subtotal (Retail Value):</span>
+                                    <span className="font-medium">${retailSubtotal.toFixed(2)}</span>
+                                  </div>
+                                  {allowanceUsed > 0 && (
+                                    <div className="flex justify-between">
+                                      <span className="text-muted-foreground">Allowance Applied:</span>
+                                      <span className="font-medium text-green-600">-${allowanceUsed.toFixed(2)}</span>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })()}
                           </>
                         )}
                         <div className="pt-2 border-t flex justify-between">
-                          <span className="font-semibold">Cart Total:</span>
+                          <span className="font-semibold">{balance.userRole === 'employee' ? 'You Pay:' : 'Cart Total:'}</span>
                           <span className="text-xl font-bold" data-testid="cart-total">
                             ${cartTotal.toFixed(2)}
                           </span>
