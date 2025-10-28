@@ -46,39 +46,55 @@ export default function EmployeePurchases() {
   const [pendingPurchaseIds, setPendingPurchaseIds] = useState<number[]>([]);
   const barcodeInputRef = useRef<HTMLInputElement>(null);
 
-  // Calculate price based on monthly allowance model and user role
-  // Managers/Admins:
-  //   - Before reaching monthly cap: 100% discount (no charge until allowance used)
-  //   - After exceeding monthly cap: COGS + % markup
-  // Regular Employees:
-  //   - Before reaching monthly cap: Retail price charged against allowance (employee pays $0 out of pocket)
-  //   - After exceeding monthly cap: employee pays discounted retail price out of pocket
-  const calculatePrice = (item: InventoryItem, balance: PurchaseBalance | undefined, currentCartTotal: number = 0): number => {
+  // Calculate what gets charged against allowance (for tracking purposes)
+  // This is used internally to track allowance usage
+  const calculateAllowanceValue = (item: InventoryItem, balance: PurchaseBalance | undefined, currentTotal: number = 0): number => {
     if (!balance) return parseFloat(item.unitCost || '0');
     
     const cost = parseFloat(item.unitCost || '0');
     const retailPrice = parseFloat(item.unitPrice || '0');
-    const totalSpending = balance.monthlyTotal + currentCartTotal;
+    const totalSpending = balance.monthlyTotal + currentTotal;
     const cap = parseFloat(balance.monthlyCap?.toString() || '0');
     
-    // Managers and admins get special pricing
     if (balance.userRole === 'manager' || balance.userRole === 'admin') {
-      // Before cap: 100% discount (no charge)
+      // Managers/admins track COGS value against allowance
+      return cost;
+    }
+    
+    // Employees track retail value against allowance
+    return retailPrice;
+  };
+
+  // Calculate what the employee pays OUT OF POCKET (for display)
+  // Managers/Admins:
+  //   - Before cap: $0 (100% discount)
+  //   - After cap: COGS + % markup
+  // Regular Employees:
+  //   - Before cap: $0 (charged against allowance)
+  //   - After cap: discounted retail price
+  const calculateOutOfPocketCost = (item: InventoryItem, balance: PurchaseBalance | undefined, currentAllowanceTotal: number = 0): number => {
+    if (!balance) return parseFloat(item.unitCost || '0');
+    
+    const cost = parseFloat(item.unitCost || '0');
+    const retailPrice = parseFloat(item.unitPrice || '0');
+    const totalSpending = balance.monthlyTotal + currentAllowanceTotal;
+    const cap = parseFloat(balance.monthlyCap?.toString() || '0');
+    
+    if (balance.userRole === 'manager' || balance.userRole === 'admin') {
       if (totalSpending < cap) {
-        return 0;
+        return 0; // Free within allowance
       }
       // After cap: COGS + % markup
       const markup = parseFloat(balance.costMarkup?.toString() || '0');
       return cost * (1 + markup / 100);
     }
     
-    // For regular employees: check if we've already exceeded the cap (including current cart)
-    // If under allowance cap: charge retail price against allowance (employee pays $0 out of pocket)
+    // For regular employees
     if (totalSpending < cap) {
-      return retailPrice; // Charged against allowance
+      return 0; // Free within allowance (paid by company)
     }
     
-    // If over allowance cap: apply retail discount (e.g., 35% off = multiply by 0.65)
+    // Over cap: apply retail discount
     const discount = parseFloat(balance.retailDiscount?.toString() || '0');
     return retailPrice * (1 - discount / 100);
   };
@@ -142,26 +158,7 @@ export default function EmployeePurchases() {
         throw new Error('Please select a store location');
       }
 
-      // Calculate how much requires payment (items that exceed allowance cap)
-      let runningTotal = balance.monthlyTotal;
-      const cap = parseFloat(balance.monthlyCap?.toString() || '0');
-      let amountRequiringPayment = 0;
-      
-      // For each cart item, determine how much needs payment
-      for (const { item, quantity, unitPrice, lineTotal } of cartItemsWithPrices) {
-        for (let i = 0; i < quantity; i++) {
-          const itemPrice = calculatePrice(item, balance, runningTotal - balance.monthlyTotal);
-          
-          // If this item pushes us over the cap, it requires payment
-          if (runningTotal + itemPrice > cap && itemPrice > 0) {
-            amountRequiringPayment += itemPrice;
-          }
-          
-          runningTotal += itemPrice;
-        }
-      }
-
-      // Create purchase records first
+      // Create purchase records - backend will handle payment calculations
       const purchases = cartItemsWithPrices.map(({ item, quantity, unitPrice, lineTotal }) => {
         return {
           employeeId: balance.periodMonth, // This will be replaced by the backend with the actual employee ID from session
@@ -280,37 +277,43 @@ export default function EmployeePurchases() {
     setCart(cart.filter(c => c.item.id !== itemId));
   };
 
-  // Calculate cart total with progressive pricing (accounts for crossing cap mid-cart)
-  // Use a pure reducer to avoid side effects and ensure deterministic pricing
-  const { cartItemsWithPrices, cartTotal } = cart.reduce<{
+  // Calculate cart totals tracking both allowance value and out-of-pocket cost
+  const { cartItemsWithPrices, allowanceTotal, outOfPocketTotal } = cart.reduce<{
     cartItemsWithPrices: Array<CartItem & { unitPrice: number; lineTotal: number }>;
-    cartTotal: number;
+    allowanceTotal: number;
+    outOfPocketTotal: number;
   }>(
     (acc, cartItem) => {
-      let lineTotal = 0;
+      let lineOutOfPocketCost = 0;
+      let lineAllowanceValue = 0;
       
-      // Calculate price for each unit individually
+      // Calculate both values for each unit
       for (let i = 0; i < cartItem.quantity; i++) {
-        const unitPrice = calculatePrice(cartItem.item, balance, acc.cartTotal);
-        lineTotal += unitPrice;
-        acc.cartTotal += unitPrice;
+        const allowanceValue = calculateAllowanceValue(cartItem.item, balance, acc.allowanceTotal);
+        const outOfPocketCost = calculateOutOfPocketCost(cartItem.item, balance, acc.allowanceTotal);
+        
+        lineAllowanceValue += allowanceValue;
+        lineOutOfPocketCost += outOfPocketCost;
+        acc.allowanceTotal += allowanceValue;
+        acc.outOfPocketTotal += outOfPocketCost;
       }
       
-      // For display purposes, we show average price per unit for the line
-      const avgUnitPrice = lineTotal / cartItem.quantity;
+      // For display, show the out-of-pocket cost per unit
+      const avgUnitPrice = lineOutOfPocketCost / cartItem.quantity;
       
       acc.cartItemsWithPrices.push({
         ...cartItem,
         unitPrice: avgUnitPrice,
-        lineTotal,
+        lineTotal: lineOutOfPocketCost,
       });
       
       return acc;
     },
-    { cartItemsWithPrices: [], cartTotal: 0 }
+    { cartItemsWithPrices: [], allowanceTotal: 0, outOfPocketTotal: 0 }
   );
   
-  const wouldExceed = balance && (balance.monthlyTotal + cartTotal > parseFloat(balance.monthlyCap?.toString() || '0'));
+  const cartTotal = outOfPocketTotal; // What the employee actually pays
+  const wouldExceed = balance && (balance.monthlyTotal + allowanceTotal > parseFloat(balance.monthlyCap?.toString() || '0'));
 
   useEffect(() => {
     barcodeInputRef.current?.focus();
@@ -588,29 +591,20 @@ export default function EmployeePurchases() {
                               </div>
                             </div>
                             {/* Detailed breakdown for employees */}
-                            {cart.length > 0 && (() => {
-                              const retailSubtotal = cart.reduce((total, cartItem) => {
-                                const retailPrice = parseFloat(cartItem.item.unitPrice || '0');
-                                return total + (retailPrice * cartItem.quantity);
-                              }, 0);
-                              const youPay = cartTotal;
-                              const allowanceUsed = Math.min(retailSubtotal, Math.max(0, balance.remainingBalance));
-                              
-                              return (
-                                <div className="text-sm space-y-1 pt-2 border-t">
-                                  <div className="flex justify-between">
-                                    <span className="text-muted-foreground">Subtotal (Retail Value):</span>
-                                    <span className="font-medium">${retailSubtotal.toFixed(2)}</span>
-                                  </div>
-                                  {allowanceUsed > 0 && (
-                                    <div className="flex justify-between">
-                                      <span className="text-muted-foreground">Allowance Applied:</span>
-                                      <span className="font-medium text-green-600">-${allowanceUsed.toFixed(2)}</span>
-                                    </div>
-                                  )}
+                            {cart.length > 0 && (
+                              <div className="text-sm space-y-1 pt-2 border-t">
+                                <div className="flex justify-between">
+                                  <span className="text-muted-foreground">Subtotal (Retail Value):</span>
+                                  <span className="font-medium">${allowanceTotal.toFixed(2)}</span>
                                 </div>
-                              );
-                            })()}
+                                {allowanceTotal > outOfPocketTotal && (
+                                  <div className="flex justify-between">
+                                    <span className="text-muted-foreground">Allowance Applied:</span>
+                                    <span className="font-medium text-green-600">-${(allowanceTotal - outOfPocketTotal).toFixed(2)}</span>
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           </>
                         )}
                         <div className="pt-2 border-t flex justify-between">
