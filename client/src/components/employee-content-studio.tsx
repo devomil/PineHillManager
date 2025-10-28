@@ -201,6 +201,7 @@ export default function EmployeeContentStudio() {
       const response = await fetch("/api/upload-object", {
         method: "POST",
         body: formData,
+        credentials: "include", // Include cookies for session authentication
       });
 
       if (!response.ok) {
