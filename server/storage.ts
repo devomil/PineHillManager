@@ -29,6 +29,8 @@ import {
   timeClockEntries,
   userPresence,
   logos,
+  employeeBanners,
+  employeeSpotlights,
   employeeInvitations,
   passwordResetTokens,
   // Accounting Tables
@@ -128,6 +130,10 @@ import {
   type DocumentPermission,
   type InsertLogo,
   type Logo,
+  type InsertEmployeeBanner,
+  type EmployeeBanner,
+  type InsertEmployeeSpotlight,
+  type EmployeeSpotlight,
   type InsertDocumentLog,
   type DocumentLog,
   type InsertEmployeeInvitation,
@@ -568,6 +574,24 @@ export interface IStorage {
   updateLogoStatus(id: number, isActive: boolean): Promise<Logo>;
   deleteLogo(id: number): Promise<void>;
   deactivateLogoByName(name: string): Promise<void>;
+
+  // Employee Dashboard Content - Banners
+  createEmployeeBanner(banner: InsertEmployeeBanner): Promise<EmployeeBanner>;
+  getAllEmployeeBanners(): Promise<EmployeeBanner[]>;
+  getActiveEmployeeBanners(): Promise<EmployeeBanner[]>;
+  getEmployeeBannerById(id: number): Promise<EmployeeBanner | undefined>;
+  updateEmployeeBanner(id: number, banner: Partial<InsertEmployeeBanner>): Promise<EmployeeBanner>;
+  updateBannerOrder(bannerId: number, newOrder: number): Promise<void>;
+  deleteEmployeeBanner(id: number): Promise<void>;
+
+  // Employee Dashboard Content - Spotlights
+  createEmployeeSpotlight(spotlight: InsertEmployeeSpotlight): Promise<EmployeeSpotlight>;
+  getAllEmployeeSpotlights(): Promise<EmployeeSpotlight[]>;
+  getActiveEmployeeSpotlights(): Promise<EmployeeSpotlight[]>;
+  getEmployeeSpotlightById(id: number): Promise<EmployeeSpotlight | undefined>;
+  updateEmployeeSpotlight(id: number, spotlight: Partial<InsertEmployeeSpotlight>): Promise<EmployeeSpotlight>;
+  updateSpotlightOrder(spotlightId: number, newOrder: number): Promise<void>;
+  deleteEmployeeSpotlight(id: number): Promise<void>;
 
   // Employee invitations for beta testing
   createEmployeeInvitation(invitation: InsertEmployeeInvitation): Promise<EmployeeInvitation>;
@@ -4281,6 +4305,141 @@ export class DatabaseStorage implements IStorage {
       .update(logos)
       .set({ isActive: false, updatedAt: new Date() })
       .where(eq(logos.name, name));
+  }
+
+  // Employee Dashboard Content - Banners
+  async createEmployeeBanner(banner: InsertEmployeeBanner): Promise<EmployeeBanner> {
+    const [newBanner] = await db
+      .insert(employeeBanners)
+      .values(banner)
+      .returning();
+    return newBanner;
+  }
+
+  async getAllEmployeeBanners(): Promise<EmployeeBanner[]> {
+    return await db
+      .select()
+      .from(employeeBanners)
+      .orderBy(asc(employeeBanners.orderIndex), desc(employeeBanners.createdAt));
+  }
+
+  async getActiveEmployeeBanners(): Promise<EmployeeBanner[]> {
+    const now = new Date();
+    return await db
+      .select()
+      .from(employeeBanners)
+      .where(
+        and(
+          eq(employeeBanners.isActive, true),
+          or(
+            isNull(employeeBanners.startDate),
+            lte(employeeBanners.startDate, now)
+          ),
+          or(
+            isNull(employeeBanners.endDate),
+            gte(employeeBanners.endDate, now)
+          )
+        )
+      )
+      .orderBy(asc(employeeBanners.orderIndex));
+  }
+
+  async getEmployeeBannerById(id: number): Promise<EmployeeBanner | undefined> {
+    const [banner] = await db
+      .select()
+      .from(employeeBanners)
+      .where(eq(employeeBanners.id, id));
+    return banner;
+  }
+
+  async updateEmployeeBanner(id: number, banner: Partial<InsertEmployeeBanner>): Promise<EmployeeBanner> {
+    const [updated] = await db
+      .update(employeeBanners)
+      .set({ ...banner, updatedAt: new Date() })
+      .where(eq(employeeBanners.id, id))
+      .returning();
+    return updated;
+  }
+
+  async updateBannerOrder(bannerId: number, newOrder: number): Promise<void> {
+    await db
+      .update(employeeBanners)
+      .set({ orderIndex: newOrder, updatedAt: new Date() })
+      .where(eq(employeeBanners.id, bannerId));
+  }
+
+  async deleteEmployeeBanner(id: number): Promise<void> {
+    await db
+      .delete(employeeBanners)
+      .where(eq(employeeBanners.id, id));
+  }
+
+  // Employee Dashboard Content - Spotlights
+  async createEmployeeSpotlight(spotlight: InsertEmployeeSpotlight): Promise<EmployeeSpotlight> {
+    const [newSpotlight] = await db
+      .insert(employeeSpotlights)
+      .values(spotlight)
+      .returning();
+    return newSpotlight;
+  }
+
+  async getAllEmployeeSpotlights(): Promise<EmployeeSpotlight[]> {
+    return await db
+      .select()
+      .from(employeeSpotlights)
+      .orderBy(asc(employeeSpotlights.orderIndex), desc(employeeSpotlights.createdAt));
+  }
+
+  async getActiveEmployeeSpotlights(): Promise<EmployeeSpotlight[]> {
+    const now = new Date();
+    return await db
+      .select()
+      .from(employeeSpotlights)
+      .where(
+        and(
+          eq(employeeSpotlights.isActive, true),
+          or(
+            isNull(employeeSpotlights.startDate),
+            lte(employeeSpotlights.startDate, now)
+          ),
+          or(
+            isNull(employeeSpotlights.endDate),
+            gte(employeeSpotlights.endDate, now)
+          )
+        )
+      )
+      .orderBy(asc(employeeSpotlights.orderIndex))
+      .limit(3);
+  }
+
+  async getEmployeeSpotlightById(id: number): Promise<EmployeeSpotlight | undefined> {
+    const [spotlight] = await db
+      .select()
+      .from(employeeSpotlights)
+      .where(eq(employeeSpotlights.id, id));
+    return spotlight;
+  }
+
+  async updateEmployeeSpotlight(id: number, spotlight: Partial<InsertEmployeeSpotlight>): Promise<EmployeeSpotlight> {
+    const [updated] = await db
+      .update(employeeSpotlights)
+      .set({ ...spotlight, updatedAt: new Date() })
+      .where(eq(employeeSpotlights.id, id))
+      .returning();
+    return updated;
+  }
+
+  async updateSpotlightOrder(spotlightId: number, newOrder: number): Promise<void> {
+    await db
+      .update(employeeSpotlights)
+      .set({ orderIndex: newOrder, updatedAt: new Date() })
+      .where(eq(employeeSpotlights.id, spotlightId));
+  }
+
+  async deleteEmployeeSpotlight(id: number): Promise<void> {
+    await db
+      .delete(employeeSpotlights)
+      .where(eq(employeeSpotlights.id, id));
   }
 
   // Employee invitations for beta testing

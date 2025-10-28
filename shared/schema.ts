@@ -784,6 +784,47 @@ export const documentLogs = pgTable("document_logs", {
   timestamp: timestamp("timestamp").defaultNow(),
 });
 
+// Employee Dashboard Content - Rotating Banners
+export const employeeBanners = pgTable("employee_banners", {
+  id: serial("id").primaryKey(),
+  title: varchar("title", { length: 255 }),
+  subtitle: text("subtitle"),
+  imageUrl: text("image_url").notNull(), // URL to banner image in object storage
+  externalUrl: text("external_url"), // Optional link when banner is clicked
+  orderIndex: integer("order_index").notNull().default(0), // Display order in rotation
+  isActive: boolean("is_active").default(true),
+  startDate: timestamp("start_date"), // Optional: when to start showing
+  endDate: timestamp("end_date"), // Optional: when to stop showing
+  createdBy: varchar("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  activeOrderIdx: index("idx_employee_banners_active_order").on(table.isActive, table.orderIndex),
+  createdByIdx: index("idx_employee_banners_created_by").on(table.createdBy),
+}));
+
+// Employee Dashboard Content - Spotlight Blog Areas (Video/Article/Photo)
+export const employeeSpotlights = pgTable("employee_spotlights", {
+  id: serial("id").primaryKey(),
+  type: varchar("type", { length: 50 }).notNull(), // 'video', 'article', 'photo'
+  title: varchar("title", { length: 255 }).notNull(),
+  description: text("description"),
+  thumbnailUrl: text("thumbnail_url").notNull(), // Main image/thumbnail
+  videoUrl: text("video_url"), // For video type
+  externalUrl: text("external_url"), // Link when clicked
+  orderIndex: integer("order_index").notNull().default(0), // Display priority (0-2 for 3 spots)
+  isActive: boolean("is_active").default(true),
+  startDate: timestamp("start_date"), // Optional: when to start showing
+  endDate: timestamp("end_date"), // Optional: when to stop showing
+  createdBy: varchar("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  activeOrderIdx: index("idx_employee_spotlights_active_order").on(table.isActive, table.orderIndex),
+  typeIdx: index("idx_employee_spotlights_type").on(table.type),
+  createdByIdx: index("idx_employee_spotlights_created_by").on(table.createdBy),
+}));
+
 // Logo management for branding customization
 export const logos = pgTable("logos", {
   id: serial("id").primaryKey(),
@@ -1276,6 +1317,22 @@ export const insertLogoSchema = createInsertSchema(logos).omit({
   updatedAt: true,
 });
 
+export const insertEmployeeBannerSchema = createInsertSchema(employeeBanners).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const updateEmployeeBannerSchema = insertEmployeeBannerSchema.partial();
+
+export const insertEmployeeSpotlightSchema = createInsertSchema(employeeSpotlights).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const updateEmployeeSpotlightSchema = insertEmployeeSpotlightSchema.partial();
+
 export const insertEmployeeInvitationSchema = createInsertSchema(employeeInvitations).omit({
   id: true,
   invitedAt: true,
@@ -1524,6 +1581,10 @@ export type Notification = typeof notifications.$inferSelect;
 export type Location = typeof locations.$inferSelect;
 export type InsertLogo = z.infer<typeof insertLogoSchema>;
 export type Logo = typeof logos.$inferSelect;
+export type InsertEmployeeBanner = z.infer<typeof insertEmployeeBannerSchema>;
+export type EmployeeBanner = typeof employeeBanners.$inferSelect;
+export type InsertEmployeeSpotlight = z.infer<typeof insertEmployeeSpotlightSchema>;
+export type EmployeeSpotlight = typeof employeeSpotlights.$inferSelect;
 export type InsertLocation = typeof locations.$inferInsert;
 export type InsertChatChannel = z.infer<typeof insertChatChannelSchema>;
 export type ChatChannel = typeof chatChannels.$inferSelect;

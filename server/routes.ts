@@ -32,6 +32,10 @@ import {
   updateUserFinancialsSchema,
   unmatchedThriveItems,
   insertEmployeePurchaseSchema,
+  insertEmployeeBannerSchema,
+  insertEmployeeSpotlightSchema,
+  updateEmployeeBannerSchema,
+  updateEmployeeSpotlightSchema,
 } from "@shared/schema";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
@@ -1903,6 +1907,285 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('❌ Error deleting announcement:', error);
       res.status(500).json({ error: 'Failed to delete announcement' });
+    }
+  });
+
+  // Employee Dashboard Content - Combined endpoint for employee dashboard
+  app.get('/api/employee-dashboard-content', isAuthenticated, async (req, res) => {
+    try {
+      // Get active banners and spotlights for employee dashboard
+      const [banners, spotlights] = await Promise.all([
+        storage.getActiveEmployeeBanners(),
+        storage.getActiveEmployeeSpotlights()
+      ]);
+
+      res.json({
+        banners,
+        spotlights
+      });
+    } catch (error) {
+      console.error('Error fetching employee dashboard content:', error);
+      res.status(500).json({ error: 'Failed to fetch employee dashboard content' });
+    }
+  });
+
+  // Employee Dashboard Content - Banners Management
+  app.get('/api/employee-banners', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user!;
+      
+      // Employees see only active banners, admins/managers see all
+      if (user.role === 'admin' || user.role === 'manager') {
+        const banners = await storage.getAllEmployeeBanners();
+        res.json(banners);
+      } else {
+        const banners = await storage.getActiveEmployeeBanners();
+        res.json(banners);
+      }
+    } catch (error) {
+      console.error('Error fetching employee banners:', error);
+      res.status(500).json({ error: 'Failed to fetch employee banners' });
+    }
+  });
+
+  app.post('/api/employee-banners', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user!;
+      
+      // Only admin and manager can create banners
+      if (user.role !== 'admin' && user.role !== 'manager') {
+        return res.status(403).json({ error: 'Only administrators and managers can create banners' });
+      }
+
+      const validatedData = insertEmployeeBannerSchema.parse({
+        ...req.body,
+        createdBy: user.id
+      });
+
+      const banner = await storage.createEmployeeBanner(validatedData);
+      res.status(201).json(banner);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: 'Validation failed', details: error.errors });
+      }
+      console.error('Error creating employee banner:', error);
+      res.status(500).json({ error: 'Failed to create employee banner' });
+    }
+  });
+
+  app.patch('/api/employee-banners/:id', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user!;
+      
+      // Only admin and manager can update banners
+      if (user.role !== 'admin' && user.role !== 'manager') {
+        return res.status(403).json({ error: 'Only administrators and managers can update banners' });
+      }
+
+      const bannerId = parseInt(req.params.id);
+      if (isNaN(bannerId)) {
+        return res.status(400).json({ error: 'Invalid banner ID' });
+      }
+
+      // Check if banner exists
+      const existing = await storage.getEmployeeBannerById(bannerId);
+      if (!existing) {
+        return res.status(404).json({ error: 'Banner not found' });
+      }
+
+      // Validate update data
+      const validatedData = updateEmployeeBannerSchema.parse(req.body);
+
+      const banner = await storage.updateEmployeeBanner(bannerId, validatedData);
+      res.json(banner);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: 'Validation failed', details: error.errors });
+      }
+      console.error('Error updating employee banner:', error);
+      res.status(500).json({ error: 'Failed to update employee banner' });
+    }
+  });
+
+  app.patch('/api/employee-banners/:id/order', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user!;
+      
+      // Only admin and manager can reorder banners
+      if (user.role !== 'admin' && user.role !== 'manager') {
+        return res.status(403).json({ error: 'Only administrators and managers can reorder banners' });
+      }
+
+      const bannerId = parseInt(req.params.id);
+      const { orderIndex } = req.body;
+
+      if (isNaN(bannerId) || orderIndex === undefined) {
+        return res.status(400).json({ error: 'Invalid banner ID or order index' });
+      }
+
+      await storage.updateBannerOrder(bannerId, orderIndex);
+      res.json({ success: true, message: 'Banner order updated' });
+    } catch (error) {
+      console.error('Error updating banner order:', error);
+      res.status(500).json({ error: 'Failed to update banner order' });
+    }
+  });
+
+  app.delete('/api/employee-banners/:id', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user!;
+      
+      // Only admin and manager can delete banners
+      if (user.role !== 'admin' && user.role !== 'manager') {
+        return res.status(403).json({ error: 'Only administrators and managers can delete banners' });
+      }
+
+      const bannerId = parseInt(req.params.id);
+      if (isNaN(bannerId)) {
+        return res.status(400).json({ error: 'Invalid banner ID' });
+      }
+
+      // Check if banner exists
+      const existing = await storage.getEmployeeBannerById(bannerId);
+      if (!existing) {
+        return res.status(404).json({ error: 'Banner not found' });
+      }
+
+      await storage.deleteEmployeeBanner(bannerId);
+      res.json({ message: 'Banner deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting employee banner:', error);
+      res.status(500).json({ error: 'Failed to delete employee banner' });
+    }
+  });
+
+  // Employee Dashboard Content - Spotlights Management
+  app.get('/api/employee-spotlights', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user!;
+      
+      // Employees see only active spotlights, admins/managers see all
+      if (user.role === 'admin' || user.role === 'manager') {
+        const spotlights = await storage.getAllEmployeeSpotlights();
+        res.json(spotlights);
+      } else {
+        const spotlights = await storage.getActiveEmployeeSpotlights();
+        res.json(spotlights);
+      }
+    } catch (error) {
+      console.error('Error fetching employee spotlights:', error);
+      res.status(500).json({ error: 'Failed to fetch employee spotlights' });
+    }
+  });
+
+  app.post('/api/employee-spotlights', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user!;
+      
+      // Only admin and manager can create spotlights
+      if (user.role !== 'admin' && user.role !== 'manager') {
+        return res.status(403).json({ error: 'Only administrators and managers can create spotlights' });
+      }
+
+      const validatedData = insertEmployeeSpotlightSchema.parse({
+        ...req.body,
+        createdBy: user.id
+      });
+
+      const spotlight = await storage.createEmployeeSpotlight(validatedData);
+      res.status(201).json(spotlight);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: 'Validation failed', details: error.errors });
+      }
+      console.error('Error creating employee spotlight:', error);
+      res.status(500).json({ error: 'Failed to create employee spotlight' });
+    }
+  });
+
+  app.patch('/api/employee-spotlights/:id', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user!;
+      
+      // Only admin and manager can update spotlights
+      if (user.role !== 'admin' && user.role !== 'manager') {
+        return res.status(403).json({ error: 'Only administrators and managers can update spotlights' });
+      }
+
+      const spotlightId = parseInt(req.params.id);
+      if (isNaN(spotlightId)) {
+        return res.status(400).json({ error: 'Invalid spotlight ID' });
+      }
+
+      // Check if spotlight exists
+      const existing = await storage.getEmployeeSpotlightById(spotlightId);
+      if (!existing) {
+        return res.status(404).json({ error: 'Spotlight not found' });
+      }
+
+      // Validate update data
+      const validatedData = updateEmployeeSpotlightSchema.parse(req.body);
+
+      const spotlight = await storage.updateEmployeeSpotlight(spotlightId, validatedData);
+      res.json(spotlight);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: 'Validation failed', details: error.errors });
+      }
+      console.error('Error updating employee spotlight:', error);
+      res.status(500).json({ error: 'Failed to update employee spotlight' });
+    }
+  });
+
+  app.patch('/api/employee-spotlights/:id/order', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user!;
+      
+      // Only admin and manager can reorder spotlights
+      if (user.role !== 'admin' && user.role !== 'manager') {
+        return res.status(403).json({ error: 'Only administrators and managers can reorder spotlights' });
+      }
+
+      const spotlightId = parseInt(req.params.id);
+      const { orderIndex } = req.body;
+
+      if (isNaN(spotlightId) || orderIndex === undefined) {
+        return res.status(400).json({ error: 'Invalid spotlight ID or order index' });
+      }
+
+      await storage.updateSpotlightOrder(spotlightId, orderIndex);
+      res.json({ success: true, message: 'Spotlight order updated' });
+    } catch (error) {
+      console.error('Error updating spotlight order:', error);
+      res.status(500).json({ error: 'Failed to update spotlight order' });
+    }
+  });
+
+  app.delete('/api/employee-spotlights/:id', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user!;
+      
+      // Only admin and manager can delete spotlights
+      if (user.role !== 'admin' && user.role !== 'manager') {
+        return res.status(403).json({ error: 'Only administrators and managers can delete spotlights' });
+      }
+
+      const spotlightId = parseInt(req.params.id);
+      if (isNaN(spotlightId)) {
+        return res.status(400).json({ error: 'Invalid spotlight ID' });
+      }
+
+      // Check if spotlight exists
+      const existing = await storage.getEmployeeSpotlightById(spotlightId);
+      if (!existing) {
+        return res.status(404).json({ error: 'Spotlight not found' });
+      }
+
+      await storage.deleteEmployeeSpotlight(spotlightId);
+      res.json({ message: 'Spotlight deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting employee spotlight:', error);
+      res.status(500).json({ error: 'Failed to delete employee spotlight' });
     }
   });
 
