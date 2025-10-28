@@ -594,7 +594,7 @@ export default function EmployeePurchases() {
                             {cart.length > 0 && (
                               <div className="text-sm space-y-1 pt-2 border-t">
                                 <div className="flex justify-between">
-                                  <span className="text-muted-foreground">Subtotal (Retail Value):</span>
+                                  <span className="text-muted-foreground">Subtotal:</span>
                                   <span className="font-medium">${allowanceTotal.toFixed(2)}</span>
                                 </div>
                                 {allowanceTotal > outOfPocketTotal && (
