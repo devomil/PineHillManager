@@ -565,11 +565,11 @@ export default function HomeDashboard() {
         </main>
 
         {/* Right Sidebar Widgets - Mobile stacked, desktop sidebar */}
-        <aside className="w-full xl:w-96 bg-gradient-to-b from-gray-50 to-white xl:border-l p-4 lg:p-6 space-y-5">
+        <aside className="w-full xl:w-80 bg-gradient-to-b from-gray-50 to-white p-4 lg:p-6 space-y-5">
           
           {/* Work Calendar Widget - Moved to top */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 overflow-hidden">
-            <div className="bg-gradient-to-r from-purple-600 to-blue-600 px-4 py-3 flex items-center justify-between">
+            <div className="bg-gradient-to-r from-[#5b7c99] to-[#5c97ab] px-4 py-3 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Calendar className="h-5 w-5 text-white" />
                 <h3 className="font-semibold text-white text-base">Work Calendar</h3>
@@ -631,7 +631,7 @@ export default function HomeDashboard() {
 
           {/* Upcoming Tasks Widget */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 overflow-hidden">
-            <div className="bg-gradient-to-r from-orange-500 to-red-500 px-4 py-3 flex items-center justify-between">
+            <div className="bg-gradient-to-r from-[#56637a] to-[#8c93ad] px-4 py-3 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <CheckSquare className="h-5 w-5 text-white" />
                 <h3 className="font-semibold text-white text-base">Upcoming Tasks</h3>
@@ -654,12 +654,12 @@ export default function HomeDashboard() {
                   {pendingTasks.slice(0, 3).map((task) => (
                     <div 
                       key={task.id} 
-                      className="group p-3 rounded-lg border border-gray-100 hover:border-orange-200 hover:bg-orange-50/30 transition-all cursor-pointer"
+                      className="group p-3 rounded-lg border border-gray-100 hover:border-[#8c93ad]/30 hover:bg-[#56637a]/5 transition-all cursor-pointer"
                       data-testid={`widget-task-${task.id}`}
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex-1 min-w-0">
-                          <p className="font-medium text-sm text-gray-900 truncate group-hover:text-orange-700">
+                          <p className="font-medium text-sm text-gray-900 truncate group-hover:text-[#56637a]">
                             {task.title}
                           </p>
                           {task.dueDate && (
@@ -686,7 +686,7 @@ export default function HomeDashboard() {
 
           {/* Training Progress Widget */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 overflow-hidden">
-            <div className="bg-gradient-to-r from-emerald-500 to-teal-600 px-4 py-3 flex items-center justify-between">
+            <div className="bg-gradient-to-r from-[#607e66] to-[#5c97ab] px-4 py-3 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <GraduationCap className="h-5 w-5 text-white" />
                 <h3 className="font-semibold text-white text-base">Training Progress</h3>
@@ -709,14 +709,14 @@ export default function HomeDashboard() {
                   {trainingProgress.slice(0, 3).map((progress) => (
                     <div 
                       key={progress.id} 
-                      className="p-3 rounded-lg border border-gray-100 hover:border-emerald-200 hover:bg-emerald-50/30 transition-all"
+                      className="p-3 rounded-lg border border-gray-100 hover:border-[#607e66]/30 hover:bg-[#607e66]/5 transition-all"
                       data-testid={`widget-training-${progress.id}`}
                     >
                       <p className="font-medium text-sm text-gray-900 mb-2.5">{progress.id}</p>
                       <div className="flex items-center gap-3">
                         <div className="flex-1 bg-gray-100 rounded-full h-2.5 overflow-hidden">
                           <div
-                            className="bg-gradient-to-r from-emerald-500 to-teal-600 h-full rounded-full transition-all duration-500 ease-out"
+                            className="bg-gradient-to-r from-[#607e66] to-[#5c97ab] h-full rounded-full transition-all duration-500 ease-out"
                             style={{ width: `${progress.progress || 0}%` }}
                           />
                         </div>
