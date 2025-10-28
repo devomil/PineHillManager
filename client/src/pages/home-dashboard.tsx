@@ -564,151 +564,171 @@ export default function HomeDashboard() {
           </div>
         </main>
 
-        {/* Right Sidebar Widgets (Task 7 & 9) - Mobile stacked, desktop sidebar */}
-        <aside className="w-full xl:w-80 bg-white xl:border-l shadow-sm p-6 space-y-6">
-          {/* Upcoming Tasks Widget */}
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold text-lg">Upcoming Tasks</h3>
-              <Link href="/tasks">
-                <Button variant="ghost" size="sm" className="text-xs" data-testid="widget-tasks-view-all">
-                  View All
-                  <ArrowRight className="h-3 w-3 ml-1" />
-                </Button>
-              </Link>
-            </div>
-            {pendingTasks.length === 0 ? (
-              <Card>
-                <CardContent className="p-4 text-center text-muted-foreground text-sm">
-                  No pending tasks
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="space-y-3">
-                {pendingTasks.slice(0, 3).map((task) => (
-                  <Card key={task.id} className="hover:shadow-sm transition-shadow" data-testid={`widget-task-${task.id}`}>
-                    <CardContent className="p-3">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium text-sm truncate">{task.title}</p>
-                          {task.dueDate && (
-                            <p className="text-xs text-muted-foreground mt-1">
-                              Due: {format(new Date(task.dueDate), "MMM d")}
-                            </p>
-                          )}
-                        </div>
-                        {task.priority === 'high' && (
-                          <AlertCircle className="h-4 w-4 text-red-500 flex-shrink-0" />
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+        {/* Right Sidebar Widgets - Mobile stacked, desktop sidebar */}
+        <aside className="w-full xl:w-96 bg-gradient-to-b from-gray-50 to-white xl:border-l p-4 lg:p-6 space-y-5">
+          
+          {/* Work Calendar Widget - Moved to top */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 overflow-hidden">
+            <div className="bg-gradient-to-r from-purple-600 to-blue-600 px-4 py-3 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Calendar className="h-5 w-5 text-white" />
+                <h3 className="font-semibold text-white text-base">Work Calendar</h3>
               </div>
-            )}
-          </div>
-
-          {/* Training Progress Widget */}
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold text-lg">Training Progress</h3>
-              <Link href="/training">
-                <Button variant="ghost" size="sm" className="text-xs" data-testid="widget-training-view-all">
-                  View All
-                  <ArrowRight className="h-3 w-3 ml-1" />
-                </Button>
-              </Link>
-            </div>
-            {trainingProgress.length === 0 ? (
-              <Card>
-                <CardContent className="p-4 text-center text-muted-foreground text-sm">
-                  No active training modules
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="space-y-3">
-                {trainingProgress.slice(0, 3).map((progress) => (
-                  <Card key={progress.id} className="hover:shadow-sm transition-shadow" data-testid={`widget-training-${progress.id}`}>
-                    <CardContent className="p-3">
-                      <p className="font-medium text-sm mb-2">{progress.id}</p>
-                      <div className="flex items-center gap-2">
-                        <div className="flex-1 bg-gray-200 rounded-full h-2">
-                          <div
-                            className="bg-blue-600 h-2 rounded-full transition-all"
-                            style={{ width: `${progress.progress || 0}%` }}
-                          />
-                        </div>
-                        <span className="text-xs text-muted-foreground font-medium">
-                          {progress.progress || 0}%
-                        </span>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Work Calendar Widget */}
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold text-lg">Work Calendar</h3>
               <Link href="/schedule">
-                <Button variant="ghost" size="sm" className="text-xs" data-testid="widget-calendar-view-all">
+                <Button variant="ghost" size="sm" className="text-xs text-white hover:bg-white/20 h-7" data-testid="widget-calendar-view-all">
                   Full Schedule
                   <ArrowRight className="h-3 w-3 ml-1" />
                 </Button>
               </Link>
             </div>
-            <Card>
-              <CardContent className="p-4">
-                <div className="text-center mb-3">
-                  <p className="font-semibold">{format(currentMonth, "MMMM yyyy")}</p>
-                </div>
-                <div className="grid grid-cols-7 gap-1 text-center">
-                  {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, i) => (
-                    <div key={i} className="text-xs font-medium text-muted-foreground p-1">
-                      {day}
+            <div className="p-4 bg-white">
+              <div className="text-center mb-3">
+                <p className="font-semibold text-gray-900">{format(currentMonth, "MMMM yyyy")}</p>
+              </div>
+              <div className="grid grid-cols-7 gap-1.5 text-center">
+                {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, i) => (
+                  <div key={i} className="text-xs font-semibold text-gray-500 pb-1">
+                    {day}
+                  </div>
+                ))}
+                {Array.from({ length: getDay(startOfMonth(currentMonth)) }).map((_, i) => (
+                  <div key={`empty-${i}`} className="text-xs p-1.5" />
+                ))}
+                {eachDayOfInterval({
+                  start: startOfMonth(currentMonth),
+                  end: endOfMonth(currentMonth)
+                }).map((day, i) => {
+                  const hasSchedule = monthlySchedules.some(schedule => 
+                    isSameDay(parseISO(schedule.date), day)
+                  );
+                  const isToday = isSameDay(day, new Date());
+                  
+                  return (
+                    <div
+                      key={i}
+                      className={cn(
+                        "text-xs p-1.5 rounded-md relative font-medium transition-colors",
+                        isToday && "bg-blue-600 text-white font-bold shadow-sm",
+                        !isToday && hasSchedule && "bg-green-50 text-green-900",
+                        !isToday && !hasSchedule && "text-gray-600 hover:bg-gray-50"
+                      )}
+                      data-testid={`calendar-day-${format(day, 'yyyy-MM-dd')}`}
+                    >
+                      {format(day, 'd')}
+                      {hasSchedule && !isToday && (
+                        <div className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 bg-green-600 rounded-full" />
+                      )}
                     </div>
-                  ))}
-                  {Array.from({ length: getDay(startOfMonth(currentMonth)) }).map((_, i) => (
-                    <div key={`empty-${i}`} className="text-xs p-1" />
-                  ))}
-                  {eachDayOfInterval({
-                    start: startOfMonth(currentMonth),
-                    end: endOfMonth(currentMonth)
-                  }).map((day, i) => {
-                    const hasSchedule = monthlySchedules.some(schedule => 
-                      isSameDay(parseISO(schedule.date), day)
-                    );
-                    const isToday = isSameDay(day, new Date());
-                    
-                    return (
-                      <div
-                        key={i}
-                        className={cn(
-                          "text-xs p-1 rounded relative",
-                          isToday && "bg-blue-100 font-bold text-blue-900",
-                          !isToday && "text-gray-700"
-                        )}
-                        data-testid={`calendar-day-${format(day, 'yyyy-MM-dd')}`}
-                      >
-                        {format(day, 'd')}
-                        {hasSchedule && (
-                          <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-1 h-1 bg-green-600 rounded-full" />
+                  );
+                })}
+              </div>
+              <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-center gap-2 text-xs text-gray-600">
+                <div className="w-2 h-2 bg-green-600 rounded-full" />
+                <span>Scheduled shifts</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Upcoming Tasks Widget */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 overflow-hidden">
+            <div className="bg-gradient-to-r from-orange-500 to-red-500 px-4 py-3 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <CheckSquare className="h-5 w-5 text-white" />
+                <h3 className="font-semibold text-white text-base">Upcoming Tasks</h3>
+              </div>
+              <Link href="/tasks">
+                <Button variant="ghost" size="sm" className="text-xs text-white hover:bg-white/20 h-7" data-testid="widget-tasks-view-all">
+                  View All
+                  <ArrowRight className="h-3 w-3 ml-1" />
+                </Button>
+              </Link>
+            </div>
+            <div className="p-4 bg-white">
+              {pendingTasks.length === 0 ? (
+                <div className="text-center py-6 text-gray-500 text-sm">
+                  <CheckSquare className="h-10 w-10 mx-auto mb-2 text-gray-300" />
+                  <p>No pending tasks</p>
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  {pendingTasks.slice(0, 3).map((task) => (
+                    <div 
+                      key={task.id} 
+                      className="group p-3 rounded-lg border border-gray-100 hover:border-orange-200 hover:bg-orange-50/30 transition-all cursor-pointer"
+                      data-testid={`widget-task-${task.id}`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm text-gray-900 truncate group-hover:text-orange-700">
+                            {task.title}
+                          </p>
+                          {task.dueDate && (
+                            <div className="flex items-center gap-1.5 mt-1.5">
+                              <Clock className="h-3 w-3 text-gray-400" />
+                              <p className="text-xs text-gray-600">
+                                Due {format(new Date(task.dueDate), "MMM d")}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                        {task.priority === 'high' && (
+                          <div className="flex-shrink-0 px-2 py-0.5 bg-red-100 text-red-700 text-xs font-semibold rounded">
+                            HIGH
+                          </div>
                         )}
                       </div>
-                    );
-                  })}
+                    </div>
+                  ))}
                 </div>
-                <div className="mt-3 pt-3 border-t text-xs text-muted-foreground">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-green-600 rounded-full" />
-                    <span>Scheduled shifts</span>
-                  </div>
+              )}
+            </div>
+          </div>
+
+          {/* Training Progress Widget */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 overflow-hidden">
+            <div className="bg-gradient-to-r from-emerald-500 to-teal-600 px-4 py-3 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <GraduationCap className="h-5 w-5 text-white" />
+                <h3 className="font-semibold text-white text-base">Training Progress</h3>
+              </div>
+              <Link href="/training">
+                <Button variant="ghost" size="sm" className="text-xs text-white hover:bg-white/20 h-7" data-testid="widget-training-view-all">
+                  View All
+                  <ArrowRight className="h-3 w-3 ml-1" />
+                </Button>
+              </Link>
+            </div>
+            <div className="p-4 bg-white">
+              {trainingProgress.length === 0 ? (
+                <div className="text-center py-6 text-gray-500 text-sm">
+                  <GraduationCap className="h-10 w-10 mx-auto mb-2 text-gray-300" />
+                  <p>No active training modules</p>
                 </div>
-              </CardContent>
-            </Card>
+              ) : (
+                <div className="space-y-3">
+                  {trainingProgress.slice(0, 3).map((progress) => (
+                    <div 
+                      key={progress.id} 
+                      className="p-3 rounded-lg border border-gray-100 hover:border-emerald-200 hover:bg-emerald-50/30 transition-all"
+                      data-testid={`widget-training-${progress.id}`}
+                    >
+                      <p className="font-medium text-sm text-gray-900 mb-2.5">{progress.id}</p>
+                      <div className="flex items-center gap-3">
+                        <div className="flex-1 bg-gray-100 rounded-full h-2.5 overflow-hidden">
+                          <div
+                            className="bg-gradient-to-r from-emerald-500 to-teal-600 h-full rounded-full transition-all duration-500 ease-out"
+                            style={{ width: `${progress.progress || 0}%` }}
+                          />
+                        </div>
+                        <span className="text-xs font-bold text-gray-700 min-w-[38px] text-right">
+                          {progress.progress || 0}%
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </aside>
       </div>
