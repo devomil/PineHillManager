@@ -1891,6 +1891,7 @@ export const employeePurchases = pgTable("employee_purchases", {
   id: serial("id").primaryKey(),
   employeeId: varchar("employee_id").notNull().references(() => users.id),
   inventoryItemId: integer("inventory_item_id").references(() => inventoryItems.id),
+  locationId: integer("location_id").references(() => locations.id), // Which store location (Watertown/Lake Geneva)
   itemName: varchar("item_name").notNull(),
   barcode: varchar("barcode"), // Scanned barcode/SKU
   quantity: decimal("quantity", { precision: 10, scale: 3 }).notNull().default("1.000"),
@@ -1901,7 +1902,7 @@ export const employeePurchases = pgTable("employee_purchases", {
   purchaseDate: timestamp("purchase_date").defaultNow().notNull(),
   periodMonth: varchar("period_month").notNull(), // YYYY-MM format for monthly allowance tracking
   status: varchar("status").default("completed").notNull(), // completed, voided, pending_payment
-  notes: text("notes"),
+  notes: text("notes"), // Special instructions/approvals (e.g., "Owner approved 3 for price of 1")
   
   // Clover payment integration fields
   requiresPayment: boolean("requires_payment").default(false), // true if purchase exceeds allowance
