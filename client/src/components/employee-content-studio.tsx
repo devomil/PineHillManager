@@ -76,8 +76,10 @@ type SpotlightFormData = {
   type: "video" | "article" | "photo";
   title: string;
   description: string;
-  imageUrl: string;
+  thumbnailUrl: string;
+  videoUrl?: string;
   externalUrl: string;
+  orderIndex?: number;
   isActive: boolean;
   startDate: string;
   endDate: string;
@@ -848,8 +850,10 @@ function SpotlightForm({
     type: spotlight?.type || "article",
     title: spotlight?.title || "",
     description: spotlight?.description || "",
-    imageUrl: spotlight?.imageUrl || "",
+    thumbnailUrl: spotlight?.thumbnailUrl || "",
+    videoUrl: spotlight?.videoUrl || "",
     externalUrl: spotlight?.externalUrl || "",
+    orderIndex: spotlight?.orderIndex || 0,
     isActive: spotlight?.isActive ?? true,
     startDate: spotlight?.startDate ? spotlight.startDate.split("T")[0] : "",
     endDate: spotlight?.endDate ? spotlight.endDate.split("T")[0] : "",
@@ -870,7 +874,7 @@ function SpotlightForm({
     const file = e.target.files?.[0];
     if (file) {
       const url = await onImageUpload(file);
-      setFormData({ ...formData, imageUrl: url });
+      setFormData({ ...formData, thumbnailUrl: url });
     }
   };
 
@@ -942,9 +946,9 @@ function SpotlightForm({
               disabled={isUploading}
               data-testid="input-spotlight-image"
             />
-            {formData.imageUrl && (
+            {formData.thumbnailUrl && (
               <div className="relative w-full h-40 border rounded overflow-hidden">
-                <img src={formData.imageUrl} alt="Preview" className="w-full h-full object-cover" />
+                <img src={formData.thumbnailUrl} alt="Preview" className="w-full h-full object-cover" />
               </div>
             )}
             {isUploading && <p className="text-sm text-muted-foreground">Uploading image...</p>}

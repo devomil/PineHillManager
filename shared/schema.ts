@@ -1321,6 +1321,9 @@ export const insertEmployeeBannerSchema = createInsertSchema(employeeBanners).om
   id: true,
   createdAt: true,
   updatedAt: true,
+}).extend({
+  startDate: z.coerce.date().optional(),
+  endDate: z.coerce.date().optional(),
 });
 
 export const updateEmployeeBannerSchema = insertEmployeeBannerSchema.partial();
@@ -1329,6 +1332,9 @@ export const insertEmployeeSpotlightSchema = createInsertSchema(employeeSpotligh
   id: true,
   createdAt: true,
   updatedAt: true,
+}).extend({
+  startDate: z.coerce.date().optional(),
+  endDate: z.coerce.date().optional(),
 });
 
 export const updateEmployeeSpotlightSchema = insertEmployeeSpotlightSchema.partial();
