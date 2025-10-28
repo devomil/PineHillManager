@@ -14838,6 +14838,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Direct upload to Object Storage (for banner/spotlight images)
+  app.post('/api/upload-object', isAuthenticated, upload.single('file'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: 'No file provided' });
+      }
+
+      const userId = req.user!.id;
+      const objectStorageService = new ObjectStorageService();
+      
+      // Get presigned upload URL
+      const uploadURL = await objectStorageService.getObjectEntityUploadURL(userId);
+      
+      // Upload file to object storage using the presigned URL
+      const fileBuffer = fs.readFileSync(req.file.path);
+      const uploadResponse = await fetch(uploadURL, {
+        method: 'PUT',
+        body: fileBuffer,
+        headers: {
+          'Content-Type': req.file.mimetype,
+        },
+      });
+
+      if (!uploadResponse.ok) {
+        throw new Error(`Upload to object storage failed: ${uploadResponse.statusText}`);
+      }
+
+      // Clean up temp file
+      fs.unlinkSync(req.file.path);
+
+      // Extract object path from upload URL (remove query params)
+      const objectUrl = uploadURL.split('?')[0];
+      const normalizedPath = objectStorageService.normalizeObjectEntityPath(objectUrl);
+      
+      // Set ACL policy to make it publicly accessible
+      const publicUrl = await objectStorageService.trySetObjectEntityAclPolicy(
+        objectUrl,
+        {
+          owner: userId,
+          visibility: "public",
+        }
+      );
+
+      console.log(`📸 Image uploaded to object storage: ${publicUrl}`);
+      res.json({ url: publicUrl });
+    } catch (error) {
+      console.error('Error uploading to object storage:', error);
+      // Clean up temp file if it exists
+      if (req.file?.path && fs.existsSync(req.file.path)) {
+        fs.unlinkSync(req.file.path);
+      }
+      res.status(500).json({ error: 'Failed to upload file' });
+    }
+  });
+
   // Serve uploaded objects from Object Storage
   app.get('/objects/:objectPath(*)', isAuthenticated, async (req, res) => {
     const objectStorageService = new ObjectStorageService();
