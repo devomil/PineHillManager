@@ -147,8 +147,8 @@
 @layer components {
   /* Pine Hill Farm Brand Styling */
   .brand-title {
-    font-family: 'Great Vibes', cursive !important;
-    font-weight: 400;
+    font-family: 'Poppins', sans-serif !important;
+    font-weight: 600;
     font-style: normal;
     font-display: swap;
   }
@@ -165,7 +165,7 @@
   .brand-title,
   .pine-hill-title,
   [data-brand="pine-hill"] {
-    font-family: 'Great Vibes', cursive !important;
+    font-family: 'Poppins', sans-serif !important;
   }
 
   /* Enhanced Navigation Styles */
