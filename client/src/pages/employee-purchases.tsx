@@ -654,7 +654,7 @@ export default function EmployeePurchases() {
                     </Label>
                     <Textarea
                       id="notes"
-                      placeholder="e.g., Owner Jackie said I could get 3 PHF CoEnzyme Q10 Softgel for the price of one"
+                      placeholder="Add Order Notes Here."
                       value={purchaseNotes}
                       onChange={(e) => setPurchaseNotes(e.target.value)}
                       className="resize-none"
