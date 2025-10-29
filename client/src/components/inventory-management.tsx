@@ -564,15 +564,15 @@ export function InventoryManagement() {
   // Calculate low stock and out of stock - use synced items only on dashboard
   const lowStockItems = isStocksTab ?
     filteredStocks.filter((stock: ItemStock) => 
-      (stock.quantity || 0) < 10 && (stock.quantity || 0) > 0).length :
+      (stock.quantity || 0) < 5 && (stock.quantity || 0) > 0).length :
     isDashboardTab ?
       // For dashboard, calculate from synced matched items only
       (dashboardSyncData?.matched?.filter((item: any) => {
         const qty = parseFloat(item.quantityOnHand || '0');
-        return qty < 10 && qty > 0;
+        return qty < 5 && qty > 0;
       }).length || 0) :
       filteredItems.filter((item: InventoryItem) => 
-        (item.stockCount || 0) < 10 && (item.stockCount || 0) > 0).length;
+        (item.stockCount || 0) < 5 && (item.stockCount || 0) > 0).length;
   
   const outOfStockItems = isStocksTab ?
     filteredStocks.filter((stock: ItemStock) => 
@@ -700,7 +700,7 @@ export function InventoryManagement() {
             <CardContent>
               <div className="text-2xl font-bold text-yellow-600">{lowStockItems}</div>
               <p className="text-xs text-muted-foreground">
-                Items below 10 units
+                Items below 5 units
               </p>
             </CardContent>
           </Card>
