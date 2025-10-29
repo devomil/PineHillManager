@@ -891,7 +891,7 @@ function SpotlightForm({
           <Label htmlFor="spotlight-type">Content Type *</Label>
           <Select
             value={formData.type}
-            onValueChange={(value: "video" | "article" | "photo") =>
+            onValueChange={(value: typeof formData.type) =>
               setFormData({ ...formData, type: value })
             }
           >
@@ -902,6 +902,10 @@ function SpotlightForm({
               <SelectItem value="video">Video</SelectItem>
               <SelectItem value="article">Article</SelectItem>
               <SelectItem value="photo">Photo</SelectItem>
+              <SelectItem value="product">Product of the Month</SelectItem>
+              <SelectItem value="news">Company News</SelectItem>
+              <SelectItem value="link">Web Link</SelectItem>
+              <SelectItem value="event">Event</SelectItem>
             </SelectContent>
           </Select>
         </div>

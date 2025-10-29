@@ -803,10 +803,10 @@ export const employeeBanners = pgTable("employee_banners", {
   createdByIdx: index("idx_employee_banners_created_by").on(table.createdBy),
 }));
 
-// Employee Dashboard Content - Spotlight Blog Areas (Video/Article/Photo)
+// Employee Dashboard Content - Spotlight Blog Areas (Video/Article/Photo/Product/News/Link/Event)
 export const employeeSpotlights = pgTable("employee_spotlights", {
   id: serial("id").primaryKey(),
-  type: varchar("type", { length: 50 }).notNull(), // 'video', 'article', 'photo'
+  type: varchar("type", { length: 50 }).notNull(), // 'video', 'article', 'photo', 'product', 'news', 'link', 'event'
   title: varchar("title", { length: 255 }).notNull(),
   description: text("description"),
   thumbnailUrl: text("thumbnail_url").notNull(), // Main image/thumbnail
