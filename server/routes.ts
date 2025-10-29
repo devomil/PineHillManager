@@ -12429,10 +12429,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get all items
       const allItems = await storage.getAllInventoryItems();
       
+      // Filter to synced items with positive stock only (active inventory)
+      let items = allItems.filter(item => {
+        const qty = parseFloat(item.quantityOnHand || '0');
+        const isSynced = item.syncStatus === 'synced' || item.syncStatus === 'discrepancy';
+        const hasStock = qty > 0;
+        return isSynced && hasStock;
+      });
+      
       // Filter by location if specified
-      const items = locationId 
-        ? allItems.filter(item => item.locationId === parseInt(locationId as string))
-        : allItems;
+      if (locationId) {
+        items = items.filter(item => item.locationId === parseInt(locationId as string));
+      }
 
       // Categorize items by pricing data
       const cloverOnly: any[] = [];
