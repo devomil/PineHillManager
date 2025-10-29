@@ -444,11 +444,15 @@ export default function HomeDashboard() {
                       {banners.map((_, index) => (
                         <button
                           key={index}
+                          style={{
+                            width: index === currentBannerIndex ? '10px' : '4px',
+                            height: '4px',
+                          }}
                           className={cn(
                             "rounded-full transition-all",
                             index === currentBannerIndex
-                              ? "bg-white w-3 h-0.5"
-                              : "bg-white/30 hover:bg-white/50 w-0.5 h-0.5"
+                              ? "bg-white"
+                              : "bg-white/30 hover:bg-white/50"
                           )}
                           onClick={() => setCurrentBannerIndex(index)}
                           data-testid={`banner-indicator-${index}`}
