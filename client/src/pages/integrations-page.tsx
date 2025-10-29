@@ -13,7 +13,8 @@ import { useLocation } from 'wouter';
 import { 
   Settings, 
   RefreshCw, 
-  CheckCircle, 
+  CheckCircle,
+  CheckCircle2,
   XCircle, 
   Clock, 
   DollarSign,
@@ -248,6 +249,24 @@ const IntegrationsPage = () => {
     }
   });
 
+  // QuickBooks connect with OAuth
+  const connectQuickbooksMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest('GET', '/api/integrations/quickbooks/auth-url');
+      const data = await response.json();
+      // Redirect to QuickBooks OAuth page
+      window.location.href = data.authUrl;
+      return data;
+    },
+    onError: (error) => {
+      toast({
+        title: 'Connection Failed',
+        description: error.message,
+        variant: 'destructive'
+      });
+    }
+  });
+
   // QuickBooks sync accounts
   const quickbooksSyncMutation = useMutation({
     mutationFn: async () => {
@@ -261,6 +280,31 @@ const IntegrationsPage = () => {
         variant: 'default'
       });
       queryClient.invalidateQueries({ queryKey: ['/api/accounting/accounts'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/accounting/health'] });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Sync Failed',
+        description: error.message,
+        variant: 'destructive'
+      });
+    }
+  });
+
+  // QuickBooks sync customers and vendors
+  const quickbooksSyncCustomersMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest('POST', '/api/integrations/quickbooks/sync/customers-vendors');
+      return await response.json();
+    },
+    onSuccess: (data) => {
+      toast({
+        title: 'Sync Successful',
+        description: data.message,
+        variant: 'default'
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/accounting/customers'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/accounting/health'] });
     },
     onError: (error) => {
       toast({
@@ -639,76 +683,60 @@ const IntegrationsPage = () => {
                 {getStatusBadge((integrationStatus as any)?.quickbooks || 'not_configured')}
               </div>
 
-              {/* Credentials Form */}
-              <Card className="border-dashed">
-                <CardHeader>
-                  <CardTitle className="text-lg">API Credentials</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="qb-client-id">Client ID</Label>
-                      <Input
-                        id="qb-client-id"
-                        type="text"
-                        value={quickbooksCredentials.clientId}
-                        onChange={(e) => setQuickbooksCredentials(prev => ({ ...prev, clientId: e.target.value }))}
-                        placeholder="Enter QuickBooks Client ID"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="qb-client-secret">Client Secret</Label>
-                      <Input
-                        id="qb-client-secret"
-                        type="password"
-                        value={quickbooksCredentials.clientSecret}
-                        onChange={(e) => setQuickbooksCredentials(prev => ({ ...prev, clientSecret: e.target.value }))}
-                        placeholder="Enter QuickBooks Client Secret"
-                      />
-                    </div>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <input
-                      id="qb-sandbox"
-                      type="checkbox"
-                      checked={quickbooksCredentials.sandboxMode}
-                      onChange={(e) => setQuickbooksCredentials(prev => ({ ...prev, sandboxMode: e.target.checked }))}
-                    />
-                    <Label htmlFor="qb-sandbox">Use Sandbox Environment</Label>
-                  </div>
-                  <Button 
-                    onClick={() => saveQuickbooksMutation.mutate(quickbooksCredentials)}
-                    disabled={saveQuickbooksMutation.isPending || !quickbooksCredentials.clientId || !quickbooksCredentials.clientSecret}
-                  >
-                    {saveQuickbooksMutation.isPending && <RefreshCw className="h-4 w-4 mr-2 animate-spin" />}
-                    Save Credentials
-                  </Button>
-                </CardContent>
-              </Card>
+              {/* OAuth Connection */}
+              {(integrationStatus as any)?.quickbooks !== 'configured' ? (
+                <Card className="border-blue-200 bg-blue-50">
+                  <CardHeader>
+                    <CardTitle className="text-lg text-blue-800">Connect to QuickBooks</CardTitle>
+                    <p className="text-sm text-blue-600">Click below to authorize Pine Hill Farm with your QuickBooks account</p>
+                  </CardHeader>
+                  <CardContent>
+                    <Button 
+                      onClick={() => connectQuickbooksMutation.mutate()}
+                      disabled={connectQuickbooksMutation.isPending}
+                      className="bg-green-600 hover:bg-green-700"
+                    >
+                      {connectQuickbooksMutation.isPending && <RefreshCw className="h-4 w-4 mr-2 animate-spin" />}
+                      <DollarSign className="h-4 w-4 mr-2" />
+                      Connect to QuickBooks
+                    </Button>
+                  </CardContent>
+                </Card>
+              ) : (
+                <>
+                  <Alert className="bg-green-50 border-green-200">
+                    <CheckCircle2 className="h-4 w-4 text-green-600" />
+                    <AlertTitle className="text-green-800">QuickBooks Connected</AlertTitle>
+                    <AlertDescription className="text-green-700">
+                      Your QuickBooks account is connected and ready to sync data.
+                    </AlertDescription>
+                  </Alert>
 
-              <div className="flex gap-2">
-                <Button 
-                  onClick={() => quickbooksTestMutation.mutate()}
-                  disabled={quickbooksTestMutation.isPending}
-                  variant="outline"
-                >
-                  {quickbooksTestMutation.isPending && <RefreshCw className="h-4 w-4 mr-2 animate-spin" />}
-                  Test Connection
-                </Button>
-                
-                <Button 
-                  onClick={() => quickbooksSyncMutation.mutate()}
-                  disabled={quickbooksSyncMutation.isPending}
-                >
-                  {quickbooksSyncMutation.isPending && <RefreshCw className="h-4 w-4 mr-2 animate-spin" />}
-                  Sync Accounts
-                </Button>
-              </div>
+                  <div className="flex gap-2">
+                    <Button 
+                      onClick={() => quickbooksSyncMutation.mutate()}
+                      disabled={quickbooksSyncMutation.isPending}
+                    >
+                      {quickbooksSyncMutation.isPending && <RefreshCw className="h-4 w-4 mr-2 animate-spin" />}
+                      Sync Chart of Accounts
+                    </Button>
+                    
+                    <Button 
+                      onClick={() => quickbooksSyncCustomersMutation.mutate()}
+                      disabled={quickbooksSyncCustomersMutation.isPending}
+                      variant="outline"
+                    >
+                      {quickbooksSyncCustomersMutation.isPending && <RefreshCw className="h-4 w-4 mr-2 animate-spin" />}
+                      Sync Customers & Vendors
+                    </Button>
+                  </div>
+                </>
+              )}
 
               <Alert>
                 <AlertDescription>
-                  Enter your QuickBooks app credentials above, then test the connection. 
-                  Once connected, you can sync your chart of accounts and customer data.
+                  QuickBooks integration allows you to sync your chart of accounts, customers, and vendors.
+                  All data is securely synced using OAuth 2.0 authentication.
                 </AlertDescription>
               </Alert>
             </CardContent>

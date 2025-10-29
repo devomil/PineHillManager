@@ -8540,17 +8540,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: 'Missing authorization code or realm ID' });
       }
 
+      if (!state) {
+        return res.status(400).json({ error: 'Missing OAuth state parameter' });
+      }
+
       const { quickBooksIntegration } = await import('./integrations/quickbooks');
-      const success = await quickBooksIntegration.exchangeCodeForTokens(code, realmId);
+      const success = await quickBooksIntegration.exchangeCodeForTokens(code, realmId, state);
       
       if (success) {
-        res.redirect('/accounting?integration=quickbooks&status=connected');
+        res.redirect('/integrations?tab=quickbooks&status=connected');
       } else {
-        res.redirect('/accounting?integration=quickbooks&status=error');
+        res.redirect('/integrations?tab=quickbooks&status=error');
       }
     } catch (error) {
       console.error('Error handling QuickBooks callback:', error);
-      res.redirect('/accounting?integration=quickbooks&status=error');
+      res.redirect('/integrations?tab=quickbooks&status=error');
     }
   });
 
@@ -8575,6 +8579,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error testing QuickBooks connection:', error);
       res.status(500).json({ success: false, message: 'Connection test failed' });
+    }
+  });
+
+  app.post('/api/integrations/quickbooks/sync/customers-vendors', isAuthenticated, async (req, res) => {
+    try {
+      const { quickBooksIntegration } = await import('./integrations/quickbooks');
+      await quickBooksIntegration.loadConfig();
+      await quickBooksIntegration.syncCustomersAndVendors();
+      res.json({ success: true, message: 'Customers and vendors synced successfully' });
+    } catch (error) {
+      console.error('Error syncing QuickBooks customers/vendors:', error);
+      res.status(500).json({ error: 'Failed to sync customers and vendors' });
+    }
+  });
+
+  app.get('/api/integrations/quickbooks/status', isAuthenticated, async (req, res) => {
+    try {
+      const config = await storage.getActiveQuickbooksConfig();
+      if (!config) {
+        return res.json({ connected: false, message: 'Not configured' });
+      }
+
+      const isExpired = config.tokenExpiry && config.tokenExpiry < new Date();
+      res.json({
+        connected: config.isActive && !isExpired,
+        realmId: config.realmId,
+        companyId: config.companyId,
+        lastSync: config.lastSyncAt,
+        tokenExpired: isExpired
+      });
+    } catch (error) {
+      console.error('Error getting QuickBooks status:', error);
+      res.status(500).json({ error: 'Failed to get connection status' });
     }
   });
 
