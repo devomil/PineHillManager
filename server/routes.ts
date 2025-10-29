@@ -12316,12 +12316,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const quantity = parseFloat(item.quantityOnHand || '0');
         
         // Clover pricing (original POS data)
-        const cloverCost = parseFloat(item.unitCost || '0');
+        const rawCloverCost = parseFloat(item.unitCost || '0');
         const cloverPrice = parseFloat(item.unitPrice || '0');
         
         // Thrive pricing (vendor data)
         const thriveCost = parseFloat(item.thriveCost || '0');
         const thrivePrice = parseFloat(item.thriveListPrice || '0');
+        
+        // Use Thrive cost as fallback if Clover cost is not set (many POS items don't have cost configured)
+        const cloverCost = rawCloverCost > 0 ? rawCloverCost : thriveCost;
         
         // Use Clover pricing for calculations (primary source)
         // ONLY calculate values for items with positive stock to avoid negative totals
@@ -12345,8 +12348,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           category: item.category || 'Uncategorized',
           locationId: item.locationId,
           quantityOnHand: quantity,
-          // Clover data
-          cloverCost: cloverCost,
+          // Clover data (with Thrive fallback for cost)
+          cloverCost: cloverCost, // May use Thrive cost if Clover cost not set
           cloverPrice: cloverPrice,
           unitProfit: Number(unitProfit.toFixed(2)),
           marginPercent: Number(marginPercent.toFixed(2)),
@@ -12356,7 +12359,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           thrivePrice: thrivePrice,
           thriveMarginPercent: Number(thriveMarginPercent.toFixed(2)),
           thriveUnitProfit: Number(thriveUnitProfit.toFixed(2)),
-          // Totals (based on Clover pricing) - only include positive stock quantities
+          // Totals (based on Clover pricing with Thrive cost fallback) - only include positive stock quantities
           totalValue: Number(totalValue.toFixed(2)),
           potentialRevenue: Number(potentialRevenue.toFixed(2)),
           grossProfit: Number(grossProfit.toFixed(2)),
