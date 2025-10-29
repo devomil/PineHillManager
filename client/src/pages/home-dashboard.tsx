@@ -445,10 +445,10 @@ export default function HomeDashboard() {
                         <button
                           key={index}
                           className={cn(
-                            "w-1 h-1 rounded-full transition-all",
+                            "rounded-full transition-all",
                             index === currentBannerIndex
-                              ? "bg-white w-4"
-                              : "bg-white/30 hover:bg-white/50"
+                              ? "bg-white w-3 h-0.5"
+                              : "bg-white/30 hover:bg-white/50 w-0.5 h-0.5"
                           )}
                           onClick={() => setCurrentBannerIndex(index)}
                           data-testid={`banner-indicator-${index}`}
