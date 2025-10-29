@@ -440,15 +440,15 @@ export default function HomeDashboard() {
                     >
                       <ChevronRight className="h-5 w-5 text-gray-800" />
                     </button>
-                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5">
+                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-1">
                       {banners.map((_, index) => (
                         <button
                           key={index}
                           className={cn(
-                            "w-1.5 h-1.5 rounded-full transition-all",
+                            "w-1 h-1 rounded-full transition-all",
                             index === currentBannerIndex
-                              ? "bg-white w-6"
-                              : "bg-white/40 hover:bg-white/60"
+                              ? "bg-white w-4"
+                              : "bg-white/30 hover:bg-white/50"
                           )}
                           onClick={() => setCurrentBannerIndex(index)}
                           data-testid={`banner-indicator-${index}`}
