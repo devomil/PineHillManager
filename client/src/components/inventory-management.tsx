@@ -12,6 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { 
   Package, 
   Search, 
@@ -34,7 +35,10 @@ import {
   Upload,
   Link2,
   Info as InfoIcon,
-  ExternalLink
+  ExternalLink,
+  TrendingUp,
+  Users,
+  Target
 } from 'lucide-react';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
@@ -292,6 +296,19 @@ export function InventoryManagement() {
       if (vendorStockFilter !== 'all') params.append('stockFilter', vendorStockFilter);
       
       const response = await apiRequest('GET', `/api/accounting/inventory/vendors?${params.toString()}`);
+      return await response.json();
+    },
+    enabled: activeTab === 'vendors'
+  });
+
+  // Fetch vendor negotiation insights
+  const { data: vendorInsights, isLoading: vendorInsightsLoading } = useQuery({
+    queryKey: ['/api/accounting/inventory/vendor-insights', selectedLocation],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (selectedLocation !== 'all') params.append('locationId', selectedLocation);
+      
+      const response = await apiRequest('GET', `/api/accounting/inventory/vendor-insights?${params.toString()}`);
       return await response.json();
     },
     enabled: activeTab === 'vendors'
@@ -1705,6 +1722,218 @@ export function InventoryManagement() {
                     </CardContent>
                   </Card>
                 </div>
+              )}
+
+              {/* Vendor Negotiation Insights */}
+              {vendorInsightsLoading ? (
+                <Card className="mb-6 border-blue-200 bg-blue-50/30">
+                  <CardContent className="py-8 text-center text-muted-foreground">
+                    <RefreshCw className="h-6 w-6 animate-spin mx-auto mb-2" />
+                    Loading vendor insights...
+                  </CardContent>
+                </Card>
+              ) : vendorInsights && (
+                <Card className="mb-6 border-blue-200 bg-blue-50/30">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <TrendingUp className="h-5 w-5 text-blue-600" />
+                      Vendor Negotiation Insights
+                    </CardTitle>
+                    <CardDescription>
+                      Strategic insights to improve margins and optimize vendor relationships
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Accordion type="multiple" className="w-full">
+                      {/* Top Vendors by Spend */}
+                      {vendorInsights.topVendorsBySpend && vendorInsights.topVendorsBySpend.length > 0 && (
+                        <AccordionItem value="top-vendors">
+                          <AccordionTrigger>
+                            <div className="flex items-center gap-2">
+                              <DollarSign className="h-4 w-4 text-green-600" />
+                              <span className="font-semibold">Top Vendors by Spend</span>
+                              <span className="text-xs text-muted-foreground ml-2">
+                                ({vendorInsights.topVendorsBySpend.length} vendors)
+                              </span>
+                            </div>
+                          </AccordionTrigger>
+                          <AccordionContent>
+                            <div className="space-y-2 pt-2">
+                              <p className="text-sm text-muted-foreground mb-3">
+                                Focus negotiation efforts on high-spend vendors for maximum impact
+                              </p>
+                              <div className="overflow-x-auto">
+                                <table className="w-full text-sm">
+                                  <thead className="bg-gray-50 dark:bg-gray-800">
+                                    <tr>
+                                      <th className="text-left p-2 font-semibold">Vendor</th>
+                                      <th className="text-right p-2 font-semibold">Total Spend</th>
+                                      <th className="text-right p-2 font-semibold">Items</th>
+                                      <th className="text-right p-2 font-semibold">Avg Margin</th>
+                                      <th className="text-center p-2 font-semibold">Priority</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {vendorInsights.topVendorsBySpend.map((v: any, idx: number) => (
+                                      <tr key={`top-vendor-${idx}`} className="border-b">
+                                        <td className="p-2 font-medium">{v.vendor}</td>
+                                        <td className="p-2 text-right font-semibold text-green-600">
+                                          ${v.totalSpend.toLocaleString()}
+                                        </td>
+                                        <td className="p-2 text-right">{v.itemCount}</td>
+                                        <td className="p-2 text-right">{v.avgMargin}%</td>
+                                        <td className="p-2 text-center">
+                                          <span className={`px-2 py-1 rounded-full text-xs ${
+                                            v.negotiationPriority === 'High' 
+                                              ? 'bg-red-100 text-red-700' 
+                                              : v.negotiationPriority === 'Medium'
+                                              ? 'bg-yellow-100 text-yellow-700'
+                                              : 'bg-gray-100 text-gray-700'
+                                          }`}>
+                                            {v.negotiationPriority}
+                                          </span>
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
+                          </AccordionContent>
+                        </AccordionItem>
+                      )}
+
+                      {/* Low Margin Opportunities */}
+                      {vendorInsights.lowMarginOpportunities && vendorInsights.lowMarginOpportunities.length > 0 && (
+                        <AccordionItem value="low-margin">
+                          <AccordionTrigger>
+                            <div className="flex items-center gap-2">
+                              <AlertTriangle className="h-4 w-4 text-orange-600" />
+                              <span className="font-semibold">Low Margin Opportunities</span>
+                              <span className="text-xs text-muted-foreground ml-2">
+                                ({vendorInsights.lowMarginOpportunities.length} vendors with low margins)
+                              </span>
+                            </div>
+                          </AccordionTrigger>
+                          <AccordionContent>
+                            <div className="space-y-4 pt-2">
+                              <p className="text-sm text-muted-foreground">
+                                Items with margins below 20% - prime candidates for price negotiations
+                              </p>
+                              {vendorInsights.lowMarginOpportunities.slice(0, 5).map((opp: any, idx: number) => (
+                                <Card key={`low-margin-${idx}`} className="border-orange-200">
+                                  <CardContent className="pt-4">
+                                    <div className="flex justify-between items-start mb-3">
+                                      <div>
+                                        <h4 className="font-semibold">{opp.vendor}</h4>
+                                        <p className="text-xs text-muted-foreground">
+                                          {opp.lowMarginItemCount} of {opp.totalItemCount} items below 20% margin
+                                        </p>
+                                      </div>
+                                      <div className="text-right">
+                                        <div className="text-sm font-semibold text-orange-600">
+                                          ${opp.potentialSavings.toLocaleString()}
+                                        </div>
+                                        <div className="text-xs text-muted-foreground">potential savings</div>
+                                      </div>
+                                    </div>
+                                    <div className="space-y-1">
+                                      <div className="text-xs font-semibold text-gray-600 mb-1">Top Items:</div>
+                                      {opp.items.map((item: any, itemIdx: number) => (
+                                        <div key={`item-${idx}-${itemIdx}`} className="flex justify-between text-xs bg-gray-50 dark:bg-gray-800 p-2 rounded">
+                                          <span className="truncate flex-1">{item.name}</span>
+                                          <span className="font-medium text-orange-600 ml-2">{item.margin}%</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </CardContent>
+                                </Card>
+                              ))}
+                            </div>
+                          </AccordionContent>
+                        </AccordionItem>
+                      )}
+
+                      {/* Consolidation Opportunities */}
+                      {vendorInsights.consolidationOpportunities && vendorInsights.consolidationOpportunities.length > 0 && (
+                        <AccordionItem value="consolidation">
+                          <AccordionTrigger>
+                            <div className="flex items-center gap-2">
+                              <Users className="h-4 w-4 text-purple-600" />
+                              <span className="font-semibold">Consolidation Opportunities</span>
+                              <span className="text-xs text-muted-foreground ml-2">
+                                ({vendorInsights.consolidationOpportunities.length} vendors)
+                              </span>
+                            </div>
+                          </AccordionTrigger>
+                          <AccordionContent>
+                            <div className="space-y-2 pt-2">
+                              <p className="text-sm text-muted-foreground mb-3">
+                                Vendors with few items and low spend - consider consolidating with larger vendors
+                              </p>
+                              <div className="space-y-2">
+                                {vendorInsights.consolidationOpportunities.map((opp: any, idx: number) => (
+                                  <div key={`consol-${idx}`} className="flex justify-between items-center p-3 bg-purple-50 dark:bg-purple-900/20 rounded border border-purple-200">
+                                    <div>
+                                      <div className="font-medium">{opp.vendor}</div>
+                                      <div className="text-xs text-muted-foreground">{opp.itemCount} items</div>
+                                    </div>
+                                    <div className="text-right">
+                                      <div className="text-sm font-semibold">${opp.totalSpend.toLocaleString()}</div>
+                                      <div className="text-xs text-muted-foreground">annual spend</div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </AccordionContent>
+                        </AccordionItem>
+                      )}
+
+                      {/* High Value Focus Areas */}
+                      {vendorInsights.highValueFocusAreas && vendorInsights.highValueFocusAreas.length > 0 && (
+                        <AccordionItem value="high-value">
+                          <AccordionTrigger>
+                            <div className="flex items-center gap-2">
+                              <Target className="h-4 w-4 text-blue-600" />
+                              <span className="font-semibold">High Value Focus Areas</span>
+                              <span className="text-xs text-muted-foreground ml-2">
+                                ({vendorInsights.highValueFocusAreas.length} vendors)
+                              </span>
+                            </div>
+                          </AccordionTrigger>
+                          <AccordionContent>
+                            <div className="space-y-3 pt-2">
+                              <p className="text-sm text-muted-foreground">
+                                Top items by inventory value - focus negotiations on these high-impact products
+                              </p>
+                              {vendorInsights.highValueFocusAreas.slice(0, 5).map((area: any, idx: number) => (
+                                <Card key={`focus-${idx}`} className="border-blue-200">
+                                  <CardContent className="pt-4">
+                                    <div className="flex justify-between items-center mb-3">
+                                      <h4 className="font-semibold">{area.vendor}</h4>
+                                      <div className="text-sm font-semibold text-blue-600">
+                                        ${area.totalValue.toLocaleString()}
+                                      </div>
+                                    </div>
+                                    <div className="space-y-1">
+                                      {area.topItems.map((item: any, itemIdx: number) => (
+                                        <div key={`focus-item-${idx}-${itemIdx}`} className="flex justify-between text-xs bg-blue-50 dark:bg-blue-900/20 p-2 rounded">
+                                          <span className="truncate flex-1">{item.name}</span>
+                                          <span className="font-medium ml-2">${item.value.toLocaleString()}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </CardContent>
+                                </Card>
+                              ))}
+                            </div>
+                          </AccordionContent>
+                        </AccordionItem>
+                      )}
+                    </Accordion>
+                  </CardContent>
+                </Card>
               )}
 
               {/* Vendor Cards */}

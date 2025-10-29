@@ -12130,10 +12130,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get all items from database
       const allItems = await storage.getAllInventoryItems();
       
+      // Filter to synced items with positive stock only (active inventory)
+      let filteredItems = allItems.filter(item => {
+        const qty = parseFloat(item.quantityOnHand || '0');
+        const isSynced = item.syncStatus === 'synced' || item.syncStatus === 'discrepancy';
+        const hasStock = qty > 0;
+        return isSynced && hasStock;
+      });
+      
       // Filter by location if specified
-      const filteredItems = locationId 
-        ? allItems.filter(item => item.locationId === parseInt(locationId as string))
-        : allItems;
+      if (locationId) {
+        filteredItems = filteredItems.filter(item => item.locationId === parseInt(locationId as string));
+      }
 
       // Get location names
       const locations = await storage.getAllCloverConfigs();
@@ -12159,14 +12167,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const vendorName = item.vendor?.trim() || 'Unknown';
         
         const quantity = parseFloat(item.quantityOnHand || '0');
-        const cost = parseFloat(item.unitCost || '0');
+        const cloverCost = parseFloat(item.unitCost || '0');
+        const thriveCost = parseFloat(item.thriveCost || '0');
         const price = parseFloat(item.unitPrice || '0');
         
-        // Apply stock filter if requested
+        // Intelligent cost fallback: Use Thrive cost when Clover cost is missing/zero
+        const cost = cloverCost > 0 ? cloverCost : thriveCost;
+        
+        // Apply stock filter if requested (though already filtered above)
         if (stockFilter === 'in-stock' && quantity <= 0) continue;
         
-        // Skip items with negative cost (invalid data)
-        if (cost < 0) continue;
+        // Skip items with no valid cost data
+        if (cost <= 0) continue;
         
         const value = quantity * cost;
         const revenue = quantity * price;
@@ -12277,6 +12289,149 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error fetching vendor analytics:', error);
       res.status(500).json({ message: 'Failed to fetch vendor analytics' });
+    }
+  });
+
+  // Vendor Negotiation Insights Endpoint
+  app.get('/api/accounting/inventory/vendor-insights', async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !req.user) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const { locationId } = req.query;
+
+      // Get synced items with positive stock
+      const allItems = await storage.getAllInventoryItems();
+      let items = allItems.filter(item => {
+        const qty = parseFloat(item.quantityOnHand || '0');
+        const isSynced = item.syncStatus === 'synced' || item.syncStatus === 'discrepancy';
+        return isSynced && qty > 0;
+      });
+
+      if (locationId) {
+        items = items.filter(item => item.locationId === parseInt(locationId as string));
+      }
+
+      // Build vendor aggregation with item-level details
+      const vendorData = new Map<string, {
+        totalSpend: number;
+        itemCount: number;
+        lowMarginItems: Array<{ name: string; sku: string; margin: number; value: number; }>;
+        highValueItems: Array<{ name: string; sku: string; value: number; margin: number; }>;
+        avgMargin: number;
+        totalRevenue: number;
+      }>();
+
+      for (const item of items) {
+        const vendorName = item.vendor?.trim() || 'Unknown';
+        const quantity = parseFloat(item.quantityOnHand || '0');
+        const cloverCost = parseFloat(item.unitCost || '0');
+        const thriveCost = parseFloat(item.thriveCost || '0');
+        const cost = cloverCost > 0 ? cloverCost : thriveCost;
+        const price = parseFloat(item.unitPrice || '0');
+
+        if (cost <= 0 || price <= 0) continue;
+
+        const value = quantity * cost;
+        const revenue = quantity * price;
+        const margin = ((revenue - value) / revenue) * 100;
+
+        if (!vendorData.has(vendorName)) {
+          vendorData.set(vendorName, {
+            totalSpend: 0,
+            itemCount: 0,
+            lowMarginItems: [],
+            highValueItems: [],
+            avgMargin: 0,
+            totalRevenue: 0
+          });
+        }
+
+        const vData = vendorData.get(vendorName)!;
+        vData.totalSpend += value;
+        vData.totalRevenue += revenue;
+        vData.itemCount += 1;
+
+        // Track low margin items (< 20%)
+        if (margin < 20) {
+          vData.lowMarginItems.push({
+            name: item.itemName || 'Unknown',
+            sku: item.sku || '',
+            margin: Number(margin.toFixed(2)),
+            value: Number(value.toFixed(2))
+          });
+        }
+
+        // Track high value items for focus
+        vData.highValueItems.push({
+          name: item.itemName || 'Unknown',
+          sku: item.sku || '',
+          value: Number(value.toFixed(2)),
+          margin: Number(margin.toFixed(2))
+        });
+      }
+
+      // Process insights
+      const insights = {
+        topVendorsBySpend: Array.from(vendorData.entries())
+          .map(([vendor, data]) => ({
+            vendor,
+            totalSpend: Number(data.totalSpend.toFixed(2)),
+            itemCount: data.itemCount,
+            avgMargin: data.totalRevenue > 0 
+              ? Number((((data.totalRevenue - data.totalSpend) / data.totalRevenue) * 100).toFixed(2))
+              : 0,
+            negotiationPriority: data.totalSpend > 10000 ? 'High' : data.totalSpend > 5000 ? 'Medium' : 'Low'
+          }))
+          .sort((a, b) => b.totalSpend - a.totalSpend)
+          .slice(0, 15),
+
+        lowMarginOpportunities: Array.from(vendorData.entries())
+          .filter(([_, data]) => data.lowMarginItems.length > 0)
+          .map(([vendor, data]) => ({
+            vendor,
+            lowMarginItemCount: data.lowMarginItems.length,
+            totalItemCount: data.itemCount,
+            items: data.lowMarginItems
+              .sort((a, b) => b.value - a.value)
+              .slice(0, 5), // Top 5 by value
+            potentialSavings: Number(data.lowMarginItems.reduce((sum, item) => sum + item.value, 0).toFixed(2))
+          }))
+          .sort((a, b) => b.potentialSavings - a.potentialSavings)
+          .slice(0, 10),
+
+        consolidationOpportunities: Array.from(vendorData.entries())
+          .filter(([_, data]) => data.itemCount < 5 && data.totalSpend < 1000)
+          .map(([vendor, data]) => ({
+            vendor,
+            itemCount: data.itemCount,
+            totalSpend: Number(data.totalSpend.toFixed(2)),
+            suggestion: 'Consider consolidating with another vendor'
+          }))
+          .sort((a, b) => a.itemCount - b.itemCount)
+          .slice(0, 10),
+
+        highValueFocusAreas: Array.from(vendorData.entries())
+          .map(([vendor, data]) => {
+            const topItems = data.highValueItems
+              .sort((a, b) => b.value - a.value)
+              .slice(0, 3);
+            return {
+              vendor,
+              topItems,
+              totalValue: Number(topItems.reduce((sum, item) => sum + item.value, 0).toFixed(2))
+            };
+          })
+          .filter(v => v.totalValue > 5000)
+          .sort((a, b) => b.totalValue - a.totalValue)
+          .slice(0, 10)
+      };
+
+      res.json(insights);
+    } catch (error) {
+      console.error('Error fetching vendor insights:', error);
+      res.status(500).json({ message: 'Failed to fetch vendor insights' });
     }
   });
 
