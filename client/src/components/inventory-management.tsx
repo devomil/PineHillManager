@@ -1009,9 +1009,13 @@ export function InventoryManagement() {
                             <p className="text-2xl font-bold">
                               ${(() => {
                                 const items = profitabilityData?.items || [];
-                                const total = items.reduce((sum: number, item: any) => 
-                                  sum + (item.quantityOnHand * item.thriveCost), 0
-                                );
+                                const total = items.reduce((sum: number, item: any) => {
+                                  // Only include items with positive stock to avoid negative totals
+                                  if (item.quantityOnHand > 0 && item.thriveCost > 0) {
+                                    return sum + (item.quantityOnHand * item.thriveCost);
+                                  }
+                                  return sum;
+                                }, 0);
                                 return total.toLocaleString();
                               })()}
                             </p>
@@ -1021,9 +1025,13 @@ export function InventoryManagement() {
                             <p className="text-2xl font-bold text-purple-600">
                               ${(() => {
                                 const items = profitabilityData?.items || [];
-                                const total = items.reduce((sum: number, item: any) => 
-                                  sum + (item.quantityOnHand * item.thriveUnitProfit), 0
-                                );
+                                const total = items.reduce((sum: number, item: any) => {
+                                  // Only include items with positive stock to avoid negative totals
+                                  if (item.quantityOnHand > 0) {
+                                    return sum + (item.quantityOnHand * item.thriveUnitProfit);
+                                  }
+                                  return sum;
+                                }, 0);
                                 return total.toLocaleString();
                               })()}
                             </p>

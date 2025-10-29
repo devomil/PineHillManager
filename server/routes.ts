@@ -12324,9 +12324,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const thrivePrice = parseFloat(item.thriveListPrice || '0');
         
         // Use Clover pricing for calculations (primary source)
-        const totalValue = quantity * cloverCost;
-        const potentialRevenue = quantity * cloverPrice;
-        const grossProfit = potentialRevenue - totalValue;
+        // ONLY calculate values for items with positive stock to avoid negative totals
+        const totalValue = quantity > 0 ? quantity * cloverCost : 0;
+        const potentialRevenue = quantity > 0 ? quantity * cloverPrice : 0;
+        const grossProfit = quantity > 0 ? potentialRevenue - totalValue : 0;
         
         const marginPercent = cloverPrice > 0 ? ((cloverPrice - cloverCost) / cloverPrice) * 100 : 0;
         const markupPercent = cloverCost > 0 ? ((cloverPrice - cloverCost) / cloverCost) * 100 : 0;
@@ -12355,7 +12356,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           thrivePrice: thrivePrice,
           thriveMarginPercent: Number(thriveMarginPercent.toFixed(2)),
           thriveUnitProfit: Number(thriveUnitProfit.toFixed(2)),
-          // Totals (based on Clover pricing)
+          // Totals (based on Clover pricing) - only include positive stock quantities
           totalValue: Number(totalValue.toFixed(2)),
           potentialRevenue: Number(potentialRevenue.toFixed(2)),
           grossProfit: Number(grossProfit.toFixed(2)),
