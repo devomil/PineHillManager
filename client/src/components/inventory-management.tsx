@@ -534,12 +534,17 @@ export function InventoryManagement() {
 
   // Stats calculations - use appropriate data based on active tab
   const isStocksTab = activeTab === 'stocks';
+  const isDashboardTab = activeTab === 'dashboard';
   
+  // Use synced items count for dashboard (active inventory), all items for other tabs
   const totalItems = isStocksTab ? 
     (filteredStocks?.length || 0) : 
-    (itemsData?.totalItems || 0);
+    isDashboardTab ? 
+      (dashboardSyncData?.summary?.synced || 0) : // Show only synced items on dashboard
+      (itemsData?.totalItems || 0);
   
   // Calculate inventory value - ONLY count positive stock quantities
+  // For dashboard, use synced items value; for other tabs calculate from filtered items
   const totalValue = isStocksTab ?
     filteredStocks.reduce((sum: number, stock: ItemStock) => {
       const quantity = stock.quantity || 0;
@@ -547,12 +552,14 @@ export function InventoryManagement() {
       const unitCost = stock.item?.cost ?? stock.item?.price ?? 0;
       return sum + (quantity * unitCost / 100);
     }, 0) :
-    filteredItems.reduce((sum: number, item: InventoryItem) => {
-      const stockCount = item.stockCount || 0;
-      if (stockCount <= 0) return sum; // Skip zero or negative stock
-      const unitCost = item.cost ?? item.price ?? 0;
-      return sum + (stockCount * unitCost / 100);
-    }, 0);
+    isDashboardTab ?
+      (dashboardSyncData?.summary?.totalValue?.matched || 0) : // Use matched items value on dashboard
+      filteredItems.reduce((sum: number, item: InventoryItem) => {
+        const stockCount = item.stockCount || 0;
+        if (stockCount <= 0) return sum; // Skip zero or negative stock
+        const unitCost = item.cost ?? item.price ?? 0;
+        return sum + (stockCount * unitCost / 100);
+      }, 0);
   
   const lowStockItems = isStocksTab ?
     filteredStocks.filter((stock: ItemStock) => 
@@ -603,17 +610,21 @@ export function InventoryManagement() {
                 <TooltipContent className="max-w-xs">
                   <p className="font-semibold mb-1">How it's calculated:</p>
                   <p className="text-sm mb-2">
-                    {selectedLocation === 'all' 
-                      ? `Total count of unique inventory items across all ${itemsData?.locations?.length || 0} Clover locations.`
-                      : `Total count of unique inventory items for the selected location (${itemsData?.locations?.find((loc: any) => loc.id.toString() === selectedLocation)?.merchantName || 'filtered location'}).`
+                    {isDashboardTab 
+                      ? `Count of synced items (products matched between Clover POS and Thrive vendor data) with positive stock quantities${selectedLocation === 'all' ? ' across all locations' : ' for the selected location'}. This represents your active, in-stock inventory.`
+                      : selectedLocation === 'all' 
+                        ? `Total count of unique inventory items across all ${itemsData?.locations?.length || 0} Clover locations.`
+                        : `Total count of unique inventory items for the selected location (${itemsData?.locations?.find((loc: any) => loc.id.toString() === selectedLocation)?.merchantName || 'filtered location'}).`
                     }
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    {selectedLocation === 'all' && itemsData?.locations
-                      ? `Includes: ${itemsData.locations.map((loc: any) => loc.merchantName).join(', ')}. `
-                      : ''
+                    {isDashboardTab
+                      ? 'Excludes historical, discontinued, or unmatched items. '
+                      : selectedLocation === 'all' && itemsData?.locations
+                        ? `Includes: ${itemsData.locations.map((loc: any) => loc.merchantName).join(', ')}. `
+                        : ''
                     }
-                    Syncs automatically from Clover POS system every 30 minutes.
+                    Data syncs automatically from Clover POS system.
                   </p>
                 </TooltipContent>
               </Tooltip>
@@ -635,8 +646,18 @@ export function InventoryManagement() {
                 </TooltipTrigger>
                 <TooltipContent className="max-w-xs">
                   <p className="font-semibold mb-1">How it's calculated:</p>
-                  <p className="text-sm mb-2">Sum of (Unit Cost × Quantity on Hand) for all items with available cost data{selectedLocation !== 'all' ? ' in the selected location' : ' across all locations'}. Only includes items with stock quantity greater than 0.</p>
-                  <p className="text-xs text-muted-foreground">This represents the total cost value of your current inventory holdings. Price data comes from Clover POS and Thrive inventory system.</p>
+                  <p className="text-sm mb-2">
+                    {isDashboardTab
+                      ? `Sum of (Cost × Quantity) for synced items only${selectedLocation !== 'all' ? ' in the selected location' : ' across all locations'}. Uses Clover cost with Thrive vendor cost as fallback when POS cost is missing. Only includes items with positive stock.`
+                      : `Sum of (Unit Cost × Quantity on Hand) for all items with available cost data${selectedLocation !== 'all' ? ' in the selected location' : ' across all locations'}. Only includes items with stock quantity greater than 0.`
+                    }
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {isDashboardTab
+                      ? 'Reflects the actual cost value of your active, in-stock inventory. Excludes historical or discontinued items.'
+                      : 'This represents the total cost value of your current inventory holdings. Price data comes from Clover POS and Thrive inventory system.'
+                    }
+                  </p>
                 </TooltipContent>
               </Tooltip>
               <DollarSign className="h-4 w-4 text-muted-foreground" />
