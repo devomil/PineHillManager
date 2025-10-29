@@ -561,17 +561,30 @@ export function InventoryManagement() {
         return sum + (stockCount * unitCost / 100);
       }, 0);
   
+  // Calculate low stock and out of stock - use synced items only on dashboard
   const lowStockItems = isStocksTab ?
     filteredStocks.filter((stock: ItemStock) => 
       (stock.quantity || 0) < 10 && (stock.quantity || 0) > 0).length :
-    filteredItems.filter((item: InventoryItem) => 
-      (item.stockCount || 0) < 10 && (item.stockCount || 0) > 0).length;
+    isDashboardTab ?
+      // For dashboard, calculate from synced matched items only
+      (dashboardSyncData?.matched?.filter((item: any) => {
+        const qty = parseFloat(item.quantityOnHand || '0');
+        return qty < 10 && qty > 0;
+      }).length || 0) :
+      filteredItems.filter((item: InventoryItem) => 
+        (item.stockCount || 0) < 10 && (item.stockCount || 0) > 0).length;
   
   const outOfStockItems = isStocksTab ?
     filteredStocks.filter((stock: ItemStock) => 
       (stock.quantity || 0) <= 0).length :
-    filteredItems.filter((item: InventoryItem) => 
-      (item.stockCount || 0) <= 0).length;
+    isDashboardTab ?
+      // For dashboard, calculate from synced matched items only
+      (dashboardSyncData?.matched?.filter((item: any) => {
+        const qty = parseFloat(item.quantityOnHand || '0');
+        return qty <= 0;
+      }).length || 0) :
+      filteredItems.filter((item: InventoryItem) => 
+        (item.stockCount || 0) <= 0).length;
 
   return (
     <div className="space-y-6">
