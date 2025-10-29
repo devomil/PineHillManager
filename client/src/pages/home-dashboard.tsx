@@ -426,33 +426,29 @@ export default function HomeDashboard() {
                 
                 {banners.length > 1 && (
                   <>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white shadow-lg"
+                    <button
+                      className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center rounded-full bg-white/80 hover:bg-white/95 backdrop-blur-sm transition-all shadow-md"
                       onClick={prevBanner}
                       data-testid="button-prev-banner"
                     >
-                      <ChevronLeft className="h-5 w-5" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white shadow-lg"
+                      <ChevronLeft className="h-5 w-5 text-gray-800" />
+                    </button>
+                    <button
+                      className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center rounded-full bg-white/80 hover:bg-white/95 backdrop-blur-sm transition-all shadow-md"
                       onClick={nextBanner}
                       data-testid="button-next-banner"
                     >
-                      <ChevronRight className="h-5 w-5" />
-                    </Button>
-                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
+                      <ChevronRight className="h-5 w-5 text-gray-800" />
+                    </button>
+                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5">
                       {banners.map((_, index) => (
                         <button
                           key={index}
                           className={cn(
-                            "w-2 h-2 rounded-full transition-all",
+                            "w-1.5 h-1.5 rounded-full transition-all",
                             index === currentBannerIndex
-                              ? "bg-white w-8"
-                              : "bg-white/50 hover:bg-white/75"
+                              ? "bg-white w-6"
+                              : "bg-white/40 hover:bg-white/60"
                           )}
                           onClick={() => setCurrentBannerIndex(index)}
                           data-testid={`banner-indicator-${index}`}
