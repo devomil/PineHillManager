@@ -937,6 +937,9 @@ export default function AdminEmployeeManagement() {
   const onFinancialSubmit = (data: FinancialFormData) => {
     if (!selectedEmployee) return;
     
+    console.log('💰 [FINANCIAL SUBMIT] Form data received:', data);
+    console.log('💰 [FINANCIAL SUBMIT] Selected employee:', selectedEmployee.id);
+    
     // Helper function to safely parse and format decimal values
     const formatDecimal = (value: string | undefined): number | undefined => {
       if (!value || value === '') return undefined;
@@ -986,6 +989,9 @@ export default function AdminEmployeeManagement() {
       employeePurchaseCostMarkup: data.employeePurchaseCostMarkup,
       employeePurchaseRetailDiscount: data.employeePurchaseRetailDiscount,
     };
+    
+    console.log('💰 [FINANCIAL SUBMIT] Sending to API:', financialData);
+    console.log('💰 [FINANCIAL SUBMIT] hourlyRate value:', data.hourlyRate, '→', formatDecimal(data.hourlyRate));
     
     updateFinancialMutation.mutate({ id: selectedEmployee.id, data: financialData });
   };
