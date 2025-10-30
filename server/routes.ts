@@ -8875,7 +8875,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Fetch ALL Clover orders with COGS for accurate financial metrics
+      // Fetch Clover orders with COGS for financial metrics
+      // PERFORMANCE: Limit to 2000 orders max to prevent timeout
       let allCloverOrdersForMetrics: any[] = [];
       
       if (!locationType || locationType === 'clover') {
@@ -8890,7 +8891,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           paymentState: paymentStateParam,
           hasDiscounts: hasDiscountsParam,
           hasRefunds: hasRefundsParam,
-          limit: 10000,
+          limit: 2000, // Reduced from 10000 for performance
           offset: 0,
           skipCogs: false // MUST calculate COGS for financial metrics
         });
@@ -8929,7 +8930,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
               const amazonResponse = await amazonIntegration.getOrders(amazonStartDate, amazonEndDate);
               
               if (amazonResponse?.orders) {
-                const transformedOrders = await Promise.all(amazonResponse.orders.map(async (order: any) => {
+                // PERFORMANCE: Limit Amazon orders to first 500 to prevent timeout
+                const ordersToProcess = amazonResponse.orders.slice(0, 500);
+                if (amazonResponse.orders.length > 500) {
+                  console.log(`⚠️ [FINANCIAL METRICS] Limiting Amazon orders from ${amazonResponse.orders.length} to 500 for performance`);
+                }
+                
+                const transformedOrders = await Promise.all(ordersToProcess.map(async (order: any) => {
                   // Get line items for COGS calculation
                   let lineItems: any[] = [];
                   try {
