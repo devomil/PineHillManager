@@ -704,7 +704,7 @@ function AccountingContent() {
   const calculateBIMetrics = () => {
     // Use real data from orders API, payroll API, and COGS
     const monthlyRevenue = parseFloat(monthlyOrdersData?.totalRevenue || '0');
-    const monthlyCOGS = parseFloat(monthlyOrdersData?.totalCogs || '0');
+    const monthlyCOGS = parseFloat(monthlyOrdersData?.totalCOGS || '0');
     const monthlyPayroll = parseFloat(actualPayrollData?.totalAmount || '0');
     
     // Total expenses = COGS + Payroll + other expenses
