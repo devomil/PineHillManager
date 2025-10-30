@@ -2160,74 +2160,61 @@ export const monthlyResetHistory = pgTable("monthly_reset_history", {
 }));
 
 // Cached Financial Reports - Pre-computed financial snapshots for fast reporting
+// Hybrid design: structured period metadata + flexible JSON payload
 export const cachedFinancialReports = pgTable("cached_financial_reports", {
   id: serial("id").primaryKey(),
-  reportDate: date("report_date").notNull(), // The date this report covers
-  periodType: varchar("period_type").notNull(), // 'daily', 'weekly', 'monthly'
+  reportType: varchar("report_type").notNull(), // 'revenue-trends', 'profit-loss', 'location-revenue', etc.
   periodStart: date("period_start").notNull(),
   periodEnd: date("period_end").notNull(),
+  
+  // Optional filters
   locationId: integer("location_id"), // null = all locations
   merchantId: varchar("merchant_id"), // null = all merchants
+  filters: jsonb("filters"), // Additional filtering options
   
-  // Financial metrics
-  revenue: decimal("revenue", { precision: 15, scale: 2 }).notNull().default("0.00"),
-  cogs: decimal("cogs", { precision: 15, scale: 2 }).notNull().default("0.00"),
-  payroll: decimal("payroll", { precision: 15, scale: 2 }).notNull().default("0.00"),
-  expenses: decimal("expenses", { precision: 15, scale: 2 }).notNull().default("0.00"),
-  grossProfit: decimal("gross_profit", { precision: 15, scale: 2 }).notNull().default("0.00"),
-  netProfit: decimal("net_profit", { precision: 15, scale: 2 }).notNull().default("0.00"),
-  profitMargin: decimal("profit_margin", { precision: 5, scale: 2 }).notNull().default("0.00"),
+  // Report payload - structure depends on reportType
+  reportData: jsonb("report_data").notNull(),
   
-  // Transactional metrics
-  transactionCount: integer("transaction_count").notNull().default(0),
-  avgOrderValue: decimal("avg_order_value", { precision: 10, scale: 2 }).notNull().default("0.00"),
-  
-  // Data source metadata
-  dataSources: jsonb("data_sources"), // Which systems contributed: {clover: true, amazon: true, ...}
+  // Lifecycle metadata
+  generatedBy: varchar("generated_by").notNull().references(() => users.id),
   generatedAt: timestamp("generated_at").notNull().defaultNow(),
   isStale: boolean("is_stale").notNull().default(false), // Set to true if source data changes
   
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => ({
-  reportDateIdx: index("idx_cfr_report_date").on(table.reportDate),
-  periodTypeIdx: index("idx_cfr_period_type").on(table.periodType),
+  reportTypeIdx: index("idx_cfr_report_type").on(table.reportType),
   periodStartEndIdx: index("idx_cfr_period_start_end").on(table.periodStart, table.periodEnd),
   locationIdx: index("idx_cfr_location_id").on(table.locationId),
   isStaleIdx: index("idx_cfr_is_stale").on(table.isStale),
   uniqueReportIdx: unique("idx_cfr_unique_report").on(
-    table.reportDate, 
-    table.periodType, 
+    table.reportType, 
+    table.periodStart, 
+    table.periodEnd,
     table.locationId, 
     table.merchantId
   ),
 }));
 
-// Report Cache Metadata - Track cache status and refresh schedules
+// Report Cache Metadata - Track cache status and refresh schedules per report type
 export const reportCacheMetadata = pgTable("report_cache_metadata", {
   id: serial("id").primaryKey(),
-  periodType: varchar("period_type").notNull(), // 'daily', 'weekly', 'monthly'
-  periodStart: date("period_start").notNull(),
-  periodEnd: date("period_end").notNull(),
+  reportType: varchar("report_type").notNull().unique(), // Primary key for metadata
   
-  lastGenerated: timestamp("last_generated"),
-  lastRefreshed: timestamp("last_refreshed"),
-  nextScheduledRefresh: timestamp("next_scheduled_refresh"),
+  lastGeneratedAt: timestamp("last_generated_at"),
+  lastGeneratedBy: varchar("last_generated_by").references(() => users.id),
   
-  status: varchar("status").notNull().default("pending"), // 'pending', 'generating', 'fresh', 'stale', 'error'
-  generationDuration: integer("generation_duration"), // milliseconds
-  recordCount: integer("record_count").notNull().default(0),
+  totalCachedReports: integer("total_cached_reports").notNull().default(0),
+  averageGenerationTime: integer("average_generation_time").notNull().default(0), // milliseconds
   
-  errorMessage: text("error_message"),
-  errorCount: integer("error_count").notNull().default(0),
+  // Additional metadata as JSON
+  metadata: jsonb("metadata"), // Flexible metadata per report type
   
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => ({
-  periodTypeIdx: index("idx_rcm_period_type").on(table.periodType),
-  statusIdx: index("idx_rcm_status").on(table.status),
-  nextScheduledRefreshIdx: index("idx_rcm_next_scheduled_refresh").on(table.nextScheduledRefresh),
-  uniquePeriodIdx: unique("idx_rcm_unique_period").on(table.periodType, table.periodStart, table.periodEnd),
+  reportTypeIdx: index("idx_rcm_report_type").on(table.reportType),
+  lastGeneratedIdx: index("idx_rcm_last_generated").on(table.lastGeneratedAt),
 }));
 
 // ============================================

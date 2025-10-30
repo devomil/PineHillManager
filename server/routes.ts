@@ -8603,6 +8603,185 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ================================
+  // CACHED FINANCIAL REPORTS
+  // ================================
+
+  // Generate and cache a financial report
+  app.post('/api/accounting/cached-reports/generate', isAuthenticated, async (req, res) => {
+    try {
+      const { reportType, startDate, endDate, filters, locationId, merchantId } = req.body;
+
+      if (!reportType || !startDate || !endDate) {
+        return res.status(400).json({ error: 'Missing required fields: reportType, startDate, endDate' });
+      }
+
+      // Validate reportType - only allow supported types
+      const supportedReportTypes = ['revenue-trends', 'profit-loss', 'location-revenue'];
+      if (!supportedReportTypes.includes(reportType)) {
+        return res.status(400).json({ 
+          error: `Unsupported reportType: '${reportType}'. Supported types: ${supportedReportTypes.join(', ')}` 
+        });
+      }
+
+      console.log(`Generating cached report: ${reportType} from ${startDate} to ${endDate}`);
+
+      // Fetch live data based on report type
+      let reportData: any = null;
+      let metadata: any = {};
+
+      if (reportType === 'revenue-trends') {
+        // Call existing revenue trends logic
+        const { CloverIntegration } = await import('./integrations/clover');
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+
+        let totalRevenue = 0;
+        let totalTransactions = 0;
+
+        const allLocations = await storage.getAllCloverConfigs();
+        const activeLocations = allLocations.filter(config => config.isActive);
+
+        for (const locationConfig of activeLocations) {
+          try {
+            const cloverIntegration = new CloverIntegration(locationConfig);
+            let allOrders: any[] = [];
+            let offset = 0;
+            const limit = 1000;
+            let hasMoreData = true;
+
+            while (hasMoreData) {
+              const liveOrders = await cloverIntegration.fetchOrders({
+                filter: `createdTime>=${Math.floor(start.getTime())}`,
+                limit: limit,
+                offset: offset
+              });
+
+              if (liveOrders && liveOrders.elements && liveOrders.elements.length > 0) {
+                allOrders.push(...liveOrders.elements);
+                if (liveOrders.elements.length < limit) {
+                  hasMoreData = false;
+                } else {
+                  offset += limit;
+                }
+              } else {
+                hasMoreData = false;
+              }
+            }
+
+            if (allOrders.length > 0) {
+              const filteredOrders = allOrders.filter((order: any) => {
+                const orderDate = new Date(order.createdTime);
+                return orderDate >= start && orderDate <= end;
+              });
+
+              const locationRevenue = filteredOrders.reduce((sum: number, order: any) => {
+                return sum + (parseFloat(order.total || '0') / 100);
+              }, 0);
+
+              totalRevenue += locationRevenue;
+              totalTransactions += filteredOrders.length;
+            }
+          } catch (error) {
+            console.log(`Error fetching data for ${locationConfig.merchantName}:`, error);
+          }
+        }
+
+        reportData = {
+          revenue: totalRevenue.toFixed(2),
+          transactions: totalTransactions,
+          avgSale: totalTransactions > 0 ? (totalRevenue / totalTransactions).toFixed(2) : '0.00'
+        };
+
+        metadata = { locationsQueried: activeLocations.length };
+      }
+
+      // Store in cache (use "all" sentinel instead of NULL for uniqueness constraint)
+      const cachedReport = await storage.createCachedReport({
+        reportType,
+        periodStart: new Date(startDate as string).toISOString().split('T')[0],
+        periodEnd: new Date(endDate as string).toISOString().split('T')[0],
+        locationId: locationId || null,
+        merchantId: merchantId || 'all', // Use 'all' instead of NULL for proper unique constraint
+        reportData,
+        filters: filters || {},
+        generatedBy: (req.user as any).id
+      });
+
+      // Update metadata
+      await storage.updateReportCacheMetadata({
+        reportType,
+        lastGeneratedAt: new Date(),
+        lastGeneratedBy: (req.user as any).id,
+        totalCachedReports: await storage.countCachedReportsByType(reportType),
+        averageGenerationTime: 0, // TODO: Track this
+        metadata
+      });
+
+      res.json({ success: true, report: cachedReport });
+    } catch (error) {
+      console.error('Error generating cached report:', error);
+      res.status(500).json({ error: 'Failed to generate cached report' });
+    }
+  });
+
+  // Get cached reports
+  app.get('/api/accounting/cached-reports', isAuthenticated, async (req, res) => {
+    try {
+      const { reportType, startDate, endDate } = req.query;
+
+      const reports = await storage.getCachedReports({
+        reportType: reportType as string,
+        startDate: startDate ? new Date(startDate as string) : undefined,
+        endDate: endDate ? new Date(endDate as string) : undefined
+      });
+
+      res.json(reports);
+    } catch (error) {
+      console.error('Error fetching cached reports:', error);
+      res.status(500).json({ error: 'Failed to fetch cached reports' });
+    }
+  });
+
+  // Get latest cached report for a specific type and date range
+  app.get('/api/accounting/cached-reports/latest', isAuthenticated, async (req, res) => {
+    try {
+      const { reportType, startDate, endDate } = req.query;
+
+      if (!reportType || !startDate || !endDate) {
+        return res.status(400).json({ error: 'Missing required parameters' });
+      }
+
+      const report = await storage.getLatestCachedReport(
+        reportType as string,
+        new Date(startDate as string),
+        new Date(endDate as string)
+      );
+
+      if (!report) {
+        return res.status(404).json({ error: 'No cached report found' });
+      }
+
+      res.json(report);
+    } catch (error) {
+      console.error('Error fetching latest cached report:', error);
+      res.status(500).json({ error: 'Failed to fetch cached report' });
+    }
+  });
+
+  // Delete cached report
+  app.delete('/api/accounting/cached-reports/:id', requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      await storage.deleteCachedReport(parseInt(id));
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting cached report:', error);
+      res.status(500).json({ error: 'Failed to delete cached report' });
+    }
+  });
+
   // External Integration Routes
   
   // QuickBooks Integration Routes

@@ -69,6 +69,9 @@ import {
   monthlyAccountBalances,
   monthlyTransactionSummaries,
   monthlyResetHistory,
+  // Cached Reports Tables
+  cachedFinancialReports,
+  reportCacheMetadata,
   // Payroll Tables
   payrollPeriods,
   payrollEntries,
@@ -233,6 +236,11 @@ import {
   type InsertMonthlyTransactionSummary,
   type MonthlyResetHistory,
   type InsertMonthlyResetHistory,
+  // Cached Reports Types
+  type CachedFinancialReport,
+  type InsertCachedFinancialReport,
+  type ReportCacheMetadata,
+  type InsertReportCacheMetadata,
   // Payroll Types
   type PayrollPeriod,
   type InsertPayrollPeriod,
@@ -976,6 +984,15 @@ export interface IStorage {
   getCurrentMonthTransactions(): Promise<FinancialTransaction[]>;
   isMonthClosed(year: number, month: number): Promise<boolean>;
   getOpeningBalancesForCurrentMonth(): Promise<{ accountId: number; openingBalance: string }[]>;
+
+  // Cached Financial Reports Operations
+  createCachedReport(report: InsertCachedFinancialReport): Promise<CachedFinancialReport>;
+  getCachedReports(filters: { reportType?: string; startDate?: Date; endDate?: Date }): Promise<CachedFinancialReport[]>;
+  getLatestCachedReport(reportType: string, periodStart: Date, periodEnd: Date): Promise<CachedFinancialReport | undefined>;
+  deleteCachedReport(id: number): Promise<boolean>;
+  countCachedReportsByType(reportType: string): Promise<number>;
+  updateReportCacheMetadata(metadata: Partial<InsertReportCacheMetadata> & { reportType: string }): Promise<ReportCacheMetadata>;
+  getReportCacheMetadata(reportType: string): Promise<ReportCacheMetadata | undefined>;
 
   // QR Code operations
   createQrCode(qrCodeData: InsertQrCode & { qrCodeData: string }): Promise<QrCode>;
@@ -10468,6 +10485,130 @@ export class DatabaseStorage implements IStorage {
       
       return results;
     }
+  }
+
+  // ================================
+  // CACHED FINANCIAL REPORTS IMPLEMENTATION
+  // ================================
+
+  async createCachedReport(report: InsertCachedFinancialReport): Promise<CachedFinancialReport> {
+    const [created] = await db
+      .insert(cachedFinancialReports)
+      .values({
+        ...report,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .returning();
+    return created;
+  }
+
+  async getCachedReports(filters: { reportType?: string; startDate?: Date; endDate?: Date }): Promise<CachedFinancialReport[]> {
+    let query = db.select().from(cachedFinancialReports);
+
+    const conditions = [];
+    
+    if (filters.reportType) {
+      conditions.push(eq(cachedFinancialReports.reportType, filters.reportType));
+    }
+    
+    if (filters.startDate) {
+      const dateStr = filters.startDate.toISOString().split('T')[0];
+      conditions.push(gte(cachedFinancialReports.periodStart, dateStr));
+    }
+    
+    if (filters.endDate) {
+      const dateStr = filters.endDate.toISOString().split('T')[0];
+      conditions.push(lte(cachedFinancialReports.periodEnd, dateStr));
+    }
+
+    if (conditions.length > 0) {
+      query = (query as any).where(and(...conditions));
+    }
+
+    return await query.orderBy(desc(cachedFinancialReports.createdAt));
+  }
+
+  async getLatestCachedReport(reportType: string, periodStart: Date, periodEnd: Date): Promise<CachedFinancialReport | undefined> {
+    const startDateStr = periodStart.toISOString().split('T')[0];
+    const endDateStr = periodEnd.toISOString().split('T')[0];
+    
+    const [report] = await db
+      .select()
+      .from(cachedFinancialReports)
+      .where(
+        and(
+          eq(cachedFinancialReports.reportType, reportType),
+          eq(cachedFinancialReports.periodStart, startDateStr),
+          eq(cachedFinancialReports.periodEnd, endDateStr)
+        )
+      )
+      .orderBy(desc(cachedFinancialReports.createdAt))
+      .limit(1);
+    
+    return report;
+  }
+
+  async deleteCachedReport(id: number): Promise<boolean> {
+    const result = await db
+      .delete(cachedFinancialReports)
+      .where(eq(cachedFinancialReports.id, id));
+    
+    return (result as any).rowCount > 0;
+  }
+
+  async countCachedReportsByType(reportType: string): Promise<number> {
+    const result = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(cachedFinancialReports)
+      .where(eq(cachedFinancialReports.reportType, reportType));
+    
+    return result[0]?.count || 0;
+  }
+
+  async updateReportCacheMetadata(metadata: Partial<InsertReportCacheMetadata> & { reportType: string }): Promise<ReportCacheMetadata> {
+    // Try to find existing metadata
+    const existing = await this.getReportCacheMetadata(metadata.reportType);
+    
+    if (existing) {
+      // Update existing
+      const [updated] = await db
+        .update(reportCacheMetadata)
+        .set({
+          ...metadata,
+          updatedAt: new Date(),
+        })
+        .where(eq(reportCacheMetadata.reportType, metadata.reportType))
+        .returning();
+      
+      return updated;
+    } else {
+      // Create new
+      const [created] = await db
+        .insert(reportCacheMetadata)
+        .values({
+          reportType: metadata.reportType,
+          lastGeneratedAt: metadata.lastGeneratedAt || new Date(),
+          lastGeneratedBy: metadata.lastGeneratedBy || null,
+          totalCachedReports: metadata.totalCachedReports || 0,
+          averageGenerationTime: metadata.averageGenerationTime || 0,
+          metadata: metadata.metadata || {},
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        } as any)
+        .returning();
+      
+      return created;
+    }
+  }
+
+  async getReportCacheMetadata(reportType: string): Promise<ReportCacheMetadata | undefined> {
+    const [meta] = await db
+      .select()
+      .from(reportCacheMetadata)
+      .where(eq(reportCacheMetadata.reportType, reportType));
+    
+    return meta;
   }
 
   // ================================
