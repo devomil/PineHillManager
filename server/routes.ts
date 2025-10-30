@@ -8817,7 +8817,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get financial metrics with COGS calculation (lazy-loaded separately from orders list)
+  // Get financial metrics with optional COGS calculation (lazy-loaded separately from orders list)
   app.get('/api/orders/financial-metrics', isAuthenticated, async (req, res) => {
     try {
       const {
@@ -8830,10 +8830,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         state,
         paymentState,
         hasDiscounts,
-        hasRefunds
+        hasRefunds,
+        includeCogs = 'false' // Optional COGS calculation for performance
       } = req.query as Record<string, string>;
+      
+      const shouldIncludeCogs = includeCogs === 'true';
 
-      console.log('💰 [FINANCIAL METRICS] Starting financial analysis calculation with COGS');
+      console.log(`💰 [FINANCIAL METRICS] Starting financial analysis (COGS ${shouldIncludeCogs ? 'enabled' : 'disabled for performance'})`);
 
       // Parse epoch milliseconds
       const ctMin = req.query.createdTimeMin != null ? Number(String(req.query.createdTimeMin)) : undefined;
@@ -8875,8 +8878,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Fetch Clover orders with COGS for financial metrics
-      // PERFORMANCE: Limit to 2000 orders max to prevent timeout
+      // Fetch Clover orders with optional COGS calculation
+      // PERFORMANCE: COGS can be skipped for faster loading, enabled on-demand
       let allCloverOrdersForMetrics: any[] = [];
       
       if (!locationType || locationType === 'clover') {
@@ -8891,12 +8894,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           paymentState: paymentStateParam,
           hasDiscounts: hasDiscountsParam,
           hasRefunds: hasRefundsParam,
-          limit: 2000, // Reduced from 10000 for performance
+          limit: 5000, // Reasonable limit with pagination support
           offset: 0,
-          skipCogs: false // MUST calculate COGS for financial metrics
+          skipCogs: !shouldIncludeCogs // Optional COGS based on query parameter
         });
         allCloverOrdersForMetrics = allOrdersResult.orders as any[];
-        console.log(`💰 [FINANCIAL METRICS] Fetched ${allCloverOrdersForMetrics.length} Clover orders with COGS`);
+        console.log(`💰 [FINANCIAL METRICS] Fetched ${allCloverOrdersForMetrics.length} Clover orders (COGS ${shouldIncludeCogs ? 'included' : 'skipped'})`);
       }
 
       // Fetch Amazon orders if needed
@@ -8930,69 +8933,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
               const amazonResponse = await amazonIntegration.getOrders(amazonStartDate, amazonEndDate);
               
               if (amazonResponse?.orders) {
-                // PERFORMANCE: Limit Amazon orders to first 500 to prevent timeout
-                const ordersToProcess = amazonResponse.orders.slice(0, 500);
-                if (amazonResponse.orders.length > 500) {
-                  console.log(`⚠️ [FINANCIAL METRICS] Limiting Amazon orders from ${amazonResponse.orders.length} to 500 for performance`);
-                }
-                
-                const transformedOrders = await Promise.all(ordersToProcess.map(async (order: any) => {
-                  // Get line items for COGS calculation
-                  let lineItems: any[] = [];
-                  try {
-                    const itemsResponse = await amazonIntegration.getOrderItems(order.AmazonOrderId);
-                    if (itemsResponse?.payload?.OrderItems) {
-                      for (const item of itemsResponse.payload.OrderItems) {
-                        lineItems.push({
-                          id: item.OrderItemId,
-                          name: item.Title,
-                          price: Math.round(parseFloat(item.ItemPrice?.Amount || '0') * 100),
-                          quantity: item.QuantityOrdered,
-                          sku: item.SellerSKU,
-                          isRevenue: true
-                        });
-                      }
-                    }
-                  } catch (error) {
-                    console.error(`Error fetching Amazon order items:`, error);
-                  }
+                // PERFORMANCE: Skip expensive line item fetching and COGS calculation
+                const transformedOrders = amazonResponse.orders.map((order: any) => {
+                  const orderTotal = parseFloat(order.OrderTotal?.Amount || '0');
                   
-                  // Calculate order total - for canceled orders keep $0.00, otherwise calculate from line items if needed
-                  let orderTotal = parseFloat(order.OrderTotal?.Amount || '0');
-                  let calculatedFromLineItems = false;
-                  
-                  // Only calculate from line items for non-canceled orders with $0 total
-                  if (orderTotal === 0 && lineItems.length > 0 && order.OrderStatus !== 'Canceled') {
-                    // Calculate from line items - item.price is already the extended price in cents
-                    orderTotal = lineItems.reduce((sum, item) => sum + (item.price / 100), 0);
-                    calculatedFromLineItems = true;
-                    console.log(`📦 [AMAZON MISSING TOTAL - METRICS] Order ${order.AmazonOrderId}: Calculated total from ${lineItems.length} line items = $${orderTotal.toFixed(2)}`);
-                  }
-                  
-                  const baseOrder = {
+                  return {
                     id: order.AmazonOrderId,
                     total: orderTotal * 100, // Convert dollars to cents
                     createdTime: new Date(order.PurchaseDate).getTime(),
                     locationId: `amazon_${config.id}`,
                     isAmazonOrder: true,
-                    lineItems: { elements: lineItems },
-                    // Override OrderTotal.Amount if we calculated from line items, otherwise preserve Amazon's value
-                    OrderTotal: calculatedFromLineItems
-                      ? { ...(order.OrderTotal ?? {}), Amount: orderTotal.toString(), CurrencyCode: order.OrderTotal?.CurrencyCode || 'USD' }
-                      : order.OrderTotal || { Amount: orderTotal.toString(), CurrencyCode: 'USD' }
+                    OrderTotal: order.OrderTotal || { Amount: orderTotal.toString(), CurrencyCode: 'USD' },
+                    // Basic metrics without COGS for performance
+                    netSale: orderTotal,
+                    totalDiscounts: 0,
+                    grossTax: 0,
+                    giftCardTotal: 0,
+                    amazonFees: 0,
+                    netCOGS: 0, // Skip COGS calculation
+                    netProfit: orderTotal, // Approximate without COGS
+                    netMargin: 0
                   };
-                  
-                  // Calculate financial metrics including COGS
-                  const metrics = await storage.calculateOrderFinancialMetrics(baseOrder, config.id || 0);
-                  return { ...baseOrder, ...metrics };
-                }));
+                });
                 
                 allAmazonOrders.push(...transformedOrders);
               }
             }
             
             amazonOrders = allAmazonOrders;
-            console.log(`💰 [FINANCIAL METRICS] Fetched ${amazonOrders.length} Amazon orders with COGS`);
+            console.log(`💰 [FINANCIAL METRICS] Fetched ${amazonOrders.length} Amazon orders (COGS skipped for performance)`);
           }
         } catch (error) {
           console.error('Error fetching Amazon orders for financial metrics:', error);
