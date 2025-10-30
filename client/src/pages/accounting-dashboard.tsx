@@ -403,6 +403,33 @@ function AccountingContent() {
     },
   });
 
+  // Real revenue data from orders API with COGS
+  const { data: monthlyOrdersData } = useQuery({
+    queryKey: ['/api/orders/financial-metrics', monthStart, monthEnd],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        startDate: monthStart,
+        endDate: monthEnd,
+        includeCogs: 'true' // Get COGS for accurate calculations
+      });
+      const response = await apiRequest('GET', `/api/orders/financial-metrics?${params.toString()}`);
+      return await response.json();
+    },
+  });
+
+  // Actual payroll costs from time clock entries
+  const { data: actualPayrollData } = useQuery({
+    queryKey: ['/api/accounting/payroll/actual', monthStart, monthEnd],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        startDate: monthStart,
+        endDate: monthEnd
+      });
+      const response = await apiRequest('GET', `/api/accounting/payroll/actual?${params.toString()}`);
+      return await response.json();
+    },
+  });
+
   // Monthly closings data
   const { data: monthlyClosings } = useQuery({
     queryKey: ['/api/accounting/monthly/closings'],
@@ -675,21 +702,31 @@ function AccountingContent() {
 
   // Calculate BI metrics from real data (using monthly P&L data)
   const calculateBIMetrics = () => {
-    if (!monthlyProfitLoss) return null;
+    // Use real data from orders API, payroll API, and COGS
+    const monthlyRevenue = parseFloat(monthlyOrdersData?.totalRevenue || '0');
+    const monthlyCOGS = parseFloat(monthlyOrdersData?.totalCogs || '0');
+    const monthlyPayroll = parseFloat(actualPayrollData?.totalAmount || '0');
     
-    const monthlyRevenue = parseFloat(monthlyProfitLoss.totalRevenue || '0');
-    const monthlyExpenses = parseFloat(monthlyProfitLoss.totalExpenses || '0');
+    // Total expenses = COGS + Payroll + other expenses
+    const monthlyExpenses = monthlyCOGS + monthlyPayroll;
+    
     const daysElapsed = new Date().getDate();
     const daysInMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0).getDate();
     const daysRemaining = daysInMonth - daysElapsed;
     
-    const dailyAverage = monthlyRevenue / daysElapsed;
+    const dailyAverage = daysElapsed > 0 ? monthlyRevenue / daysElapsed : 0;
     const projectedRevenue = dailyAverage * daysInMonth;
-    const profitMargin = monthlyRevenue > 0 ? ((monthlyRevenue - monthlyExpenses) / monthlyRevenue * 100) : 0;
+    
+    // Gross profit = Revenue - COGS - Payroll
+    const grossProfit = monthlyRevenue - monthlyExpenses;
+    const profitMargin = monthlyRevenue > 0 ? (grossProfit / monthlyRevenue * 100) : 0;
     
     return {
       monthlyRevenue,
+      monthlyCOGS,
+      monthlyPayroll,
       monthlyExpenses,
+      grossProfit,
       profitMargin,
       dailyAverage,
       projectedRevenue,
@@ -1136,23 +1173,27 @@ function AccountingContent() {
                       <div className="space-y-2">
                         <div className="flex justify-between">
                           <span className="text-sm text-gray-600">Revenue:</span>
-                          <span className="font-bold text-green-600">${biMetrics?.monthlyRevenue?.toFixed(2) || monthlyProfitLoss?.totalRevenue || '0.00'}</span>
+                          <span className="font-bold text-green-600">${biMetrics?.monthlyRevenue?.toFixed(2) || '0.00'}</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-sm text-gray-600">Cost of Goods:</span>
-                          <span className="font-bold text-orange-600">${Number.parseFloat((monthlyCogsData as any)?.totalCost || (monthlyProfitLoss as any)?.totalCOGS || '0').toFixed(2)}</span>
+                          <span className="font-bold text-red-600">${biMetrics?.monthlyCOGS?.toFixed(2) || '0.00'}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-sm text-gray-600">Expenses:</span>
-                          <span className="font-bold text-red-600">${biMetrics?.monthlyExpenses?.toFixed(2) || monthlyProfitLoss?.totalExpenses || '0.00'}</span>
+                          <span className="text-sm text-gray-600">Payroll:</span>
+                          <span className="font-bold text-red-600">${biMetrics?.monthlyPayroll?.toFixed(2) || '0.00'}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-sm text-gray-600">Total Expenses:</span>
+                          <span className="font-bold text-red-600">${biMetrics?.monthlyExpenses?.toFixed(2) || '0.00'}</span>
                         </div>
                         <div className="flex justify-between border-t pt-2">
                           <span className="text-sm font-medium">Gross Profit:</span>
-                          <span className="font-bold text-blue-600">${Number.parseFloat((monthlyCogsData as any)?.grossProfit || (monthlyProfitLoss as any)?.grossProfit || '0').toFixed(2)}</span>
+                          <span className={`font-bold ${(biMetrics?.grossProfit || 0) >= 0 ? 'text-blue-600' : 'text-red-600'}`}>${biMetrics?.grossProfit?.toFixed(2) || '0.00'}</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-sm font-medium">Gross Margin:</span>
-                          <span className="font-bold text-blue-600">{Number.parseFloat((monthlyCogsData as any)?.grossMargin || '0').toFixed(2)}%</span>
+                          <span className={`font-bold ${(biMetrics?.profitMargin || 0) >= 0 ? 'text-blue-600' : 'text-red-600'}`}>{biMetrics?.profitMargin?.toFixed(2) || '0.00'}%</span>
                         </div>
                       </div>
                     </CardContent>

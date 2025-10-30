@@ -7336,6 +7336,89 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get actual payroll costs from time clock entries
+  app.get('/api/accounting/payroll/actual', isAuthenticated, async (req, res) => {
+    try {
+      if (!req.user || (req.user.role !== 'admin' && req.user.role !== 'manager')) {
+        return res.status(403).json({ message: 'Admin or Manager access required' });
+      }
+
+      const { startDate, endDate, locationId } = req.query;
+      
+      if (!startDate || !endDate) {
+        return res.status(400).json({ message: 'startDate and endDate are required' });
+      }
+      
+      const locationIdNum = locationId ? parseInt(locationId as string) : undefined;
+      
+      // Get all time clock entries for the period (use 'all' to get all users)
+      const entries = await storage.getTimeEntriesByDateRange('all', startDate as string, endDate as string);
+      
+      // Group by user and calculate total cost
+      const userPayrollMap = new Map<string, {
+        userName: string;
+        totalMinutes: number;
+        totalHours: number;
+        hourlyRate: number | null;
+        totalCost: number;
+      }>();
+      
+      for (const entry of entries) {
+        if (entry.status !== 'clocked_out' || !entry.totalWorkedMinutes) continue;
+        
+        // Filter by location if specified
+        if (locationIdNum && entry.locationId !== locationIdNum) continue;
+        
+        // Entry already includes hourlyRate from join with users table
+        if (!entry.hourlyRate) continue;
+        
+        const userId = entry.userId;
+        const userName = `${entry.firstName || ''} ${entry.lastName || ''}`.trim();
+        const hourlyRate = parseFloat(entry.hourlyRate);
+        const workedMinutes = entry.totalWorkedMinutes || 0;
+        const workedHours = workedMinutes / 60;
+        const entryCost = workedHours * hourlyRate;
+        
+        if (userPayrollMap.has(userId)) {
+          const existing = userPayrollMap.get(userId)!;
+          existing.totalMinutes += workedMinutes;
+          existing.totalHours += workedHours;
+          existing.totalCost += entryCost;
+        } else {
+          userPayrollMap.set(userId, {
+            userName,
+            totalMinutes: workedMinutes,
+            totalHours: workedHours,
+            hourlyRate,
+            totalCost: entryCost
+          });
+        }
+      }
+      
+      const employeeBreakdown = Array.from(userPayrollMap.entries()).map(([userId, data]) => ({
+        userId,
+        userName: data.userName,
+        workedHours: Math.round(data.totalHours * 100) / 100,
+        hourlyRate: data.hourlyRate,
+        totalCost: Math.round(data.totalCost * 100) / 100
+      })).filter(emp => emp.totalCost > 0);
+      
+      const totalAmount = employeeBreakdown.reduce((sum, emp) => sum + emp.totalCost, 0);
+      
+      res.json({
+        startDate,
+        endDate,
+        locationId: locationIdNum,
+        totalAmount: Math.round(totalAmount * 100) / 100,
+        employeeCount: employeeBreakdown.length,
+        employeeBreakdown
+      });
+    } catch (error) {
+      console.error('Error calculating actual payroll costs:', error);
+      res.status(500).json({ message: 'Failed to calculate actual payroll costs' });
+    }
+  });
+
   // Create payroll accrual transaction
   app.post('/api/accounting/payroll/accrue', isAuthenticated, async (req, res) => {
     try {
