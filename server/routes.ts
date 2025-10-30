@@ -38,7 +38,9 @@ import {
   updateEmployeeSpotlightSchema,
 } from "@shared/schema";
 import { z } from "zod";
-import { eq } from "drizzle-orm";
+import { eq, and, or, isNull, isNotNull } from "drizzle-orm";
+import { db } from "./db";
+import { posSaleItems } from "@shared/schema";
 
 // Configure multer for file uploads
 const uploadsDir = path.join(process.cwd(), 'uploads');
@@ -8767,6 +8769,64 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error in comprehensive historical sync:', error);
       res.status(500).json({ message: 'Failed to run comprehensive historical sync' });
+    }
+  });
+
+  // Backfill cost data for existing pos_sale_items
+  app.post('/api/integrations/clover/backfill-costs', isAuthenticated, async (req, res) => {
+    try {
+      // Get all pos_sale_items that have inventoryItemId but no costBasis
+      const itemsToUpdate = await db
+        .select({
+          id: posSaleItems.id,
+          inventoryItemId: posSaleItems.inventoryItemId,
+          itemName: posSaleItems.itemName
+        })
+        .from(posSaleItems)
+        .where(and(
+          isNotNull(posSaleItems.inventoryItemId),
+          or(
+            isNull(posSaleItems.costBasis),
+            eq(posSaleItems.costBasis, '0.00')
+          )
+        ));
+
+      let updatedCount = 0;
+      let skippedCount = 0;
+
+      for (const item of itemsToUpdate) {
+        if (item.inventoryItemId) {
+          const inventoryItem = await storage.getInventoryItemById(item.inventoryItemId);
+          if (inventoryItem) {
+            // Use standardCost first, fallback to unitCost - explicit positive value check
+            const standardCost = parseFloat(inventoryItem.standardCost || '0');
+            const unitCost = parseFloat(inventoryItem.unitCost || '0');
+            const finalCost = standardCost > 0 ? standardCost : unitCost;
+            if (finalCost > 0) {
+              await db
+                .update(posSaleItems)
+                .set({ costBasis: finalCost.toFixed(2) })
+                .where(eq(posSaleItems.id, item.id));
+              updatedCount++;
+            } else {
+              skippedCount++;
+            }
+          } else {
+            skippedCount++;
+          }
+        }
+      }
+
+      res.json({
+        success: true,
+        message: `Backfilled cost data for ${updatedCount} items, skipped ${skippedCount} items with no cost data`,
+        updatedCount,
+        skippedCount,
+        totalProcessed: itemsToUpdate.length
+      });
+    } catch (error) {
+      console.error('Error backfilling cost data:', error);
+      res.status(500).json({ error: 'Failed to backfill cost data' });
     }
   });
 

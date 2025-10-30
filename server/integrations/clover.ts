@@ -986,17 +986,31 @@ export class CloverIntegration {
             const quantity = lineItem.quantity || 1;
             const lineTotal = itemAmount * quantity;
             
-            // Try to link to inventory item for cost tracking
+            // Try to link to inventory item for cost tracking and COGS
             let inventoryItemId = null;
-            try {
-              const inventoryItems = await storage.getInventoryItemsBySKU(lineItem.item?.id || lineItem.id);
-              const inventoryItem = inventoryItems.length > 0 ? inventoryItems[0] : null;
-              if (inventoryItem) {
-                inventoryItemId = inventoryItem.id;
-                console.log(`🔗 Linked sale item "${lineItem.name}" to inventory item ${inventoryItemId} (Cost: $${inventoryItem.unitCost})`);
+            let costBasis = null;
+            
+            if (lineItem.item && lineItem.item.id) {
+              try {
+                const inventoryItems = await storage.getInventoryItemsByCloverItemId(lineItem.item.id);
+                // Filter by location if we have multiple items with same Clover ID
+                const inventoryItem = inventoryItems.find(item => item.locationId === config.id) || inventoryItems[0];
+                if (inventoryItem) {
+                  inventoryItemId = inventoryItem.id;
+                  // Use standardCost first, fallback to unitCost - explicit positive value check
+                  const standardCost = parseFloat(inventoryItem.standardCost || '0');
+                  const unitCost = parseFloat(inventoryItem.unitCost || '0');
+                  const finalCost = standardCost > 0 ? standardCost : unitCost;
+                  if (finalCost > 0) {
+                    costBasis = finalCost.toFixed(2);
+                    console.log(`🔗 Linked sale item "${lineItem.name}" to inventory item ${inventoryItemId} (Cost: $${costBasis})`);
+                  } else {
+                    console.log(`🔗 Linked sale item "${lineItem.name}" to inventory item ${inventoryItemId} but no cost data`);
+                  }
+                }
+              } catch (error) {
+                console.log(`No inventory match for item: ${lineItem.name}`);
               }
-            } catch (error) {
-              console.log(`No inventory match for item: ${lineItem.name}`);
             }
             
             const itemData = {
@@ -1006,6 +1020,7 @@ export class CloverIntegration {
               quantity: quantity.toString(),
               unitPrice: itemAmount.toString(),
               lineTotal: lineTotal.toString(),
+              costBasis,
               discountAmount: lineItem.discountAmount ? (parseFloat(lineItem.discountAmount) / 100).toString() : '0.00'
             };
 
@@ -1136,12 +1151,34 @@ export class CloverIntegration {
               const quantity = lineItem.quantity || 1;
               const lineTotal = itemAmount * quantity;
               
+              // Try to match this line item to inventory for COGS
+              let inventoryItemId = null;
+              let costBasis = null;
+              
+              if (lineItem.item && lineItem.item.id) {
+                const inventoryItems = await storage.getInventoryItemsByCloverItemId(lineItem.item.id);
+                // Filter by location if we have multiple items with same Clover ID
+                const inventoryItem = inventoryItems.find(item => item.locationId === config.id) || inventoryItems[0];
+                if (inventoryItem) {
+                  inventoryItemId = inventoryItem.id;
+                  // Use standardCost first, fallback to unitCost - explicit positive value check
+                  const standardCost = parseFloat(inventoryItem.standardCost || '0');
+                  const unitCost = parseFloat(inventoryItem.unitCost || '0');
+                  const finalCost = standardCost > 0 ? standardCost : unitCost;
+                  if (finalCost > 0) {
+                    costBasis = finalCost.toFixed(2);
+                  }
+                }
+              }
+              
               const itemData = {
                 saleId: createdSale.id,
+                inventoryItemId,
                 itemName: lineItem.name,
                 quantity: quantity.toString(),
                 unitPrice: itemAmount.toString(),
                 lineTotal: lineTotal.toString(),
+                costBasis,
                 discountAmount: lineItem.discountAmount ? (parseFloat(lineItem.discountAmount) / 100).toString() : '0.00'
               };
 
