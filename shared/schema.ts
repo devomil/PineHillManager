@@ -2159,6 +2159,77 @@ export const monthlyResetHistory = pgTable("monthly_reset_history", {
   resetTypeIdx: index("idx_mrh_reset_type").on(table.resetType),
 }));
 
+// Cached Financial Reports - Pre-computed financial snapshots for fast reporting
+export const cachedFinancialReports = pgTable("cached_financial_reports", {
+  id: serial("id").primaryKey(),
+  reportDate: date("report_date").notNull(), // The date this report covers
+  periodType: varchar("period_type").notNull(), // 'daily', 'weekly', 'monthly'
+  periodStart: date("period_start").notNull(),
+  periodEnd: date("period_end").notNull(),
+  locationId: integer("location_id"), // null = all locations
+  merchantId: varchar("merchant_id"), // null = all merchants
+  
+  // Financial metrics
+  revenue: decimal("revenue", { precision: 15, scale: 2 }).notNull().default("0.00"),
+  cogs: decimal("cogs", { precision: 15, scale: 2 }).notNull().default("0.00"),
+  payroll: decimal("payroll", { precision: 15, scale: 2 }).notNull().default("0.00"),
+  expenses: decimal("expenses", { precision: 15, scale: 2 }).notNull().default("0.00"),
+  grossProfit: decimal("gross_profit", { precision: 15, scale: 2 }).notNull().default("0.00"),
+  netProfit: decimal("net_profit", { precision: 15, scale: 2 }).notNull().default("0.00"),
+  profitMargin: decimal("profit_margin", { precision: 5, scale: 2 }).notNull().default("0.00"),
+  
+  // Transactional metrics
+  transactionCount: integer("transaction_count").notNull().default(0),
+  avgOrderValue: decimal("avg_order_value", { precision: 10, scale: 2 }).notNull().default("0.00"),
+  
+  // Data source metadata
+  dataSources: jsonb("data_sources"), // Which systems contributed: {clover: true, amazon: true, ...}
+  generatedAt: timestamp("generated_at").notNull().defaultNow(),
+  isStale: boolean("is_stale").notNull().default(false), // Set to true if source data changes
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  reportDateIdx: index("idx_cfr_report_date").on(table.reportDate),
+  periodTypeIdx: index("idx_cfr_period_type").on(table.periodType),
+  periodStartEndIdx: index("idx_cfr_period_start_end").on(table.periodStart, table.periodEnd),
+  locationIdx: index("idx_cfr_location_id").on(table.locationId),
+  isStaleIdx: index("idx_cfr_is_stale").on(table.isStale),
+  uniqueReportIdx: unique("idx_cfr_unique_report").on(
+    table.reportDate, 
+    table.periodType, 
+    table.locationId, 
+    table.merchantId
+  ),
+}));
+
+// Report Cache Metadata - Track cache status and refresh schedules
+export const reportCacheMetadata = pgTable("report_cache_metadata", {
+  id: serial("id").primaryKey(),
+  periodType: varchar("period_type").notNull(), // 'daily', 'weekly', 'monthly'
+  periodStart: date("period_start").notNull(),
+  periodEnd: date("period_end").notNull(),
+  
+  lastGenerated: timestamp("last_generated"),
+  lastRefreshed: timestamp("last_refreshed"),
+  nextScheduledRefresh: timestamp("next_scheduled_refresh"),
+  
+  status: varchar("status").notNull().default("pending"), // 'pending', 'generating', 'fresh', 'stale', 'error'
+  generationDuration: integer("generation_duration"), // milliseconds
+  recordCount: integer("record_count").notNull().default(0),
+  
+  errorMessage: text("error_message"),
+  errorCount: integer("error_count").notNull().default(0),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  periodTypeIdx: index("idx_rcm_period_type").on(table.periodType),
+  statusIdx: index("idx_rcm_status").on(table.status),
+  nextScheduledRefreshIdx: index("idx_rcm_next_scheduled_refresh").on(table.nextScheduledRefresh),
+  uniquePeriodIdx: unique("idx_rcm_unique_period").on(table.periodType, table.periodStart, table.periodEnd),
+}));
+
 // ============================================
 // ACCOUNTING RELATIONS
 // ============================================
@@ -2378,6 +2449,18 @@ export const insertMonthlyResetHistorySchema = createInsertSchema(monthlyResetHi
   createdAt: true,
 });
 
+export const insertCachedFinancialReportSchema = createInsertSchema(cachedFinancialReports).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertReportCacheMetadataSchema = createInsertSchema(reportCacheMetadata).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 // ============================================
 // ACCOUNTING EXPORT TYPES
 // ============================================
@@ -2442,6 +2525,12 @@ export type InsertMonthlyClosure = z.infer<typeof insertMonthlyClosingSchema>;
 
 export type MonthlyAccountBalance = typeof monthlyAccountBalances.$inferSelect;
 export type InsertMonthlyAccountBalance = z.infer<typeof insertMonthlyAccountBalanceSchema>;
+
+export type CachedFinancialReport = typeof cachedFinancialReports.$inferSelect;
+export type InsertCachedFinancialReport = z.infer<typeof insertCachedFinancialReportSchema>;
+
+export type ReportCacheMetadata = typeof reportCacheMetadata.$inferSelect;
+export type InsertReportCacheMetadata = z.infer<typeof insertReportCacheMetadataSchema>;
 
 export type MonthlyTransactionSummary = typeof monthlyTransactionSummaries.$inferSelect;
 export type InsertMonthlyTransactionSummary = z.infer<typeof insertMonthlyTransactionSummarySchema>;

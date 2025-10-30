@@ -328,6 +328,32 @@ function AccountingContent() {
     },
   });
 
+  // Backfill COGS mutation to populate cost data for existing orders
+  const backfillCogsMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest('POST', '/api/integrations/clover/backfill-costs');
+      return await response.json();
+    },
+    onSuccess: (data) => {
+      // Invalidate COGS-related queries
+      queryClient.invalidateQueries({ queryKey: ['/api/accounting/analytics/cogs'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/accounting'] });
+      
+      toast({
+        title: "COGS Data Backfilled",
+        description: `Updated ${data.updatedCount} items, skipped ${data.skippedCount} items without cost data`,
+        variant: "default",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Backfill Failed",
+        description: "Failed to backfill COGS data. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
   // Chart of Accounts with period filtering state
   const [isPayrollDialogOpen, setIsPayrollDialogOpen] = useState(false);
 
@@ -785,6 +811,19 @@ function AccountingContent() {
               <RefreshCw className={`h-4 w-4 ${syncMutation.isPending ? 'animate-spin' : ''}`} />
               {syncMutation.isPending ? 'Syncing...' : 'Sync Now'}
             </Button>
+            {canManageAccounts && (
+              <Button 
+                onClick={() => backfillCogsMutation.mutate()}
+                disabled={backfillCogsMutation.isPending}
+                className="flex items-center gap-2"
+                variant="outline"
+                size="sm"
+                data-testid="button-backfill-cogs"
+              >
+                <Database className={`h-4 w-4 ${backfillCogsMutation.isPending ? 'animate-spin' : ''}`} />
+                {backfillCogsMutation.isPending ? 'Backfilling...' : 'Backfill COGS'}
+              </Button>
+            )}
             <Button 
               onClick={async () => {
                 const response = await fetch('/api/accounting/test-clover-connections');
