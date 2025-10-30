@@ -403,16 +403,15 @@ function AccountingContent() {
     },
   });
 
-  // Real revenue data from orders API with COGS
-  const { data: monthlyOrdersData } = useQuery({
-    queryKey: ['/api/orders/financial-metrics', monthStart, monthEnd],
+  // Real revenue data from multi-location analytics (faster than orders endpoint)
+  const { data: monthlyRevenueData } = useQuery({
+    queryKey: ['/api/accounting/analytics/multi-location', monthStart, monthEnd],
     queryFn: async () => {
       const params = new URLSearchParams({
         startDate: monthStart,
-        endDate: monthEnd,
-        includeCogs: 'true' // Get COGS for accurate calculations
+        endDate: monthEnd
       });
-      const response = await apiRequest('GET', `/api/orders/financial-metrics?${params.toString()}`);
+      const response = await apiRequest('GET', `/api/accounting/analytics/multi-location?${params.toString()}`);
       return await response.json();
     },
   });
@@ -702,9 +701,9 @@ function AccountingContent() {
 
   // Calculate BI metrics from real data (using monthly P&L data)
   const calculateBIMetrics = () => {
-    // Use real data from orders API, payroll API, and COGS
-    const monthlyRevenue = parseFloat(monthlyOrdersData?.totalRevenue || '0');
-    const monthlyCOGS = parseFloat(monthlyOrdersData?.totalCOGS || '0');
+    // Use real data from multi-location analytics, COGS, and payroll APIs
+    const monthlyRevenue = parseFloat(monthlyRevenueData?.totalSummary?.totalRevenue || '0');
+    const monthlyCOGS = parseFloat(monthlyCogsData?.totalCost || '0');
     const monthlyPayroll = parseFloat(actualPayrollData?.totalAmount || '0');
     
     // Total expenses = COGS + Payroll + other expenses
