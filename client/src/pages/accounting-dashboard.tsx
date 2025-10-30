@@ -354,6 +354,39 @@ function AccountingContent() {
     },
   });
 
+  // Historical sync mutation to pull all orders from Clover
+  const historicalSyncMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest('POST', '/api/integrations/clover/sync/historical-all', {
+        startDate: '2025-01-01',
+        endDate: new Date().toISOString().split('T')[0]
+      });
+      return await response.json();
+    },
+    onSuccess: (data) => {
+      // Invalidate all order and accounting queries
+      queryClient.invalidateQueries({ queryKey: ['/api/orders'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/accounting'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/accounting/analytics/cogs'] });
+      
+      const successCount = data.successCount || 0;
+      const totalConfigs = data.totalConfigs || 0;
+      
+      toast({
+        title: "Historical Sync Complete",
+        description: `Successfully synced ${successCount} out of ${totalConfigs} locations. All historical orders from 2025 are now in your database!`,
+        variant: "default",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Historical Sync Failed",
+        description: "Failed to sync historical orders. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
   // Chart of Accounts with period filtering state
   const [isPayrollDialogOpen, setIsPayrollDialogOpen] = useState(false);
 
@@ -812,17 +845,30 @@ function AccountingContent() {
               {syncMutation.isPending ? 'Syncing...' : 'Sync Now'}
             </Button>
             {canManageAccounts && (
-              <Button 
-                onClick={() => backfillCogsMutation.mutate()}
-                disabled={backfillCogsMutation.isPending}
-                className="flex items-center gap-2"
-                variant="outline"
-                size="sm"
-                data-testid="button-backfill-cogs"
-              >
-                <Database className={`h-4 w-4 ${backfillCogsMutation.isPending ? 'animate-spin' : ''}`} />
-                {backfillCogsMutation.isPending ? 'Backfilling...' : 'Backfill COGS'}
-              </Button>
+              <>
+                <Button 
+                  onClick={() => historicalSyncMutation.mutate()}
+                  disabled={historicalSyncMutation.isPending}
+                  className="flex items-center gap-2"
+                  variant="outline"
+                  size="sm"
+                  data-testid="button-sync-historical"
+                >
+                  <Database className={`h-4 w-4 ${historicalSyncMutation.isPending ? 'animate-spin' : ''}`} />
+                  {historicalSyncMutation.isPending ? 'Syncing 2025...' : 'Sync Historical Orders'}
+                </Button>
+                <Button 
+                  onClick={() => backfillCogsMutation.mutate()}
+                  disabled={backfillCogsMutation.isPending}
+                  className="flex items-center gap-2"
+                  variant="outline"
+                  size="sm"
+                  data-testid="button-backfill-cogs"
+                >
+                  <Database className={`h-4 w-4 ${backfillCogsMutation.isPending ? 'animate-spin' : ''}`} />
+                  {backfillCogsMutation.isPending ? 'Backfilling...' : 'Backfill COGS'}
+                </Button>
+              </>
             )}
             <Button 
               onClick={async () => {
