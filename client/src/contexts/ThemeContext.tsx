@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
-export type SeasonalTheme = 'spring' | 'summer' | 'fall' | 'winter';
+export type SeasonalTheme = 'spring' | 'summer' | 'fall' | 'winter' | 'corporate' | 'clean' | 'light' | 'dark';
 
 export interface ThemeColors {
   // Primary colors
@@ -164,6 +164,130 @@ export const SEASONAL_THEMES: Record<SeasonalTheme, SeasonalThemeConfig> = {
       destructiveForeground: '0 0% 98%',
       success: '160 60% 45%',
       warning: '45 100% 50%'
+    }
+  },
+  corporate: {
+    name: 'Pine Hill Corporate',
+    description: 'Professional brand colors',
+    emoji: '🏢',
+    colors: {
+      primary: '206 26% 48%', // Steel blue #5b7c99
+      primaryForeground: '0 0% 100%',
+      secondary: '227 23% 90%', // Light slate variation
+      secondaryForeground: '234 12% 25%',
+      
+      background: '0 0% 98%', // Clean white background
+      foreground: '234 12% 20%', // Slate blue-gray dark
+      card: '0 0% 100%', // White cards
+      cardForeground: '234 12% 20%',
+      popover: '0 0% 100%',
+      popoverForeground: '234 12% 20%',
+      
+      muted: '227 23% 94%', // Very light slate
+      mutedForeground: '234 12% 43%', // Slate blue-gray #5e637a
+      accent: '132 14% 44%', // Sage green #607e66
+      accentForeground: '0 0% 100%',
+      border: '227 23% 88%',
+      input: '227 23% 92%',
+      ring: '206 26% 48%',
+      
+      destructive: '0 84% 60%',
+      destructiveForeground: '0 0% 98%',
+      success: '82 39% 41%', // Olive green #6f8f3f
+      warning: '45 100% 50%'
+    }
+  },
+  clean: {
+    name: 'Simple & Clean',
+    description: 'Minimalist neutral design',
+    emoji: '✨',
+    colors: {
+      primary: '0 0% 20%', // Almost black
+      primaryForeground: '0 0% 100%',
+      secondary: '0 0% 96%', // Light gray
+      secondaryForeground: '0 0% 20%',
+      
+      background: '0 0% 99%', // Off-white background
+      foreground: '0 0% 10%', // Very dark gray
+      card: '0 0% 100%', // Pure white cards
+      cardForeground: '0 0% 10%',
+      popover: '0 0% 100%',
+      popoverForeground: '0 0% 10%',
+      
+      muted: '0 0% 94%', // Light gray
+      mutedForeground: '0 0% 45%', // Medium gray
+      accent: '0 0% 90%', // Subtle gray accent
+      accentForeground: '0 0% 10%',
+      border: '0 0% 90%',
+      input: '0 0% 95%',
+      ring: '0 0% 20%',
+      
+      destructive: '0 84% 60%',
+      destructiveForeground: '0 0% 98%',
+      success: '142 76% 36%',
+      warning: '45 100% 50%'
+    }
+  },
+  light: {
+    name: 'Bright & Airy',
+    description: 'Maximum brightness and clarity',
+    emoji: '☀️',
+    colors: {
+      primary: '210 100% 50%', // Bright blue
+      primaryForeground: '0 0% 100%',
+      secondary: '210 100% 96%', // Very light blue
+      secondaryForeground: '210 100% 30%',
+      
+      background: '0 0% 100%', // Pure white
+      foreground: '0 0% 5%', // Almost black
+      card: '0 0% 100%', // Pure white cards
+      cardForeground: '0 0% 5%',
+      popover: '0 0% 100%',
+      popoverForeground: '0 0% 5%',
+      
+      muted: '210 40% 96%', // Very light blue-tinted
+      mutedForeground: '210 10% 40%',
+      accent: '200 100% 94%', // Light cyan
+      accentForeground: '200 100% 25%',
+      border: '210 20% 92%',
+      input: '210 20% 96%',
+      ring: '210 100% 50%',
+      
+      destructive: '0 84% 60%',
+      destructiveForeground: '0 0% 98%',
+      success: '142 76% 36%',
+      warning: '45 100% 50%'
+    }
+  },
+  dark: {
+    name: 'Dark Mode',
+    description: 'Easy on the eyes at night',
+    emoji: '🌙',
+    colors: {
+      primary: '210 100% 60%', // Bright blue for dark bg
+      primaryForeground: '0 0% 10%',
+      secondary: '215 20% 25%', // Dark blue-gray
+      secondaryForeground: '0 0% 90%',
+      
+      background: '220 15% 8%', // Very dark blue-gray
+      foreground: '0 0% 95%', // Almost white
+      card: '220 15% 12%', // Dark cards
+      cardForeground: '0 0% 95%',
+      popover: '220 15% 12%',
+      popoverForeground: '0 0% 95%',
+      
+      muted: '215 20% 20%', // Dark muted
+      mutedForeground: '0 0% 65%', // Light gray
+      accent: '210 100% 40%', // Deep blue accent
+      accentForeground: '0 0% 98%',
+      border: '215 20% 25%',
+      input: '215 20% 18%',
+      ring: '210 100% 60%',
+      
+      destructive: '0 84% 60%',
+      destructiveForeground: '0 0% 98%',
+      success: '142 76% 45%',
+      warning: '45 100% 55%'
     }
   }
 };
