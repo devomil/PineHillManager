@@ -3249,12 +3249,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const module = await storage.createTrainingModule(moduleData);
           
           // Create a generation job for AI content creation instead of creating lessons directly
-          const productInfo = {
-            name: product.name,
-            description: product.description || '',
-            images: (product.images || [])
+          const sourceData = {
+            productName: product.name,
+            productDescription: product.description || '',
+            webSearchResults: (product.images || [])
               .filter((img: any) => img.url_standard)
-              .map((img: any) => img.url_standard),
+              .map((img: any) => ({ url: img.url_standard })),
           };
           
           const generationJob = await storage.createGenerationJob({
@@ -3262,7 +3262,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             status: 'pending',
             jobType: 'full_training',
             progress: 0,
-            sourceData: productInfo,
+            sourceData,
             requestedBy: user!.id,
           });
           
