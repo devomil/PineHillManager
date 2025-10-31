@@ -476,14 +476,15 @@ function AccountingContent() {
   });
 
   // Actual payroll costs from time clock entries
-  const { data: actualPayrollData } = useQuery({
-    queryKey: ['/api/accounting/payroll/actual', monthStart, monthEnd],
+  // Use scheduled payroll instead of actual for Monthly Business Intelligence
+  const { data: scheduledPayrollData } = useQuery({
+    queryKey: ['/api/accounting/payroll/scheduled', monthStart, monthEnd],
     queryFn: async () => {
       const params = new URLSearchParams({
         startDate: monthStart,
         endDate: monthEnd
       });
-      const response = await apiRequest('GET', `/api/accounting/payroll/actual?${params.toString()}`);
+      const response = await apiRequest('GET', `/api/accounting/payroll/scheduled?${params.toString()}`);
       return await response.json();
     },
   });
@@ -760,10 +761,10 @@ function AccountingContent() {
 
   // Calculate BI metrics from real data (using monthly P&L data)
   const calculateBIMetrics = () => {
-    // Use real data from multi-location analytics, COGS, and payroll APIs
+    // Use real data from multi-location analytics, COGS, and scheduled payroll APIs
     const monthlyRevenue = parseFloat(monthlyRevenueData?.totalSummary?.totalRevenue || '0');
     const monthlyCOGS = parseFloat(monthlyCogsData?.totalCost || '0');
-    const monthlyPayroll = parseFloat(actualPayrollData?.totalAmount || '0');
+    const monthlyPayroll = parseFloat(scheduledPayrollData?.totalAmount || '0');
     
     // Total expenses = COGS + Payroll + other expenses
     const monthlyExpenses = monthlyCOGS + monthlyPayroll;

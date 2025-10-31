@@ -7338,6 +7338,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get scheduled payroll costs from schedule
+  app.get('/api/accounting/payroll/scheduled', isAuthenticated, async (req, res) => {
+    try {
+      if (!req.user || (req.user.role !== 'admin' && req.user.role !== 'manager')) {
+        return res.status(403).json({ message: 'Admin or Manager access required' });
+      }
+
+      const { startDate, endDate, locationId } = req.query;
+      
+      if (!startDate || !endDate) {
+        return res.status(400).json({ message: 'startDate and endDate are required' });
+      }
+      
+      const locationIdNum = locationId ? parseInt(locationId as string) : undefined;
+      
+      // Get scheduled hours for all employees
+      const employeeHours = await storage.computeScheduledHoursByUser(startDate as string, endDate as string, locationIdNum);
+      
+      let totalAmount = 0;
+      const employeeBreakdown = employeeHours.map(emp => {
+        const hourlyRate = emp.hourlyRate || 0;
+        const totalCost = emp.scheduledHours * hourlyRate;
+        totalAmount += totalCost;
+        
+        return {
+          userId: emp.userId,
+          userName: emp.userName,
+          scheduledHours: emp.scheduledHours,
+          hourlyRate,
+          totalCost
+        };
+      }).filter(emp => emp.totalCost > 0);
+      
+      res.json({
+        startDate,
+        endDate,
+        locationId: locationIdNum,
+        totalAmount: Math.round(totalAmount * 100) / 100,
+        employeeCount: employeeBreakdown.length,
+        employeeBreakdown
+      });
+    } catch (error) {
+      console.error('Error getting scheduled payroll:', error);
+      res.status(500).json({ message: 'Failed to get scheduled payroll' });
+    }
+  });
+
   // Get actual payroll costs from time clock entries
   app.get('/api/accounting/payroll/actual', isAuthenticated, async (req, res) => {
     try {
