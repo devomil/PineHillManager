@@ -3336,6 +3336,94 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Convert existing training modules to staged products (admin/manager)
+  app.post('/api/training/convert-modules-to-products', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      
+      if (user?.role !== 'admin' && user?.role !== 'manager') {
+        return res.status(403).json({ message: 'Only admins and managers can convert modules' });
+      }
+
+      // Get all product training modules that aren't already staged
+      const modules = await storage.getTrainingModules();
+      const productModules = modules.filter((m: any) => m.category === 'Product Training');
+      
+      const results = {
+        converted: 0,
+        skipped: 0,
+        failed: 0,
+      };
+
+      for (const module of productModules) {
+        try {
+          // Check if already staged
+          const existingProducts = await storage.getStagedProducts();
+          const exists = existingProducts.some((p: any) => 
+            p.name === module.title || (p.bigCommerceId && p.bigCommerceId === module.id?.toString())
+          );
+          
+          if (exists) {
+            results.skipped++;
+            continue;
+          }
+
+          // Extract brand from title (e.g., "Hemp Extract Oil (Wild Essentials)" -> "Wild Essentials")
+          const brandMatch = module.title.match(/\(([^)]+)\)/);
+          const brand = brandMatch ? brandMatch[1] : '';
+          
+          // Use the title as the product name
+          const productName = module.title;
+          
+          // Create staged product from module
+          await storage.createStagedProduct({
+            bigCommerceId: null, // These are converted modules, not direct BC imports
+            name: productName,
+            description: module.description || '',
+            brand,
+            category: 'Product Training',
+            sku: '',
+            price: '0',
+            imageUrl: '',
+            productData: {
+              moduleId: module.id,
+              convertedFromModule: true,
+            },
+            status: 'pending',
+            importedBy: user!.id,
+          });
+          
+          results.converted++;
+        } catch (error) {
+          console.error(`Failed to convert module ${module.title}:`, error);
+          results.failed++;
+        }
+      }
+
+      // Generate suggested groupings
+      const { suggestProductGroups } = await import('./utils/product-grouping');
+      const stagedProducts = await storage.getStagedProducts('pending');
+      const suggestedGroups = suggestProductGroups(stagedProducts);
+
+      res.json({
+        ...results,
+        totalModules: productModules.length,
+        suggestedGroups: suggestedGroups.map(g => ({
+          name: g.name,
+          description: g.description,
+          groupingCriteria: g.groupingCriteria,
+          productCount: g.products.length,
+        })),
+      });
+    } catch (error) {
+      console.error('Error converting modules to products:', error);
+      res.status(500).json({ 
+        message: 'Failed to convert modules to products',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
   // Get suggested product groupings (admin/manager)
   app.get('/api/training/products/suggested-groupings', isAuthenticated, async (req, res) => {
     try {

@@ -131,6 +131,28 @@ export default function AdminTrainingCollections() {
     },
   });
 
+  // Convert existing modules to products mutation
+  const convertModulesMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest('POST', '/api/training/convert-modules-to-products', {});
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/training/products/staged"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/training/products/suggested-groupings"] });
+      toast({
+        title: "Success",
+        description: `Converted ${data.converted} modules into ${data.suggestedGroups?.length || 0} suggested collections`,
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Conversion Failed",
+        description: error.message || "Failed to convert modules to products",
+        variant: "destructive",
+      });
+    },
+  });
+
   // Accept suggested grouping
   const acceptSuggestedGrouping = (grouping: any) => {
     setCollectionForm({
@@ -230,10 +252,32 @@ export default function AdminTrainingCollections() {
               Group products into collections for comprehensive training modules
             </p>
           </div>
-          <Button onClick={() => setShowCreateDialog(true)} data-testid="button-create-collection">
-            <Plus className="h-4 w-4 mr-2" />
-            New Collection
-          </Button>
+          <div className="flex gap-2">
+            {stagedProducts.length === 0 && (
+              <Button
+                onClick={() => convertModulesMutation.mutate()}
+                disabled={convertModulesMutation.isPending}
+                variant="outline"
+                data-testid="button-convert-modules"
+              >
+                {convertModulesMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Converting...
+                  </>
+                ) : (
+                  <>
+                    <Grid3x3 className="h-4 w-4 mr-2" />
+                    Convert Existing Modules
+                  </>
+                )}
+              </Button>
+            )}
+            <Button onClick={() => setShowCreateDialog(true)} data-testid="button-create-collection">
+              <Plus className="h-4 w-4 mr-2" />
+              New Collection
+            </Button>
+          </div>
         </div>
 
         <Tabs defaultValue="collections" className="w-full">
