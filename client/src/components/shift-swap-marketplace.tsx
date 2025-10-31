@@ -31,7 +31,8 @@ import {
   ArrowRight,
   Sparkles,
   Target,
-  Bell
+  Bell,
+  Trash2
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { format, parseISO } from "date-fns";
@@ -219,6 +220,34 @@ export default function ShiftSwapMarketplace() {
 
   const handleApproveSwap = (id: number) => {
     approveSwapMutation.mutate(id);
+  };
+
+  // Delete swap request mutation (admin/manager only)
+  const deleteSwapMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const response = await apiRequest("DELETE", `/api/shift-swaps/${id}`);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/shift-swaps"] });
+      toast({
+        title: "Shift Swap Deleted",
+        description: "The shift swap request has been removed.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: "Failed to delete shift swap: " + error.message,
+        variant: "destructive",
+      });
+    }
+  });
+
+  const handleDeleteSwap = (id: number) => {
+    if (confirm("Are you sure you want to delete this shift swap request? This action cannot be undone.")) {
+      deleteSwapMutation.mutate(id);
+    }
   };
 
   // Filter swap requests
@@ -517,9 +546,25 @@ export default function ShiftSwapMarketplace() {
                         {swap.status ?? 'open'}
                       </Badge>
                     </div>
-                    {swap.incentive && (
-                      <Gift className="h-4 w-4 text-green-500" />
-                    )}
+                    <div className="flex items-center gap-2">
+                      {swap.incentive && (
+                        <Gift className="h-4 w-4 text-green-500" />
+                      )}
+                      {(user?.role === "admin" || user?.role === "manager") && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteSwap(swap.id);
+                          }}
+                          data-testid={`button-delete-swap-${swap.id}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
                   </div>
                   <CardTitle className="text-lg flex items-center gap-2">
                     <User className="h-4 w-4" />
