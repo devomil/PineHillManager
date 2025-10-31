@@ -27,12 +27,18 @@ export default function AdminTrainingCollections() {
     description: "",
   });
 
-  // Fetch existing training modules (Product Training category)
+  // Fetch existing training modules (all product-related categories)
   const { data: allModules = [] } = useQuery<any[]>({
     queryKey: ["/api/training/modules"],
   });
 
-  const productModules = allModules.filter((m: any) => m.category === 'Product Training');
+  // Show all modules with product-related categories
+  const productModules = allModules.filter((m: any) => 
+    m.category === 'Product Training' || 
+    m.category === 'Pet Products' || 
+    m.category === 'Services' || 
+    m.category === 'Wellness Products'
+  );
 
   // Fetch staged products
   const { data: stagedProducts = [], isLoading: loadingStaged } = useQuery<any[]>({
@@ -204,7 +210,13 @@ export default function AdminTrainingCollections() {
       name: collection.name,
       description: collection.description || "",
     });
-    setSelectedProducts(collection.products?.map((p: any) => p.id) || []);
+    // Map staged product IDs to module IDs for selection
+    const moduleIds = collection.products?.map((p: any) => {
+      // If productData has moduleId, use that, otherwise use the product name to find the module
+      const matchingModule = allModules.find((m: any) => m.title === p.name);
+      return matchingModule ? matchingModule.id.toString() : null;
+    }).filter(Boolean) || [];
+    setSelectedProducts(moduleIds);
     setShowEditDialog(true);
   };
 
@@ -643,36 +655,44 @@ export default function AdminTrainingCollections() {
               <div>
                 <Label>Manage Products</Label>
                 <div className="mt-2 border rounded-lg max-h-64 overflow-y-auto">
-                  {stagedProducts.map((product: any) => (
-                    <div
-                      key={product.id}
-                      className="p-3 border-b last:border-b-0 flex items-start gap-3 hover:bg-muted/50"
-                    >
-                      <Checkbox
-                        checked={selectedProducts.includes(product.id)}
-                        onCheckedChange={() => toggleProduct(product.id)}
-                        data-testid={`checkbox-edit-product-${product.id}`}
-                      />
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-sm">{product.name}</p>
-                        <div className="flex gap-2 mt-1">
-                          {product.brand && (
-                            <Badge variant="secondary" className="text-xs">
-                              {product.brand}
-                            </Badge>
-                          )}
-                          {product.category && (
+                  {productModules.length === 0 ? (
+                    <div className="p-8 text-center text-muted-foreground">
+                      No product training modules available.
+                    </div>
+                  ) : (
+                    productModules.map((module: any) => (
+                      <div
+                        key={module.id}
+                        className="p-3 border-b last:border-b-0 flex items-start gap-3 hover:bg-muted/50"
+                        data-testid={`edit-module-option-${module.id}`}
+                      >
+                        <Checkbox
+                          checked={selectedProducts.includes(module.id.toString())}
+                          onCheckedChange={() => toggleProduct(module.id.toString())}
+                          data-testid={`checkbox-edit-module-${module.id}`}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm">{module.title}</p>
+                          <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                            {module.description}
+                          </p>
+                          <div className="flex gap-2 mt-1">
                             <Badge variant="outline" className="text-xs">
-                              {product.category}
+                              {module.category}
                             </Badge>
-                          )}
+                            {module.difficulty && (
+                              <Badge variant="secondary" className="text-xs">
+                                {module.difficulty}
+                              </Badge>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    ))
+                  )}
                 </div>
                 <p className="text-sm text-muted-foreground mt-2">
-                  {selectedProducts.length} product{selectedProducts.length !== 1 ? 's' : ''} selected
+                  {selectedProducts.length} module{selectedProducts.length !== 1 ? 's' : ''} selected
                 </p>
               </div>
             </div>

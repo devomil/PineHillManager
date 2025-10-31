@@ -13398,8 +13398,30 @@ export class DatabaseStorage implements IStorage {
     return created;
   }
 
-  async getAllTrainingCollections(): Promise<TrainingCollection[]> {
-    return db.select().from(trainingCollections).orderBy(desc(trainingCollections.createdAt));
+  async getAllTrainingCollections(): Promise<any[]> {
+    const collections = await db.select().from(trainingCollections).orderBy(desc(trainingCollections.createdAt));
+    
+    // Fetch products for each collection
+    const collectionsWithProducts = await Promise.all(
+      collections.map(async (collection) => {
+        const products = await db
+          .select({
+            product: stagedProducts,
+            sortOrder: collectionProducts.sortOrder,
+          })
+          .from(collectionProducts)
+          .leftJoin(stagedProducts, eq(collectionProducts.productId, stagedProducts.id))
+          .where(eq(collectionProducts.collectionId, collection.id))
+          .orderBy(asc(collectionProducts.sortOrder));
+
+        return {
+          ...collection,
+          products: products.map(p => p.product).filter(p => p !== null),
+        };
+      })
+    );
+
+    return collectionsWithProducts;
   }
 
   async getTrainingCollectionById(id: number): Promise<TrainingCollection | undefined> {
