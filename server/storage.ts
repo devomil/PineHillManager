@@ -16,6 +16,10 @@ import {
   trainingSkills,
   trainingModuleSkills,
   employeeSkills,
+  trainingGenerationJobs,
+  stagedProducts,
+  trainingCollections,
+  collectionProducts,
   messages,
   smsDeliveries,
   pushSubscriptions,
@@ -113,6 +117,14 @@ import {
   type TrainingModuleSkill,
   type InsertEmployeeSkill,
   type EmployeeSkill,
+  type InsertTrainingGenerationJob,
+  type TrainingGenerationJob,
+  type InsertStagedProduct,
+  type StagedProduct,
+  type InsertTrainingCollection,
+  type TrainingCollection,
+  type InsertCollectionProduct,
+  type CollectionProduct,
   type InsertMessage,
   type Message,
   insertSMSDeliverySchema,
@@ -1701,6 +1713,27 @@ export interface IStorage {
   updateGenerationJobStatus(id: number, status: string, errorMessage?: string | null): Promise<TrainingGenerationJob>;
   updateGenerationJobResults(id: number, results: any): Promise<TrainingGenerationJob>;
   updateGenerationJobContent(id: number, content: any): Promise<TrainingGenerationJob>;
+
+  // Staged Products Operations
+  createStagedProduct(product: InsertStagedProduct): Promise<StagedProduct>;
+  getStagedProducts(status?: string): Promise<StagedProduct[]>;
+  getStagedProductById(id: number): Promise<StagedProduct | undefined>;
+  updateStagedProduct(id: number, updates: Partial<InsertStagedProduct>): Promise<StagedProduct>;
+  deleteStagedProduct(id: number): Promise<void>;
+
+  // Training Collections Operations
+  createTrainingCollection(collection: InsertTrainingCollection): Promise<TrainingCollection>;
+  getAllTrainingCollections(): Promise<TrainingCollection[]>;
+  getTrainingCollectionById(id: number): Promise<TrainingCollection | undefined>;
+  getTrainingCollectionWithProducts(id: number): Promise<any>;
+  updateTrainingCollection(id: number, updates: Partial<InsertTrainingCollection>): Promise<TrainingCollection>;
+  deleteTrainingCollection(id: number): Promise<void>;
+
+  // Collection Products Operations
+  addProductToCollection(data: InsertCollectionProduct): Promise<CollectionProduct>;
+  removeProductFromCollection(collectionId: number, productId: number): Promise<void>;
+  getCollectionProducts(collectionId: number): Promise<StagedProduct[]>;
+  updateCollectionProductOrder(collectionId: number, productId: number, sortOrder: number): Promise<void>;
 }
 
 // @ts-ignore
@@ -13326,6 +13359,125 @@ export class DatabaseStorage implements IStorage {
       .returning();
 
     return updated;
+  }
+
+  // Staged Products Operations
+  async createStagedProduct(product: InsertStagedProduct): Promise<StagedProduct> {
+    const [created] = await db.insert(stagedProducts).values(product).returning();
+    return created;
+  }
+
+  async getStagedProducts(status?: string): Promise<StagedProduct[]> {
+    if (status) {
+      return db.select().from(stagedProducts).where(eq(stagedProducts.status, status));
+    }
+    return db.select().from(stagedProducts);
+  }
+
+  async getStagedProductById(id: number): Promise<StagedProduct | undefined> {
+    const [product] = await db.select().from(stagedProducts).where(eq(stagedProducts.id, id));
+    return product;
+  }
+
+  async updateStagedProduct(id: number, updates: Partial<InsertStagedProduct>): Promise<StagedProduct> {
+    const [updated] = await db
+      .update(stagedProducts)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(stagedProducts.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteStagedProduct(id: number): Promise<void> {
+    await db.delete(stagedProducts).where(eq(stagedProducts.id, id));
+  }
+
+  // Training Collections Operations
+  async createTrainingCollection(collection: InsertTrainingCollection): Promise<TrainingCollection> {
+    const [created] = await db.insert(trainingCollections).values(collection).returning();
+    return created;
+  }
+
+  async getAllTrainingCollections(): Promise<TrainingCollection[]> {
+    return db.select().from(trainingCollections).orderBy(desc(trainingCollections.createdAt));
+  }
+
+  async getTrainingCollectionById(id: number): Promise<TrainingCollection | undefined> {
+    const [collection] = await db.select().from(trainingCollections).where(eq(trainingCollections.id, id));
+    return collection;
+  }
+
+  async getTrainingCollectionWithProducts(id: number): Promise<any> {
+    const collection = await db.select().from(trainingCollections).where(eq(trainingCollections.id, id));
+    if (!collection || collection.length === 0) return null;
+
+    const products = await db
+      .select({
+        product: stagedProducts,
+        sortOrder: collectionProducts.sortOrder,
+      })
+      .from(collectionProducts)
+      .leftJoin(stagedProducts, eq(collectionProducts.productId, stagedProducts.id))
+      .where(eq(collectionProducts.collectionId, id))
+      .orderBy(asc(collectionProducts.sortOrder));
+
+    return {
+      ...collection[0],
+      products: products.map(p => p.product),
+    };
+  }
+
+  async updateTrainingCollection(id: number, updates: Partial<InsertTrainingCollection>): Promise<TrainingCollection> {
+    const [updated] = await db
+      .update(trainingCollections)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(trainingCollections.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteTrainingCollection(id: number): Promise<void> {
+    await db.delete(trainingCollections).where(eq(trainingCollections.id, id));
+  }
+
+  // Collection Products Operations
+  async addProductToCollection(data: InsertCollectionProduct): Promise<CollectionProduct> {
+    const [created] = await db.insert(collectionProducts).values(data).returning();
+    return created;
+  }
+
+  async removeProductFromCollection(collectionId: number, productId: number): Promise<void> {
+    await db
+      .delete(collectionProducts)
+      .where(
+        and(
+          eq(collectionProducts.collectionId, collectionId),
+          eq(collectionProducts.productId, productId)
+        )
+      );
+  }
+
+  async getCollectionProducts(collectionId: number): Promise<StagedProduct[]> {
+    const products = await db
+      .select({ product: stagedProducts })
+      .from(collectionProducts)
+      .leftJoin(stagedProducts, eq(collectionProducts.productId, stagedProducts.id))
+      .where(eq(collectionProducts.collectionId, collectionId))
+      .orderBy(asc(collectionProducts.sortOrder));
+
+    return products.map(p => p.product).filter((p): p is StagedProduct => p !== null);
+  }
+
+  async updateCollectionProductOrder(collectionId: number, productId: number, sortOrder: number): Promise<void> {
+    await db
+      .update(collectionProducts)
+      .set({ sortOrder })
+      .where(
+        and(
+          eq(collectionProducts.collectionId, collectionId),
+          eq(collectionProducts.productId, productId)
+        )
+      );
   }
 
   // Employee Purchase alias method

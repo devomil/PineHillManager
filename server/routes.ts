@@ -3212,7 +3212,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Import training from BigCommerce API (admin/manager)
+  // Import training from BigCommerce API - Stage products for grouping (admin/manager)
   app.post('/api/training/import/bigcommerce', isAuthenticated, async (req, res) => {
     try {
       const user = req.user;
@@ -3222,65 +3222,285 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const { BigCommerceIntegration } = await import('./integrations/bigcommerce');
-      const { bigCommerceProductToModule, createProductLessons } = await import('./utils/training-import');
+      const { suggestProductGroups } = await import('./utils/product-grouping');
       
       const bc = new BigCommerceIntegration();
       const products = await bc.getProducts(100); // Limit to 100 products for now
       
       const results = {
-        created: 0,
+        staged: 0,
         failed: 0,
         skipped: 0,
-        modules: [] as any[],
+        products: [] as any[],
       };
 
+      // Stage products in the database
       for (const product of products) {
         try {
-          // Check if module already exists
-          const existingModules = await storage.getActiveTrainingModules();
-          const exists = existingModules.some((m: any) => m.title === product.name);
+          // Check if product already staged
+          const existingProducts = await storage.getStagedProducts();
+          const exists = existingProducts.some((p: any) => p.bigCommerceId === product.id);
           
           if (exists) {
             results.skipped++;
             continue;
           }
 
-          const { module: moduleData } = bigCommerceProductToModule(product, user!.id);
-          const module = await storage.createTrainingModule(moduleData);
+          // Extract brand from product metadata
+          const brand = (product as any).brand_name || '';
           
-          // Create a generation job for AI content creation instead of creating lessons directly
-          const sourceData = {
-            productName: product.name,
-            productDescription: product.description || '',
-            webSearchResults: (product.images || [])
-              .filter((img: any) => img.url_standard)
-              .map((img: any) => ({ url: img.url_standard })),
-          };
-          
-          const generationJob = await storage.createGenerationJob({
-            moduleId: module.id,
+          // Get primary category
+          const category = product.categories && product.categories[0] 
+            ? `Category ${product.categories[0]}` 
+            : 'Uncategorized';
+
+          // Stage product for grouping
+          const stagedProduct = await storage.createStagedProduct({
+            bigCommerceId: product.id,
+            name: product.name,
+            description: product.description || '',
+            brand,
+            category,
+            sku: (product as any).sku || '',
+            price: (product as any).price?.toString() || '0',
+            imageUrl: product.images?.[0]?.url_standard || '',
+            productData: product,
             status: 'pending',
-            jobType: 'full_training',
-            progress: 0,
-            sourceData,
-            requestedBy: user!.id,
+            importedBy: user!.id,
           });
           
-          results.created++;
-          results.modules.push({ ...module, generationJobId: generationJob.id });
+          results.staged++;
+          results.products.push(stagedProduct);
         } catch (error) {
-          console.error(`Failed to create module for ${product.name}:`, error);
+          console.error(`Failed to stage product ${product.name}:`, error);
           results.failed++;
         }
       }
 
-      res.json(results);
+      // Generate suggested groupings
+      const stagedProducts = await storage.getStagedProducts('pending');
+      const suggestedGroups = suggestProductGroups(stagedProducts);
+
+      res.json({
+        ...results,
+        suggestedGroups: suggestedGroups.map(g => ({
+          name: g.name,
+          description: g.description,
+          groupingCriteria: g.groupingCriteria,
+          productCount: g.products.length,
+          productIds: g.products.map(p => p.id),
+        })),
+      });
     } catch (error) {
       console.error('Error importing from BigCommerce:', error);
       res.status(500).json({ 
         message: 'Failed to import from BigCommerce', 
         error: error instanceof Error ? error.message : 'Unknown error' 
       });
+    }
+  });
+
+  // Get all staged products (admin/manager)
+  app.get('/api/training/staged-products', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      
+      if (user?.role !== 'admin' && user?.role !== 'manager') {
+        return res.status(403).json({ message: 'Only admins and managers can view staged products' });
+      }
+
+      const status = req.query.status as string | undefined;
+      const products = await storage.getStagedProducts(status);
+      res.json(products);
+    } catch (error) {
+      console.error('Error fetching staged products:', error);
+      res.status(500).json({ message: 'Failed to fetch staged products' });
+    }
+  });
+
+  // Create a training collection from suggested groups (admin/manager)
+  app.post('/api/training/collections', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      
+      if (user?.role !== 'admin' && user?.role !== 'manager') {
+        return res.status(403).json({ message: 'Only admins and managers can create collections' });
+      }
+
+      const { name, description, groupingCriteria, productIds } = req.body;
+
+      if (!name || !productIds || productIds.length === 0) {
+        return res.status(400).json({ message: 'Name and product IDs are required' });
+      }
+
+      // Create the collection
+      const collection = await storage.createTrainingCollection({
+        name,
+        description: description || '',
+        groupingCriteria: groupingCriteria || 'manual',
+        status: 'draft',
+        createdBy: user!.id,
+      });
+
+      // Add products to the collection
+      for (let i = 0; i < productIds.length; i++) {
+        await storage.addProductToCollection({
+          collectionId: collection.id,
+          productId: productIds[i],
+          sortOrder: i,
+        });
+
+        // Mark product as grouped
+        await storage.updateStagedProduct(productIds[i], { status: 'grouped' });
+      }
+
+      res.json(collection);
+    } catch (error) {
+      console.error('Error creating collection:', error);
+      res.status(500).json({ message: 'Failed to create collection' });
+    }
+  });
+
+  // Get all training collections (admin/manager)
+  app.get('/api/training/collections', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      
+      if (user?.role !== 'admin' && user?.role !== 'manager') {
+        return res.status(403).json({ message: 'Only admins and managers can view collections' });
+      }
+
+      const collections = await storage.getAllTrainingCollections();
+      res.json(collections);
+    } catch (error) {
+      console.error('Error fetching collections:', error);
+      res.status(500).json({ message: 'Failed to fetch collections' });
+    }
+  });
+
+  // Get collection with products (admin/manager)
+  app.get('/api/training/collections/:id', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      
+      if (user?.role !== 'admin' && user?.role !== 'manager') {
+        return res.status(403).json({ message: 'Only admins and managers can view collections' });
+      }
+
+      const id = parseInt(req.params.id);
+      const collection = await storage.getTrainingCollectionWithProducts(id);
+      
+      if (!collection) {
+        return res.status(404).json({ message: 'Collection not found' });
+      }
+
+      res.json(collection);
+    } catch (error) {
+      console.error('Error fetching collection:', error);
+      res.status(500).json({ message: 'Failed to fetch collection' });
+    }
+  });
+
+  // Generate AI training content from collection (admin/manager)
+  app.post('/api/training/collections/:id/generate', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      
+      if (user?.role !== 'admin' && user?.role !== 'manager') {
+        return res.status(403).json({ message: 'Only admins and managers can generate training' });
+      }
+
+      const id = parseInt(req.params.id);
+      const collection = await storage.getTrainingCollectionWithProducts(id);
+      
+      if (!collection) {
+        return res.status(404).json({ message: 'Collection not found' });
+      }
+
+      // Create training module for the collection
+      const module = await storage.createTrainingModule({
+        title: collection.name,
+        description: collection.description,
+        category: 'Product Training',
+        difficulty: 'beginner',
+        createdBy: user!.id,
+        isActive: true,
+      });
+
+      // Link module to collection
+      await storage.updateTrainingCollection(id, { 
+        moduleId: module.id,
+        status: 'ready',
+      });
+
+      // Create generation job with multiple products
+      const sourceData = {
+        products: collection.products.map((p: any) => ({
+          name: p.name,
+          description: p.description || '',
+          brand: p.brand || '',
+          category: p.category || '',
+        })),
+      };
+
+      const job = await storage.createGenerationJob({
+        moduleId: module.id,
+        status: 'pending',
+        jobType: 'collection',
+        progress: 0,
+        sourceData,
+        requestedBy: user!.id,
+      });
+
+      // Start AI generation asynchronously
+      const { AITrainingGenerator } = await import('./services/ai-training-generator');
+      
+      (async () => {
+        try {
+          await storage.updateGenerationJobStatus(job.id, 'processing');
+          
+          const generator = new AITrainingGenerator();
+          const content = await generator.generateCollectionTraining({
+            collectionName: collection.name,
+            products: collection.products,
+          });
+
+          await storage.updateGenerationJobResults(job.id, content);
+          await storage.updateGenerationJobStatus(job.id, 'completed');
+          await storage.updateTrainingCollection(id, { status: 'generated' });
+        } catch (error) {
+          console.error('AI generation failed:', error);
+          await storage.updateGenerationJobStatus(
+            job.id,
+            'failed',
+            error instanceof Error ? error.message : 'Unknown error'
+          );
+        }
+      })();
+
+      res.json({ module, job, message: 'AI generation started for collection' });
+    } catch (error) {
+      console.error('Error generating collection training:', error);
+      res.status(500).json({ message: 'Failed to generate training' });
+    }
+  });
+
+  // Delete a training collection (admin only)
+  app.delete('/api/training/collections/:id', isAuthenticated, requireAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      
+      // Mark products as pending again
+      const products = await storage.getCollectionProducts(id);
+      for (const product of products) {
+        await storage.updateStagedProduct(product.id, { status: 'pending' });
+      }
+      
+      await storage.deleteTrainingCollection(id);
+      res.json({ message: 'Collection deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting collection:', error);
+      res.status(500).json({ message: 'Failed to delete collection' });
     }
   });
 

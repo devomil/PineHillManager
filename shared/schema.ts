@@ -460,7 +460,7 @@ export const trainingGenerationJobs = pgTable("training_generation_jobs", {
   id: serial("id").primaryKey(),
   moduleId: integer("module_id").notNull().references(() => trainingModules.id, { onDelete: "cascade" }),
   status: varchar("status").notNull().default("pending"), // pending, processing, completed, failed
-  jobType: varchar("job_type").notNull(), // full_training, lessons_only, assessment_only, enrichment
+  jobType: varchar("job_type").notNull(), // full_training, lessons_only, assessment_only, enrichment, collection
   progress: integer("progress").default(0), // 0-100 percentage
   generatedContent: jsonb("generated_content").$type<{
     lessons?: Array<{ title: string; content: string; duration: number }>;
@@ -472,6 +472,12 @@ export const trainingGenerationJobs = pgTable("training_generation_jobs", {
     productName?: string;
     productDescription?: string;
     webSearchResults?: any[];
+    products?: Array<{
+      name: string;
+      description: string;
+      brand?: string;
+      category?: string;
+    }>;
   }>(),
   errorMessage: text("error_message"),
   requestedBy: varchar("requested_by").notNull().references(() => users.id),
@@ -484,6 +490,58 @@ export const trainingGenerationJobs = pgTable("training_generation_jobs", {
   statusIdx: index("idx_training_generation_jobs_status").on(table.status),
   requestedByIdx: index("idx_training_generation_jobs_requested_by").on(table.requestedBy),
   createdAtIdx: index("idx_training_generation_jobs_created_at").on(table.createdAt),
+}));
+
+// Staged products from BigCommerce before grouping
+export const stagedProducts = pgTable("staged_products", {
+  id: serial("id").primaryKey(),
+  bigCommerceId: integer("bigcommerce_id").notNull(),
+  name: varchar("name").notNull(),
+  description: text("description"),
+  brand: varchar("brand"),
+  category: varchar("category"),
+  sku: varchar("sku"),
+  price: decimal("price", { precision: 10, scale: 2 }),
+  imageUrl: varchar("image_url"),
+  productData: jsonb("product_data"), // Full BigCommerce product JSON
+  status: varchar("status").notNull().default("pending"), // pending, grouped, archived
+  importedBy: varchar("imported_by").notNull().references(() => users.id),
+  importedAt: timestamp("imported_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  bigCommerceIdIdx: index("idx_staged_products_bigcommerce_id").on(table.bigCommerceId),
+  statusIdx: index("idx_staged_products_status").on(table.status),
+  brandIdx: index("idx_staged_products_brand").on(table.brand),
+  categoryIdx: index("idx_staged_products_category").on(table.category),
+}));
+
+// Training collections - groups of products that become modules
+export const trainingCollections = pgTable("training_collections", {
+  id: serial("id").primaryKey(),
+  name: varchar("name").notNull(),
+  description: text("description"),
+  groupingCriteria: varchar("grouping_criteria"), // brand, category, manual
+  status: varchar("status").notNull().default("draft"), // draft, ready, generated
+  createdBy: varchar("created_by").notNull().references(() => users.id),
+  moduleId: integer("module_id").references(() => trainingModules.id, { onDelete: "set null" }), // Created module after AI generation
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  statusIdx: index("idx_training_collections_status").on(table.status),
+  createdByIdx: index("idx_training_collections_created_by").on(table.createdBy),
+}));
+
+// Junction table linking collections to staged products
+export const collectionProducts = pgTable("collection_products", {
+  id: serial("id").primaryKey(),
+  collectionId: integer("collection_id").notNull().references(() => trainingCollections.id, { onDelete: "cascade" }),
+  productId: integer("product_id").notNull().references(() => stagedProducts.id, { onDelete: "cascade" }),
+  sortOrder: integer("sort_order").default(0),
+  addedAt: timestamp("added_at").defaultNow(),
+}, (table) => ({
+  collectionIdIdx: index("idx_collection_products_collection_id").on(table.collectionId),
+  productIdIdx: index("idx_collection_products_product_id").on(table.productId),
+  uniqueCollectionProduct: unique("unique_collection_product").on(table.collectionId, table.productId),
 }));
 
 // Messages
@@ -1081,6 +1139,22 @@ export const employeeSkillsRelations = relations(employeeSkills, ({ one }) => ({
   acquiredFromModule: one(trainingModules, { fields: [employeeSkills.acquiredFrom], references: [trainingModules.id] }),
 }));
 
+export const stagedProductsRelations = relations(stagedProducts, ({ one, many }) => ({
+  importer: one(users, { fields: [stagedProducts.importedBy], references: [users.id] }),
+  collectionProducts: many(collectionProducts),
+}));
+
+export const trainingCollectionsRelations = relations(trainingCollections, ({ one, many }) => ({
+  creator: one(users, { fields: [trainingCollections.createdBy], references: [users.id] }),
+  module: one(trainingModules, { fields: [trainingCollections.moduleId], references: [trainingModules.id] }),
+  collectionProducts: many(collectionProducts),
+}));
+
+export const collectionProductsRelations = relations(collectionProducts, ({ one }) => ({
+  collection: one(trainingCollections, { fields: [collectionProducts.collectionId], references: [trainingCollections.id] }),
+  product: one(stagedProducts, { fields: [collectionProducts.productId], references: [stagedProducts.id] }),
+}));
+
 export const messagesRelations = relations(messages, ({ one, many }) => ({
   sender: one(users, { fields: [messages.senderId], references: [users.id], relationName: "sender" }),
   recipient: one(users, { fields: [messages.recipientId], references: [users.id], relationName: "recipient" }),
@@ -1212,6 +1286,23 @@ export const insertTrainingGenerationJobSchema = createInsertSchema(trainingGene
   id: true,
   createdAt: true,
   updatedAt: true,
+});
+
+export const insertStagedProductSchema = createInsertSchema(stagedProducts).omit({
+  id: true,
+  importedAt: true,
+  updatedAt: true,
+});
+
+export const insertTrainingCollectionSchema = createInsertSchema(trainingCollections).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertCollectionProductSchema = createInsertSchema(collectionProducts).omit({
+  id: true,
+  addedAt: true,
 });
 
 export const insertTrainingLessonSchema = createInsertSchema(trainingLessons).omit({
@@ -1551,6 +1642,15 @@ export type TrainingModule = typeof trainingModules.$inferSelect;
 
 export type InsertTrainingGenerationJob = z.infer<typeof insertTrainingGenerationJobSchema>;
 export type TrainingGenerationJob = typeof trainingGenerationJobs.$inferSelect;
+
+export type InsertStagedProduct = z.infer<typeof insertStagedProductSchema>;
+export type StagedProduct = typeof stagedProducts.$inferSelect;
+
+export type InsertTrainingCollection = z.infer<typeof insertTrainingCollectionSchema>;
+export type TrainingCollection = typeof trainingCollections.$inferSelect;
+
+export type InsertCollectionProduct = z.infer<typeof insertCollectionProductSchema>;
+export type CollectionProduct = typeof collectionProducts.$inferSelect;
 
 export type InsertTrainingLesson = z.infer<typeof insertTrainingLessonSchema>;
 export type TrainingLesson = typeof trainingLessons.$inferSelect;

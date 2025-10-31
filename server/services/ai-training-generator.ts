@@ -79,6 +79,39 @@ export class AITrainingGenerator {
   }
 
   /**
+   * Generate comprehensive training content for a collection of products
+   */
+  async generateCollectionTraining(data: { collectionName: string; products: any[] }): Promise<TrainingContent> {
+    console.log(`🤖 Generating AI training for collection: ${data.collectionName} (${data.products.length} products)`);
+
+    const productList = data.products.map(p => `- ${p.name}: ${p.description || 'No description'}`).join('\n');
+    
+    // Generate enriched description for the collection
+    const enrichedDescription = await this.enrichCollectionDescription(data.collectionName, productList);
+
+    // Generate comprehensive lessons covering all products
+    const lessons = await this.generateCollectionLessons(data.collectionName, data.products, enrichedDescription);
+
+    // Generate assessment questions
+    const questions = await this.generateCollectionQuestions(data.collectionName, data.products, lessons);
+
+    // Identify skills gained
+    const skills = await this.identifyCollectionSkills(data.collectionName, data.products);
+
+    const estimatedDuration = lessons.reduce((sum, lesson) => sum + lesson.duration, 0) + 10;
+
+    console.log(`✅ Generated collection training: ${lessons.length} lessons, ${questions.length} questions`);
+
+    return {
+      enrichedDescription,
+      lessons,
+      questions,
+      skills,
+      estimatedDuration,
+    };
+  }
+
+  /**
    * Enrich basic product description with additional context
    */
   private async enrichProductDescription(product: ProductInfo): Promise<string> {
@@ -461,5 +494,184 @@ Answer: This product is suitable for customers looking for ${product.category ||
       points: 1,
       orderIndex,
     };
+  }
+
+  /**
+   * Collection training helper methods
+   */
+  private async enrichCollectionDescription(collectionName: string, productList: string): Promise<string> {
+    const prompt = `As a product training expert, create a comprehensive training description for this product collection:
+
+Collection: ${collectionName}
+Products:
+${productList}
+
+Provide a training overview (200-250 words) that:
+- Introduces the product collection
+- Explains how these products work together
+- Highlights key benefits and use cases
+- Provides context for staff training
+
+Write in a professional, educational tone.`;
+
+    try {
+      const message = await this.anthropic.messages.create({
+        model: 'claude-3-5-sonnet-20241022',
+        max_tokens: 500,
+        messages: [{ role: 'user', content: prompt }]
+      });
+
+      const content = message.content[0];
+      if (content.type === 'text') {
+        return content.text.trim();
+      }
+    } catch (error) {
+      console.warn('Failed to enrich collection description:', error);
+    }
+    return `Training module for ${collectionName}`;
+  }
+
+  private async generateCollectionLessons(collectionName: string, products: any[], enrichedDescription: string): Promise<GeneratedLesson[]> {
+    const productList = products.map(p => `- ${p.name}: ${p.description || 'Product information'}`).join('\n');
+    
+    const prompt = `Create 3-4 comprehensive training lessons for the "${collectionName}" product collection.
+
+Products in collection:
+${productList}
+
+Collection Overview:
+${enrichedDescription}
+
+For each lesson, provide:
+1. Title
+2. Content (HTML format with proper semantic structure: <h2>, <h3>, <p>, <ul>, etc.)
+3. Duration in minutes
+
+Focus on:
+- Lesson 1: Overview of the collection
+- Lesson 2: Individual product details
+- Lesson 3: Customer service and recommendations
+- Lesson 4 (optional): Advanced topics or comparisons
+
+Return as JSON array:
+[
+  {
+    "title": "Lesson Title",
+    "content": "<h2>Heading</h2><p>Content...</p>",
+    "duration": 10
+  }
+]`;
+
+    try {
+      const message = await this.anthropic.messages.create({
+        model: 'claude-3-5-sonnet-20241022',
+        max_tokens: 3000,
+        messages: [{ role: 'user', content: prompt }]
+      });
+
+      const content = message.content[0];
+      if (content.type === 'text') {
+        const jsonMatch = content.text.match(/\[[\s\S]*\]/);
+        if (jsonMatch) {
+          return JSON.parse(jsonMatch[0]);
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to generate collection lessons:', error);
+    }
+
+    // Fallback lessons
+    return [
+      {
+        title: `${collectionName} - Overview`,
+        content: `<h2>Collection Overview</h2><p>${enrichedDescription}</p>`,
+        duration: 10
+      },
+      {
+        title: `${collectionName} - Products`,
+        content: `<h2>Products in Collection</h2><ul>${products.map(p => `<li><strong>${p.name}</strong>: ${p.description}</li>`).join('')}</ul>`,
+        duration: 15
+      }
+    ];
+  }
+
+  private async generateCollectionQuestions(collectionName: string, products: any[], lessons: GeneratedLesson[]): Promise<GeneratedQuestion[]> {
+    const productList = products.map(p => p.name).join(', ');
+    
+    const prompt = `Create 5-7 assessment questions for the "${collectionName}" product collection training.
+
+Products: ${productList}
+
+Create a mix of:
+- Multiple choice questions (4 options each)
+- True/false questions
+- Questions about product features, benefits, and customer service
+
+Return as JSON array with this structure:
+[
+  {
+    "questionText": "Question text",
+    "questionType": "multiple_choice",
+    "options": [
+      {"id": "option_0", "text": "Option 1", "isCorrect": true},
+      {"id": "option_1", "text": "Option 2", "isCorrect": false}
+    ],
+    "explanation": "Why this is correct",
+    "points": 1,
+    "orderIndex": 0
+  }
+]`;
+
+    try {
+      const message = await this.anthropic.messages.create({
+        model: 'claude-3-5-sonnet-20241022',
+        max_tokens: 2000,
+        messages: [{ role: 'user', content: prompt }]
+      });
+
+      const content = message.content[0];
+      if (content.type === 'text') {
+        const jsonMatch = content.text.match(/\[[\s\S]*\]/);
+        if (jsonMatch) {
+          return JSON.parse(jsonMatch[0]);
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to generate collection questions:', error);
+    }
+
+    // Fallback question
+    return [{
+      questionText: `Which products are included in ${collectionName}?`,
+      questionType: 'multiple_choice',
+      options: [
+        { id: 'option_0', text: productList, isCorrect: true },
+        { id: 'option_1', text: 'Different products', isCorrect: false },
+        { id: 'option_2', text: 'No products', isCorrect: false },
+        { id: 'option_3', text: 'Unknown', isCorrect: false },
+      ],
+      explanation: `The ${collectionName} includes: ${productList}`,
+      points: 1,
+      orderIndex: 0,
+    }];
+  }
+
+  private async identifyCollectionSkills(collectionName: string, products: any[]): Promise<string[]> {
+    const brands = [...new Set(products.map(p => p.brand).filter(Boolean))];
+    const categories = [...new Set(products.map(p => p.category).filter(Boolean))];
+
+    const skills = [
+      `${collectionName} Product Knowledge`,
+      'Multi-Product Customer Service',
+    ];
+
+    if (brands.length > 0) {
+      skills.push(...brands.map(b => `${b} Brand Expertise`));
+    }
+    if (categories.length > 0) {
+      skills.push(...categories.map(c => `${c} Category Knowledge`));
+    }
+
+    return skills.slice(0, 5);
   }
 }
