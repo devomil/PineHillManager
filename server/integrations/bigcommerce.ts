@@ -26,12 +26,25 @@ export class BigCommerceIntegration {
   private baseUrl: string;
 
   constructor() {
-    this.storeHash = process.env.BIGCOMMERCE_STORE_HASH || '';
+    const rawStoreHash = process.env.BIGCOMMERCE_STORE_HASH || '';
+    
+    // Extract store hash from URL if full URL was provided
+    // Expected: just "fgfzksauss" but might be "https://api.bigcommerce.com/stores/fgfzksauss/v3/"
+    if (rawStoreHash.includes('bigcommerce.com')) {
+      const match = rawStoreHash.match(/stores\/([^\/]+)/);
+      this.storeHash = match ? match[1] : rawStoreHash;
+      console.log(`📦 Extracted store hash from URL: ${this.storeHash}`);
+    } else {
+      this.storeHash = rawStoreHash;
+    }
+    
     this.accessToken = process.env.BIGCOMMERCE_ACCESS_TOKEN || '';
     this.baseUrl = `https://api.bigcommerce.com/stores/${this.storeHash}/v3`;
 
     if (!this.storeHash || !this.accessToken) {
       console.warn('BigCommerce credentials not configured');
+    } else {
+      console.log(`✅ BigCommerce configured with store hash: ${this.storeHash}`);
     }
   }
 
