@@ -49,29 +49,45 @@ export class BigCommerceIntegration {
       let hasMore = true;
 
       while (hasMore && products.length < limit) {
-        const response = await fetch(
-          `${this.baseUrl}/catalog/products?limit=250&page=${page}&include=images`,
-          {
-            headers: {
-              'X-Auth-Token': this.accessToken,
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-            },
-          }
-        );
+        const url = `${this.baseUrl}/catalog/products?limit=250&page=${page}&include=images`;
+        console.log(`🛒 Calling BigCommerce API: ${url}`);
+        
+        const response = await fetch(url, {
+          headers: {
+            'X-Auth-Token': this.accessToken,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+        });
 
         if (!response.ok) {
-          throw new Error(`BigCommerce API error: ${response.status} ${response.statusText}`);
+          const errorBody = await response.text();
+          console.error(`❌ BigCommerce API error response:`, {
+            status: response.status,
+            statusText: response.statusText,
+            url,
+            storeHash: this.storeHash,
+            body: errorBody
+          });
+          throw new Error(`BigCommerce API error: ${response.status} ${response.statusText} - ${errorBody}`);
         }
 
         const data = await response.json();
+        
+        if (!data.data || !Array.isArray(data.data)) {
+          console.error(`❌ Unexpected BigCommerce response structure:`, data);
+          throw new Error('Unexpected response structure from BigCommerce API');
+        }
+        
+        console.log(`✅ Fetched ${data.data.length} products from BigCommerce (page ${page})`);
         products.push(...data.data);
 
         // Check if there are more pages
-        hasMore = data.meta.pagination.current_page < data.meta.pagination.total_pages;
+        hasMore = data.meta?.pagination?.current_page < data.meta?.pagination?.total_pages;
         page++;
       }
 
+      console.log(`✅ Total BigCommerce products fetched: ${products.length}`);
       return products;
     } catch (error) {
       console.error('Error fetching BigCommerce products:', error);
