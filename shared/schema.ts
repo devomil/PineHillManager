@@ -298,12 +298,17 @@ export const trainingModules = pgTable("training_modules", {
   thumbnailUrl: varchar("thumbnail_url"),
   createdBy: varchar("created_by").references(() => users.id),
   isActive: boolean("is_active").default(true),
+  publicationStatus: varchar("publication_status").default("draft"), // draft, pending_review, approved, published
+  reviewedBy: varchar("reviewed_by").references(() => users.id),
+  reviewedAt: timestamp("reviewed_at"),
+  reviewNotes: text("review_notes"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => ({
   categoryIdx: index("idx_training_modules_category").on(table.category),
   isActiveIdx: index("idx_training_modules_is_active").on(table.isActive),
   isMandatoryIdx: index("idx_training_modules_is_mandatory").on(table.isMandatory),
+  publicationStatusIdx: index("idx_training_modules_publication_status").on(table.publicationStatus),
 }));
 
 // Training lessons - Break modules into individual lessons

@@ -3594,14 +3594,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: 'Collection not found' });
       }
 
-      // Create final exam module for the collection
+      // Create final exam module for the collection (in draft status for review)
       const finalExamModule = await storage.createTrainingModule({
         title: `${collection.name} - Final Exam`,
         description: `Comprehensive assessment covering all products in ${collection.name}`,
         category: 'Product Training',
         difficulty: 'intermediate',
         createdBy: user!.id,
-        isActive: true,
+        isActive: false, // Not active until approved
+        publicationStatus: 'pending_review',
       });
 
       // Update collection with final exam module ID and set to ready status
@@ -3643,14 +3644,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
           for (let i = 0; i < collection.products.length; i++) {
             const product = collection.products[i];
             
-            // Create individual module
+            // Create individual module (in draft status for review)
             const productModule = await storage.createTrainingModule({
               title: product.name,
               description: product.description || `Learn about ${product.name}`,
               category: 'Product Training',
               difficulty: 'beginner',
               createdBy: user!.id,
-              isActive: true,
+              isActive: false, // Not active until approved
+              publicationStatus: 'pending_review',
             });
 
             individualModuleIds.push(productModule.id);
