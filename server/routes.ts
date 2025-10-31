@@ -3318,6 +3318,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get all staged products - alternate path (admin/manager)
+  app.get('/api/training/products/staged', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      
+      if (user?.role !== 'admin' && user?.role !== 'manager') {
+        return res.status(403).json({ message: 'Only admins and managers can view staged products' });
+      }
+
+      const status = req.query.status as string | undefined;
+      const products = await storage.getStagedProducts(status);
+      res.json(products);
+    } catch (error) {
+      console.error('Error fetching staged products:', error);
+      res.status(500).json({ message: 'Failed to fetch staged products' });
+    }
+  });
+
+  // Get suggested product groupings (admin/manager)
+  app.get('/api/training/products/suggested-groupings', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      
+      if (user?.role !== 'admin' && user?.role !== 'manager') {
+        return res.status(403).json({ message: 'Only admins and managers can view groupings' });
+      }
+
+      const { suggestProductGroups } = await import('./utils/product-grouping');
+      const stagedProducts = await storage.getStagedProducts('pending');
+      const suggestedGroups = suggestProductGroups(stagedProducts);
+
+      res.json({
+        groupings: suggestedGroups.map(g => ({
+          suggestedName: g.name,
+          type: g.groupingCriteria,
+          products: g.products,
+        })),
+      });
+    } catch (error) {
+      console.error('Error getting suggested groupings:', error);
+      res.status(500).json({ message: 'Failed to get suggested groupings' });
+    }
+  });
+
   // Create a training collection from suggested groups (admin/manager)
   app.post('/api/training/collections', isAuthenticated, async (req, res) => {
     try {
