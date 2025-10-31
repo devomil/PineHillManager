@@ -791,6 +791,7 @@ export interface IStorage {
   getPosSaleByAmazonOrderId?(amazonOrderId: string): Promise<PosSale | undefined>;
   getSalesByDateRange(startDate: string, endDate: string): Promise<PosSale[]>;
   getSalesByLocation(locationId: number, startDate?: string, endDate?: string): Promise<PosSale[]>;
+  getPosSalesByLocationAndDateRange(locationId: number, startDate: string, endDate: string): Promise<PosSale[]>;
   getUnpostedSales(): Promise<PosSale[]>;
   updatePosSale(id: number, sale: Partial<InsertPosSale>): Promise<PosSale>;
   markSaleAsPostedToQB(id: number, qbTransactionId: string): Promise<PosSale>;
@@ -798,6 +799,7 @@ export interface IStorage {
   // POS Sale Items
   createPosSaleItem(item: InsertPosSaleItem): Promise<PosSaleItem>;
   getSaleItems(saleId: number): Promise<PosSaleItem[]>;
+  getPosSaleItemsBySaleIds(saleIds: number[]): Promise<PosSaleItem[]>;
   updatePosSaleItem(id: number, item: Partial<InsertPosSaleItem>): Promise<PosSaleItem>;
   deleteSaleItem(id: number): Promise<void>;
 
@@ -1374,6 +1376,7 @@ export interface IStorage {
   getOrderRefunds(orderId: number): Promise<Refund[]>; // Alias for order-specific refunds
   getRefund(id: number): Promise<Refund | undefined>;
   getRefundByExternalId(externalRefundId: string): Promise<Refund | undefined>;
+  getRefundsByDateAndLocation(date: string, locationId: number): Promise<Refund[]>;
   updateRefund(id: number, updates: Partial<InsertRefund>): Promise<Refund>;
   deleteRefund(id: number): Promise<void>;
   getRefundAnalytics(filters: {
@@ -1428,6 +1431,7 @@ export interface IStorage {
   }): Promise<DailySales[]>;
   getDailySalesById(id: number): Promise<DailySales | undefined>;
   getDailySalesByMerchantAndDate(merchantId: number, date: string): Promise<DailySales | undefined>;
+  getDailySalesByLocationAndDate(locationId: number, date: string): Promise<DailySales | undefined>;
   updateDailySales(id: number, updates: Partial<InsertDailySales>): Promise<DailySales>;
   deleteDailySales(id: number): Promise<void>;
   aggregateDailySales(date: string, merchantId: number, locationId?: number, channel?: string): Promise<DailySales>;
@@ -6077,11 +6081,31 @@ export class DatabaseStorage implements IStorage {
     }).where(eq(posSales.id, id)).returning();
     return updated;
   }
+  async getPosSalesByLocationAndDateRange(locationId: number, startDate: string, endDate: string): Promise<PosSale[]> {
+    const sales = await db
+      .select()
+      .from(posSales)
+      .where(and(
+        eq(posSales.locationId, locationId),
+        gte(posSales.saleDate, startDate),
+        lte(posSales.saleDate, endDate)
+      ))
+      .orderBy(asc(posSales.saleDate));
+    return sales;
+  }
   async createPosSaleItem(item: InsertPosSaleItem): Promise<PosSaleItem> {
     const [saleItem] = await db.insert(posSaleItems).values(item).returning();
     return saleItem;
   }
   async getSaleItems(saleId: number): Promise<PosSaleItem[]> { return []; }
+  async getPosSaleItemsBySaleIds(saleIds: number[]): Promise<PosSaleItem[]> {
+    if (saleIds.length === 0) return [];
+    const items = await db
+      .select()
+      .from(posSaleItems)
+      .where(sql`${posSaleItems.saleId} = ANY(${saleIds})`);
+    return items;
+  }
   async updatePosSaleItem(id: number, item: Partial<InsertPosSaleItem>): Promise<PosSaleItem> { throw new Error("Not implemented yet"); }
   async deleteSaleItem(id: number): Promise<void> { }
   async createHsaExpense(expense: InsertHsaExpense): Promise<HsaExpense> { throw new Error("Not implemented yet"); }
@@ -12009,6 +12033,42 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
+  async getRefundsByDateAndLocation(date: string, locationId: number): Promise<Refund[]> {
+    try {
+      // Need to join with orders to get location info
+      const results = await db
+        .select({
+          id: refunds.id,
+          orderId: refunds.orderId,
+          originalPaymentId: refunds.originalPaymentId,
+          externalRefundId: refunds.externalRefundId,
+          refundAmount: refunds.refundAmount,
+          refundReason: refunds.refundReason,
+          refundType: refunds.refundType,
+          refundMethod: refunds.refundMethod,
+          refundStatus: refunds.refundStatus,
+          processedBy: refunds.processedBy,
+          processedAt: refunds.processedAt,
+          refundDate: refunds.refundDate,
+          createdTime: refunds.createdTime,
+          notes: refunds.notes,
+          customerNotified: refunds.customerNotified,
+          createdAt: refunds.createdAt,
+          updatedAt: refunds.updatedAt,
+        })
+        .from(refunds)
+        .innerJoin(orders, eq(refunds.orderId, orders.id))
+        .where(and(
+          eq(refunds.refundDate, date),
+          eq(orders.locationId, locationId)
+        ));
+      return results as Refund[];
+    } catch (error) {
+      console.error('Error getting refunds by date and location:', error);
+      return [];
+    }
+  }
+
   // Item Cost History Operations
   async getLatestItemCost(itemId: string, merchantId: number): Promise<ItemCostHistory | undefined> {
     try {
@@ -12042,6 +12102,23 @@ export class DatabaseStorage implements IStorage {
       return result;
     } catch (error) {
       console.error('Error getting daily sales by merchant and date:', error);
+      return undefined;
+    }
+  }
+
+  async getDailySalesByLocationAndDate(locationId: number, date: string): Promise<DailySales | undefined> {
+    try {
+      const [result] = await db
+        .select()
+        .from(dailySales)
+        .where(and(
+          eq(dailySales.locationId, locationId),
+          eq(dailySales.date, date)
+        ))
+        .limit(1);
+      return result;
+    } catch (error) {
+      console.error('Error getting daily sales by location and date:', error);
       return undefined;
     }
   }

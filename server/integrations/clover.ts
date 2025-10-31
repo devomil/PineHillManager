@@ -1196,12 +1196,17 @@ export class CloverIntegration {
         }
       }
 
+      // Aggregate daily sales data for the synced date range
+      console.log(`Starting daily aggregation for ${config.merchantName}...`);
+      await this.aggregateHistoricalDailySales(config, actualStartDate, actualEndDate);
+      console.log(`Daily aggregation completed for ${config.merchantName}`);
+
       // Log successful completion
       await storage.createIntegrationLog({
         system: 'clover',
         operation: 'sync_historical_sales',
         status: 'success',
-        message: `Historical sync completed for ${config.merchantName}: ${processedCount} new orders processed, ${skippedCount} orders already existed`
+        message: `Historical sync completed for ${config.merchantName}: ${processedCount} new orders processed, ${skippedCount} orders already existed, daily sales aggregated`
       });
 
       console.log(`Historical sync for ${config.merchantName} completed: ${processedCount} new orders, ${skippedCount} skipped`);
@@ -1216,6 +1221,162 @@ export class CloverIntegration {
         message: `Historical sync failed for ${config.merchantName}: ${error instanceof Error ? error.message : 'Unknown error'}`
       });
 
+      throw error;
+    }
+  }
+
+  // Aggregate historical daily sales data for a date range
+  private async aggregateHistoricalDailySales(config: any, startDate: Date, endDate: Date): Promise<void> {
+    try {
+      const startDateStr = startDate.toISOString().split('T')[0];
+      const endDateStr = endDate.toISOString().split('T')[0];
+      
+      console.log(`Aggregating daily sales for ${config.merchantName} from ${startDateStr} to ${endDateStr}`);
+      
+      // Get all pos_sales for this location in the date range
+      const posSalesData = await storage.getPosSalesByLocationAndDateRange(
+        config.id,
+        startDateStr,
+        endDateStr
+      );
+      
+      if (!posSalesData || posSalesData.length === 0) {
+        console.log(`No sales data found for aggregation for ${config.merchantName}`);
+        return;
+      }
+      
+      // Group sales by date
+      const salesByDate = new Map<string, typeof posSalesData>();
+      posSalesData.forEach((sale: any) => {
+        const dateKey = sale.saleDate;
+        if (!salesByDate.has(dateKey)) {
+          salesByDate.set(dateKey, []);
+        }
+        salesByDate.get(dateKey)!.push(sale);
+      });
+      
+      console.log(`Found ${salesByDate.size} unique dates with sales for ${config.merchantName}`);
+      
+      // Aggregate each date
+      let aggregatedDays = 0;
+      for (const [date, sales] of Array.from(salesByDate.entries())) {
+        try {
+          // Calculate basic metrics
+          const orderCount = sales.length;
+          const customerCount = sales.reduce((sum: number, s: any) => sum + (s.customerCount || 1), 0);
+          const grossSales = sales.reduce((sum: number, s: any) => sum + parseFloat(s.totalAmount || '0'), 0);
+          const taxAmount = sales.reduce((sum: number, s: any) => sum + parseFloat(s.taxAmount || '0'), 0);
+          const tipAmount = sales.reduce((sum: number, s: any) => sum + parseFloat(s.tipAmount || '0'), 0);
+          
+          // Get all line items for these sales to calculate discounts and COGS
+          const saleIds = sales.map((s: any) => s.id);
+          const lineItems = await storage.getPosSaleItemsBySaleIds(saleIds);
+          
+          const itemCount = lineItems.reduce((sum: number, item: any) => sum + parseInt(item.quantity || '0'), 0);
+          const totalDiscounts = lineItems.reduce((sum: number, item: any) => sum + parseFloat(item.discountAmount || '0'), 0);
+          const totalCogs = lineItems.reduce((sum: number, item: any) => {
+            const quantity = parseInt(item.quantity || '0');
+            const cost = parseFloat(item.costBasis || '0');
+            return sum + (quantity * cost);
+          }, 0);
+          
+          // Calculate derived metrics
+          const netSales = grossSales - totalDiscounts;
+          const totalRevenue = grossSales; // Total amount already includes tax
+          const grossMargin = netSales - totalCogs;
+          const grossMarginPercent = netSales > 0 ? (grossMargin / netSales) * 100 : 0;
+          
+          // Calculate payment breakdowns
+          const paymentBreakdown: any = {};
+          sales.forEach((sale: any) => {
+            const method = sale.paymentMethod || 'unknown';
+            const amount = parseFloat(sale.totalAmount || '0');
+            if (!paymentBreakdown[method]) {
+              paymentBreakdown[method] = { count: 0, amount: 0 };
+            }
+            paymentBreakdown[method].count++;
+            paymentBreakdown[method].amount += amount;
+          });
+          
+          // Get refund data if any exist
+          const refunds = await storage.getRefundsByDateAndLocation(date, config.id);
+          const refundCount = refunds.length;
+          const refundAmount = refunds.reduce((sum: number, r: any) => sum + parseFloat(r.refundAmount || '0'), 0);
+          
+          // Calculate average metrics
+          const avgOrderValue = orderCount > 0 ? totalRevenue / orderCount : 0;
+          const avgItemsPerOrder = orderCount > 0 ? itemCount / orderCount : 0;
+          
+          // Find peak hour (hour with most revenue)
+          const hourlyRevenue = new Map<number, number>();
+          sales.forEach((sale: any) => {
+            if (sale.saleTime) {
+              const hour = new Date(sale.saleTime).getHours();
+              const amount = parseFloat(sale.totalAmount || '0');
+              hourlyRevenue.set(hour, (hourlyRevenue.get(hour) || 0) + amount);
+            }
+          });
+          
+          let peakHour = null;
+          let peakHourRevenue = 0;
+          hourlyRevenue.forEach((revenue, hour) => {
+            if (revenue > peakHourRevenue) {
+              peakHourRevenue = revenue;
+              peakHour = hour;
+            }
+          });
+          
+          // Create daily sales record
+          const dailySalesData = {
+            merchantId: config.merchantId || 1,
+            locationId: config.id,
+            channel: 'pos',
+            date,
+            orderCount,
+            itemCount,
+            customerCount,
+            grossSales: grossSales.toFixed(2),
+            discounts: totalDiscounts.toFixed(2),
+            netSales: netSales.toFixed(2),
+            taxAmount: taxAmount.toFixed(2),
+            tipAmount: tipAmount.toFixed(2),
+            totalRevenue: totalRevenue.toFixed(2),
+            totalCogs: totalCogs.toFixed(2),
+            grossMargin: grossMargin.toFixed(2),
+            grossMarginPercent: grossMarginPercent.toFixed(2),
+            refundCount,
+            refundAmount: refundAmount.toFixed(2),
+            paymentsBreakdown: paymentBreakdown,
+            avgOrderValue: avgOrderValue.toFixed(2),
+            avgItemsPerOrder: avgItemsPerOrder.toFixed(2),
+            peakHour,
+            peakHourRevenue: peakHourRevenue.toFixed(2),
+            topCategories: [], // Could be enhanced later if needed
+            dataCompleteness: '100' // Historical data is complete
+          };
+          
+          // Check if daily sales record exists and update or create
+          const existing = await storage.getDailySalesByLocationAndDate(config.id, date);
+          if (existing) {
+            await storage.updateDailySales(existing.id, dailySalesData);
+          } else {
+            await storage.createDailySales(dailySalesData);
+          }
+          
+          aggregatedDays++;
+          if (aggregatedDays % 10 === 0) {
+            console.log(`Aggregated ${aggregatedDays}/${salesByDate.size} days for ${config.merchantName}`);
+          }
+        } catch (dateError) {
+          console.error(`Error aggregating date ${date} for ${config.merchantName}:`, dateError);
+          // Continue with next date
+        }
+      }
+      
+      console.log(`Daily aggregation completed: ${aggregatedDays} days processed for ${config.merchantName}`);
+      
+    } catch (error) {
+      console.error(`Error in aggregateHistoricalDailySales for ${config.merchantName}:`, error);
       throw error;
     }
   }
