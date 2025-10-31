@@ -1158,6 +1158,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Delete shift swap (Admin/Manager only)
+  app.delete('/api/shift-swaps/:id', isAuthenticated, async (req, res) => {
+    try {
+      if (!req.user || (req.user.role !== 'admin' && req.user.role !== 'manager')) {
+        return res.status(403).json({ error: 'Admin or Manager access required' });
+      }
+
+      const id = parseInt(req.params.id);
+      await storage.deleteShiftSwapRequest(id);
+      
+      res.json({ success: true, message: 'Shift swap deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting shift swap:', error);
+      res.status(500).json({ error: 'Failed to delete shift swap' });
+    }
+  });
+
   // PDF Schedule Generation (Puppeteer-based for perfect single-page control)
   app.post('/api/schedules/generate-pdf', isAuthenticated, async (req, res) => {
     try {

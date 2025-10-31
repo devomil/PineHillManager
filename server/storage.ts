@@ -406,6 +406,14 @@ export interface IStorage {
   getShiftCoverageRequests(status?: string): Promise<ShiftCoverageRequest[]>;
   coverShiftRequest(id: number, coveredBy: string): Promise<ShiftCoverageRequest>;
 
+  // Shift swap marketplace
+  getShiftSwapRequests(status?: string, userId?: string): Promise<any[]>;
+  createShiftSwapRequest(requestData: InsertShiftSwapRequest): Promise<ShiftSwapRequest>;
+  updateShiftSwapRequest(id: number, updates: Partial<InsertShiftSwapRequest>): Promise<ShiftSwapRequest>;
+  respondToShiftSwap(id: number, takerId: string, action: "accept" | "reject", responseMessage?: string): Promise<ShiftSwapRequest>;
+  approveShiftSwap(id: number, approverId: string): Promise<ShiftSwapRequest>;
+  deleteShiftSwapRequest(id: number): Promise<void>;
+
   // Announcements
   createAnnouncement(announcement: InsertAnnouncement): Promise<Announcement>;
   getAllAnnouncements(): Promise<Announcement[]>;
@@ -2201,6 +2209,17 @@ export class DatabaseStorage implements IStorage {
       return request;
     } catch (error) {
       console.error("Error approving shift swap request:", error);
+      throw error;
+    }
+  }
+
+  async deleteShiftSwapRequest(id: number): Promise<void> {
+    try {
+      await db
+        .delete(shiftSwapRequests)
+        .where(eq(shiftSwapRequests.id, id));
+    } catch (error) {
+      console.error("Error deleting shift swap request:", error);
       throw error;
     }
   }
