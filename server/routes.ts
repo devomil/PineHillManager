@@ -992,6 +992,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
         updatedAt: new Date()
       };
       const newSwap = await storage.createShiftSwapRequest(swapData);
+      
+      // Send SMS notifications to selected employees
+      if (req.body.notifiedEmployeeIds && Array.isArray(req.body.notifiedEmployeeIds) && req.body.notifiedEmployeeIds.length > 0) {
+        // Send notifications asynchronously (don't wait)
+        setImmediate(async () => {
+          try {
+            // Get shift details by fetching the full swap with schedule
+            const swaps = await storage.getShiftSwapRequests(undefined, undefined);
+            const fullSwap = swaps.find((s: any) => s.id === newSwap.id);
+            const requester = req.user;
+            
+            if (fullSwap && fullSwap.originalSchedule && requester) {
+              const schedule = fullSwap.originalSchedule;
+              const shiftDate = new Date(schedule.date).toLocaleDateString('en-US', { 
+                weekday: 'short', 
+                month: 'short', 
+                day: 'numeric' 
+              });
+              const shiftTime = `${new Date(schedule.startTime).toLocaleTimeString('en-US', { 
+                hour: 'numeric', 
+                minute: '2-digit' 
+              })} - ${new Date(schedule.endTime).toLocaleTimeString('en-US', { 
+                hour: 'numeric', 
+                minute: '2-digit' 
+              })}`;
+              
+              let urgencyText = '';
+              if (swapData.urgencyLevel === 'urgent') urgencyText = '\n⚡ URGENT';
+              else if (swapData.urgencyLevel === 'high') urgencyText = '\n🔥 High Priority';
+              
+              const message = `🔄 New Shift Swap Available!\n${requester.firstName} ${requester.lastName} needs coverage for:\n📅 ${shiftDate}\n⏰ ${shiftTime}${urgencyText}\n\nView details in Shift Swap Marketplace.`;
+              
+              // Send SMS to each selected employee
+              for (const employeeId of req.body.notifiedEmployeeIds.slice(0, 10)) { // Max 10
+                try {
+                  const employee = await storage.getUser(employeeId);
+                  if (employee && employee.phone && employee.smsConsent) {
+                    await smsService.sendSMS({
+                      to: employee.phone,
+                      message: message,
+                      priority: swapData.urgencyLevel === 'urgent' ? 'high' : 'normal',
+                      messageId: `shift-swap-${newSwap.id}-${employeeId}`
+                    });
+                  }
+                } catch (smsError) {
+                  console.error(`Failed to send SMS to employee ${employeeId}:`, smsError);
+                }
+              }
+            }
+          } catch (notifError) {
+            console.error('Error sending shift swap notifications:', notifError);
+          }
+        });
+      }
+      
       res.status(201).json(newSwap);
     } catch (error) {
       console.error('Error creating shift swap request:', error);
