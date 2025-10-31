@@ -8,6 +8,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
@@ -28,7 +30,8 @@ import {
   Users,
   ArrowRight,
   Sparkles,
-  Target
+  Target,
+  Bell
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { format, parseISO } from "date-fns";
@@ -59,7 +62,8 @@ export default function ShiftSwapMarketplace() {
     offerMessage: "",
     urgencyLevel: "normal",
     incentive: "",
-    expiresAt: ""
+    expiresAt: "",
+    notifiedEmployeeIds: [] as string[]
   });
 
   const [responseForm, setResponseForm] = useState({
@@ -87,6 +91,16 @@ export default function ShiftSwapMarketplace() {
     enabled: !!user
   });
 
+  // Fetch all active employees for notification selection
+  const { data: allEmployees = [] } = useQuery<UserType[]>({
+    queryKey: ["/api/users"],
+    queryFn: async () => {
+      const response = await apiRequest("GET", "/api/users");
+      return response.json();
+    },
+    enabled: !!user
+  });
+
   // Create swap request mutation
   const createSwapMutation = useMutation({
     mutationFn: async (data: typeof createForm) => {
@@ -94,7 +108,8 @@ export default function ShiftSwapMarketplace() {
         ...data,
         originalScheduleId: parseInt(data.scheduleId),
         requesterId: user?.id,
-        expiresAt: data.expiresAt ? new Date(data.expiresAt).toISOString() : undefined
+        expiresAt: data.expiresAt ? new Date(data.expiresAt).toISOString() : undefined,
+        notifiedEmployeeIds: data.notifiedEmployeeIds
       });
       return response.json();
     },
@@ -107,11 +122,12 @@ export default function ShiftSwapMarketplace() {
         offerMessage: "",
         urgencyLevel: "normal",
         incentive: "",
-        expiresAt: ""
+        expiresAt: "",
+        notifiedEmployeeIds: []
       });
       toast({
         title: "Swap Request Created",
-        description: "Your shift swap request has been posted to the marketplace.",
+        description: "Your shift swap request has been posted to the marketplace. SMS notifications sent to selected employees.",
       });
     },
     onError: (error: any) => {
@@ -122,6 +138,34 @@ export default function ShiftSwapMarketplace() {
       });
     }
   });
+
+  // Handler for employee checkbox selection (max 10)
+  const handleEmployeeToggle = (employeeId: string) => {
+    setCreateForm((prev) => {
+      const isSelected = prev.notifiedEmployeeIds.includes(employeeId);
+      if (isSelected) {
+        // Remove employee
+        return {
+          ...prev,
+          notifiedEmployeeIds: prev.notifiedEmployeeIds.filter((id) => id !== employeeId)
+        };
+      } else {
+        // Add employee (max 10)
+        if (prev.notifiedEmployeeIds.length >= 10) {
+          toast({
+            title: "Maximum Selection Reached",
+            description: "You can notify up to 10 employees",
+            variant: "destructive",
+          });
+          return prev;
+        }
+        return {
+          ...prev,
+          notifiedEmployeeIds: [...prev.notifiedEmployeeIds, employeeId]
+        };
+      }
+    });
+  };
 
   // Respond to swap request mutation
   const respondToSwapMutation = useMutation({
@@ -350,6 +394,50 @@ export default function ShiftSwapMarketplace() {
                   onChange={(e) => setCreateForm({...createForm, incentive: e.target.value})}
                   placeholder="e.g., 'I'll cover your next weekend shift' or 'Coffee on me!'"
                 />
+              </div>
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <Label className="flex items-center gap-2">
+                    <Bell className="h-4 w-4" />
+                    Notify Employees via SMS (Optional)
+                  </Label>
+                  <span className="text-xs text-muted-foreground">
+                    {createForm.notifiedEmployeeIds.length}/10 selected
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground mb-3">
+                  Select up to 10 employees to notify about this shift swap via SMS
+                </p>
+                <ScrollArea className="h-[200px] border rounded-lg p-3">
+                  <div className="space-y-2">
+                    {allEmployees
+                      .filter((emp: UserType) => emp.id !== user?.id && emp.isActive)
+                      .map((employee: UserType) => (
+                        <div
+                          key={employee.id}
+                          className="flex items-center space-x-2 p-2 hover:bg-gray-50 rounded-md"
+                        >
+                          <Checkbox
+                            id={`employee-${employee.id}`}
+                            checked={createForm.notifiedEmployeeIds.includes(employee.id)}
+                            onCheckedChange={() => handleEmployeeToggle(employee.id)}
+                            data-testid={`checkbox-employee-${employee.id}`}
+                          />
+                          <label
+                            htmlFor={`employee-${employee.id}`}
+                            className="flex-1 text-sm cursor-pointer"
+                          >
+                            <div className="font-medium">
+                              {employee.firstName} {employee.lastName}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {employee.department} • {employee.role}
+                            </div>
+                          </label>
+                        </div>
+                      ))}
+                  </div>
+                </ScrollArea>
               </div>
             </div>
             <DialogFooter>

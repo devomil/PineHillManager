@@ -232,6 +232,7 @@ export const shiftSwapRequests = pgTable("shift_swap_requests", {
   responseMessage: text("response_message"),
   urgencyLevel: varchar("urgency_level").default("normal"), // low, normal, high, urgent
   incentive: text("incentive"), // e.g., "Will cover your next weekend shift", monetary compensation, etc.
+  notifiedEmployeeIds: varchar("notified_employee_ids").array(), // Employee IDs to notify via SMS (max 10)
   approvedBy: varchar("approved_by").references(() => users.id),
   approvedAt: timestamp("approved_at"),
   completedAt: timestamp("completed_at"),
