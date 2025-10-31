@@ -3346,7 +3346,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Get all product training modules that aren't already staged
-      const modules = await storage.getTrainingModules();
+      const modules = await storage.getAllTrainingModules();
       const productModules = modules.filter((m: any) => m.category === 'Product Training');
       
       const results = {
@@ -3377,7 +3377,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           // Create staged product from module
           await storage.createStagedProduct({
-            bigCommerceId: null, // These are converted modules, not direct BC imports
             name: productName,
             description: module.description || '',
             brand,
@@ -3450,7 +3449,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Create a training collection from suggested groups (admin/manager)
+  // Create a training collection from suggested groups or modules (admin/manager)
   app.post('/api/training/collections', isAuthenticated, async (req, res) => {
     try {
       const user = req.user;
@@ -3462,7 +3461,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { name, description, groupingCriteria, productIds } = req.body;
 
       if (!name || !productIds || productIds.length === 0) {
-        return res.status(400).json({ message: 'Name and product IDs are required' });
+        return res.status(400).json({ message: 'Name and module IDs are required' });
       }
 
       // Create the collection
@@ -3474,16 +3473,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
         createdBy: user!.id,
       });
 
-      // Add products to the collection
-      for (let i = 0; i < productIds.length; i++) {
+      // Convert module IDs to staged products if needed
+      const stagedProductIds: number[] = [];
+      const allModules = await storage.getAllTrainingModules();
+      
+      for (const id of productIds) {
+        // Check if this is a training module ID
+        const module = allModules.find((m: any) => m.id === parseInt(id));
+        
+        if (module) {
+          // This is a training module - convert it to a staged product
+          const existingProducts = await storage.getStagedProducts();
+          let stagedProduct = existingProducts.find((p: any) => 
+            p.productData?.moduleId === module.id
+          );
+
+          if (!stagedProduct) {
+            // Extract brand from title (e.g., "Hemp Extract Oil (Wild Essentials)" -> "Wild Essentials")
+            const brandMatch = module.title.match(/\(([^)]+)\)/);
+            const brand = brandMatch ? brandMatch[1] : '';
+
+            // Create new staged product from module
+            stagedProduct = await storage.createStagedProduct({
+              name: module.title,
+              description: module.description || '',
+              brand,
+              category: module.category,
+              sku: '',
+              price: '0',
+              imageUrl: '',
+              productData: {
+                moduleId: module.id,
+                convertedFromModule: true,
+              },
+              status: 'grouped',
+              importedBy: user!.id,
+            });
+          }
+
+          stagedProductIds.push(stagedProduct.id);
+        } else {
+          // This is already a staged product ID
+          stagedProductIds.push(parseInt(id));
+        }
+      }
+
+      // Add staged products to the collection
+      for (let i = 0; i < stagedProductIds.length; i++) {
         await storage.addProductToCollection({
           collectionId: collection.id,
-          productId: productIds[i],
+          productId: stagedProductIds[i],
           sortOrder: i,
         });
 
         // Mark product as grouped
-        await storage.updateStagedProduct(productIds[i], { status: 'grouped' });
+        await storage.updateStagedProduct(stagedProductIds[i], { status: 'grouped' });
       }
 
       res.json(collection);

@@ -27,6 +27,13 @@ export default function AdminTrainingCollections() {
     description: "",
   });
 
+  // Fetch existing training modules (Product Training category)
+  const { data: allModules = [] } = useQuery<any[]>({
+    queryKey: ["/api/training/modules"],
+  });
+
+  const productModules = allModules.filter((m: any) => m.category === 'Product Training');
+
   // Fetch staged products
   const { data: stagedProducts = [], isLoading: loadingStaged } = useQuery<any[]>({
     queryKey: ["/api/training/products/staged"],
@@ -508,7 +515,7 @@ export default function AdminTrainingCollections() {
             <DialogHeader>
               <DialogTitle>Create Collection</DialogTitle>
               <DialogDescription>
-                Group products together to generate comprehensive training modules
+                Group existing training modules together for organization
               </DialogDescription>
             </DialogHeader>
 
@@ -536,35 +543,36 @@ export default function AdminTrainingCollections() {
               </div>
 
               <div>
-                <Label>Select Products</Label>
+                <Label>Select Training Modules</Label>
                 <div className="mt-2 border rounded-lg max-h-64 overflow-y-auto">
-                  {stagedProducts.length === 0 ? (
+                  {productModules.length === 0 ? (
                     <div className="p-8 text-center text-muted-foreground">
-                      No products available. Import products first.
+                      No product training modules available.
                     </div>
                   ) : (
-                    stagedProducts.map((product: any) => (
+                    productModules.map((module: any) => (
                       <div
-                        key={product.id}
+                        key={module.id}
                         className="p-3 border-b last:border-b-0 flex items-start gap-3 hover:bg-muted/50"
-                        data-testid={`product-option-${product.id}`}
+                        data-testid={`module-option-${module.id}`}
                       >
                         <Checkbox
-                          checked={selectedProducts.includes(product.id)}
-                          onCheckedChange={() => toggleProduct(product.id)}
-                          data-testid={`checkbox-product-${product.id}`}
+                          checked={selectedProducts.includes(module.id.toString())}
+                          onCheckedChange={() => toggleProduct(module.id.toString())}
+                          data-testid={`checkbox-module-${module.id}`}
                         />
                         <div className="flex-1 min-w-0">
-                          <p className="font-medium text-sm">{product.name}</p>
+                          <p className="font-medium text-sm">{module.title}</p>
+                          <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                            {module.description}
+                          </p>
                           <div className="flex gap-2 mt-1">
-                            {product.brand && (
+                            <Badge variant="outline" className="text-xs">
+                              {module.category}
+                            </Badge>
+                            {module.difficulty && (
                               <Badge variant="secondary" className="text-xs">
-                                {product.brand}
-                              </Badge>
-                            )}
-                            {product.category && (
-                              <Badge variant="outline" className="text-xs">
-                                {product.category}
+                                {module.difficulty}
                               </Badge>
                             )}
                           </div>

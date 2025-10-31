@@ -492,10 +492,10 @@ export const trainingGenerationJobs = pgTable("training_generation_jobs", {
   createdAtIdx: index("idx_training_generation_jobs_created_at").on(table.createdAt),
 }));
 
-// Staged products from BigCommerce before grouping
+// Staged products from BigCommerce or converted from modules before grouping
 export const stagedProducts = pgTable("staged_products", {
   id: serial("id").primaryKey(),
-  bigCommerceId: integer("bigcommerce_id").notNull(),
+  bigCommerceId: integer("bigcommerce_id"), // Nullable for module conversions
   name: varchar("name").notNull(),
   description: text("description"),
   brand: varchar("brand"),
@@ -503,7 +503,7 @@ export const stagedProducts = pgTable("staged_products", {
   sku: varchar("sku"),
   price: decimal("price", { precision: 10, scale: 2 }),
   imageUrl: varchar("image_url"),
-  productData: jsonb("product_data"), // Full BigCommerce product JSON
+  productData: jsonb("product_data"), // Full BigCommerce product JSON or module data
   status: varchar("status").notNull().default("pending"), // pending, grouped, archived
   importedBy: varchar("imported_by").notNull().references(() => users.id),
   importedAt: timestamp("imported_at").defaultNow(),
