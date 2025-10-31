@@ -1089,7 +1089,7 @@ export class CloverIntegration {
         
         const ordersResponse = await this.makeCloverAPICallWithConfig(
           `orders?filter=createdTime>=${startTimestamp}&createdTime<=${endTimestamp}&expand=lineItems,payments&limit=${limit}&offset=${offset}`,
-          config
+          this.config
         );
 
         if (!ordersResponse || !ordersResponse.elements || ordersResponse.elements.length === 0) {
