@@ -413,13 +413,41 @@ export default function AdminTrainingCollections() {
                           ))}
                         </div>
                       </div>
+
+                      {collection.status === 'generated' && collection.individualModuleIds?.length > 0 && (
+                        <div className="bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-lg p-3">
+                          <p className="text-sm font-medium text-green-800 dark:text-green-200 mb-2">
+                            🎉 Training Generated!
+                          </p>
+                          <div className="space-y-1 text-xs text-green-700 dark:text-green-300">
+                            <div className="flex items-center gap-2">
+                              <CheckCircle className="h-3 w-3" />
+                              <span>{collection.individualModuleIds.length} Individual Training Modules</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <CheckCircle className="h-3 w-3" />
+                              <span>{collection.individualModuleIds.length} Product Assessments</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <CheckCircle className="h-3 w-3" />
+                              <span>1 Final Comprehensive Exam</span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
                       <Button
                         className="w-full"
                         onClick={() => generateTrainingMutation.mutate(collection.id)}
-                        disabled={generateTrainingMutation.isPending || !collection.products?.length}
+                        disabled={generateTrainingMutation.isPending || !collection.products?.length || collection.status === 'generated'}
                         data-testid={`button-generate-${collection.id}`}
                       >
-                        {generateTrainingMutation.isPending ? (
+                        {collection.status === 'generated' ? (
+                          <>
+                            <CheckCircle className="h-4 w-4 mr-2" />
+                            Training Complete
+                          </>
+                        ) : generateTrainingMutation.isPending ? (
                           <>
                             <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                             Generating...
