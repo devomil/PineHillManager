@@ -3248,25 +3248,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const { module: moduleData } = bigCommerceProductToModule(product, user!.id);
           const module = await storage.createTrainingModule(moduleData);
           
-          // Create lessons
-          const parsedProduct = {
-            id: product.id.toString(),
+          // Create a generation job for AI content creation instead of creating lessons directly
+          const productInfo = {
             name: product.name,
-            description: product.description,
-            images: (product.images || []).map((img, idx) => ({
-              url: img.url_standard,
-              isThumbnail: img.is_thumbnail,
-              sortOrder: img.sort_order || idx,
-            })),
+            description: product.description || '',
+            images: (product.images || [])
+              .filter((img: any) => img.url_standard)
+              .map((img: any) => img.url_standard),
           };
           
-          const lessons = createProductLessons(parsedProduct, module.id);
-          for (const lessonData of lessons) {
-            await storage.createTrainingLesson(lessonData);
-          }
+          const generationJob = await storage.createGenerationJob({
+            moduleId: module.id,
+            status: 'pending',
+            jobType: 'full_training',
+            progress: 0,
+            sourceData: productInfo,
+            requestedBy: user!.id,
+          });
           
           results.created++;
-          results.modules.push(module);
+          results.modules.push({ ...module, generationJobId: generationJob.id });
         } catch (error) {
           console.error(`Failed to create module for ${product.name}:`, error);
           results.failed++;
