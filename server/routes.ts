@@ -8954,47 +8954,64 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'No active Clover configurations found' });
       }
 
-      const syncResults = [];
-      
-      for (const config of activeConfigs) {
-        try {
-          console.log(`Starting comprehensive historical sync for ${config.merchantName}`);
-          
-          const { CloverIntegration } = await import('./integrations/clover');
-          const cloverIntegration = new CloverIntegration(config);
-          
-          await cloverIntegration.syncHistoricalSales(
-            config,
-            startDate ? new Date(startDate) : new Date('2025-01-01'),
-            endDate ? new Date(endDate) : new Date()
-          );
-          
-          syncResults.push({
-            merchantId: config.merchantId,
-            merchantName: config.merchantName,
-            success: true,
-            message: 'Historical sync completed successfully'
-          });
-        } catch (error) {
-          console.error(`Historical sync failed for ${config.merchantName}:`, error);
-          syncResults.push({
-            merchantId: config.merchantId,
-            merchantName: config.merchantName,
-            success: false,
-            message: `Sync failed: ${error instanceof Error ? error.message : 'Unknown error'}`
-          });
-        }
-      }
-
+      // Return immediately and run sync in background to avoid timeout
       res.json({
-        message: 'Comprehensive historical sync completed',
-        results: syncResults,
-        totalConfigs: activeConfigs.length,
-        successCount: syncResults.filter(r => r.success).length
+        message: 'Historical sync started in background',
+        totalLocations: activeConfigs.length,
+        locations: activeConfigs.map(c => c.merchantName),
+        note: 'This process will continue running. Check the console logs for progress.'
       });
+
+      // Run sync in background (don't await)
+      (async () => {
+        console.log(`🚀 Starting background historical sync for ${activeConfigs.length} locations`);
+        const syncResults = [];
+        
+        for (const config of activeConfigs) {
+          try {
+            console.log(`\n📍 Starting comprehensive historical sync for ${config.merchantName}`);
+            
+            const { CloverIntegration } = await import('./integrations/clover');
+            const cloverIntegration = new CloverIntegration(config);
+            
+            await cloverIntegration.syncHistoricalSales(
+              config,
+              startDate ? new Date(startDate) : new Date('2025-01-01'),
+              endDate ? new Date(endDate) : new Date()
+            );
+            
+            syncResults.push({
+              merchantId: config.merchantId,
+              merchantName: config.merchantName,
+              success: true,
+              message: 'Historical sync completed successfully'
+            });
+            
+            console.log(`✅ Completed sync for ${config.merchantName}`);
+          } catch (error) {
+            console.error(`❌ Historical sync failed for ${config.merchantName}:`, error);
+            syncResults.push({
+              merchantId: config.merchantId,
+              merchantName: config.merchantName,
+              success: false,
+              message: `Sync failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+            });
+          }
+        }
+        
+        console.log(`\n🏁 All location syncs completed!`);
+        console.log(`✅ Successful: ${syncResults.filter(r => r.success).length}/${syncResults.length}`);
+        console.log(`❌ Failed: ${syncResults.filter(r => !r.success).length}/${syncResults.length}`);
+        syncResults.forEach(result => {
+          console.log(`  ${result.success ? '✅' : '❌'} ${result.merchantName}: ${result.message}`);
+        });
+      })().catch(error => {
+        console.error('Fatal error in background sync:', error);
+      });
+      
     } catch (error) {
-      console.error('Error in comprehensive historical sync:', error);
-      res.status(500).json({ message: 'Failed to run comprehensive historical sync' });
+      console.error('Error starting comprehensive historical sync:', error);
+      res.status(500).json({ message: 'Failed to start comprehensive historical sync' });
     }
   });
 
