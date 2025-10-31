@@ -22,6 +22,7 @@ export default function AdminTrainingCollections() {
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [selectedCollection, setSelectedCollection] = useState<any>(null);
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
   const [collectionForm, setCollectionForm] = useState({
     name: "",
     description: "",
@@ -39,6 +40,17 @@ export default function AdminTrainingCollections() {
     m.category === 'Services' || 
     m.category === 'Wellness Products'
   );
+
+  // Filter modules based on search query
+  const filteredModules = productModules.filter((module: any) => {
+    if (!searchQuery) return true;
+    const query = searchQuery.toLowerCase();
+    return (
+      module.title?.toLowerCase().includes(query) ||
+      module.description?.toLowerCase().includes(query) ||
+      module.category?.toLowerCase().includes(query)
+    );
+  });
 
   // Fetch staged products
   const { data: stagedProducts = [], isLoading: loadingStaged } = useQuery<any[]>({
@@ -217,6 +229,7 @@ export default function AdminTrainingCollections() {
       return matchingModule ? matchingModule.id.toString() : null;
     }).filter(Boolean) || [];
     setSelectedProducts(moduleIds);
+    setSearchQuery(""); // Clear search when opening dialog
     setShowEditDialog(true);
   };
 
@@ -292,7 +305,13 @@ export default function AdminTrainingCollections() {
                 )}
               </Button>
             )}
-            <Button onClick={() => setShowCreateDialog(true)} data-testid="button-create-collection">
+            <Button 
+              onClick={() => {
+                setSearchQuery(""); // Clear search when opening dialog
+                setShowCreateDialog(true);
+              }} 
+              data-testid="button-create-collection"
+            >
               <Plus className="h-4 w-4 mr-2" />
               New Collection
             </Button>
@@ -330,7 +349,13 @@ export default function AdminTrainingCollections() {
                   <p className="text-muted-foreground mb-4">
                     Create your first collection or accept suggested groupings
                   </p>
-                  <Button onClick={() => setShowCreateDialog(true)} data-testid="button-create-first-collection">
+                  <Button 
+                    onClick={() => {
+                      setSearchQuery(""); // Clear search when opening dialog
+                      setShowCreateDialog(true);
+                    }} 
+                    data-testid="button-create-first-collection"
+                  >
                     <Plus className="h-4 w-4 mr-2" />
                     Create Collection
                   </Button>
@@ -556,13 +581,20 @@ export default function AdminTrainingCollections() {
 
               <div>
                 <Label>Select Training Modules</Label>
+                <Input
+                  placeholder="Search modules by name, description, or category..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="mt-2"
+                  data-testid="input-search-modules"
+                />
                 <div className="mt-2 border rounded-lg max-h-64 overflow-y-auto">
-                  {productModules.length === 0 ? (
+                  {filteredModules.length === 0 ? (
                     <div className="p-8 text-center text-muted-foreground">
-                      No product training modules available.
+                      {searchQuery ? 'No modules match your search.' : 'No product training modules available.'}
                     </div>
                   ) : (
-                    productModules.map((module: any) => (
+                    filteredModules.map((module: any) => (
                       <div
                         key={module.id}
                         className="p-3 border-b last:border-b-0 flex items-start gap-3 hover:bg-muted/50"
@@ -600,7 +632,13 @@ export default function AdminTrainingCollections() {
             </div>
 
             <DialogFooter>
-              <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  setShowCreateDialog(false);
+                  setSearchQuery(""); // Clear search when closing
+                }}
+              >
                 Cancel
               </Button>
               <Button
@@ -654,13 +692,20 @@ export default function AdminTrainingCollections() {
 
               <div>
                 <Label>Manage Products</Label>
+                <Input
+                  placeholder="Search modules by name, description, or category..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="mt-2"
+                  data-testid="input-search-edit-modules"
+                />
                 <div className="mt-2 border rounded-lg max-h-64 overflow-y-auto">
-                  {productModules.length === 0 ? (
+                  {filteredModules.length === 0 ? (
                     <div className="p-8 text-center text-muted-foreground">
-                      No product training modules available.
+                      {searchQuery ? 'No modules match your search.' : 'No product training modules available.'}
                     </div>
                   ) : (
-                    productModules.map((module: any) => (
+                    filteredModules.map((module: any) => (
                       <div
                         key={module.id}
                         className="p-3 border-b last:border-b-0 flex items-start gap-3 hover:bg-muted/50"
@@ -698,7 +743,13 @@ export default function AdminTrainingCollections() {
             </div>
 
             <DialogFooter>
-              <Button variant="outline" onClick={() => setShowEditDialog(false)}>
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  setShowEditDialog(false);
+                  setSearchQuery(""); // Clear search when closing
+                }}
+              >
                 Cancel
               </Button>
               <Button

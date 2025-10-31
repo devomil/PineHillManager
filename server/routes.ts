@@ -40,7 +40,7 @@ import {
 import { z } from "zod";
 import { eq, and, or, isNull, isNotNull } from "drizzle-orm";
 import { db } from "./db";
-import { posSaleItems } from "@shared/schema";
+import { posSaleItems, stagedProducts } from "@shared/schema";
 
 // Configure multer for file uploads
 const uploadsDir = path.join(process.cwd(), 'uploads');
@@ -3689,16 +3689,70 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Update collection details
       await storage.updateTrainingCollection(id, { name, description });
 
-      // Add new product associations
+      // Add new product associations (convert module IDs to staged products)
       if (productIds && productIds.length > 0) {
-        for (const productId of productIds) {
-          await storage.addProductToCollection(id, parseInt(productId));
-          await storage.updateStagedProduct(parseInt(productId), { status: 'assigned' });
+        const stagedProductIds: number[] = [];
+        
+        for (const pid of productIds) {
+          // Check if this is a training module ID (not a staged product ID)
+          const module = await storage.getTrainingModuleById(parseInt(pid));
+          
+          if (module) {
+            // Convert module to staged product
+            const existingStaged = await db.select()
+              .from(stagedProducts)
+              .where(
+                and(
+                  eq(stagedProducts.name, module.title),
+                  eq(stagedProducts.importedBy, user!.id)
+                )
+              );
+
+            let stagedProduct;
+            if (existingStaged.length > 0) {
+              stagedProduct = existingStaged[0];
+            } else {
+              // Create staged product from module
+              const brandMatch = module.title.match(/\((.*?)\)/);
+              const brand = brandMatch ? brandMatch[1] : null;
+
+              stagedProduct = await storage.createStagedProduct({
+                bigCommerceId: null,
+                name: module.title,
+                description: module.description || '',
+                brand,
+                category: module.category,
+                sku: null,
+                price: null,
+                imageUrl: null,
+                productData: { moduleId: module.id },
+                status: 'pending',
+                importedBy: user!.id,
+              });
+            }
+
+            stagedProductIds.push(stagedProduct.id);
+          } else {
+            // This is already a staged product ID
+            stagedProductIds.push(parseInt(pid));
+          }
+        }
+
+        // Add staged products to the collection
+        for (let i = 0; i < stagedProductIds.length; i++) {
+          await storage.addProductToCollection({
+            collectionId: id,
+            productId: stagedProductIds[i],
+            sortOrder: i,
+          });
+
+          // Mark product as grouped
+          await storage.updateStagedProduct(stagedProductIds[i], { status: 'grouped' });
         }
       }
 
       // Get updated collection
-      const collection = await storage.getTrainingCollectionById(id);
+      const collection = await storage.getTrainingCollectionWithProducts(id);
       res.json(collection);
     } catch (error) {
       console.error('Error updating collection:', error);
