@@ -1091,29 +1091,33 @@ export default function EnhancedMonthlyScheduler() {
             </div>
           )}
 
-          {/* Employee Panel - Only show for admins/managers */}
+      {/* Calendar Grid with Side Employee Panel - Show for managers/admins always, or employees when they click View All */}
+      {(!isEmployee || showCalendarView) && (
+      <div className="flex gap-4 w-full">
+          {/* Employee Panel - Only show for admins/managers - Side Panel */}
           {!isEmployee && (
-            <div className="mb-6">
-              <Card>
+            <div className="w-64 flex-shrink-0">
+              <Card className="sticky top-4">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
+                  <CardTitle className="flex items-center gap-2 text-base">
                     <Users2 className="h-5 w-5" />
-                    Active Employees (Drag to schedule)
+                    Active Employees
                   </CardTitle>
+                  <p className="text-xs text-muted-foreground">Drag to schedule</p>
                 </CardHeader>
-                <CardContent className="max-h-[200px] overflow-y-auto">
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-2">
+                <CardContent className="max-h-[calc(100vh-200px)] overflow-y-auto">
+                  <div className="space-y-2">
                     {activeEmployees.map((employee: UserType) => (
                       <div
                         key={employee.id}
                         draggable
                         onDragStart={() => handleDragStart(employee)}
                         onDragEnd={handleDragEnd}
-                        className={`p-2 border rounded-lg cursor-move hover:bg-gray-50 transition-colors text-center ${
+                        className={`p-3 border rounded-lg cursor-move hover:bg-gray-50 transition-colors ${
                           isDragging ? 'opacity-50' : ''
                         }`}
                       >
-                        <div className="font-medium text-xs">
+                        <div className="font-medium text-sm">
                           {employee.firstName} {employee.lastName}
                         </div>
                         <div className="text-xs text-muted-foreground truncate">
@@ -1126,10 +1130,8 @@ export default function EnhancedMonthlyScheduler() {
               </Card>
             </div>
           )}
-
-      {/* Calendar Grid - Show for managers/admins always, or employees when they click View All */}
-      {(!isEmployee || showCalendarView) && (
-      <div className="w-full">
+          
+          <div className="flex-1 min-w-0">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
@@ -1301,6 +1303,7 @@ export default function EnhancedMonthlyScheduler() {
               </div>
             </CardContent>
           </Card>
+          </div>
       </div>
       )}
 
