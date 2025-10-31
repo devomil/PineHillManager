@@ -5656,8 +5656,9 @@ export class DatabaseStorage implements IStorage {
       const userName = `${schedule.firstName || ''} ${schedule.lastName || ''}`.trim();
       
       // Calculate hours for this schedule
-      const startTime = new Date(`1970-01-01T${schedule.startTime}`);
-      const endTime = new Date(`1970-01-01T${schedule.endTime}`);
+      // Times are stored as full ISO timestamps (e.g., "2025-10-07T10:00:00")
+      const startTime = new Date(schedule.startTime);
+      const endTime = new Date(schedule.endTime);
       const hours = (endTime.getTime() - startTime.getTime()) / (1000 * 60 * 60);
 
       if (userHoursMap.has(userId)) {
