@@ -12,9 +12,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { BookOpen, Plus, Users, Award, TrendingUp, Upload, ShoppingCart, Loader2, Eye, Sparkles, CheckCircle, XCircle, Clock } from "lucide-react";
+import { BookOpen, Plus, Users, Award, TrendingUp, Upload, ShoppingCart, Loader2, Eye, Sparkles, CheckCircle, XCircle, Clock, FolderPlus } from "lucide-react";
 import AdminLayout from "@/components/admin-layout";
 import TrainingReports from "@/pages/training-reports";
+import { Link } from "wouter";
 
 // Helper function to strip HTML tags from description for preview
 function stripHtml(html: string): string {
@@ -276,6 +277,12 @@ export default function AdminTraining() {
           </p>
         </div>
         <div className="flex gap-2">
+          <Link href="/admin/training/collections">
+            <Button variant="outline" data-testid="button-manage-collections">
+              <FolderPlus className="w-4 h-4 mr-2" />
+              Manage Collections
+            </Button>
+          </Link>
           <Button onClick={() => setShowImportDialog(true)} variant="outline" data-testid="button-import-training">
             <Upload className="w-4 h-4 mr-2" />
             Import Training

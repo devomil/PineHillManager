@@ -3485,6 +3485,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Update a training collection (admin/manager)
+  app.put('/api/training/collections/:id', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      
+      if (user?.role !== 'admin' && user?.role !== 'manager') {
+        return res.status(403).json({ message: 'Only admins and managers can update collections' });
+      }
+
+      const id = parseInt(req.params.id);
+      const { name, description, productIds } = req.body;
+
+      if (!name) {
+        return res.status(400).json({ message: 'Collection name is required' });
+      }
+
+      // Get current products
+      const currentProducts = await storage.getCollectionProducts(id);
+      
+      // Remove old product associations
+      for (const product of currentProducts) {
+        await storage.removeProductFromCollection(id, product.id);
+        await storage.updateStagedProduct(product.id, { status: 'pending' });
+      }
+
+      // Update collection details
+      await storage.updateTrainingCollection(id, { name, description });
+
+      // Add new product associations
+      if (productIds && productIds.length > 0) {
+        for (const productId of productIds) {
+          await storage.addProductToCollection(id, parseInt(productId));
+          await storage.updateStagedProduct(parseInt(productId), { status: 'assigned' });
+        }
+      }
+
+      // Get updated collection
+      const collection = await storage.getTrainingCollectionById(id);
+      res.json(collection);
+    } catch (error) {
+      console.error('Error updating collection:', error);
+      res.status(500).json({ message: 'Failed to update collection' });
+    }
+  });
+
   // Delete a training collection (admin only)
   app.delete('/api/training/collections/:id', isAuthenticated, requireAdmin, async (req, res) => {
     try {
