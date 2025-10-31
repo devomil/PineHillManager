@@ -5619,7 +5619,19 @@ export class DatabaseStorage implements IStorage {
     scheduledHours: number;
     hourlyRate: number | null;
   }>> {
-    let query = db
+    // Build where conditions - include locationId if provided
+    const conditions = [
+      gte(workSchedules.date, startDate),
+      lte(workSchedules.date, endDate),
+      eq(workSchedules.status, 'scheduled'),
+      eq(users.isActive, true)
+    ];
+    
+    if (locationId !== undefined) {
+      conditions.push(eq(workSchedules.locationId, locationId));
+    }
+
+    const schedules = await db
       .select({
         userId: workSchedules.userId,
         firstName: users.firstName,
@@ -5630,18 +5642,7 @@ export class DatabaseStorage implements IStorage {
       })
       .from(workSchedules)
       .innerJoin(users, eq(workSchedules.userId, users.id))
-      .where(and(
-        gte(workSchedules.date, startDate),
-        lte(workSchedules.date, endDate),
-        eq(workSchedules.status, 'scheduled'),
-        eq(users.isActive, true)
-      ));
-
-    if (locationId) {
-      query = (query as any).where(eq(workSchedules.locationId, locationId)); // Drizzle type inference issue
-    }
-
-    const schedules = await query;
+      .where(and(...conditions));
 
     // Group by user and calculate total hours
     const userHoursMap = new Map<string, {
