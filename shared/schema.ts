@@ -471,6 +471,8 @@ export const trainingGenerationJobs = pgTable("training_generation_jobs", {
   sourceData: jsonb("source_data").$type<{
     productName?: string;
     productDescription?: string;
+    brand?: string;
+    category?: string;
     webSearchResults?: any[];
     products?: Array<{
       name: string;
@@ -523,7 +525,8 @@ export const trainingCollections = pgTable("training_collections", {
   groupingCriteria: varchar("grouping_criteria"), // brand, category, manual
   status: varchar("status").notNull().default("draft"), // draft, ready, generated
   createdBy: varchar("created_by").notNull().references(() => users.id),
-  moduleId: integer("module_id").references(() => trainingModules.id, { onDelete: "set null" }), // Created module after AI generation
+  moduleId: integer("module_id").references(() => trainingModules.id, { onDelete: "set null" }), // Final exam module ID
+  individualModuleIds: jsonb("individual_module_ids").$type<number[]>().default([]), // Individual product module IDs
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => ({

@@ -3578,6 +3578,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Generate AI training content from collection (admin/manager)
+  // Creates individual modules for each product + final comprehensive exam
   app.post('/api/training/collections/:id/generate', isAuthenticated, async (req, res) => {
     try {
       const user = req.user;
@@ -3593,23 +3594,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: 'Collection not found' });
       }
 
-      // Create training module for the collection
-      const module = await storage.createTrainingModule({
-        title: collection.name,
-        description: collection.description,
+      // Create final exam module for the collection
+      const finalExamModule = await storage.createTrainingModule({
+        title: `${collection.name} - Final Exam`,
+        description: `Comprehensive assessment covering all products in ${collection.name}`,
         category: 'Product Training',
-        difficulty: 'beginner',
+        difficulty: 'intermediate',
         createdBy: user!.id,
         isActive: true,
       });
 
-      // Link module to collection
+      // Update collection with final exam module ID and set to ready status
       await storage.updateTrainingCollection(id, { 
-        moduleId: module.id,
+        moduleId: finalExamModule.id,
         status: 'ready',
       });
 
-      // Create generation job with multiple products
+      // Create generation jobs for each individual product and final exam
       const sourceData = {
         products: collection.products.map((p: any) => ({
           name: p.name,
@@ -3619,10 +3620,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         })),
       };
 
-      const job = await storage.createGenerationJob({
-        moduleId: module.id,
+      const finalExamJob = await storage.createGenerationJob({
+        moduleId: finalExamModule.id,
         status: 'pending',
-        jobType: 'collection',
+        jobType: 'collection_final_exam',
         progress: 0,
         sourceData,
         requestedBy: user!.id,
@@ -3633,28 +3634,89 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       (async () => {
         try {
-          await storage.updateGenerationJobStatus(job.id, 'processing');
-          
           const generator = new AITrainingGenerator();
-          const content = await generator.generateCollectionTraining({
+          const individualModuleIds: number[] = [];
+
+          // Step 1: Generate individual modules for each product
+          console.log(`🚀 Generating ${collection.products.length} individual training modules...`);
+          
+          for (let i = 0; i < collection.products.length; i++) {
+            const product = collection.products[i];
+            
+            // Create individual module
+            const productModule = await storage.createTrainingModule({
+              title: product.name,
+              description: product.description || `Learn about ${product.name}`,
+              category: 'Product Training',
+              difficulty: 'beginner',
+              createdBy: user!.id,
+              isActive: true,
+            });
+
+            individualModuleIds.push(productModule.id);
+
+            // Create generation job for this product
+            const productJob = await storage.createGenerationJob({
+              moduleId: productModule.id,
+              status: 'processing',
+              jobType: 'full_training',
+              progress: 0,
+              sourceData: {
+                productName: product.name,
+                productDescription: product.description || '',
+                brand: product.brand || '',
+                category: product.category || '',
+              },
+              requestedBy: user!.id,
+            });
+
+            // Generate content for individual product
+            const productContent = await generator.generateTrainingContent({
+              name: product.name,
+              description: product.description || '',
+              category: product.category,
+            });
+
+            await storage.updateGenerationJobResults(productJob.id, productContent);
+            await storage.updateGenerationJobStatus(productJob.id, 'completed');
+            
+            console.log(`✅ Generated module ${i + 1}/${collection.products.length}: ${product.name}`);
+          }
+
+          // Update collection with individual module IDs
+          await storage.updateTrainingCollection(id, { 
+            individualModuleIds,
+          });
+
+          // Step 2: Generate final comprehensive exam
+          console.log(`🎓 Generating final comprehensive exam...`);
+          await storage.updateGenerationJobStatus(finalExamJob.id, 'processing');
+          
+          const finalExamContent = await generator.generateFinalExam({
             collectionName: collection.name,
             products: collection.products,
           });
 
-          await storage.updateGenerationJobResults(job.id, content);
-          await storage.updateGenerationJobStatus(job.id, 'completed');
+          await storage.updateGenerationJobResults(finalExamJob.id, finalExamContent);
+          await storage.updateGenerationJobStatus(finalExamJob.id, 'completed');
           await storage.updateTrainingCollection(id, { status: 'generated' });
+
+          console.log(`🎉 Collection training complete: ${individualModuleIds.length} modules + 1 final exam`);
         } catch (error) {
           console.error('AI generation failed:', error);
           await storage.updateGenerationJobStatus(
-            job.id,
+            finalExamJob.id,
             'failed',
             error instanceof Error ? error.message : 'Unknown error'
           );
         }
       })();
 
-      res.json({ module, job, message: 'AI generation started for collection' });
+      res.json({ 
+        finalExamModule, 
+        job: finalExamJob, 
+        message: `Generating ${collection.products.length} training modules + final exam` 
+      });
     } catch (error) {
       console.error('Error generating collection training:', error);
       res.status(500).json({ message: 'Failed to generate training' });

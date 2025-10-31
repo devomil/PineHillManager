@@ -585,12 +585,14 @@ Return as JSON array:
       {
         title: `${collectionName} - Overview`,
         content: `<h2>Collection Overview</h2><p>${enrichedDescription}</p>`,
-        duration: 10
+        duration: 10,
+        orderIndex: 0,
       },
       {
         title: `${collectionName} - Products`,
         content: `<h2>Products in Collection</h2><ul>${products.map(p => `<li><strong>${p.name}</strong>: ${p.description}</li>`).join('')}</ul>`,
-        duration: 15
+        duration: 15,
+        orderIndex: 1,
       }
     ];
   }
@@ -657,8 +659,8 @@ Return as JSON array with this structure:
   }
 
   private async identifyCollectionSkills(collectionName: string, products: any[]): Promise<string[]> {
-    const brands = [...new Set(products.map(p => p.brand).filter(Boolean))];
-    const categories = [...new Set(products.map(p => p.category).filter(Boolean))];
+    const brands = Array.from(new Set(products.map(p => p.brand).filter(Boolean)));
+    const categories = Array.from(new Set(products.map(p => p.category).filter(Boolean)));
 
     const skills = [
       `${collectionName} Product Knowledge`,
@@ -673,5 +675,103 @@ Return as JSON array with this structure:
     }
 
     return skills.slice(0, 5);
+  }
+
+  /**
+   * Generate final comprehensive exam for a collection
+   * This tests knowledge across ALL products in the collection
+   */
+  async generateFinalExam(data: { collectionName: string; products: any[] }): Promise<TrainingContent> {
+    console.log(`🎓 Generating final comprehensive exam for: ${data.collectionName}`);
+
+    const productList = data.products.map(p => `- ${p.name}: ${p.description || 'No description'}`).join('\n');
+    
+    // Generate enriched description for the final exam
+    const enrichedDescription = `Comprehensive final exam covering all ${data.products.length} products in the ${data.collectionName} collection. This assessment validates mastery of product knowledge, features, benefits, and appropriate customer recommendations.`;
+
+    // Generate comprehensive exam questions covering ALL products
+    const questions = await this.generateFinalExamQuestions(data.collectionName, data.products);
+
+    // No lessons for final exam - it's assessment only
+    const lessons: GeneratedLesson[] = [];
+
+    // Identify skills validated by this exam
+    const skills = await this.identifyCollectionSkills(data.collectionName, data.products);
+
+    const estimatedDuration = 20; // 20 minutes for final exam
+
+    console.log(`✅ Generated final exam with ${questions.length} comprehensive questions`);
+
+    return {
+      enrichedDescription,
+      lessons,
+      questions,
+      skills,
+      estimatedDuration,
+    };
+  }
+
+  /**
+   * Generate comprehensive exam questions covering all products
+   */
+  private async generateFinalExamQuestions(collectionName: string, products: any[]): Promise<GeneratedQuestion[]> {
+    const productList = products.map((p, idx) => `${idx + 1}. ${p.name}: ${p.description || 'No description'}`).join('\n');
+    
+    const prompt = `Create a comprehensive final exam with 15-20 questions testing knowledge across ALL products in this collection:
+
+Collection: ${collectionName}
+Products (${products.length} total):
+${productList}
+
+Create questions that:
+- Test knowledge of MULTIPLE products (comparisons, differentiation)
+- Cover product benefits, features, and appropriate use cases
+- Test customer recommendation scenarios
+- Validate understanding of the ENTIRE product line
+- Include mix of difficulty levels
+
+Return a JSON array of questions, each with:
+{
+  "questionText": "The question text",
+  "questionType": "multiple_choice",
+  "options": [
+    {"id": "a", "text": "Option text", "isCorrect": true/false},
+    {"id": "b", "text": "Option text", "isCorrect": true/false},
+    {"id": "c", "text": "Option text", "isCorrect": true/false},
+    {"id": "d", "text": "Option text", "isCorrect": true/false}
+  ],
+  "explanation": "Why the correct answer is right",
+  "points": 1
+}`;
+
+    const message = await this.anthropic.messages.create({
+      model: 'claude-3-5-sonnet-20241022',
+      max_tokens: 8000,
+      temperature: 0.8,
+      messages: [{
+        role: 'user',
+        content: prompt,
+      }],
+    });
+
+    const content = message.content[0];
+    if (content.type === 'text') {
+      try {
+        const questionsData = JSON.parse(content.text);
+        return questionsData.map((q: any, idx: number) => ({
+          questionText: q.questionText,
+          questionType: 'multiple_choice' as const,
+          options: q.options,
+          explanation: q.explanation,
+          points: q.points || 1,
+          orderIndex: idx,
+        }));
+      } catch (error) {
+        console.error('Failed to parse final exam questions:', error);
+        throw new Error('Failed to generate final exam questions');
+      }
+    }
+
+    throw new Error('No content returned from Claude for final exam');
   }
 }
