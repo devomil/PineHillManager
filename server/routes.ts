@@ -2746,7 +2746,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const lessons = await storage.getModuleLessons(module.id);
           const assessment = await storage.getModuleAssessment(module.id);
           let questions: any[] = [];
-          if (assessment) {
+          if (assessment && assessment.id && !isNaN(Number(assessment.id))) {
             questions = await storage.getAssessmentQuestions(assessment.id);
           }
           return {
@@ -3827,6 +3827,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ 
         finalExamModule, 
         job: finalExamJob, 
+        title: `${collection.name} - Final Exam`,
         message: `Generating ${collection.products.length} training modules + final exam` 
       });
     } catch (error) {

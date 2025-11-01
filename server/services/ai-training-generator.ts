@@ -131,7 +131,7 @@ Write in a professional, educational tone suitable for employee training.`;
 
     try {
       const message = await this.anthropic.messages.create({
-        model: 'claude-3-5-sonnet-20240620',
+        model: 'claude-sonnet-4',
         max_tokens: 400,
         messages: [{
           role: 'user',
@@ -255,7 +255,7 @@ Output only clean HTML, no markdown.`
   private async generateLessonContent(product: ProductInfo, lessonType: string, prompt: string): Promise<string> {
     try {
       const message = await this.anthropic.messages.create({
-        model: 'claude-3-5-sonnet-20240620',
+        model: 'claude-sonnet-4',
         max_tokens: 500,
         messages: [{
           role: 'user',
@@ -369,7 +369,7 @@ Respond with ONLY the JSON object, no other text.`;
 
     try {
       const message = await this.anthropic.messages.create({
-        model: 'claude-3-5-sonnet-20240620',
+        model: 'claude-sonnet-4',
         max_tokens: 400,
         messages: [{
           role: 'user',
@@ -516,7 +516,7 @@ Write in a professional, educational tone.`;
 
     try {
       const message = await this.anthropic.messages.create({
-        model: 'claude-3-5-sonnet-20240620',
+        model: 'claude-sonnet-4',
         max_tokens: 500,
         messages: [{ role: 'user', content: prompt }]
       });
@@ -564,7 +564,7 @@ Return as JSON array:
 
     try {
       const message = await this.anthropic.messages.create({
-        model: 'claude-3-5-sonnet-20240620',
+        model: 'claude-sonnet-4',
         max_tokens: 3000,
         messages: [{ role: 'user', content: prompt }]
       });
@@ -626,7 +626,7 @@ Return as JSON array with this structure:
 
     try {
       const message = await this.anthropic.messages.create({
-        model: 'claude-3-5-sonnet-20240620',
+        model: 'claude-sonnet-4',
         max_tokens: 2000,
         messages: [{ role: 'user', content: prompt }]
       });
@@ -745,7 +745,7 @@ Return a JSON array of questions, each with:
 }`;
 
     const message = await this.anthropic.messages.create({
-      model: 'claude-3-5-sonnet-20241022',
+      model: 'claude-sonnet-4',
       max_tokens: 8000,
       temperature: 0.8,
       messages: [{
