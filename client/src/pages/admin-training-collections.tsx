@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { Package, Plus, Loader2, Sparkles, Trash2, Edit, CheckCircle, FolderPlus, Grid3x3 } from "lucide-react";
+import { Package, Plus, Loader2, Sparkles, Trash2, Edit, CheckCircle, FolderPlus, Grid3x3, Eye, ThumbsUp, ThumbsDown, FileText } from "lucide-react";
 import AdminLayout from "@/components/admin-layout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -20,9 +20,12 @@ export default function AdminTrainingCollections() {
   const { user } = useAuth();
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
+  const [showPreviewDialog, setShowPreviewDialog] = useState(false);
   const [selectedCollection, setSelectedCollection] = useState<any>(null);
+  const [selectedModule, setSelectedModule] = useState<any>(null);
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [reviewNotes, setReviewNotes] = useState("");
   const [collectionForm, setCollectionForm] = useState({
     name: "",
     description: "",
@@ -65,6 +68,11 @@ export default function AdminTrainingCollections() {
   // Fetch suggested groupings
   const { data: suggestedGroupings } = useQuery<any>({
     queryKey: ["/api/training/products/suggested-groupings"],
+  });
+
+  // Fetch pending review modules
+  const { data: pendingModules = [], isLoading: loadingPendingModules } = useQuery<any[]>({
+    queryKey: ["/api/training/modules/pending-review"],
   });
 
   // Create collection mutation
@@ -142,6 +150,7 @@ export default function AdminTrainingCollections() {
     },
     onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/training/modules"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/training/modules/pending-review"] });
       toast({
         title: "Success",
         description: `AI training module "${data.title}" created successfully!`,
@@ -151,6 +160,54 @@ export default function AdminTrainingCollections() {
       toast({
         title: "Generation Failed",
         description: error.message || "Failed to generate AI training",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Approve module mutation
+  const approveModuleMutation = useMutation({
+    mutationFn: async ({ moduleId, reviewNotes }: { moduleId: number; reviewNotes?: string }) => {
+      return await apiRequest('PATCH', `/api/training/modules/${moduleId}/approve`, { reviewNotes });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/training/modules/pending-review"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/training/modules"] });
+      setShowPreviewDialog(false);
+      setReviewNotes("");
+      toast({
+        title: "Module approved",
+        description: "Training module is now active and available to employees",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Approval failed",
+        description: error.message || "Failed to approve module",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Reject module mutation
+  const rejectModuleMutation = useMutation({
+    mutationFn: async ({ moduleId, reviewNotes }: { moduleId: number; reviewNotes?: string }) => {
+      return await apiRequest('PATCH', `/api/training/modules/${moduleId}/reject`, { reviewNotes });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/training/modules/pending-review"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/training/modules"] });
+      setShowPreviewDialog(false);
+      setReviewNotes("");
+      toast({
+        title: "Module rejected",
+        description: "Module sent back for revisions",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Rejection failed",
+        description: error.message || "Failed to reject module",
         variant: "destructive",
       });
     },
@@ -324,6 +381,10 @@ export default function AdminTrainingCollections() {
               <FolderPlus className="h-4 w-4 mr-2" />
               Collections ({collections.length})
             </TabsTrigger>
+            <TabsTrigger value="pending" data-testid="tab-pending">
+              <FileText className="h-4 w-4 mr-2" />
+              Pending Review ({pendingModules.length})
+            </TabsTrigger>
             <TabsTrigger value="suggested" data-testid="tab-suggested">
               <Sparkles className="h-4 w-4 mr-2" />
               Suggested Groupings
@@ -458,6 +519,70 @@ export default function AdminTrainingCollections() {
                             Generate AI Training
                           </>
                         )}
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="pending" className="space-y-4">
+            {loadingPendingModules ? (
+              <Card>
+                <CardContent className="flex items-center justify-center py-12">
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                </CardContent>
+              </Card>
+            ) : pendingModules.length === 0 ? (
+              <Card>
+                <CardContent className="text-center py-12">
+                  <CheckCircle className="h-12 w-12 mx-auto text-green-500 mb-4" />
+                  <h3 className="text-lg font-semibold mb-2">No Pending Modules</h3>
+                  <p className="text-muted-foreground">
+                    All generated training modules have been reviewed
+                  </p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="grid gap-4 md:grid-cols-2">
+                {pendingModules.map((module: any) => (
+                  <Card key={module.id} data-testid={`pending-module-${module.id}`}>
+                    <CardHeader>
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <CardTitle className="text-lg">{module.title}</CardTitle>
+                          <CardDescription className="mt-1">
+                            {module.description}
+                          </CardDescription>
+                        </div>
+                        <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">
+                          Pending Review
+                        </Badge>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <p className="text-muted-foreground">Lessons</p>
+                          <p className="font-medium">{module.lessons?.length || 0}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Questions</p>
+                          <p className="font-medium">{module.assessment?.questions?.length || 0}</p>
+                        </div>
+                      </div>
+                      <Button
+                        className="w-full"
+                        variant="outline"
+                        onClick={() => {
+                          setSelectedModule(module);
+                          setShowPreviewDialog(true);
+                        }}
+                        data-testid={`button-preview-${module.id}`}
+                      >
+                        <Eye className="h-4 w-4 mr-2" />
+                        Review Module
                       </Button>
                     </CardContent>
                   </Card>
@@ -792,6 +917,171 @@ export default function AdminTrainingCollections() {
                   </>
                 ) : (
                   "Update Collection"
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Preview/Approval Dialog */}
+        <Dialog open={showPreviewDialog} onOpenChange={setShowPreviewDialog}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>{selectedModule?.title}</DialogTitle>
+              <DialogDescription>
+                Review AI-generated training content before publishing
+              </DialogDescription>
+            </DialogHeader>
+
+            {selectedModule && (
+              <div className="space-y-6">
+                {/* Module Info */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-muted-foreground">Category</Label>
+                    <p>{selectedModule.category}</p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Difficulty</Label>
+                    <p className="capitalize">{selectedModule.difficulty}</p>
+                  </div>
+                </div>
+
+                {/* Lessons */}
+                {selectedModule.lessons && selectedModule.lessons.length > 0 && (
+                  <div>
+                    <h3 className="font-semibold mb-3">Lessons ({selectedModule.lessons.length})</h3>
+                    <div className="space-y-3">
+                      {selectedModule.lessons.map((lesson: any, idx: number) => (
+                        <Card key={lesson.id} className="bg-muted/30">
+                          <CardHeader>
+                            <CardTitle className="text-sm font-medium">
+                              Lesson {idx + 1}: {lesson.title}
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <div 
+                              className="text-sm prose prose-sm max-w-none"
+                              dangerouslySetInnerHTML={{ __html: lesson.content }}
+                            />
+                            <p className="text-xs text-muted-foreground mt-2">
+                              Duration: {lesson.duration} min
+                            </p>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Assessment Questions */}
+                {selectedModule.assessment?.questions && selectedModule.assessment.questions.length > 0 && (
+                  <div>
+                    <h3 className="font-semibold mb-3">Assessment ({selectedModule.assessment.questions.length} questions)</h3>
+                    <div className="space-y-3">
+                      {selectedModule.assessment.questions.map((question: any, idx: number) => (
+                        <Card key={question.id} className="bg-muted/30">
+                          <CardHeader>
+                            <CardTitle className="text-sm font-medium">
+                              Question {idx + 1}
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent className="space-y-2">
+                            <p className="text-sm font-medium">{question.questionText}</p>
+                            <div className="space-y-1">
+                              {question.options?.map((opt: any, optIdx: number) => (
+                                <div 
+                                  key={optIdx} 
+                                  className={`text-sm p-2 rounded ${
+                                    opt.isCorrect ? 'bg-green-100 dark:bg-green-900/20' : 'bg-background'
+                                  }`}
+                                >
+                                  {String.fromCharCode(65 + optIdx)}. {opt.text}
+                                  {opt.isCorrect && <span className="ml-2 text-green-600 font-medium">✓ Correct</span>}
+                                </div>
+                              ))}
+                            </div>
+                            {question.explanation && (
+                              <p className="text-xs text-muted-foreground mt-2">
+                                <strong>Explanation:</strong> {question.explanation}
+                              </p>
+                            )}
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Review Notes */}
+                <div>
+                  <Label htmlFor="review-notes">Review Notes (Optional)</Label>
+                  <Textarea
+                    id="review-notes"
+                    placeholder="Add notes about this module..."
+                    value={reviewNotes}
+                    onChange={(e) => setReviewNotes(e.target.value)}
+                    className="mt-2"
+                  />
+                </div>
+              </div>
+            )}
+
+            <DialogFooter className="gap-2">
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  setShowPreviewDialog(false);
+                  setReviewNotes("");
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  if (selectedModule) {
+                    rejectModuleMutation.mutate({
+                      moduleId: selectedModule.id,
+                      reviewNotes: reviewNotes || 'Rejected for revisions',
+                    });
+                  }
+                }}
+                disabled={rejectModuleMutation.isPending}
+              >
+                {rejectModuleMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Rejecting...
+                  </>
+                ) : (
+                  <>
+                    <ThumbsDown className="h-4 w-4 mr-2" />
+                    Reject
+                  </>
+                )}
+              </Button>
+              <Button
+                onClick={() => {
+                  if (selectedModule) {
+                    approveModuleMutation.mutate({
+                      moduleId: selectedModule.id,
+                      reviewNotes,
+                    });
+                  }
+                }}
+                disabled={approveModuleMutation.isPending}
+              >
+                {approveModuleMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Approving...
+                  </>
+                ) : (
+                  <>
+                    <ThumbsUp className="h-4 w-4 mr-2" />
+                    Approve & Publish
+                  </>
                 )}
               </Button>
             </DialogFooter>

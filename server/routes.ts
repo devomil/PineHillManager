@@ -2728,6 +2728,116 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get pending review modules (admin/manager only)
+  app.get('/api/training/modules/pending-review', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      
+      if (user?.role !== 'admin' && user?.role !== 'manager') {
+        return res.status(403).json({ message: 'Only admins and managers can review modules' });
+      }
+
+      const modules = await storage.getAllTrainingModules();
+      const pendingModules = modules.filter((m: any) => m.publicationStatus === 'pending_review');
+      
+      // Fetch full details for each pending module
+      const modulesWithDetails = await Promise.all(
+        pendingModules.map(async (module: any) => {
+          const lessons = await storage.getModuleLessons(module.id);
+          const assessment = await storage.getModuleAssessment(module.id);
+          let questions: any[] = [];
+          if (assessment) {
+            questions = await storage.getAssessmentQuestions(assessment.id);
+          }
+          return {
+            ...module,
+            lessons,
+            assessment: assessment ? { ...assessment, questions } : null,
+          };
+        })
+      );
+      
+      res.json(modulesWithDetails);
+    } catch (error) {
+      console.error('Error fetching pending modules:', error);
+      res.status(500).json({ message: 'Failed to fetch pending modules' });
+    }
+  });
+
+  // Approve training module (admin/manager only)
+  app.patch('/api/training/modules/:id/approve', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      
+      if (user?.role !== 'admin' && user?.role !== 'manager') {
+        return res.status(403).json({ message: 'Only admins and managers can approve modules' });
+      }
+
+      const moduleId = parseInt(req.params.id);
+      if (isNaN(moduleId)) {
+        return res.status(400).json({ message: 'Invalid module ID' });
+      }
+
+      const reviewSchema = z.object({
+        reviewNotes: z.string().optional(),
+      });
+      const validated = reviewSchema.parse(req.body);
+      
+      const updated = await storage.updateTrainingModule(moduleId, {
+        publicationStatus: 'approved',
+        isActive: true,
+        reviewedBy: user.id,
+        reviewedAt: new Date(),
+        reviewNotes: validated.reviewNotes || null,
+      });
+      
+      res.json(updated);
+    } catch (error) {
+      console.error('Error approving module:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: 'Invalid request data', errors: error.errors });
+      }
+      res.status(500).json({ message: 'Failed to approve module' });
+    }
+  });
+
+  // Reject training module (admin/manager only)
+  app.patch('/api/training/modules/:id/reject', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      
+      if (user?.role !== 'admin' && user?.role !== 'manager') {
+        return res.status(403).json({ message: 'Only admins and managers can reject modules' });
+      }
+
+      const moduleId = parseInt(req.params.id);
+      if (isNaN(moduleId)) {
+        return res.status(400).json({ message: 'Invalid module ID' });
+      }
+
+      const reviewSchema = z.object({
+        reviewNotes: z.string().optional(),
+      });
+      const validated = reviewSchema.parse(req.body);
+      
+      const updated = await storage.updateTrainingModule(moduleId, {
+        publicationStatus: 'draft',
+        isActive: false,
+        reviewedBy: user.id,
+        reviewedAt: new Date(),
+        reviewNotes: validated.reviewNotes || 'Rejected for revisions',
+      });
+      
+      res.json(updated);
+    } catch (error) {
+      console.error('Error rejecting module:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: 'Invalid request data', errors: error.errors });
+      }
+      res.status(500).json({ message: 'Failed to reject module' });
+    }
+  });
+
   // Create lesson
   app.post('/api/training/lessons', isAuthenticated, async (req, res) => {
     try {
