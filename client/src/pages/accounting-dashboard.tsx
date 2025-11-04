@@ -274,14 +274,29 @@ function AccountingContent() {
   const [monthlyResetNotes, setMonthlyResetNotes] = useState('');
   const [monthlyResetReason, setMonthlyResetReason] = useState('');
 
-  // Load goals from localStorage on component mount
+  // Fetch company monthly goals from API
+  const { data: companyGoals } = useQuery({
+    queryKey: ['/api/goals/company/monthly', currentMonth.getFullYear(), currentMonth.getMonth()],
+    queryFn: async () => {
+      const response = await apiRequest('GET', `/api/goals/company/monthly?year=${currentMonth.getFullYear()}&month=${currentMonth.getMonth()}`);
+      return await response.json();
+    },
+    enabled: canSetGoals, // Only fetch if user can view goals
+  });
+
+  // Update local state when company goals are fetched
   useEffect(() => {
-    const currentMonthKey = `monthly_goals_${currentMonth.getFullYear()}_${currentMonth.getMonth()}`;
-    const savedGoals = localStorage.getItem(currentMonthKey);
-    if (savedGoals) {
-      setMonthlyGoals(JSON.parse(savedGoals));
+    if (companyGoals) {
+      setMonthlyGoals({
+        revenue: parseFloat(companyGoals.revenue),
+        profit: parseFloat(companyGoals.profit),
+        profitMargin: parseFloat(companyGoals.profitMargin),
+        notes: companyGoals.notes || '',
+        month: `${companyGoals.year}-${companyGoals.month + 1}`,
+        setDate: companyGoals.createdAt
+      });
     }
-  }, []);
+  }, [companyGoals]);
 
   // Check if user can set goals (Admin or Manager only)
   const canSetGoals = user?.role === 'admin' || user?.role === 'manager';
@@ -673,26 +688,48 @@ function AccountingContent() {
       return;
     }
 
-    const goals: MonthlyGoals = {
-      revenue,
-      profit,
-      profitMargin,
-      notes: goalForm.notes,
-      month: `${currentMonth.getFullYear()}-${currentMonth.getMonth() + 1}`,
-      setDate: new Date().toISOString()
-    };
+    // Save to API instead of localStorage
+    try {
+      const response = await apiRequest('POST', '/api/goals/company/monthly', {
+        year: currentMonth.getFullYear(),
+        month: currentMonth.getMonth(),
+        revenue,
+        profit,
+        profitMargin,
+        notes: goalForm.notes
+      });
 
-    const currentMonthKey = `monthly_goals_${currentMonth.getFullYear()}_${currentMonth.getMonth()}`;
-    localStorage.setItem(currentMonthKey, JSON.stringify(goals));
-    setMonthlyGoals(goals);
-    setIsGoalDialogOpen(false);
-    setGoalForm({ revenue: '', profit: '', profitMargin: '', notes: '' });
+      const savedGoals = await response.json();
 
-    toast({
-      title: "Goals Saved",
-      description: "Monthly goals have been successfully saved",
-      variant: "default",
-    });
+      // Update local state
+      setMonthlyGoals({
+        revenue,
+        profit,
+        profitMargin,
+        notes: goalForm.notes,
+        month: `${currentMonth.getFullYear()}-${currentMonth.getMonth() + 1}`,
+        setDate: new Date().toISOString()
+      });
+
+      // Invalidate the query to refetch company goals
+      queryClient.invalidateQueries({ queryKey: ['/api/goals/company/monthly'] });
+
+      setIsGoalDialogOpen(false);
+      setGoalForm({ revenue: '', profit: '', profitMargin: '', notes: '' });
+
+      toast({
+        title: "Company Goals Saved",
+        description: "Monthly goals have been successfully saved for all admins and managers",
+        variant: "default",
+      });
+    } catch (error) {
+      console.error('Error saving goals:', error);
+      toast({
+        title: "Error",
+        description: "Failed to save company goals. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   const resetGoalForm = () => {

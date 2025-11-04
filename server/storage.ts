@@ -81,6 +81,9 @@ import {
   payrollEntries,
   payrollTimeEntries,
   payrollJournalEntries,
+  // Company Goals and Dream Scenarios
+  companyMonthlyGoals,
+  dreamScenarios,
   type User,
   type UpsertUser,
   type SMSConsentHistory,
@@ -258,6 +261,11 @@ import {
   type InsertPayrollPeriod,
   type PayrollEntry,
   type InsertPayrollEntry,
+  // Company Goals and Dream Scenarios Types
+  type CompanyMonthlyGoals,
+  type InsertCompanyMonthlyGoals,
+  type DreamScenario,
+  type InsertDreamScenario,
   type PayrollTimeEntry,
   type InsertPayrollTimeEntry,
   type PayrollJournalEntry,
@@ -1734,6 +1742,19 @@ export interface IStorage {
   removeProductFromCollection(collectionId: number, productId: number): Promise<void>;
   getCollectionProducts(collectionId: number): Promise<StagedProduct[]>;
   updateCollectionProductOrder(collectionId: number, productId: number, sortOrder: number): Promise<void>;
+
+  // Company Monthly Goals Operations
+  setCompanyMonthlyGoals(goals: InsertCompanyMonthlyGoals): Promise<CompanyMonthlyGoals>;
+  getCompanyMonthlyGoals(year: number, month: number): Promise<CompanyMonthlyGoals | undefined>;
+  getCurrentCompanyMonthlyGoals(): Promise<CompanyMonthlyGoals | undefined>;
+
+  // Dream Scenarios Operations
+  createDreamScenario(scenario: InsertDreamScenario): Promise<DreamScenario>;
+  getDreamScenarioById(id: number): Promise<DreamScenario | undefined>;
+  getAllDreamScenarios(): Promise<DreamScenario[]>;
+  getDreamScenariosByMonth(year: number, month: number): Promise<DreamScenario[]>;
+  updateDreamScenario(id: number, updates: Partial<InsertDreamScenario>): Promise<DreamScenario>;
+  deleteDreamScenario(id: number): Promise<void>;
 }
 
 // @ts-ignore
@@ -14009,6 +14030,82 @@ export class DatabaseStorage implements IStorage {
 
   async deletePosLocation(id: number): Promise<void> {
     await db.delete(posLocations).where(eq(posLocations.id, id));
+  }
+
+  // ================================
+  // COMPANY MONTHLY GOALS METHODS
+  // ================================
+
+  async setCompanyMonthlyGoals(goals: InsertCompanyMonthlyGoals): Promise<CompanyMonthlyGoals> {
+    const [result] = await db
+      .insert(companyMonthlyGoals)
+      .values({
+        ...goals,
+        updatedAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: [companyMonthlyGoals.year, companyMonthlyGoals.month],
+        set: {
+          ...goals,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+    return result;
+  }
+
+  async getCompanyMonthlyGoals(year: number, month: number): Promise<CompanyMonthlyGoals | undefined> {
+    const [result] = await db
+      .select()
+      .from(companyMonthlyGoals)
+      .where(and(eq(companyMonthlyGoals.year, year), eq(companyMonthlyGoals.month, month)));
+    return result;
+  }
+
+  async getCurrentCompanyMonthlyGoals(): Promise<CompanyMonthlyGoals | undefined> {
+    const currentDate = new Date();
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth();
+    return this.getCompanyMonthlyGoals(year, month);
+  }
+
+  // ================================
+  // DREAM SCENARIOS METHODS
+  // ================================
+
+  async createDreamScenario(scenario: InsertDreamScenario): Promise<DreamScenario> {
+    const [created] = await db.insert(dreamScenarios).values(scenario).returning();
+    return created;
+  }
+
+  async getDreamScenarioById(id: number): Promise<DreamScenario | undefined> {
+    const [result] = await db.select().from(dreamScenarios).where(eq(dreamScenarios.id, id));
+    return result;
+  }
+
+  async getAllDreamScenarios(): Promise<DreamScenario[]> {
+    return await db.select().from(dreamScenarios).orderBy(desc(dreamScenarios.createdAt));
+  }
+
+  async getDreamScenariosByMonth(year: number, month: number): Promise<DreamScenario[]> {
+    return await db
+      .select()
+      .from(dreamScenarios)
+      .where(and(eq(dreamScenarios.year, year), eq(dreamScenarios.month, month)))
+      .orderBy(desc(dreamScenarios.createdAt));
+  }
+
+  async updateDreamScenario(id: number, updates: Partial<InsertDreamScenario>): Promise<DreamScenario> {
+    const [updated] = await db
+      .update(dreamScenarios)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(dreamScenarios.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteDreamScenario(id: number): Promise<void> {
+    await db.delete(dreamScenarios).where(eq(dreamScenarios.id, id));
   }
 }
 

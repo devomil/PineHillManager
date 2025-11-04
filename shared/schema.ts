@@ -4074,3 +4074,68 @@ export type InsertTask = z.infer<typeof insertTaskSchema>;
 
 export type TaskNote = typeof taskNotes.$inferSelect;
 export type InsertTaskNote = z.infer<typeof insertTaskNoteSchema>;
+
+// Company Monthly Goals - shared across all admins/managers
+export const companyMonthlyGoals = pgTable("company_monthly_goals", {
+  id: serial("id").primaryKey(),
+  year: integer("year").notNull(),
+  month: integer("month").notNull(), // 0-11 (JavaScript month format)
+  revenue: decimal("revenue", { precision: 12, scale: 2 }).notNull(),
+  profit: decimal("profit", { precision: 12, scale: 2 }).notNull(),
+  profitMargin: decimal("profit_margin", { precision: 5, scale: 2 }).notNull(), // Percentage
+  notes: text("notes"),
+  createdBy: varchar("created_by").notNull().references(() => users.id),
+  updatedBy: varchar("updated_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  yearMonthIdx: unique("idx_company_goals_year_month").on(table.year, table.month),
+}));
+
+// Dream Scenarios - "what-if" modeling with officer salaries
+export const dreamScenarios = pgTable("dream_scenarios", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  year: integer("year").notNull(),
+  month: integer("month").notNull(), // 0-11 (JavaScript month format)
+  
+  // Officer monthly salaries
+  ryanSorensenSalary: decimal("ryan_sorensen_salary", { precision: 10, scale: 2 }).default("0.00"),
+  jacalynPhillipsSalary: decimal("jacalyn_phillips_salary", { precision: 10, scale: 2 }).default("0.00"),
+  leanneAnthonSalary: decimal("leanne_anthon_salary", { precision: 10, scale: 2 }).default("0.00"),
+  lynleyGraySalary: decimal("lynley_gray_salary", { precision: 10, scale: 2 }).default("0.00"),
+  
+  // Additional expense/revenue projections
+  additionalExpenses: decimal("additional_expenses", { precision: 12, scale: 2 }).default("0.00"),
+  projectedRevenue: decimal("projected_revenue", { precision: 12, scale: 2 }),
+  
+  notes: text("notes"),
+  createdBy: varchar("created_by").notNull().references(() => users.id),
+  updatedBy: varchar("updated_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  createdByIdx: index("idx_dream_scenarios_created_by").on(table.createdBy),
+  yearMonthIdx: index("idx_dream_scenarios_year_month").on(table.year, table.month),
+}));
+
+// Insert schemas
+export const insertCompanyMonthlyGoalsSchema = createInsertSchema(companyMonthlyGoals).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertDreamScenarioSchema = createInsertSchema(dreamScenarios).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+// Type definitions
+export type CompanyMonthlyGoals = typeof companyMonthlyGoals.$inferSelect;
+export type InsertCompanyMonthlyGoals = z.infer<typeof insertCompanyMonthlyGoalsSchema>;
+
+export type DreamScenario = typeof dreamScenarios.$inferSelect;
+export type InsertDreamScenario = z.infer<typeof insertDreamScenarioSchema>;

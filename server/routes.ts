@@ -9572,6 +9572,225 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ================================
+  // COMPANY MONTHLY GOALS ROUTES
+  // ================================
+
+  // Set or update company monthly goals
+  app.post('/api/goals/company/monthly', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      
+      if (!user || (user.role !== 'admin' && user.role !== 'manager')) {
+        return res.status(403).json({ message: 'Only admins and managers can set company goals' });
+      }
+
+      const { year, month, revenue, profit, profitMargin, notes } = req.body;
+
+      if (!year || month === undefined || !revenue || !profit || !profitMargin) {
+        return res.status(400).json({ message: 'Year, month, revenue, profit, and profit margin are required' });
+      }
+
+      const goals = await storage.setCompanyMonthlyGoals({
+        year: parseInt(year),
+        month: parseInt(month),
+        revenue: revenue.toString(),
+        profit: profit.toString(),
+        profitMargin: profitMargin.toString(),
+        notes: notes || null,
+        createdBy: user.id,
+        updatedBy: user.id,
+      });
+
+      res.json(goals);
+    } catch (error) {
+      console.error('Error setting company monthly goals:', error);
+      res.status(500).json({ message: 'Failed to set company monthly goals' });
+    }
+  });
+
+  // Get company monthly goals for a specific month
+  app.get('/api/goals/company/monthly', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      
+      if (!user || (user.role !== 'admin' && user.role !== 'manager')) {
+        return res.status(403).json({ message: 'Only admins and managers can view company goals' });
+      }
+
+      const { year, month } = req.query;
+
+      if (year && month !== undefined) {
+        const goals = await storage.getCompanyMonthlyGoals(parseInt(year as string), parseInt(month as string));
+        return res.json(goals || null);
+      }
+
+      // Get current month's goals if no specific date provided
+      const currentGoals = await storage.getCurrentCompanyMonthlyGoals();
+      res.json(currentGoals || null);
+    } catch (error) {
+      console.error('Error fetching company monthly goals:', error);
+      res.status(500).json({ message: 'Failed to fetch company monthly goals' });
+    }
+  });
+
+  // ================================
+  // DREAM SCENARIOS ROUTES
+  // ================================
+
+  // Create a new dream scenario
+  app.post('/api/goals/dream-scenarios', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      
+      if (!user || user.role !== 'admin') {
+        return res.status(403).json({ message: 'Only admins can create dream scenarios' });
+      }
+
+      const {
+        name,
+        description,
+        year,
+        month,
+        ryanSorensenSalary,
+        jacalynPhillipsSalary,
+        leanneAnthonSalary,
+        lynleyGraySalary,
+        additionalExpenses,
+        projectedRevenue,
+        notes
+      } = req.body;
+
+      if (!name || !year || month === undefined) {
+        return res.status(400).json({ message: 'Name, year, and month are required' });
+      }
+
+      const scenario = await storage.createDreamScenario({
+        name,
+        description: description || null,
+        year: parseInt(year),
+        month: parseInt(month),
+        ryanSorensenSalary: ryanSorensenSalary?.toString() || '0.00',
+        jacalynPhillipsSalary: jacalynPhillipsSalary?.toString() || '0.00',
+        leanneAnthonSalary: leanneAnthonSalary?.toString() || '0.00',
+        lynleyGraySalary: lynleyGraySalary?.toString() || '0.00',
+        additionalExpenses: additionalExpenses?.toString() || '0.00',
+        projectedRevenue: projectedRevenue?.toString() || null,
+        notes: notes || null,
+        createdBy: user.id,
+      });
+
+      res.status(201).json(scenario);
+    } catch (error) {
+      console.error('Error creating dream scenario:', error);
+      res.status(500).json({ message: 'Failed to create dream scenario' });
+    }
+  });
+
+  // Get all dream scenarios
+  app.get('/api/goals/dream-scenarios', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      
+      if (!user || (user.role !== 'admin' && user.role !== 'manager')) {
+        return res.status(403).json({ message: 'Only admins and managers can view dream scenarios' });
+      }
+
+      const { year, month } = req.query;
+
+      if (year && month !== undefined) {
+        const scenarios = await storage.getDreamScenariosByMonth(parseInt(year as string), parseInt(month as string));
+        return res.json(scenarios);
+      }
+
+      const scenarios = await storage.getAllDreamScenarios();
+      res.json(scenarios);
+    } catch (error) {
+      console.error('Error fetching dream scenarios:', error);
+      res.status(500).json({ message: 'Failed to fetch dream scenarios' });
+    }
+  });
+
+  // Get a specific dream scenario
+  app.get('/api/goals/dream-scenarios/:id', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      
+      if (!user || (user.role !== 'admin' && user.role !== 'manager')) {
+        return res.status(403).json({ message: 'Only admins and managers can view dream scenarios' });
+      }
+
+      const scenario = await storage.getDreamScenarioById(parseInt(req.params.id));
+      
+      if (!scenario) {
+        return res.status(404).json({ message: 'Dream scenario not found' });
+      }
+
+      res.json(scenario);
+    } catch (error) {
+      console.error('Error fetching dream scenario:', error);
+      res.status(500).json({ message: 'Failed to fetch dream scenario' });
+    }
+  });
+
+  // Update a dream scenario
+  app.patch('/api/goals/dream-scenarios/:id', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      
+      if (!user || user.role !== 'admin') {
+        return res.status(403).json({ message: 'Only admins can update dream scenarios' });
+      }
+
+      const {
+        name,
+        description,
+        ryanSorensenSalary,
+        jacalynPhillipsSalary,
+        leanneAnthonSalary,
+        lynleyGraySalary,
+        additionalExpenses,
+        projectedRevenue,
+        notes
+      } = req.body;
+
+      const updates: any = { updatedBy: user.id };
+      
+      if (name) updates.name = name;
+      if (description !== undefined) updates.description = description;
+      if (ryanSorensenSalary !== undefined) updates.ryanSorensenSalary = ryanSorensenSalary.toString();
+      if (jacalynPhillipsSalary !== undefined) updates.jacalynPhillipsSalary = jacalynPhillipsSalary.toString();
+      if (leanneAnthonSalary !== undefined) updates.leanneAnthonSalary = leanneAnthonSalary.toString();
+      if (lynleyGraySalary !== undefined) updates.lynleyGraySalary = lynleyGraySalary.toString();
+      if (additionalExpenses !== undefined) updates.additionalExpenses = additionalExpenses.toString();
+      if (projectedRevenue !== undefined) updates.projectedRevenue = projectedRevenue.toString();
+      if (notes !== undefined) updates.notes = notes;
+
+      const scenario = await storage.updateDreamScenario(parseInt(req.params.id), updates);
+      res.json(scenario);
+    } catch (error) {
+      console.error('Error updating dream scenario:', error);
+      res.status(500).json({ message: 'Failed to update dream scenario' });
+    }
+  });
+
+  // Delete a dream scenario
+  app.delete('/api/goals/dream-scenarios/:id', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      
+      if (!user || user.role !== 'admin') {
+        return res.status(403).json({ message: 'Only admins can delete dream scenarios' });
+      }
+
+      await storage.deleteDreamScenario(parseInt(req.params.id));
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting dream scenario:', error);
+      res.status(500).json({ message: 'Failed to delete dream scenario' });
+    }
+  });
+
   // External Integration Routes
   
   // QuickBooks Integration Routes
