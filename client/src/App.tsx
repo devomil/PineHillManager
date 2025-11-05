@@ -11,7 +11,6 @@ import LogosPage from "@/pages/admin/logos";
 import AdminEmployeesPage from "@/pages/admin/employees";
 import AdminEmployeePurchases from "@/pages/admin/admin-employee-purchases";
 import AdminEmployeeContentPage from "@/pages/admin/employee-content";
-import EmployeeContentPage from "@/pages/employee-content";
 import CommunicationsPage from "@/pages/communications";
 import Calendar from "@/pages/calendar";
 import Employees from "@/pages/employees";
@@ -44,8 +43,6 @@ import EmergencyContactPage from "@/pages/emergency-contact";
 import EmployeePurchases from "@/pages/employee-purchases";
 import Tasks from "@/pages/tasks";
 import Goals from "@/pages/goals";
-import DocumentCenter from "@/pages/document-center";
-import DocumentCenterManagement from "@/pages/admin/document-center-management";
 
 function AuthenticatedApp() {
   const { user } = useAuth();
@@ -117,11 +114,6 @@ function AuthenticatedApp() {
           <MarketingPage />
         </ProtectedRoute>
       </Route>
-      <Route path="/admin/document-center">
-        <ProtectedRoute allowedRoles={['admin', 'manager']}>
-          <DocumentCenterManagement />
-        </ProtectedRoute>
-      </Route>
       <Route path="/shift-scheduling">
         <ProtectedRoute allowedRoles={['admin', 'manager']}>
           <ShiftScheduling />
@@ -174,7 +166,6 @@ function AuthenticatedApp() {
       </Route>
       
       {/* Employee & Shared Routes */}
-      <Route path="/employee-content" component={EmployeeContentPage} />
       <Route path="/calendar" component={Calendar} />
       <Route path="/shift-swaps" component={ShiftSwapMarketplace} />
       <Route path="/communication" component={CommunicationsPage} />
@@ -194,7 +185,6 @@ function AuthenticatedApp() {
       <Route path="/employee-purchases" component={EmployeePurchases} />
       <Route path="/tasks" component={Tasks} />
       <Route path="/goals" component={Goals} />
-      <Route path="/document-center" component={DocumentCenter} />
       <Route path="/emergency-contact" component={EmergencyContactPage} />
       <Route component={NotFound} />
     </Switch>
