@@ -18763,5 +18763,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // View a document (opens in browser)
+  app.get('/api/documents/center/:id/view', isAuthenticated, async (req, res) => {
+    try {
+      const { centerDocuments } = await import('@shared/schema');
+      const documentId = parseInt(req.params.id);
+
+      const [document] = await db
+        .select()
+        .from(centerDocuments)
+        .where(eq(centerDocuments.id, documentId))
+        .limit(1);
+
+      if (!document) {
+        return res.status(404).json({ message: 'Document not found' });
+      }
+
+      // Serve file with inline disposition (opens in browser)
+      const filePath = path.join(process.cwd(), 'uploads', path.basename(document.fileUrl));
+      res.setHeader('Content-Type', document.fileType || 'application/octet-stream');
+      res.setHeader('Content-Disposition', `inline; filename="${document.fileName}"`);
+      res.sendFile(filePath);
+    } catch (error: any) {
+      console.error('Error viewing document:', error);
+      res.status(500).json({ message: error.message || 'Failed to view document' });
+    }
+  });
+
+  // Download a document (forces download)
+  app.get('/api/documents/center/:id/download', isAuthenticated, async (req, res) => {
+    try {
+      const { centerDocuments } = await import('@shared/schema');
+      const documentId = parseInt(req.params.id);
+
+      const [document] = await db
+        .select()
+        .from(centerDocuments)
+        .where(eq(centerDocuments.id, documentId))
+        .limit(1);
+
+      if (!document) {
+        return res.status(404).json({ message: 'Document not found' });
+      }
+
+      // Serve file with attachment disposition (forces download)
+      const filePath = path.join(process.cwd(), 'uploads', path.basename(document.fileUrl));
+      res.setHeader('Content-Type', document.fileType || 'application/octet-stream');
+      res.setHeader('Content-Disposition', `attachment; filename="${document.fileName}"`);
+      res.sendFile(filePath);
+    } catch (error: any) {
+      console.error('Error downloading document:', error);
+      res.status(500).json({ message: error.message || 'Failed to download document' });
+    }
+  });
+
   return httpServer;
 }

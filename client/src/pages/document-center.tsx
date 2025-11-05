@@ -85,16 +85,11 @@ export default function DocumentCenter() {
   };
 
   const handleDownload = (doc: CenterDocument) => {
-    const link = document.createElement('a');
-    link.href = doc.fileUrl;
-    link.download = doc.fileName;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    window.open(`/api/documents/center/${doc.id}/download`, '_blank');
   };
 
   const handleView = (doc: CenterDocument) => {
-    window.open(doc.fileUrl, '_blank');
+    window.open(`/api/documents/center/${doc.id}/view`, '_blank');
   };
 
   if (user?.role === 'employee') {
