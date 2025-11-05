@@ -4156,6 +4156,31 @@ export const insertGoalSchema = createInsertSchema(goals).omit({
   updatedAt: true,
 });
 
+// Suggested Goals - Collaborative brainstorming board (Padlet-style)
+export const suggestedGoals = pgTable("suggested_goals", {
+  id: serial("id").primaryKey(),
+  title: varchar("title", { length: 500 }).notNull(),
+  description: text("description"),
+  createdBy: varchar("created_by").notNull().references(() => users.id),
+  assignedTo: varchar("assigned_to"), // 'my', 'company', 'team', or null if unassigned
+  assignedGoalId: integer("assigned_goal_id"), // ID of the goal it was converted to
+  status: varchar("status").notNull().default("suggested"), // 'suggested', 'assigned', 'archived'
+  notes: text("notes"), // Collaboration notes/comments
+  priority: varchar("priority").default("medium"), // 'low', 'medium', 'high'
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  createdByIdx: index("idx_suggested_goals_created_by").on(table.createdBy),
+  statusIdx: index("idx_suggested_goals_status").on(table.status),
+  assignedToIdx: index("idx_suggested_goals_assigned_to").on(table.assignedTo),
+}));
+
+export const insertSuggestedGoalSchema = createInsertSchema(suggestedGoals).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 // Type definitions
 export type CompanyMonthlyGoals = typeof companyMonthlyGoals.$inferSelect;
 export type InsertCompanyMonthlyGoals = z.infer<typeof insertCompanyMonthlyGoalsSchema>;
@@ -4165,3 +4190,6 @@ export type InsertDreamScenario = z.infer<typeof insertDreamScenarioSchema>;
 
 export type Goal = typeof goals.$inferSelect;
 export type InsertGoal = z.infer<typeof insertGoalSchema>;
+
+export type SuggestedGoal = typeof suggestedGoals.$inferSelect;
+export type InsertSuggestedGoal = z.infer<typeof insertSuggestedGoalSchema>;
