@@ -646,7 +646,7 @@ function AccountingContent() {
   });
 
   // Goal handling functions
-  const handleSaveGoals = () => {
+  const handleSaveGoals = async () => {
     const revenue = parseFloat(goalForm.revenue);
     const profit = parseFloat(goalForm.profit);
     const profitMargin = parseFloat(goalForm.profitMargin);
