@@ -9986,6 +9986,196 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ================================
+  // SUGGESTED GOALS ROUTES (Collaborative Brainstorming)
+  // ================================
+
+  // Get all suggested goals
+  app.get('/api/goals/suggested', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      if (!user) {
+        return res.status(401).json({ message: 'Unauthorized' });
+      }
+
+      const { suggestedGoals: suggestedGoalsTable } = await import('@shared/schema');
+      const { desc } = await import('drizzle-orm');
+
+      const suggestions = await db
+        .select()
+        .from(suggestedGoalsTable)
+        .where(eq(suggestedGoalsTable.status, 'suggested'))
+        .orderBy(desc(suggestedGoalsTable.createdAt));
+
+      res.json(suggestions);
+    } catch (error) {
+      console.error('Error fetching suggested goals:', error);
+      res.status(500).json({ message: 'Failed to fetch suggested goals' });
+    }
+  });
+
+  // Create a suggested goal
+  app.post('/api/goals/suggested', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      if (!user) {
+        return res.status(401).json({ message: 'Unauthorized' });
+      }
+
+      const { title, description, priority, notes } = req.body;
+
+      if (!title?.trim()) {
+        return res.status(400).json({ message: 'Title is required' });
+      }
+
+      const { suggestedGoals: suggestedGoalsTable } = await import('@shared/schema');
+
+      const [suggestion] = await db
+        .insert(suggestedGoalsTable)
+        .values({
+          title: title.trim(),
+          description: description?.trim() || null,
+          priority: priority || 'medium',
+          notes: notes?.trim() || null,
+          createdBy: user.id,
+          status: 'suggested',
+        })
+        .returning();
+
+      res.status(201).json(suggestion);
+    } catch (error) {
+      console.error('Error creating suggested goal:', error);
+      res.status(500).json({ message: 'Failed to create suggested goal' });
+    }
+  });
+
+  // Update a suggested goal
+  app.patch('/api/goals/suggested/:id', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      if (!user) {
+        return res.status(401).json({ message: 'Unauthorized' });
+      }
+
+      const { id } = req.params;
+      const { title, description, priority, notes } = req.body;
+
+      const { suggestedGoals: suggestedGoalsTable } = await import('@shared/schema');
+
+      const [suggestion] = await db
+        .update(suggestedGoalsTable)
+        .set({
+          ...(title && { title: title.trim() }),
+          ...(description !== undefined && { description: description?.trim() || null }),
+          ...(priority && { priority }),
+          ...(notes !== undefined && { notes: notes?.trim() || null }),
+          updatedAt: new Date(),
+        })
+        .where(eq(suggestedGoalsTable.id, parseInt(id)))
+        .returning();
+
+      if (!suggestion) {
+        return res.status(404).json({ message: 'Suggested goal not found' });
+      }
+
+      res.json(suggestion);
+    } catch (error) {
+      console.error('Error updating suggested goal:', error);
+      res.status(500).json({ message: 'Failed to update suggested goal' });
+    }
+  });
+
+  // Delete a suggested goal
+  app.delete('/api/goals/suggested/:id', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      if (!user) {
+        return res.status(401).json({ message: 'Unauthorized' });
+      }
+
+      const { id } = req.params;
+
+      const { suggestedGoals: suggestedGoalsTable } = await import('@shared/schema');
+
+      const [suggestion] = await db
+        .delete(suggestedGoalsTable)
+        .where(eq(suggestedGoalsTable.id, parseInt(id)))
+        .returning();
+
+      if (!suggestion) {
+        return res.status(404).json({ message: 'Suggested goal not found' });
+      }
+
+      res.json({ message: 'Suggested goal deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting suggested goal:', error);
+      res.status(500).json({ message: 'Failed to delete suggested goal' });
+    }
+  });
+
+  // Assign suggested goal to a category (my/team/company)
+  app.post('/api/goals/suggested/:id/assign', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      if (!user) {
+        return res.status(401).json({ message: 'Unauthorized' });
+      }
+
+      const { id } = req.params;
+      const { category, targetUserId } = req.body; // category: 'my', 'team', 'company', targetUserId for 'my' assignments
+
+      if (!category || !['my', 'team', 'company'].includes(category)) {
+        return res.status(400).json({ message: 'Valid category (my/team/company) is required' });
+      }
+
+      // Only admins/managers can assign to team/company
+      if (category !== 'my' && user.role !== 'admin' && user.role !== 'manager') {
+        return res.status(403).json({ message: 'Only admins and managers can assign to team/company' });
+      }
+
+      const { suggestedGoals: suggestedGoalsTable } = await import('@shared/schema');
+
+      // Get the suggested goal
+      const [suggestion] = await db
+        .select()
+        .from(suggestedGoalsTable)
+        .where(eq(suggestedGoalsTable.id, parseInt(id)));
+
+      if (!suggestion) {
+        return res.status(404).json({ message: 'Suggested goal not found' });
+      }
+
+      // Create the actual goal in the goals table
+      const [newGoal] = await db
+        .insert(goals)
+        .values({
+          type: category,
+          title: suggestion.title,
+          description: suggestion.description,
+          targetDate: null,
+          status: 'not_started',
+          createdBy: category === 'my' && targetUserId ? targetUserId : user.id,
+        })
+        .returning();
+
+      // Update the suggested goal to mark it as assigned
+      await db
+        .update(suggestedGoalsTable)
+        .set({
+          status: 'assigned',
+          assignedTo: category,
+          assignedGoalId: newGoal.id,
+          updatedAt: new Date(),
+        })
+        .where(eq(suggestedGoalsTable.id, parseInt(id)));
+
+      res.json(newGoal);
+    } catch (error) {
+      console.error('Error assigning suggested goal:', error);
+      res.status(500).json({ message: 'Failed to assign suggested goal' });
+    }
+  });
+
+  // ================================
   // DREAM SCENARIOS ROUTES
   // ================================
 
