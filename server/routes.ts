@@ -38,9 +38,9 @@ import {
   updateEmployeeSpotlightSchema,
 } from "@shared/schema";
 import { z } from "zod";
-import { eq, and, or, isNull, isNotNull } from "drizzle-orm";
+import { eq, and, or, isNull, isNotNull, desc } from "drizzle-orm";
 import { db } from "./db";
-import { posSaleItems, stagedProducts } from "@shared/schema";
+import { posSaleItems, stagedProducts, goals } from "@shared/schema";
 
 // Configure multer for file uploads
 const uploadsDir = path.join(process.cwd(), 'uploads');
@@ -9631,6 +9631,357 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error fetching company monthly goals:', error);
       res.status(500).json({ message: 'Failed to fetch company monthly goals' });
+    }
+  });
+
+  // ================================
+  // GOALS ROUTES (Personal, Company BHAG, Team)
+  // ================================
+
+  // Get my personal goals
+  app.get('/api/goals/my', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      if (!user) {
+        return res.status(401).json({ message: 'Unauthorized' });
+      }
+
+      const myGoals = await db
+        .select()
+        .from(goals)
+        .where(and(
+          eq(goals.type, 'my'),
+          eq(goals.createdBy, user.id)
+        ))
+        .orderBy(desc(goals.createdAt));
+
+      res.json(myGoals);
+    } catch (error) {
+      console.error('Error fetching personal goals:', error);
+      res.status(500).json({ message: 'Failed to fetch personal goals' });
+    }
+  });
+
+  // Create a personal goal
+  app.post('/api/goals/my', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      if (!user) {
+        return res.status(401).json({ message: 'Unauthorized' });
+      }
+
+      const { title, description, targetDate, status } = req.body;
+
+      if (!title?.trim()) {
+        return res.status(400).json({ message: 'Title is required' });
+      }
+
+      const [goal] = await db
+        .insert(goals)
+        .values({
+          type: 'my',
+          title: title.trim(),
+          description: description?.trim() || null,
+          targetDate: targetDate || null,
+          status: status || 'not_started',
+          createdBy: user.id,
+        })
+        .returning();
+
+      res.status(201).json(goal);
+    } catch (error) {
+      console.error('Error creating personal goal:', error);
+      res.status(500).json({ message: 'Failed to create personal goal' });
+    }
+  });
+
+  // Update a personal goal status
+  app.patch('/api/goals/my/:id', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      if (!user) {
+        return res.status(401).json({ message: 'Unauthorized' });
+      }
+
+      const { id } = req.params;
+      const { status } = req.body;
+
+      const [goal] = await db
+        .update(goals)
+        .set({ status, updatedAt: new Date() })
+        .where(and(
+          eq(goals.id, parseInt(id)),
+          eq(goals.createdBy, user.id),
+          eq(goals.type, 'my')
+        ))
+        .returning();
+
+      if (!goal) {
+        return res.status(404).json({ message: 'Goal not found' });
+      }
+
+      res.json(goal);
+    } catch (error) {
+      console.error('Error updating personal goal:', error);
+      res.status(500).json({ message: 'Failed to update personal goal' });
+    }
+  });
+
+  // Delete a personal goal
+  app.delete('/api/goals/my/:id', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      if (!user) {
+        return res.status(401).json({ message: 'Unauthorized' });
+      }
+
+      const { id } = req.params;
+
+      const [goal] = await db
+        .delete(goals)
+        .where(and(
+          eq(goals.id, parseInt(id)),
+          eq(goals.createdBy, user.id),
+          eq(goals.type, 'my')
+        ))
+        .returning();
+
+      if (!goal) {
+        return res.status(404).json({ message: 'Goal not found' });
+      }
+
+      res.json({ message: 'Goal deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting personal goal:', error);
+      res.status(500).json({ message: 'Failed to delete personal goal' });
+    }
+  });
+
+  // Get company BHAG goals (visible to all users)
+  app.get('/api/goals/company', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      if (!user) {
+        return res.status(401).json({ message: 'Unauthorized' });
+      }
+
+      const companyGoals = await db
+        .select()
+        .from(goals)
+        .where(eq(goals.type, 'company'))
+        .orderBy(desc(goals.createdAt));
+
+      res.json(companyGoals);
+    } catch (error) {
+      console.error('Error fetching company goals:', error);
+      res.status(500).json({ message: 'Failed to fetch company goals' });
+    }
+  });
+
+  // Create a company BHAG goal
+  app.post('/api/goals/company', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      if (!user || (user.role !== 'admin' && user.role !== 'manager')) {
+        return res.status(403).json({ message: 'Only admins and managers can create company goals' });
+      }
+
+      const { title, description, targetDate, status } = req.body;
+
+      if (!title?.trim()) {
+        return res.status(400).json({ message: 'Title is required' });
+      }
+
+      const [goal] = await db
+        .insert(goals)
+        .values({
+          type: 'company',
+          title: title.trim(),
+          description: description?.trim() || null,
+          targetDate: targetDate || null,
+          status: status || 'not_started',
+          createdBy: user.id,
+        })
+        .returning();
+
+      res.status(201).json(goal);
+    } catch (error) {
+      console.error('Error creating company goal:', error);
+      res.status(500).json({ message: 'Failed to create company goal' });
+    }
+  });
+
+  // Update a company BHAG goal status
+  app.patch('/api/goals/company/:id', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      if (!user || (user.role !== 'admin' && user.role !== 'manager')) {
+        return res.status(403).json({ message: 'Only admins and managers can update company goals' });
+      }
+
+      const { id } = req.params;
+      const { status } = req.body;
+
+      const [goal] = await db
+        .update(goals)
+        .set({ status, updatedAt: new Date() })
+        .where(and(
+          eq(goals.id, parseInt(id)),
+          eq(goals.type, 'company')
+        ))
+        .returning();
+
+      if (!goal) {
+        return res.status(404).json({ message: 'Goal not found' });
+      }
+
+      res.json(goal);
+    } catch (error) {
+      console.error('Error updating company goal:', error);
+      res.status(500).json({ message: 'Failed to update company goal' });
+    }
+  });
+
+  // Delete a company BHAG goal
+  app.delete('/api/goals/company/:id', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      if (!user || (user.role !== 'admin' && user.role !== 'manager')) {
+        return res.status(403).json({ message: 'Only admins and managers can delete company goals' });
+      }
+
+      const { id } = req.params;
+
+      const [goal] = await db
+        .delete(goals)
+        .where(and(
+          eq(goals.id, parseInt(id)),
+          eq(goals.type, 'company')
+        ))
+        .returning();
+
+      if (!goal) {
+        return res.status(404).json({ message: 'Goal not found' });
+      }
+
+      res.json({ message: 'Goal deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting company goal:', error);
+      res.status(500).json({ message: 'Failed to delete company goal' });
+    }
+  });
+
+  // Get team goals (visible to all users)
+  app.get('/api/goals/team', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      if (!user) {
+        return res.status(401).json({ message: 'Unauthorized' });
+      }
+
+      const teamGoals = await db
+        .select()
+        .from(goals)
+        .where(eq(goals.type, 'team'))
+        .orderBy(desc(goals.createdAt));
+
+      res.json(teamGoals);
+    } catch (error) {
+      console.error('Error fetching team goals:', error);
+      res.status(500).json({ message: 'Failed to fetch team goals' });
+    }
+  });
+
+  // Create a team goal
+  app.post('/api/goals/team', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      if (!user || (user.role !== 'admin' && user.role !== 'manager')) {
+        return res.status(403).json({ message: 'Only admins and managers can create team goals' });
+      }
+
+      const { title, description, targetDate, status } = req.body;
+
+      if (!title?.trim()) {
+        return res.status(400).json({ message: 'Title is required' });
+      }
+
+      const [goal] = await db
+        .insert(goals)
+        .values({
+          type: 'team',
+          title: title.trim(),
+          description: description?.trim() || null,
+          targetDate: targetDate || null,
+          status: status || 'not_started',
+          createdBy: user.id,
+        })
+        .returning();
+
+      res.status(201).json(goal);
+    } catch (error) {
+      console.error('Error creating team goal:', error);
+      res.status(500).json({ message: 'Failed to create team goal' });
+    }
+  });
+
+  // Update a team goal status
+  app.patch('/api/goals/team/:id', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      if (!user || (user.role !== 'admin' && user.role !== 'manager')) {
+        return res.status(403).json({ message: 'Only admins and managers can update team goals' });
+      }
+
+      const { id } = req.params;
+      const { status } = req.body;
+
+      const [goal] = await db
+        .update(goals)
+        .set({ status, updatedAt: new Date() })
+        .where(and(
+          eq(goals.id, parseInt(id)),
+          eq(goals.type, 'team')
+        ))
+        .returning();
+
+      if (!goal) {
+        return res.status(404).json({ message: 'Goal not found' });
+      }
+
+      res.json(goal);
+    } catch (error) {
+      console.error('Error updating team goal:', error);
+      res.status(500).json({ message: 'Failed to update team goal' });
+    }
+  });
+
+  // Delete a team goal
+  app.delete('/api/goals/team/:id', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      if (!user || (user.role !== 'admin' && user.role !== 'manager')) {
+        return res.status(403).json({ message: 'Only admins and managers can delete team goals' });
+      }
+
+      const { id } = req.params;
+
+      const [goal] = await db
+        .delete(goals)
+        .where(and(
+          eq(goals.id, parseInt(id)),
+          eq(goals.type, 'team')
+        ))
+        .returning();
+
+      if (!goal) {
+        return res.status(404).json({ message: 'Goal not found' });
+      }
+
+      res.json({ message: 'Goal deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting team goal:', error);
+      res.status(500).json({ message: 'Failed to delete team goal' });
     }
   });
 

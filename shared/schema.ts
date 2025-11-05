@@ -4133,9 +4133,35 @@ export const insertDreamScenarioSchema = createInsertSchema(dreamScenarios).omit
   updatedAt: true,
 });
 
+// Goals - Personal, Company BHAG, and Team Goals
+export const goals = pgTable("goals", {
+  id: serial("id").primaryKey(),
+  type: varchar("type").notNull(), // 'my', 'company', 'team'
+  title: varchar("title", { length: 500 }).notNull(),
+  description: text("description"),
+  targetDate: date("target_date"),
+  status: varchar("status").notNull().default("not_started"), // 'not_started', 'in_progress', 'completed'
+  createdBy: varchar("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  typeIdx: index("idx_goals_type").on(table.type),
+  createdByIdx: index("idx_goals_created_by").on(table.createdBy),
+  statusIdx: index("idx_goals_status").on(table.status),
+}));
+
+export const insertGoalSchema = createInsertSchema(goals).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 // Type definitions
 export type CompanyMonthlyGoals = typeof companyMonthlyGoals.$inferSelect;
 export type InsertCompanyMonthlyGoals = z.infer<typeof insertCompanyMonthlyGoalsSchema>;
 
 export type DreamScenario = typeof dreamScenarios.$inferSelect;
 export type InsertDreamScenario = z.infer<typeof insertDreamScenarioSchema>;
+
+export type Goal = typeof goals.$inferSelect;
+export type InsertGoal = z.infer<typeof insertGoalSchema>;

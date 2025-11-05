@@ -42,6 +42,7 @@ import Landing from "@/pages/landing";
 import EmergencyContactPage from "@/pages/emergency-contact";
 import EmployeePurchases from "@/pages/employee-purchases";
 import Tasks from "@/pages/tasks";
+import Goals from "@/pages/goals";
 
 function AuthenticatedApp() {
   const { user } = useAuth();
@@ -183,6 +184,7 @@ function AuthenticatedApp() {
       <Route path="/support" component={EmployeeSupport} />
       <Route path="/employee-purchases" component={EmployeePurchases} />
       <Route path="/tasks" component={Tasks} />
+      <Route path="/goals" component={Goals} />
       <Route path="/emergency-contact" component={EmergencyContactPage} />
       <Route component={NotFound} />
     </Switch>
