@@ -274,30 +274,6 @@ function AccountingContent() {
   const [monthlyResetNotes, setMonthlyResetNotes] = useState('');
   const [monthlyResetReason, setMonthlyResetReason] = useState('');
 
-  // Fetch company monthly goals from API
-  const { data: companyGoals } = useQuery({
-    queryKey: ['/api/goals/company/monthly', currentMonth.getFullYear(), currentMonth.getMonth()],
-    queryFn: async () => {
-      const response = await apiRequest('GET', `/api/goals/company/monthly?year=${currentMonth.getFullYear()}&month=${currentMonth.getMonth()}`);
-      return await response.json();
-    },
-    enabled: canSetGoals, // Only fetch if user can view goals
-  });
-
-  // Update local state when company goals are fetched
-  useEffect(() => {
-    if (companyGoals) {
-      setMonthlyGoals({
-        revenue: parseFloat(companyGoals.revenue),
-        profit: parseFloat(companyGoals.profit),
-        profitMargin: parseFloat(companyGoals.profitMargin),
-        notes: companyGoals.notes || '',
-        month: `${companyGoals.year}-${companyGoals.month + 1}`,
-        setDate: companyGoals.createdAt
-      });
-    }
-  }, [companyGoals]);
-
   // Check if user can set goals (Admin or Manager only)
   const canSetGoals = user?.role === 'admin' || user?.role === 'manager';
   
@@ -440,6 +416,30 @@ function AccountingContent() {
     ? new Date(selectedYear, selectedMonth, 0).toISOString().split('T')[0]
     : today;
   
+  // Fetch company monthly goals from API
+  const { data: companyGoals } = useQuery({
+    queryKey: ['/api/goals/company/monthly', currentMonth.getFullYear(), currentMonth.getMonth()],
+    queryFn: async () => {
+      const response = await apiRequest('GET', `/api/goals/company/monthly?year=${currentMonth.getFullYear()}&month=${currentMonth.getMonth()}`);
+      return await response.json();
+    },
+    enabled: canSetGoals, // Only fetch if user can view goals
+  });
+
+  // Update local state when company goals are fetched
+  useEffect(() => {
+    if (companyGoals) {
+      setMonthlyGoals({
+        revenue: parseFloat(companyGoals.revenue),
+        profit: parseFloat(companyGoals.profit),
+        profitMargin: parseFloat(companyGoals.profitMargin),
+        notes: companyGoals.notes || '',
+        month: `${companyGoals.year}-${companyGoals.month + 1}`,
+        setDate: companyGoals.createdAt
+      });
+    }
+  }, [companyGoals]);
+
   const { data: profitLoss } = useQuery({
     queryKey: ['/api/accounting/analytics/profit-loss', isHistoricalMode ? monthStart : today, isHistoricalMode ? monthEnd : today],
     queryFn: async () => {
