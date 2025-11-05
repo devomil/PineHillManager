@@ -6,7 +6,9 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Target, Plus, Trash2, Save, TrendingUp, Users, User } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Target, Plus, Trash2, Edit, MessageSquare, ArrowRight, TrendingUp, Users, User, Lightbulb } from 'lucide-react';
 import AdminLayout from '@/components/admin-layout';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
@@ -22,29 +24,43 @@ type Goal = {
   createdAt: string;
 };
 
+type SuggestedGoal = {
+  id: number;
+  title: string;
+  description?: string;
+  createdBy: string;
+  assignedTo?: string;
+  assignedGoalId?: number;
+  status: 'suggested' | 'assigned' | 'archived';
+  notes?: string;
+  priority: 'low' | 'medium' | 'high';
+  createdAt: string;
+  updatedAt: string;
+};
+
 export default function GoalsPage() {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const [myGoalForm, setMyGoalForm] = useState({
+  const [newSuggestionForm, setNewSuggestionForm] = useState({
     title: '',
     description: '',
-    targetDate: '',
+    priority: 'medium' as 'low' | 'medium' | 'high',
   });
 
-  const [bhagForm, setBhagForm] = useState({
-    title: '',
-    description: '',
-    targetDate: '',
+  const [editingSuggestion, setEditingSuggestion] = useState<SuggestedGoal | null>(null);
+  const [assignDialogOpen, setAssignDialogOpen] = useState(false);
+  const [selectedSuggestion, setSelectedSuggestion] = useState<SuggestedGoal | null>(null);
+  const [assignCategory, setAssignCategory] = useState<'my' | 'team' | 'company'>('my');
+
+  // Fetch suggested goals
+  const { data: suggestedGoals = [] } = useQuery<SuggestedGoal[]>({
+    queryKey: ['/api/goals/suggested'],
+    enabled: !!user,
   });
 
-  const [teamGoalForm, setTeamGoalForm] = useState({
-    title: '',
-    description: '',
-    targetDate: '',
-  });
-
+  // Fetch categorized goals
   const { data: myGoals = [] } = useQuery<Goal[]>({
     queryKey: ['/api/goals/my'],
     enabled: !!user,
@@ -60,520 +76,466 @@ export default function GoalsPage() {
     enabled: !!user,
   });
 
-  const createMyGoal = useMutation({
-    mutationFn: async (goalData: any) => {
-      const response = await fetch('/api/goals/my', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(goalData),
-      });
-      if (!response.ok) throw new Error('Failed to create goal');
-      return response.json();
+  // Create suggested goal
+  const createSuggestion = useMutation({
+    mutationFn: async (data: typeof newSuggestionForm) => {
+      return await apiRequest('POST', '/api/goals/suggested', data);
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/goals/suggested'] });
+      setNewSuggestionForm({ title: '', description: '', priority: 'medium' });
+      toast({ title: 'Goal idea added to the board!' });
+    },
+  });
+
+  // Update suggested goal
+  const updateSuggestion = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: Partial<SuggestedGoal> }) => {
+      return await apiRequest('PATCH', `/api/goals/suggested/${id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/goals/suggested'] });
+      setEditingSuggestion(null);
+      toast({ title: 'Goal idea updated!' });
+    },
+  });
+
+  // Delete suggested goal
+  const deleteSuggestion = useMutation({
+    mutationFn: async (id: number) => {
+      return await apiRequest('DELETE', `/api/goals/suggested/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/goals/suggested'] });
+      toast({ title: 'Goal idea removed' });
+    },
+  });
+
+  // Assign suggested goal to category
+  const assignSuggestion = useMutation({
+    mutationFn: async ({ id, category }: { id: number; category: string }) => {
+      return await apiRequest('POST', `/api/goals/suggested/${id}/assign`, { category });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/goals/suggested'] });
       queryClient.invalidateQueries({ queryKey: ['/api/goals/my'] });
-      toast({ title: 'Goal created successfully!' });
-      setMyGoalForm({ title: '', description: '', targetDate: '' });
-    },
-    onError: () => {
-      toast({ title: 'Failed to create goal', variant: 'destructive' });
-    },
-  });
-
-  const createCompanyGoal = useMutation({
-    mutationFn: async (goalData: any) => {
-      const response = await fetch('/api/goals/company', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(goalData),
-      });
-      if (!response.ok) throw new Error('Failed to create company goal');
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/goals/company'] });
-      toast({ title: 'Company goal created successfully!' });
-      setBhagForm({ title: '', description: '', targetDate: '' });
-    },
-    onError: () => {
-      toast({ title: 'Failed to create company goal', variant: 'destructive' });
-    },
-  });
-
-  const createTeamGoal = useMutation({
-    mutationFn: async (goalData: any) => {
-      const response = await fetch('/api/goals/team', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(goalData),
-      });
-      if (!response.ok) throw new Error('Failed to create team goal');
-      return response.json();
-    },
-    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/goals/team'] });
-      toast({ title: 'Team goal created successfully!' });
-      setTeamGoalForm({ title: '', description: '', targetDate: '' });
-    },
-    onError: () => {
-      toast({ title: 'Failed to create team goal', variant: 'destructive' });
-    },
-  });
-
-  const deleteGoal = useMutation({
-    mutationFn: async ({ id, type }: { id: number; type: 'my' | 'company' | 'team' }) => {
-      const response = await fetch(`/api/goals/${type}/${id}`, {
-        method: 'DELETE',
-      });
-      if (!response.ok) throw new Error('Failed to delete goal');
-      return response.json();
-    },
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: [`/api/goals/${variables.type}`] });
-      toast({ title: 'Goal deleted successfully!' });
-    },
-    onError: () => {
-      toast({ title: 'Failed to delete goal', variant: 'destructive' });
+      queryClient.invalidateQueries({ queryKey: ['/api/goals/company'] });
+      setAssignDialogOpen(false);
+      setSelectedSuggestion(null);
+      toast({ title: 'Goal assigned successfully!' });
     },
   });
 
-  const updateGoalStatus = useMutation({
-    mutationFn: async ({ id, type, status }: { id: number; type: 'my' | 'company' | 'team'; status: string }) => {
-      const response = await fetch(`/api/goals/${type}/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status }),
-      });
-      if (!response.ok) throw new Error('Failed to update goal status');
-      return response.json();
-    },
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: [`/api/goals/${variables.type}`] });
-      toast({ title: 'Goal status updated!' });
-    },
-    onError: () => {
-      toast({ title: 'Failed to update goal status', variant: 'destructive' });
-    },
-  });
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
-      case 'in_progress':
-        return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200';
-      default:
-        return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200';
-    }
-  };
-
-  const getStatusLabel = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return 'Completed';
-      case 'in_progress':
-        return 'In Progress';
-      default:
-        return 'Not Started';
-    }
-  };
-
-  const handleMyGoalSubmit = (e: React.FormEvent) => {
+  const handleCreateSuggestion = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!myGoalForm.title.trim()) {
+    if (!newSuggestionForm.title.trim()) {
       toast({ title: 'Please enter a goal title', variant: 'destructive' });
       return;
     }
-    createMyGoal.mutate({
-      ...myGoalForm,
-      status: 'not_started',
-    });
+    createSuggestion.mutate(newSuggestionForm);
   };
 
-  const handleBhagSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!bhagForm.title.trim()) {
-      toast({ title: 'Please enter a goal title', variant: 'destructive' });
-      return;
+  const handleAssign = () => {
+    if (selectedSuggestion) {
+      assignSuggestion.mutate({ id: selectedSuggestion.id, category: assignCategory });
     }
-    createCompanyGoal.mutate({
-      ...bhagForm,
-      status: 'not_started',
-    });
   };
 
-  const handleTeamGoalSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!teamGoalForm.title.trim()) {
-      toast({ title: 'Please enter a goal title', variant: 'destructive' });
-      return;
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case 'high': return 'bg-red-100 dark:bg-red-900/20 border-red-300 dark:border-red-700';
+      case 'medium': return 'bg-yellow-100 dark:bg-yellow-900/20 border-yellow-300 dark:border-yellow-700';
+      case 'low': return 'bg-green-100 dark:bg-green-900/20 border-green-300 dark:border-green-700';
+      default: return 'bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-700';
     }
-    createTeamGoal.mutate({
-      ...teamGoalForm,
-      status: 'not_started',
-    });
-  };
-
-  const renderGoalCard = (goal: Goal, type: 'my' | 'company' | 'team') => {
-    const isAdminOrManager = user?.role === 'admin' || user?.role === 'manager';
-    const canEdit = type === 'my' || isAdminOrManager;
-
-    return (
-      <Card key={goal.id} className="mb-4">
-        <CardHeader>
-          <div className="flex items-start justify-between">
-            <div className="flex-1">
-              <CardTitle className="text-lg">{goal.title}</CardTitle>
-              {goal.description && (
-                <CardDescription className="mt-2">{goal.description}</CardDescription>
-              )}
-            </div>
-            {canEdit && (
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => deleteGoal.mutate({ id: goal.id, type })}
-                data-testid={`button-delete-goal-${goal.id}`}
-              >
-                <Trash2 className="h-4 w-4 text-red-500" />
-              </Button>
-            )}
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <div>
-                <Label className="text-xs text-muted-foreground">Status</Label>
-                {canEdit ? (
-                  <select
-                    value={goal.status}
-                    onChange={(e) =>
-                      updateGoalStatus.mutate({ id: goal.id, type, status: e.target.value })
-                    }
-                    className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(
-                      goal.status
-                    )}`}
-                    data-testid={`select-status-goal-${goal.id}`}
-                  >
-                    <option value="not_started">Not Started</option>
-                    <option value="in_progress">In Progress</option>
-                    <option value="completed">Completed</option>
-                  </select>
-                ) : (
-                  <div className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(
-                    goal.status
-                  )}`}>
-                    {getStatusLabel(goal.status)}
-                  </div>
-                )}
-              </div>
-              {goal.targetDate && (
-                <div>
-                  <Label className="text-xs text-muted-foreground">Target Date</Label>
-                  <p className="text-sm font-medium">
-                    {new Date(goal.targetDate).toLocaleDateString()}
-                  </p>
-                </div>
-              )}
-            </div>
-            <div className="text-right">
-              <Label className="text-xs text-muted-foreground">Created</Label>
-              <p className="text-sm">
-                {new Date(goal.createdAt).toLocaleDateString()}
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    );
   };
 
   return (
     <AdminLayout currentTab="">
       <div className="container mx-auto p-6 max-w-7xl">
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold flex items-center gap-2">
-            <Target className="h-8 w-8 text-primary" />
-            Goals
+        <div className="mb-8">
+          <h1 className="text-4xl font-bold flex items-center gap-3">
+            <Lightbulb className="h-9 w-9" />
+            Goals Collaboration Board
           </h1>
           <p className="text-muted-foreground mt-2">
-            Set and track your personal, team, and company goals
+            Brainstorm and collaborate on goals together, then assign them to your team
           </p>
         </div>
 
-        <Tabs defaultValue="my-goals" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="my-goals" className="flex items-center gap-2">
-              <User className="h-4 w-4" />
+        <Tabs defaultValue="board" className="w-full">
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="board" data-testid="tab-board">
+              <Lightbulb className="h-4 w-4 mr-2" />
+              Idea Board
+            </TabsTrigger>
+            <TabsTrigger value="my-goals" data-testid="tab-my-goals">
+              <User className="h-4 w-4 mr-2" />
               My Goals
             </TabsTrigger>
-            <TabsTrigger value="company-bhag" className="flex items-center gap-2">
-              <TrendingUp className="h-4 w-4" />
-              Company BHAG Goals
-            </TabsTrigger>
-            <TabsTrigger value="team-goals" className="flex items-center gap-2">
-              <Users className="h-4 w-4" />
+            <TabsTrigger value="team-goals" data-testid="tab-team-goals">
+              <Users className="h-4 w-4 mr-2" />
               Team Goals
+            </TabsTrigger>
+            <TabsTrigger value="company-bhag" data-testid="tab-company-bhag">
+              <TrendingUp className="h-4 w-4 mr-2" />
+              Company BHAGs
             </TabsTrigger>
           </TabsList>
 
+          {/* COLLABORATIVE BOARD TAB */}
+          <TabsContent value="board" className="mt-6">
+            {/* Quick Add Form */}
+            <Card className="mb-6 bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/10 dark:to-blue-900/10 border-2 border-dashed border-purple-300 dark:border-purple-700">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Plus className="h-5 w-5" />
+                  Add a New Goal Idea
+                </CardTitle>
+                <CardDescription>
+                  Share a goal idea - anyone can add suggestions here!
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleCreateSuggestion} className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="md:col-span-2">
+                      <Input
+                        placeholder="What goal would you like to suggest?"
+                        value={newSuggestionForm.title}
+                        onChange={(e) => setNewSuggestionForm({ ...newSuggestionForm, title: e.target.value })}
+                        data-testid="input-new-suggestion-title"
+                      />
+                    </div>
+                    <Select
+                      value={newSuggestionForm.priority}
+                      onValueChange={(value: 'low' | 'medium' | 'high') =>
+                        setNewSuggestionForm({ ...newSuggestionForm, priority: value })
+                      }
+                    >
+                      <SelectTrigger data-testid="select-priority">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="low">Low Priority</SelectItem>
+                        <SelectItem value="medium">Medium Priority</SelectItem>
+                        <SelectItem value="high">High Priority</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Textarea
+                    placeholder="Add details about this goal idea..."
+                    value={newSuggestionForm.description}
+                    onChange={(e) => setNewSuggestionForm({ ...newSuggestionForm, description: e.target.value })}
+                    rows={2}
+                    data-testid="textarea-new-suggestion-description"
+                  />
+                  <Button type="submit" disabled={createSuggestion.isPending} data-testid="button-create-suggestion">
+                    <Plus className="h-4 w-4 mr-2" />
+                    {createSuggestion.isPending ? 'Adding...' : 'Add to Board'}
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+
+            {/* Padlet-style Grid of Suggestions */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {suggestedGoals.map((suggestion) => (
+                <Card key={suggestion.id} className={`border-2 ${getPriorityColor(suggestion.priority)} hover:shadow-lg transition-shadow`}>
+                  <CardHeader className="pb-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <CardTitle className="text-base line-clamp-2">{suggestion.title}</CardTitle>
+                      <div className="flex gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={() => setEditingSuggestion(suggestion)}
+                          data-testid={`button-edit-suggestion-${suggestion.id}`}
+                        >
+                          <Edit className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-red-500"
+                          onClick={() => deleteSuggestion.mutate(suggestion.id)}
+                          data-testid={`button-delete-suggestion-${suggestion.id}`}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <span className="capitalize px-2 py-0.5 rounded bg-white dark:bg-gray-900">
+                        {suggestion.priority} priority
+                      </span>
+                    </div>
+                  </CardHeader>
+                  {suggestion.description && (
+                    <CardContent className="pb-3 pt-0">
+                      <p className="text-sm text-muted-foreground line-clamp-3">{suggestion.description}</p>
+                    </CardContent>
+                  )}
+                  <CardContent className="pt-0">
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        className="flex-1"
+                        onClick={() => {
+                          setSelectedSuggestion(suggestion);
+                          setAssignDialogOpen(true);
+                        }}
+                        data-testid={`button-assign-suggestion-${suggestion.id}`}
+                      >
+                        <ArrowRight className="h-3 w-3 mr-1" />
+                        Assign to Goal
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+
+            {suggestedGoals.length === 0 && (
+              <Card className="py-12">
+                <CardContent className="text-center">
+                  <Lightbulb className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
+                  <p className="text-lg font-medium mb-2">No goal ideas yet</p>
+                  <p className="text-muted-foreground">
+                    Be the first to add a goal idea to the collaborative board!
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+
+          {/* MY GOALS TAB */}
           <TabsContent value="my-goals" className="mt-6">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="lg:col-span-1">
+            <div className="mb-4">
+              <h2 className="text-2xl font-semibold">My Personal Goals</h2>
+              <p className="text-muted-foreground">Goals assigned specifically to you</p>
+            </div>
+            <div className="space-y-4">
+              {myGoals.map((goal) => (
+                <Card key={goal.id} data-testid={`goal-card-${goal.id}`}>
+                  <CardHeader>
+                    <CardTitle>{goal.title}</CardTitle>
+                    {goal.description && <CardDescription>{goal.description}</CardDescription>}
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex items-center gap-4">
+                      <span className={`px-3 py-1 rounded-full text-sm ${
+                        goal.status === 'completed' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
+                        goal.status === 'in_progress' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' :
+                        'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200'
+                      }`}>
+                        {goal.status === 'not_started' ? 'Not Started' : goal.status === 'in_progress' ? 'In Progress' : 'Completed'}
+                      </span>
+                      {goal.targetDate && (
+                        <span className="text-sm text-muted-foreground">
+                          Target: {new Date(goal.targetDate).toLocaleDateString()}
+                        </span>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+              {myGoals.length === 0 && (
                 <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Plus className="h-5 w-5" />
-                      Add Personal Goal
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <form onSubmit={handleMyGoalSubmit} className="space-y-4">
-                      <div>
-                        <Label htmlFor="my-goal-title">Goal Title *</Label>
-                        <Input
-                          id="my-goal-title"
-                          value={myGoalForm.title}
-                          onChange={(e) =>
-                            setMyGoalForm({ ...myGoalForm, title: e.target.value })
-                          }
-                          placeholder="e.g., Increase sales by 20%"
-                          data-testid="input-my-goal-title"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="my-goal-description">Description</Label>
-                        <Textarea
-                          id="my-goal-description"
-                          value={myGoalForm.description}
-                          onChange={(e) =>
-                            setMyGoalForm({ ...myGoalForm, description: e.target.value })
-                          }
-                          placeholder="Describe your goal..."
-                          rows={3}
-                          data-testid="textarea-my-goal-description"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="my-goal-target">Target Date</Label>
-                        <Input
-                          id="my-goal-target"
-                          type="date"
-                          value={myGoalForm.targetDate}
-                          onChange={(e) =>
-                            setMyGoalForm({ ...myGoalForm, targetDate: e.target.value })
-                          }
-                          data-testid="input-my-goal-target"
-                        />
-                      </div>
-                      <Button
-                        type="submit"
-                        className="w-full"
-                        disabled={createMyGoal.isPending}
-                        data-testid="button-create-my-goal"
-                      >
-                        <Save className="h-4 w-4 mr-2" />
-                        {createMyGoal.isPending ? 'Creating...' : 'Create Goal'}
-                      </Button>
-                    </form>
+                  <CardContent className="py-12 text-center">
+                    <User className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                    <p className="text-muted-foreground">No personal goals yet. Assign some from the Idea Board!</p>
                   </CardContent>
                 </Card>
-              </div>
-
-              <div className="lg:col-span-2">
-                <h2 className="text-xl font-semibold mb-4">My Goals</h2>
-                {myGoals.length === 0 ? (
-                  <Card>
-                    <CardContent className="py-12 text-center">
-                      <Target className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                      <p className="text-muted-foreground">
-                        No goals yet. Create your first goal to get started!
-                      </p>
-                    </CardContent>
-                  </Card>
-                ) : (
-                  myGoals.map((goal) => renderGoalCard(goal, 'my'))
-                )}
-              </div>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="company-bhag" className="mt-6">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {(user?.role === 'admin' || user?.role === 'manager') && (
-                <div className="lg:col-span-1">
-                  <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Plus className="h-5 w-5" />
-                      Add BHAG Goal
-                    </CardTitle>
-                    <CardDescription>
-                      Big Hairy Audacious Goals for the entire company
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <form onSubmit={handleBhagSubmit} className="space-y-4">
-                      <div>
-                        <Label htmlFor="bhag-title">Goal Title *</Label>
-                        <Input
-                          id="bhag-title"
-                          value={bhagForm.title}
-                          onChange={(e) =>
-                            setBhagForm({ ...bhagForm, title: e.target.value })
-                          }
-                          placeholder="e.g., Reach $1M in annual revenue"
-                          data-testid="input-bhag-title"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="bhag-description">Description</Label>
-                        <Textarea
-                          id="bhag-description"
-                          value={bhagForm.description}
-                          onChange={(e) =>
-                            setBhagForm({ ...bhagForm, description: e.target.value })
-                          }
-                          placeholder="Describe the company goal..."
-                          rows={3}
-                          data-testid="textarea-bhag-description"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="bhag-target">Target Date</Label>
-                        <Input
-                          id="bhag-target"
-                          type="date"
-                          value={bhagForm.targetDate}
-                          onChange={(e) =>
-                            setBhagForm({ ...bhagForm, targetDate: e.target.value })
-                          }
-                          data-testid="input-bhag-target"
-                        />
-                      </div>
-                      <Button
-                        type="submit"
-                        className="w-full"
-                        disabled={createCompanyGoal.isPending}
-                        data-testid="button-create-bhag"
-                      >
-                        <Save className="h-4 w-4 mr-2" />
-                        {createCompanyGoal.isPending ? 'Creating...' : 'Create Goal'}
-                      </Button>
-                    </form>
-                  </CardContent>
-                </Card>
-              </div>
               )}
-
-              <div className={(user?.role === 'admin' || user?.role === 'manager') ? "lg:col-span-2" : "lg:col-span-3"}>
-                <h2 className="text-xl font-semibold mb-4">Company BHAG Goals</h2>
-                {companyGoals.length === 0 ? (
-                  <Card>
-                    <CardContent className="py-12 text-center">
-                      <TrendingUp className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                      <p className="text-muted-foreground">
-                        No company goals yet. Create the first BHAG goal!
-                      </p>
-                    </CardContent>
-                  </Card>
-                ) : (
-                  companyGoals.map((goal) => renderGoalCard(goal, 'company'))
-                )}
-              </div>
             </div>
           </TabsContent>
 
+          {/* TEAM GOALS TAB */}
           <TabsContent value="team-goals" className="mt-6">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {(user?.role === 'admin' || user?.role === 'manager') && (
-                <div className="lg:col-span-1">
-                  <Card>
+            <div className="mb-4">
+              <h2 className="text-2xl font-semibold">Team Goals</h2>
+              <p className="text-muted-foreground">Goals for the entire team to work on together</p>
+            </div>
+            <div className="space-y-4">
+              {teamGoals.map((goal) => (
+                <Card key={goal.id} data-testid={`goal-card-${goal.id}`}>
                   <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Plus className="h-5 w-5" />
-                      Add Team Goal
-                    </CardTitle>
-                    <CardDescription>
-                      Goals for your team or department
-                    </CardDescription>
+                    <CardTitle>{goal.title}</CardTitle>
+                    {goal.description && <CardDescription>{goal.description}</CardDescription>}
                   </CardHeader>
                   <CardContent>
-                    <form onSubmit={handleTeamGoalSubmit} className="space-y-4">
-                      <div>
-                        <Label htmlFor="team-goal-title">Goal Title *</Label>
-                        <Input
-                          id="team-goal-title"
-                          value={teamGoalForm.title}
-                          onChange={(e) =>
-                            setTeamGoalForm({ ...teamGoalForm, title: e.target.value })
-                          }
-                          placeholder="e.g., Complete Q4 training program"
-                          data-testid="input-team-goal-title"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="team-goal-description">Description</Label>
-                        <Textarea
-                          id="team-goal-description"
-                          value={teamGoalForm.description}
-                          onChange={(e) =>
-                            setTeamGoalForm({
-                              ...teamGoalForm,
-                              description: e.target.value,
-                            })
-                          }
-                          placeholder="Describe the team goal..."
-                          rows={3}
-                          data-testid="textarea-team-goal-description"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="team-goal-target">Target Date</Label>
-                        <Input
-                          id="team-goal-target"
-                          type="date"
-                          value={teamGoalForm.targetDate}
-                          onChange={(e) =>
-                            setTeamGoalForm({ ...teamGoalForm, targetDate: e.target.value })
-                          }
-                          data-testid="input-team-goal-target"
-                        />
-                      </div>
-                      <Button
-                        type="submit"
-                        className="w-full"
-                        disabled={createTeamGoal.isPending}
-                        data-testid="button-create-team-goal"
-                      >
-                        <Save className="h-4 w-4 mr-2" />
-                        {createTeamGoal.isPending ? 'Creating...' : 'Create Goal'}
-                      </Button>
-                    </form>
+                    <div className="flex items-center gap-4">
+                      <span className={`px-3 py-1 rounded-full text-sm ${
+                        goal.status === 'completed' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
+                        goal.status === 'in_progress' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' :
+                        'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200'
+                      }`}>
+                        {goal.status === 'not_started' ? 'Not Started' : goal.status === 'in_progress' ? 'In Progress' : 'Completed'}
+                      </span>
+                      {goal.targetDate && (
+                        <span className="text-sm text-muted-foreground">
+                          Target: {new Date(goal.targetDate).toLocaleDateString()}
+                        </span>
+                      )}
+                    </div>
                   </CardContent>
                 </Card>
-              </div>
+              ))}
+              {teamGoals.length === 0 && (
+                <Card>
+                  <CardContent className="py-12 text-center">
+                    <Users className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                    <p className="text-muted-foreground">No team goals yet. Assign some from the Idea Board!</p>
+                  </CardContent>
+                </Card>
               )}
+            </div>
+          </TabsContent>
 
-              <div className={(user?.role === 'admin' || user?.role === 'manager') ? "lg:col-span-2" : "lg:col-span-3"}>
-                <h2 className="text-xl font-semibold mb-4">Team Goals</h2>
-                {teamGoals.length === 0 ? (
-                  <Card>
-                    <CardContent className="py-12 text-center">
-                      <Users className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                      <p className="text-muted-foreground">
-                        No team goals yet. Create the first team goal!
-                      </p>
-                    </CardContent>
-                  </Card>
-                ) : (
-                  teamGoals.map((goal) => renderGoalCard(goal, 'team'))
-                )}
-              </div>
+          {/* COMPANY BHAG TAB */}
+          <TabsContent value="company-bhag" className="mt-6">
+            <div className="mb-4">
+              <h2 className="text-2xl font-semibold">Company BHAG Goals</h2>
+              <p className="text-muted-foreground">Big Hairy Audacious Goals for the entire company</p>
+            </div>
+            <div className="space-y-4">
+              {companyGoals.map((goal) => (
+                <Card key={goal.id} data-testid={`goal-card-${goal.id}`}>
+                  <CardHeader>
+                    <CardTitle>{goal.title}</CardTitle>
+                    {goal.description && <CardDescription>{goal.description}</CardDescription>}
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex items-center gap-4">
+                      <span className={`px-3 py-1 rounded-full text-sm ${
+                        goal.status === 'completed' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
+                        goal.status === 'in_progress' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' :
+                        'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200'
+                      }`}>
+                        {goal.status === 'not_started' ? 'Not Started' : goal.status === 'in_progress' ? 'In Progress' : 'Completed'}
+                      </span>
+                      {goal.targetDate && (
+                        <span className="text-sm text-muted-foreground">
+                          Target: {new Date(goal.targetDate).toLocaleDateString()}
+                        </span>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+              {companyGoals.length === 0 && (
+                <Card>
+                  <CardContent className="py-12 text-center">
+                    <TrendingUp className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                    <p className="text-muted-foreground">No company goals yet. Assign some from the Idea Board!</p>
+                  </CardContent>
+                </Card>
+              )}
             </div>
           </TabsContent>
         </Tabs>
+
+        {/* Edit Suggestion Dialog */}
+        <Dialog open={!!editingSuggestion} onOpenChange={() => setEditingSuggestion(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Edit Goal Idea</DialogTitle>
+              <DialogDescription>Update the details of this goal suggestion</DialogDescription>
+            </DialogHeader>
+            {editingSuggestion && (
+              <div className="space-y-4">
+                <div>
+                  <Label>Title</Label>
+                  <Input
+                    value={editingSuggestion.title}
+                    onChange={(e) => setEditingSuggestion({ ...editingSuggestion, title: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label>Description</Label>
+                  <Textarea
+                    value={editingSuggestion.description || ''}
+                    onChange={(e) => setEditingSuggestion({ ...editingSuggestion, description: e.target.value })}
+                    rows={3}
+                  />
+                </div>
+                <div>
+                  <Label>Priority</Label>
+                  <Select
+                    value={editingSuggestion.priority}
+                    onValueChange={(value: 'low' | 'medium' | 'high') =>
+                      setEditingSuggestion({ ...editingSuggestion, priority: value })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="low">Low Priority</SelectItem>
+                      <SelectItem value="medium">Medium Priority</SelectItem>
+                      <SelectItem value="high">High Priority</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Notes</Label>
+                  <Textarea
+                    value={editingSuggestion.notes || ''}
+                    onChange={(e) => setEditingSuggestion({ ...editingSuggestion, notes: e.target.value })}
+                    placeholder="Add collaboration notes..."
+                    rows={2}
+                  />
+                </div>
+                <Button
+                  onClick={() => updateSuggestion.mutate({ id: editingSuggestion.id, data: editingSuggestion })}
+                  disabled={updateSuggestion.isPending}
+                >
+                  Save Changes
+                </Button>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Assign Dialog */}
+        <Dialog open={assignDialogOpen} onOpenChange={setAssignDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Assign Goal</DialogTitle>
+              <DialogDescription>Choose where to assign this goal idea</DialogDescription>
+            </DialogHeader>
+            {selectedSuggestion && (
+              <div className="space-y-4">
+                <div>
+                  <p className="font-medium mb-2">{selectedSuggestion.title}</p>
+                  {selectedSuggestion.description && (
+                    <p className="text-sm text-muted-foreground">{selectedSuggestion.description}</p>
+                  )}
+                </div>
+                <div>
+                  <Label>Assign to:</Label>
+                  <Select value={assignCategory} onValueChange={(value: 'my' | 'team' | 'company') => setAssignCategory(value)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="my">My Personal Goals</SelectItem>
+                      <SelectItem value="team">Team Goals</SelectItem>
+                      <SelectItem value="company">Company BHAG Goals</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button onClick={handleAssign} disabled={assignSuggestion.isPending}>
+                  <ArrowRight className="h-4 w-4 mr-2" />
+                  {assignSuggestion.isPending ? 'Assigning...' : 'Assign Goal'}
+                </Button>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </AdminLayout>
   );
