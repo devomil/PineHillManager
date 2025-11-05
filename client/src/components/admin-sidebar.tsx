@@ -22,7 +22,8 @@ import {
   ListTodo,
   GraduationCap,
   BarChart,
-  Target
+  Target,
+  FolderOpen
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -49,6 +50,8 @@ const navigationItems: NavItem[] = [
   
   // Tools Section
   { label: "Orders", icon: ShoppingCart, value: "orders", href: "/orders", section: "tools" },
+  { label: "Document Center", icon: FolderOpen, value: "document-center", href: "/document-center", section: "tools" },
+  { label: "Manage Documents", icon: FileText, value: "document-management", href: "/admin/document-center", section: "tools" },
   { label: "Marketing Videos", icon: Video, value: "marketing", href: "/admin/marketing", section: "tools" },
   { label: "Employee Content", icon: FileText, value: "employee-content", href: "/admin/employee-content", section: "tools" },
   { label: "Integrations", icon: Settings, value: "integrations", href: "/admin/integrations", section: "tools" },

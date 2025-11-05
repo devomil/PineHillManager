@@ -43,6 +43,8 @@ import EmergencyContactPage from "@/pages/emergency-contact";
 import EmployeePurchases from "@/pages/employee-purchases";
 import Tasks from "@/pages/tasks";
 import Goals from "@/pages/goals";
+import DocumentCenter from "@/pages/document-center";
+import DocumentCenterManagement from "@/pages/admin/document-center-management";
 
 function AuthenticatedApp() {
   const { user } = useAuth();
@@ -112,6 +114,11 @@ function AuthenticatedApp() {
       <Route path="/admin/marketing">
         <ProtectedRoute allowedRoles={['admin', 'manager']}>
           <MarketingPage />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/admin/document-center">
+        <ProtectedRoute allowedRoles={['admin', 'manager']}>
+          <DocumentCenterManagement />
         </ProtectedRoute>
       </Route>
       <Route path="/shift-scheduling">
@@ -185,6 +192,7 @@ function AuthenticatedApp() {
       <Route path="/employee-purchases" component={EmployeePurchases} />
       <Route path="/tasks" component={Tasks} />
       <Route path="/goals" component={Goals} />
+      <Route path="/document-center" component={DocumentCenter} />
       <Route path="/emergency-contact" component={EmergencyContactPage} />
       <Route component={NotFound} />
     </Switch>

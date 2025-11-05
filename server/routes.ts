@@ -18442,5 +18442,314 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Export analytics service for use in other parts of the application
   (global as any).analyticsService = analyticsService;
 
+  // ================================
+  // DOCUMENT CENTER ROUTES
+  // ================================
+
+  // Get all document categories
+  app.get('/api/document-categories', isAuthenticated, async (req, res) => {
+    try {
+      const { documentCategories } = await import('@shared/schema');
+      const { desc } = await import('drizzle-orm');
+
+      const categories = await db
+        .select()
+        .from(documentCategories)
+        .orderBy(desc(documentCategories.createdAt));
+
+      res.json(categories);
+    } catch (error) {
+      console.error('Error fetching document categories:', error);
+      res.status(500).json({ message: 'Failed to fetch categories' });
+    }
+  });
+
+  // Create a document category (admin/manager only)
+  app.post('/api/document-categories', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      if (!user || (user.role !== 'admin' && user.role !== 'manager')) {
+        return res.status(403).json({ message: 'Unauthorized' });
+      }
+
+      const { documentCategories, insertDocumentCategorySchema } = await import('@shared/schema');
+      const validatedData = insertDocumentCategorySchema.parse({
+        ...req.body,
+        createdBy: user.id,
+      });
+
+      const [category] = await db
+        .insert(documentCategories)
+        .values(validatedData)
+        .returning();
+
+      res.status(201).json(category);
+    } catch (error: any) {
+      console.error('Error creating document category:', error);
+      res.status(500).json({ message: error.message || 'Failed to create category' });
+    }
+  });
+
+  // Update a document category (admin/manager only)
+  app.patch('/api/document-categories/:id', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      if (!user || (user.role !== 'admin' && user.role !== 'manager')) {
+        return res.status(403).json({ message: 'Unauthorized' });
+      }
+
+      const { documentCategories } = await import('@shared/schema');
+      const categoryId = parseInt(req.params.id);
+
+      const [updated] = await db
+        .update(documentCategories)
+        .set({
+          ...req.body,
+          updatedAt: new Date(),
+        })
+        .where(eq(documentCategories.id, categoryId))
+        .returning();
+
+      if (!updated) {
+        return res.status(404).json({ message: 'Category not found' });
+      }
+
+      res.json(updated);
+    } catch (error: any) {
+      console.error('Error updating document category:', error);
+      res.status(500).json({ message: error.message || 'Failed to update category' });
+    }
+  });
+
+  // Delete a document category (admin/manager only)
+  app.delete('/api/document-categories/:id', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      if (!user || (user.role !== 'admin' && user.role !== 'manager')) {
+        return res.status(403).json({ message: 'Unauthorized' });
+      }
+
+      const { documentCategories } = await import('@shared/schema');
+      const categoryId = parseInt(req.params.id);
+
+      await db
+        .delete(documentCategories)
+        .where(eq(documentCategories.id, categoryId));
+
+      res.json({ message: 'Category deleted successfully' });
+    } catch (error: any) {
+      console.error('Error deleting document category:', error);
+      res.status(500).json({ message: error.message || 'Failed to delete category' });
+    }
+  });
+
+  // Get all documents with search and filter
+  app.get('/api/documents/center', isAuthenticated, async (req, res) => {
+    try {
+      const { centerDocuments, users } = await import('@shared/schema');
+      const { desc, ilike, or, sql, and } = await import('drizzle-orm');
+      const search = req.query.search as string;
+      const categoryId = req.query.categoryId as string;
+
+      // Build filter conditions
+      const conditions = [];
+      
+      if (search) {
+        conditions.push(
+          or(
+            ilike(centerDocuments.title, `%${search}%`),
+            ilike(centerDocuments.description, `%${search}%`),
+            ilike(centerDocuments.fileName, `%${search}%`)
+          )
+        );
+      }
+
+      if (categoryId) {
+        conditions.push(eq(centerDocuments.categoryId, parseInt(categoryId)));
+      }
+
+      let query = db
+        .select({
+          id: centerDocuments.id,
+          title: centerDocuments.title,
+          description: centerDocuments.description,
+          fileUrl: centerDocuments.fileUrl,
+          fileName: centerDocuments.fileName,
+          fileType: centerDocuments.fileType,
+          fileSize: centerDocuments.fileSize,
+          categoryId: centerDocuments.categoryId,
+          uploadedBy: centerDocuments.uploadedBy,
+          createdAt: centerDocuments.createdAt,
+          updatedAt: centerDocuments.updatedAt,
+          uploaderName: sql<string>`CONCAT(${users.firstName}, ' ', ${users.lastName})`,
+        })
+        .from(centerDocuments)
+        .leftJoin(users, eq(centerDocuments.uploadedBy, users.id))
+        .orderBy(desc(centerDocuments.createdAt));
+
+      // Apply combined filters
+      if (conditions.length > 0) {
+        query = query.where(conditions.length === 1 ? conditions[0]! : and(...conditions)!);
+      }
+
+      const documents = await query;
+      res.json(documents);
+    } catch (error) {
+      console.error('Error fetching documents:', error);
+      res.status(500).json({ message: 'Failed to fetch documents' });
+    }
+  });
+
+  // Get a single document by ID
+  app.get('/api/documents/center/:id', isAuthenticated, async (req, res) => {
+    try {
+      const { centerDocuments, users } = await import('@shared/schema');
+      const { sql } = await import('drizzle-orm');
+      const documentId = parseInt(req.params.id);
+
+      const [document] = await db
+        .select({
+          id: centerDocuments.id,
+          title: centerDocuments.title,
+          description: centerDocuments.description,
+          fileUrl: centerDocuments.fileUrl,
+          fileName: centerDocuments.fileName,
+          fileType: centerDocuments.fileType,
+          fileSize: centerDocuments.fileSize,
+          categoryId: centerDocuments.categoryId,
+          uploadedBy: centerDocuments.uploadedBy,
+          createdAt: centerDocuments.createdAt,
+          updatedAt: centerDocuments.updatedAt,
+          uploaderName: sql<string>`CONCAT(${users.firstName}, ' ', ${users.lastName})`,
+        })
+        .from(centerDocuments)
+        .leftJoin(users, eq(centerDocuments.uploadedBy, users.id))
+        .where(eq(centerDocuments.id, documentId))
+        .limit(1);
+
+      if (!document) {
+        return res.status(404).json({ message: 'Document not found' });
+      }
+
+      res.json(document);
+    } catch (error) {
+      console.error('Error fetching document:', error);
+      res.status(500).json({ message: 'Failed to fetch document' });
+    }
+  });
+
+  // Upload a document (admin/manager only)
+  app.post('/api/documents/center', isAuthenticated, upload.single('file'), async (req, res) => {
+    try {
+      const user = req.user;
+      if (!user || (user.role !== 'admin' && user.role !== 'manager')) {
+        return res.status(403).json({ message: 'Unauthorized' });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({ message: 'No file uploaded' });
+      }
+
+      const { centerDocuments, insertCenterDocumentSchema } = await import('@shared/schema');
+      
+      // File URL will be the local path for now (can be updated to object storage later)
+      const fileUrl = `/uploads/${req.file.filename}`;
+      
+      const validatedData = insertCenterDocumentSchema.parse({
+        title: req.body.title || req.file.originalname,
+        description: req.body.description || null,
+        fileUrl,
+        fileName: req.file.originalname,
+        fileType: req.file.mimetype,
+        fileSize: req.file.size,
+        categoryId: req.body.categoryId ? parseInt(req.body.categoryId) : null,
+        uploadedBy: user.id,
+      });
+
+      const [document] = await db
+        .insert(centerDocuments)
+        .values(validatedData)
+        .returning();
+
+      res.status(201).json(document);
+    } catch (error: any) {
+      console.error('Error uploading document:', error);
+      res.status(500).json({ message: error.message || 'Failed to upload document' });
+    }
+  });
+
+  // Update a document (admin/manager only)
+  app.patch('/api/documents/center/:id', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      if (!user || (user.role !== 'admin' && user.role !== 'manager')) {
+        return res.status(403).json({ message: 'Unauthorized' });
+      }
+
+      const { centerDocuments } = await import('@shared/schema');
+      const documentId = parseInt(req.params.id);
+
+      const [updated] = await db
+        .update(centerDocuments)
+        .set({
+          ...req.body,
+          updatedAt: new Date(),
+        })
+        .where(eq(centerDocuments.id, documentId))
+        .returning();
+
+      if (!updated) {
+        return res.status(404).json({ message: 'Document not found' });
+      }
+
+      res.json(updated);
+    } catch (error: any) {
+      console.error('Error updating document:', error);
+      res.status(500).json({ message: error.message || 'Failed to update document' });
+    }
+  });
+
+  // Delete a document (admin/manager only)
+  app.delete('/api/documents/center/:id', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      if (!user || (user.role !== 'admin' && user.role !== 'manager')) {
+        return res.status(403).json({ message: 'Unauthorized' });
+      }
+
+      const { centerDocuments } = await import('@shared/schema');
+      const documentId = parseInt(req.params.id);
+
+      // Get document to delete file
+      const [document] = await db
+        .select()
+        .from(centerDocuments)
+        .where(eq(centerDocuments.id, documentId))
+        .limit(1);
+
+      if (document) {
+        // Delete the file from filesystem
+        const fs = await import('fs/promises');
+        const path = await import('path');
+        const filePath = path.join(process.cwd(), 'uploads', path.basename(document.fileUrl));
+        try {
+          await fs.unlink(filePath);
+        } catch (error) {
+          console.error('Error deleting file:', error);
+          // Continue even if file deletion fails
+        }
+      }
+
+      await db
+        .delete(centerDocuments)
+        .where(eq(centerDocuments.id, documentId));
+
+      res.json({ message: 'Document deleted successfully' });
+    } catch (error: any) {
+      console.error('Error deleting document:', error);
+      res.status(500).json({ message: error.message || 'Failed to delete document' });
+    }
+  });
+
   return httpServer;
 }
