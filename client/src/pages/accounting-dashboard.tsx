@@ -66,13 +66,15 @@ import {
   Receipt,
   BookOpen,
   Store,
-  Clock
+  Clock,
+  Sparkles
 } from 'lucide-react';
 import { apiRequest } from '@/lib/queryClient';
 import AdminLayout from '@/components/admin-layout';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
 import { RevenueAnalytics } from '@/components/revenue-analytics';
+import { DreamViewDialog } from '@/components/dream-view-dialog';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -262,6 +264,15 @@ function AccountingContent() {
     profit: '',
     profitMargin: '',
     notes: ''
+  });
+
+  // Dream View state - for modeling officer salary impacts
+  const [isDreamViewOpen, setIsDreamViewOpen] = useState(false);
+  const [dreamSalaries, setDreamSalaries] = useState({
+    ryanSorensen: '',
+    jacalynPhillips: '',
+    leanneAnthon: '',
+    lynleyGray: ''
   });
 
   // Monthly operations state
@@ -1191,20 +1202,32 @@ function AccountingContent() {
                       Updated: {new Date().toLocaleDateString()}
                     </Badge>
                     {canSetGoals && (
-                      <Dialog open={isGoalDialogOpen} onOpenChange={setIsGoalDialogOpen}>
-                        <DialogTrigger asChild>
-                          <Button 
-                            size="sm" 
-                            className="flex items-center gap-2"
-                            onClick={() => {
-                              resetGoalForm();
-                              setIsGoalDialogOpen(true);
-                            }}
-                          >
-                            <Target className="h-4 w-4" />
-                            {monthlyGoals ? 'Update Goals' : 'Set Monthly Goals'}
-                          </Button>
-                        </DialogTrigger>
+                      <>
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          className="flex items-center gap-2"
+                          onClick={() => setIsDreamViewOpen(true)}
+                          data-testid="button-dream-view"
+                        >
+                          <Sparkles className="h-4 w-4" />
+                          Dream View
+                        </Button>
+                        <Dialog open={isGoalDialogOpen} onOpenChange={setIsGoalDialogOpen}>
+                          <DialogTrigger asChild>
+                            <Button 
+                              size="sm" 
+                              className="flex items-center gap-2"
+                              onClick={() => {
+                                resetGoalForm();
+                                setIsGoalDialogOpen(true);
+                              }}
+                              data-testid="button-set-monthly-goals"
+                            >
+                              <Target className="h-4 w-4" />
+                              {monthlyGoals ? 'Update Goals' : 'Set Monthly Goals'}
+                            </Button>
+                          </DialogTrigger>
                         <DialogContent className="sm:max-w-[500px]">
                           <DialogHeader>
                             <DialogTitle className="flex items-center gap-2">
@@ -1276,6 +1299,7 @@ function AccountingContent() {
                           </div>
                         </DialogContent>
                       </Dialog>
+                      </>
                     )}
                   </div>
                 </div>
@@ -2080,6 +2104,20 @@ function AccountingContent() {
         <PayrollAccrualDialog
           isOpen={isPayrollDialogOpen}
           onClose={() => setIsPayrollDialogOpen(false)}
+        />
+
+        {/* Dream View Dialog */}
+        <DreamViewDialog
+          open={isDreamViewOpen}
+          onOpenChange={setIsDreamViewOpen}
+          currentMetrics={{
+            revenue: biMetrics?.monthlyRevenue || 0,
+            cogs: biMetrics?.monthlyCOGS || 0,
+            payroll: biMetrics?.monthlyPayroll || 0,
+            expenses: biMetrics?.monthlyExpenses || 0,
+            profit: biMetrics?.profit || 0,
+            margin: biMetrics?.profitMargin || 0
+          }}
         />
       </div>
     </AdminLayout>
