@@ -12,6 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
+import AdminLayout from "@/components/admin-layout";
 import { FileText, Upload, Download, Share, Eye, Trash2, Users, Filter, Search, FolderOpen, Shield, Clock, FileImage, FileVideo, FileArchive, Paperclip } from "lucide-react";
 import { format } from "date-fns";
 import type { Document, User } from "@shared/schema";
@@ -163,7 +164,8 @@ export default function Documents() {
   const canDelete = (doc: Document) => (user as any)?.role === 'admin' || doc.uploadedBy === (user as any)?.id;
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <AdminLayout currentTab="documents">
+      <div className="container mx-auto p-6 space-y-6">
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
@@ -410,5 +412,6 @@ export default function Documents() {
         </CardContent>
       </Card>
     </div>
+    </AdminLayout>
   );
 }
