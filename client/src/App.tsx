@@ -55,6 +55,11 @@ function AuthenticatedApp() {
       <Route path="/dashboard" component={HomeDashboard} />
       
       {/* Admin/Manager Only Routes */}
+      <Route path="/admin-dashboard">
+        <ProtectedRoute allowedRoles={['admin', 'manager']}>
+          <AdminDashboard />
+        </ProtectedRoute>
+      </Route>
       <Route path="/admin/dashboard">
         <ProtectedRoute allowedRoles={['admin', 'manager']}>
           <AdminDashboard />
