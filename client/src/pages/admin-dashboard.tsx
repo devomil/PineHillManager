@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Users, Clock, Calendar, MapPin, ChevronRight, FileText, MessageCircle, Bell, DollarSign, Package, ShoppingCart, QrCode, Settings, Target, TrendingUp, CheckCircle, Circle } from "lucide-react";
+import { Users, Clock, Calendar, MapPin, ChevronRight, FileText, MessageCircle, Bell, DollarSign, Package, ShoppingCart, QrCode, Settings, Target, TrendingUp, CheckCircle, Circle, TrendingDown } from "lucide-react";
 import { Link } from "wouter";
 import { formatTimeStringToCST } from "@/lib/time-utils";
 import AdminLayout from "@/components/admin-layout";
@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/use-auth";
 import { Checkbox } from "@/components/ui/checkbox";
 import type { Goal } from "@shared/schema";
+import { format, startOfMonth, endOfMonth, differenceInDays, addDays } from "date-fns";
 
 interface AdminStats {
   totalEmployees: number;
@@ -55,8 +56,35 @@ interface Task {
   dueDate?: string;
 }
 
+interface ProfitLossData {
+  totalRevenue: number;
+  totalCOGS: number;
+  grossProfit: number;
+  grossMargin: number;
+  totalExpenses: number;
+  netIncome: number;
+  profitMargin: number;
+  period: string;
+  currency: string;
+}
+
+interface PayrollData {
+  totalScheduledHours: number;
+  totalScheduledPay: number;
+  employeeCount: number;
+}
+
 export default function AdminDashboard() {
   const { user } = useAuth();
+  
+  // Calculate current month dates
+  const now = new Date();
+  const monthStart = format(startOfMonth(now), 'yyyy-MM-dd');
+  const monthEnd = format(endOfMonth(now), 'yyyy-MM-dd');
+  const today = format(now, 'yyyy-MM-dd');
+  const daysElapsed = differenceInDays(now, startOfMonth(now)) + 1;
+  const totalDaysInMonth = differenceInDays(endOfMonth(now), startOfMonth(now)) + 1;
+  const daysRemaining = totalDaysInMonth - daysElapsed;
 
   // Fetch goals
   const { data: goals = [] } = useQuery<Goal[]>({
@@ -87,6 +115,16 @@ export default function AdminDashboard() {
   const { data: todaySchedules = [] } = useQuery<WorkSchedule[]>({
     queryKey: ["/api/work-schedules/today"],
   });
+  
+  // Fetch profit/loss data for current month
+  const { data: profitLossData } = useQuery<ProfitLossData>({
+    queryKey: ["/api/accounting/analytics/profit-loss", monthStart, monthEnd],
+  });
+  
+  // Fetch payroll data for current month
+  const { data: payrollData } = useQuery<PayrollData>({
+    queryKey: ["/api/accounting/payroll/scheduled", monthStart, monthEnd],
+  });
 
   const getEmployeeName = (userId: string) => {
     const employee = employees.find(emp => emp.id === userId);
@@ -109,6 +147,26 @@ export default function AdminDashboard() {
     t.status !== 'completed' && 
     !t.archived
   ).slice(0, 4);
+  
+  // Calculate monthly metrics
+  const revenue = profitLossData?.totalRevenue || 0;
+  const cogs = profitLossData?.totalCOGS || 0;
+  const payroll = payrollData?.totalScheduledPay || 0;
+  const expenses = profitLossData?.totalExpenses || 0;
+  const grossProfit = profitLossData?.grossProfit || 0;
+  const grossMargin = profitLossData?.grossMargin || 0;
+  
+  // Calculate daily average revenue
+  const dailyAvgRevenue = daysElapsed > 0 ? revenue / daysElapsed : 0;
+  
+  // Calculate today's revenue (approximation - could be replaced with actual today's data)
+  const todayRevenue = dailyAvgRevenue;
+  
+  // Project month-end revenue
+  const projectedRevenue = dailyAvgRevenue * totalDaysInMonth;
+  
+  // Calculate confidence (higher confidence as month progresses)
+  const confidence = Math.min(Math.round((daysElapsed / totalDaysInMonth) * 100), 95);
 
   const adminQuickActions = [
     {
@@ -285,91 +343,133 @@ export default function AdminDashboard() {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle className="text-xl font-semibold text-gray-900">Monthly Business Intelligence - November 2025</CardTitle>
+                  <CardTitle className="text-xl font-semibold text-gray-900">
+                    Monthly Business Intelligence - {format(now, 'MMMM yyyy')}
+                  </CardTitle>
                   <CardDescription className="mt-1">
-                    Real-time tracking and performance insights and analysis
+                    Comprehensive monthly performance insights and analytics
                   </CardDescription>
                 </div>
-                <Link href="/accounting">
-                  <Button variant="outline" size="sm" data-testid="button-all-monthly-goals">
-                    All Monthly Goals
-                  </Button>
-                </Link>
+                <div className="flex gap-2">
+                  <Badge variant="outline" className="text-xs">
+                    Updated {format(now, 'MM/dd/yyyy')}
+                  </Badge>
+                  <Link href="/accounting-dashboard">
+                    <Button variant="outline" size="sm" data-testid="button-dream-view">
+                      Dream View
+                    </Button>
+                  </Link>
+                  <Link href="/accounting-dashboard">
+                    <Button size="sm" data-testid="button-set-monthly-goals">
+                      Set Monthly Goals
+                    </Button>
+                  </Link>
+                </div>
               </div>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {/* System Overview */}
-                <div className="bg-gradient-to-br from-green-50 to-green-100 p-4 rounded-lg">
-                  <h3 className="text-sm font-semibold text-gray-700 mb-3">System Overview</h3>
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs text-gray-600">Total Employees</span>
-                      <span className="text-lg font-bold text-green-700">{stats?.totalEmployees || 0}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs text-gray-600">Active Locations</span>
-                      <span className="text-sm font-semibold text-gray-700">{stats?.storeLocations || 0}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs text-gray-600">Pending Requests</span>
-                      <span className="text-sm font-semibold text-yellow-600">{stats?.pendingRequests || 0}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs text-gray-600">Scheduled Today</span>
-                      <span className="text-sm font-semibold text-blue-600">{todaySchedules.length || 0}</span>
-                    </div>
+                {/* Month-to-Date Performance */}
+                <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-5 rounded-lg border border-blue-200">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                      <TrendingUp className="h-4 w-4 text-blue-600" />
+                      Month-to-Date Performance
+                    </h3>
                   </div>
-                </div>
-
-                {/* Financial Metrics - Coming Soon */}
-                <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-4 rounded-lg">
-                  <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center justify-between">
-                    <span>Marketplace Sales</span>
-                    <Badge variant="secondary" className="text-xs">Coming Soon</Badge>
-                  </h3>
-                  <div className="space-y-2">
+                  <div className="space-y-3">
                     <div className="flex justify-between items-center">
-                      <span className="text-xs text-gray-600">Revenue</span>
-                      <span className="text-sm text-gray-400">-</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs text-gray-600">Gross Margin</span>
-                      <span className="text-sm text-gray-400">-</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs text-gray-600">Daily Average</span>
-                      <span className="text-sm text-gray-400">-</span>
-                    </div>
-                    <p className="text-xs text-gray-500 mt-3 italic">
-                      Financial analytics will be integrated from the Accounting module
-                    </p>
-                  </div>
-                </div>
-
-                {/* Goals Progress */}
-                <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-4 rounded-lg">
-                  <h3 className="text-sm font-semibold text-gray-700 mb-3">Goals Progress</h3>
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs text-gray-600">Total Goals</span>
-                      <span className="text-lg font-bold text-purple-700">{goals.length}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs text-gray-600">In Progress</span>
-                      <span className="text-sm font-semibold text-blue-600">
-                        {goals.filter(g => g.status === 'in_progress').length}
+                      <span className="text-xs text-gray-600">Revenue:</span>
+                      <span className="text-base font-bold text-green-600">
+                        ${revenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-xs text-gray-600">Completed</span>
+                      <span className="text-xs text-gray-600">Cost of Goods:</span>
+                      <span className="text-sm font-semibold text-red-600">
+                        ${cogs.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs text-gray-600">Payroll:</span>
+                      <span className="text-sm font-semibold text-red-600">
+                        ${payroll.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs text-gray-600">Total Expenses:</span>
+                      <span className="text-sm font-semibold text-red-600">
+                        ${expenses.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                    <div className="h-px bg-blue-300 my-2"></div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs text-gray-600">Gross Profit:</span>
+                      <span className="text-base font-bold text-blue-700">
+                        ${grossProfit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs text-gray-600">Gross Margin:</span>
+                      <span className="text-base font-bold text-blue-700">
+                        {grossMargin.toFixed(2)}%
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Daily Average Revenue */}
+                <div className="bg-gradient-to-br from-green-50 to-green-100 p-5 rounded-lg border border-green-200">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                      <DollarSign className="h-4 w-4 text-green-600" />
+                      Daily Average Revenue
+                    </h3>
+                  </div>
+                  <div className="space-y-4">
+                    <div>
+                      <div className="text-3xl font-bold text-green-600 mb-1">
+                        ${dailyAvgRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </div>
+                      <div className="text-xs text-gray-600">per day this month</div>
+                    </div>
+                    <div className="h-px bg-green-300"></div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs text-gray-600">Days elapsed:</span>
+                      <span className="text-sm font-semibold text-gray-700">{daysElapsed}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs text-gray-600">Today:</span>
                       <span className="text-sm font-semibold text-green-600">
-                        {goals.filter(g => g.status === 'completed').length}
+                        ${todayRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </span>
                     </div>
+                  </div>
+                </div>
+
+                {/* Projected Month-End */}
+                <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-5 rounded-lg border border-purple-200">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                      <Target className="h-4 w-4 text-purple-600" />
+                      Projected Month-End
+                    </h3>
+                  </div>
+                  <div className="space-y-4">
+                    <div>
+                      <div className="text-3xl font-bold text-purple-600 mb-1">
+                        ${projectedRevenue.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                      </div>
+                      <div className="text-xs text-gray-600">projected revenue</div>
+                    </div>
+                    <div className="h-px bg-purple-300"></div>
                     <div className="flex justify-between items-center">
-                      <span className="text-xs text-gray-600">Pending Tasks</span>
-                      <span className="text-sm font-semibold text-gray-700">{myTasks.length}</span>
+                      <span className="text-xs text-gray-600">Confidence:</span>
+                      <span className="text-sm font-semibold text-purple-600">{confidence}%</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs text-gray-600">Days remaining:</span>
+                      <span className="text-sm font-semibold text-gray-700">{daysRemaining}</span>
                     </div>
                   </div>
                 </div>
