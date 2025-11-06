@@ -7259,7 +7259,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // COGS (COST OF GOODS SOLD) API ENDPOINTS
   // ============================================
 
-  // Get comprehensive COGS analysis - pulls actual product costs from Clover orders
+  // Get comprehensive COGS analysis - replaces old 40% estimate with actual cost tracking
   app.get('/api/accounting/analytics/cogs', isAuthenticated, async (req, res) => {
     try {
       // RBAC: Only admin and manager can access COGS data (contains sensitive financial info)
@@ -7273,146 +7273,87 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: 'startDate and endDate are required' });
       }
 
-      console.log(`🧮 [COGS ANALYSIS] Calculating actual product costs from Clover orders for ${startDate} to ${endDate}`);
+      console.log(`🧮 COGS Analysis - Calculating actual labor and material costs for ${startDate} to ${endDate}`);
       
-      // Convert dates to epoch milliseconds for order filtering
-      const startDateTime = new Date(startDate + 'T00:00:00.000Z');
-      const endDateTime = new Date(endDate + 'T23:59:59.999Z');
-      const createdTimeMinMs = startDateTime.getTime();
-      const createdTimeMaxMs = endDateTime.getTime();
-      
-      console.log(`📅 [COGS ANALYSIS] Date range: ${startDateTime.toISOString()} to ${endDateTime.toISOString()}`);
-      
-      // Parse location filter (same logic as financial-metrics endpoint)
-      let locationType: string | undefined;
-      let locationIdNum: number | undefined;
-      
-      if (locationId && locationId !== 'all') {
-        if (locationId === 'clover_all') {
-          locationType = 'clover';
-          locationIdNum = undefined;
-        } else {
-          const parts = String(locationId).split('_');
-          if (parts.length === 2) {
-            locationType = parts[0];
-            locationIdNum = Number(parts[1]);
-          } else {
-            locationIdNum = Number(locationId);
-            locationType = 'clover';
-          }
-        }
-      }
-      
-      // Fetch Clover orders WITH COGS calculation (same as orders page)
-      let allCloverOrdersForCogs: any[] = [];
-      
-      if (!locationType || locationType === 'clover') {
-        const ordersResult = await storage.getOrdersFromCloverAPI({
-          createdTimeMin: createdTimeMinMs,
-          createdTimeMax: createdTimeMaxMs,
-          startDate: startDate as string,
-          endDate: endDate as string,
-          locationId: locationType === 'clover' && locationIdNum ? locationIdNum : undefined,
-          limit: 5000,
-          offset: 0,
-          skipCogs: false // CRITICAL: Include COGS calculation
+      // First try local database for historical data
+      const localCogsData = await storage.calculateCOGS(
+        startDate as string, 
+        endDate as string, 
+        locationId ? parseInt(locationId as string) : undefined
+      );
+
+      // If local database has revenue data, use it
+      if (localCogsData.totalRevenue > 0) {
+        console.log(`📊 Using local database COGS data: $${localCogsData.totalRevenue} revenue, $${localCogsData.totalCOGS} COGS`);
+        res.json({
+          totalRevenue: localCogsData.totalRevenue,
+          totalCost: localCogsData.totalCOGS,
+          laborCosts: localCogsData.laborCosts,
+          materialCosts: localCogsData.materialCosts,
+          grossProfit: localCogsData.grossProfit,
+          grossMargin: localCogsData.grossMargin,
+          totalItemsSold: localCogsData.salesCount,
+          isEstimate: false,
+          laborBreakdown: localCogsData.laborBreakdown,
+          materialBreakdown: localCogsData.materialBreakdown,
+          note: `Based on actual employee time clock data and inventory costs`
         });
-        allCloverOrdersForCogs = ordersResult.orders as any[];
-        console.log(`💰 [COGS ANALYSIS] Fetched ${allCloverOrdersForCogs.length} Clover orders with COGS data`);
+        return;
       }
+
+      // Mirror production: Use storage.calculateCOGS() instead of experimental live calculation
+      console.log(`📊 Mirror production: Using storage.calculateCOGS() for ${startDate} to ${endDate}`);
       
-      // Fetch Amazon orders if needed
-      let amazonOrders: any[] = [];
+      const cogsData = await storage.calculateCOGS(startDate as string, endDate as string);
       
-      if (!locationType || locationType === 'amazon') {
+      console.log(`🚀 Production COGS Response: Revenue=$${cogsData.totalRevenue}, COGS=$${cogsData.totalCOGS}, Items=${cogsData.salesCount || 0}`);
+      
+      // DEVELOPMENT FIX: If COGS is minimal for any period with revenue, auto-sync sales data
+      if (cogsData.totalCOGS < 100) {
+        console.log(`🔄 DEVELOPMENT: COGS too low ($${cogsData.totalCOGS}), auto-syncing September data...`);
         try {
-          let amazonConfigs = await storage.getAllAmazonConfigs();
+          const allCloverConfigs = await storage.getAllCloverConfigs();
+          const activeConfigs = allCloverConfigs.filter(config => config.isActive);
           
-          if (locationType === 'amazon' && locationIdNum) {
-            amazonConfigs = amazonConfigs.filter(config => config.id === locationIdNum);
-          }
-          
-          if (amazonConfigs && amazonConfigs.length > 0) {
-            const amazonStartDate = startDateTime.toISOString();
-            const amazonEndDate = endDateTime.toISOString();
+          const syncPromises = activeConfigs.map(async (config) => {
+            const { CloverIntegration } = await import('./integrations/clover');
+            const cloverIntegration = new CloverIntegration(config);
             
-            const { AmazonIntegration } = await import('./integrations/amazon');
-            const allAmazonOrders: any[] = [];
-            
-            for (const config of amazonConfigs) {
-              const amazonIntegration = new AmazonIntegration(config);
-              const amazonResponse = await amazonIntegration.getOrders(amazonStartDate, amazonEndDate);
-              
-              if (amazonResponse?.orders) {
-                // For Amazon, we don't have detailed COGS data, so we estimate at 60%
-                const transformedOrders = amazonResponse.orders.map((order: any) => {
-                  const orderTotal = parseFloat(order.OrderTotal?.Amount || '0');
-                  const estimatedCOGS = orderTotal * 0.6; // 60% estimate for Amazon
-                  
-                  return {
-                    id: order.AmazonOrderId,
-                    total: orderTotal * 100,
-                    createdTime: new Date(order.PurchaseDate).getTime(),
-                    locationId: `amazon_${config.id}`,
-                    isAmazonOrder: true,
-                    netSale: orderTotal,
-                    netCOGS: estimatedCOGS,
-                    netProfit: orderTotal - estimatedCOGS,
-                    isEstimate: true
-                  };
-                });
-                
-                allAmazonOrders.push(...transformedOrders);
-              }
+            // Try inventory sync (non-blocking)
+            try {
+              console.log(`🔄 Auto-syncing inventory costs for ${config.merchantName}...`);
+              await cloverIntegration.syncInventoryItems();
+              console.log(`✅ Inventory sync complete for ${config.merchantName}`);
+            } catch (inventoryError) {
+              console.error(`❌ Inventory sync failed for ${config.merchantName}:`, inventoryError);
+              console.log(`🔄 Continuing with sales sync despite inventory errors...`);
             }
             
-            amazonOrders = allAmazonOrders;
-            console.log(`💰 [COGS ANALYSIS] Fetched ${amazonOrders.length} Amazon orders with estimated COGS`);
-          }
+            // CRITICAL: Always run sales sync (this is needed for COGS)
+            try {
+              console.log(`💰 Auto-syncing sales data for ${config.merchantName}...`);
+              await cloverIntegration.syncDailySales();
+              console.log(`✅ Sales sync complete for ${config.merchantName}`);
+            } catch (salesError) {
+              console.error(`❌ Sales sync failed for ${config.merchantName}:`, salesError);
+            }
+          });
+          
+          await Promise.all(syncPromises);
+          console.log(`🔄 Auto-sync complete! Recalculating COGS...`);
+          
+          // Recalculate COGS with new data
+          const updatedCogsData = await storage.calculateCOGS(startDate as string, endDate as string);
+          console.log(`🚀 Updated COGS: Revenue=$${updatedCogsData.totalRevenue}, COGS=$${updatedCogsData.totalCOGS}, Items=${updatedCogsData.salesCount || 0}`);
+          res.json(updatedCogsData);
+          return;
         } catch (error) {
-          console.error('Error fetching Amazon orders for COGS:', error);
-          amazonOrders = [];
+          console.error(`❌ Auto-sync failed:`, error);
         }
       }
       
-      // Combine all orders
-      const allOrdersForCogs = [...allCloverOrdersForCogs, ...amazonOrders];
-      
-      // Aggregate COGS data from actual orders
-      const cogsMetrics = allOrdersForCogs.reduce((acc, order) => {
-        const orderRevenue = order.total / 100;
-        const orderCOGS = typeof order.netCOGS === 'number' ? order.netCOGS : parseFloat(String(order.netCOGS || 0));
-        const orderProfit = typeof order.netProfit === 'number' ? order.netProfit : parseFloat(String(order.netProfit || 0));
-        
-        return {
-          totalRevenue: acc.totalRevenue + orderRevenue,
-          totalCOGS: acc.totalCOGS + orderCOGS,
-          totalProfit: acc.totalProfit + orderProfit,
-          orderCount: acc.orderCount + 1
-        };
-      }, { totalRevenue: 0, totalCOGS: 0, totalProfit: 0, orderCount: 0 });
-      
-      const grossMargin = cogsMetrics.totalRevenue > 0 
-        ? ((cogsMetrics.totalProfit / cogsMetrics.totalRevenue) * 100) 
-        : 0;
-      
-      console.log(`📊 [COGS ANALYSIS] Results: ${cogsMetrics.orderCount} orders, $${cogsMetrics.totalRevenue.toFixed(2)} revenue, $${cogsMetrics.totalCOGS.toFixed(2)} COGS, ${grossMargin.toFixed(1)}% margin`);
-      
-      // Return in format expected by accounting page
-      res.json({
-        totalRevenue: cogsMetrics.totalRevenue,
-        totalCost: cogsMetrics.totalCOGS,
-        laborCosts: 0, // Not tracked in this endpoint
-        materialCosts: cogsMetrics.totalCOGS, // All COGS is material costs
-        grossProfit: cogsMetrics.totalProfit,
-        grossMargin: grossMargin,
-        totalItemsSold: cogsMetrics.orderCount,
-        isEstimate: amazonOrders.length > 0, // Flag if any Amazon orders (estimated COGS)
-        note: amazonOrders.length > 0 
-          ? `Based on actual product costs from ${allCloverOrdersForCogs.length} Clover orders and estimated costs (60%) from ${amazonOrders.length} Amazon orders`
-          : `Based on actual product costs from ${allCloverOrdersForCogs.length} Clover orders`,
-        period: `${startDate} to ${endDate}`
-      });
+      // Return production-compatible response format
+      res.json(cogsData);
 
     } catch (error) {
       console.error('Error calculating COGS:', error);

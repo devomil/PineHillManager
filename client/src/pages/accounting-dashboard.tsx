@@ -427,9 +427,6 @@ function AccountingContent() {
     ? new Date(selectedYear, selectedMonth, 0).toISOString().split('T')[0]
     : today;
   
-  // YTD (Year-to-Date) date range - January 1st to today
-  const yearStart = new Date(currentMonth.getFullYear(), 0, 1).toISOString().split('T')[0];
-  
   // Fetch company monthly goals from API
   const { data: companyGoals } = useQuery({
     queryKey: ['/api/goals/company/monthly', currentMonth.getFullYear(), currentMonth.getMonth()],
@@ -487,15 +484,6 @@ function AccountingContent() {
     queryKey: ['/api/accounting/analytics/cogs', monthStart, today],
     queryFn: async () => {
       const response = await apiRequest('GET', `/api/accounting/analytics/cogs?startDate=${monthStart}&endDate=${today}`);
-      return await response.json();
-    },
-  });
-
-  // Cost of Goods Sold analytics - YTD (Year-to-Date: Jan 1 to today)
-  const { data: ytdCogsData } = useQuery({
-    queryKey: ['/api/accounting/analytics/cogs', yearStart, today],
-    queryFn: async () => {
-      const response = await apiRequest('GET', `/api/accounting/analytics/cogs?startDate=${yearStart}&endDate=${today}`);
       return await response.json();
     },
   });
@@ -2127,7 +2115,7 @@ function AccountingContent() {
             cogs: biMetrics?.monthlyCOGS || 0,
             payroll: biMetrics?.monthlyPayroll || 0,
             expenses: biMetrics?.monthlyExpenses || 0,
-            profit: biMetrics?.grossProfit || 0,
+            profit: biMetrics?.profit || 0,
             margin: biMetrics?.profitMargin || 0
           }}
         />
