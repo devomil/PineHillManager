@@ -72,16 +72,6 @@ export default function EmployeeDocuments() {
     link.click();
   };
 
-  const handlePrint = (documentId: number) => {
-    // Create a temporary link to open in new tab for viewing
-    const link = document.createElement('a');
-    link.href = `/api/documents/${documentId}/download`;
-    link.target = '_blank';
-    link.rel = 'noopener noreferrer';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
 
   const getCategoryLabel = (categoryValue: string) => {
     const category = documentCategories.find(c => c.value === categoryValue);
@@ -240,14 +230,16 @@ export default function EmployeeDocuments() {
                                 <FileIcon className="h-8 w-8 text-blue-600" />
                               </div>
                               <div className="flex-1 min-w-0">
-                                <h3 
-                                  className="font-medium text-blue-600 hover:text-blue-800 truncate cursor-pointer transition-colors"
-                                  onClick={() => handlePrint(document.id)}
+                                <a
+                                  href={`/api/documents/${document.id}/download`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="font-medium text-blue-600 hover:text-blue-800 truncate cursor-pointer transition-colors block"
                                   data-testid={`link-document-${document.id}`}
                                   title="Click to view document"
                                 >
                                   {document.originalName}
-                                </h3>
+                                </a>
                                 <div className="flex items-center space-x-4 mt-1 text-sm text-gray-500">
                                   {document.description && (
                                     <span className="truncate">{document.description}</span>
@@ -265,16 +257,16 @@ export default function EmployeeDocuments() {
                               </div>
                             </div>
                             <div className="flex items-center space-x-2 ml-4">
-                              <Button
+                              <a
+                                href={`/api/documents/${document.id}/download`}
+                                target="_blank"
+                                rel="noopener noreferrer"
                                 data-testid={`button-print-${document.id}`}
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handlePrint(document.id)}
-                                className="text-gray-600 hover:text-gray-900"
+                                className="inline-flex items-center justify-center h-9 px-3 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors"
                                 title="Print/Preview"
                               >
                                 <Printer className="h-4 w-4" />
-                              </Button>
+                              </a>
                               <Button
                                 data-testid={`button-download-${document.id}`}
                                 variant="ghost"
