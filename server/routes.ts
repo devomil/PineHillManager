@@ -10176,6 +10176,153 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ================================
+  // DOCUMENT CENTER ROUTES
+  // ================================
+
+  // Get all documents accessible to the current user
+  app.get('/api/documents', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      if (!user) {
+        return res.status(401).json({ message: 'Unauthorized' });
+      }
+
+      const { category } = req.query;
+      
+      // Get documents based on user role
+      let docs;
+      if (user.role === 'admin' || user.role === 'manager') {
+        // Admins and managers can see all documents
+        docs = await storage.getDocuments(user.id, category as string);
+      } else {
+        // Regular employees see documents accessible to them
+        docs = await storage.getUserAccessibleDocuments(user.id, user.role, user.department || '');
+      }
+
+      res.json(docs);
+    } catch (error) {
+      console.error('Error fetching documents:', error);
+      res.status(500).json({ message: 'Failed to fetch documents' });
+    }
+  });
+
+  // Upload a new document
+  app.post('/api/documents/upload', isAuthenticated, upload.single('file'), async (req, res) => {
+    try {
+      const user = req.user;
+      if (!user) {
+        return res.status(401).json({ message: 'Unauthorized' });
+      }
+
+      // Only admins and managers can upload
+      if (user.role !== 'admin' && user.role !== 'manager') {
+        return res.status(403).json({ message: 'Only admins and managers can upload documents' });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({ message: 'No file uploaded' });
+      }
+
+      const { category = 'general', description = '', isPublic = 'false' } = req.body;
+
+      const document = await storage.createDocument({
+        fileName: req.file.filename,
+        originalName: req.file.originalname,
+        filePath: req.file.path,
+        fileSize: req.file.size,
+        mimeType: req.file.mimetype,
+        category,
+        description,
+        uploadedBy: user.id,
+        isPublic: isPublic === 'true',
+        isActive: true,
+      });
+
+      res.json(document);
+    } catch (error) {
+      console.error('Error uploading document:', error);
+      res.status(500).json({ message: 'Failed to upload document' });
+    }
+  });
+
+  // Download a document
+  app.get('/api/documents/:id/download', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      if (!user) {
+        return res.status(401).json({ message: 'Unauthorized' });
+      }
+
+      const documentId = parseInt(req.params.id);
+      const document = await storage.getDocumentById(documentId);
+
+      if (!document) {
+        return res.status(404).json({ message: 'Document not found' });
+      }
+
+      // Check if user has access
+      const hasAccess = user.role === 'admin' || 
+                       user.role === 'manager' || 
+                       document.uploadedBy === user.id ||
+                       document.isPublic;
+
+      if (!hasAccess) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+
+      // Log the download
+      await storage.createDocumentLog({
+        documentId,
+        userId: user.id,
+        action: 'download',
+        ipAddress: req.ip || '',
+        userAgent: req.get('user-agent') || '',
+      });
+
+      // Send the file
+      res.download(document.filePath, document.originalName);
+    } catch (error) {
+      console.error('Error downloading document:', error);
+      res.status(500).json({ message: 'Failed to download document' });
+    }
+  });
+
+  // Delete a document
+  app.delete('/api/documents/:id', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user;
+      if (!user) {
+        return res.status(401).json({ message: 'Unauthorized' });
+      }
+
+      const documentId = parseInt(req.params.id);
+      const document = await storage.getDocumentById(documentId);
+
+      if (!document) {
+        return res.status(404).json({ message: 'Document not found' });
+      }
+
+      // Only admins or the uploader can delete
+      if (user.role !== 'admin' && document.uploadedBy !== user.id) {
+        return res.status(403).json({ message: 'Only admins or the uploader can delete documents' });
+      }
+
+      // Delete the file from disk
+      if (fs.existsSync(document.filePath)) {
+        fs.unlinkSync(document.filePath);
+      }
+
+      // Delete from database
+      await storage.deleteDocument(documentId);
+
+      res.json({ message: 'Document deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting document:', error);
+      res.status(500).json({ message: 'Failed to delete document' });
+    }
+  });
+
+  // ================================
   // DREAM SCENARIOS ROUTES
   // ================================
 

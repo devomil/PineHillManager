@@ -43,6 +43,7 @@ const navigationItems: NavItem[] = [
   { label: "Task Management", icon: ListTodo, value: "tasks", href: "/tasks", section: "operations" },
   { label: "Training Management", icon: GraduationCap, value: "training", href: "/admin/training", section: "operations" },
   { label: "Goals", icon: Target, value: "goals", href: "/goals", section: "operations" },
+  { label: "Documents", icon: FileText, value: "documents", href: "/documents", section: "operations" },
   { label: "Schedule Management", icon: Calendar, value: "scheduling", href: "/shift-scheduling", section: "operations" },
   { label: "Accounting", icon: DollarSign, value: "accounting", href: "/accounting", section: "operations" },
   { label: "Inventory", icon: Package, value: "inventory", href: "/inventory", section: "operations" },
