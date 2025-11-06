@@ -10245,7 +10245,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Download a document
+  // View or download a document
   app.get('/api/documents/:id/download', isAuthenticated, async (req, res) => {
     try {
       const user = req.user;
@@ -10270,20 +10270,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: 'Access denied' });
       }
 
-      // Log the download
+      const isDownload = req.query.download === 'true';
+
+      // Log the activity
       await storage.logDocumentActivity({
         documentId,
         userId: user.id,
-        action: 'download',
+        action: isDownload ? 'download' : 'view',
         ipAddress: req.ip || '',
         userAgent: req.get('user-agent') || '',
       });
 
-      // Send the file
-      res.download(document.filePath, document.originalName);
+      // Send the file - either for download or inline viewing
+      if (isDownload) {
+        res.download(document.filePath, document.originalName);
+      } else {
+        // Send file inline for viewing in browser
+        res.sendFile(document.filePath, { root: '/' });
+      }
     } catch (error) {
-      console.error('Error downloading document:', error);
-      res.status(500).json({ message: 'Failed to download document' });
+      console.error('Error accessing document:', error);
+      res.status(500).json({ message: 'Failed to access document' });
     }
   });
 

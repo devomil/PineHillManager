@@ -67,12 +67,13 @@ export default function EmployeeDocuments() {
 
   const handleDownload = (documentId: number, originalName: string) => {
     const link = document.createElement('a');
-    link.href = `/api/documents/${documentId}/download`;
+    link.href = `/api/documents/${documentId}/download?download=true`;
     link.download = originalName;
     link.click();
   };
 
   const handlePrint = (documentId: number) => {
+    // Open without download param to view inline in browser
     window.open(`/api/documents/${documentId}/download`, '_blank');
   };
 
