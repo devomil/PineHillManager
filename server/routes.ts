@@ -10286,7 +10286,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         res.download(document.filePath, document.originalName);
       } else {
         // Send file inline for viewing in browser
-        res.sendFile(document.filePath, { root: '/' });
+        res.setHeader('Content-Disposition', `inline; filename="${document.originalName}"`);
+        res.setHeader('Content-Type', document.mimeType);
+        res.sendFile(path.resolve(document.filePath));
       }
     } catch (error) {
       console.error('Error accessing document:', error);
