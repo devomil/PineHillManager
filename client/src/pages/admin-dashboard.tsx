@@ -168,7 +168,7 @@ export default function AdminDashboard() {
 
   // Use goals from separate endpoints
   const myGoals = myGoalsData.slice(0, 3);
-  const companyGoals = companyGoalsData.slice(0, 1);
+  const companyGoals = companyGoalsData; // Show all company BHAGs
   const teamGoals = teamGoalsData.slice(0, 3);
 
   // Filter tasks for current user
