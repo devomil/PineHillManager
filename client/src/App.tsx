@@ -7,6 +7,7 @@ import AuthPage from "@/pages/auth-page";
 import HomeDashboard from "@/pages/home-dashboard";
 import AdminDashboard from "@/pages/admin-dashboard";
 import Documents from "@/pages/documents";
+import EmployeeDocuments from "@/pages/employee-documents";
 import LogosPage from "@/pages/admin/logos";
 import AdminEmployeesPage from "@/pages/admin/employees";
 import AdminEmployeePurchases from "@/pages/admin/admin-employee-purchases";
@@ -169,6 +170,7 @@ function AuthenticatedApp() {
       <Route path="/calendar" component={Calendar} />
       <Route path="/shift-swaps" component={ShiftSwapMarketplace} />
       <Route path="/communication" component={CommunicationsPage} />
+      <Route path="/employee/documents" component={EmployeeDocuments} />
       <Route path="/training" component={Training} />
       <Route path="/training/module/:id" component={TrainingModule} />
       <Route path="/profile" component={Profile} />
