@@ -393,13 +393,8 @@ export default function AdminDashboard() {
                     Updated {format(now, 'MM/dd/yyyy')}
                   </Badge>
                   <Link href="/accounting-dashboard">
-                    <Button variant="outline" size="sm" data-testid="button-dream-view">
-                      Dream View
-                    </Button>
-                  </Link>
-                  <Link href="/accounting-dashboard">
-                    <Button size="sm" data-testid="button-set-monthly-goals">
-                      Set Monthly Goals
+                    <Button size="sm" data-testid="button-view-accounting">
+                      View Full Accounting
                     </Button>
                   </Link>
                 </div>
