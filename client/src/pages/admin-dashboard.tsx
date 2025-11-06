@@ -136,6 +136,16 @@ export default function AdminDashboard() {
     },
   });
 
+  // Fetch today's revenue
+  const { data: todayData } = useQuery<{ locationBreakdown: Array<{ locationName: string; revenue: number }> }>({
+    queryKey: ["/api/accounting/analytics/multi-location", today, today],
+    queryFn: async () => {
+      const response = await fetch(`/api/accounting/analytics/multi-location?startDate=${today}&endDate=${today}`);
+      if (!response.ok) throw new Error('Failed to fetch today revenue');
+      return response.json();
+    },
+  });
+
   const getEmployeeName = (userId: string) => {
     const employee = employees.find(emp => emp.id === userId);
     return employee ? `${employee.firstName} ${employee.lastName}` : 'Unknown';
@@ -169,8 +179,8 @@ export default function AdminDashboard() {
   // Calculate daily average revenue
   const dailyAvgRevenue = daysElapsed > 0 ? revenue / daysElapsed : 0;
   
-  // Calculate today's revenue (approximation - could be replaced with actual today's data)
-  const todayRevenue = dailyAvgRevenue;
+  // Calculate today's revenue from live data
+  const todayRevenue = todayData?.locationBreakdown?.reduce((sum, loc) => sum + (loc.revenue || 0), 0) || 0;
   
   // Project month-end revenue
   const projectedRevenue = dailyAvgRevenue * totalDaysInMonth;
