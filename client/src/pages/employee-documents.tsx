@@ -73,8 +73,14 @@ export default function EmployeeDocuments() {
   };
 
   const handlePrint = (documentId: number) => {
-    // Open without download param to view inline in browser
-    window.open(`/api/documents/${documentId}/download`, '_blank');
+    // Create a temporary link to open in new tab for viewing
+    const link = document.createElement('a');
+    link.href = `/api/documents/${documentId}/download`;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const getCategoryLabel = (categoryValue: string) => {
