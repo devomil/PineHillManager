@@ -6,8 +6,9 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/use-auth";
-import { FileText, Download, Search, FolderOpen, Shield, Users, Printer, FileImage, FileVideo, FileArchive } from "lucide-react";
+import { FileText, Download, Search, FolderOpen, Shield, Users, Printer, FileImage, FileVideo, FileArchive, ArrowLeft, Home } from "lucide-react";
 import { format } from "date-fns";
+import { Link } from "wouter";
 import type { Document } from "@shared/schema";
 
 const documentCategories = [
@@ -86,13 +87,39 @@ export default function EmployeeDocuments() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
+    <div className="min-h-screen bg-gray-50">
+      {/* Navigation Header */}
+      <div className="bg-white border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <Link href="/dashboard">
+                <Button variant="ghost" size="sm" className="gap-2" data-testid="button-back-dashboard">
+                  <ArrowLeft className="h-4 w-4" />
+                  Back to Dashboard
+                </Button>
+              </Link>
+              <div className="h-6 w-px bg-gray-300"></div>
+              <div className="flex items-center space-x-2">
+                <FileText className="h-5 w-5 text-green-600" />
+                <h1 className="text-xl font-semibold text-gray-900">Document Center</h1>
+              </div>
+            </div>
+            <Link href="/dashboard">
+              <Button variant="outline" size="sm" className="gap-2" data-testid="button-home">
+                <Home className="h-4 w-4" />
+                Home
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto p-6 space-y-6">
         {/* Header */}
         <div className="bg-white rounded-lg shadow-sm p-6">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">Document Center</h1>
               <p className="text-gray-600 mt-1">
                 Search, view, and download company documents
               </p>
