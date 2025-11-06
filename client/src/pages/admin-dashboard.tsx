@@ -87,8 +87,17 @@ export default function AdminDashboard() {
   const daysRemaining = totalDaysInMonth - daysElapsed;
 
   // Fetch goals
-  const { data: goals = [] } = useQuery<Goal[]>({
-    queryKey: ["/api/goals"],
+  // Fetch goals from separate endpoints
+  const { data: myGoalsData = [] } = useQuery<Goal[]>({
+    queryKey: ["/api/goals/my"],
+  });
+
+  const { data: companyGoalsData = [] } = useQuery<Goal[]>({
+    queryKey: ["/api/goals/company"],
+  });
+
+  const { data: teamGoalsData = [] } = useQuery<Goal[]>({
+    queryKey: ["/api/goals/team"],
   });
 
   // Fetch tasks for the user
@@ -157,10 +166,10 @@ export default function AdminDashboard() {
     return location?.name || 'Unknown Location';
   };
 
-  // Filter goals by type
-  const myGoals = goals.filter(g => g.type === 'my' && g.createdBy === user?.id).slice(0, 3);
-  const companyGoals = goals.filter(g => g.type === 'company').slice(0, 1);
-  const teamGoals = goals.filter(g => g.type === 'team').slice(0, 3);
+  // Use goals from separate endpoints
+  const myGoals = myGoalsData.slice(0, 3);
+  const companyGoals = companyGoalsData.slice(0, 1);
+  const teamGoals = teamGoalsData.slice(0, 3);
 
   // Filter tasks for current user
   const myTasks = tasks.filter(t => 
