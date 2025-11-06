@@ -10285,10 +10285,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (isDownload) {
         res.download(document.filePath, document.originalName);
       } else {
-        // Send file inline for viewing in browser
-        res.setHeader('Content-Disposition', `inline; filename="${document.originalName}"`);
+        // Send file inline for viewing in browser - use streaming
+        const stat = fs.statSync(document.filePath);
         res.setHeader('Content-Type', document.mimeType);
-        res.sendFile(path.resolve(document.filePath));
+        res.setHeader('Content-Length', stat.size);
+        res.setHeader('Content-Disposition', 'inline');
+        res.setHeader('Cache-Control', 'public, max-age=0');
+        
+        const fileStream = fs.createReadStream(document.filePath);
+        fileStream.pipe(res);
       }
     } catch (error) {
       console.error('Error accessing document:', error);
