@@ -57,13 +57,13 @@ interface Task {
 }
 
 interface ProfitLossData {
-  totalRevenue: number;
-  totalCOGS: number;
-  grossProfit: number;
-  grossMargin: number;
-  totalExpenses: number;
-  netIncome: number;
-  profitMargin: number;
+  totalRevenue: string | number;
+  totalCOGS: string | number;
+  grossProfit: string | number;
+  grossMargin: string | number;
+  totalExpenses: string | number;
+  netIncome: string | number;
+  profitMargin: string | number;
   period: string;
   currency: string;
 }
@@ -119,11 +119,21 @@ export default function AdminDashboard() {
   // Fetch profit/loss data for current month
   const { data: profitLossData } = useQuery<ProfitLossData>({
     queryKey: ["/api/accounting/analytics/profit-loss", monthStart, monthEnd],
+    queryFn: async () => {
+      const response = await fetch(`/api/accounting/analytics/profit-loss?startDate=${monthStart}&endDate=${monthEnd}`);
+      if (!response.ok) throw new Error('Failed to fetch profit/loss data');
+      return response.json();
+    },
   });
   
   // Fetch payroll data for current month
   const { data: payrollData } = useQuery<PayrollData>({
     queryKey: ["/api/accounting/payroll/scheduled", monthStart, monthEnd],
+    queryFn: async () => {
+      const response = await fetch(`/api/accounting/payroll/scheduled?startDate=${monthStart}&endDate=${monthEnd}`);
+      if (!response.ok) throw new Error('Failed to fetch payroll data');
+      return response.json();
+    },
   });
 
   const getEmployeeName = (userId: string) => {
@@ -149,12 +159,12 @@ export default function AdminDashboard() {
   ).slice(0, 4);
   
   // Calculate monthly metrics
-  const revenue = profitLossData?.totalRevenue || 0;
-  const cogs = profitLossData?.totalCOGS || 0;
+  const revenue = typeof profitLossData?.totalRevenue === 'string' ? parseFloat(profitLossData.totalRevenue) : (profitLossData?.totalRevenue || 0);
+  const cogs = typeof profitLossData?.totalCOGS === 'string' ? parseFloat(profitLossData.totalCOGS) : (profitLossData?.totalCOGS || 0);
   const payroll = payrollData?.totalScheduledPay || 0;
-  const expenses = profitLossData?.totalExpenses || 0;
-  const grossProfit = profitLossData?.grossProfit || 0;
-  const grossMargin = profitLossData?.grossMargin || 0;
+  const expenses = typeof profitLossData?.totalExpenses === 'string' ? parseFloat(profitLossData.totalExpenses) : (profitLossData?.totalExpenses || 0);
+  const grossProfit = typeof profitLossData?.grossProfit === 'string' ? parseFloat(profitLossData.grossProfit) : (profitLossData?.grossProfit || 0);
+  const grossMargin = typeof profitLossData?.grossMargin === 'string' ? parseFloat(profitLossData.grossMargin) : (profitLossData?.grossMargin || 0);
   
   // Calculate daily average revenue
   const dailyAvgRevenue = daysElapsed > 0 ? revenue / daysElapsed : 0;
