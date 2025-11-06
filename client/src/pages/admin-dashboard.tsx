@@ -316,24 +316,29 @@ export default function AdminDashboard() {
               <CardHeader className="pb-3">
                 <CardTitle className="text-lg font-semibold text-center">Company BHAG</CardTitle>
               </CardHeader>
-              <CardContent className="flex items-center justify-center min-h-[180px]">
+              <CardContent className="min-h-[180px]">
                 {companyGoals.length > 0 ? (
-                  <div className="relative">
-                    <div className="w-40 h-40 rounded-full bg-gradient-to-br from-yellow-400 to-yellow-500 shadow-lg flex items-center justify-center p-6">
-                      <div className="text-center">
-                        <p className="text-sm font-bold text-gray-800 leading-tight">{companyGoals[0].title}</p>
+                  <div className="space-y-3">
+                    {companyGoals.map((goal) => (
+                      <div key={goal.id} className="flex items-center gap-3 p-3 rounded-lg bg-gradient-to-r from-yellow-50 to-yellow-100 border border-yellow-200">
+                        <div className="flex-shrink-0">
+                          {goal.status === 'completed' ? (
+                            <CheckCircle className="h-5 w-5 text-green-600" />
+                          ) : (
+                            <Target className="h-5 w-5 text-yellow-600" />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-gray-800 truncate">{goal.title}</p>
+                          {goal.description && (
+                            <p className="text-xs text-gray-600 mt-1 line-clamp-1">{goal.description}</p>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                    <div className="absolute -top-2 -left-2 w-8 h-8 bg-green-500 rounded-full border-4 border-white shadow-md flex items-center justify-center">
-                      {companyGoals[0].status === 'completed' ? (
-                        <CheckCircle className="h-4 w-4 text-white" />
-                      ) : (
-                        <Circle className="h-4 w-4 text-white" />
-                      )}
-                    </div>
+                    ))}
                   </div>
                 ) : (
-                  <div className="text-center">
+                  <div className="text-center py-8">
                     <p className="text-sm text-gray-500">No company goal set</p>
                     <Link href="/goals">
                       <Button variant="link" size="sm" className="mt-2">Set BHAG</Button>
