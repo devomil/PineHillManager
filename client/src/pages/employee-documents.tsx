@@ -233,7 +233,12 @@ export default function EmployeeDocuments() {
                                 <FileIcon className="h-8 w-8 text-blue-600" />
                               </div>
                               <div className="flex-1 min-w-0">
-                                <h3 className="font-medium text-gray-900 truncate">
+                                <h3 
+                                  className="font-medium text-blue-600 hover:text-blue-800 truncate cursor-pointer transition-colors"
+                                  onClick={() => handlePrint(document.id)}
+                                  data-testid={`link-document-${document.id}`}
+                                  title="Click to view document"
+                                >
                                   {document.originalName}
                                 </h3>
                                 <div className="flex items-center space-x-4 mt-1 text-sm text-gray-500">

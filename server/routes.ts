@@ -10271,7 +10271,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Log the download
-      await storage.createDocumentLog({
+      await storage.logDocumentActivity({
         documentId,
         userId: user.id,
         action: 'download',
