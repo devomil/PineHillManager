@@ -8,7 +8,24 @@ export const queryClient = new QueryClient({
       refetchOnWindowFocus: true,
       staleTime: 0,
       queryFn: async ({ queryKey }) => {
-        const url = queryKey[0] as string;
+        let url = queryKey[0] as string;
+        
+        // Handle query parameters from queryKey
+        if (queryKey.length > 1 && typeof queryKey[1] === 'object' && queryKey[1] !== null) {
+          const params = new URLSearchParams();
+          const paramsObj = queryKey[1] as Record<string, any>;
+          
+          Object.entries(paramsObj).forEach(([key, value]) => {
+            if (value !== undefined && value !== null) {
+              params.append(key, String(value));
+            }
+          });
+          
+          if (params.toString()) {
+            url += (url.includes('?') ? '&' : '?') + params.toString();
+          }
+        }
+        
         if (import.meta.env.DEV) console.log('QueryClient: Making request to:', url);
         
         try {
