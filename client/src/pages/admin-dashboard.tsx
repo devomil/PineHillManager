@@ -185,8 +185,8 @@ export default function AdminDashboard() {
   // Project month-end revenue
   const projectedRevenue = dailyAvgRevenue * totalDaysInMonth;
   
-  // Calculate confidence (higher confidence as month progresses)
-  const confidence = Math.min(Math.round((daysElapsed / totalDaysInMonth) * 100), 95);
+  // Calculate confidence (matches accounting page formula)
+  const confidence = Math.min(95, 60 + (daysElapsed * 2));
 
   const adminQuickActions = [
     {
@@ -418,20 +418,20 @@ export default function AdminDashboard() {
                   </div>
                 </div>
 
-                {/* Daily Average Revenue */}
+                {/* Today's Revenue */}
                 <div className="bg-gradient-to-br from-green-50 to-green-100 p-5 rounded-lg border border-green-200">
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
                       <DollarSign className="h-4 w-4 text-green-600" />
-                      Daily Average Revenue
+                      Today's Revenue
                     </h3>
                   </div>
                   <div className="space-y-4">
                     <div>
-                      <div className="text-3xl font-bold text-green-600 mb-1">
-                        ${dailyAvgRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      <div className="text-xs text-gray-600 mb-1">Live Sales Today</div>
+                      <div className="text-3xl font-bold text-green-600">
+                        ${todayRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </div>
-                      <div className="text-xs text-gray-600">per day this month</div>
                     </div>
                     <div className="h-px bg-green-300"></div>
                     <div className="flex justify-between items-center">
@@ -439,9 +439,9 @@ export default function AdminDashboard() {
                       <span className="text-sm font-semibold text-gray-700">{daysElapsed}</span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-xs text-gray-600">Today:</span>
+                      <span className="text-xs text-gray-600">Monthly avg/day:</span>
                       <span className="text-sm font-semibold text-green-600">
-                        ${todayRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        ${dailyAvgRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </span>
                     </div>
                   </div>
