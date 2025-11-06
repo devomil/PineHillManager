@@ -397,42 +397,22 @@ export default function AdminDashboard() {
                       Month-to-Date Performance
                     </h3>
                   </div>
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs text-gray-600">Revenue:</span>
-                      <span className="text-base font-bold text-green-600">
+                  <div className="space-y-4">
+                    <div>
+                      <div className="text-xs text-gray-600 mb-1">Monthly Revenue</div>
+                      <div className="text-3xl font-bold text-green-600">
                         ${revenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </span>
+                      </div>
+                    </div>
+                    <div className="h-px bg-blue-300"></div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs text-gray-600">Days elapsed:</span>
+                      <span className="text-sm font-semibold text-gray-700">{daysElapsed}</span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-xs text-gray-600">Cost of Goods:</span>
-                      <span className="text-sm font-semibold text-red-600">
-                        ${cogs.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs text-gray-600">Payroll:</span>
-                      <span className="text-sm font-semibold text-red-600">
-                        ${payroll.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs text-gray-600">Total Expenses:</span>
-                      <span className="text-sm font-semibold text-red-600">
-                        ${expenses.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </span>
-                    </div>
-                    <div className="h-px bg-blue-300 my-2"></div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs text-gray-600">Gross Profit:</span>
-                      <span className="text-base font-bold text-blue-700">
-                        ${grossProfit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs text-gray-600">Gross Margin:</span>
-                      <span className="text-base font-bold text-blue-700">
-                        {grossMargin.toFixed(2)}%
+                      <span className="text-xs text-gray-600">Daily average:</span>
+                      <span className="text-sm font-semibold text-blue-600">
+                        ${dailyAvgRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </span>
                     </div>
                   </div>
