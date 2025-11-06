@@ -392,7 +392,7 @@ export default function AdminDashboard() {
                   <Badge variant="outline" className="text-xs">
                     Updated {format(now, 'MM/dd/yyyy')}
                   </Badge>
-                  <Link href="/accounting-dashboard">
+                  <Link href="/accounting">
                     <Button size="sm" data-testid="button-view-accounting">
                       View Full Accounting
                     </Button>
