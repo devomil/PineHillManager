@@ -986,17 +986,6 @@ function TaskDetailsDialog({
   // Local state for instant UI updates
   const [localSteps, setLocalSteps] = useState<TaskStep[]>(initialTask.steps || []);
   const [localStatus, setLocalStatus] = useState<string>(initialTask.status);
-  
-  // Sync local state with task prop changes
-  useEffect(() => {
-    if (initialTask.steps) {
-      setLocalSteps(initialTask.steps);
-    }
-  }, [initialTask.steps]);
-  
-  useEffect(() => {
-    setLocalStatus(initialTask.status);
-  }, [initialTask.status]);
 
   const task = { ...initialTask, steps: localSteps, status: localStatus };
 
