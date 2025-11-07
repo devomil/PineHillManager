@@ -1049,10 +1049,9 @@ function TaskDetailsDialog({
       }
       toast({ title: "Error", description: "Failed to update step", variant: "destructive" });
     },
-    onSuccess: async () => {
+    onSuccess: () => {
+      // Don't refetch to prevent screen flashing - optimistic updates handle UI
       toast({ title: "Success", description: "Step updated successfully" });
-      // Refetch in background to sync with server
-      await queryClient.refetchQueries({ queryKey: ['/api/tasks'] });
     },
   });
 
@@ -1077,6 +1076,10 @@ function TaskDetailsDialog({
 
   const handleStartTask = () => {
     updateStatusMutation.mutate('in_progress');
+  };
+
+  const handleCompleteTask = () => {
+    updateStatusMutation.mutate('completed');
   };
 
   const handleAddNote = () => {
@@ -1166,6 +1169,36 @@ function TaskDetailsDialog({
                 >
                   <Sparkles className="h-4 w-4 mr-2" />
                   Start Task
+                </Button>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Complete Task Button - Shows when task is in progress and user can edit */}
+          {task.status === 'in_progress' && canEditSteps && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/30 dark:to-emerald-950/30 p-4 rounded-lg border border-green-200 dark:border-green-800"
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="font-semibold text-green-900 dark:text-green-100 flex items-center gap-2">
+                    <CheckCircle className="h-5 w-5" />
+                    Ready to finish?
+                  </h4>
+                  <p className="text-sm text-green-700 dark:text-green-300 mt-1">
+                    Mark this task as completed when you're done
+                  </p>
+                </div>
+                <Button
+                  onClick={handleCompleteTask}
+                  disabled={updateStatusMutation.isPending}
+                  className="bg-green-600 hover:bg-green-700 text-white"
+                  data-testid="button-complete-task"
+                >
+                  <CheckCircle className="h-4 w-4 mr-2" />
+                  Complete Task
                 </Button>
               </div>
             </motion.div>
