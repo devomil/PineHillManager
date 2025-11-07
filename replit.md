@@ -280,6 +280,12 @@ npm run db:migrate
 
 ### Recent Changes Log
 
+**2025-11-07: Employee Purchase Portal Cache Updates**
+- Optimized purchase history and allowance balance refresh using parallel query invalidation with Promise.all
+- Implemented consistent form state clearing across all purchase completion and cancellation paths
+- Fixed stale purchaseNotes field by clearing on success, payment success, and payment cancel events
+- Backend correctly creates purchases, deducts Clover inventory, and calculates monthly totals
+
 **2025-11-07: Data Loss Prevention Safeguards**
 - Added global error handling in React Query
 - Implemented visual error states in accounting dashboard
