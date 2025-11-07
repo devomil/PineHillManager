@@ -308,96 +308,112 @@ export default function AdminDashboard() {
         {/* Main Content Area */}
         <div className="flex-1 space-y-6">
           {/* Goals Section */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
             {/* MY Goals */}
-            <div className="bg-white rounded-xl shadow-md border border-gray-200/80 overflow-hidden">
-              <div className="bg-gradient-to-r from-[#5a7a5c] to-[#7ea680] px-4 py-3">
-                <CardTitle className="text-lg font-semibold text-center text-white">MY Goals</CardTitle>
-              </div>
-              <CardContent className="space-y-3 pt-4">
-                {myGoals.length > 0 ? (
-                  myGoals.map((goal) => (
-                    <div 
-                      key={goal.id}
-                      className="flex items-center space-x-2 p-3 bg-gradient-to-r from-emerald-50 to-green-50 rounded-full hover:from-emerald-100 hover:to-green-100 transition-colors border border-emerald-200/50"
-                    >
-                      <Target className="h-4 w-4 text-[#5a7a5c] flex-shrink-0" />
-                      <span className="text-sm font-medium text-gray-700 truncate flex-1">{goal.title}</span>
-                    </div>
-                  ))
-                ) : (
-                  <div className="text-center py-4">
-                    <p className="text-sm text-gray-500">No personal goals yet</p>
-                    <Link href="/goals">
-                      <Button variant="link" size="sm" className="mt-2">Add Goals</Button>
-                    </Link>
+            <div className="group relative bg-white rounded-2xl shadow-sm border border-gray-200/60 overflow-hidden hover:shadow-md transition-all duration-300">
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#5a7a5c] to-[#7ea680]"></div>
+              <div className="p-6">
+                <div className="flex items-center space-x-3 mb-4">
+                  <div className="p-2.5 rounded-lg bg-emerald-50 border border-emerald-100">
+                    <Target className="h-5 w-5 text-[#5a7a5c]" />
                   </div>
-                )}
-              </CardContent>
+                  <h3 className="text-lg font-semibold text-gray-900 tracking-tight">MY Goals</h3>
+                </div>
+                <div className="space-y-2.5">
+                  {myGoals.length > 0 ? (
+                    myGoals.map((goal) => (
+                      <div 
+                        key={goal.id}
+                        className="flex items-start space-x-3 p-3 rounded-lg border border-gray-100 bg-gray-50/50 hover:bg-emerald-50/30 hover:border-emerald-200/50 transition-all duration-200"
+                      >
+                        <div className="mt-0.5 w-1.5 h-1.5 rounded-full bg-[#5a7a5c] flex-shrink-0"></div>
+                        <span className="text-sm font-medium text-gray-700 leading-relaxed flex-1">{goal.title}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center py-6">
+                      <p className="text-sm text-gray-500 mb-2">No personal goals yet</p>
+                      <Link href="/goals">
+                        <Button variant="link" size="sm" className="text-[#5a7a5c] hover:text-[#7ea680]">Add Goals</Button>
+                      </Link>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
 
             {/* Company BHAG */}
-            <div className="bg-white rounded-xl shadow-md border border-gray-200/80 overflow-hidden">
-              <div className="bg-gradient-to-r from-[#b85a42] to-[#d47a5e] px-4 py-3">
-                <CardTitle className="text-lg font-semibold text-center text-white">Company BHAG</CardTitle>
-              </div>
-              <CardContent className="min-h-[180px] pt-4">
+            <div className="group relative bg-white rounded-2xl shadow-sm border border-gray-200/60 overflow-hidden hover:shadow-md transition-all duration-300">
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#b85a42] to-[#d47a5e]"></div>
+              <div className="p-6 min-h-[220px]">
+                <div className="flex items-center space-x-3 mb-4">
+                  <div className="p-2.5 rounded-lg bg-orange-50 border border-orange-100">
+                    <Target className="h-5 w-5 text-[#b85a42]" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900 tracking-tight">Company BHAG</h3>
+                </div>
                 {companyGoals.length > 0 ? (
-                  <div className="space-y-3">
+                  <div className="space-y-2.5">
                     {companyGoals.map((goal) => (
-                      <div key={goal.id} className="flex items-center gap-3 p-3 rounded-lg bg-gradient-to-r from-red-50 to-orange-50 border border-red-200/50 hover:from-red-100 hover:to-orange-100 transition-colors">
-                        <div className="flex-shrink-0">
+                      <div key={goal.id} className="flex items-start gap-3 p-3 rounded-lg border border-gray-100 bg-gray-50/50 hover:bg-orange-50/30 hover:border-orange-200/50 transition-all duration-200">
+                        <div className="flex-shrink-0 mt-0.5">
                           {goal.status === 'completed' ? (
-                            <CheckCircle className="h-5 w-5 text-green-600" />
+                            <CheckCircle className="h-4 w-4 text-green-600" />
                           ) : (
-                            <Target className="h-5 w-5 text-[#b85a42]" />
+                            <div className="w-1.5 h-1.5 rounded-full bg-[#b85a42]"></div>
                           )}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-gray-800 truncate">{goal.title}</p>
+                          <p className="text-sm font-semibold text-gray-800 leading-relaxed">{goal.title}</p>
                           {goal.description && (
-                            <p className="text-xs text-gray-600 mt-1 line-clamp-1">{goal.description}</p>
+                            <p className="text-xs text-gray-600 mt-1 line-clamp-2 leading-relaxed">{goal.description}</p>
                           )}
                         </div>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <div className="text-center py-8">
-                    <p className="text-sm text-gray-500">No company goal set</p>
+                  <div className="text-center py-6">
+                    <p className="text-sm text-gray-500 mb-2">No company goal set</p>
                     <Link href="/goals">
-                      <Button variant="link" size="sm" className="mt-2">Set BHAG</Button>
+                      <Button variant="link" size="sm" className="text-[#b85a42] hover:text-[#d47a5e]">Set BHAG</Button>
                     </Link>
                   </div>
                 )}
-              </CardContent>
+              </div>
             </div>
 
             {/* TEAM Goals */}
-            <div className="bg-white rounded-xl shadow-md border border-gray-200/80 overflow-hidden">
-              <div className="bg-gradient-to-r from-[#a57283] to-[#c49aaa] px-4 py-3">
-                <CardTitle className="text-lg font-semibold text-center text-white">TEAM Goals</CardTitle>
-              </div>
-              <CardContent className="space-y-3 pt-4">
-                {teamGoals.length > 0 ? (
-                  teamGoals.map((goal) => (
-                    <div 
-                      key={goal.id}
-                      className="flex items-center space-x-2 p-3 bg-gradient-to-r from-rose-50 to-pink-50 rounded-full hover:from-rose-100 hover:to-pink-100 transition-colors border border-rose-200/50"
-                    >
-                      <Target className="h-4 w-4 text-[#a57283] flex-shrink-0" />
-                      <span className="text-sm font-medium text-gray-700 truncate flex-1">{goal.title}</span>
-                    </div>
-                  ))
-                ) : (
-                  <div className="text-center py-4">
-                    <p className="text-sm text-gray-500">No team goals yet</p>
-                    <Link href="/goals">
-                      <Button variant="link" size="sm" className="mt-2">Add Goals</Button>
-                    </Link>
+            <div className="group relative bg-white rounded-2xl shadow-sm border border-gray-200/60 overflow-hidden hover:shadow-md transition-all duration-300">
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#a57283] to-[#c49aaa]"></div>
+              <div className="p-6">
+                <div className="flex items-center space-x-3 mb-4">
+                  <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-100">
+                    <Target className="h-5 w-5 text-[#a57283]" />
                   </div>
-                )}
-              </CardContent>
+                  <h3 className="text-lg font-semibold text-gray-900 tracking-tight">TEAM Goals</h3>
+                </div>
+                <div className="space-y-2.5">
+                  {teamGoals.length > 0 ? (
+                    teamGoals.map((goal) => (
+                      <div 
+                        key={goal.id}
+                        className="flex items-start space-x-3 p-3 rounded-lg border border-gray-100 bg-gray-50/50 hover:bg-rose-50/30 hover:border-rose-200/50 transition-all duration-200"
+                      >
+                        <div className="mt-0.5 w-1.5 h-1.5 rounded-full bg-[#a57283] flex-shrink-0"></div>
+                        <span className="text-sm font-medium text-gray-700 leading-relaxed flex-1">{goal.title}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center py-6">
+                      <p className="text-sm text-gray-500 mb-2">No team goals yet</p>
+                      <Link href="/goals">
+                        <Button variant="link" size="sm" className="text-[#a57283] hover:text-[#c49aaa]">Add Goals</Button>
+                      </Link>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
 
