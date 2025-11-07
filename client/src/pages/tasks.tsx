@@ -1079,6 +1079,9 @@ function TaskDetailsDialog({
         title: "Success", 
         description: `Task status updated to ${variables.replace('_', ' ')}` 
       });
+      
+      // Close the dialog after successful status update
+      onClose();
     },
     onError: () => {
       toast({ title: "Error", description: "Failed to update task status", variant: "destructive" });
