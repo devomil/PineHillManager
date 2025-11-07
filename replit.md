@@ -45,3 +45,244 @@ The system follows a clear separation of concerns between frontend and backend. 
 -   **Accounting Integrations**: QuickBooks, Clover POS, Amazon Store API, HSA Providers, Thrive Inventory
 -   **Content Generation**: Hugging Face API
 -   **SMS Service**: Twilio API
+
+## Database Migration Workflow
+
+### Overview
+This workflow ensures safe database schema changes without risking production data. All database modifications should follow this process to minimize downtime and prevent data loss.
+
+### Pre-Migration Checklist
+
+**Before making any database changes:**
+1. ✅ Document what you're changing and why
+2. ✅ Identify which tables/columns will be affected
+3. ✅ Check if existing code depends on current structure
+4. ✅ Plan for backward compatibility during transition
+5. ✅ Schedule changes during low-traffic periods (if significant)
+
+### Step-by-Step Migration Process
+
+#### Phase 1: Planning & Schema Design
+
+**1. Update the Schema File** (`shared/schema.ts`)
+   - Add new tables/columns with proper types
+   - Use `.default()` for new columns to avoid breaking existing data
+   - Keep old columns/tables initially (don't delete yet)
+   
+**Example - Adding a new column:**
+```typescript
+// GOOD: Add new column with default value
+export const employees = pgTable('employees', {
+  // ... existing columns
+  department: varchar('department', { length: 100 }).default('General'), // New column
+});
+
+// BAD: Don't add required columns without defaults
+// phone: varchar('phone', { length: 20 }).notNull(), // ❌ This breaks existing rows
+```
+
+**2. Generate Migration File**
+```bash
+npm run db:generate
+```
+This creates a migration SQL file in `drizzle/` directory.
+
+**3. Review the Migration SQL**
+   - Open the generated `.sql` file
+   - Verify the SQL commands are safe
+   - Check for any DROP or DELETE statements
+   - Ensure default values are set correctly
+
+#### Phase 2: Testing in Development
+
+**4. Apply Migration to Development Database**
+```bash
+npm run db:migrate
+```
+
+**5. Test the Application**
+   - Restart the application workflow
+   - Test all affected features
+   - Check browser console for errors
+   - Verify queries return expected data
+   - Test both old and new code paths
+
+**6. Verify Data Integrity**
+   - Check that existing data is intact
+   - Verify new columns have default values
+   - Test insert/update operations
+   - Confirm all relationships still work
+
+**7. Monitor Error Logs**
+   - Check workflow logs for database errors
+   - Look for CRITICAL warnings in server logs
+   - Verify no DATA_LOSS markers appear
+   - Test accounting/COGS endpoints if financial tables changed
+
+#### Phase 3: Code Updates
+
+**8. Update Storage Interface** (`server/storage.ts`)
+   - Add new methods for new functionality
+   - Keep old methods working during transition
+   - Add type safety with new schema types
+
+**9. Update API Routes** (`server/routes.ts`)
+   - Add new endpoints if needed
+   - Keep old endpoints functional
+   - Add validation for new fields
+
+**10. Update Frontend Components**
+   - Add UI for new features
+   - Ensure old features still work
+   - Test loading states and error handling
+
+#### Phase 4: Cleanup (After Testing)
+
+**11. Gradual Deprecation**
+   - Mark old columns/methods as deprecated
+   - Add console warnings for old usage
+   - Give time for transition (days/weeks)
+
+**12. Final Removal**
+   - Generate migration to remove old columns
+   - Test thoroughly before applying
+   - Document the removal
+
+### Safe Migration Patterns
+
+**✅ SAFE Changes (Low Risk):**
+- Adding new tables
+- Adding new columns with defaults
+- Adding indexes
+- Creating new relationships
+- Expanding column length (varchar 100 → 255)
+
+**⚠️ CAREFUL Changes (Medium Risk):**
+- Adding required columns (use defaults first)
+- Renaming columns (needs dual-write period)
+- Changing column types (test thoroughly)
+- Adding unique constraints
+
+**❌ RISKY Changes (High Risk):**
+- Dropping columns actively used by code
+- Dropping tables with live data
+- Changing primary keys
+- Removing constraints code depends on
+
+### Rollback Procedures
+
+**If Something Goes Wrong:**
+
+**Option 1: Code Rollback (Preferred)**
+1. Click "Rollback" in Replit workspace
+2. Select the checkpoint before the migration
+3. This restores code but keeps database intact
+4. Fix the issue and try again
+
+**Option 2: Database Rollback (Use with Caution)**
+1. Click "Rollback" in Replit workspace
+2. Check "Restore databases" under additional options
+3. This resets BOTH code AND database
+4. ⚠️ Only use if development data is corrupted
+
+**Option 3: Manual Rollback**
+1. Write a reverse migration SQL file
+2. Test the rollback locally
+3. Apply manually via database tools
+
+### Production Deployment Guidelines
+
+**When Deploying to Production:**
+
+1. **Backup First**
+   - Production database backups are automatic (Neon)
+   - Create manual backup before major changes
+   - Document backup location
+
+2. **Deploy in Stages**
+   ```
+   Stage 1: Deploy code that works with OLD and NEW schema
+   Stage 2: Run migration on production database
+   Stage 3: Deploy code that uses new schema only
+   ```
+
+3. **Monitor After Deployment**
+   - Watch error logs for 24-48 hours
+   - Monitor query performance
+   - Check critical endpoints (accounting, orders)
+   - Verify user-facing features work
+
+4. **Have Rollback Plan Ready**
+   - Document rollback steps before deploying
+   - Keep previous version available
+   - Have database restore procedure ready
+
+### Migration Best Practices
+
+**DO:**
+- ✅ Make small, incremental changes
+- ✅ Test extensively in development
+- ✅ Use transactions for data migrations
+- ✅ Add default values to new columns
+- ✅ Keep migrations reversible when possible
+- ✅ Document breaking changes
+- ✅ Use type-safe Drizzle queries
+
+**DON'T:**
+- ❌ Drop columns without verifying code doesn't use them
+- ❌ Change types without testing data conversion
+- ❌ Skip testing in development
+- ❌ Deploy during peak hours
+- ❌ Forget to communicate changes to team
+- ❌ Rush complex migrations
+
+### Common Migration Scenarios
+
+**Scenario 1: Adding a New Feature**
+```
+1. Add new table/columns with defaults
+2. Deploy code that can handle both states
+3. Test new feature with new data
+4. Gradually migrate old data if needed
+5. Clean up after transition period
+```
+
+**Scenario 2: Renaming a Column**
+```
+1. Add new column with correct name
+2. Dual-write: Update code to write to BOTH columns
+3. Backfill: Copy data from old to new column
+4. Dual-read: Read from new column, fall back to old
+5. Deploy code that only uses new column
+6. Remove old column in separate migration
+```
+
+**Scenario 3: Changing Data Type**
+```
+1. Add new column with new type
+2. Write migration to transform and copy data
+3. Update code to use new column
+4. Test thoroughly with real data
+5. Remove old column after verification
+```
+
+### Emergency Contacts & Resources
+
+**If You Need Help:**
+- Replit Support: support@replit.com
+- Database Provider (Neon): Check dashboard for support
+- Drizzle Documentation: https://orm.drizzle.team/docs/migrations
+
+**Monitoring Dashboard:**
+- Development Database: Access via Replit Database pane
+- Workflow Logs: Check for errors and warnings
+- Browser Console: Monitor client-side errors
+
+### Recent Changes Log
+
+**2025-11-07: Data Loss Prevention Safeguards**
+- Added global error handling in React Query
+- Implemented visual error states in accounting dashboard
+- Created type-safe query builder with Zod validation
+- Enhanced server-side logging for COGS endpoints
+- Fixed queryClient parameter serialization bug
