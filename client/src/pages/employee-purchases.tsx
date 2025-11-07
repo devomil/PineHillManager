@@ -199,12 +199,15 @@ export default function EmployeePurchases() {
 
       return { requiresPayment: false, results };
     },
-    onSuccess: (data: any) => {
+    onSuccess: async (data: any) => {
       if (!data.requiresPayment) {
-        // Free purchase completed successfully
-        queryClient.invalidateQueries({ queryKey: ['/api/employee-purchases'] });
-        queryClient.invalidateQueries({ queryKey: ['/api/employee-purchases/balance'] });
+        // Free purchase completed successfully - invalidate and wait for refetch
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ['/api/employee-purchases'] }),
+          queryClient.invalidateQueries({ queryKey: ['/api/employee-purchases/balance'] })
+        ]);
         setCart([]);
+        setPurchaseNotes("");
         toast({
           title: "Purchase complete",
           description: "Your items have been recorded",
@@ -222,13 +225,16 @@ export default function EmployeePurchases() {
   });
 
   const handlePaymentSuccess = async (paymentData: any) => {
-    // Payment completed successfully
-    queryClient.invalidateQueries({ queryKey: ['/api/employee-purchases'] });
-    queryClient.invalidateQueries({ queryKey: ['/api/employee-purchases/balance'] });
+    // Payment completed successfully - invalidate and wait for refetch
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['/api/employee-purchases'] }),
+      queryClient.invalidateQueries({ queryKey: ['/api/employee-purchases/balance'] })
+    ]);
     setCart([]);
     setPendingPurchaseIds([]);
     setPaymentAmount(0);
     setShowPaymentDialog(false);
+    setPurchaseNotes("");
     
     toast({
       title: "Purchase complete",
@@ -248,6 +254,7 @@ export default function EmployeePurchases() {
     setShowPaymentDialog(false);
     setPendingPurchaseIds([]);
     setPaymentAmount(0);
+    setPurchaseNotes("");
     
     toast({
       title: "Payment cancelled",
