@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { ShoppingCart, Scan, Trash2, Plus, Minus, DollarSign, Package, MapPin, FileText } from "lucide-react";
-import { queryClient, apiRequest } from "@/lib/queryClient";
+import { apiRequest } from "@/lib/queryClient";
 import type { EmployeePurchase, InventoryItem } from "@shared/schema";
 import { CloverPaymentDialog } from "@/components/clover-payment-dialog";
 
@@ -37,6 +37,7 @@ interface PurchaseBalance {
 
 export default function EmployeePurchases() {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [barcode, setBarcode] = useState("");
   const [cart, setCart] = useState<CartItem[]>([]);
   const [selectedLocation, setSelectedLocation] = useState<number | null>(null);
