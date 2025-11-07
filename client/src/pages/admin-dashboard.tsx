@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Users, Clock, Calendar, MapPin, ChevronRight, FileText, MessageCircle, Bell, DollarSign, Package, ShoppingCart, QrCode, Settings, Target, TrendingUp, CheckCircle, Circle, TrendingDown } from "lucide-react";
+import { Users, Clock, Calendar, MapPin, ChevronRight, FileText, MessageCircle, Bell, DollarSign, Package, ShoppingCart, QrCode, Settings, Target, TrendingUp, CheckCircle, Circle, TrendingDown, UserCheck, Repeat } from "lucide-react";
 import { Link } from "wouter";
 import { formatTimeStringToCST } from "@/lib/time-utils";
 import AdminLayout from "@/components/admin-layout";
@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/use-auth";
 import { Checkbox } from "@/components/ui/checkbox";
-import type { Goal } from "@shared/schema";
+import type { Goal, TimeOffRequest, ShiftSwapRequest } from "@shared/schema";
 import { format, startOfMonth, endOfMonth, differenceInDays, addDays } from "date-fns";
 
 interface AdminStats {
@@ -124,6 +124,22 @@ export default function AdminDashboard() {
   const { data: todaySchedules = [] } = useQuery<WorkSchedule[]>({
     queryKey: ["/api/work-schedules/today"],
   });
+
+  // Check if user is manager/admin for approval widgets
+  const userRole = user?.role?.toLowerCase();
+  const isManager = userRole === 'admin' || userRole === 'manager';
+
+  // Fetch time off requests for managers/admins (only after user is loaded)
+  const { data: timeOffRequests = [] } = useQuery<TimeOffRequest[]>({
+    queryKey: ['/api/time-off-requests'],
+    enabled: !!user && isManager,
+  });
+
+  // Fetch shift swap requests for managers/admins (only after user is loaded)
+  const { data: shiftSwaps = [] } = useQuery<ShiftSwapRequest[]>({
+    queryKey: ['/api/shift-swaps'],
+    enabled: !!user && isManager,
+  });
   
   // Fetch profit/loss data for current month
   const { data: profitLossData } = useQuery<ProfitLossData>({
@@ -177,6 +193,15 @@ export default function AdminDashboard() {
     t.status !== 'completed' && 
     !t.archived
   ).slice(0, 4);
+
+  // Filter pending approvals for managers/admins
+  const pendingTimeOffRequests = timeOffRequests.filter(
+    req => req.status === 'pending' || req.status === 'cancellation_requested'
+  );
+  const pendingShiftSwaps = shiftSwaps.filter(
+    swap => swap.status === 'pending'
+  );
+  const totalPendingApprovals = pendingTimeOffRequests.length + pendingShiftSwaps.length;
   
   // Calculate monthly metrics
   const revenue = typeof profitLossData?.totalRevenue === 'string' ? parseFloat(profitLossData.totalRevenue) : (profitLossData?.totalRevenue || 0);
@@ -615,6 +640,110 @@ export default function AdminDashboard() {
               )}
             </CardContent>
           </Card>
+
+          {/* Pending Approvals Widget - Only for Managers/Admins */}
+          {isManager && (
+            <Card className="shadow-lg bg-gradient-to-br from-orange-50 to-orange-100">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <UserCheck className="h-5 w-5 text-orange-700" />
+                    <CardTitle className="text-lg font-semibold text-gray-900">Pending Approvals</CardTitle>
+                  </div>
+                  {totalPendingApprovals > 0 && (
+                    <Badge className="bg-orange-600 text-white">{totalPendingApprovals}</Badge>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent>
+                {totalPendingApprovals === 0 ? (
+                  <div className="text-center py-4">
+                    <CheckCircle className="h-10 w-10 text-gray-400 mx-auto mb-2" />
+                    <p className="text-sm text-gray-500">No pending approvals</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {/* Time Off Requests */}
+                    {pendingTimeOffRequests.slice(0, 2).map((request) => (
+                      <div 
+                        key={`timeoff-${request.id}`} 
+                        className="p-3 bg-white rounded-lg border border-orange-200 hover:border-orange-300 transition-colors"
+                        data-testid={`approval-timeoff-${request.id}`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Clock className="h-4 w-4 text-orange-600 flex-shrink-0" />
+                              <p className="font-medium text-sm text-gray-900 truncate">
+                                {getEmployeeName(request.userId)}
+                              </p>
+                            </div>
+                            <p className="text-xs text-gray-600 ml-6">
+                              {request.status === 'cancellation_requested' ? 'Cancellation Request' : 'Time Off Request'}
+                            </p>
+                            <p className="text-xs text-gray-500 ml-6 mt-0.5">
+                              {format(new Date(request.startDate), "MMM d")} - {format(new Date(request.endDate), "MMM d")}
+                            </p>
+                          </div>
+                          <Badge variant="outline" className="text-orange-700 border-orange-300 bg-orange-50 flex-shrink-0">
+                            PENDING
+                          </Badge>
+                        </div>
+                      </div>
+                    ))}
+                    
+                    {/* Shift Swaps */}
+                    {pendingShiftSwaps.slice(0, Math.max(0, 3 - pendingTimeOffRequests.length)).map((swap) => (
+                      <div 
+                        key={`swap-${swap.id}`} 
+                        className="p-3 bg-white rounded-lg border border-orange-200 hover:border-orange-300 transition-colors"
+                        data-testid={`approval-swap-${swap.id}`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Repeat className="h-4 w-4 text-orange-600 flex-shrink-0" />
+                              <p className="font-medium text-sm text-gray-900 truncate">
+                                {getEmployeeName(swap.requesterId)}
+                              </p>
+                            </div>
+                            <p className="text-xs text-gray-600 ml-6">
+                              Shift Swap Request
+                            </p>
+                            {swap.takerId && (
+                              <p className="text-xs text-gray-500 ml-6 mt-0.5">
+                                with {getEmployeeName(swap.takerId)}
+                              </p>
+                            )}
+                          </div>
+                          {swap.urgencyLevel === 'urgent' || swap.urgencyLevel === 'high' ? (
+                            <Badge variant="destructive" className="flex-shrink-0">
+                              URGENT
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-orange-700 border-orange-300 bg-orange-50 flex-shrink-0">
+                              PENDING
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+
+                    <Link href="/shift-scheduling">
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        className="w-full mt-2 border-orange-300 text-orange-700 hover:bg-orange-50"
+                        data-testid="button-manage-approvals"
+                      >
+                        Manage Approvals
+                      </Button>
+                    </Link>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
     </AdminLayout>
