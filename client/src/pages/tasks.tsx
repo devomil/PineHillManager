@@ -27,7 +27,7 @@ import { format } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import UserAvatar from "@/components/user-avatar";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 
 const taskFormSchema = insertTaskSchema.omit({
   createdBy: true,
@@ -347,6 +347,7 @@ export default function Tasks() {
   const { user, logoutMutation } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [, setLocation] = useLocation();
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -578,7 +579,7 @@ export default function Tasks() {
           
           <Button 
             variant="ghost" 
-            onClick={() => window.location.href = "/"}
+            onClick={() => setLocation("/")}
             className="text-gray-700 hover:text-gray-900"
           >
             ← Back to Dashboard
