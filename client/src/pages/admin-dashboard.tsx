@@ -310,18 +310,18 @@ export default function AdminDashboard() {
           {/* Goals Section */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             {/* MY Goals */}
-            <Card className="shadow-md">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg font-semibold text-center">MY Goals</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
+            <div className="bg-white rounded-xl shadow-md border border-gray-200/80 overflow-hidden">
+              <div className="bg-gradient-to-r from-[#5b7c99] to-[#5c97ab] px-4 py-3">
+                <CardTitle className="text-lg font-semibold text-center text-white">MY Goals</CardTitle>
+              </div>
+              <CardContent className="space-y-3 pt-4">
                 {myGoals.length > 0 ? (
                   myGoals.map((goal) => (
                     <div 
                       key={goal.id}
-                      className="flex items-center space-x-2 p-3 bg-gray-50 rounded-full hover:bg-gray-100 transition-colors"
+                      className="flex items-center space-x-2 p-3 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-full hover:from-blue-100 hover:to-cyan-100 transition-colors border border-blue-200/50"
                     >
-                      <Target className="h-4 w-4 text-blue-600 flex-shrink-0" />
+                      <Target className="h-4 w-4 text-[#5b7c99] flex-shrink-0" />
                       <span className="text-sm font-medium text-gray-700 truncate flex-1">{goal.title}</span>
                     </div>
                   ))
@@ -334,23 +334,23 @@ export default function AdminDashboard() {
                   </div>
                 )}
               </CardContent>
-            </Card>
+            </div>
 
             {/* Company BHAG */}
-            <Card className="shadow-md">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg font-semibold text-center">Company BHAG</CardTitle>
-              </CardHeader>
-              <CardContent className="min-h-[180px]">
+            <div className="bg-white rounded-xl shadow-md border border-gray-200/80 overflow-hidden">
+              <div className="bg-gradient-to-r from-[#9b6347] to-[#d4a574] px-4 py-3">
+                <CardTitle className="text-lg font-semibold text-center text-white">Company BHAG</CardTitle>
+              </div>
+              <CardContent className="min-h-[180px] pt-4">
                 {companyGoals.length > 0 ? (
                   <div className="space-y-3">
                     {companyGoals.map((goal) => (
-                      <div key={goal.id} className="flex items-center gap-3 p-3 rounded-lg bg-gradient-to-r from-yellow-50 to-yellow-100 border border-yellow-200">
+                      <div key={goal.id} className="flex items-center gap-3 p-3 rounded-lg bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-200/50 hover:from-amber-100 hover:to-yellow-100 transition-colors">
                         <div className="flex-shrink-0">
                           {goal.status === 'completed' ? (
                             <CheckCircle className="h-5 w-5 text-green-600" />
                           ) : (
-                            <Target className="h-5 w-5 text-yellow-600" />
+                            <Target className="h-5 w-5 text-[#9b6347]" />
                           )}
                         </div>
                         <div className="flex-1 min-w-0">
@@ -371,21 +371,21 @@ export default function AdminDashboard() {
                   </div>
                 )}
               </CardContent>
-            </Card>
+            </div>
 
             {/* TEAM Goals */}
-            <Card className="shadow-md">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg font-semibold text-center">TEAM Goals</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
+            <div className="bg-white rounded-xl shadow-md border border-gray-200/80 overflow-hidden">
+              <div className="bg-gradient-to-r from-[#56637a] to-[#8c93ad] px-4 py-3">
+                <CardTitle className="text-lg font-semibold text-center text-white">TEAM Goals</CardTitle>
+              </div>
+              <CardContent className="space-y-3 pt-4">
                 {teamGoals.length > 0 ? (
                   teamGoals.map((goal) => (
                     <div 
                       key={goal.id}
-                      className="flex items-center space-x-2 p-3 bg-gray-50 rounded-full hover:bg-gray-100 transition-colors"
+                      className="flex items-center space-x-2 p-3 bg-gradient-to-r from-slate-50 to-purple-50 rounded-full hover:from-slate-100 hover:to-purple-100 transition-colors border border-purple-200/50"
                     >
-                      <Target className="h-4 w-4 text-purple-600 flex-shrink-0" />
+                      <Target className="h-4 w-4 text-[#56637a] flex-shrink-0" />
                       <span className="text-sm font-medium text-gray-700 truncate flex-1">{goal.title}</span>
                     </div>
                   ))
@@ -398,7 +398,7 @@ export default function AdminDashboard() {
                   </div>
                 )}
               </CardContent>
-            </Card>
+            </div>
           </div>
 
           {/* Monthly Business Intelligence */}
