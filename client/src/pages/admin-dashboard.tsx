@@ -516,34 +516,36 @@ export default function AdminDashboard() {
           </Card>
 
           {/* Admin Quick Actions */}
-          <Card className="shadow-lg">
-            <CardHeader>
+          <Card className="shadow-lg border-gray-200/50">
+            <CardHeader className="border-b border-gray-100">
               <CardTitle className="text-xl font-semibold text-gray-900">Admin Quick Actions</CardTitle>
-              <CardDescription>
+              <CardDescription className="text-gray-600">
                 Streamline your administrative tasks with these essential management tools
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="pt-6">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {adminQuickActions.map((action, index) => (
                   <Link key={index} href={action.href}>
-                    <Card 
-                      className="cursor-pointer transition-all duration-200 hover:shadow-md hover:scale-105 border border-gray-200"
+                    <div 
+                      className="group relative cursor-pointer rounded-xl border border-gray-200/60 bg-gradient-to-br from-white to-gray-50/50 p-5 transition-all duration-300 hover:shadow-lg hover:border-gray-300/80 hover:-translate-y-1"
                       data-testid={`action-${action.title.toLowerCase().replace(/\s+/g, '-')}`}
                     >
-                      <CardContent className="p-4">
-                        <div className="flex items-center space-x-3">
-                          <div className={`p-2 rounded-lg ${action.bgColor}`}>
-                            <action.icon className={`h-5 w-5 ${action.color}`} />
-                          </div>
-                          <div className="flex-1">
-                            <h3 className="font-medium text-gray-900">{action.title}</h3>
-                            <p className="text-sm text-gray-500">{action.description}</p>
-                          </div>
-                          <ChevronRight className="h-4 w-4 text-gray-400" />
+                      <div className="flex items-start space-x-4">
+                        <div className={`flex-shrink-0 p-3 rounded-xl ${action.bgColor} shadow-sm group-hover:scale-110 transition-transform duration-300`}>
+                          <action.icon className={`h-6 w-6 ${action.color}`} />
                         </div>
-                      </CardContent>
-                    </Card>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-semibold text-gray-900 text-base mb-1 group-hover:text-gray-700 transition-colors">
+                            {action.title}
+                          </h3>
+                          <p className="text-sm text-gray-600 leading-relaxed line-clamp-2">
+                            {action.description}
+                          </p>
+                        </div>
+                        <ChevronRight className="h-5 w-5 text-gray-400 flex-shrink-0 mt-1 group-hover:text-gray-600 group-hover:translate-x-1 transition-all duration-300" />
+                      </div>
+                    </div>
                   </Link>
                 ))}
               </div>
