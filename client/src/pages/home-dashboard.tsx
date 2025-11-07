@@ -1,12 +1,12 @@
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Clock, Calendar, MessageSquare, CheckSquare, GraduationCap, ShoppingCart, HelpCircle, User, LogOut, ChevronDown, Menu, X, ExternalLink, ChevronLeft, ChevronRight, ArrowRight, AlertCircle, FileText } from "lucide-react";
+import { Clock, Calendar, MessageSquare, CheckSquare, GraduationCap, ShoppingCart, HelpCircle, User, LogOut, ChevronDown, Menu, X, ExternalLink, ChevronLeft, ChevronRight, ArrowRight, AlertCircle, FileText, UserCheck, Repeat } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import UserAvatar from "@/components/user-avatar";
 import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import type { Task, EmployeeBanner, EmployeeSpotlight, TrainingProgress, WorkSchedule } from "@shared/schema";
+import type { Task, EmployeeBanner, EmployeeSpotlight, TrainingProgress, WorkSchedule, TimeOffRequest, ShiftSwapRequest } from "@shared/schema";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, parseISO, getDay } from "date-fns";
@@ -60,6 +60,43 @@ export default function HomeDashboard() {
     queryKey: ['/api/my-schedules', { start: monthStart, end: monthEnd }],
     enabled: !!user?.id,
   });
+
+  // Fetch employees for managers/admins (to display names in approvals widget)
+  const { data: employees = [] } = useQuery<Array<{
+    id: string;
+    firstName: string;
+    lastName: string;
+  }>>({
+    queryKey: ['/api/employees'],
+    enabled: isManager,
+  });
+
+  // Fetch time off requests for managers/admins
+  const { data: timeOffRequests = [] } = useQuery<TimeOffRequest[]>({
+    queryKey: ['/api/time-off-requests'],
+    enabled: isManager,
+  });
+
+  // Fetch shift swap requests for managers/admins
+  const { data: shiftSwaps = [] } = useQuery<ShiftSwapRequest[]>({
+    queryKey: ['/api/shift-swaps'],
+    enabled: isManager,
+  });
+
+  // Filter pending approvals for managers/admins
+  const pendingTimeOffRequests = timeOffRequests.filter(
+    req => req.status === 'pending' || req.status === 'cancellation_requested'
+  );
+  const pendingShiftSwaps = shiftSwaps.filter(
+    swap => swap.status === 'pending'
+  );
+  const totalPendingApprovals = pendingTimeOffRequests.length + pendingShiftSwaps.length;
+
+  // Helper function to get employee name
+  const getEmployeeName = (userId: string) => {
+    const employee = employees.find(emp => emp.id === userId);
+    return employee ? `${employee.firstName} ${employee.lastName}` : 'Unknown';
+  };
 
   const navItems = [
     {
@@ -693,6 +730,105 @@ export default function HomeDashboard() {
               )}
             </div>
           </div>
+
+          {/* Pending Approvals Widget - Only for Managers/Admins */}
+          {isManager && (
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 overflow-hidden">
+              <div className="bg-gradient-to-r from-[#9b6347] to-[#d4a574] px-4 py-3 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <UserCheck className="h-5 w-5 text-white" />
+                  <h3 className="font-semibold text-white text-base">Pending Approvals</h3>
+                  {totalPendingApprovals > 0 && (
+                    <span className="bg-white/90 text-[#9b6347] text-xs font-bold px-2 py-0.5 rounded-full">
+                      {totalPendingApprovals}
+                    </span>
+                  )}
+                </div>
+                <Link href="/schedule">
+                  <Button variant="ghost" size="sm" className="text-xs text-white hover:bg-white/20 h-7" data-testid="widget-approvals-view-all">
+                    Manage
+                    <ArrowRight className="h-3 w-3 ml-1" />
+                  </Button>
+                </Link>
+              </div>
+              <div className="p-4 bg-white">
+                {totalPendingApprovals === 0 ? (
+                  <div className="text-center py-6 text-gray-500 text-sm">
+                    <UserCheck className="h-10 w-10 mx-auto mb-2 text-gray-300" />
+                    <p>No pending approvals</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2.5">
+                    {/* Time Off Requests */}
+                    {pendingTimeOffRequests.slice(0, 2).map((request) => (
+                      <div 
+                        key={`timeoff-${request.id}`} 
+                        className="group p-3 rounded-lg border border-gray-100 hover:border-[#9b6347]/30 hover:bg-[#9b6347]/5 transition-all cursor-pointer"
+                        data-testid={`widget-timeoff-${request.id}`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Clock className="h-3.5 w-3.5 text-[#9b6347]" />
+                              <p className="font-medium text-sm text-gray-900 truncate group-hover:text-[#9b6347]">
+                                {getEmployeeName(request.userId)}
+                              </p>
+                            </div>
+                            <p className="text-xs text-gray-600 ml-5">
+                              {request.status === 'cancellation_requested' ? 'Cancellation Request' : 'Time Off Request'}
+                            </p>
+                            <p className="text-xs text-gray-500 ml-5 mt-0.5">
+                              {format(new Date(request.startDate), "MMM d")} - {format(new Date(request.endDate), "MMM d")}
+                            </p>
+                          </div>
+                          <div className="flex-shrink-0 px-2 py-0.5 bg-orange-100 text-orange-700 text-xs font-semibold rounded">
+                            PENDING
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    
+                    {/* Shift Swaps */}
+                    {pendingShiftSwaps.slice(0, Math.max(0, 3 - pendingTimeOffRequests.length)).map((swap) => (
+                      <div 
+                        key={`swap-${swap.id}`} 
+                        className="group p-3 rounded-lg border border-gray-100 hover:border-[#9b6347]/30 hover:bg-[#9b6347]/5 transition-all cursor-pointer"
+                        data-testid={`widget-swap-${swap.id}`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Repeat className="h-3.5 w-3.5 text-[#9b6347]" />
+                              <p className="font-medium text-sm text-gray-900 truncate group-hover:text-[#9b6347]">
+                                {getEmployeeName(swap.requesterId)}
+                              </p>
+                            </div>
+                            <p className="text-xs text-gray-600 ml-5">
+                              Shift Swap Request
+                            </p>
+                            {swap.takerId && (
+                              <p className="text-xs text-gray-500 ml-5 mt-0.5">
+                                with {getEmployeeName(swap.takerId)}
+                              </p>
+                            )}
+                          </div>
+                          {swap.urgencyLevel === 'urgent' || swap.urgencyLevel === 'high' ? (
+                            <div className="flex-shrink-0 px-2 py-0.5 bg-red-100 text-red-700 text-xs font-semibold rounded">
+                              URGENT
+                            </div>
+                          ) : (
+                            <div className="flex-shrink-0 px-2 py-0.5 bg-orange-100 text-orange-700 text-xs font-semibold rounded">
+                              PENDING
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Training Progress Widget */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 overflow-hidden">
