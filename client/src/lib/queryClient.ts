@@ -1,6 +1,115 @@
-import { QueryClient } from "@tanstack/react-query";
+import { QueryClient, QueryCache, MutationCache } from "@tanstack/react-query";
+import { z } from "zod";
+
+const CRITICAL_ENDPOINTS = [
+  '/api/accounting/cogs',
+  '/api/accounting/analytics',
+  '/api/accounting/payroll',
+  '/api/accounting/monthly'
+];
+
+export interface QueryParams {
+  [key: string]: string | number | boolean | undefined | null;
+}
+
+export interface TypeSafeQueryKey<T extends QueryParams = QueryParams> {
+  url: string;
+  params?: T;
+  schema?: z.ZodSchema<T>;
+}
+
+export function buildQueryKey<T extends QueryParams>(
+  url: string,
+  params?: T,
+  schema?: z.ZodSchema<T>
+): [string, T | undefined] {
+  if (params && schema) {
+    try {
+      schema.parse(params);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        const missingFields = error.errors.map(e => e.path.join('.')).join(', ');
+        console.error(`⚠️ Query parameter validation failed for ${url}:`, error.errors);
+        throw new Error(
+          `Missing or invalid required parameters for ${url}: ${missingFields}. ` +
+          `This may cause data loss or API errors. Please ensure all required fields are provided.`
+        );
+      }
+      throw error;
+    }
+  }
+  
+  return [url, params];
+}
+
+const DateRangeParamsSchema = z.object({
+  startDate: z.string().min(1, "startDate is required"),
+  endDate: z.string().min(1, "endDate is required"),
+});
+
+export type DateRangeParams = z.infer<typeof DateRangeParamsSchema>;
+
+export const QuerySchemas = {
+  dateRange: DateRangeParamsSchema,
+  
+  cogsLabor: DateRangeParamsSchema,
+  cogsMaterial: DateRangeParamsSchema,
+  cogsByProduct: DateRangeParamsSchema,
+  cogsByEmployee: DateRangeParamsSchema,
+  cogsByLocation: DateRangeParamsSchema,
+  
+  profitLoss: DateRangeParamsSchema,
+  multiLocation: DateRangeParamsSchema,
+};
+
+function isCriticalEndpoint(url: string): boolean {
+  return CRITICAL_ENDPOINTS.some(endpoint => url.includes(endpoint));
+}
+
+function logError(context: string, error: any, metadata?: any) {
+  const timestamp = new Date().toISOString();
+  const errorLog = {
+    timestamp,
+    context,
+    error: error instanceof Error ? {
+      message: error.message,
+      name: error.name,
+      stack: error.stack
+    } : error,
+    metadata,
+    isCritical: metadata?.url ? isCriticalEndpoint(metadata.url) : false
+  };
+  
+  console.error(`[${timestamp}] ${context}:`, errorLog);
+  
+  if (errorLog.isCritical) {
+    console.error('⚠️ CRITICAL ENDPOINT FAILURE - Data loss risk detected!', errorLog);
+  }
+  
+  return errorLog;
+}
 
 export const queryClient = new QueryClient({
+  queryCache: new QueryCache({
+    onError: (error: any, query) => {
+      const url = (error as any).url || (query.queryKey[0] as string);
+      logError('Query Failed', error, { 
+        type: 'query',
+        url,
+        queryKey: query.queryKey,
+        timestamp: new Date().toISOString()
+      });
+    },
+  }),
+  mutationCache: new MutationCache({
+    onError: (error: any, variables, context, mutation) => {
+      logError('Mutation Failed', error, { 
+        type: 'mutation',
+        variables,
+        timestamp: new Date().toISOString()
+      });
+    },
+  }),
   defaultOptions: {
     queries: {
       retry: 2,
@@ -42,12 +151,25 @@ export const queryClient = new QueryClient({
           if (import.meta.env.DEV) console.log('Response status:', response.status, 'for', url);
           
           if (!response.ok) {
+            const errorMetadata = {
+              url,
+              status: response.status,
+              statusText: response.statusText,
+              queryKey
+            };
+            
             if (response.status === 401) {
               console.log('Authentication required for:', url);
               console.log('Response headers:', Object.fromEntries(response.headers.entries()));
             }
-            console.log('Request failed:', response.status, response.statusText, 'for URL:', url);
-            throw new Error(`${response.status}: ${response.statusText}`);
+            
+            logError('HTTP Error', new Error(`${response.status}: ${response.statusText}`), errorMetadata);
+            
+            const error = new Error(`${response.status}: ${response.statusText}`);
+            (error as any).url = url;
+            (error as any).status = response.status;
+            (error as any).queryKey = queryKey;
+            throw error;
           }
           
           const text = await response.text();

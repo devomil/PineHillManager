@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { buildQueryKey, QuerySchemas, type DateRangeParams } from '@/lib/queryClient';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -782,29 +783,29 @@ function AccountingContent() {
   });
 
 
-  // Detailed COGS Analytics - Labor Costs (using default fetcher)
-  const { data: laborCostsData } = useQuery({
-    queryKey: ['/api/accounting/cogs/labor-costs', { startDate: today, endDate: today }],
+  // Detailed COGS Analytics - Labor Costs (using type-safe query builder)
+  const { data: laborCostsData, isLoading: laborCostsLoading, error: laborCostsError } = useQuery({
+    queryKey: buildQueryKey('/api/accounting/cogs/labor-costs', { startDate: today, endDate: today }, QuerySchemas.cogsLabor),
   });
 
-  // Detailed COGS Analytics - Material Costs (using default fetcher)
-  const { data: materialCostsData } = useQuery({
-    queryKey: ['/api/accounting/cogs/material-costs', { startDate: today, endDate: today }],
+  // Detailed COGS Analytics - Material Costs (using type-safe query builder)
+  const { data: materialCostsData, isLoading: materialCostsLoading, error: materialCostsError } = useQuery({
+    queryKey: buildQueryKey('/api/accounting/cogs/material-costs', { startDate: today, endDate: today }, QuerySchemas.cogsMaterial),
   });
 
-  // COGS By Product Analysis (using default fetcher)
-  const { data: cogsByProductData } = useQuery({
-    queryKey: ['/api/accounting/cogs/by-product', { startDate: today, endDate: today }],
+  // COGS By Product Analysis (using type-safe query builder)
+  const { data: cogsByProductData, isLoading: cogsByProductLoading, error: cogsByProductError } = useQuery({
+    queryKey: buildQueryKey('/api/accounting/cogs/by-product', { startDate: today, endDate: today }, QuerySchemas.cogsByProduct),
   });
 
-  // COGS By Employee Analysis (using default fetcher - admin only data)
-  const { data: cogsByEmployeeData } = useQuery({
-    queryKey: ['/api/accounting/cogs/by-employee', { startDate: today, endDate: today }],
+  // COGS By Employee Analysis (using type-safe query builder - admin only data)
+  const { data: cogsByEmployeeData, isLoading: cogsByEmployeeLoading, error: cogsByEmployeeError } = useQuery({
+    queryKey: buildQueryKey('/api/accounting/cogs/by-employee', { startDate: today, endDate: today }, QuerySchemas.cogsByEmployee),
   });
 
-  // COGS By Location Analysis (using default fetcher)
-  const { data: cogsByLocationData } = useQuery({
-    queryKey: ['/api/accounting/cogs/by-location', { startDate: today, endDate: today }],
+  // COGS By Location Analysis (using type-safe query builder)
+  const { data: cogsByLocationData, isLoading: cogsByLocationLoading, error: cogsByLocationError } = useQuery({
+    queryKey: buildQueryKey('/api/accounting/cogs/by-location', { startDate: today, endDate: today }, QuerySchemas.cogsByLocation),
   });
 
   // Calculate BI metrics from real data (using monthly P&L data)
@@ -1088,6 +1089,30 @@ function AccountingContent() {
                 </div>
               </CardHeader>
               <CardContent>
+                {(laborCostsError || materialCostsError || cogsByProductError) && (
+                  <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3" data-testid="error-cogs-data">
+                    <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                      <h4 className="font-semibold text-red-900">Failed to Load COGS Data</h4>
+                      <p className="text-sm text-red-700 mt-1">
+                        Unable to retrieve cost analysis. This may indicate missing parameters or a connection issue. 
+                        {laborCostsError && <span className="block mt-1">Labor Costs: {(laborCostsError as any).message}</span>}
+                        {materialCostsError && <span className="block mt-1">Material Costs: {(materialCostsError as any).message}</span>}
+                        {cogsByProductError && <span className="block mt-1">Product Analysis: {(cogsByProductError as any).message}</span>}
+                      </p>
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="mt-2 border-red-300 text-red-700 hover:bg-red-100"
+                        onClick={() => queryClient.invalidateQueries({ queryKey: ['/api/accounting/cogs'] })}
+                        data-testid="button-retry-cogs"
+                      >
+                        <RefreshCw className="h-3 w-3 mr-2" />
+                        Retry
+                      </Button>
+                    </div>
+                  </div>
+                )}
                 {cogsData && (Number.parseFloat((cogsData as any).totalCost ?? '0') > 0 || Number.parseFloat((cogsData as any).laborCosts ?? '0') > 0 || Number.parseFloat((cogsData as any).materialCosts ?? '0') > 0) ? (
                   <div className="space-y-6">
                     {/* Main COGS Metrics */}
@@ -2115,7 +2140,7 @@ function AccountingContent() {
             cogs: biMetrics?.monthlyCOGS || 0,
             payroll: biMetrics?.monthlyPayroll || 0,
             expenses: biMetrics?.monthlyExpenses || 0,
-            profit: biMetrics?.profit || 0,
+            profit: biMetrics?.grossProfit || 0,
             margin: biMetrics?.profitMargin || 0
           }}
         />

@@ -7372,7 +7372,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { startDate, endDate, locationId } = req.query;
       
       if (!startDate || !endDate) {
-        return res.status(400).json({ error: 'startDate and endDate are required' });
+        console.error('⚠️ CRITICAL: Labor costs endpoint called without required parameters', {
+          endpoint: '/api/accounting/cogs/labor-costs',
+          missingParams: { startDate: !startDate, endDate: !endDate },
+          receivedParams: req.query,
+          user: req.user?.email,
+          timestamp: new Date().toISOString(),
+          risk: 'DATA_LOSS'
+        });
+        return res.status(400).json({ 
+          error: 'startDate and endDate are required',
+          details: 'Missing required date range parameters. This may indicate a frontend bug or parameter validation issue.'
+        });
       }
 
       const laborCosts = await storage.calculateLaborCosts(
@@ -7399,7 +7410,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { startDate, endDate, locationId } = req.query;
       
       if (!startDate || !endDate) {
-        return res.status(400).json({ error: 'startDate and endDate are required' });
+        console.error('⚠️ CRITICAL: Material costs endpoint called without required parameters', {
+          endpoint: '/api/accounting/cogs/material-costs',
+          missingParams: { startDate: !startDate, endDate: !endDate },
+          receivedParams: req.query,
+          user: req.user?.email,
+          timestamp: new Date().toISOString(),
+          risk: 'DATA_LOSS'
+        });
+        return res.status(400).json({ 
+          error: 'startDate and endDate are required',
+          details: 'Missing required date range parameters. This may indicate a frontend bug or parameter validation issue.'
+        });
       }
 
       const materialCosts = await storage.calculateMaterialCosts(
@@ -7426,7 +7448,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { startDate, endDate, locationId } = req.query;
       
       if (!startDate || !endDate) {
-        return res.status(400).json({ error: 'startDate and endDate are required' });
+        console.error('⚠️ CRITICAL: Product COGS endpoint called without required parameters', {
+          endpoint: '/api/accounting/cogs/by-product',
+          missingParams: { startDate: !startDate, endDate: !endDate },
+          receivedParams: req.query,
+          user: req.user?.email,
+          timestamp: new Date().toISOString(),
+          risk: 'DATA_LOSS'
+        });
+        return res.status(400).json({ 
+          error: 'startDate and endDate are required',
+          details: 'Missing required date range parameters. This may indicate a frontend bug or parameter validation issue.'
+        });
       }
 
       const productCogs = await storage.getCOGSByProduct(
@@ -7453,7 +7486,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { startDate, endDate, locationId } = req.query;
       
       if (!startDate || !endDate) {
-        return res.status(400).json({ error: 'startDate and endDate are required' });
+        console.error('⚠️ CRITICAL: Employee COGS endpoint called without required parameters', {
+          endpoint: '/api/accounting/cogs/by-employee',
+          missingParams: { startDate: !startDate, endDate: !endDate },
+          receivedParams: req.query,
+          user: req.user?.email,
+          timestamp: new Date().toISOString(),
+          risk: 'DATA_LOSS'
+        });
+        return res.status(400).json({ 
+          error: 'startDate and endDate are required',
+          details: 'Missing required date range parameters. This may indicate a frontend bug or parameter validation issue.'
+        });
       }
 
       const employeeCogs = await storage.getCOGSByEmployee(
@@ -7480,7 +7524,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { startDate, endDate } = req.query;
       
       if (!startDate || !endDate) {
-        return res.status(400).json({ error: 'startDate and endDate are required' });
+        console.error('⚠️ CRITICAL: Location COGS endpoint called without required parameters', {
+          endpoint: '/api/accounting/cogs/by-location',
+          missingParams: { startDate: !startDate, endDate: !endDate },
+          receivedParams: req.query,
+          user: req.user?.email,
+          timestamp: new Date().toISOString(),
+          risk: 'DATA_LOSS'
+        });
+        return res.status(400).json({ 
+          error: 'startDate and endDate are required',
+          details: 'Missing required date range parameters. This may indicate a frontend bug or parameter validation issue.'
+        });
       }
 
       const locationCogs = await storage.getCOGSByLocation(
