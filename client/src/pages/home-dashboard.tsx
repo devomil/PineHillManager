@@ -20,8 +20,9 @@ export default function HomeDashboard() {
   const [touchEnd, setTouchEnd] = useState<number | null>(null);
   const [isCollapsed, setIsCollapsed] = useState(false);
 
-  const isAdmin = user?.role === 'admin';
-  const isManager = user?.role === 'manager' || user?.role === 'admin';
+  const userRole = user?.role?.toLowerCase();
+  const isAdmin = userRole === 'admin';
+  const isManager = userRole === 'manager' || userRole === 'admin';
   
   const avatarUser = user ? {
     profileImageUrl: user.profileImageUrl ?? undefined,
