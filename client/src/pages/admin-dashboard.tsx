@@ -311,7 +311,7 @@ export default function AdminDashboard() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             {/* MY Goals */}
             <div className="bg-white rounded-xl shadow-md border border-gray-200/80 overflow-hidden">
-              <div className="bg-gradient-to-r from-[#4a7c8e] to-[#6c97ab] px-4 py-3">
+              <div className="bg-gradient-to-r from-[#5a7a5c] to-[#7ea680] px-4 py-3">
                 <CardTitle className="text-lg font-semibold text-center text-white">MY Goals</CardTitle>
               </div>
               <CardContent className="space-y-3 pt-4">
@@ -319,9 +319,9 @@ export default function AdminDashboard() {
                   myGoals.map((goal) => (
                     <div 
                       key={goal.id}
-                      className="flex items-center space-x-2 p-3 bg-gradient-to-r from-cyan-50 to-sky-50 rounded-full hover:from-cyan-100 hover:to-sky-100 transition-colors border border-cyan-200/50"
+                      className="flex items-center space-x-2 p-3 bg-gradient-to-r from-emerald-50 to-green-50 rounded-full hover:from-emerald-100 hover:to-green-100 transition-colors border border-emerald-200/50"
                     >
-                      <Target className="h-4 w-4 text-[#4a7c8e] flex-shrink-0" />
+                      <Target className="h-4 w-4 text-[#5a7a5c] flex-shrink-0" />
                       <span className="text-sm font-medium text-gray-700 truncate flex-1">{goal.title}</span>
                     </div>
                   ))
@@ -338,19 +338,19 @@ export default function AdminDashboard() {
 
             {/* Company BHAG */}
             <div className="bg-white rounded-xl shadow-md border border-gray-200/80 overflow-hidden">
-              <div className="bg-gradient-to-r from-[#c97a5c] to-[#e8a577] px-4 py-3">
+              <div className="bg-gradient-to-r from-[#b85a42] to-[#d47a5e] px-4 py-3">
                 <CardTitle className="text-lg font-semibold text-center text-white">Company BHAG</CardTitle>
               </div>
               <CardContent className="min-h-[180px] pt-4">
                 {companyGoals.length > 0 ? (
                   <div className="space-y-3">
                     {companyGoals.map((goal) => (
-                      <div key={goal.id} className="flex items-center gap-3 p-3 rounded-lg bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200/50 hover:from-orange-100 hover:to-amber-100 transition-colors">
+                      <div key={goal.id} className="flex items-center gap-3 p-3 rounded-lg bg-gradient-to-r from-red-50 to-orange-50 border border-red-200/50 hover:from-red-100 hover:to-orange-100 transition-colors">
                         <div className="flex-shrink-0">
                           {goal.status === 'completed' ? (
                             <CheckCircle className="h-5 w-5 text-green-600" />
                           ) : (
-                            <Target className="h-5 w-5 text-[#c97a5c]" />
+                            <Target className="h-5 w-5 text-[#b85a42]" />
                           )}
                         </div>
                         <div className="flex-1 min-w-0">
@@ -375,7 +375,7 @@ export default function AdminDashboard() {
 
             {/* TEAM Goals */}
             <div className="bg-white rounded-xl shadow-md border border-gray-200/80 overflow-hidden">
-              <div className="bg-gradient-to-r from-[#7b8ca3] to-[#a5b4c9] px-4 py-3">
+              <div className="bg-gradient-to-r from-[#a57283] to-[#c49aaa] px-4 py-3">
                 <CardTitle className="text-lg font-semibold text-center text-white">TEAM Goals</CardTitle>
               </div>
               <CardContent className="space-y-3 pt-4">
@@ -383,9 +383,9 @@ export default function AdminDashboard() {
                   teamGoals.map((goal) => (
                     <div 
                       key={goal.id}
-                      className="flex items-center space-x-2 p-3 bg-gradient-to-r from-indigo-50 to-slate-100 rounded-full hover:from-indigo-100 hover:to-slate-200 transition-colors border border-indigo-200/50"
+                      className="flex items-center space-x-2 p-3 bg-gradient-to-r from-rose-50 to-pink-50 rounded-full hover:from-rose-100 hover:to-pink-100 transition-colors border border-rose-200/50"
                     >
-                      <Target className="h-4 w-4 text-[#7b8ca3] flex-shrink-0" />
+                      <Target className="h-4 w-4 text-[#a57283] flex-shrink-0" />
                       <span className="text-sm font-medium text-gray-700 truncate flex-1">{goal.title}</span>
                     </div>
                   ))
