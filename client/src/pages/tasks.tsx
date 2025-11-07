@@ -1056,11 +1056,24 @@ function TaskDetailsDialog({
   const updateStatusMutation = useMutation({
     mutationFn: (newStatus: string) =>
       apiRequest('PATCH', `/api/tasks/${task.id}`, { status: newStatus }),
-    onSuccess: (_data, variables) => {
+    onSuccess: async (_data, variables) => {
       // Update local state immediately for instant UI feedback
       setLocalStatus(variables);
       
-      queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
+      // Update all cached task lists directly instead of invalidating (prevents flash)
+      const allTaskQueries = queryClient.getQueriesData<Task[]>({ queryKey: ['/api/tasks'] });
+      for (const [queryKey, cachedTasks] of allTaskQueries) {
+        // Only update array queries (task lists), skip stats/objects
+        if (Array.isArray(cachedTasks)) {
+          queryClient.setQueryData(queryKey, cachedTasks.map(t => 
+            t.id === task.id 
+              ? { ...t, status: variables, updatedAt: new Date().toISOString() as any }
+              : t
+          ));
+        }
+      }
+      
+      // Only invalidate stats to keep metrics fresh
       queryClient.invalidateQueries({ queryKey: ['/api/tasks/stats/overview'] });
       toast({ 
         title: "Success", 
