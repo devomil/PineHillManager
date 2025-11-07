@@ -428,7 +428,7 @@ export default function AdminDashboard() {
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {/* Month-to-Date Performance */}
-                <div className="bg-gradient-to-br from-[#5b7c99] via-[#5c97ab] to-[#6cb2c7] p-5 rounded-lg border border-[#5b7c99]/30 shadow-md">
+                <div className="bg-gradient-to-br from-[#5b7c99] to-[#5c97ab] p-5 rounded-lg border border-[#5b7c99]/30 shadow-md">
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-sm font-semibold text-white flex items-center gap-2">
                       <TrendingUp className="h-4 w-4 text-white" />
@@ -457,7 +457,7 @@ export default function AdminDashboard() {
                 </div>
 
                 {/* Today's Revenue */}
-                <div className="bg-gradient-to-br from-[#607e66] via-[#7a9d7f] to-[#5c97ab] p-5 rounded-lg border border-[#607e66]/30 shadow-md">
+                <div className="bg-gradient-to-br from-[#56637a] via-[#6e7b93] to-[#8c93ad] p-5 rounded-lg border border-[#56637a]/30 shadow-md">
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-sm font-semibold text-white flex items-center gap-2">
                       <DollarSign className="h-4 w-4 text-white" />
