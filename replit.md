@@ -280,13 +280,14 @@ npm run db:migrate
 
 ### Recent Changes Log
 
-**2025-11-07: Employee Purchase Portal UI Refresh Fix**
-- Fixed instant UI updates after purchases by switching from invalidateQueries to refetchQueries
-- TanStack Query v5 invalidateQueries wasn't triggering refetches despite staleTime: 0
-- refetchQueries forces immediate network refetch, ensuring purchase history and balance update without hard refresh
-- Applied fix to both free and paid purchase flows with parallel Promise.all execution
-- Maintained consistent form state clearing across all completion and cancellation paths
+**2025-11-07: Employee Purchase Portal UI Refresh Fix (FINAL)**
+- Fixed instant UI updates after purchases by using the correct QueryClient instance
+- Root cause: Component was using imported module-level queryClient singleton instead of useQueryClient() hook
+- Solution: Import useQueryClient from @tanstack/react-query and call `const queryClient = useQueryClient()` inside component
+- This ensures refetchQueries targets the active QueryClient connected to the React component tree
+- User confirmed purchases now update UI instantly without hard refresh
 - Backend correctly deducts Clover inventory via API (verified with successful stock updates)
+- Key lesson: Always use useQueryClient() hook inside components, NOT module-level imports
 
 **2025-11-07: Data Loss Prevention Safeguards**
 - Added global error handling in React Query
