@@ -201,10 +201,16 @@ export default function EmployeePurchases() {
     },
     onSuccess: async (data: any) => {
       if (!data.requiresPayment) {
-        // Free purchase completed successfully - refetch immediately
+        // Free purchase completed successfully - force immediate refetch
         await Promise.all([
-          queryClient.refetchQueries({ queryKey: ['/api/employee-purchases'] }),
-          queryClient.refetchQueries({ queryKey: ['/api/employee-purchases/balance'] })
+          queryClient.refetchQueries({ 
+            queryKey: ['/api/employee-purchases'],
+            type: 'active'
+          }),
+          queryClient.refetchQueries({ 
+            queryKey: ['/api/employee-purchases/balance'],
+            type: 'active'
+          })
         ]);
         setCart([]);
         setPurchaseNotes("");
@@ -225,10 +231,16 @@ export default function EmployeePurchases() {
   });
 
   const handlePaymentSuccess = async (paymentData: any) => {
-    // Payment completed successfully - refetch immediately
+    // Payment completed successfully - force immediate refetch
     await Promise.all([
-      queryClient.refetchQueries({ queryKey: ['/api/employee-purchases'] }),
-      queryClient.refetchQueries({ queryKey: ['/api/employee-purchases/balance'] })
+      queryClient.refetchQueries({ 
+        queryKey: ['/api/employee-purchases'],
+        type: 'active'
+      }),
+      queryClient.refetchQueries({ 
+        queryKey: ['/api/employee-purchases/balance'],
+        type: 'active'
+      })
     ]);
     setCart([]);
     setPendingPurchaseIds([]);
