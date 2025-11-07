@@ -54,6 +54,17 @@ export default function GoalsPage() {
   const [selectedSuggestion, setSelectedSuggestion] = useState<SuggestedGoal | null>(null);
   const [assignCategory, setAssignCategory] = useState<'my' | 'team' | 'company'>('my');
 
+  // Goal management states
+  const [createGoalDialogOpen, setCreateGoalDialogOpen] = useState(false);
+  const [createGoalType, setCreateGoalType] = useState<'my' | 'team' | 'company'>('my');
+  const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
+  const [goalForm, setGoalForm] = useState({
+    title: '',
+    description: '',
+    targetDate: '',
+    status: 'not_started' as 'not_started' | 'in_progress' | 'completed',
+  });
+
   // Fetch suggested goals
   const { data: suggestedGoals = [] } = useQuery<SuggestedGoal[]>({
     queryKey: ['/api/goals/suggested'],
@@ -127,6 +138,42 @@ export default function GoalsPage() {
     },
   });
 
+  // Create goal mutation
+  const createGoal = useMutation({
+    mutationFn: async ({ type, data }: { type: 'my' | 'team' | 'company'; data: typeof goalForm }) => {
+      return await apiRequest('POST', `/api/goals/${type}`, data);
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: [`/api/goals/${variables.type}`] });
+      setCreateGoalDialogOpen(false);
+      setGoalForm({ title: '', description: '', targetDate: '', status: 'not_started' });
+      toast({ title: 'Goal created successfully!' });
+    },
+  });
+
+  // Update goal mutation
+  const updateGoal = useMutation({
+    mutationFn: async ({ type, id, data }: { type: 'my' | 'team' | 'company'; id: number; data: Partial<typeof goalForm> }) => {
+      return await apiRequest('PATCH', `/api/goals/${type}/${id}`, data);
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: [`/api/goals/${variables.type}`] });
+      setEditingGoal(null);
+      toast({ title: 'Goal updated successfully!' });
+    },
+  });
+
+  // Delete goal mutation
+  const deleteGoal = useMutation({
+    mutationFn: async ({ type, id }: { type: 'my' | 'team' | 'company'; id: number }) => {
+      return await apiRequest('DELETE', `/api/goals/${type}/${id}`);
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: [`/api/goals/${variables.type}`] });
+      toast({ title: 'Goal archived successfully' });
+    },
+  });
+
   const handleCreateSuggestion = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newSuggestionForm.title.trim()) {
@@ -141,6 +188,47 @@ export default function GoalsPage() {
       assignSuggestion.mutate({ id: selectedSuggestion.id, category: assignCategory });
     }
   };
+
+  const handleCreateGoal = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!goalForm.title.trim()) {
+      toast({ title: 'Please enter a goal title', variant: 'destructive' });
+      return;
+    }
+    createGoal.mutate({ type: createGoalType, data: goalForm });
+  };
+
+  const handleEditGoal = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingGoal) return;
+    
+    const goalType = editingGoal.id && myGoals.find(g => g.id === editingGoal.id) ? 'my' :
+                     editingGoal.id && teamGoals.find(g => g.id === editingGoal.id) ? 'team' : 'company';
+    
+    updateGoal.mutate({ 
+      type: goalType, 
+      id: editingGoal.id, 
+      data: goalForm 
+    });
+  };
+
+  const openCreateDialog = (type: 'my' | 'team' | 'company') => {
+    setCreateGoalType(type);
+    setGoalForm({ title: '', description: '', targetDate: '', status: 'not_started' });
+    setCreateGoalDialogOpen(true);
+  };
+
+  const openEditDialog = (goal: Goal) => {
+    setEditingGoal(goal);
+    setGoalForm({
+      title: goal.title,
+      description: goal.description || '',
+      targetDate: goal.targetDate || '',
+      status: goal.status,
+    });
+  };
+
+  const isManager = user?.role?.toLowerCase() === 'admin' || user?.role?.toLowerCase() === 'manager';
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
@@ -313,16 +401,45 @@ export default function GoalsPage() {
 
           {/* MY GOALS TAB */}
           <TabsContent value="my-goals" className="mt-6">
-            <div className="mb-4">
-              <h2 className="text-2xl font-semibold">My Personal Goals</h2>
-              <p className="text-muted-foreground">Goals assigned specifically to you</p>
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h2 className="text-2xl font-semibold">My Personal Goals</h2>
+                <p className="text-muted-foreground">Goals assigned specifically to you</p>
+              </div>
+              <Button onClick={() => openCreateDialog('my')} data-testid="button-create-my-goal">
+                <Plus className="h-4 w-4 mr-2" />
+                Create Goal
+              </Button>
             </div>
             <div className="space-y-4">
               {myGoals.map((goal) => (
                 <Card key={goal.id} data-testid={`goal-card-${goal.id}`}>
                   <CardHeader>
-                    <CardTitle>{goal.title}</CardTitle>
-                    {goal.description && <CardDescription>{goal.description}</CardDescription>}
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <CardTitle>{goal.title}</CardTitle>
+                        {goal.description && <CardDescription>{goal.description}</CardDescription>}
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => openEditDialog(goal)}
+                          data-testid={`button-edit-goal-${goal.id}`}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="text-red-500 hover:text-red-700"
+                          onClick={() => deleteGoal.mutate({ type: 'my', id: goal.id })}
+                          data-testid={`button-delete-goal-${goal.id}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
                   </CardHeader>
                   <CardContent>
                     <div className="flex items-center gap-4">
@@ -346,7 +463,7 @@ export default function GoalsPage() {
                 <Card>
                   <CardContent className="py-12 text-center">
                     <User className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                    <p className="text-muted-foreground">No personal goals yet. Assign some from the Idea Board!</p>
+                    <p className="text-muted-foreground">No personal goals yet. Create one to get started!</p>
                   </CardContent>
                 </Card>
               )}
@@ -355,16 +472,49 @@ export default function GoalsPage() {
 
           {/* TEAM GOALS TAB */}
           <TabsContent value="team-goals" className="mt-6">
-            <div className="mb-4">
-              <h2 className="text-2xl font-semibold">Team Goals</h2>
-              <p className="text-muted-foreground">Goals for the entire team to work on together</p>
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h2 className="text-2xl font-semibold">Team Goals</h2>
+                <p className="text-muted-foreground">Goals for the entire team to work on together</p>
+              </div>
+              {isManager && (
+                <Button onClick={() => openCreateDialog('team')} data-testid="button-create-team-goal">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create Goal
+                </Button>
+              )}
             </div>
             <div className="space-y-4">
               {teamGoals.map((goal) => (
                 <Card key={goal.id} data-testid={`goal-card-${goal.id}`}>
                   <CardHeader>
-                    <CardTitle>{goal.title}</CardTitle>
-                    {goal.description && <CardDescription>{goal.description}</CardDescription>}
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <CardTitle>{goal.title}</CardTitle>
+                        {goal.description && <CardDescription>{goal.description}</CardDescription>}
+                      </div>
+                      {isManager && (
+                        <div className="flex gap-2">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => openEditDialog(goal)}
+                            data-testid={`button-edit-goal-${goal.id}`}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-red-500 hover:text-red-700"
+                            onClick={() => deleteGoal.mutate({ type: 'team', id: goal.id })}
+                            data-testid={`button-delete-goal-${goal.id}`}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      )}
+                    </div>
                   </CardHeader>
                   <CardContent>
                     <div className="flex items-center gap-4">
@@ -388,7 +538,9 @@ export default function GoalsPage() {
                 <Card>
                   <CardContent className="py-12 text-center">
                     <Users className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                    <p className="text-muted-foreground">No team goals yet. Assign some from the Idea Board!</p>
+                    <p className="text-muted-foreground">
+                      {isManager ? 'No team goals yet. Create one to get started!' : 'No team goals yet.'}
+                    </p>
                   </CardContent>
                 </Card>
               )}
@@ -397,16 +549,49 @@ export default function GoalsPage() {
 
           {/* COMPANY BHAG TAB */}
           <TabsContent value="company-bhag" className="mt-6">
-            <div className="mb-4">
-              <h2 className="text-2xl font-semibold">Company BHAG Goals</h2>
-              <p className="text-muted-foreground">Big Hairy Audacious Goals for the entire company</p>
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h2 className="text-2xl font-semibold">Company BHAG Goals</h2>
+                <p className="text-muted-foreground">Big Hairy Audacious Goals for the entire company</p>
+              </div>
+              {isManager && (
+                <Button onClick={() => openCreateDialog('company')} data-testid="button-create-company-goal">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create Goal
+                </Button>
+              )}
             </div>
             <div className="space-y-4">
               {companyGoals.map((goal) => (
                 <Card key={goal.id} data-testid={`goal-card-${goal.id}`}>
                   <CardHeader>
-                    <CardTitle>{goal.title}</CardTitle>
-                    {goal.description && <CardDescription>{goal.description}</CardDescription>}
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <CardTitle>{goal.title}</CardTitle>
+                        {goal.description && <CardDescription>{goal.description}</CardDescription>}
+                      </div>
+                      {isManager && (
+                        <div className="flex gap-2">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => openEditDialog(goal)}
+                            data-testid={`button-edit-goal-${goal.id}`}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-red-500 hover:text-red-700"
+                            onClick={() => deleteGoal.mutate({ type: 'company', id: goal.id })}
+                            data-testid={`button-delete-goal-${goal.id}`}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      )}
+                    </div>
                   </CardHeader>
                   <CardContent>
                     <div className="flex items-center gap-4">
@@ -430,7 +615,9 @@ export default function GoalsPage() {
                 <Card>
                   <CardContent className="py-12 text-center">
                     <TrendingUp className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                    <p className="text-muted-foreground">No company goals yet. Assign some from the Idea Board!</p>
+                    <p className="text-muted-foreground">
+                      {isManager ? 'No company goals yet. Create one to get started!' : 'No company goals yet.'}
+                    </p>
                   </CardContent>
                 </Card>
               )}
@@ -534,6 +721,133 @@ export default function GoalsPage() {
                 </Button>
               </div>
             )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Create Goal Dialog */}
+        <Dialog open={createGoalDialogOpen} onOpenChange={setCreateGoalDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Create {createGoalType === 'my' ? 'Personal' : createGoalType === 'team' ? 'Team' : 'Company'} Goal</DialogTitle>
+              <DialogDescription>
+                {createGoalType === 'my' && 'Set a personal goal for yourself'}
+                {createGoalType === 'team' && 'Create a goal for your team to achieve together'}
+                {createGoalType === 'company' && 'Set a Big Hairy Audacious Goal for the company'}
+              </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleCreateGoal} className="space-y-4">
+              <div>
+                <Label>Title *</Label>
+                <Input
+                  value={goalForm.title}
+                  onChange={(e) => setGoalForm({ ...goalForm, title: e.target.value })}
+                  placeholder="Enter goal title"
+                  data-testid="input-goal-title"
+                />
+              </div>
+              <div>
+                <Label>Description</Label>
+                <Textarea
+                  value={goalForm.description}
+                  onChange={(e) => setGoalForm({ ...goalForm, description: e.target.value })}
+                  placeholder="Describe the goal in detail..."
+                  rows={3}
+                  data-testid="textarea-goal-description"
+                />
+              </div>
+              <div>
+                <Label>Target Date</Label>
+                <Input
+                  type="date"
+                  value={goalForm.targetDate}
+                  onChange={(e) => setGoalForm({ ...goalForm, targetDate: e.target.value })}
+                  data-testid="input-goal-target-date"
+                />
+              </div>
+              <div>
+                <Label>Status</Label>
+                <Select
+                  value={goalForm.status}
+                  onValueChange={(value: 'not_started' | 'in_progress' | 'completed') =>
+                    setGoalForm({ ...goalForm, status: value })
+                  }
+                >
+                  <SelectTrigger data-testid="select-goal-status">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="not_started">Not Started</SelectItem>
+                    <SelectItem value="in_progress">In Progress</SelectItem>
+                    <SelectItem value="completed">Completed</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button type="submit" disabled={createGoal.isPending} data-testid="button-submit-create-goal">
+                <Plus className="h-4 w-4 mr-2" />
+                {createGoal.isPending ? 'Creating...' : 'Create Goal'}
+              </Button>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit Goal Dialog */}
+        <Dialog open={!!editingGoal} onOpenChange={() => setEditingGoal(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Edit Goal</DialogTitle>
+              <DialogDescription>Update the goal details</DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleEditGoal} className="space-y-4">
+              <div>
+                <Label>Title *</Label>
+                <Input
+                  value={goalForm.title}
+                  onChange={(e) => setGoalForm({ ...goalForm, title: e.target.value })}
+                  placeholder="Enter goal title"
+                  data-testid="input-edit-goal-title"
+                />
+              </div>
+              <div>
+                <Label>Description</Label>
+                <Textarea
+                  value={goalForm.description}
+                  onChange={(e) => setGoalForm({ ...goalForm, description: e.target.value })}
+                  placeholder="Describe the goal in detail..."
+                  rows={3}
+                  data-testid="textarea-edit-goal-description"
+                />
+              </div>
+              <div>
+                <Label>Target Date</Label>
+                <Input
+                  type="date"
+                  value={goalForm.targetDate}
+                  onChange={(e) => setGoalForm({ ...goalForm, targetDate: e.target.value })}
+                  data-testid="input-edit-goal-target-date"
+                />
+              </div>
+              <div>
+                <Label>Status</Label>
+                <Select
+                  value={goalForm.status}
+                  onValueChange={(value: 'not_started' | 'in_progress' | 'completed') =>
+                    setGoalForm({ ...goalForm, status: value })
+                  }
+                >
+                  <SelectTrigger data-testid="select-edit-goal-status">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="not_started">Not Started</SelectItem>
+                    <SelectItem value="in_progress">In Progress</SelectItem>
+                    <SelectItem value="completed">Completed</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button type="submit" disabled={updateGoal.isPending} data-testid="button-submit-edit-goal">
+                {updateGoal.isPending ? 'Saving...' : 'Save Changes'}
+              </Button>
+            </form>
           </DialogContent>
         </Dialog>
       </div>
