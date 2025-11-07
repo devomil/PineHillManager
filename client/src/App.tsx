@@ -229,9 +229,8 @@ function AppRouter() {
 
   if (import.meta.env.DEV) console.log('Rendering:', isAuthenticated ? 'AuthenticatedApp' : 'UnauthenticatedApp');
   
-  // Force re-render when user data changes
   if (isAuthenticated && user) {
-    return <AuthenticatedApp key={user.id} />;
+    return <AuthenticatedApp />;
   } else {
     return <UnauthenticatedApp />;
   }
