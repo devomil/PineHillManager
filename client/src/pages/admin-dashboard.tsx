@@ -428,28 +428,28 @@ export default function AdminDashboard() {
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {/* Month-to-Date Performance */}
-                <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-5 rounded-lg border border-blue-200">
+                <div className="bg-gradient-to-br from-[#5b7c99] via-[#5c97ab] to-[#6cb2c7] p-5 rounded-lg border border-[#5b7c99]/30 shadow-md">
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-                      <TrendingUp className="h-4 w-4 text-blue-600" />
+                    <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+                      <TrendingUp className="h-4 w-4 text-white" />
                       Month-to-Date Performance
                     </h3>
                   </div>
                   <div className="space-y-4">
                     <div>
-                      <div className="text-xs text-gray-600 mb-1">Monthly Revenue</div>
-                      <div className="text-3xl font-bold text-green-600">
+                      <div className="text-xs text-white/80 mb-1">Monthly Revenue</div>
+                      <div className="text-3xl font-bold text-white">
                         ${revenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </div>
                     </div>
-                    <div className="h-px bg-blue-300"></div>
+                    <div className="h-px bg-white/20"></div>
                     <div className="flex justify-between items-center">
-                      <span className="text-xs text-gray-600">Days elapsed:</span>
-                      <span className="text-sm font-semibold text-gray-700">{daysElapsed}</span>
+                      <span className="text-xs text-white/80">Days elapsed:</span>
+                      <span className="text-sm font-semibold text-white">{daysElapsed}</span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-xs text-gray-600">Daily average:</span>
-                      <span className="text-sm font-semibold text-blue-600">
+                      <span className="text-xs text-white/80">Daily average:</span>
+                      <span className="text-sm font-semibold text-white">
                         ${dailyAvgRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </span>
                     </div>
@@ -457,28 +457,28 @@ export default function AdminDashboard() {
                 </div>
 
                 {/* Today's Revenue */}
-                <div className="bg-gradient-to-br from-green-50 to-green-100 p-5 rounded-lg border border-green-200">
+                <div className="bg-gradient-to-br from-[#607e66] via-[#7a9d7f] to-[#5c97ab] p-5 rounded-lg border border-[#607e66]/30 shadow-md">
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-                      <DollarSign className="h-4 w-4 text-green-600" />
+                    <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+                      <DollarSign className="h-4 w-4 text-white" />
                       Today's Revenue
                     </h3>
                   </div>
                   <div className="space-y-4">
                     <div>
-                      <div className="text-xs text-gray-600 mb-1">Live Sales Today</div>
-                      <div className="text-3xl font-bold text-green-600">
+                      <div className="text-xs text-white/80 mb-1">Live Sales Today</div>
+                      <div className="text-3xl font-bold text-white">
                         ${todayRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </div>
                     </div>
-                    <div className="h-px bg-green-300"></div>
+                    <div className="h-px bg-white/20"></div>
                     <div className="flex justify-between items-center">
-                      <span className="text-xs text-gray-600">Days elapsed:</span>
-                      <span className="text-sm font-semibold text-gray-700">{daysElapsed}</span>
+                      <span className="text-xs text-white/80">Days elapsed:</span>
+                      <span className="text-sm font-semibold text-white">{daysElapsed}</span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-xs text-gray-600">Monthly avg/day:</span>
-                      <span className="text-sm font-semibold text-green-600">
+                      <span className="text-xs text-white/80">Monthly avg/day:</span>
+                      <span className="text-sm font-semibold text-white">
                         ${dailyAvgRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </span>
                     </div>
@@ -486,28 +486,28 @@ export default function AdminDashboard() {
                 </div>
 
                 {/* Projected Month-End */}
-                <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-5 rounded-lg border border-purple-200">
+                <div className="bg-gradient-to-br from-[#9b6347] via-[#b8774f] to-[#d4a574] p-5 rounded-lg border border-[#9b6347]/30 shadow-md">
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-                      <Target className="h-4 w-4 text-purple-600" />
+                    <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+                      <Target className="h-4 w-4 text-white" />
                       Projected Month-End
                     </h3>
                   </div>
                   <div className="space-y-4">
                     <div>
-                      <div className="text-3xl font-bold text-purple-600 mb-1">
+                      <div className="text-3xl font-bold text-white mb-1">
                         ${projectedRevenue.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                       </div>
-                      <div className="text-xs text-gray-600">projected revenue</div>
+                      <div className="text-xs text-white/80">projected revenue</div>
                     </div>
-                    <div className="h-px bg-purple-300"></div>
+                    <div className="h-px bg-white/20"></div>
                     <div className="flex justify-between items-center">
-                      <span className="text-xs text-gray-600">Confidence:</span>
-                      <span className="text-sm font-semibold text-purple-600">{confidence}%</span>
+                      <span className="text-xs text-white/80">Confidence:</span>
+                      <span className="text-sm font-semibold text-white">{confidence}%</span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-xs text-gray-600">Days remaining:</span>
-                      <span className="text-sm font-semibold text-gray-700">{daysRemaining}</span>
+                      <span className="text-xs text-white/80">Days remaining:</span>
+                      <span className="text-sm font-semibold text-white">{daysRemaining}</span>
                     </div>
                   </div>
                 </div>
@@ -554,11 +554,11 @@ export default function AdminDashboard() {
         {/* Right Sidebar */}
         <div className="w-80 space-y-6">
           {/* Today's Schedule Overview */}
-          <Card className="shadow-lg bg-gradient-to-br from-slate-50 to-slate-100">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg font-semibold text-gray-900">Today's Schedule Overview</CardTitle>
-            </CardHeader>
-            <CardContent>
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 overflow-hidden">
+            <div className="bg-gradient-to-r from-[#5b7c99] to-[#5c97ab] px-4 py-3">
+              <CardTitle className="text-lg font-semibold text-white">Today's Schedule Overview</CardTitle>
+            </div>
+            <CardContent className="pt-4">
               {todaySchedules && todaySchedules.length > 0 ? (
                 <div className="space-y-3">
                   {todaySchedules.slice(0, 3).map((schedule, index) => (
@@ -597,14 +597,14 @@ export default function AdminDashboard() {
                 </div>
               )}
             </CardContent>
-          </Card>
+          </div>
 
           {/* My Monthly Tasks */}
-          <Card className="shadow-lg bg-gradient-to-br from-blue-50 to-blue-100">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg font-semibold text-gray-900">My Monthly Tasks</CardTitle>
-            </CardHeader>
-            <CardContent>
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 overflow-hidden">
+            <div className="bg-gradient-to-r from-[#56637a] to-[#8c93ad] px-4 py-3">
+              <CardTitle className="text-lg font-semibold text-white">My Monthly Tasks</CardTitle>
+            </div>
+            <CardContent className="pt-4">
               {myTasks.length > 0 ? (
                 <div className="space-y-3">
                   {myTasks.map((task) => (
@@ -639,23 +639,23 @@ export default function AdminDashboard() {
                 </div>
               )}
             </CardContent>
-          </Card>
+          </div>
 
           {/* Pending Approvals Widget - Only for Managers/Admins */}
           {isManager && (
-            <Card className="shadow-lg bg-gradient-to-br from-orange-50 to-orange-100">
-              <CardHeader className="pb-3">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 overflow-hidden">
+              <div className="bg-gradient-to-r from-[#9b6347] to-[#d4a574] px-4 py-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <UserCheck className="h-5 w-5 text-orange-700" />
-                    <CardTitle className="text-lg font-semibold text-gray-900">Pending Approvals</CardTitle>
+                    <UserCheck className="h-5 w-5 text-white" />
+                    <CardTitle className="text-lg font-semibold text-white">Pending Approvals</CardTitle>
                   </div>
                   {totalPendingApprovals > 0 && (
-                    <Badge className="bg-orange-600 text-white">{totalPendingApprovals}</Badge>
+                    <Badge className="bg-white/90 text-[#9b6347]">{totalPendingApprovals}</Badge>
                   )}
                 </div>
-              </CardHeader>
-              <CardContent>
+              </div>
+              <CardContent className="pt-4">
                 {totalPendingApprovals === 0 ? (
                   <div className="text-center py-4">
                     <CheckCircle className="h-10 w-10 text-gray-400 mx-auto mb-2" />
@@ -742,7 +742,7 @@ export default function AdminDashboard() {
                   </div>
                 )}
               </CardContent>
-            </Card>
+            </div>
           )}
         </div>
       </div>
