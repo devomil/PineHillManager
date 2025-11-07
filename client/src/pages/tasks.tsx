@@ -393,10 +393,18 @@ export default function Tasks() {
 
   // Update task mutation
   const updateTaskMutation = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: Partial<TaskFormData> }) =>
-      apiRequest('PATCH', `/api/tasks/${id}`, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
+    mutationFn: async ({ id, data }: { id: number; data: Partial<TaskFormData> }) => {
+      const response = await apiRequest('PATCH', `/api/tasks/${id}`, data);
+      return response.json();
+    },
+    onSuccess: (updatedTask: Task, variables) => {
+      // Update the task in the cache directly instead of invalidating
+      queryClient.setQueryData<Task[]>(['/api/tasks', showArchived ? { archived: 'true' } : {}], (old) => {
+        if (!old) return old;
+        return old.map(task => task.id === variables.id ? { ...task, ...updatedTask } : task);
+      });
+      
+      // Invalidate stats but not the main list
       queryClient.invalidateQueries({ queryKey: ['/api/tasks/stats/overview'] });
       toast({ title: "Success", description: "Task updated successfully" });
       setSelectedTask(null);
