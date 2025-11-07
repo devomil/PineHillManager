@@ -280,11 +280,13 @@ npm run db:migrate
 
 ### Recent Changes Log
 
-**2025-11-07: Employee Purchase Portal Cache Updates**
-- Optimized purchase history and allowance balance refresh using parallel query invalidation with Promise.all
-- Implemented consistent form state clearing across all purchase completion and cancellation paths
-- Fixed stale purchaseNotes field by clearing on success, payment success, and payment cancel events
-- Backend correctly creates purchases, deducts Clover inventory, and calculates monthly totals
+**2025-11-07: Employee Purchase Portal UI Refresh Fix**
+- Fixed instant UI updates after purchases by switching from invalidateQueries to refetchQueries
+- TanStack Query v5 invalidateQueries wasn't triggering refetches despite staleTime: 0
+- refetchQueries forces immediate network refetch, ensuring purchase history and balance update without hard refresh
+- Applied fix to both free and paid purchase flows with parallel Promise.all execution
+- Maintained consistent form state clearing across all completion and cancellation paths
+- Backend correctly deducts Clover inventory via API (verified with successful stock updates)
 
 **2025-11-07: Data Loss Prevention Safeguards**
 - Added global error handling in React Query
