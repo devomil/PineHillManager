@@ -4,6 +4,8 @@ import { storage } from '../storage';
 interface CloverConfig {
   id?: number;
   merchantId: string;
+  merchantName?: string;
+  locationId?: number; // REQUIRED: Maps to locations table
   accessToken: string;
   baseUrl: string;
 }
@@ -138,21 +140,30 @@ export class CloverIntegration {
     if (dbConfig) {
       // Debug configuration mapping
       console.log(`🔧 CloverIntegration constructor received config:`, {
+        id: dbConfig.id,
         merchantId: dbConfig.merchantId,
         merchant_id: dbConfig.merchant_id,
-        apiToken: dbConfig.apiToken,
-        api_token: dbConfig.api_token,
-        merchantName: dbConfig.merchantName
+        merchantName: dbConfig.merchantName,
+        locationId: dbConfig.locationId,
+        apiToken: dbConfig.apiToken ? 'HAS_TOKEN' : 'MISSING',
+        api_token: dbConfig.api_token ? 'HAS_TOKEN' : 'MISSING'
       });
       
+      // CRITICAL: Pass through ALL fields from database config
       this.config = {
+        id: dbConfig.id,
         merchantId: dbConfig.merchantId || dbConfig.merchant_id,
+        merchantName: dbConfig.merchantName || dbConfig.merchant_name, // Required for error messages
+        locationId: dbConfig.locationId || dbConfig.location_id, // REQUIRED: Maps to locations table
         accessToken: dbConfig.apiToken || dbConfig.api_token,
         baseUrl: dbConfig.baseUrl || dbConfig.base_url || 'https://api.clover.com'
       };
       
       console.log(`🔧 Final config created:`, {
+        id: this.config.id,
         merchantId: this.config.merchantId,
+        merchantName: this.config.merchantName,
+        locationId: this.config.locationId,
         accessToken: this.config.accessToken ? `${this.config.accessToken.substring(0, 8)}...${this.config.accessToken.slice(-4)}` : 'MISSING',
         baseUrl: this.config.baseUrl
       });
@@ -1489,6 +1500,11 @@ export class CloverIntegration {
             const tipAmount = parseFloat(order.tipAmount || '0') / 100;
             const orderDate = new Date(order.createdTime);
 
+            // CRITICAL: Runtime guard to ensure location mapping exists
+            if (!this.config.locationId) {
+              throw new Error(`Clover config ${this.config.merchantId} (${this.config.merchantName}) is missing required locationId mapping`);
+            }
+
             const saleData = {
               saleDate: orderDate.toISOString().split('T')[0],
               saleTime: orderDate,
@@ -1497,7 +1513,7 @@ export class CloverIntegration {
               tipAmount: tipAmount.toString(),
               paymentMethod: order.payType || 'unknown',
               cloverOrderId: order.id,
-              locationId: this.config.id || 1
+              locationId: this.config.locationId // FIXED: Use config.locationId instead of config.id
             };
 
             const createdSale = await storage.createPosSale(saleData);

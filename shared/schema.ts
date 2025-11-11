@@ -1798,6 +1798,7 @@ export const cloverConfig = pgTable("clover_config", {
   id: serial("id").primaryKey(),
   merchantId: varchar("merchant_id").notNull().unique(),
   merchantName: varchar("merchant_name"), // Human-readable location name
+  locationId: integer("location_id").notNull().references(() => locations.id), // Maps to internal location - REQUIRED
   apiToken: text("api_token"), // Encrypted API token for REST API calls
   publicKey: text("public_key"), // Ecommerce public key for iframe tokenization
   privateKey: text("private_key"), // Ecommerce private key for payment processing
