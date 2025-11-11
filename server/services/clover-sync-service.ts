@@ -603,10 +603,17 @@ export class CloverSyncService {
         // Get cost data for COGS calculation
         const unitCostAtSale = await this.getUnitCostAtSale(lineItem.item?.id, merchantDbId);
         
+        // Convert itemId safely, ensuring NaN is not passed to database
+        let itemIdValue = null;
+        if (lineItem.item?.id) {
+          const parsedId = Number(lineItem.item.id);
+          itemIdValue = isNaN(parsedId) ? null : parsedId;
+        }
+        
         const lineItemData: InsertOrderLineItem = {
           orderId,
           externalLineItemId: lineItem.id,
-          itemId: lineItem.item?.id ? Number(lineItem.item.id) : null,
+          itemId: itemIdValue,
           itemName: lineItem.name,
           quantity: (lineItem.unitQty || 1).toString(),
           unitPrice: (lineItem.price / 100).toFixed(2),
@@ -640,11 +647,13 @@ export class CloverSyncService {
   private async processPayments(payments: CloverPayment[], orderId: number, merchantDbId: number): Promise<void> {
     for (const payment of payments) {
       try {
-        const existingPayment = await storage.getPaymentByExternalId(payment.id);
+        // Use the same ID for lookup that we'll use for saving
+        const paymentExternalId = payment.externalPaymentId || payment.id;
+        const existingPayment = await storage.getPaymentByExternalId(paymentExternalId);
         
         const paymentData: InsertPayment = {
           orderId,
-          externalPaymentId: payment.externalPaymentId || payment.id,
+          externalPaymentId: paymentExternalId,
           amount: (payment.amount / 100).toFixed(2),
           tipAmount: payment.tipAmount ? (payment.tipAmount / 100).toFixed(2) : '0.00',
           taxAmount: payment.taxAmount ? (payment.taxAmount / 100).toFixed(2) : '0.00',

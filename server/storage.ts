@@ -12033,10 +12033,15 @@ export class DatabaseStorage implements IStorage {
   // Discount Operations
   async getOrderDiscounts(orderId: string): Promise<Discount[]> {
     try {
+      const parsedOrderId = parseInt(orderId);
+      if (isNaN(parsedOrderId)) {
+        return [];
+      }
+      
       return await db
         .select()
         .from(discounts)
-        .where(eq(discounts.orderId, parseInt(orderId)))
+        .where(eq(discounts.orderId, parsedOrderId))
         .orderBy(asc(discounts.createdAt));
     } catch (error) {
       console.error('Error getting order discounts:', error);
@@ -12046,10 +12051,15 @@ export class DatabaseStorage implements IStorage {
 
   async getDiscountByExternalId(externalDiscountId: string): Promise<Discount | undefined> {
     try {
+      const parsedId = parseInt(externalDiscountId);
+      if (isNaN(parsedId)) {
+        return undefined;
+      }
+      
       const [result] = await db
         .select()
         .from(discounts)
-        .where(eq(discounts.id, parseInt(externalDiscountId)))
+        .where(eq(discounts.id, parsedId))
         .limit(1);
       return result;
     } catch (error) {
@@ -12145,11 +12155,16 @@ export class DatabaseStorage implements IStorage {
   // Item Cost History Operations
   async getLatestItemCost(itemId: string, merchantId: number): Promise<ItemCostHistory | undefined> {
     try {
+      const parsedItemId = parseInt(itemId);
+      if (isNaN(parsedItemId)) {
+        return undefined;
+      }
+      
       const [result] = await db
         .select()
         .from(itemCostHistory)
         .where(and(
-          eq(itemCostHistory.itemId, parseInt(itemId)),
+          eq(itemCostHistory.itemId, parsedItemId),
           eq(itemCostHistory.merchantId, merchantId)
         ))
         .orderBy(desc(itemCostHistory.effectiveFrom))
