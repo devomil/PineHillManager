@@ -400,17 +400,27 @@ function AccountingContent() {
     queryKey: ['/api/integrations/clover/sync/status', currentJobId],
     queryFn: async () => {
       if (!currentJobId) return null;
-      const response = await apiRequest('GET', `/api/integrations/clover/sync/status/${currentJobId}`);
-      return await response.json();
+      try {
+        const response = await apiRequest('GET', `/api/integrations/clover/sync/status/${currentJobId}`);
+        if (!response.ok) {
+          // If job not found, clear localStorage
+          if (response.status === 404) {
+            localStorage.removeItem('cloverSyncJobId');
+            localStorage.removeItem('cloverSyncStartedAt');
+            return null;
+          }
+          throw new Error(`Status check failed: ${response.statusText}`);
+        }
+        return await response.json();
+      } catch (error) {
+        console.error('Error fetching sync status:', error);
+        return null;
+      }
     },
     enabled: !!currentJobId,
-    refetchInterval: (data) => {
-      // Poll every 3 seconds while job is active, stop when complete/failed
-      if (!data || data.status === 'completed' || data.status === 'failed' || data.status === 'cancelled') {
-        return false;
-      }
-      return 3000;
-    },
+    retry: false, // Don't retry failed requests
+    refetchInterval: 3000, // Poll every 3 seconds
+    refetchIntervalInBackground: false,
   });
 
   // Handle job completion/failure
@@ -441,7 +451,7 @@ function AccountingContent() {
         variant: "destructive",
       });
     }
-  }, [syncStatus?.status]);
+  }, [syncStatus?.status, toast]);
 
   // Clear stuck job state
   const clearSyncState = () => {
