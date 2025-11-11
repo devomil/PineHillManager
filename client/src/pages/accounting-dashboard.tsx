@@ -357,38 +357,103 @@ function AccountingContent() {
     },
   });
 
-  // Historical sync mutation to pull all orders from Clover
+  // Job-based historical sync state (persisted across refreshes)
+  const [currentJobId, setCurrentJobId] = useState<number | null>(() => {
+    const stored = localStorage.getItem('cloverSyncJobId');
+    return stored ? parseInt(stored) : null;
+  });
+
+  // Historical sync mutation using new job-based system
   const historicalSyncMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest('POST', '/api/integrations/clover/sync/historical-all', {
+      const response = await apiRequest('POST', '/api/integrations/clover/sync/start-historical', {
         startDate: '2025-01-01',
-        endDate: new Date().toISOString().split('T')[0]
+        endDate: new Date().toISOString().split('T')[0],
+        forceFullSync: false
       });
       return await response.json();
     },
     onSuccess: (data) => {
-      // Invalidate all order and accounting queries
-      queryClient.invalidateQueries({ queryKey: ['/api/orders'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/accounting'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/accounting/analytics/cogs'] });
-      
-      const successCount = data.successCount || 0;
-      const totalConfigs = data.totalConfigs || 0;
-      
-      toast({
-        title: "Historical Sync Complete",
-        description: `Successfully synced ${successCount} out of ${totalConfigs} locations. All historical orders from 2025 are now in your database!`,
-        variant: "default",
-      });
+      if (data.jobId) {
+        setCurrentJobId(data.jobId);
+        localStorage.setItem('cloverSyncJobId', data.jobId.toString());
+        localStorage.setItem('cloverSyncStartedAt', new Date().toISOString());
+        
+        toast({
+          title: "Sync Job Started",
+          description: data.message || `Job #${data.jobId} is now processing in the background.`,
+          variant: "default",
+        });
+      }
     },
     onError: (error) => {
       toast({
-        title: "Historical Sync Failed",
-        description: "Failed to sync historical orders. Please try again.",
+        title: "Failed to Start Sync",
+        description: "Could not start historical sync job. Please try again.",
         variant: "destructive",
       });
     },
   });
+
+  // Poll for job status while job is running
+  const { data: syncStatus, isLoading: syncStatusLoading } = useQuery({
+    queryKey: ['/api/integrations/clover/sync/status', currentJobId],
+    queryFn: async () => {
+      if (!currentJobId) return null;
+      const response = await apiRequest('GET', `/api/integrations/clover/sync/status/${currentJobId}`);
+      return await response.json();
+    },
+    enabled: !!currentJobId,
+    refetchInterval: (data) => {
+      // Poll every 3 seconds while job is active, stop when complete/failed
+      if (!data || data.status === 'completed' || data.status === 'failed' || data.status === 'cancelled') {
+        return false;
+      }
+      return 3000;
+    },
+  });
+
+  // Handle job completion/failure
+  useEffect(() => {
+    if (!syncStatus) return;
+
+    if (syncStatus.status === 'completed') {
+      // Job completed successfully
+      localStorage.removeItem('cloverSyncJobId');
+      localStorage.removeItem('cloverSyncStartedAt');
+      setCurrentJobId(null);
+
+      // Invalidate all order and accounting queries
+      queryClient.invalidateQueries({ queryKey: ['/api/orders'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/accounting'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/accounting/analytics/cogs'] });
+
+      toast({
+        title: "Historical Sync Complete",
+        description: `Successfully synced ${syncStatus.progress?.processedOrders || 0} orders from ${syncStatus.progress?.totalLocations || 0} locations!`,
+        variant: "default",
+      });
+    } else if (syncStatus.status === 'failed') {
+      // Job failed
+      toast({
+        title: "Sync Job Failed",
+        description: syncStatus.errorLog || "The sync job encountered an error. Please try again.",
+        variant: "destructive",
+      });
+    }
+  }, [syncStatus?.status]);
+
+  // Clear stuck job state
+  const clearSyncState = () => {
+    localStorage.removeItem('cloverSyncJobId');
+    localStorage.removeItem('cloverSyncStartedAt');
+    setCurrentJobId(null);
+    toast({
+      title: "Sync State Cleared",
+      description: "Sync job state has been reset.",
+      variant: "default",
+    });
+  };
 
   // Chart of Accounts with period filtering state
   const [isPayrollDialogOpen, setIsPayrollDialogOpen] = useState(false);
@@ -898,15 +963,28 @@ function AccountingContent() {
               <>
                 <Button 
                   onClick={() => historicalSyncMutation.mutate()}
-                  disabled={historicalSyncMutation.isPending}
+                  disabled={historicalSyncMutation.isPending || (syncStatus?.status === 'pending' || syncStatus?.status === 'active')}
                   className="flex items-center gap-2"
                   variant="outline"
                   size="sm"
                   data-testid="button-sync-historical"
                 >
                   <Database className={`h-4 w-4 ${historicalSyncMutation.isPending ? 'animate-spin' : ''}`} />
-                  {historicalSyncMutation.isPending ? 'Syncing 2025...' : 'Sync Historical Orders'}
+                  {historicalSyncMutation.isPending ? 'Starting Job...' : 
+                   (syncStatus?.status === 'pending' || syncStatus?.status === 'active') ? 'Sync Running...' : 
+                   'Sync Historical Orders'}
                 </Button>
+                {currentJobId && (syncStatus?.status === 'failed' || syncStatus?.status === 'cancelled') && (
+                  <Button 
+                    onClick={clearSyncState}
+                    variant="ghost"
+                    size="sm"
+                    data-testid="button-clear-sync-state"
+                  >
+                    <XCircle className="h-4 w-4" />
+                    Clear Sync State
+                  </Button>
+                )}
                 <Button 
                   onClick={() => backfillCogsMutation.mutate()}
                   disabled={backfillCogsMutation.isPending}
@@ -935,6 +1013,112 @@ function AccountingContent() {
             </Button>
           </div>
         </div>
+
+        {/* Sync Job Progress Card (Inline) */}
+        {currentJobId && syncStatus && (
+          <Card className="border-blue-200 bg-blue-50/50 dark:bg-blue-950/20" data-testid="card-sync-progress">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className={`${syncStatus.status === 'active' ? 'animate-spin' : ''}`}>
+                    <Database className="h-5 w-5 text-blue-600" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-lg">Historical Sync Job #{currentJobId}</CardTitle>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      Started {new Date(syncStatus.startedAt).toLocaleString()}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                    syncStatus.status === 'active' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' :
+                    syncStatus.status === 'pending' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' :
+                    syncStatus.status === 'completed' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
+                    'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                  }`}>
+                    {syncStatus.status.toUpperCase()}
+                  </span>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {/* Overall Progress */}
+                <div>
+                  <div className="flex justify-between text-sm mb-2">
+                    <span className="font-medium">Overall Progress</span>
+                    <span className="text-gray-600 dark:text-gray-400">
+                      {syncStatus.progress?.completedLocations || 0} / {syncStatus.progress?.totalLocations || 0} locations
+                    </span>
+                  </div>
+                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                    <div 
+                      className="bg-blue-600 h-2 rounded-full transition-all duration-500"
+                      style={{ 
+                        width: `${syncStatus.progress?.percentComplete || 0}%` 
+                      }}
+                    />
+                  </div>
+                  <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    <span>{syncStatus.progress?.processedOrders || 0} orders processed</span>
+                    <span>{syncStatus.progress?.percentComplete?.toFixed(1) || 0}%</span>
+                  </div>
+                </div>
+
+                {/* Per-Location Checkpoints */}
+                {syncStatus.checkpoints && syncStatus.checkpoints.length > 0 && (
+                  <div>
+                    <h4 className="text-sm font-medium mb-2">Location Progress</h4>
+                    <div className="space-y-2 max-h-60 overflow-y-auto">
+                      {syncStatus.checkpoints.map((checkpoint: any) => (
+                        <div 
+                          key={checkpoint.id}
+                          className="flex items-center justify-between p-2 bg-white dark:bg-gray-800 rounded border"
+                          data-testid={`checkpoint-${checkpoint.merchantId}`}
+                        >
+                          <div className="flex items-center gap-2">
+                            {checkpoint.status === 'completed' ? (
+                              <CheckCircle className="h-4 w-4 text-green-500" />
+                            ) : checkpoint.status === 'active' ? (
+                              <Database className="h-4 w-4 text-blue-500 animate-spin" />
+                            ) : checkpoint.status === 'failed' ? (
+                              <XCircle className="h-4 w-4 text-red-500" />
+                            ) : (
+                              <AlertCircle className="h-4 w-4 text-gray-400" />
+                            )}
+                            <div>
+                              <p className="text-sm font-medium">{checkpoint.merchantName || checkpoint.merchantId}</p>
+                              {checkpoint.lastError && (
+                                <p className="text-xs text-red-600 dark:text-red-400">{checkpoint.lastError}</p>
+                              )}
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-xs text-gray-600 dark:text-gray-400">
+                              {checkpoint.processedOrders || 0} orders
+                            </p>
+                            <p className="text-xs text-gray-500 dark:text-gray-500">
+                              Attempt {checkpoint.retryCount + 1}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Error Log */}
+                {syncStatus.errorLog && (
+                  <div className="p-3 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded">
+                    <p className="text-sm font-medium text-red-800 dark:text-red-200 mb-1">Error</p>
+                    <p className="text-xs text-red-600 dark:text-red-400">{syncStatus.errorLog}</p>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Main Dashboard Navigation */}
         <div className="border-b border-gray-200">
