@@ -176,8 +176,8 @@ export class CloverIntegration {
     }
   }
 
-  // Make authenticated API calls to Clover with specific config
-  private async makeCloverAPICallWithConfig(endpoint: string, config: any, method: 'GET' | 'POST' | 'PUT' = 'GET', body?: any): Promise<any> {
+  // Make authenticated API calls to Clover with specific config (with retry logic)
+  private async makeCloverAPICallWithConfig(endpoint: string, config: any, method: 'GET' | 'POST' | 'PUT' = 'GET', body?: any, retries = 3): Promise<any> {
     try {
       
       if (!config || !config.accessToken) {
@@ -198,7 +198,9 @@ export class CloverIntegration {
           'Authorization': `Bearer ${config.accessToken}`,
           'Accept': 'application/json',
           'Content-Type': 'application/json'
-        }
+        },
+        // Add timeout: 60 seconds for large responses
+        signal: AbortSignal.timeout(60000)
       };
 
       // Add body for POST/PUT requests
@@ -224,6 +226,13 @@ export class CloverIntegration {
 
       return await response.json();
     } catch (error) {
+      // Retry logic for network errors and timeouts
+      if (retries > 0 && (error instanceof Error && (error.name === 'AbortError' || error.message.includes('timeout') || error.message.includes('fetch failed')))) {
+        console.warn(`⚠️ API call failed (${error.message}), retrying... (${retries} attempts left)`);
+        await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds before retry
+        return this.makeCloverAPICallWithConfig(endpoint, config, method, body, retries - 1);
+      }
+      
       console.error('Clover API call error:', error);
       throw error;
     }
