@@ -2148,6 +2148,49 @@ export const integrationLogs = pgTable("integration_logs", {
   recordTypeIdx: index("idx_il_record_type").on(table.recordType),
 }));
 
+// Sync Jobs - Track historical sync operations with persistent state
+export const syncJobs = pgTable("sync_jobs", {
+  id: serial("id").primaryKey(),
+  type: varchar("type").notNull(), // clover_historical, amazon_historical
+  status: varchar("status").notNull().default("pending"), // pending, active, completed, failed, cancelled
+  requestedBy: varchar("requested_by").references(() => users.id),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  totalLocations: integer("total_locations").default(0),
+  totalOrders: integer("total_orders").default(0),
+  processedOrders: integer("processed_orders").default(0),
+  metadata: jsonb("metadata"), // startDate, endDate, forceFullSync, etc.
+  errorLog: text("error_log"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  statusIdx: index("idx_sj_status").on(table.status),
+  typeIdx: index("idx_sj_type").on(table.type),
+  createdAtIdx: index("idx_sj_created_at").on(table.createdAt),
+}));
+
+// Sync Checkpoints - Track per-location progress for resumable syncs
+export const syncCheckpoints = pgTable("sync_checkpoints", {
+  id: serial("id").primaryKey(),
+  jobId: integer("job_id").notNull().references(() => syncJobs.id, { onDelete: "cascade" }),
+  locationId: integer("location_id").references(() => posLocations.id),
+  merchantId: varchar("merchant_id"), // Clover merchant ID or Amazon seller ID
+  lastSyncedAt: timestamp("last_synced_at"), // Last successfully synced order timestamp
+  nextCursor: varchar("next_cursor"), // API pagination cursor
+  processedOrders: integer("processed_orders").default(0),
+  totalOrders: integer("total_orders").default(0),
+  status: varchar("status").notNull().default("pending"), // pending, active, completed, failed, retry
+  retryCount: integer("retry_count").default(0),
+  lastError: text("last_error"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  jobIdIdx: index("idx_sc_job_id").on(table.jobId),
+  locationIdIdx: index("idx_sc_location_id").on(table.locationId),
+  statusIdx: index("idx_sc_status").on(table.status),
+  jobLocationIdx: unique("idx_sc_job_location").on(table.jobId, table.locationId),
+}));
+
 // Financial Reports Configuration
 export const reportConfigs = pgTable("report_configs", {
   id: serial("id").primaryKey(),
