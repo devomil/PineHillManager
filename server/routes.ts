@@ -10861,6 +10861,113 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Start historical Clover sync job (persistent, resumable)
+  app.post('/api/integrations/clover/sync/start-historical', isAuthenticated, async (req, res) => {
+    try {
+      // SECURITY: Only admins can trigger historical syncs (heavy operation)
+      if (req.user?.role !== 'admin') {
+        return res.status(403).json({ error: 'Admin access required' });
+      }
+
+      const { startDate, endDate, forceFullSync } = req.body;
+      const userId = req.user?.id;
+
+      if (!userId) {
+        return res.status(401).json({ error: 'User not authenticated' });
+      }
+
+      if (!startDate || !endDate) {
+        return res.status(400).json({ error: 'startDate and endDate are required' });
+      }
+
+      console.log('📋 Starting historical Clover sync job:', { startDate, endDate, forceFullSync });
+
+      const { cloverSyncJobService } = await import('./services/clover-sync-job-service');
+      
+      const jobId = await cloverSyncJobService.startHistoricalSync({
+        requestedBy: userId,
+        startDate: new Date(startDate),
+        endDate: new Date(endDate),
+        forceFullSync: forceFullSync || false
+      });
+
+      console.log(`✅ Historical sync job ${jobId} created successfully`);
+
+      res.json({
+        success: true,
+        jobId,
+        message: 'Historical sync job created. Background worker will process it automatically.'
+      });
+    } catch (error) {
+      console.error('Error starting historical sync:', error);
+      res.status(500).json({ 
+        error: 'Failed to start historical sync',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  // Get status of Clover sync job
+  app.get('/api/integrations/clover/sync/status/:jobId', isAuthenticated, async (req, res) => {
+    try {
+      // SECURITY: Only admins can view sync job status
+      if (req.user?.role !== 'admin') {
+        return res.status(403).json({ error: 'Admin access required' });
+      }
+
+      const jobId = parseInt(req.params.jobId);
+
+      if (isNaN(jobId)) {
+        return res.status(400).json({ error: 'Invalid job ID' });
+      }
+
+      const { cloverSyncJobService } = await import('./services/clover-sync-job-service');
+      const status = await cloverSyncJobService.getJobStatus(jobId);
+
+      if (!status) {
+        return res.status(404).json({ error: 'Job not found' });
+      }
+
+      res.json(status);
+    } catch (error) {
+      console.error('Error getting sync job status:', error);
+      res.status(500).json({ 
+        error: 'Failed to get job status',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  // Cancel a running sync job
+  app.post('/api/integrations/clover/sync/cancel/:jobId', isAuthenticated, async (req, res) => {
+    try {
+      // SECURITY: Only admins can cancel sync jobs
+      if (req.user?.role !== 'admin') {
+        return res.status(403).json({ error: 'Admin access required' });
+      }
+
+      const jobId = parseInt(req.params.jobId);
+
+      if (isNaN(jobId)) {
+        return res.status(400).json({ error: 'Invalid job ID' });
+      }
+
+      const { cloverSyncJobService } = await import('./services/clover-sync-job-service');
+      await cloverSyncJobService.cancelJob(jobId);
+
+      res.json({
+        success: true,
+        message: `Job ${jobId} cancelled successfully`
+      });
+    } catch (error) {
+      console.error('Error cancelling sync job:', error);
+      res.status(500).json({ 
+        error: 'Failed to cancel job',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
   // ================================
   // ORDER MANAGEMENT API ENDPOINTS
   // ================================

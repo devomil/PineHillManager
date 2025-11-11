@@ -118,6 +118,11 @@ app.use((req, res, next) => {
   const { startSyncScheduler } = await import('./services/sync-scheduler');
   startSyncScheduler();
 
+  // Import and initialize the Clover sync job worker
+  const { cloverSyncJobService } = await import('./services/clover-sync-job-service');
+  await cloverSyncJobService.startWorker(5000); // Check for jobs every 5 seconds
+  log('🔄 Clover sync job worker initialized', 'sync-job-worker');
+
   // Setup Vite integration for React app
   if (process.env.NODE_ENV === "development") {
     // Temporarily set NODE_ENV to production to prevent cartographer plugin from loading and breaking HMR
