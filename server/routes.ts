@@ -10666,12 +10666,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { startDate, endDate } = req.body;
       
+      console.log('🔍 Historical sync endpoint hit!', { startDate, endDate });
+      
       const allConfigs = await storage.getAllCloverConfigs();
+      console.log(`📋 Found ${allConfigs.length} total configs`);
+      
       const activeConfigs = allConfigs.filter(config => config.isActive);
+      console.log(`✅ ${activeConfigs.length} active configs:`, activeConfigs.map(c => c.merchantName));
       
       if (activeConfigs.length === 0) {
         return res.status(400).json({ message: 'No active Clover configurations found' });
       }
+
+      // Log before sending response
+      console.log('📤 Sending response to client, will start background sync...');
 
       // Return immediately and run sync in background to avoid timeout
       res.json({
@@ -10681,51 +10689,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
         note: 'This process will continue running. Check the console logs for progress.'
       });
 
+      // Add immediate log before async function
+      console.log('⚡ About to start background IIFE...');
+
       // Run sync in background (don't await)
-      (async () => {
-        console.log(`🚀 Starting background historical sync for ${activeConfigs.length} locations`);
-        const syncResults = [];
+      setImmediate(async () => {
+        try {
+          console.log(`🚀 Starting background historical sync for ${activeConfigs.length} locations`);
+          const syncResults = [];
         
-        for (const config of activeConfigs) {
-          try {
-            console.log(`\n📍 Starting comprehensive historical sync for ${config.merchantName}`);
-            
-            const { CloverIntegration } = await import('./integrations/clover');
-            const cloverIntegration = new CloverIntegration(config);
-            
-            await cloverIntegration.syncHistoricalSales(
-              config,
-              startDate ? new Date(startDate) : new Date('2025-01-01'),
-              endDate ? new Date(endDate) : new Date()
-            );
-            
-            syncResults.push({
-              merchantId: config.merchantId,
-              merchantName: config.merchantName,
-              success: true,
-              message: 'Historical sync completed successfully'
-            });
-            
-            console.log(`✅ Completed sync for ${config.merchantName}`);
-          } catch (error) {
-            console.error(`❌ Historical sync failed for ${config.merchantName}:`, error);
-            syncResults.push({
-              merchantId: config.merchantId,
-              merchantName: config.merchantName,
-              success: false,
-              message: `Sync failed: ${error instanceof Error ? error.message : 'Unknown error'}`
-            });
+          for (const config of activeConfigs) {
+            try {
+              console.log(`\n📍 Starting comprehensive historical sync for ${config.merchantName}`);
+              
+              const { CloverIntegration } = await import('./integrations/clover');
+              const cloverIntegration = new CloverIntegration(config);
+              
+              await cloverIntegration.syncHistoricalSales(
+                config,
+                startDate ? new Date(startDate) : new Date('2025-01-01'),
+                endDate ? new Date(endDate) : new Date()
+              );
+              
+              syncResults.push({
+                merchantId: config.merchantId,
+                merchantName: config.merchantName,
+                success: true,
+                message: 'Historical sync completed successfully'
+              });
+              
+              console.log(`✅ Completed sync for ${config.merchantName}`);
+            } catch (error) {
+              console.error(`❌ Historical sync failed for ${config.merchantName}:`, error);
+              syncResults.push({
+                merchantId: config.merchantId,
+                merchantName: config.merchantName,
+                success: false,
+                message: `Sync failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+              });
+            }
           }
+          
+          console.log(`\n🏁 All location syncs completed!`);
+          console.log(`✅ Successful: ${syncResults.filter(r => r.success).length}/${syncResults.length}`);
+          console.log(`❌ Failed: ${syncResults.filter(r => !r.success).length}/${syncResults.length}`);
+          syncResults.forEach(result => {
+            console.log(`  ${result.success ? '✅' : '❌'} ${result.merchantName}: ${result.message}`);
+          });
+        } catch (error) {
+          console.error('Fatal error in background sync:', error);
         }
-        
-        console.log(`\n🏁 All location syncs completed!`);
-        console.log(`✅ Successful: ${syncResults.filter(r => r.success).length}/${syncResults.length}`);
-        console.log(`❌ Failed: ${syncResults.filter(r => !r.success).length}/${syncResults.length}`);
-        syncResults.forEach(result => {
-          console.log(`  ${result.success ? '✅' : '❌'} ${result.merchantName}: ${result.message}`);
-        });
-      })().catch(error => {
-        console.error('Fatal error in background sync:', error);
       });
       
     } catch (error) {
