@@ -259,6 +259,14 @@ export class CloverSyncService {
         });
       }
 
+      // CRITICAL FIX: Reset cursor's lastModifiedMs when forcing full historical sync
+      // This ensures we fetch ALL orders from the requested startDate, not just orders
+      // modified after the last incremental sync
+      if (options.forceFullSync || options.historicalSyncMode === 'full') {
+        console.log(`🔄 Forcing full sync - resetting cursor to ignore previous sync state`);
+        syncCursor.lastModifiedMs = null;
+      }
+
       // Determine sync time range
       const { startTimestamp, endTimestamp } = this.calculateSyncTimeRange(syncCursor, options);
       
