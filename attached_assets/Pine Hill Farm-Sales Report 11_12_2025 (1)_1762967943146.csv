@@ -1,0 +1,26 @@
+﻿Sales Report
+"Wed, Jan 1, 2025, 12:00 AM CST - Wed, Nov 12, 2025, 11:59 PM CST"
+"Requested on: Wed, Nov 12, 2025, 11:18 AM CST"
+Filters: Location = Pine Hill Farm
+
+Net sales,"$660,775.31","from 12,161 orders"
+Amount Collected,"$688,103.37"
+Gross sales,"$745,519.71"
+Unpaid Balance,$94.16,from 3 partial orders
+
+Sales
+Location,Gross sales,Discounts,Refunds,Net sales,Non-revenue items,Gift card activations,Taxes collected,Additional charges collected,Amount collected,Unpaid balance
+Total,"$745,519.71","-$82,592.21","-$2,152.19","$660,775.31",$0.00,"$7,297.41","$19,968.20",$0.00,"$688,103.37",$94.16
+Watertown Retail,"$419,160.28","-$60,395.46","-$1,115.79","$357,649.03",$0.00,"$4,307.67","$9,720.44",$0.00,"$371,832.49",$0.00
+Pinehillfarm.co-online,"$211,001.93","-$17,602.48","-$1,036.40","$192,363.05",$0.00,"$2,914.74","$5,251.15",$0.00,"$200,436.04",$94.16
+Lake Geneva- Retail,"$115,357.50","-$4,594.27",$0.00,"$110,763.23",$0.00,$75.00,"$4,996.61",$0.00,"$115,834.84",$0.00
+
+Tender types
+Tender,Total
+Credit and debit cards,"$581,069.29"
+Cash,"$95,358.80"
+Check,"$2,350.47"
+Gift Cards,"$8,805.15"
+External Gift Card,$403.62
+Venmo,$116.04
+Amount Collected,"$688,103.37"

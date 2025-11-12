@@ -359,7 +359,9 @@ export class CloverSyncJobService {
         startDate,
         endDate,
         batchSize: 100,
-        maxRetries: 3
+        maxRetries: 3,
+        forceFullSync: metadata.forceFullSync || true, // Force full historical sync
+        historicalSyncMode: 'full' // Ensure we fetch all historical data
       });
 
       // Update checkpoint with results
