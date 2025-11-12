@@ -395,6 +395,32 @@ function AccountingContent() {
     },
   });
 
+  // Cancel sync mutation
+  const cancelSyncMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest('POST', '/api/sync/clover/stop');
+      return await response.json();
+    },
+    onSuccess: () => {
+      localStorage.removeItem('cloverSyncJobId');
+      localStorage.removeItem('cloverSyncStartedAt');
+      setCurrentJobId(null);
+      
+      toast({
+        title: "Sync Cancelled",
+        description: "Historical sync has been stopped.",
+        variant: "default",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Failed to Cancel Sync",
+        description: "Could not stop the sync job. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
   // Poll for job status while job is running
   const { data: syncStatus, isLoading: syncStatusLoading } = useQuery({
     queryKey: ['/api/integrations/clover/sync/status', currentJobId],
@@ -1049,6 +1075,18 @@ function AccountingContent() {
                   }`}>
                     {syncStatus.status.toUpperCase()}
                   </span>
+                  {(syncStatus.status === 'active' || syncStatus.status === 'pending') && (
+                    <Button
+                      onClick={() => cancelSyncMutation.mutate()}
+                      disabled={cancelSyncMutation.isPending}
+                      variant="destructive"
+                      size="sm"
+                      className="text-xs"
+                      data-testid="button-cancel-sync"
+                    >
+                      {cancelSyncMutation.isPending ? 'Cancelling...' : 'Cancel Sync'}
+                    </Button>
+                  )}
                 </div>
               </div>
             </CardHeader>
