@@ -398,7 +398,10 @@ function AccountingContent() {
   // Cancel sync mutation
   const cancelSyncMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest('POST', '/api/sync/clover/stop');
+      if (!currentJobId) {
+        throw new Error('No job to cancel');
+      }
+      const response = await apiRequest('POST', `/api/integrations/clover/sync/cancel/${currentJobId}`);
       return await response.json();
     },
     onSuccess: () => {
