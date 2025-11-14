@@ -222,7 +222,7 @@ function VendorsTab() {
     mutationFn: async (data: z.infer<typeof vendorFormSchema>) => {
       const { paymentTerms, creditLimit, taxId, preferredCurrency, contactEmail, contactPhone, creditCardLastFour, profileNotes, ...vendorData } = data;
       const profile = { paymentTerms, creditLimit, taxId, preferredCurrency, contactEmail, contactPhone, creditCardLastFour, notes: profileNotes };
-      return apiRequest('POST', '/api/purchasing/vendors', { ...vendorData, profile });
+      return apiRequest('POST', '/api/purchasing/vendors', { ...vendorData, type: 'vendor', profile });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/purchasing/vendors'] });
@@ -236,7 +236,7 @@ function VendorsTab() {
     mutationFn: async (data: z.infer<typeof vendorFormSchema> & { id: number }) => {
       const { id, paymentTerms, creditLimit, taxId, preferredCurrency, contactEmail, contactPhone, creditCardLastFour, profileNotes, ...vendorData } = data;
       const profile = { paymentTerms, creditLimit, taxId, preferredCurrency, contactEmail, contactPhone, creditCardLastFour, notes: profileNotes };
-      return apiRequest('PATCH', `/api/purchasing/vendors/${id}`, { ...vendorData, profile });
+      return apiRequest('PATCH', `/api/purchasing/vendors/${id}`, { ...vendorData, type: 'vendor', profile });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/purchasing/vendors'] });
@@ -281,8 +281,6 @@ function VendorsTab() {
   };
 
   const onSubmitVendor = (data: z.infer<typeof vendorFormSchema>) => {
-    console.log('onSubmitVendor called with data:', data);
-    console.log('Form errors:', vendorForm.formState.errors);
     if (editingVendor) {
       updateVendorMutation.mutate({ ...data, id: editingVendor.id });
     } else {
