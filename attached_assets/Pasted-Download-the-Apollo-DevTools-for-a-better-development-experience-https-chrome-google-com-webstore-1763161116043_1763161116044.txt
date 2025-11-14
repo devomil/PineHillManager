@@ -1,0 +1,145 @@
+Download the Apollo DevTools for a better development experience: https://chrome.google.com/webstore/detail/apollo-client-developer-t/jdkknkkbebbapilgoeccciglkfbmbnfm
+PineHillManager:1 Banner not shown: beforeinstallpromptevent.preventDefault() called. The page must call beforeinstallpromptevent.prompt() to show the banner.
+38261d610f06f316.js:2 [LaunchDarkly] LaunchDarkly client initialized
+sp.replit.com/v1/i:1  Failed to load resource: the server responded with a status of 400 ()Understand this error
+sp.replit.com/v1/i:1  Failed to load resource: the server responded with a status of 400 ()Understand this error
+38261d610f06f316.js:2 Adding extension: GPT-Replit - ChatGPT in your Repl. Object
+attached_assets/image_1763150582930.png:1  Failed to load resource: the server responded with a status of 404 ()Understand this error
+13Error while parsing the 'sandbox' attribute: 'allow-downloads-without-user-activation' is an invalid sandbox flag.Understand this error
+ed1e693c96a75807.js:2 Unrecognized feature: 'ambient-light-sensor'.
+z @ ed1e693c96a75807.js:2Understand this warning
+ed1e693c96a75807.js:2 Unrecognized feature: 'battery'.
+z @ ed1e693c96a75807.js:2Understand this warning
+ed1e693c96a75807.js:2 Unrecognized feature: 'execution-while-not-rendered'.
+z @ ed1e693c96a75807.js:2Understand this warning
+ed1e693c96a75807.js:2 Unrecognized feature: 'execution-while-out-of-viewport'.
+z @ ed1e693c96a75807.js:2Understand this warning
+ed1e693c96a75807.js:2 Unrecognized feature: 'layout-animations'.
+z @ ed1e693c96a75807.js:2Understand this warning
+ed1e693c96a75807.js:2 Unrecognized feature: 'legacy-image-formats'.
+z @ ed1e693c96a75807.js:2Understand this warning
+ed1e693c96a75807.js:2 Unrecognized feature: 'navigation-override'.
+z @ ed1e693c96a75807.js:2Understand this warning
+ed1e693c96a75807.js:2 Unrecognized feature: 'oversized-images'.
+z @ ed1e693c96a75807.js:2Understand this warning
+ed1e693c96a75807.js:2 Unrecognized feature: 'publickey-credentials'.
+z @ ed1e693c96a75807.js:2Understand this warning
+ed1e693c96a75807.js:2 Unrecognized feature: 'speaker-selection'.
+z @ ed1e693c96a75807.js:2Understand this warning
+ed1e693c96a75807.js:2 Unrecognized feature: 'unoptimized-images'.
+z @ ed1e693c96a75807.js:2Understand this warning
+ed1e693c96a75807.js:2 Unrecognized feature: 'unsized-media'.
+z @ ed1e693c96a75807.js:2Understand this warning
+ed1e693c96a75807.js:2 Unrecognized feature: 'pointer-lock'.
+z @ ed1e693c96a75807.js:2Understand this warning
+ed1e693c96a75807.js:2 Allow attribute will take precedence over 'allowfullscreen'.
+z @ ed1e693c96a75807.js:2Understand this warning
+ed1e693c96a75807.js:2 Allow attribute will take precedence over 'allowpaymentrequest'.
+z @ ed1e693c96a75807.js:2Understand this warning
+stallwart.build.js:1 stallwart: failed ping 1
+workspace_iframe.html?initialPath=%2Fpurchasing&id=%3Arcm%3A:32 Unrecognized feature: 'ambient-light-sensor'.Understand this warning
+workspace_iframe.html?initialPath=%2Fpurchasing&id=%3Arcm%3A:32 Unrecognized feature: 'battery'.Understand this warning
+workspace_iframe.html?initialPath=%2Fpurchasing&id=%3Arcm%3A:32 Unrecognized feature: 'execution-while-not-rendered'.Understand this warning
+workspace_iframe.html?initialPath=%2Fpurchasing&id=%3Arcm%3A:32 Unrecognized feature: 'execution-while-out-of-viewport'.Understand this warning
+workspace_iframe.html?initialPath=%2Fpurchasing&id=%3Arcm%3A:32 Unrecognized feature: 'layout-animations'.Understand this warning
+workspace_iframe.html?initialPath=%2Fpurchasing&id=%3Arcm%3A:32 Unrecognized feature: 'legacy-image-formats'.Understand this warning
+workspace_iframe.html?initialPath=%2Fpurchasing&id=%3Arcm%3A:32 Unrecognized feature: 'navigation-override'.Understand this warning
+workspace_iframe.html?initialPath=%2Fpurchasing&id=%3Arcm%3A:32 Unrecognized feature: 'oversized-images'.Understand this warning
+workspace_iframe.html?initialPath=%2Fpurchasing&id=%3Arcm%3A:32 Unrecognized feature: 'publickey-credentials'.Understand this warning
+workspace_iframe.html?initialPath=%2Fpurchasing&id=%3Arcm%3A:32 Unrecognized feature: 'speaker-selection'.Understand this warning
+workspace_iframe.html?initialPath=%2Fpurchasing&id=%3Arcm%3A:32 Unrecognized feature: 'unoptimized-images'.Understand this warning
+workspace_iframe.html?initialPath=%2Fpurchasing&id=%3Arcm%3A:32 Unrecognized feature: 'unsized-media'.Understand this warning
+workspace_iframe.html?initialPath=%2Fpurchasing&id=%3Arcm%3A:32 Allow attribute will take precedence over 'allowfullscreen'.Understand this warning
+workspace_iframe.html?initialPath=%2Fpurchasing&id=%3Arcm%3A:32 Allow attribute will take precedence over 'allowpaymentrequest'.Understand this warning
+client:536 WebSocket connection to 'wss://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/?token=EQ2hFtlXt8np' failed: 
+setupWebSocket @ client:536Understand this error
+client:536 WebSocket connection to 'wss://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/?token=EQ2hFtlXt8np' failed: 
+setupWebSocket @ client:536Understand this error
+58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/api/purchasing/vendors:1  Failed to load resource: the server responded with a status of 400 (Bad Request)Understand this error
+58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/api/purchasing/vendors:1  Failed to load resource: the server responded with a status of 400 (Bad Request)Understand this error
+58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/api/purchasing/vendors:1  Failed to load resource: the server responded with a status of 400 (Bad Request)Understand this error
+client:536 WebSocket connection to 'wss://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/?token=EQ2hFtlXt8np' failed: 
+setupWebSocket @ client:536Understand this error
+client:536 Uncaught (in promise) SyntaxError: Failed to construct 'WebSocket': The URL 'wss://localhost:undefined/?token=EQ2hFtlXt8np' is invalid.
+    at setupWebSocket (client:536:19)
+    at fallback (client:509:16)
+    at WebSocket.<anonymous> (client:555:7)Understand this error
+injected.js:27 useAuth - user: undefined isLoading: true error: null
+injected.js:27 useAuth - user: undefined isLoading: true error: null
+injected.js:27 Auth state: Object
+injected.js:27 Auth state: Object
+injected.js:27 User data fetched: Object
+injected.js:27 useAuth - user: Object isLoading: false error: null
+injected.js:27 useAuth - user: Object isLoading: false error: null
+injected.js:27 Auth state: Object
+injected.js:27 Rendering: AuthenticatedApp
+injected.js:27 Auth state: Object
+injected.js:27 Rendering: AuthenticatedApp
+injected.js:27 QueryClient: Making request to: /api/purchasing/vendors
+injected.js:27 Response status: 200 for /api/purchasing/vendors
+injected.js:27 Raw response text for /api/purchasing/vendors : []
+injected.js:27 Parsed response data for /api/purchasing/vendors : Array(0)
+injected.js:27 Warning: A component is changing an uncontrolled input to be controlled. This is likely caused by the value changing from undefined to a defined value, which should not happen. Decide between using a controlled or uncontrolled input element for the lifetime of the component. More info: https://reactjs.org/link/controlled-components
+    at input
+    at _c (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/src/components/ui/input.tsx:20:11)
+    at https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-2K77HOHX.js?v=ace883e4:79:13
+    at https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-2K77HOHX.js?v=ace883e4:56:13
+    at https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/src/components/ui/form.tsx:128:9
+    at div
+    at https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/src/components/ui/form.tsx:72:6
+    at Controller (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-4BFJKWC4.js?v=ace883e4:298:35)
+    at FormField (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/src/components/ui/form.tsx:33:6)
+    at div
+    at form
+    at FormProvider (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-4BFJKWC4.js?v=ace883e4:102:11)
+    at div
+    at https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-Q6YJROYD.js?v=ace883e4:42:13
+    at https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-RLLCIQWN.js?v=ace883e4:61:7
+    at https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-2K77HOHX.js?v=ace883e4:79:13
+    at https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-2K77HOHX.js?v=ace883e4:56:13
+    at https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-Q6YJROYD.js?v=ace883e4:42:13
+    at https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-QRVKYO7Z.js?v=ace883e4:34:5
+    at https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-XJ4MLFI7.js?v=ace883e4:235:13
+    at https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-XJ4MLFI7.js?v=ace883e4:158:58
+    at Presence (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-E4UC4BFD.js?v=ace883e4:24:11)
+    at https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-XJ4MLFI7.js?v=ace883e4:149:64
+    at https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-2K77HOHX.js?v=ace883e4:79:13
+    at https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-2K77HOHX.js?v=ace883e4:56:13
+    at https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-Q6YJROYD.js?v=ace883e4:42:13
+    at https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-RLLCIQWN.js?v=ace883e4:260:22
+    at Presence (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-E4UC4BFD.js?v=ace883e4:24:11)
+    at Provider (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-OXZDJRWN.js?v=ace883e4:38:15)
+    at DialogPortal (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-XJ4MLFI7.js?v=ace883e4:111:11)
+    at _c3 (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/src/components/ui/dialog.tsx:50:12)
+    at Provider (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-OXZDJRWN.js?v=ace883e4:38:15)
+    at Dialog (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-XJ4MLFI7.js?v=ace883e4:52:5)
+    at div
+    at div
+    at VendorsTab (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/src/pages/purchasing.tsx:118:21)
+    at div
+    at div
+    at div
+    at div
+    at div
+    at AdminLayout (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/src/components/admin-layout.tsx:28:39)
+    at PurchasingPage (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/src/pages/purchasing.tsx:1756:37)
+    at ProtectedRoute (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/src/components/protected-route.tsx:22:3)
+    at Route (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=ace883e4:323:16)
+    at Switch (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=ace883e4:379:17)
+    at AuthenticatedApp (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/src/App.tsx?v=wjXelBlXcpKuvAMpKIs27:67:20)
+    at AppRouter (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/src/App.tsx?v=wjXelBlXcpKuvAMpKIs27:538:48)
+    at Router (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=ace883e4:291:17)
+    at AuthProvider (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/src/hooks/use-auth.tsx:26:32)
+    at ThemeProvider (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/src/contexts/ThemeContext.tsx:306:33)
+    at App
+    at QueryClientProvider (https://58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@tanstack_react-query.js?v=ace883e4:2805:3)
+(anonymous) @ injected.js:27Understand this error
+injected.js:27 API Request: POST /api/purchasing/vendors with data: Object
+58265a68-cbcc-4b55-91b2-58806c585b51-00-395r5svtpwqde.picard.replit.dev/api/purchasing/vendors:1  Failed to load resource: the server responded with a status of 400 (Bad Request)Understand this error
+injected.js:27 API Response status: 400 for POST /api/purchasing/vendors
+injected.js:27 API Error: 400 {"message":"Invalid vendor data","errors":[{"code":"invalid_type","expected":"number","received":"undefined","path":["vendorId"],"message":"Required"}]}
+(anonymous) @ injected.js:27Understand this error
+injected.js:27 [2025-11-14T22:56:35.305Z] Mutation Failed: Object
+(anonymous) @ injected.js:27Understand this error
+stallwart.build.js:1 stallwart: failed ping 1
+stallwart.build.js:1 stallwart: failed ping 2

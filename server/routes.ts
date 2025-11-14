@@ -18583,7 +18583,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const vendorData = insertCustomersVendorsSchema.parse(req.body);
-      const profileData = req.body.profile ? insertVendorProfileSchema.parse(req.body.profile) : null;
+      const profileData = req.body.profile ? insertVendorProfileSchema.omit({ vendorId: true }).parse(req.body.profile) : null;
 
       const vendor = await storage.createVendor(vendorData);
 
