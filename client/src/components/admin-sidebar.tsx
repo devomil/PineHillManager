@@ -22,7 +22,8 @@ import {
   ListTodo,
   GraduationCap,
   BarChart,
-  Target
+  Target,
+  ShoppingBag
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -47,6 +48,7 @@ const navigationItems: NavItem[] = [
   { label: "Schedule Management", icon: Calendar, value: "scheduling", href: "/shift-scheduling", section: "operations" },
   { label: "Accounting", icon: DollarSign, value: "accounting", href: "/accounting", section: "operations" },
   { label: "Inventory", icon: Package, value: "inventory", href: "/inventory", section: "operations" },
+  { label: "Purchasing", icon: ShoppingBag, value: "purchasing", href: "/purchasing", section: "operations" },
   
   // Tools Section
   { label: "Orders", icon: ShoppingCart, value: "orders", href: "/orders", section: "tools" },
