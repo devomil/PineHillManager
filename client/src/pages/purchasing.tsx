@@ -281,6 +281,8 @@ function VendorsTab() {
   };
 
   const onSubmitVendor = (data: z.infer<typeof vendorFormSchema>) => {
+    console.log('onSubmitVendor called with data:', data);
+    console.log('Form errors:', vendorForm.formState.errors);
     if (editingVendor) {
       updateVendorMutation.mutate({ ...data, id: editingVendor.id });
     } else {
