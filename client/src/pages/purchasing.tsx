@@ -222,7 +222,7 @@ function VendorsTab() {
     mutationFn: async (data: z.infer<typeof vendorFormSchema>) => {
       const { paymentTerms, creditLimit, taxId, preferredCurrency, contactEmail, contactPhone, creditCardLastFour, profileNotes, ...vendorData } = data;
       const profile = { paymentTerms, creditLimit, taxId, preferredCurrency, contactEmail, contactPhone, creditCardLastFour, notes: profileNotes };
-      return apiRequest('/api/purchasing/vendors', 'POST', { ...vendorData, profile });
+      return apiRequest('POST', '/api/purchasing/vendors', { ...vendorData, profile });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/purchasing/vendors'] });
@@ -236,7 +236,7 @@ function VendorsTab() {
     mutationFn: async (data: z.infer<typeof vendorFormSchema> & { id: number }) => {
       const { id, paymentTerms, creditLimit, taxId, preferredCurrency, contactEmail, contactPhone, creditCardLastFour, profileNotes, ...vendorData } = data;
       const profile = { paymentTerms, creditLimit, taxId, preferredCurrency, contactEmail, contactPhone, creditCardLastFour, notes: profileNotes };
-      return apiRequest(`/api/purchasing/vendors/${id}`, 'PATCH', { ...vendorData, profile });
+      return apiRequest('PATCH', `/api/purchasing/vendors/${id}`, { ...vendorData, profile });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/purchasing/vendors'] });
@@ -248,7 +248,7 @@ function VendorsTab() {
   });
 
   const deleteVendorMutation = useMutation({
-    mutationFn: (vendorId: number) => apiRequest(`/api/purchasing/vendors/${vendorId}`, 'DELETE'),
+    mutationFn: (vendorId: number) => apiRequest('DELETE', `/api/purchasing/vendors/${vendorId}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/purchasing/vendors'] });
       toast({ title: 'Vendor deleted successfully' });
@@ -527,7 +527,7 @@ function PurchaseOrdersTab() {
         quantity: parseFloat(item.quantity).toFixed(3),
         unitPrice: parseFloat(item.unitPrice).toFixed(2),
       }));
-      return apiRequest('/api/purchasing/purchase-orders', 'POST', {
+      return apiRequest('POST', '/api/purchasing/purchase-orders', {
         vendorId: parseInt(data.vendorId),
         requestedDeliveryDate: data.requestedDeliveryDate,
         notes: data.notes,
@@ -544,7 +544,7 @@ function PurchaseOrdersTab() {
   });
 
   const submitPOMutation = useMutation({
-    mutationFn: (poId: number) => apiRequest(`/api/purchasing/purchase-orders/${poId}/submit`, 'POST'),
+    mutationFn: (poId: number) => apiRequest('POST', `/api/purchasing/purchase-orders/${poId}/submit`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/purchasing/purchase-orders'] });
       toast({ title: 'Purchase order submitted for approval' });
@@ -801,7 +801,7 @@ function ApprovalsTab() {
 
   const approveMutation = useMutation({
     mutationFn: ({ poId, comments }: { poId: number; comments?: string }) =>
-      apiRequest(`/api/purchasing/purchase-orders/${poId}/approve`, 'POST', { comments }),
+      apiRequest('POST', `/api/purchasing/purchase-orders/${poId}/approve`, { comments }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/purchasing/approvals/pending'] });
       queryClient.invalidateQueries({ queryKey: ['/api/purchasing/purchase-orders'] });
@@ -811,7 +811,7 @@ function ApprovalsTab() {
 
   const rejectMutation = useMutation({
     mutationFn: ({ poId, comments }: { poId: number; comments?: string }) =>
-      apiRequest(`/api/purchasing/purchase-orders/${poId}/reject`, 'POST', { comments }),
+      apiRequest('POST', `/api/purchasing/purchase-orders/${poId}/reject`, { comments }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/purchasing/approvals/pending'] });
       queryClient.invalidateQueries({ queryKey: ['/api/purchasing/purchase-orders'] });
