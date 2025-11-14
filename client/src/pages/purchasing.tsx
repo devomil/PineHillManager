@@ -527,8 +527,15 @@ function PurchaseOrdersTab() {
         quantity: parseFloat(item.quantity).toFixed(3),
         unitPrice: parseFloat(item.unitPrice).toFixed(2),
       }));
+      
+      // Generate unique PO number
+      const poNumber = `PO-${Date.now()}-${Math.random().toString(36).substr(2, 5).toUpperCase()}`;
+      
       return apiRequest('POST', '/api/purchasing/purchase-orders', {
+        poNumber,
         vendorId: parseInt(data.vendorId),
+        requestedById: user?.id,
+        createdById: user?.id,
         requestedDeliveryDate: data.requestedDeliveryDate,
         notes: data.notes,
         internalNotes: data.internalNotes,
