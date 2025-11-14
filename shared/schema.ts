@@ -1955,6 +1955,7 @@ export const vendorProfiles = pgTable("vendor_profiles", {
   paymentTerms: varchar("payment_terms").default("Net 30"),
   preferredPaymentMethod: varchar("preferred_payment_method"),
   accountNumber: varchar("account_number"),
+  creditCardLastFour: varchar("credit_card_last_four", { length: 4 }),
   website: varchar("website"),
   notes: text("notes"),
   isPreferredVendor: boolean("is_preferred_vendor").default(false),

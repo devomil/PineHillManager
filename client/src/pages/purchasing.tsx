@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -79,6 +79,7 @@ type VendorProfile = {
   contactName?: string;
   contactEmail?: string;
   contactPhone?: string;
+  creditCardLastFour?: string;
 };
 
 type Vendor = {
@@ -166,7 +167,16 @@ const vendorFormSchema = z.object({
   preferredCurrency: z.string().optional(),
   contactEmail: z.string().email('Invalid email').optional().or(z.literal('')),
   contactPhone: z.string().optional(),
+  creditCardLastFour: z.string().optional(),
   profileNotes: z.string().optional(),
+}).refine((data) => {
+  if (data.paymentTerms === 'Credit Card') {
+    return data.creditCardLastFour && /^\d{4}$/.test(data.creditCardLastFour);
+  }
+  return true;
+}, {
+  message: 'Credit card last 4 digits are required when payment terms is Credit Card',
+  path: ['creditCardLastFour'],
 });
 
 const lineItemSchema = z.object({
@@ -200,10 +210,18 @@ function VendorsTab() {
     },
   });
 
+  // Clear credit card last four when payment terms changes away from Credit Card
+  const paymentTerms = vendorForm.watch('paymentTerms');
+  useEffect(() => {
+    if (paymentTerms !== 'Credit Card') {
+      vendorForm.setValue('creditCardLastFour', '');
+    }
+  }, [paymentTerms, vendorForm]);
+
   const createVendorMutation = useMutation({
     mutationFn: async (data: z.infer<typeof vendorFormSchema>) => {
-      const { paymentTerms, creditLimit, taxId, preferredCurrency, contactEmail, contactPhone, profileNotes, ...vendorData } = data;
-      const profile = { paymentTerms, creditLimit, taxId, preferredCurrency, contactEmail, contactPhone, notes: profileNotes };
+      const { paymentTerms, creditLimit, taxId, preferredCurrency, contactEmail, contactPhone, creditCardLastFour, profileNotes, ...vendorData } = data;
+      const profile = { paymentTerms, creditLimit, taxId, preferredCurrency, contactEmail, contactPhone, creditCardLastFour, notes: profileNotes };
       return apiRequest('/api/purchasing/vendors', 'POST', { ...vendorData, profile });
     },
     onSuccess: () => {
@@ -216,8 +234,8 @@ function VendorsTab() {
 
   const updateVendorMutation = useMutation({
     mutationFn: async (data: z.infer<typeof vendorFormSchema> & { id: number }) => {
-      const { id, paymentTerms, creditLimit, taxId, preferredCurrency, contactEmail, contactPhone, profileNotes, ...vendorData } = data;
-      const profile = { paymentTerms, creditLimit, taxId, preferredCurrency, contactEmail, contactPhone, notes: profileNotes };
+      const { id, paymentTerms, creditLimit, taxId, preferredCurrency, contactEmail, contactPhone, creditCardLastFour, profileNotes, ...vendorData } = data;
+      const profile = { paymentTerms, creditLimit, taxId, preferredCurrency, contactEmail, contactPhone, creditCardLastFour, notes: profileNotes };
       return apiRequest(`/api/purchasing/vendors/${id}`, 'PATCH', { ...vendorData, profile });
     },
     onSuccess: () => {
@@ -256,6 +274,7 @@ function VendorsTab() {
       preferredCurrency: vendor.profile?.preferredCurrency || 'USD',
       contactEmail: vendor.profile?.contactEmail || '',
       contactPhone: vendor.profile?.contactPhone || '',
+      creditCardLastFour: vendor.profile?.creditCardLastFour || '',
       profileNotes: vendor.profile?.notes || '',
     });
     setIsVendorDialogOpen(true);
@@ -375,12 +394,28 @@ function VendorsTab() {
                             <SelectItem value="Net 60">Net 60</SelectItem>
                             <SelectItem value="Due on Receipt">Due on Receipt</SelectItem>
                             <SelectItem value="COD">COD</SelectItem>
+                            <SelectItem value="Credit Card">Credit Card</SelectItem>
                           </SelectContent>
                         </Select>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
+                  {vendorForm.watch('paymentTerms') === 'Credit Card' && (
+                    <FormField
+                      control={vendorForm.control}
+                      name="creditCardLastFour"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Card Last 4 Digits</FormLabel>
+                          <FormControl>
+                            <Input placeholder="1234" maxLength={4} {...field} data-testid="input-credit-card-last-four" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
                   <FormField
                     control={vendorForm.control}
                     name="creditLimit"
@@ -432,7 +467,14 @@ function VendorsTab() {
                         {vendor.email && <div className="text-muted-foreground">{vendor.email}</div>}
                       </div>
                     </TableCell>
-                    <TableCell>{vendor.profile?.paymentTerms || 'Not set'}</TableCell>
+                    <TableCell>
+                      <div>
+                        {vendor.profile?.paymentTerms || 'Not set'}
+                        {vendor.profile?.paymentTerms === 'Credit Card' && vendor.profile?.creditCardLastFour && (
+                          <div className="text-xs text-muted-foreground">****{vendor.profile.creditCardLastFour}</div>
+                        )}
+                      </div>
+                    </TableCell>
                     <TableCell>
                       <Badge variant={vendor.isActive ? 'default' : 'secondary'}>
                         {vendor.isActive ? 'Active' : 'Inactive'}
