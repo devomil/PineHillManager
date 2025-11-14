@@ -224,8 +224,8 @@ function VendorsTab() {
       const profile = { paymentTerms, creditLimit, taxId, preferredCurrency, contactEmail, contactPhone, creditCardLastFour, notes: profileNotes };
       return apiRequest('POST', '/api/purchasing/vendors', { ...vendorData, type: 'vendor', profile });
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/purchasing/vendors'] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['/api/purchasing/vendors'] });
       toast({ title: 'Vendor created successfully' });
       setIsVendorDialogOpen(false);
       vendorForm.reset();
@@ -238,8 +238,8 @@ function VendorsTab() {
       const profile = { paymentTerms, creditLimit, taxId, preferredCurrency, contactEmail, contactPhone, creditCardLastFour, notes: profileNotes };
       return apiRequest('PATCH', `/api/purchasing/vendors/${id}`, { ...vendorData, type: 'vendor', profile });
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/purchasing/vendors'] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['/api/purchasing/vendors'] });
       toast({ title: 'Vendor updated successfully' });
       setIsVendorDialogOpen(false);
       setEditingVendor(null);
@@ -249,8 +249,8 @@ function VendorsTab() {
 
   const deleteVendorMutation = useMutation({
     mutationFn: (vendorId: number) => apiRequest('DELETE', `/api/purchasing/vendors/${vendorId}`),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/purchasing/vendors'] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['/api/purchasing/vendors'] });
       toast({ title: 'Vendor deleted successfully' });
     },
   });
@@ -542,8 +542,8 @@ function PurchaseOrdersTab() {
         lineItems,
       });
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/purchasing/purchase-orders'] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['/api/purchasing/purchase-orders'] });
       toast({ title: 'Purchase order created successfully' });
       setIsPODialogOpen(false);
       poForm.reset();
@@ -552,8 +552,8 @@ function PurchaseOrdersTab() {
 
   const submitPOMutation = useMutation({
     mutationFn: (poId: number) => apiRequest('POST', `/api/purchasing/purchase-orders/${poId}/submit`),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/purchasing/purchase-orders'] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['/api/purchasing/purchase-orders'] });
       toast({ title: 'Purchase order submitted for approval' });
     },
   });
@@ -809,9 +809,11 @@ function ApprovalsTab() {
   const approveMutation = useMutation({
     mutationFn: ({ poId, comments }: { poId: number; comments?: string }) =>
       apiRequest('POST', `/api/purchasing/purchase-orders/${poId}/approve`, { comments }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/purchasing/approvals/pending'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/purchasing/purchase-orders'] });
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['/api/purchasing/approvals/pending'] }),
+        queryClient.invalidateQueries({ queryKey: ['/api/purchasing/purchase-orders'] })
+      ]);
       toast({ title: 'Purchase order approved' });
     },
   });
@@ -819,9 +821,11 @@ function ApprovalsTab() {
   const rejectMutation = useMutation({
     mutationFn: ({ poId, comments }: { poId: number; comments?: string }) =>
       apiRequest('POST', `/api/purchasing/purchase-orders/${poId}/reject`, { comments }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/purchasing/approvals/pending'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/purchasing/purchase-orders'] });
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['/api/purchasing/approvals/pending'] }),
+        queryClient.invalidateQueries({ queryKey: ['/api/purchasing/purchase-orders'] })
+      ]);
       toast({ title: 'Purchase order rejected' });
     },
   });
