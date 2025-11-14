@@ -2002,6 +2002,7 @@ export const purchaseOrderLineItems = pgTable("purchase_order_line_items", {
   inventoryItemId: integer("inventory_item_id").references(() => inventoryItems.id),
   description: varchar("description").notNull(),
   sku: varchar("sku"),
+  productUrl: text("product_url"), // URL to product page on vendor website
   quantity: decimal("quantity", { precision: 10, scale: 3 }).notNull(),
   unitCost: decimal("unit_cost", { precision: 10, scale: 2 }).notNull(),
   lineTotal: decimal("line_total", { precision: 12, scale: 2 }).notNull(),
