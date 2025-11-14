@@ -316,10 +316,22 @@ import {
   type InsertTask,
   type TaskNote,
   type InsertTaskNote,
-  // AI Training Generation Tables & Types
-  trainingGenerationJobs,
-  type TrainingGenerationJob,
-  type InsertTrainingGenerationJob,
+  // Purchasing Module Tables & Types
+  vendorProfiles,
+  purchaseOrders,
+  purchaseOrderLineItems,
+  purchaseOrderApprovals,
+  purchaseOrderEvents,
+  type VendorProfile,
+  type InsertVendorProfile,
+  type PurchaseOrder,
+  type InsertPurchaseOrder,
+  type PurchaseOrderLineItem,
+  type InsertPurchaseOrderLineItem,
+  type PurchaseOrderApproval,
+  type InsertPurchaseOrderApproval,
+  type PurchaseOrderEvent,
+  type InsertPurchaseOrderEvent,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, asc, gte, lte, or, sql, like, isNull, isNotNull, exists, sum, inArray } from "drizzle-orm";
@@ -1755,6 +1767,53 @@ export interface IStorage {
   getDreamScenariosByMonth(year: number, month: number): Promise<DreamScenario[]>;
   updateDreamScenario(id: number, updates: Partial<InsertDreamScenario>): Promise<DreamScenario>;
   deleteDreamScenario(id: number): Promise<void>;
+
+  // ================================
+  // PURCHASING MODULE OPERATIONS
+  // ================================
+  
+  // Vendor Operations
+  createVendor(vendor: InsertCustomersVendors): Promise<CustomersVendors>;
+  createVendorProfile(profile: InsertVendorProfile): Promise<VendorProfile>;
+  getAllVendors(): Promise<CustomersVendors[]>;
+  getVendorById(id: number): Promise<CustomersVendors | undefined>;
+  getVendorWithProfile(id: number): Promise<any>;
+  updateVendor(id: number, updates: Partial<InsertCustomersVendors>): Promise<CustomersVendors>;
+  updateVendorProfile(vendorId: number, updates: Partial<InsertVendorProfile>): Promise<VendorProfile>;
+  deleteVendor(id: number): Promise<void>;
+  
+  // Purchase Order Operations
+  createPurchaseOrder(po: InsertPurchaseOrder): Promise<PurchaseOrder>;
+  getPurchaseOrders(filters?: { status?: string; vendorId?: number; startDate?: string; endDate?: string }): Promise<PurchaseOrder[]>;
+  getPurchaseOrderById(id: number): Promise<PurchaseOrder | undefined>;
+  getPurchaseOrderWithDetails(id: number): Promise<any>;
+  updatePurchaseOrder(id: number, updates: Partial<InsertPurchaseOrder>): Promise<PurchaseOrder>;
+  deletePurchaseOrder(id: number): Promise<void>;
+  generatePONumber(): Promise<string>;
+  
+  // Purchase Order Line Items Operations
+  addPurchaseOrderLineItem(item: InsertPurchaseOrderLineItem): Promise<PurchaseOrderLineItem>;
+  getPurchaseOrderLineItems(purchaseOrderId: number): Promise<PurchaseOrderLineItem[]>;
+  updatePurchaseOrderLineItem(id: number, updates: Partial<InsertPurchaseOrderLineItem>): Promise<PurchaseOrderLineItem>;
+  deletePurchaseOrderLineItem(id: number): Promise<void>;
+  
+  // Purchase Order Approval Operations
+  createPurchaseOrderApproval(approval: InsertPurchaseOrderApproval): Promise<PurchaseOrderApproval>;
+  getPurchaseOrderApprovals(purchaseOrderId: number): Promise<PurchaseOrderApproval[]>;
+  getPendingApprovals(approverId?: string): Promise<PurchaseOrderApproval[]>;
+  updatePurchaseOrderApproval(id: number, updates: Partial<InsertPurchaseOrderApproval>): Promise<PurchaseOrderApproval>;
+  approvePurchaseOrder(approvalId: number, approverId: string, comments?: string): Promise<PurchaseOrderApproval>;
+  rejectPurchaseOrder(approvalId: number, approverId: string, comments: string): Promise<PurchaseOrderApproval>;
+  
+  // Purchase Order Events Operations
+  createPurchaseOrderEvent(event: InsertPurchaseOrderEvent): Promise<PurchaseOrderEvent>;
+  getPurchaseOrderEvents(purchaseOrderId: number): Promise<PurchaseOrderEvent[]>;
+  
+  // Purchasing Reporting Operations
+  getVendorSpendReport(vendorId?: number, startDate?: string, endDate?: string): Promise<any[]>;
+  getPurchaseFrequencyReport(startDate?: string, endDate?: string): Promise<any[]>;
+  getOutstandingPurchaseOrders(): Promise<PurchaseOrder[]>;
+  getPaymentComplianceReport(startDate?: string, endDate?: string): Promise<any[]>;
 }
 
 // @ts-ignore
@@ -14121,6 +14180,344 @@ export class DatabaseStorage implements IStorage {
 
   async deleteDreamScenario(id: number): Promise<void> {
     await db.delete(dreamScenarios).where(eq(dreamScenarios.id, id));
+  }
+
+  // ================================
+  // PURCHASING MODULE METHODS
+  // ================================
+
+  // Vendor Operations
+  async createVendor(vendor: InsertCustomersVendors): Promise<CustomersVendors> {
+    const [created] = await db.insert(customersVendors).values(vendor).returning();
+    return created;
+  }
+
+  async createVendorProfile(profile: InsertVendorProfile): Promise<VendorProfile> {
+    const [created] = await db.insert(vendorProfiles).values(profile).returning();
+    return created;
+  }
+
+  async getAllVendors(): Promise<CustomersVendors[]> {
+    return await db
+      .select()
+      .from(customersVendors)
+      .where(eq(customersVendors.type, 'vendor'))
+      .orderBy(customersVendors.name);
+  }
+
+  async getVendorById(id: number): Promise<CustomersVendors | undefined> {
+    const [vendor] = await db
+      .select()
+      .from(customersVendors)
+      .where(and(eq(customersVendors.id, id), eq(customersVendors.type, 'vendor')));
+    return vendor;
+  }
+
+  async getVendorWithProfile(id: number): Promise<any> {
+    const [vendor] = await db
+      .select()
+      .from(customersVendors)
+      .leftJoin(vendorProfiles, eq(customersVendors.id, vendorProfiles.vendorId))
+      .where(and(eq(customersVendors.id, id), eq(customersVendors.type, 'vendor')));
+    return vendor;
+  }
+
+  async updateVendor(id: number, updates: Partial<InsertCustomersVendors>): Promise<CustomersVendors> {
+    const [updated] = await db
+      .update(customersVendors)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(customersVendors.id, id))
+      .returning();
+    return updated;
+  }
+
+  async updateVendorProfile(vendorId: number, updates: Partial<InsertVendorProfile>): Promise<VendorProfile> {
+    const [updated] = await db
+      .update(vendorProfiles)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(vendorProfiles.vendorId, vendorId))
+      .returning();
+    return updated;
+  }
+
+  async deleteVendor(id: number): Promise<void> {
+    await db.delete(customersVendors).where(eq(customersVendors.id, id));
+  }
+
+  // Purchase Order Operations
+  async generatePONumber(): Promise<string> {
+    const year = new Date().getFullYear();
+    const lastPO = await db
+      .select()
+      .from(purchaseOrders)
+      .orderBy(desc(purchaseOrders.id))
+      .limit(1);
+    
+    const nextNumber = lastPO.length > 0 ? lastPO[0].id + 1 : 1;
+    return `PO-${year}-${String(nextNumber).padStart(5, '0')}`;
+  }
+
+  async createPurchaseOrder(po: InsertPurchaseOrder): Promise<PurchaseOrder> {
+    const [created] = await db.insert(purchaseOrders).values(po).returning();
+    return created;
+  }
+
+  async getPurchaseOrders(filters?: { status?: string; vendorId?: number; startDate?: string; endDate?: string }): Promise<PurchaseOrder[]> {
+    const conditions = [];
+    
+    if (filters?.status) {
+      conditions.push(eq(purchaseOrders.status, filters.status));
+    }
+    if (filters?.vendorId) {
+      conditions.push(eq(purchaseOrders.vendorId, filters.vendorId));
+    }
+    if (filters?.startDate) {
+      conditions.push(sql`${purchaseOrders.orderDate} >= ${filters.startDate}`);
+    }
+    if (filters?.endDate) {
+      conditions.push(sql`${purchaseOrders.orderDate} <= ${filters.endDate}`);
+    }
+    
+    return await db
+      .select()
+      .from(purchaseOrders)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(purchaseOrders.createdAt));
+  }
+
+  async getPurchaseOrderById(id: number): Promise<PurchaseOrder | undefined> {
+    const [po] = await db.select().from(purchaseOrders).where(eq(purchaseOrders.id, id));
+    return po;
+  }
+
+  async getPurchaseOrderWithDetails(id: number): Promise<any> {
+    const po = await db.select().from(purchaseOrders).where(eq(purchaseOrders.id, id));
+    const lineItems = await this.getPurchaseOrderLineItems(id);
+    const approvals = await this.getPurchaseOrderApprovals(id);
+    const events = await this.getPurchaseOrderEvents(id);
+    
+    return {
+      ...po[0],
+      lineItems,
+      approvals,
+      events,
+    };
+  }
+
+  async updatePurchaseOrder(id: number, updates: Partial<InsertPurchaseOrder>): Promise<PurchaseOrder> {
+    const [updated] = await db
+      .update(purchaseOrders)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(purchaseOrders.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deletePurchaseOrder(id: number): Promise<void> {
+    await db.delete(purchaseOrders).where(eq(purchaseOrders.id, id));
+  }
+
+  // Purchase Order Line Items Operations
+  async addPurchaseOrderLineItem(item: InsertPurchaseOrderLineItem): Promise<PurchaseOrderLineItem> {
+    const [created] = await db.insert(purchaseOrderLineItems).values(item).returning();
+    return created;
+  }
+
+  async getPurchaseOrderLineItems(purchaseOrderId: number): Promise<PurchaseOrderLineItem[]> {
+    return await db
+      .select()
+      .from(purchaseOrderLineItems)
+      .where(eq(purchaseOrderLineItems.purchaseOrderId, purchaseOrderId));
+  }
+
+  async updatePurchaseOrderLineItem(id: number, updates: Partial<InsertPurchaseOrderLineItem>): Promise<PurchaseOrderLineItem> {
+    const [updated] = await db
+      .update(purchaseOrderLineItems)
+      .set(updates)
+      .where(eq(purchaseOrderLineItems.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deletePurchaseOrderLineItem(id: number): Promise<void> {
+    await db.delete(purchaseOrderLineItems).where(eq(purchaseOrderLineItems.id, id));
+  }
+
+  // Purchase Order Approval Operations
+  async createPurchaseOrderApproval(approval: InsertPurchaseOrderApproval): Promise<PurchaseOrderApproval> {
+    const [created] = await db.insert(purchaseOrderApprovals).values(approval).returning();
+    return created;
+  }
+
+  async getPurchaseOrderApprovals(purchaseOrderId: number): Promise<PurchaseOrderApproval[]> {
+    return await db
+      .select()
+      .from(purchaseOrderApprovals)
+      .where(eq(purchaseOrderApprovals.purchaseOrderId, purchaseOrderId))
+      .orderBy(purchaseOrderApprovals.sequence);
+  }
+
+  async getPendingApprovals(approverId?: string): Promise<PurchaseOrderApproval[]> {
+    const conditions = [eq(purchaseOrderApprovals.status, 'pending')];
+    
+    if (approverId) {
+      conditions.push(eq(purchaseOrderApprovals.approverId, approverId));
+    }
+    
+    return await db
+      .select()
+      .from(purchaseOrderApprovals)
+      .where(and(...conditions))
+      .orderBy(purchaseOrderApprovals.createdAt);
+  }
+
+  async updatePurchaseOrderApproval(id: number, updates: Partial<InsertPurchaseOrderApproval>): Promise<PurchaseOrderApproval> {
+    const [updated] = await db
+      .update(purchaseOrderApprovals)
+      .set(updates)
+      .where(eq(purchaseOrderApprovals.id, id))
+      .returning();
+    return updated;
+  }
+
+  async approvePurchaseOrder(approvalId: number, approverId: string, comments?: string): Promise<PurchaseOrderApproval> {
+    const [updated] = await db
+      .update(purchaseOrderApprovals)
+      .set({
+        status: 'approved',
+        decision: 'approved',
+        approverId,
+        decisionDate: new Date(),
+        comments,
+      })
+      .where(eq(purchaseOrderApprovals.id, approvalId))
+      .returning();
+    return updated;
+  }
+
+  async rejectPurchaseOrder(approvalId: number, approverId: string, comments: string): Promise<PurchaseOrderApproval> {
+    const [updated] = await db
+      .update(purchaseOrderApprovals)
+      .set({
+        status: 'rejected',
+        decision: 'rejected',
+        approverId,
+        decisionDate: new Date(),
+        comments,
+      })
+      .where(eq(purchaseOrderApprovals.id, approvalId))
+      .returning();
+    return updated;
+  }
+
+  // Purchase Order Events Operations
+  async createPurchaseOrderEvent(event: InsertPurchaseOrderEvent): Promise<PurchaseOrderEvent> {
+    const [created] = await db.insert(purchaseOrderEvents).values(event).returning();
+    return created;
+  }
+
+  async getPurchaseOrderEvents(purchaseOrderId: number): Promise<PurchaseOrderEvent[]> {
+    return await db
+      .select()
+      .from(purchaseOrderEvents)
+      .where(eq(purchaseOrderEvents.purchaseOrderId, purchaseOrderId))
+      .orderBy(desc(purchaseOrderEvents.createdAt));
+  }
+
+  // Purchasing Reporting Operations
+  async getVendorSpendReport(vendorId?: number, startDate?: string, endDate?: string): Promise<any[]> {
+    const conditions = [];
+    conditions.push(eq(purchaseOrders.status, 'received'));
+    
+    if (vendorId) {
+      conditions.push(eq(purchaseOrders.vendorId, vendorId));
+    }
+    if (startDate) {
+      conditions.push(sql`${purchaseOrders.orderDate} >= ${startDate}`);
+    }
+    if (endDate) {
+      conditions.push(sql`${purchaseOrders.orderDate} <= ${endDate}`);
+    }
+    
+    return await db
+      .select({
+        vendorId: purchaseOrders.vendorId,
+        vendorName: customersVendors.name,
+        totalSpend: sql`SUM(${purchaseOrders.totalAmount})`,
+        orderCount: sql`COUNT(${purchaseOrders.id})`,
+        avgOrderAmount: sql`AVG(${purchaseOrders.totalAmount})`,
+      })
+      .from(purchaseOrders)
+      .leftJoin(customersVendors, eq(purchaseOrders.vendorId, customersVendors.id))
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .groupBy(purchaseOrders.vendorId, customersVendors.name)
+      .orderBy(desc(sql`SUM(${purchaseOrders.totalAmount})`));
+  }
+
+  async getPurchaseFrequencyReport(startDate?: string, endDate?: string): Promise<any[]> {
+    const conditions = [];
+    
+    if (startDate) {
+      conditions.push(sql`${purchaseOrders.orderDate} >= ${startDate}`);
+    }
+    if (endDate) {
+      conditions.push(sql`${purchaseOrders.orderDate} <= ${endDate}`);
+    }
+    
+    return await db
+      .select({
+        vendorId: purchaseOrders.vendorId,
+        vendorName: customersVendors.name,
+        month: sql`TO_CHAR(${purchaseOrders.orderDate}, 'YYYY-MM')`,
+        orderCount: sql`COUNT(${purchaseOrders.id})`,
+        totalSpend: sql`SUM(${purchaseOrders.totalAmount})`,
+      })
+      .from(purchaseOrders)
+      .leftJoin(customersVendors, eq(purchaseOrders.vendorId, customersVendors.id))
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .groupBy(purchaseOrders.vendorId, customersVendors.name, sql`TO_CHAR(${purchaseOrders.orderDate}, 'YYYY-MM')`)
+      .orderBy(sql`TO_CHAR(${purchaseOrders.orderDate}, 'YYYY-MM')`, desc(sql`COUNT(${purchaseOrders.id})`));
+  }
+
+  async getOutstandingPurchaseOrders(): Promise<PurchaseOrder[]> {
+    return await db
+      .select()
+      .from(purchaseOrders)
+      .where(
+        and(
+          eq(purchaseOrders.status, 'ordered'),
+          sql`${purchaseOrders.receivedDate} IS NULL`
+        )
+      )
+      .orderBy(purchaseOrders.expectedDeliveryDate);
+  }
+
+  async getPaymentComplianceReport(startDate?: string, endDate?: string): Promise<any[]> {
+    const conditions = [];
+    conditions.push(eq(purchaseOrders.status, 'received'));
+    
+    if (startDate) {
+      conditions.push(sql`${purchaseOrders.orderDate} >= ${startDate}`);
+    }
+    if (endDate) {
+      conditions.push(sql`${purchaseOrders.orderDate} <= ${endDate}`);
+    }
+    
+    return await db
+      .select({
+        vendorId: purchaseOrders.vendorId,
+        vendorName: customersVendors.name,
+        paymentTerms: purchaseOrders.paymentTerms,
+        orderDate: purchaseOrders.orderDate,
+        receivedDate: purchaseOrders.receivedDate,
+        totalAmount: purchaseOrders.totalAmount,
+        dueDate: sql`${purchaseOrders.orderDate} + INTERVAL '30 days'`,
+        isOverdue: sql`CURRENT_DATE > (${purchaseOrders.orderDate} + INTERVAL '30 days')`,
+      })
+      .from(purchaseOrders)
+      .leftJoin(customersVendors, eq(purchaseOrders.vendorId, customersVendors.id))
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(purchaseOrders.orderDate);
   }
 }
 

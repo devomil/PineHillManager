@@ -44,6 +44,7 @@ import EmergencyContactPage from "@/pages/emergency-contact";
 import EmployeePurchases from "@/pages/employee-purchases";
 import Tasks from "@/pages/tasks";
 import Goals from "@/pages/goals";
+import PurchasingPage from "@/pages/purchasing";
 
 function AuthenticatedApp() {
   const { user } = useAuth();
@@ -163,6 +164,11 @@ function AuthenticatedApp() {
       <Route path="/orders">
         <ProtectedRoute allowedRoles={['admin', 'manager']}>
           <OrdersPage />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/purchasing">
+        <ProtectedRoute allowedRoles={['admin', 'manager']}>
+          <PurchasingPage />
         </ProtectedRoute>
       </Route>
       <Route path="/integrations">

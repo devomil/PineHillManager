@@ -36,6 +36,12 @@ import {
   insertEmployeeSpotlightSchema,
   updateEmployeeBannerSchema,
   updateEmployeeSpotlightSchema,
+  insertCustomersVendorsSchema,
+  insertVendorProfileSchema,
+  insertPurchaseOrderSchema,
+  insertPurchaseOrderLineItemSchema,
+  insertPurchaseOrderApprovalSchema,
+  insertPurchaseOrderEventSchema,
 } from "@shared/schema";
 import { z } from "zod";
 import { eq, and, or, isNull, isNotNull, desc } from "drizzle-orm";
@@ -18548,6 +18554,594 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error validating payroll calculations:', error);
       res.status(500).json({ message: 'Failed to validate payroll calculations' });
+    }
+  });
+
+  // ================================
+  // PURCHASING MODULE API ROUTES
+  // ================================
+
+  // Vendor Endpoints
+  app.get('/api/purchasing/vendors', isAuthenticated, async (req, res) => {
+    try {
+      if (!req.user || !['admin', 'manager'].includes(req.user.role)) {
+        return res.status(403).json({ error: 'Admin or Manager access required' });
+      }
+
+      const vendors = await storage.getAllVendors();
+      res.json(vendors);
+    } catch (error) {
+      console.error('Error fetching vendors:', error);
+      res.status(500).json({ message: 'Failed to fetch vendors' });
+    }
+  });
+
+  app.post('/api/purchasing/vendors', isAuthenticated, async (req, res) => {
+    try {
+      if (!req.user || !['admin', 'manager'].includes(req.user.role)) {
+        return res.status(403).json({ error: 'Admin or Manager access required' });
+      }
+
+      const vendorData = insertCustomersVendorsSchema.parse(req.body);
+      const profileData = req.body.profile ? insertVendorProfileSchema.parse(req.body.profile) : null;
+
+      const vendor = await storage.createVendor(vendorData);
+
+      if (profileData) {
+        await storage.createVendorProfile({
+          ...profileData,
+          vendorId: vendor.id,
+        });
+      }
+
+      const vendorWithProfile = await storage.getVendorWithProfile(vendor.id);
+      res.status(201).json(vendorWithProfile);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: 'Invalid vendor data', errors: error.errors });
+      }
+      console.error('Error creating vendor:', error);
+      res.status(500).json({ message: 'Failed to create vendor' });
+    }
+  });
+
+  app.get('/api/purchasing/vendors/:id', isAuthenticated, async (req, res) => {
+    try {
+      if (!req.user || !['admin', 'manager'].includes(req.user.role)) {
+        return res.status(403).json({ error: 'Admin or Manager access required' });
+      }
+
+      const vendorId = parseInt(req.params.id);
+      const vendor = await storage.getVendorWithProfile(vendorId);
+
+      if (!vendor) {
+        return res.status(404).json({ message: 'Vendor not found' });
+      }
+
+      res.json(vendor);
+    } catch (error) {
+      console.error('Error fetching vendor:', error);
+      res.status(500).json({ message: 'Failed to fetch vendor' });
+    }
+  });
+
+  app.patch('/api/purchasing/vendors/:id', isAuthenticated, async (req, res) => {
+    try {
+      if (!req.user || !['admin', 'manager'].includes(req.user.role)) {
+        return res.status(403).json({ error: 'Admin or Manager access required' });
+      }
+
+      const vendorId = parseInt(req.params.id);
+      const updates = insertCustomersVendorsSchema.partial().parse(req.body);
+      const profileUpdates = req.body.profile ? insertVendorProfileSchema.partial().parse(req.body.profile) : null;
+
+      await storage.updateVendor(vendorId, updates);
+      
+      if (profileUpdates) {
+        try {
+          await storage.updateVendorProfile(vendorId, profileUpdates);
+        } catch (error) {
+          await storage.createVendorProfile({
+            ...profileUpdates,
+            vendorId,
+          });
+        }
+      }
+      
+      const vendorWithProfile = await storage.getVendorWithProfile(vendorId);
+      res.json(vendorWithProfile);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: 'Invalid vendor data', errors: error.errors });
+      }
+      console.error('Error updating vendor:', error);
+      res.status(500).json({ message: 'Failed to update vendor' });
+    }
+  });
+
+  app.delete('/api/purchasing/vendors/:id', isAuthenticated, async (req, res) => {
+    try {
+      if (!req.user || !['admin', 'manager'].includes(req.user.role)) {
+        return res.status(403).json({ error: 'Admin or Manager access required' });
+      }
+
+      const vendorId = parseInt(req.params.id);
+      await storage.deleteVendor(vendorId);
+      
+      res.json({ message: 'Vendor deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting vendor:', error);
+      res.status(500).json({ message: 'Failed to delete vendor' });
+    }
+  });
+
+  // Purchase Order Endpoints
+  app.get('/api/purchasing/purchase-orders', isAuthenticated, async (req, res) => {
+    try {
+      if (!req.user || !['admin', 'manager'].includes(req.user.role)) {
+        return res.status(403).json({ error: 'Admin or Manager access required' });
+      }
+
+      const { status, vendorId, startDate, endDate } = req.query;
+
+      const filters = {
+        status: status as string | undefined,
+        vendorId: vendorId ? parseInt(vendorId as string) : undefined,
+        startDate: startDate as string | undefined,
+        endDate: endDate as string | undefined,
+      };
+
+      const purchaseOrders = await storage.getPurchaseOrders(filters);
+      res.json(purchaseOrders);
+    } catch (error) {
+      console.error('Error fetching purchase orders:', error);
+      res.status(500).json({ message: 'Failed to fetch purchase orders' });
+    }
+  });
+
+  app.post('/api/purchasing/purchase-orders', isAuthenticated, async (req, res) => {
+    try {
+      if (!req.user || !['admin', 'manager'].includes(req.user.role)) {
+        return res.status(403).json({ error: 'Admin or Manager access required' });
+      }
+
+      const poData = insertPurchaseOrderSchema.parse(req.body);
+
+      const purchaseOrder = await storage.createPurchaseOrder({
+        ...poData,
+        createdById: req.user.id,
+      });
+
+      await storage.createPurchaseOrderEvent({
+        purchaseOrderId: purchaseOrder.id,
+        eventType: 'created',
+        userId: req.user.id,
+        description: 'Purchase order created',
+      });
+
+      res.status(201).json(purchaseOrder);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: 'Invalid purchase order data', errors: error.errors });
+      }
+      console.error('Error creating purchase order:', error);
+      res.status(500).json({ message: 'Failed to create purchase order' });
+    }
+  });
+
+  app.get('/api/purchasing/purchase-orders/:id', isAuthenticated, async (req, res) => {
+    try {
+      if (!req.user || !['admin', 'manager'].includes(req.user.role)) {
+        return res.status(403).json({ error: 'Admin or Manager access required' });
+      }
+
+      const poId = parseInt(req.params.id);
+      const purchaseOrder = await storage.getPurchaseOrderById(poId);
+
+      if (!purchaseOrder) {
+        return res.status(404).json({ message: 'Purchase order not found' });
+      }
+
+      res.json(purchaseOrder);
+    } catch (error) {
+      console.error('Error fetching purchase order:', error);
+      res.status(500).json({ message: 'Failed to fetch purchase order' });
+    }
+  });
+
+  app.patch('/api/purchasing/purchase-orders/:id', isAuthenticated, async (req, res) => {
+    try {
+      if (!req.user || !['admin', 'manager'].includes(req.user.role)) {
+        return res.status(403).json({ error: 'Admin or Manager access required' });
+      }
+
+      const poId = parseInt(req.params.id);
+      const updates = insertPurchaseOrderSchema.partial().parse(req.body);
+
+      const purchaseOrder = await storage.updatePurchaseOrder(poId, updates);
+
+      await storage.createPurchaseOrderEvent({
+        purchaseOrderId: poId,
+        eventType: 'updated',
+        userId: req.user.id,
+        description: 'Purchase order updated',
+      });
+
+      res.json(purchaseOrder);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: 'Invalid purchase order data', errors: error.errors });
+      }
+      console.error('Error updating purchase order:', error);
+      res.status(500).json({ message: 'Failed to update purchase order' });
+    }
+  });
+
+  app.delete('/api/purchasing/purchase-orders/:id', isAuthenticated, async (req, res) => {
+    try {
+      if (!req.user || !['admin', 'manager'].includes(req.user.role)) {
+        return res.status(403).json({ error: 'Admin or Manager access required' });
+      }
+
+      const poId = parseInt(req.params.id);
+      await storage.deletePurchaseOrder(poId);
+
+      await storage.createPurchaseOrderEvent({
+        purchaseOrderId: poId,
+        eventType: 'deleted',
+        userId: req.user.id,
+        description: 'Purchase order deleted',
+      });
+
+      res.json({ message: 'Purchase order deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting purchase order:', error);
+      res.status(500).json({ message: 'Failed to delete purchase order' });
+    }
+  });
+
+  app.post('/api/purchasing/purchase-orders/:id/submit', isAuthenticated, async (req, res) => {
+    try {
+      if (!req.user || !['admin', 'manager'].includes(req.user.role)) {
+        return res.status(403).json({ error: 'Admin or Manager access required' });
+      }
+
+      const poId = parseInt(req.params.id);
+
+      const purchaseOrder = await storage.updatePurchaseOrder(poId, {
+        status: 'pending_approval',
+      });
+
+      await storage.createPurchaseOrderEvent({
+        purchaseOrderId: poId,
+        eventType: 'submitted',
+        userId: req.user.id,
+        description: 'Purchase order submitted for approval',
+      });
+
+      res.json(purchaseOrder);
+    } catch (error) {
+      console.error('Error submitting purchase order:', error);
+      res.status(500).json({ message: 'Failed to submit purchase order' });
+    }
+  });
+
+  app.post('/api/purchasing/purchase-orders/:id/approve', isAuthenticated, async (req, res) => {
+    try {
+      if (!req.user || !['admin', 'manager'].includes(req.user.role)) {
+        return res.status(403).json({ error: 'Admin or Manager access required' });
+      }
+
+      const poId = parseInt(req.params.id);
+      const { comments } = req.body;
+
+      const purchaseOrder = await storage.updatePurchaseOrder(poId, {
+        status: 'approved',
+      });
+
+      await storage.createPurchaseOrderApproval({
+        purchaseOrderId: poId,
+        approverId: req.user.id,
+        requiredRole: req.user.role,
+        status: 'approved',
+        comments,
+      });
+
+      await storage.createPurchaseOrderEvent({
+        purchaseOrderId: poId,
+        eventType: 'approved',
+        userId: req.user.id,
+        description: comments || 'Purchase order approved',
+      });
+
+      res.json(purchaseOrder);
+    } catch (error) {
+      console.error('Error approving purchase order:', error);
+      res.status(500).json({ message: 'Failed to approve purchase order' });
+    }
+  });
+
+  app.post('/api/purchasing/purchase-orders/:id/reject', isAuthenticated, async (req, res) => {
+    try {
+      if (!req.user || !['admin', 'manager'].includes(req.user.role)) {
+        return res.status(403).json({ error: 'Admin or Manager access required' });
+      }
+
+      const poId = parseInt(req.params.id);
+      const { comments } = req.body;
+
+      if (!comments) {
+        return res.status(400).json({ message: 'Rejection reason is required' });
+      }
+
+      const purchaseOrder = await storage.updatePurchaseOrder(poId, {
+        status: 'rejected',
+      });
+
+      await storage.createPurchaseOrderApproval({
+        purchaseOrderId: poId,
+        approverId: req.user.id,
+        requiredRole: req.user.role,
+        status: 'rejected',
+        comments,
+      });
+
+      await storage.createPurchaseOrderEvent({
+        purchaseOrderId: poId,
+        eventType: 'rejected',
+        userId: req.user.id,
+        description: comments,
+      });
+
+      res.json(purchaseOrder);
+    } catch (error) {
+      console.error('Error rejecting purchase order:', error);
+      res.status(500).json({ message: 'Failed to reject purchase order' });
+    }
+  });
+
+  app.post('/api/purchasing/purchase-orders/:id/mark-ordered', isAuthenticated, async (req, res) => {
+    try {
+      if (!req.user || !['admin', 'manager'].includes(req.user.role)) {
+        return res.status(403).json({ error: 'Admin or Manager access required' });
+      }
+
+      const poId = parseInt(req.params.id);
+
+      const purchaseOrder = await storage.updatePurchaseOrder(poId, {
+        status: 'ordered',
+        orderDate: new Date(),
+      });
+
+      await storage.createPurchaseOrderEvent({
+        purchaseOrderId: poId,
+        eventType: 'ordered',
+        userId: req.user.id,
+        description: 'Purchase order marked as ordered',
+      });
+
+      res.json(purchaseOrder);
+    } catch (error) {
+      console.error('Error marking purchase order as ordered:', error);
+      res.status(500).json({ message: 'Failed to mark purchase order as ordered' });
+    }
+  });
+
+  app.post('/api/purchasing/purchase-orders/:id/mark-received', isAuthenticated, async (req, res) => {
+    try {
+      if (!req.user || !['admin', 'manager'].includes(req.user.role)) {
+        return res.status(403).json({ error: 'Admin or Manager access required' });
+      }
+
+      const poId = parseInt(req.params.id);
+
+      const purchaseOrder = await storage.updatePurchaseOrder(poId, {
+        status: 'received',
+        receivedDate: new Date(),
+      });
+
+      await storage.createPurchaseOrderEvent({
+        purchaseOrderId: poId,
+        eventType: 'received',
+        userId: req.user.id,
+        description: 'Purchase order marked as received',
+      });
+
+      res.json(purchaseOrder);
+    } catch (error) {
+      console.error('Error marking purchase order as received:', error);
+      res.status(500).json({ message: 'Failed to mark purchase order as received' });
+    }
+  });
+
+  // Purchase Order Line Items
+  app.post('/api/purchasing/purchase-orders/:poId/line-items', isAuthenticated, async (req, res) => {
+    try {
+      if (!req.user || !['admin', 'manager'].includes(req.user.role)) {
+        return res.status(403).json({ error: 'Admin or Manager access required' });
+      }
+
+      const poId = parseInt(req.params.poId);
+      const lineItemData = insertPurchaseOrderLineItemSchema.parse(req.body);
+
+      const lineItem = await storage.addPurchaseOrderLineItem({
+        ...lineItemData,
+        purchaseOrderId: poId,
+      });
+
+      await storage.createPurchaseOrderEvent({
+        purchaseOrderId: poId,
+        eventType: 'line_item_added',
+        userId: req.user.id,
+        description: `Line item added: ${lineItemData.description || 'Item'}`,
+      });
+
+      res.status(201).json(lineItem);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: 'Invalid line item data', errors: error.errors });
+      }
+      console.error('Error adding line item:', error);
+      res.status(500).json({ message: 'Failed to add line item' });
+    }
+  });
+
+  app.patch('/api/purchasing/line-items/:id', isAuthenticated, async (req, res) => {
+    try {
+      if (!req.user || !['admin', 'manager'].includes(req.user.role)) {
+        return res.status(403).json({ error: 'Admin or Manager access required' });
+      }
+
+      const lineItemId = parseInt(req.params.id);
+      const updates = insertPurchaseOrderLineItemSchema.partial().parse(req.body);
+
+      const lineItem = await storage.updatePurchaseOrderLineItem(lineItemId, updates);
+
+      if (lineItem) {
+        await storage.createPurchaseOrderEvent({
+          purchaseOrderId: lineItem.purchaseOrderId,
+          eventType: 'line_item_updated',
+          userId: req.user.id,
+          description: 'Line item updated',
+        });
+      }
+
+      res.json(lineItem);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: 'Invalid line item data', errors: error.errors });
+      }
+      console.error('Error updating line item:', error);
+      res.status(500).json({ message: 'Failed to update line item' });
+    }
+  });
+
+  app.delete('/api/purchasing/line-items/:id', isAuthenticated, async (req, res) => {
+    try {
+      if (!req.user || !['admin', 'manager'].includes(req.user.role)) {
+        return res.status(403).json({ error: 'Admin or Manager access required' });
+      }
+
+      const lineItemId = parseInt(req.params.id);
+      
+      // Get line item before deleting to get purchaseOrderId for event
+      const lineItem = await storage.getPurchaseOrderLineItem(lineItemId);
+      
+      if (!lineItem) {
+        return res.status(404).json({ message: 'Line item not found' });
+      }
+      
+      await storage.deletePurchaseOrderLineItem(lineItemId);
+      
+      await storage.createPurchaseOrderEvent({
+        purchaseOrderId: lineItem.purchaseOrderId,
+        eventType: 'line_item_deleted',
+        userId: req.user.id,
+        description: 'Line item deleted',
+      });
+
+      res.json({ message: 'Line item deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting line item:', error);
+      res.status(500).json({ message: 'Failed to delete line item' });
+    }
+  });
+
+  // Approval Endpoints
+  app.get('/api/purchasing/approvals/pending', isAuthenticated, async (req, res) => {
+    try {
+      if (!req.user || !['admin', 'manager'].includes(req.user.role)) {
+        return res.status(403).json({ error: 'Admin or Manager access required' });
+      }
+
+      const { forCurrentUser } = req.query;
+
+      const filters: any = { status: 'pending_approval' };
+      if (forCurrentUser === 'true') {
+        filters.assignedTo = req.user.id;
+      }
+
+      const pendingOrders = await storage.getPurchaseOrders(filters);
+      res.json(pendingOrders);
+    } catch (error) {
+      console.error('Error fetching pending approvals:', error);
+      res.status(500).json({ message: 'Failed to fetch pending approvals' });
+    }
+  });
+
+  // Reporting Endpoints
+  app.get('/api/purchasing/reports/vendor-spend', isAuthenticated, async (req, res) => {
+    try {
+      if (!req.user || !['admin', 'manager'].includes(req.user.role)) {
+        return res.status(403).json({ error: 'Admin or Manager access required' });
+      }
+
+      const { vendorId, startDate, endDate } = req.query;
+
+      const report = await storage.getVendorSpendReport(
+        vendorId ? parseInt(vendorId as string) : undefined,
+        startDate as string | undefined,
+        endDate as string | undefined
+      );
+
+      res.json(report);
+    } catch (error) {
+      console.error('Error generating vendor spend report:', error);
+      res.status(500).json({ message: 'Failed to generate vendor spend report' });
+    }
+  });
+
+  app.get('/api/purchasing/reports/purchase-frequency', isAuthenticated, async (req, res) => {
+    try {
+      if (!req.user || !['admin', 'manager'].includes(req.user.role)) {
+        return res.status(403).json({ error: 'Admin or Manager access required' });
+      }
+
+      const { startDate, endDate } = req.query;
+
+      const report = await storage.getPurchaseFrequencyReport(
+        startDate as string | undefined,
+        endDate as string | undefined
+      );
+
+      res.json(report);
+    } catch (error) {
+      console.error('Error generating purchase frequency report:', error);
+      res.status(500).json({ message: 'Failed to generate purchase frequency report' });
+    }
+  });
+
+  app.get('/api/purchasing/reports/outstanding', isAuthenticated, async (req, res) => {
+    try {
+      if (!req.user || !['admin', 'manager'].includes(req.user.role)) {
+        return res.status(403).json({ error: 'Admin or Manager access required' });
+      }
+
+      const outstandingOrders = await storage.getOutstandingPurchaseOrders();
+      res.json(outstandingOrders);
+    } catch (error) {
+      console.error('Error fetching outstanding purchase orders:', error);
+      res.status(500).json({ message: 'Failed to fetch outstanding purchase orders' });
+    }
+  });
+
+  app.get('/api/purchasing/reports/payment-compliance', isAuthenticated, async (req, res) => {
+    try {
+      if (!req.user || !['admin', 'manager'].includes(req.user.role)) {
+        return res.status(403).json({ error: 'Admin or Manager access required' });
+      }
+
+      const { startDate, endDate } = req.query;
+
+      const report = await storage.getPaymentComplianceReport(
+        startDate as string | undefined,
+        endDate as string | undefined
+      );
+
+      res.json(report);
+    } catch (error) {
+      console.error('Error generating payment compliance report:', error);
+      res.status(500).json({ message: 'Failed to generate payment compliance report' });
     }
   });
 

@@ -1944,6 +1944,110 @@ export const customersVendors = pgTable("customers_vendors", {
   nameIdx: index("idx_cv_name").on(table.name),
 }));
 
+// ================================
+// PURCHASING MODULE
+// ================================
+
+// Vendor Profiles (extends customersVendors with purchasing metadata)
+export const vendorProfiles = pgTable("vendor_profiles", {
+  id: serial("id").primaryKey(),
+  vendorId: integer("vendor_id").notNull().references(() => customersVendors.id, { onDelete: "cascade" }).unique(),
+  paymentTerms: varchar("payment_terms").default("Net 30"),
+  preferredPaymentMethod: varchar("preferred_payment_method"),
+  accountNumber: varchar("account_number"),
+  website: varchar("website"),
+  notes: text("notes"),
+  isPreferredVendor: boolean("is_preferred_vendor").default(false),
+  source: varchar("source").default("manual"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  vendorIdIdx: index("idx_vp_vendor_id").on(table.vendorId),
+}));
+
+// Purchase Orders
+export const purchaseOrders = pgTable("purchase_orders", {
+  id: serial("id").primaryKey(),
+  poNumber: varchar("po_number").notNull().unique(),
+  vendorId: integer("vendor_id").notNull().references(() => customersVendors.id),
+  status: varchar("status").notNull().default("draft"),
+  requestedById: varchar("requested_by_id").notNull().references(() => users.id),
+  createdById: varchar("created_by_id").notNull().references(() => users.id),
+  locationId: integer("location_id"),
+  paymentTerms: varchar("payment_terms").default("Net 30"),
+  subtotal: decimal("subtotal", { precision: 12, scale: 2 }).default("0.00"),
+  taxAmount: decimal("tax_amount", { precision: 12, scale: 2 }).default("0.00"),
+  shippingAmount: decimal("shipping_amount", { precision: 12, scale: 2 }).default("0.00"),
+  totalAmount: decimal("total_amount", { precision: 12, scale: 2 }).default("0.00"),
+  orderDate: date("order_date"),
+  expectedDeliveryDate: date("expected_delivery_date"),
+  receivedDate: date("received_date"),
+  notes: text("notes"),
+  internalNotes: text("internal_notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  poNumberIdx: index("idx_po_number").on(table.poNumber),
+  vendorIdIdx: index("idx_po_vendor_id").on(table.vendorId),
+  statusIdx: index("idx_po_status").on(table.status),
+  requestedByIdx: index("idx_po_requested_by").on(table.requestedById),
+  orderDateIdx: index("idx_po_order_date").on(table.orderDate),
+}));
+
+// Purchase Order Line Items
+export const purchaseOrderLineItems = pgTable("purchase_order_line_items", {
+  id: serial("id").primaryKey(),
+  purchaseOrderId: integer("purchase_order_id").notNull().references(() => purchaseOrders.id, { onDelete: "cascade" }),
+  inventoryItemId: integer("inventory_item_id").references(() => inventoryItems.id),
+  description: varchar("description").notNull(),
+  sku: varchar("sku"),
+  quantity: decimal("quantity", { precision: 10, scale: 3 }).notNull(),
+  unitCost: decimal("unit_cost", { precision: 10, scale: 2 }).notNull(),
+  lineTotal: decimal("line_total", { precision: 12, scale: 2 }).notNull(),
+  receivedQuantity: decimal("received_quantity", { precision: 10, scale: 3 }).default("0.000"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  purchaseOrderIdIdx: index("idx_poli_po_id").on(table.purchaseOrderId),
+  inventoryItemIdIdx: index("idx_poli_item_id").on(table.inventoryItemId),
+}));
+
+// Purchase Order Approvals
+export const purchaseOrderApprovals = pgTable("purchase_order_approvals", {
+  id: serial("id").primaryKey(),
+  purchaseOrderId: integer("purchase_order_id").notNull().references(() => purchaseOrders.id, { onDelete: "cascade" }),
+  approverId: varchar("approver_id").references(() => users.id),
+  requiredRole: varchar("required_role").notNull(),
+  approvalThreshold: decimal("approval_threshold", { precision: 12, scale: 2 }),
+  sequence: integer("sequence").default(1),
+  status: varchar("status").notNull().default("pending"),
+  decision: varchar("decision"),
+  decisionDate: timestamp("decision_date"),
+  comments: text("comments"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  purchaseOrderIdIdx: index("idx_poa_po_id").on(table.purchaseOrderId),
+  approverIdIdx: index("idx_poa_approver_id").on(table.approverId),
+  statusIdx: index("idx_poa_status").on(table.status),
+}));
+
+// Purchase Order Events (Audit Trail)
+export const purchaseOrderEvents = pgTable("purchase_order_events", {
+  id: serial("id").primaryKey(),
+  purchaseOrderId: integer("purchase_order_id").notNull().references(() => purchaseOrders.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").references(() => users.id),
+  eventType: varchar("event_type").notNull(),
+  oldStatus: varchar("old_status"),
+  newStatus: varchar("new_status"),
+  description: text("description").notNull(),
+  metadata: text("metadata"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  purchaseOrderIdIdx: index("idx_poe_po_id").on(table.purchaseOrderId),
+  eventTypeIdx: index("idx_poe_event_type").on(table.eventType),
+  createdAtIdx: index("idx_poe_created_at").on(table.createdAt),
+}));
+
 // Inventory Items (from Thrive and QB)
 export const inventoryItems = pgTable("inventory_items", {
   id: serial("id").primaryKey(),
@@ -2392,10 +2496,41 @@ export const financialTransactionLinesRelations = relations(financialTransaction
 
 export const customersVendorsRelations = relations(customersVendors, ({ many }) => ({
   transactions: many(financialTransactions),
+  vendorProfile: many(vendorProfiles),
+  purchaseOrders: many(purchaseOrders),
+}));
+
+export const vendorProfilesRelations = relations(vendorProfiles, ({ one }) => ({
+  vendor: one(customersVendors, { fields: [vendorProfiles.vendorId], references: [customersVendors.id] }),
+}));
+
+export const purchaseOrdersRelations = relations(purchaseOrders, ({ one, many }) => ({
+  vendor: one(customersVendors, { fields: [purchaseOrders.vendorId], references: [customersVendors.id] }),
+  requestedBy: one(users, { fields: [purchaseOrders.requestedById], references: [users.id], relationName: "poRequestedBy" }),
+  createdBy: one(users, { fields: [purchaseOrders.createdById], references: [users.id], relationName: "poCreatedBy" }),
+  lineItems: many(purchaseOrderLineItems),
+  approvals: many(purchaseOrderApprovals),
+  events: many(purchaseOrderEvents),
+}));
+
+export const purchaseOrderLineItemsRelations = relations(purchaseOrderLineItems, ({ one }) => ({
+  purchaseOrder: one(purchaseOrders, { fields: [purchaseOrderLineItems.purchaseOrderId], references: [purchaseOrders.id] }),
+  inventoryItem: one(inventoryItems, { fields: [purchaseOrderLineItems.inventoryItemId], references: [inventoryItems.id] }),
+}));
+
+export const purchaseOrderApprovalsRelations = relations(purchaseOrderApprovals, ({ one }) => ({
+  purchaseOrder: one(purchaseOrders, { fields: [purchaseOrderApprovals.purchaseOrderId], references: [purchaseOrders.id] }),
+  approver: one(users, { fields: [purchaseOrderApprovals.approverId], references: [users.id] }),
+}));
+
+export const purchaseOrderEventsRelations = relations(purchaseOrderEvents, ({ one }) => ({
+  purchaseOrder: one(purchaseOrders, { fields: [purchaseOrderEvents.purchaseOrderId], references: [purchaseOrders.id] }),
+  user: one(users, { fields: [purchaseOrderEvents.userId], references: [users.id] }),
 }));
 
 export const inventoryItemsRelations = relations(inventoryItems, ({ many }) => ({
   saleItems: many(posSaleItems),
+  purchaseOrderLineItems: many(purchaseOrderLineItems),
 }));
 
 export const posSalesRelations = relations(posSales, ({ one, many }) => ({
@@ -2516,6 +2651,33 @@ export const insertCustomersVendorsSchema = createInsertSchema(customersVendors)
   updatedAt: true,
 });
 
+export const insertVendorProfileSchema = createInsertSchema(vendorProfiles).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertPurchaseOrderSchema = createInsertSchema(purchaseOrders).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertPurchaseOrderLineItemSchema = createInsertSchema(purchaseOrderLineItems).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertPurchaseOrderApprovalSchema = createInsertSchema(purchaseOrderApprovals).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertPurchaseOrderEventSchema = createInsertSchema(purchaseOrderEvents).omit({
+  id: true,
+  createdAt: true,
+});
+
 export const insertInventoryItemSchema = createInsertSchema(inventoryItems).omit({
   id: true,
   createdAt: true,
@@ -2631,6 +2793,21 @@ export type InsertFinancialTransactionLine = z.infer<typeof insertFinancialTrans
 
 export type CustomersVendors = typeof customersVendors.$inferSelect;
 export type InsertCustomersVendors = z.infer<typeof insertCustomersVendorsSchema>;
+
+export type VendorProfile = typeof vendorProfiles.$inferSelect;
+export type InsertVendorProfile = z.infer<typeof insertVendorProfileSchema>;
+
+export type PurchaseOrder = typeof purchaseOrders.$inferSelect;
+export type InsertPurchaseOrder = z.infer<typeof insertPurchaseOrderSchema>;
+
+export type PurchaseOrderLineItem = typeof purchaseOrderLineItems.$inferSelect;
+export type InsertPurchaseOrderLineItem = z.infer<typeof insertPurchaseOrderLineItemSchema>;
+
+export type PurchaseOrderApproval = typeof purchaseOrderApprovals.$inferSelect;
+export type InsertPurchaseOrderApproval = z.infer<typeof insertPurchaseOrderApprovalSchema>;
+
+export type PurchaseOrderEvent = typeof purchaseOrderEvents.$inferSelect;
+export type InsertPurchaseOrderEvent = z.infer<typeof insertPurchaseOrderEventSchema>;
 
 export type InventoryItem = typeof inventoryItems.$inferSelect;
 export type InsertInventoryItem = z.infer<typeof insertInventoryItemSchema>;
