@@ -50,7 +50,8 @@ import {
   Building2,
   Mail,
   Phone,
-  Calendar
+  Calendar,
+  Scan
 } from 'lucide-react';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import AdminLayout from '@/components/admin-layout';
@@ -59,6 +60,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { PurchaseOrderBarcodeScanner } from '@/components/purchase-order-barcode-scanner';
 import {
   Table,
   TableBody,
@@ -183,6 +185,7 @@ const lineItemSchema = z.object({
   description: z.string().min(1, 'Description is required'),
   quantity: z.string().min(1, 'Quantity is required').refine((val) => !isNaN(parseFloat(val)) && parseFloat(val) > 0, 'Quantity must be positive'),
   unitPrice: z.string().min(1, 'Unit price is required').refine((val) => !isNaN(parseFloat(val)) && parseFloat(val) > 0, 'Price must be positive'),
+  productUrl: z.string().optional(),
 });
 
 const purchaseOrderFormSchema = z.object({
@@ -504,6 +507,8 @@ function PurchaseOrdersTab() {
   const { user } = useAuth();
   const [isPODialogOpen, setIsPODialogOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
+  const [currentLineItemIndex, setCurrentLineItemIndex] = useState<number>(0);
 
   const { data: vendors } = useQuery<Vendor[]>({
     queryKey: ['/api/purchasing/vendors'],
@@ -516,9 +521,26 @@ function PurchaseOrdersTab() {
   const poForm = useForm<z.infer<typeof purchaseOrderFormSchema>>({
     resolver: zodResolver(purchaseOrderFormSchema),
     defaultValues: {
-      lineItems: [{ description: '', quantity: '1', unitPrice: '0.00' }],
+      lineItems: [{ description: '', quantity: '1', unitPrice: '0.00', productUrl: '' }],
     },
   });
+  
+  const handleProductScanned = (product: { id: number; itemName: string; sku: string; unitCost: string; description?: string; }) => {
+    const currentLineItems = poForm.getValues('lineItems');
+    const updatedLineItems = [...currentLineItems]; // Clone array to avoid mutation
+    updatedLineItems[currentLineItemIndex] = {
+      description: product.itemName,
+      quantity: currentLineItems[currentLineItemIndex]?.quantity || '1',
+      unitPrice: product.unitCost,
+      productUrl: currentLineItems[currentLineItemIndex]?.productUrl || '',
+    };
+    poForm.setValue('lineItems', updatedLineItems);
+    
+    toast({
+      title: 'Product Added',
+      description: `${product.itemName} added to line items`,
+    });
+  };
 
   const createPOMutation = useMutation({
     mutationFn: async (data: z.infer<typeof purchaseOrderFormSchema>) => {
@@ -526,6 +548,7 @@ function PurchaseOrdersTab() {
         description: item.description,
         quantity: parseFloat(item.quantity).toFixed(3),
         unitPrice: parseFloat(item.unitPrice).toFixed(2),
+        productUrl: item.productUrl || null,
       }));
       
       // Generate unique PO number
@@ -637,7 +660,7 @@ function PurchaseOrdersTab() {
                       size="sm"
                       onClick={() => {
                         const current = poForm.getValues('lineItems');
-                        poForm.setValue('lineItems', [...current, { description: '', quantity: '1', unitPrice: '0.00' }]);
+                        poForm.setValue('lineItems', [...current, { description: '', quantity: '1', unitPrice: '0.00', productUrl: '' }]);
                       }}
                       data-testid="button-add-line-item"
                     >
@@ -647,50 +670,22 @@ function PurchaseOrdersTab() {
                   </div>
 
                   {poForm.watch('lineItems').map((_, index) => (
-                    <div key={index} className="grid grid-cols-12 gap-2 items-start">
-                      <div className="col-span-5">
-                        <FormField
-                          control={poForm.control}
-                          name={`lineItems.${index}.description`}
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormControl>
-                                <Input placeholder="Description" {...field} data-testid={`input-line-item-description-${index}`} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      </div>
-                      <div className="col-span-3">
-                        <FormField
-                          control={poForm.control}
-                          name={`lineItems.${index}.quantity`}
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormControl>
-                                <Input placeholder="Qty" {...field} data-testid={`input-line-item-quantity-${index}`} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      </div>
-                      <div className="col-span-3">
-                        <FormField
-                          control={poForm.control}
-                          name={`lineItems.${index}.unitPrice`}
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormControl>
-                                <Input placeholder="Price" {...field} data-testid={`input-line-item-price-${index}`} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      </div>
-                      <div className="col-span-1 flex items-start pt-2">
+                    <div key={index} className="space-y-2 p-3 border rounded-lg">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-sm font-medium text-muted-foreground">Item {index + 1}</span>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setCurrentLineItemIndex(index);
+                            setShowBarcodeScanner(true);
+                          }}
+                          data-testid={`button-scan-barcode-${index}`}
+                        >
+                          <Scan className="h-4 w-4 mr-2" />
+                          Scan Barcode
+                        </Button>
                         {index > 0 && (
                           <Button
                             type="button"
@@ -706,6 +701,66 @@ function PurchaseOrdersTab() {
                           </Button>
                         )}
                       </div>
+                      <div className="grid grid-cols-12 gap-2">
+                        <div className="col-span-6">
+                          <FormField
+                            control={poForm.control}
+                            name={`lineItems.${index}.description`}
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Description</FormLabel>
+                                <FormControl>
+                                  <Input placeholder="Product description" {...field} data-testid={`input-line-item-description-${index}`} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                        <div className="col-span-3">
+                          <FormField
+                            control={poForm.control}
+                            name={`lineItems.${index}.quantity`}
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Quantity</FormLabel>
+                                <FormControl>
+                                  <Input placeholder="Qty" {...field} data-testid={`input-line-item-quantity-${index}`} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                        <div className="col-span-3">
+                          <FormField
+                            control={poForm.control}
+                            name={`lineItems.${index}.unitPrice`}
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Unit Price</FormLabel>
+                                <FormControl>
+                                  <Input placeholder="Price" {...field} data-testid={`input-line-item-price-${index}`} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                      </div>
+                      <FormField
+                        control={poForm.control}
+                        name={`lineItems.${index}.productUrl`}
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Product URL (Optional)</FormLabel>
+                            <FormControl>
+                              <Input placeholder="https://vendor.com/product..." {...field} data-testid={`input-line-item-url-${index}`} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
                     </div>
                   ))}
 
@@ -794,6 +849,16 @@ function PurchaseOrdersTab() {
           ))}
         </div>
       )}
+
+      {/* Barcode Scanner Dialog */}
+      <Dialog open={showBarcodeScanner} onOpenChange={setShowBarcodeScanner}>
+        <DialogContent className="max-w-2xl">
+          <PurchaseOrderBarcodeScanner
+            onProductFound={handleProductScanned}
+            onClose={() => setShowBarcodeScanner(false)}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
