@@ -610,6 +610,14 @@ function PurchaseOrdersTab() {
     },
   });
 
+  const deletePOMutation = useMutation({
+    mutationFn: (poId: number) => apiRequest('DELETE', `/api/purchasing/purchase-orders/${poId}`),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['/api/purchasing/purchase-orders'] });
+      toast({ title: 'Purchase order deleted successfully' });
+    },
+  });
+
   const handleEditPO = (po: PurchaseOrder) => {
     setEditingPO(po);
     poForm.reset({
@@ -622,7 +630,7 @@ function PurchaseOrdersTab() {
             id: item.id, // Include the line item ID for tracking
             description: item.description,
             quantity: item.quantity.toString(),
-            unitPrice: parseFloat(item.unitCost).toFixed(2),
+            unitPrice: parseFloat((item as any).unitCost).toFixed(2),
             productUrl: (item as any).productUrl || '',
           }))
         : [{ description: '', quantity: '1', unitPrice: '0.00', productUrl: '' }],
@@ -886,6 +894,20 @@ function PurchaseOrdersTab() {
                           <Send className="h-4 w-4 mr-2" />
                           Submit for Approval
                         </Button>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => {
+                            if (confirm('Are you sure you want to delete this purchase order?')) {
+                              deletePOMutation.mutate(po.id);
+                            }
+                          }}
+                          disabled={deletePOMutation.isPending}
+                          data-testid={`button-delete-po-${po.id}`}
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Delete
+                        </Button>
                       </>
                     )}
                   </div>
@@ -914,9 +936,9 @@ function PurchaseOrdersTab() {
                             <TableRow key={item.id}>
                               <TableCell>{item.description}</TableCell>
                               <TableCell>{item.quantity}</TableCell>
-                              <TableCell>${parseFloat(item.unitCost).toFixed(2)}</TableCell>
+                              <TableCell>${parseFloat((item as any).unitCost).toFixed(2)}</TableCell>
                               <TableCell className="text-right">
-                                ${parseFloat(item.lineTotal).toFixed(2)}
+                                ${parseFloat((item as any).lineTotal).toFixed(2)}
                               </TableCell>
                             </TableRow>
                           ))}
