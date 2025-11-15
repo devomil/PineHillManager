@@ -1818,6 +1818,7 @@ export interface IStorage {
   getPurchaseFrequencyReport(startDate?: string, endDate?: string): Promise<any[]>;
   getOutstandingPurchaseOrders(): Promise<PurchaseOrder[]>;
   getPaymentComplianceReport(startDate?: string, endDate?: string): Promise<any[]>;
+  getOutstandingPayablesReport(): Promise<any[]>;
 }
 
 // @ts-ignore
@@ -14577,7 +14578,8 @@ export class DatabaseStorage implements IStorage {
   // Purchasing Reporting Operations
   async getVendorSpendReport(vendorId?: number, startDate?: string, endDate?: string): Promise<any[]> {
     const conditions = [];
-    conditions.push(eq(purchaseOrders.status, 'received'));
+    // Include both approved and received orders for reporting
+    conditions.push(sql`${purchaseOrders.status} IN ('approved', 'received')`);
     
     if (vendorId) {
       conditions.push(eq(purchaseOrders.vendorId, vendorId));
@@ -14593,15 +14595,16 @@ export class DatabaseStorage implements IStorage {
       .select({
         vendorId: purchaseOrders.vendorId,
         vendorName: customersVendors.name,
-        totalSpend: sql`SUM(${purchaseOrders.totalAmount})`,
+        totalSpend: sql`COALESCE(SUM(${purchaseOrders.totalAmount}), 0)`,
         orderCount: sql`COUNT(${purchaseOrders.id})`,
-        avgOrderAmount: sql`AVG(${purchaseOrders.totalAmount})`,
+        avgOrderValue: sql`COALESCE(AVG(${purchaseOrders.totalAmount}), 0)`,
+        lastOrderDate: sql`MAX(${purchaseOrders.orderDate})`,
       })
       .from(purchaseOrders)
       .leftJoin(customersVendors, eq(purchaseOrders.vendorId, customersVendors.id))
       .where(conditions.length > 0 ? and(...conditions) : undefined)
       .groupBy(purchaseOrders.vendorId, customersVendors.name)
-      .orderBy(desc(sql`SUM(${purchaseOrders.totalAmount})`));
+      .orderBy(desc(sql`COALESCE(SUM(${purchaseOrders.totalAmount}), 0)`));
   }
 
   async getPurchaseFrequencyReport(startDate?: string, endDate?: string): Promise<any[]> {
@@ -14668,6 +14671,68 @@ export class DatabaseStorage implements IStorage {
       .leftJoin(customersVendors, eq(purchaseOrders.vendorId, customersVendors.id))
       .where(conditions.length > 0 ? and(...conditions) : undefined)
       .orderBy(purchaseOrders.orderDate);
+  }
+
+  async getOutstandingPayablesReport(): Promise<any[]> {
+    // Get approved and received orders that haven't been paid yet
+    return await db
+      .select({
+        poNumber: purchaseOrders.poNumber,
+        vendorId: purchaseOrders.vendorId,
+        vendorName: customersVendors.name,
+        status: purchaseOrders.status,
+        paymentTerms: purchaseOrders.paymentTerms,
+        orderDate: purchaseOrders.orderDate,
+        totalAmount: purchaseOrders.totalAmount,
+        // Calculate due date based on payment terms (simplified - Net 30 = 30 days)
+        dueDate: sql`
+          CASE 
+            WHEN ${purchaseOrders.paymentTerms} = 'Net 30' THEN ${purchaseOrders.orderDate} + INTERVAL '30 days'
+            WHEN ${purchaseOrders.paymentTerms} = 'Net 60' THEN ${purchaseOrders.orderDate} + INTERVAL '60 days'
+            WHEN ${purchaseOrders.paymentTerms} = 'Net 90' THEN ${purchaseOrders.orderDate} + INTERVAL '90 days'
+            WHEN ${purchaseOrders.paymentTerms} = 'Due on Receipt' THEN ${purchaseOrders.orderDate}
+            ELSE ${purchaseOrders.orderDate} + INTERVAL '30 days'
+          END
+        `,
+        // Calculate days until due
+        daysUntilDue: sql`
+          CASE 
+            WHEN ${purchaseOrders.paymentTerms} = 'Net 30' THEN EXTRACT(DAY FROM (${purchaseOrders.orderDate} + INTERVAL '30 days') - CURRENT_DATE)
+            WHEN ${purchaseOrders.paymentTerms} = 'Net 60' THEN EXTRACT(DAY FROM (${purchaseOrders.orderDate} + INTERVAL '60 days') - CURRENT_DATE)
+            WHEN ${purchaseOrders.paymentTerms} = 'Net 90' THEN EXTRACT(DAY FROM (${purchaseOrders.orderDate} + INTERVAL '90 days') - CURRENT_DATE)
+            WHEN ${purchaseOrders.paymentTerms} = 'Due on Receipt' THEN EXTRACT(DAY FROM ${purchaseOrders.orderDate} - CURRENT_DATE)
+            ELSE EXTRACT(DAY FROM (${purchaseOrders.orderDate} + INTERVAL '30 days') - CURRENT_DATE)
+          END
+        `,
+        isOverdue: sql`
+          CASE 
+            WHEN ${purchaseOrders.paymentTerms} = 'Net 30' THEN CURRENT_DATE > (${purchaseOrders.orderDate} + INTERVAL '30 days')
+            WHEN ${purchaseOrders.paymentTerms} = 'Net 60' THEN CURRENT_DATE > (${purchaseOrders.orderDate} + INTERVAL '60 days')
+            WHEN ${purchaseOrders.paymentTerms} = 'Net 90' THEN CURRENT_DATE > (${purchaseOrders.orderDate} + INTERVAL '90 days')
+            WHEN ${purchaseOrders.paymentTerms} = 'Due on Receipt' THEN CURRENT_DATE > ${purchaseOrders.orderDate}
+            ELSE CURRENT_DATE > (${purchaseOrders.orderDate} + INTERVAL '30 days')
+          END
+        `,
+      })
+      .from(purchaseOrders)
+      .leftJoin(customersVendors, eq(purchaseOrders.vendorId, customersVendors.id))
+      .where(
+        and(
+          sql`${purchaseOrders.status} IN ('approved', 'received')`,
+          sql`${purchaseOrders.orderDate} IS NOT NULL`
+        )
+      )
+      .orderBy(
+        sql`
+          CASE 
+            WHEN ${purchaseOrders.paymentTerms} = 'Net 30' THEN ${purchaseOrders.orderDate} + INTERVAL '30 days'
+            WHEN ${purchaseOrders.paymentTerms} = 'Net 60' THEN ${purchaseOrders.orderDate} + INTERVAL '60 days'
+            WHEN ${purchaseOrders.paymentTerms} = 'Net 90' THEN ${purchaseOrders.orderDate} + INTERVAL '90 days'
+            WHEN ${purchaseOrders.paymentTerms} = 'Due on Receipt' THEN ${purchaseOrders.orderDate}
+            ELSE ${purchaseOrders.orderDate} + INTERVAL '30 days'
+          END
+        `
+      );
   }
 }
 

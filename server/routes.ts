@@ -19152,6 +19152,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get('/api/purchasing/reports/outstanding-payables', isAuthenticated, async (req, res) => {
+    try {
+      if (!req.user || !['admin', 'manager'].includes(req.user.role)) {
+        return res.status(403).json({ error: 'Admin or Manager access required' });
+      }
+
+      const report = await storage.getOutstandingPayablesReport();
+      res.json(report);
+    } catch (error) {
+      console.error('Error generating outstanding payables report:', error);
+      res.status(500).json({ message: 'Failed to generate outstanding payables report' });
+    }
+  });
+
   const httpServer = createServer(app);
 
   // WebSocket server for real-time updates

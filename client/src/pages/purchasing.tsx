@@ -1066,13 +1066,123 @@ function ApprovalsTab() {
 }
 
 function ReportsTab() {
-  const { data: vendorSpendReport, isLoading } = useQuery<VendorSpendReport[]>({
+  const { data: vendorSpendReport, isLoading: isLoadingSpend } = useQuery<VendorSpendReport[]>({
     queryKey: ['/api/purchasing/reports/vendor-spend'],
   });
 
+  const { data: outstandingPayables, isLoading: isLoadingPayables } = useQuery<any[]>({
+    queryKey: ['/api/purchasing/reports/outstanding-payables'],
+  });
+
+  // Calculate totals
+  const totalOutstanding = outstandingPayables?.reduce((sum, item) => sum + parseFloat(item.totalAmount), 0) || 0;
+  const overdueAmount = outstandingPayables?.filter(item => item.isOverdue).reduce((sum, item) => sum + parseFloat(item.totalAmount), 0) || 0;
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <h2 className="text-2xl font-bold">Purchasing Reports</h2>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Outstanding Payables</CardTitle>
+          <CardDescription>Bills due and payment tracking with payment terms</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {isLoadingPayables ? (
+            <div className="text-center py-4">Loading payables...</div>
+          ) : (
+            <>
+              <div className="grid gap-4 md:grid-cols-3 mb-6">
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardDescription>Total Outstanding</CardDescription>
+                    <CardTitle className="text-2xl">${totalOutstanding.toFixed(2)}</CardTitle>
+                  </CardHeader>
+                </Card>
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardDescription>Overdue Amount</CardDescription>
+                    <CardTitle className="text-2xl text-destructive">${overdueAmount.toFixed(2)}</CardTitle>
+                  </CardHeader>
+                </Card>
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardDescription>Bills Count</CardDescription>
+                    <CardTitle className="text-2xl">{outstandingPayables?.length || 0}</CardTitle>
+                  </CardHeader>
+                </Card>
+              </div>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>PO Number</TableHead>
+                    <TableHead>Vendor</TableHead>
+                    <TableHead>Amount</TableHead>
+                    <TableHead>Payment Terms</TableHead>
+                    <TableHead>Order Date</TableHead>
+                    <TableHead>Due Date</TableHead>
+                    <TableHead>Days Until Due</TableHead>
+                    <TableHead>Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {outstandingPayables?.map((payable, index) => {
+                    const daysUntilDue = parseFloat(payable.daysUntilDue);
+                    const isOverdue = payable.isOverdue;
+                    const isDueSoon = daysUntilDue <= 7 && daysUntilDue >= 0;
+                    
+                    return (
+                      <TableRow key={index} data-testid={`row-payable-${index}`}>
+                        <TableCell className="font-medium">{payable.poNumber}</TableCell>
+                        <TableCell>{payable.vendorName}</TableCell>
+                        <TableCell>${parseFloat(payable.totalAmount).toFixed(2)}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{payable.paymentTerms}</Badge>
+                        </TableCell>
+                        <TableCell>
+                          {payable.orderDate
+                            ? new Date(payable.orderDate).toLocaleDateString()
+                            : 'N/A'}
+                        </TableCell>
+                        <TableCell>
+                          {payable.dueDate
+                            ? new Date(payable.dueDate).toLocaleDateString()
+                            : 'N/A'}
+                        </TableCell>
+                        <TableCell className={
+                          isOverdue ? 'text-destructive font-bold' :
+                          isDueSoon ? 'text-orange-600 font-semibold' :
+                          'text-green-600'
+                        }>
+                          {isOverdue ? `${Math.abs(Math.floor(daysUntilDue))} days overdue` :
+                           isDueSoon ? `${Math.floor(daysUntilDue)} days` :
+                           `${Math.floor(daysUntilDue)} days`}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={
+                            isOverdue ? 'destructive' :
+                            isDueSoon ? 'secondary' :
+                            'default'
+                          }>
+                            {isOverdue ? 'Overdue' :
+                             isDueSoon ? 'Due Soon' :
+                             'On Track'}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+              {(!outstandingPayables || outstandingPayables.length === 0) && (
+                <div className="text-center py-8 text-muted-foreground">
+                  No outstanding payables at this time
+                </div>
+              )}
+            </>
+          )}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
@@ -1080,7 +1190,7 @@ function ReportsTab() {
           <CardDescription>Total spending by vendor</CardDescription>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
+          {isLoadingSpend ? (
             <div className="text-center py-4">Loading report...</div>
           ) : (
             <Table>
