@@ -509,6 +509,7 @@ function PurchaseOrdersTab() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
   const [currentLineItemIndex, setCurrentLineItemIndex] = useState<number>(0);
+  const [editingPO, setEditingPO] = useState<PurchaseOrder | null>(null);
 
   const { data: vendors } = useQuery<Vendor[]>({
     queryKey: ['/api/purchasing/vendors'],
@@ -573,6 +574,32 @@ function PurchaseOrdersTab() {
     },
   });
 
+  const updatePOMutation = useMutation({
+    mutationFn: async ({ poId, data }: { poId: number; data: z.infer<typeof purchaseOrderFormSchema> }) => {
+      const lineItems = data.lineItems.map((item) => ({
+        description: item.description,
+        quantity: parseFloat(item.quantity).toFixed(3),
+        unitPrice: parseFloat(item.unitPrice).toFixed(2),
+        productUrl: item.productUrl || null,
+      }));
+      
+      return apiRequest('PATCH', `/api/purchasing/purchase-orders/${poId}`, {
+        vendorId: parseInt(data.vendorId),
+        requestedDeliveryDate: data.requestedDeliveryDate,
+        notes: data.notes,
+        internalNotes: data.internalNotes,
+        lineItems,
+      });
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['/api/purchasing/purchase-orders'] });
+      toast({ title: 'Purchase order updated successfully' });
+      setIsPODialogOpen(false);
+      setEditingPO(null);
+      poForm.reset();
+    },
+  });
+
   const submitPOMutation = useMutation({
     mutationFn: (poId: number) => apiRequest('POST', `/api/purchasing/purchase-orders/${poId}/submit`),
     onSuccess: async () => {
@@ -580,6 +607,26 @@ function PurchaseOrdersTab() {
       toast({ title: 'Purchase order submitted for approval' });
     },
   });
+
+  const handleEditPO = (po: PurchaseOrder) => {
+    setEditingPO(po);
+    poForm.reset({
+      vendorId: po.vendorId.toString(),
+      requestedDeliveryDate: po.requestedDeliveryDate || undefined,
+      notes: po.notes || '',
+      internalNotes: po.internalNotes || '',
+      lineItems: po.lineItems && po.lineItems.length > 0 
+        ? po.lineItems.map(item => ({
+            id: item.id, // Include the line item ID for tracking
+            description: item.description,
+            quantity: item.quantity.toString(),
+            unitPrice: parseFloat(item.unitPrice).toFixed(2),
+            productUrl: item.productUrl || '',
+          }))
+        : [{ description: '', quantity: '1', unitPrice: '0.00', productUrl: '' }],
+    });
+    setIsPODialogOpen(true);
+  };
 
   const filteredOrders = purchaseOrders?.filter((po) =>
     statusFilter === 'all' ? true : po.status === statusFilter
@@ -612,7 +659,13 @@ function PurchaseOrdersTab() {
               <SelectItem value="rejected">Rejected</SelectItem>
             </SelectContent>
           </Select>
-          <Dialog open={isPODialogOpen} onOpenChange={setIsPODialogOpen}>
+          <Dialog open={isPODialogOpen} onOpenChange={(open) => {
+            setIsPODialogOpen(open);
+            if (!open) {
+              setEditingPO(null);
+              poForm.reset();
+            }
+          }}>
             <DialogTrigger asChild>
               <Button data-testid="button-create-po">
                 <Plus className="h-4 w-4 mr-2" />
@@ -621,11 +674,21 @@ function PurchaseOrdersTab() {
             </DialogTrigger>
             <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>Create Purchase Order</DialogTitle>
-                <DialogDescription>Create a new purchase order for vendor goods or services</DialogDescription>
+                <DialogTitle>{editingPO ? 'Edit Purchase Order' : 'Create Purchase Order'}</DialogTitle>
+                <DialogDescription>
+                  {editingPO 
+                    ? `Edit purchase order ${editingPO.poNumber}`
+                    : 'Create a new purchase order for vendor goods or services'}
+                </DialogDescription>
               </DialogHeader>
               <Form {...poForm}>
-                <form onSubmit={poForm.handleSubmit((data) => createPOMutation.mutate(data))} className="space-y-4">
+                <form onSubmit={poForm.handleSubmit((data) => {
+                  if (editingPO) {
+                    updatePOMutation.mutate({ poId: editingPO.id, data });
+                  } else {
+                    createPOMutation.mutate(data);
+                  }
+                })} className="space-y-4">
                   <FormField
                     control={poForm.control}
                     name="vendorId"
@@ -765,8 +828,8 @@ function PurchaseOrdersTab() {
                   ))}
 
                   <DialogFooter>
-                    <Button type="submit" disabled={createPOMutation.isPending} data-testid="button-save-po">
-                      Create Purchase Order
+                    <Button type="submit" disabled={createPOMutation.isPending || updatePOMutation.isPending} data-testid="button-save-po">
+                      {editingPO ? 'Update Purchase Order' : 'Create Purchase Order'}
                     </Button>
                   </DialogFooter>
                 </form>
@@ -797,15 +860,26 @@ function PurchaseOrdersTab() {
                   </div>
                   <div className="flex gap-2">
                     {po.status === 'draft' && (
-                      <Button
-                        size="sm"
-                        onClick={() => submitPOMutation.mutate(po.id)}
-                        disabled={submitPOMutation.isPending}
-                        data-testid={`button-submit-po-${po.id}`}
-                      >
-                        <Send className="h-4 w-4 mr-2" />
-                        Submit for Approval
-                      </Button>
+                      <>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleEditPO(po)}
+                          data-testid={`button-edit-po-${po.id}`}
+                        >
+                          <Edit className="h-4 w-4 mr-2" />
+                          Edit
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={() => submitPOMutation.mutate(po.id)}
+                          disabled={submitPOMutation.isPending}
+                          data-testid={`button-submit-po-${po.id}`}
+                        >
+                          <Send className="h-4 w-4 mr-2" />
+                          Submit for Approval
+                        </Button>
+                      </>
                     )}
                   </div>
                 </div>
