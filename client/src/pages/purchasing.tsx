@@ -846,7 +846,12 @@ function PurchaseOrdersTab() {
       ) : (
         <div className="grid gap-4">
           {filteredOrders?.map((po) => (
-            <Card key={po.id} data-testid={`card-po-${po.id}`}>
+            <Card 
+              key={po.id} 
+              data-testid={`card-po-${po.id}`}
+              className="cursor-pointer hover:shadow-md transition-shadow"
+              onClick={() => handleEditPO(po)}
+            >
               <CardHeader>
                 <div className="flex justify-between items-start">
                   <div>
@@ -860,7 +865,7 @@ function PurchaseOrdersTab() {
                       Vendor: {po.vendor?.name} • Total: ${parseFloat(po.totalAmount).toFixed(2)}
                     </CardDescription>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
                     {po.status === 'draft' && (
                       <>
                         <Button
@@ -909,9 +914,9 @@ function PurchaseOrdersTab() {
                             <TableRow key={item.id}>
                               <TableCell>{item.description}</TableCell>
                               <TableCell>{item.quantity}</TableCell>
-                              <TableCell>${parseFloat(item.unitPrice).toFixed(2)}</TableCell>
+                              <TableCell>${parseFloat(item.unitCost).toFixed(2)}</TableCell>
                               <TableCell className="text-right">
-                                ${(item.quantity * parseFloat(item.unitPrice)).toFixed(2)}
+                                ${parseFloat(item.lineTotal).toFixed(2)}
                               </TableCell>
                             </TableRow>
                           ))}
