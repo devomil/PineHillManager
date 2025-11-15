@@ -1791,6 +1791,10 @@ export interface IStorage {
   deletePurchaseOrder(id: number): Promise<void>;
   generatePONumber(): Promise<string>;
   
+  // Transactional Purchase Order Operations (with line items)
+  createPurchaseOrderWithLineItems(payload: any): Promise<any>;
+  updatePurchaseOrderWithLineItems(poId: number, payload: any): Promise<any>;
+  
   // Purchase Order Line Items Operations
   addPurchaseOrderLineItem(item: InsertPurchaseOrderLineItem): Promise<PurchaseOrderLineItem>;
   getPurchaseOrderLineItems(purchaseOrderId: number): Promise<PurchaseOrderLineItem[]>;
@@ -14315,6 +14319,156 @@ export class DatabaseStorage implements IStorage {
 
   async deletePurchaseOrder(id: number): Promise<void> {
     await db.delete(purchaseOrders).where(eq(purchaseOrders.id, id));
+  }
+
+  // Transactional Purchase Order Operations (with line items)
+  async createPurchaseOrderWithLineItems(payload: any): Promise<any> {
+    return await db.transaction(async (tx) => {
+      const { lineItems, ...poData } = payload;
+      
+      // Calculate total amount from line items
+      let totalAmount = 0;
+      const processedLineItems = lineItems.map((item: any) => {
+        const quantity = typeof item.quantity === 'string' ? parseFloat(item.quantity) : item.quantity;
+        const unitCost = typeof item.unitCost === 'string' ? parseFloat(item.unitCost) : item.unitCost;
+        const lineTotal = quantity * unitCost;
+        totalAmount += lineTotal;
+        
+        return {
+          description: item.description,
+          sku: item.sku || null,
+          productUrl: item.productUrl || null,
+          quantity: item.quantity, // Keep as-is from payload
+          unitCost: item.unitCost, // Keep as-is from payload
+          lineTotal: lineTotal.toString(), // Convert to string for database
+          receivedQuantity: item.receivedQuantity || '0',
+          notes: item.notes || null,
+          inventoryItemId: item.inventoryItemId || null,
+        };
+      });
+      
+      // Create the purchase order
+      const [createdPO] = await tx.insert(purchaseOrders).values({
+        ...poData,
+        totalAmount: totalAmount.toString(),
+      }).returning();
+      
+      // Insert all line items
+      const createdLineItems = [];
+      for (const lineItem of processedLineItems) {
+        const [created] = await tx.insert(purchaseOrderLineItems).values({
+          ...lineItem,
+          purchaseOrderId: createdPO.id,
+        }).returning();
+        createdLineItems.push(created);
+      }
+      
+      return {
+        ...createdPO,
+        lineItems: createdLineItems,
+      };
+    });
+  }
+
+  async updatePurchaseOrderWithLineItems(poId: number, payload: any): Promise<any> {
+    return await db.transaction(async (tx) => {
+      const { lineItems, ...poData } = payload;
+      
+      // Get existing line items to detect deletions
+      const existingLineItems = await tx.select()
+        .from(purchaseOrderLineItems)
+        .where(eq(purchaseOrderLineItems.purchaseOrderId, poId));
+      
+      const existingItemIds = new Set(existingLineItems.map(item => item.id));
+      const incomingItemIds = new Set(lineItems.filter((item: any) => item.id).map((item: any) => item.id));
+      
+      // Calculate total amount from line items (excluding deleted ones)
+      let totalAmount = 0;
+      const itemsToCreate = [];
+      const itemsToUpdate = [];
+      const itemsToDelete = [];
+      
+      // Detect deleted items (existing IDs not present in incoming payload)
+      for (const existingId of existingItemIds) {
+        if (!incomingItemIds.has(existingId)) {
+          itemsToDelete.push(existingId);
+        }
+      }
+      
+      // Process incoming line items
+      for (const item of lineItems) {
+        // Also support explicit _delete flag
+        if (item._delete) {
+          if (item.id && !itemsToDelete.includes(item.id)) {
+            itemsToDelete.push(item.id);
+          }
+          continue;
+        }
+        
+        const quantity = typeof item.quantity === 'string' ? parseFloat(item.quantity) : item.quantity;
+        const unitCost = typeof item.unitCost === 'string' ? parseFloat(item.unitCost) : item.unitCost;
+        const lineTotal = quantity * unitCost;
+        totalAmount += lineTotal;
+        
+        const processedItem = {
+          description: item.description,
+          sku: item.sku || null,
+          productUrl: item.productUrl || null,
+          quantity: item.quantity, // Keep as-is from payload
+          unitCost: item.unitCost, // Keep as-is from payload
+          lineTotal: lineTotal.toString(),
+          receivedQuantity: item.receivedQuantity || '0',
+          notes: item.notes || null,
+          inventoryItemId: item.inventoryItemId || null,
+        };
+        
+        if (item.id) {
+          itemsToUpdate.push({ id: item.id, data: processedItem });
+        } else {
+          itemsToCreate.push(processedItem);
+        }
+      }
+      
+      // Update the purchase order metadata
+      const [updatedPO] = await tx.update(purchaseOrders)
+        .set({
+          ...poData,
+          totalAmount: totalAmount.toString(),
+          updatedAt: new Date(),
+        })
+        .where(eq(purchaseOrders.id, poId))
+        .returning();
+      
+      // Delete missing or flagged line items
+      for (const itemId of itemsToDelete) {
+        await tx.delete(purchaseOrderLineItems).where(eq(purchaseOrderLineItems.id, itemId));
+      }
+      
+      // Update existing line items
+      for (const { id, data } of itemsToUpdate) {
+        await tx.update(purchaseOrderLineItems)
+          .set(data)
+          .where(eq(purchaseOrderLineItems.id, id));
+      }
+      
+      // Create new line items
+      for (const itemData of itemsToCreate) {
+        await tx.insert(purchaseOrderLineItems).values({
+          ...itemData,
+          purchaseOrderId: poId,
+        });
+      }
+      
+      // Fetch all current line items
+      const currentLineItems = await tx.select()
+        .from(purchaseOrderLineItems)
+        .where(eq(purchaseOrderLineItems.purchaseOrderId, poId));
+      
+      return {
+        ...updatedPO,
+        lineItems: currentLineItems,
+      };
+    });
   }
 
   // Purchase Order Line Items Operations

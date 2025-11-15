@@ -182,6 +182,7 @@ const vendorFormSchema = z.object({
 });
 
 const lineItemSchema = z.object({
+  id: z.number().optional(), // Include ID for existing items being edited
   description: z.string().min(1, 'Description is required'),
   quantity: z.string().min(1, 'Quantity is required').refine((val) => !isNaN(parseFloat(val)) && parseFloat(val) > 0, 'Quantity must be positive'),
   unitPrice: z.string().min(1, 'Unit price is required').refine((val) => !isNaN(parseFloat(val)) && parseFloat(val) > 0, 'Price must be positive'),
@@ -547,8 +548,8 @@ function PurchaseOrdersTab() {
     mutationFn: async (data: z.infer<typeof purchaseOrderFormSchema>) => {
       const lineItems = data.lineItems.map((item) => ({
         description: item.description,
-        quantity: parseFloat(item.quantity).toFixed(3),
-        unitPrice: parseFloat(item.unitPrice).toFixed(2),
+        quantity: item.quantity,
+        unitCost: item.unitPrice, // Backend expects unitCost
         productUrl: item.productUrl || null,
       }));
       
@@ -577,9 +578,10 @@ function PurchaseOrdersTab() {
   const updatePOMutation = useMutation({
     mutationFn: async ({ poId, data }: { poId: number; data: z.infer<typeof purchaseOrderFormSchema> }) => {
       const lineItems = data.lineItems.map((item) => ({
+        id: item.id, // Include ID for existing items
         description: item.description,
-        quantity: parseFloat(item.quantity).toFixed(3),
-        unitPrice: parseFloat(item.unitPrice).toFixed(2),
+        quantity: item.quantity,
+        unitCost: item.unitPrice, // Backend expects unitCost
         productUrl: item.productUrl || null,
       }));
       
@@ -620,8 +622,8 @@ function PurchaseOrdersTab() {
             id: item.id, // Include the line item ID for tracking
             description: item.description,
             quantity: item.quantity.toString(),
-            unitPrice: parseFloat(item.unitPrice).toFixed(2),
-            productUrl: item.productUrl || '',
+            unitPrice: parseFloat(item.unitCost).toFixed(2),
+            productUrl: (item as any).productUrl || '',
           }))
         : [{ description: '', quantity: '1', unitPrice: '0.00', productUrl: '' }],
     });

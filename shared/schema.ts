@@ -2670,6 +2670,42 @@ export const insertPurchaseOrderLineItemSchema = createInsertSchema(purchaseOrde
   createdAt: true,
 });
 
+// Purchase Order Payload Schemas for transactional create/update
+export const purchaseOrderLineItemPayloadSchema = z.object({
+  id: z.number().optional(), // Include ID for existing items being updated
+  purchaseOrderId: z.number().optional(), // Optional for create, will be set by backend
+  inventoryItemId: z.number().optional().nullable(),
+  description: z.string(),
+  sku: z.string().optional().nullable(),
+  productUrl: z.string().optional().nullable(),
+  quantity: z.string().or(z.number()).transform(val => typeof val === 'string' ? val : val.toString()),
+  unitCost: z.string().or(z.number()).transform(val => typeof val === 'string' ? val : val.toString()),
+  lineTotal: z.string().or(z.number()).optional().transform(val => val === undefined ? undefined : (typeof val === 'string' ? val : val.toString())),
+  receivedQuantity: z.string().or(z.number()).optional().transform(val => val === undefined ? '0.000' : (typeof val === 'string' ? val : val.toString())),
+  notes: z.string().optional().nullable(),
+  _delete: z.boolean().optional(), // Flag to mark item for deletion
+});
+
+export const purchaseOrderPayloadSchema = z.object({
+  // PO metadata fields (same as insertPurchaseOrderSchema but without omitted fields)
+  poNumber: z.string(),
+  vendorId: z.number(),
+  requestedById: z.string().optional().nullable(),
+  createdById: z.string().optional().nullable(),
+  status: z.string().default('draft'),
+  orderDate: z.string().optional().nullable(),
+  requestedDeliveryDate: z.string().optional().nullable(),
+  actualDeliveryDate: z.string().optional().nullable(),
+  totalAmount: z.string().or(z.number()).optional().transform(val => val === undefined ? '0.00' : (typeof val === 'string' ? val : val.toString())),
+  taxAmount: z.string().or(z.number()).optional().transform(val => val === undefined ? '0.00' : (typeof val === 'string' ? val : val.toString())),
+  shippingAmount: z.string().or(z.number()).optional().transform(val => val === undefined ? '0.00' : (typeof val === 'string' ? val : val.toString())),
+  discountAmount: z.string().or(z.number()).optional().transform(val => val === undefined ? '0.00' : (typeof val === 'string' ? val : val.toString())),
+  notes: z.string().optional().nullable(),
+  internalNotes: z.string().optional().nullable(),
+  // Line items array
+  lineItems: z.array(purchaseOrderLineItemPayloadSchema).min(1, 'At least one line item is required'),
+});
+
 export const insertPurchaseOrderApprovalSchema = createInsertSchema(purchaseOrderApprovals).omit({
   id: true,
   createdAt: true,
@@ -2804,6 +2840,9 @@ export type InsertPurchaseOrder = z.infer<typeof insertPurchaseOrderSchema>;
 
 export type PurchaseOrderLineItem = typeof purchaseOrderLineItems.$inferSelect;
 export type InsertPurchaseOrderLineItem = z.infer<typeof insertPurchaseOrderLineItemSchema>;
+
+export type PurchaseOrderLineItemPayload = z.infer<typeof purchaseOrderLineItemPayloadSchema>;
+export type PurchaseOrderPayload = z.infer<typeof purchaseOrderPayloadSchema>;
 
 export type PurchaseOrderApproval = typeof purchaseOrderApprovals.$inferSelect;
 export type InsertPurchaseOrderApproval = z.infer<typeof insertPurchaseOrderApprovalSchema>;

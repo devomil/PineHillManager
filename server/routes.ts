@@ -39,6 +39,7 @@ import {
   insertCustomersVendorsSchema,
   insertVendorProfileSchema,
   insertPurchaseOrderSchema,
+  purchaseOrderPayloadSchema,
   insertPurchaseOrderLineItemSchema,
   insertPurchaseOrderApprovalSchema,
   insertPurchaseOrderEventSchema,
@@ -18705,10 +18706,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: 'Admin or Manager access required' });
       }
 
-      const poData = insertPurchaseOrderSchema.parse(req.body);
+      const payload = purchaseOrderPayloadSchema.parse(req.body);
 
-      const purchaseOrder = await storage.createPurchaseOrder({
-        ...poData,
+      const purchaseOrder = await storage.createPurchaseOrderWithLineItems({
+        ...payload,
         createdById: req.user.id,
       });
 
@@ -18756,9 +18757,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const poId = parseInt(req.params.id);
-      const updates = insertPurchaseOrderSchema.partial().parse(req.body);
+      
+      // Make poNumber optional for updates since it's already set
+      const updatePayloadSchema = purchaseOrderPayloadSchema.omit({ poNumber: true }).extend({
+        poNumber: z.string().optional(),
+      });
+      
+      const payload = updatePayloadSchema.parse(req.body);
 
-      const purchaseOrder = await storage.updatePurchaseOrder(poId, updates);
+      const purchaseOrder = await storage.updatePurchaseOrderWithLineItems(poId, payload);
 
       await storage.createPurchaseOrderEvent({
         purchaseOrderId: poId,
