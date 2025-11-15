@@ -894,21 +894,23 @@ function PurchaseOrdersTab() {
                           <Send className="h-4 w-4 mr-2" />
                           Submit for Approval
                         </Button>
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => {
-                            if (confirm('Are you sure you want to delete this purchase order?')) {
-                              deletePOMutation.mutate(po.id);
-                            }
-                          }}
-                          disabled={deletePOMutation.isPending}
-                          data-testid={`button-delete-po-${po.id}`}
-                        >
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          Delete
-                        </Button>
                       </>
+                    )}
+                    {(po.status === 'draft' || po.status === 'pending_approval') && (
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => {
+                          if (confirm('Are you sure you want to delete this purchase order?')) {
+                            deletePOMutation.mutate(po.id);
+                          }
+                        }}
+                        disabled={deletePOMutation.isPending}
+                        data-testid={`button-delete-po-${po.id}`}
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete
+                      </Button>
                     )}
                   </div>
                 </div>
