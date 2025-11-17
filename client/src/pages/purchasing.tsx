@@ -253,7 +253,7 @@ function VendorsTab() {
       return apiRequest('POST', '/api/purchasing/vendors', { ...vendorData, type: 'vendor', profile });
     },
     onSuccess: async () => {
-      await queryClient.refetchQueries({ queryKey: ['/api/purchasing/vendors'] });
+      await queryClient.invalidateQueries({ queryKey: ['/api/purchasing/vendors'] });
       toast({ title: 'Vendor created successfully' });
       setIsVendorDialogOpen(false);
       vendorForm.reset();
@@ -267,7 +267,7 @@ function VendorsTab() {
       return apiRequest('PATCH', `/api/purchasing/vendors/${id}`, { ...vendorData, type: 'vendor', profile });
     },
     onSuccess: async () => {
-      await queryClient.refetchQueries({ queryKey: ['/api/purchasing/vendors'] });
+      await queryClient.invalidateQueries({ queryKey: ['/api/purchasing/vendors'] });
       toast({ title: 'Vendor updated successfully' });
       setIsVendorDialogOpen(false);
       setEditingVendor(null);
@@ -280,13 +280,13 @@ function VendorsTab() {
       const response = await apiRequest('DELETE', `/api/purchasing/vendors/${vendorId}`);
       return response;
     },
-    onSuccess: async () => {
-      console.log('🎯 Delete mutation onSuccess - refetching vendors');
-      await queryClient.refetchQueries({ 
-        queryKey: ['/api/purchasing/vendors'],
-        exact: true 
+    onSuccess: async (_, vendorId) => {
+      queryClient.setQueryData<Vendor[]>(['/api/purchasing/vendors'], (old) => 
+        old ? old.filter(v => v.id !== vendorId) : []
+      );
+      await queryClient.invalidateQueries({ 
+        queryKey: ['/api/purchasing/vendors']
       });
-      console.log('✅ Refetch complete');
       toast({ title: 'Vendor deleted successfully' });
     },
     onError: (error) => {
