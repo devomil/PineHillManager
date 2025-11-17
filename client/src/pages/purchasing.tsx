@@ -276,10 +276,22 @@ function VendorsTab() {
   });
 
   const deleteVendorMutation = useMutation({
-    mutationFn: (vendorId: number) => apiRequest('DELETE', `/api/purchasing/vendors/${vendorId}`),
+    mutationFn: async (vendorId: number) => {
+      const response = await apiRequest('DELETE', `/api/purchasing/vendors/${vendorId}`);
+      return response;
+    },
     onSuccess: async () => {
-      await queryClient.refetchQueries({ queryKey: ['/api/purchasing/vendors'] });
+      console.log('🎯 Delete mutation onSuccess - refetching vendors');
+      await queryClient.refetchQueries({ 
+        queryKey: ['/api/purchasing/vendors'],
+        exact: true 
+      });
+      console.log('✅ Refetch complete');
       toast({ title: 'Vendor deleted successfully' });
+    },
+    onError: (error) => {
+      console.error('❌ Delete mutation error:', error);
+      toast({ title: 'Error deleting vendor', variant: 'destructive' });
     },
   });
 
