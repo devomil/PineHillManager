@@ -51,7 +51,8 @@ import {
   Mail,
   Phone,
   Calendar,
-  Scan
+  Scan,
+  Upload
 } from 'lucide-react';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import AdminLayout from '@/components/admin-layout';
@@ -206,6 +207,27 @@ function VendorsTab() {
     queryKey: ['/api/purchasing/vendors'],
   });
 
+  const importVendorsMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest('POST', '/api/purchasing/vendors/import-from-inventory');
+    },
+    onSuccess: async (response) => {
+      const data = await response.json();
+      queryClient.invalidateQueries({ queryKey: ['/api/purchasing/vendors'] });
+      toast({
+        title: 'Vendors Imported',
+        description: `Imported ${data.imported} vendors from inventory. ${data.skipped} already existed.`,
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Import Failed',
+        description: 'Failed to import vendors from inventory',
+        variant: 'destructive',
+      });
+    },
+  });
+
   const vendorForm = useForm<z.infer<typeof vendorFormSchema>>({
     resolver: zodResolver(vendorFormSchema),
     defaultValues: {
@@ -296,20 +318,30 @@ function VendorsTab() {
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold">Vendors</h2>
-        <Dialog open={isVendorDialogOpen} onOpenChange={(open) => {
-          setIsVendorDialogOpen(open);
-          if (!open) {
-            setEditingVendor(null);
-            vendorForm.reset();
-          }
-        }}>
-          <DialogTrigger asChild>
-            <Button data-testid="button-add-vendor">
-              <Plus className="h-4 w-4 mr-2" />
-              Add Vendor
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => importVendorsMutation.mutate()}
+            disabled={importVendorsMutation.isPending}
+            data-testid="button-import-vendors"
+          >
+            <Upload className="h-4 w-4 mr-2" />
+            {importVendorsMutation.isPending ? 'Importing...' : 'Import from Inventory'}
+          </Button>
+          <Dialog open={isVendorDialogOpen} onOpenChange={(open) => {
+            setIsVendorDialogOpen(open);
+            if (!open) {
+              setEditingVendor(null);
+              vendorForm.reset();
+            }
+          }}>
+            <DialogTrigger asChild>
+              <Button data-testid="button-add-vendor">
+                <Plus className="h-4 w-4 mr-2" />
+                Add Vendor
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{editingVendor ? 'Edit Vendor' : 'Add New Vendor'}</DialogTitle>
               <DialogDescription>
@@ -444,6 +476,7 @@ function VendorsTab() {
             </Form>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       {isLoading ? (

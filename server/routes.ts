@@ -19166,6 +19166,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post('/api/purchasing/vendors/import-from-inventory', isAuthenticated, async (req, res) => {
+    try {
+      if (!req.user || !['admin', 'manager'].includes(req.user.role)) {
+        return res.status(403).json({ error: 'Admin or Manager access required' });
+      }
+
+      const result = await storage.importVendorsFromInventory();
+      res.json(result);
+    } catch (error) {
+      console.error('Error importing vendors from inventory:', error);
+      res.status(500).json({ message: 'Failed to import vendors from inventory' });
+    }
+  });
+
   const httpServer = createServer(app);
 
   // WebSocket server for real-time updates

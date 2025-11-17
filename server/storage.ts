@@ -1819,6 +1819,7 @@ export interface IStorage {
   getOutstandingPurchaseOrders(): Promise<PurchaseOrder[]>;
   getPaymentComplianceReport(startDate?: string, endDate?: string): Promise<any[]>;
   getOutstandingPayablesReport(): Promise<any[]>;
+  importVendorsFromInventory(): Promise<{ imported: number; skipped: number; vendors: string[] }>;
 }
 
 // @ts-ignore
@@ -14733,6 +14734,63 @@ export class DatabaseStorage implements IStorage {
           END
         `
       );
+  }
+
+  async importVendorsFromInventory(): Promise<{ imported: number; skipped: number; vendors: string[] }> {
+    // Get all inventory items
+    const allItems = await this.getAllInventoryItems();
+    
+    // Extract unique vendor names
+    const vendorNames = new Set<string>();
+    for (const item of allItems) {
+      if (item.vendor && item.vendor.trim()) {
+        vendorNames.add(item.vendor.trim());
+      }
+    }
+
+    // Get existing vendors
+    const existingVendors = await this.getAllVendors();
+    const existingVendorNames = new Set(existingVendors.map(v => v.name.toLowerCase()));
+
+    let imported = 0;
+    let skipped = 0;
+    const importedVendorNames: string[] = [];
+
+    // Import each unique vendor
+    for (const vendorName of vendorNames) {
+      if (existingVendorNames.has(vendorName.toLowerCase())) {
+        skipped++;
+        continue;
+      }
+
+      // Create customer/vendor entry
+      const [customerVendor] = await db
+        .insert(customersVendors)
+        .values({
+          name: vendorName,
+          type: 'vendor',
+          isActive: true,
+        })
+        .returning();
+
+      // Create vendor profile with defaults
+      await db
+        .insert(vendorProfiles)
+        .values({
+          vendorId: customerVendor.id,
+          paymentTerms: 'Net 30',
+          source: 'inventory_import',
+        });
+
+      imported++;
+      importedVendorNames.push(vendorName);
+    }
+
+    return {
+      imported,
+      skipped,
+      vendors: importedVendorNames,
+    };
   }
 }
 
