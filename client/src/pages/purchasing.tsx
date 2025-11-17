@@ -217,7 +217,7 @@ function VendorsTab() {
       const data = await response.json();
       await queryClient.refetchQueries({ 
         queryKey: ['/api/purchasing/vendors'],
-        type: 'active'
+        type: 'all'
       });
       toast({
         title: 'Vendors Imported',
@@ -258,7 +258,7 @@ function VendorsTab() {
     onSuccess: async () => {
       await queryClient.refetchQueries({ 
         queryKey: ['/api/purchasing/vendors'],
-        type: 'active'
+        type: 'all'
       });
       toast({ title: 'Vendor created successfully' });
       setIsVendorDialogOpen(false);
@@ -275,7 +275,7 @@ function VendorsTab() {
     onSuccess: async () => {
       await queryClient.refetchQueries({ 
         queryKey: ['/api/purchasing/vendors'],
-        type: 'active'
+        type: 'all'
       });
       toast({ title: 'Vendor updated successfully' });
       setIsVendorDialogOpen(false);
@@ -289,7 +289,7 @@ function VendorsTab() {
     onSuccess: async () => {
       await queryClient.refetchQueries({ 
         queryKey: ['/api/purchasing/vendors'],
-        type: 'active'
+        type: 'all'
       });
       toast({ title: 'Vendor deleted successfully' });
     },
