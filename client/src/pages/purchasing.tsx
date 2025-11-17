@@ -215,7 +215,7 @@ function VendorsTab() {
     },
     onSuccess: async (response) => {
       const data = await response.json();
-      await queryClient.fetchQuery({ queryKey: ['/api/purchasing/vendors'] });
+      await queryClient.invalidateQueries({ queryKey: ['/api/purchasing/vendors'] });
       toast({
         title: 'Vendors Imported',
         description: `Imported ${data.imported} vendors from inventory. ${data.skipped} already existed.`,
@@ -253,7 +253,7 @@ function VendorsTab() {
       return apiRequest('POST', '/api/purchasing/vendors', { ...vendorData, type: 'vendor', profile });
     },
     onSuccess: async () => {
-      await queryClient.fetchQuery({ queryKey: ['/api/purchasing/vendors'] });
+      await queryClient.invalidateQueries({ queryKey: ['/api/purchasing/vendors'] });
       toast({ title: 'Vendor created successfully' });
       setIsVendorDialogOpen(false);
       vendorForm.reset();
@@ -267,7 +267,7 @@ function VendorsTab() {
       return apiRequest('PATCH', `/api/purchasing/vendors/${id}`, { ...vendorData, type: 'vendor', profile });
     },
     onSuccess: async () => {
-      await queryClient.fetchQuery({ queryKey: ['/api/purchasing/vendors'] });
+      await queryClient.invalidateQueries({ queryKey: ['/api/purchasing/vendors'] });
       toast({ title: 'Vendor updated successfully' });
       setIsVendorDialogOpen(false);
       setEditingVendor(null);
@@ -278,7 +278,7 @@ function VendorsTab() {
   const deleteVendorMutation = useMutation({
     mutationFn: (vendorId: number) => apiRequest('DELETE', `/api/purchasing/vendors/${vendorId}`),
     onSuccess: async () => {
-      await queryClient.fetchQuery({ queryKey: ['/api/purchasing/vendors'] });
+      await queryClient.invalidateQueries({ queryKey: ['/api/purchasing/vendors'] });
       toast({ title: 'Vendor deleted successfully' });
     },
   });
