@@ -284,9 +284,16 @@ function VendorsTab() {
   const deleteVendorMutation = useMutation({
     mutationFn: (vendorId: number) => apiRequest('DELETE', `/api/purchasing/vendors/${vendorId}`),
     onSuccess: async (_, vendorId) => {
-      queryClient.setQueryData<Vendor[]>(['/api/purchasing/vendors'], (old) => 
-        old ? old.filter(v => v.id !== vendorId) : []
-      );
+      console.log('Delete mutation onSuccess fired for vendor:', vendorId);
+      console.log('Current vendors before update:', queryClient.getQueryData(['/api/purchasing/vendors']));
+      
+      queryClient.setQueryData<Vendor[]>(['/api/purchasing/vendors'], (old) => {
+        const filtered = old ? old.filter(v => v.id !== vendorId) : [];
+        console.log('New vendors after filter:', filtered);
+        return filtered;
+      });
+      
+      console.log('Current vendors after setQueryData:', queryClient.getQueryData(['/api/purchasing/vendors']));
       toast({ title: 'Vendor deleted successfully' });
     },
   });
