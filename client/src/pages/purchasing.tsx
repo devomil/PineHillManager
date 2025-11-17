@@ -250,10 +250,10 @@ function VendorsTab() {
     mutationFn: async (data: z.infer<typeof vendorFormSchema>) => {
       const { paymentTerms, creditLimit, taxId, preferredCurrency, contactEmail, contactPhone, creditCardLastFour, profileNotes, ...vendorData } = data;
       const profile = { paymentTerms, creditLimit, taxId, preferredCurrency, contactEmail, contactPhone, creditCardLastFour, notes: profileNotes };
-      return apiRequest('POST', '/api/purchasing/vendors', { ...vendorData, type: 'vendor', profile });
+      await apiRequest('POST', '/api/purchasing/vendors', { ...vendorData, type: 'vendor', profile });
     },
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['/api/purchasing/vendors'] });
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/purchasing/vendors'] });
       toast({ title: 'Vendor created successfully' });
       setIsVendorDialogOpen(false);
       vendorForm.reset();
@@ -264,10 +264,10 @@ function VendorsTab() {
     mutationFn: async (data: z.infer<typeof vendorFormSchema> & { id: number }) => {
       const { id, paymentTerms, creditLimit, taxId, preferredCurrency, contactEmail, contactPhone, creditCardLastFour, profileNotes, ...vendorData } = data;
       const profile = { paymentTerms, creditLimit, taxId, preferredCurrency, contactEmail, contactPhone, creditCardLastFour, notes: profileNotes };
-      return apiRequest('PATCH', `/api/purchasing/vendors/${id}`, { ...vendorData, type: 'vendor', profile });
+      await apiRequest('PATCH', `/api/purchasing/vendors/${id}`, { ...vendorData, type: 'vendor', profile });
     },
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['/api/purchasing/vendors'] });
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/purchasing/vendors'] });
       toast({ title: 'Vendor updated successfully' });
       setIsVendorDialogOpen(false);
       setEditingVendor(null);
@@ -277,14 +277,14 @@ function VendorsTab() {
 
   const deleteVendorMutation = useMutation({
     mutationFn: async (vendorId: number) => {
-      const response = await apiRequest('DELETE', `/api/purchasing/vendors/${vendorId}`);
-      return response;
+      await apiRequest('DELETE', `/api/purchasing/vendors/${vendorId}`);
+      return vendorId;
     },
-    onSuccess: async (_, vendorId) => {
+    onSuccess: (vendorId) => {
       queryClient.setQueryData<Vendor[]>(['/api/purchasing/vendors'], (old) => 
         old ? old.filter(v => v.id !== vendorId) : []
       );
-      await queryClient.invalidateQueries({ 
+      queryClient.invalidateQueries({ 
         queryKey: ['/api/purchasing/vendors']
       });
       toast({ title: 'Vendor deleted successfully' });
