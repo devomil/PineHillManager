@@ -215,7 +215,7 @@ function VendorsTab() {
     },
     onSuccess: async (response) => {
       const data = await response.json();
-      await queryClient.invalidateQueries({ queryKey: ['/api/purchasing/vendors'] });
+      queryClient.refetchQueries({ queryKey: ['/api/purchasing/vendors'] });
       toast({
         title: 'Vendors Imported',
         description: `Imported ${data.imported} vendors from inventory. ${data.skipped} already existed.`,
@@ -252,8 +252,11 @@ function VendorsTab() {
       const profile = { paymentTerms, creditLimit, taxId, preferredCurrency, contactEmail, contactPhone, creditCardLastFour, notes: profileNotes };
       return apiRequest('POST', '/api/purchasing/vendors', { ...vendorData, type: 'vendor', profile });
     },
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['/api/purchasing/vendors'] });
+    onSuccess: async (response) => {
+      const newVendor = await response.json();
+      queryClient.setQueryData<Vendor[]>(['/api/purchasing/vendors'], (old) => 
+        old ? [...old, newVendor] : [newVendor]
+      );
       toast({ title: 'Vendor created successfully' });
       setIsVendorDialogOpen(false);
       vendorForm.reset();
@@ -266,8 +269,11 @@ function VendorsTab() {
       const profile = { paymentTerms, creditLimit, taxId, preferredCurrency, contactEmail, contactPhone, creditCardLastFour, notes: profileNotes };
       return apiRequest('PATCH', `/api/purchasing/vendors/${id}`, { ...vendorData, type: 'vendor', profile });
     },
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['/api/purchasing/vendors'] });
+    onSuccess: async (response) => {
+      const updatedVendor = await response.json();
+      queryClient.setQueryData<Vendor[]>(['/api/purchasing/vendors'], (old) => 
+        old ? old.map(v => v.id === updatedVendor.id ? updatedVendor : v) : [updatedVendor]
+      );
       toast({ title: 'Vendor updated successfully' });
       setIsVendorDialogOpen(false);
       setEditingVendor(null);
@@ -277,8 +283,10 @@ function VendorsTab() {
 
   const deleteVendorMutation = useMutation({
     mutationFn: (vendorId: number) => apiRequest('DELETE', `/api/purchasing/vendors/${vendorId}`),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['/api/purchasing/vendors'] });
+    onSuccess: async (_, vendorId) => {
+      queryClient.setQueryData<Vendor[]>(['/api/purchasing/vendors'], (old) => 
+        old ? old.filter(v => v.id !== vendorId) : []
+      );
       toast({ title: 'Vendor deleted successfully' });
     },
   });
