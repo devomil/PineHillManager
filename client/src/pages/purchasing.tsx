@@ -119,6 +119,7 @@ type PurchaseOrder = {
   createdById: string;
   locationId?: number;
   status: string;
+  paymentTerms?: string;
   totalAmount: string;
   notes?: string;
   requestedDeliveryDate?: string;
@@ -192,6 +193,7 @@ const lineItemSchema = z.object({
 
 const purchaseOrderFormSchema = z.object({
   vendorId: z.string().min(1, 'Vendor is required'),
+  paymentTerms: z.string().default('Net 30'),
   requestedDeliveryDate: z.string().optional(),
   notes: z.string().optional(),
   internalNotes: z.string().optional(),
@@ -570,6 +572,7 @@ function PurchaseOrdersTab() {
   const poForm = useForm<z.infer<typeof purchaseOrderFormSchema>>({
     resolver: zodResolver(purchaseOrderFormSchema),
     defaultValues: {
+      paymentTerms: 'Net 30',
       lineItems: [{ description: '', quantity: '1', unitPrice: '0.00', productUrl: '' }],
     },
   });
@@ -608,6 +611,7 @@ function PurchaseOrdersTab() {
         vendorId: parseInt(data.vendorId),
         requestedById: user?.id,
         createdById: user?.id,
+        paymentTerms: data.paymentTerms,
         requestedDeliveryDate: data.requestedDeliveryDate,
         notes: data.notes,
         internalNotes: data.internalNotes,
@@ -634,6 +638,7 @@ function PurchaseOrdersTab() {
       
       return apiRequest('PATCH', `/api/purchasing/purchase-orders/${poId}`, {
         vendorId: parseInt(data.vendorId),
+        paymentTerms: data.paymentTerms,
         requestedDeliveryDate: data.requestedDeliveryDate,
         notes: data.notes,
         internalNotes: data.internalNotes,
@@ -752,7 +757,16 @@ function PurchaseOrdersTab() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Vendor *</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
+                        <Select 
+                          onValueChange={(value) => {
+                            field.onChange(value);
+                            const selectedVendor = vendors?.find(v => v.id.toString() === value);
+                            if (selectedVendor?.profile?.paymentTerms) {
+                              poForm.setValue('paymentTerms', selectedVendor.profile.paymentTerms);
+                            }
+                          }} 
+                          value={field.value}
+                        >
                           <FormControl>
                             <SelectTrigger data-testid="select-po-vendor">
                               <SelectValue placeholder="Select vendor" />
@@ -764,6 +778,35 @@ function PurchaseOrdersTab() {
                                 {vendor.name}
                               </SelectItem>
                             ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={poForm.control}
+                    name="paymentTerms"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Payment Terms *</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger data-testid="select-po-payment-terms">
+                              <SelectValue placeholder="Select payment terms" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="COD">Cash on Delivery (COD)</SelectItem>
+                            <SelectItem value="Net 15">Net 15</SelectItem>
+                            <SelectItem value="Net 16">Net 16</SelectItem>
+                            <SelectItem value="Net 30">Net 30</SelectItem>
+                            <SelectItem value="Net 60">Net 60</SelectItem>
+                            <SelectItem value="Net 90">Net 90</SelectItem>
+                            <SelectItem value="Credit Card">Credit Card</SelectItem>
+                            <SelectItem value="Wire Transfer">Wire Transfer</SelectItem>
+                            <SelectItem value="Check">Check</SelectItem>
                           </SelectContent>
                         </Select>
                         <FormMessage />
