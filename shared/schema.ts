@@ -1975,6 +1975,7 @@ export const purchaseOrders = pgTable("purchase_orders", {
   requestedById: varchar("requested_by_id").notNull().references(() => users.id),
   createdById: varchar("created_by_id").notNull().references(() => users.id),
   locationId: integer("location_id"),
+  expenseAccountId: integer("expense_account_id").references(() => financialAccounts.id),
   paymentTerms: varchar("payment_terms").default("Net 30"),
   subtotal: decimal("subtotal", { precision: 12, scale: 2 }).default("0.00"),
   taxAmount: decimal("tax_amount", { precision: 12, scale: 2 }).default("0.00"),
@@ -1993,6 +1994,7 @@ export const purchaseOrders = pgTable("purchase_orders", {
   statusIdx: index("idx_po_status").on(table.status),
   requestedByIdx: index("idx_po_requested_by").on(table.requestedById),
   orderDateIdx: index("idx_po_order_date").on(table.orderDate),
+  expenseAccountIdIdx: index("idx_po_expense_account").on(table.expenseAccountId),
 }));
 
 // Purchase Order Line Items
@@ -2693,6 +2695,7 @@ export const purchaseOrderPayloadSchema = z.object({
   requestedById: z.string().optional().nullable(),
   createdById: z.string().optional().nullable(),
   status: z.string().default('draft'),
+  expenseAccountId: z.number().optional().nullable(),
   orderDate: z.string().optional().nullable(),
   requestedDeliveryDate: z.string().optional().nullable(),
   actualDeliveryDate: z.string().optional().nullable(),
