@@ -194,6 +194,7 @@ const lineItemSchema = z.object({
 const purchaseOrderFormSchema = z.object({
   vendorId: z.string().min(1, 'Vendor is required'),
   paymentTerms: z.string().default('Net 30'),
+  expenseAccountId: z.string().optional(),
   requestedDeliveryDate: z.string().optional(),
   notes: z.string().optional(),
   internalNotes: z.string().optional(),
@@ -565,6 +566,10 @@ function PurchaseOrdersTab() {
     queryKey: ['/api/purchasing/vendors'],
   });
 
+  const { data: expenseAccounts } = useQuery<{ id: number; accountName: string; accountNumber: string; accountType: string; }[]>({
+    queryKey: ['/api/accounting/expense-accounts'],
+  });
+
   const { data: purchaseOrders, isLoading } = useQuery<PurchaseOrder[]>({
     queryKey: ['/api/purchasing/purchase-orders'],
   });
@@ -612,6 +617,7 @@ function PurchaseOrdersTab() {
         requestedById: user?.id,
         createdById: user?.id,
         paymentTerms: data.paymentTerms,
+        expenseAccountId: data.expenseAccountId ? parseInt(data.expenseAccountId) : null,
         requestedDeliveryDate: data.requestedDeliveryDate,
         notes: data.notes,
         internalNotes: data.internalNotes,
@@ -639,6 +645,7 @@ function PurchaseOrdersTab() {
       return apiRequest('PATCH', `/api/purchasing/purchase-orders/${poId}`, {
         vendorId: parseInt(data.vendorId),
         paymentTerms: data.paymentTerms,
+        expenseAccountId: data.expenseAccountId ? parseInt(data.expenseAccountId) : null,
         requestedDeliveryDate: data.requestedDeliveryDate,
         notes: data.notes,
         internalNotes: data.internalNotes,
@@ -674,6 +681,8 @@ function PurchaseOrdersTab() {
     setEditingPO(po);
     poForm.reset({
       vendorId: po.vendorId.toString(),
+      paymentTerms: po.paymentTerms || 'Net 30',
+      expenseAccountId: po.expenseAccountId ? po.expenseAccountId.toString() : undefined,
       requestedDeliveryDate: po.requestedDeliveryDate || undefined,
       notes: po.notes || '',
       internalNotes: po.internalNotes || '',
@@ -807,6 +816,31 @@ function PurchaseOrdersTab() {
                             <SelectItem value="Credit Card">Credit Card</SelectItem>
                             <SelectItem value="Wire Transfer">Wire Transfer</SelectItem>
                             <SelectItem value="Check">Check</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={poForm.control}
+                    name="expenseAccountId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Expense Account</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger data-testid="select-po-expense-account">
+                              <SelectValue placeholder="Select expense account (optional)" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {expenseAccounts?.map((account) => (
+                              <SelectItem key={account.id} value={account.id.toString()}>
+                                {account.accountNumber ? `${account.accountNumber} - ${account.accountName}` : account.accountName}
+                              </SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                         <FormMessage />
