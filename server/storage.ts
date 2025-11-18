@@ -14268,7 +14268,7 @@ export class DatabaseStorage implements IStorage {
     return created;
   }
 
-  async getPurchaseOrders(filters?: { status?: string; vendorId?: number; startDate?: string; endDate?: string }): Promise<PurchaseOrder[]> {
+  async getPurchaseOrders(filters?: { status?: string; vendorId?: number; startDate?: string; endDate?: string }): Promise<any[]> {
     const conditions = [];
     
     if (filters?.status) {
@@ -14284,11 +14284,54 @@ export class DatabaseStorage implements IStorage {
       conditions.push(sql`${purchaseOrders.orderDate} <= ${filters.endDate}`);
     }
     
-    return await db
-      .select()
+    // Fetch purchase orders with creator names
+    const pos = await db
+      .select({
+        po: purchaseOrders,
+        creatorFirstName: users.firstName,
+        creatorLastName: users.lastName,
+      })
       .from(purchaseOrders)
+      .leftJoin(users, eq(purchaseOrders.createdById, users.id))
       .where(conditions.length > 0 ? and(...conditions) : undefined)
       .orderBy(desc(purchaseOrders.createdAt));
+    
+    // For each PO, get the approver name if it's approved
+    const enrichedPOs = await Promise.all(
+      pos.map(async (row) => {
+        let approverName = null;
+        
+        // If approved, fetch the approver info
+        if (row.po.status === 'approved') {
+          const approvals = await db
+            .select({
+              approverFirstName: users.firstName,
+              approverLastName: users.lastName,
+            })
+            .from(purchaseOrderApprovals)
+            .leftJoin(users, eq(purchaseOrderApprovals.approverId, users.id))
+            .where(
+              and(
+                eq(purchaseOrderApprovals.purchaseOrderId, row.po.id),
+                eq(purchaseOrderApprovals.status, 'approved')
+              )
+            )
+            .limit(1);
+          
+          if (approvals.length > 0 && approvals[0].approverFirstName) {
+            approverName = `${approvals[0].approverFirstName} ${approvals[0].approverLastName}`;
+          }
+        }
+        
+        return {
+          ...row.po,
+          creatorName: row.creatorFirstName ? `${row.creatorFirstName} ${row.creatorLastName}` : null,
+          approverName,
+        };
+      })
+    );
+    
+    return enrichedPOs;
   }
 
   async getPurchaseOrderById(id: number): Promise<PurchaseOrder | undefined> {

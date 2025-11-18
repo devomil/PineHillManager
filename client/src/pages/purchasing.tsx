@@ -118,6 +118,7 @@ type PurchaseOrder = {
   requestedById: string;
   createdById: string;
   locationId?: number;
+  expenseAccountId?: number;
   status: string;
   paymentTerms?: string;
   totalAmount: string;
@@ -129,6 +130,8 @@ type PurchaseOrder = {
   createdAt: string;
   updatedAt: string;
   lineItems?: PurchaseOrderLineItem[];
+  creatorName?: string;
+  approverName?: string;
 };
 
 type PurchaseOrderApproval = {
@@ -715,22 +718,9 @@ function PurchaseOrdersTab() {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-center mb-4">
         <h2 className="text-2xl font-bold">Purchase Orders</h2>
-        <div className="flex gap-2">
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-[180px]" data-testid="select-po-status-filter">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Status</SelectItem>
-              <SelectItem value="draft">Draft</SelectItem>
-              <SelectItem value="pending_approval">Pending Approval</SelectItem>
-              <SelectItem value="approved">Approved</SelectItem>
-              <SelectItem value="rejected">Rejected</SelectItem>
-            </SelectContent>
-          </Select>
-          <Dialog open={isPODialogOpen} onOpenChange={(open) => {
+        <Dialog open={isPODialogOpen} onOpenChange={(open) => {
             setIsPODialogOpen(open);
             if (!open) {
               setEditingPO(null);
@@ -970,12 +960,104 @@ function PurchaseOrdersTab() {
               </Form>
             </DialogContent>
           </Dialog>
-        </div>
+      </div>
+
+      {/* Status Filter Tabs */}
+      <div className="flex gap-2 border-b">
+        <Button
+          variant={statusFilter === 'all' ? 'default' : 'ghost'}
+          onClick={() => setStatusFilter('all')}
+          data-testid="tab-all"
+          className="rounded-b-none"
+        >
+          All Orders
+        </Button>
+        <Button
+          variant={statusFilter === 'draft' ? 'default' : 'ghost'}
+          onClick={() => setStatusFilter('draft')}
+          data-testid="tab-draft"
+          className="rounded-b-none"
+        >
+          Draft
+        </Button>
+        <Button
+          variant={statusFilter === 'pending_approval' ? 'default' : 'ghost'}
+          onClick={() => setStatusFilter('pending_approval')}
+          data-testid="tab-pending"
+          className="rounded-b-none"
+        >
+          Pending Approval
+        </Button>
+        <Button
+          variant={statusFilter === 'approved' ? 'default' : 'ghost'}
+          onClick={() => setStatusFilter('approved')}
+          data-testid="tab-approved"
+          className="rounded-b-none"
+        >
+          Approved
+        </Button>
+        <Button
+          variant={statusFilter === 'rejected' ? 'default' : 'ghost'}
+          onClick={() => setStatusFilter('rejected')}
+          data-testid="tab-rejected"
+          className="rounded-b-none"
+        >
+          Rejected
+        </Button>
       </div>
 
       {isLoading ? (
         <div className="text-center py-8">Loading purchase orders...</div>
+      ) : statusFilter === 'approved' ? (
+        /* Approved POs - Special Display */
+        <div className="grid gap-4">
+          {filteredOrders?.map((po) => (
+            <Card 
+              key={po.id} 
+              data-testid={`card-po-${po.id}`}
+              className="hover:shadow-md transition-shadow"
+            >
+              <CardHeader>
+                <div className="flex justify-between items-start">
+                  <div className="flex-1">
+                    <CardTitle className="flex items-center gap-2 mb-2">
+                      PO #{po.poNumber}
+                      <Badge variant="default">APPROVED</Badge>
+                    </CardTitle>
+                    <div className="space-y-1 text-sm">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-muted-foreground">Vendor:</span>
+                        <span>{po.vendor?.name}</span>
+                      </div>
+                      {po.lineItems && po.lineItems.length > 0 && (
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-muted-foreground">Items:</span>
+                          <span>{po.lineItems[0].description}
+                            {po.lineItems.length > 1 && ` (+${po.lineItems.length - 1} more)`}
+                          </span>
+                        </div>
+                      )}
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-muted-foreground">Created By:</span>
+                        <span>{po.creatorName || `User ${po.createdById}`}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-muted-foreground">Approved By:</span>
+                        <span>{po.approverName || 'Admin/Manager'}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-muted-foreground">Total:</span>
+                        <span className="font-bold">${parseFloat(po.totalAmount).toFixed(2)}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </CardHeader>
+            </Card>
+          ))}
+        </div>
       ) : (
+        /* Other Status POs - Standard Display */
         <div className="grid gap-4">
           {filteredOrders?.map((po) => (
             <Card 
