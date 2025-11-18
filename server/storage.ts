@@ -14700,13 +14700,13 @@ export class DatabaseStorage implements IStorage {
         // Calculate days until due
         daysUntilDue: sql`
           CASE 
-            WHEN ${purchaseOrders.paymentTerms} = 'Net 15' THEN EXTRACT(DAY FROM (${purchaseOrders.orderDate} + INTERVAL '15 days') - CURRENT_DATE)
-            WHEN ${purchaseOrders.paymentTerms} = 'Net 16' THEN EXTRACT(DAY FROM (${purchaseOrders.orderDate} + INTERVAL '16 days') - CURRENT_DATE)
-            WHEN ${purchaseOrders.paymentTerms} = 'Net 30' THEN EXTRACT(DAY FROM (${purchaseOrders.orderDate} + INTERVAL '30 days') - CURRENT_DATE)
-            WHEN ${purchaseOrders.paymentTerms} = 'Net 60' THEN EXTRACT(DAY FROM (${purchaseOrders.orderDate} + INTERVAL '60 days') - CURRENT_DATE)
-            WHEN ${purchaseOrders.paymentTerms} = 'Net 90' THEN EXTRACT(DAY FROM (${purchaseOrders.orderDate} + INTERVAL '90 days') - CURRENT_DATE)
-            WHEN ${purchaseOrders.paymentTerms} IN ('COD', 'Credit Card', 'Wire Transfer', 'Check', 'Due on Receipt') THEN EXTRACT(DAY FROM ${purchaseOrders.orderDate} - CURRENT_DATE)
-            ELSE EXTRACT(DAY FROM (${purchaseOrders.orderDate} + INTERVAL '30 days') - CURRENT_DATE)
+            WHEN ${purchaseOrders.paymentTerms} = 'Net 15' THEN (${purchaseOrders.orderDate} + INTERVAL '15 days')::date - CURRENT_DATE
+            WHEN ${purchaseOrders.paymentTerms} = 'Net 16' THEN (${purchaseOrders.orderDate} + INTERVAL '16 days')::date - CURRENT_DATE
+            WHEN ${purchaseOrders.paymentTerms} = 'Net 30' THEN (${purchaseOrders.orderDate} + INTERVAL '30 days')::date - CURRENT_DATE
+            WHEN ${purchaseOrders.paymentTerms} = 'Net 60' THEN (${purchaseOrders.orderDate} + INTERVAL '60 days')::date - CURRENT_DATE
+            WHEN ${purchaseOrders.paymentTerms} = 'Net 90' THEN (${purchaseOrders.orderDate} + INTERVAL '90 days')::date - CURRENT_DATE
+            WHEN ${purchaseOrders.paymentTerms} IN ('COD', 'Credit Card', 'Wire Transfer', 'Check', 'Due on Receipt') THEN ${purchaseOrders.orderDate}::date - CURRENT_DATE
+            ELSE (${purchaseOrders.orderDate} + INTERVAL '30 days')::date - CURRENT_DATE
           END
         `,
         isOverdue: sql`
