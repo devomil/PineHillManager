@@ -2409,13 +2409,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Create new task (admin/manager only)
+  // Create new task
   app.post('/api/tasks', isAuthenticated, async (req, res) => {
     try {
       const user = req.user;
       
-      if (user?.role !== 'admin' && user?.role !== 'manager') {
-        return res.status(403).json({ message: 'Only admins and managers can create tasks' });
+      // Employees can only create tasks assigned to themselves
+      if (user?.role === 'employee') {
+        if (req.body.assignedTo && req.body.assignedTo !== user.id) {
+          return res.status(403).json({ message: 'Employees can only create tasks assigned to themselves' });
+        }
+        // Force assignedTo to be the employee creating the task
+        req.body.assignedTo = user.id;
       }
 
       const taskData = {
