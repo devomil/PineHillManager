@@ -14685,32 +14685,38 @@ export class DatabaseStorage implements IStorage {
         paymentTerms: purchaseOrders.paymentTerms,
         orderDate: purchaseOrders.orderDate,
         totalAmount: purchaseOrders.totalAmount,
-        // Calculate due date based on payment terms (simplified - Net 30 = 30 days)
+        // Calculate due date based on payment terms
         dueDate: sql`
           CASE 
+            WHEN ${purchaseOrders.paymentTerms} = 'Net 15' THEN ${purchaseOrders.orderDate} + INTERVAL '15 days'
+            WHEN ${purchaseOrders.paymentTerms} = 'Net 16' THEN ${purchaseOrders.orderDate} + INTERVAL '16 days'
             WHEN ${purchaseOrders.paymentTerms} = 'Net 30' THEN ${purchaseOrders.orderDate} + INTERVAL '30 days'
             WHEN ${purchaseOrders.paymentTerms} = 'Net 60' THEN ${purchaseOrders.orderDate} + INTERVAL '60 days'
             WHEN ${purchaseOrders.paymentTerms} = 'Net 90' THEN ${purchaseOrders.orderDate} + INTERVAL '90 days'
-            WHEN ${purchaseOrders.paymentTerms} = 'Due on Receipt' THEN ${purchaseOrders.orderDate}
+            WHEN ${purchaseOrders.paymentTerms} IN ('COD', 'Credit Card', 'Wire Transfer', 'Check', 'Due on Receipt') THEN ${purchaseOrders.orderDate}
             ELSE ${purchaseOrders.orderDate} + INTERVAL '30 days'
           END
         `,
         // Calculate days until due
         daysUntilDue: sql`
           CASE 
+            WHEN ${purchaseOrders.paymentTerms} = 'Net 15' THEN EXTRACT(DAY FROM (${purchaseOrders.orderDate} + INTERVAL '15 days') - CURRENT_DATE)
+            WHEN ${purchaseOrders.paymentTerms} = 'Net 16' THEN EXTRACT(DAY FROM (${purchaseOrders.orderDate} + INTERVAL '16 days') - CURRENT_DATE)
             WHEN ${purchaseOrders.paymentTerms} = 'Net 30' THEN EXTRACT(DAY FROM (${purchaseOrders.orderDate} + INTERVAL '30 days') - CURRENT_DATE)
             WHEN ${purchaseOrders.paymentTerms} = 'Net 60' THEN EXTRACT(DAY FROM (${purchaseOrders.orderDate} + INTERVAL '60 days') - CURRENT_DATE)
             WHEN ${purchaseOrders.paymentTerms} = 'Net 90' THEN EXTRACT(DAY FROM (${purchaseOrders.orderDate} + INTERVAL '90 days') - CURRENT_DATE)
-            WHEN ${purchaseOrders.paymentTerms} = 'Due on Receipt' THEN EXTRACT(DAY FROM ${purchaseOrders.orderDate} - CURRENT_DATE)
+            WHEN ${purchaseOrders.paymentTerms} IN ('COD', 'Credit Card', 'Wire Transfer', 'Check', 'Due on Receipt') THEN EXTRACT(DAY FROM ${purchaseOrders.orderDate} - CURRENT_DATE)
             ELSE EXTRACT(DAY FROM (${purchaseOrders.orderDate} + INTERVAL '30 days') - CURRENT_DATE)
           END
         `,
         isOverdue: sql`
           CASE 
+            WHEN ${purchaseOrders.paymentTerms} = 'Net 15' THEN CURRENT_DATE > (${purchaseOrders.orderDate} + INTERVAL '15 days')
+            WHEN ${purchaseOrders.paymentTerms} = 'Net 16' THEN CURRENT_DATE > (${purchaseOrders.orderDate} + INTERVAL '16 days')
             WHEN ${purchaseOrders.paymentTerms} = 'Net 30' THEN CURRENT_DATE > (${purchaseOrders.orderDate} + INTERVAL '30 days')
             WHEN ${purchaseOrders.paymentTerms} = 'Net 60' THEN CURRENT_DATE > (${purchaseOrders.orderDate} + INTERVAL '60 days')
             WHEN ${purchaseOrders.paymentTerms} = 'Net 90' THEN CURRENT_DATE > (${purchaseOrders.orderDate} + INTERVAL '90 days')
-            WHEN ${purchaseOrders.paymentTerms} = 'Due on Receipt' THEN CURRENT_DATE > ${purchaseOrders.orderDate}
+            WHEN ${purchaseOrders.paymentTerms} IN ('COD', 'Credit Card', 'Wire Transfer', 'Check', 'Due on Receipt') THEN CURRENT_DATE > ${purchaseOrders.orderDate}
             ELSE CURRENT_DATE > (${purchaseOrders.orderDate} + INTERVAL '30 days')
           END
         `,
@@ -14726,10 +14732,12 @@ export class DatabaseStorage implements IStorage {
       .orderBy(
         sql`
           CASE 
+            WHEN ${purchaseOrders.paymentTerms} = 'Net 15' THEN ${purchaseOrders.orderDate} + INTERVAL '15 days'
+            WHEN ${purchaseOrders.paymentTerms} = 'Net 16' THEN ${purchaseOrders.orderDate} + INTERVAL '16 days'
             WHEN ${purchaseOrders.paymentTerms} = 'Net 30' THEN ${purchaseOrders.orderDate} + INTERVAL '30 days'
             WHEN ${purchaseOrders.paymentTerms} = 'Net 60' THEN ${purchaseOrders.orderDate} + INTERVAL '60 days'
             WHEN ${purchaseOrders.paymentTerms} = 'Net 90' THEN ${purchaseOrders.orderDate} + INTERVAL '90 days'
-            WHEN ${purchaseOrders.paymentTerms} = 'Due on Receipt' THEN ${purchaseOrders.orderDate}
+            WHEN ${purchaseOrders.paymentTerms} IN ('COD', 'Credit Card', 'Wire Transfer', 'Check', 'Due on Receipt') THEN ${purchaseOrders.orderDate}
             ELSE ${purchaseOrders.orderDate} + INTERVAL '30 days'
           END
         `
