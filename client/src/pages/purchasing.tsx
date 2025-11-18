@@ -1009,52 +1009,60 @@ function PurchaseOrdersTab() {
       {isLoading ? (
         <div className="text-center py-8">Loading purchase orders...</div>
       ) : statusFilter === 'approved' ? (
-        /* Approved POs - Special Display */
-        <div className="grid gap-4">
-          {filteredOrders?.map((po) => (
-            <Card 
-              key={po.id} 
-              data-testid={`card-po-${po.id}`}
-              className="hover:shadow-md transition-shadow"
-            >
-              <CardHeader>
-                <div className="flex justify-between items-start">
-                  <div className="flex-1">
-                    <CardTitle className="flex items-center gap-2 mb-2">
-                      PO #{po.poNumber}
-                      <Badge variant="default">APPROVED</Badge>
-                    </CardTitle>
-                    <div className="space-y-1 text-sm">
+        /* Approved POs - Table View */
+        <div className="border rounded-lg">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>PO Number</TableHead>
+                <TableHead>Vendor</TableHead>
+                <TableHead>Products</TableHead>
+                <TableHead>Created By</TableHead>
+                <TableHead>Approved By</TableHead>
+                <TableHead className="text-right">Total</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredOrders?.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                    No approved purchase orders found
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredOrders?.map((po) => (
+                  <TableRow key={po.id} data-testid={`row-po-${po.id}`}>
+                    <TableCell className="font-medium">
                       <div className="flex items-center gap-2">
-                        <span className="font-semibold text-muted-foreground">Vendor:</span>
-                        <span>{po.vendor?.name}</span>
+                        {po.poNumber}
+                        <Badge variant="default" className="text-xs">APPROVED</Badge>
                       </div>
-                      {po.lineItems && po.lineItems.length > 0 && (
-                        <div className="flex items-center gap-2">
-                          <span className="font-semibold text-muted-foreground">Items:</span>
-                          <span>{po.lineItems[0].description}
-                            {po.lineItems.length > 1 && ` (+${po.lineItems.length - 1} more)`}
-                          </span>
+                    </TableCell>
+                    <TableCell>{po.vendor?.name || 'N/A'}</TableCell>
+                    <TableCell className="max-w-md">
+                      {po.lineItems && po.lineItems.length > 0 ? (
+                        <div className="text-sm">
+                          {po.lineItems[0].description}
+                          {po.lineItems.length > 1 && (
+                            <span className="text-muted-foreground ml-1">
+                              (+{po.lineItems.length - 1} more)
+                            </span>
+                          )}
                         </div>
+                      ) : (
+                        <span className="text-muted-foreground">No items</span>
                       )}
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold text-muted-foreground">Created By:</span>
-                        <span>{po.creatorName || `User ${po.createdById}`}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold text-muted-foreground">Approved By:</span>
-                        <span>{po.approverName || 'Admin/Manager'}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold text-muted-foreground">Total:</span>
-                        <span className="font-bold">${parseFloat(po.totalAmount).toFixed(2)}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </CardHeader>
-            </Card>
-          ))}
+                    </TableCell>
+                    <TableCell>{po.creatorName || `User ${po.createdById}`}</TableCell>
+                    <TableCell>{po.approverName || 'Admin/Manager'}</TableCell>
+                    <TableCell className="text-right font-semibold">
+                      ${parseFloat(po.totalAmount).toFixed(2)}
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
         </div>
       ) : (
         /* Other Status POs - Standard Display */
