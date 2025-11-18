@@ -7001,6 +7001,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json({ message: 'Simple test working' });
   });
 
+  // Get expense accounts from Chart of Accounts (for Purchase Orders)
+  app.get('/api/accounting/expense-accounts', isAuthenticated, async (req, res) => {
+    try {
+      const expenseAccounts = await storage.getAccountsByType('Expense');
+      res.json(expenseAccounts);
+    } catch (error) {
+      console.error('Error fetching expense accounts:', error);
+      res.status(500).json({ message: 'Failed to fetch expense accounts' });
+    }
+  });
+
   // Integration Configuration Routes
   app.get('/api/accounting/quickbooks-config', isAuthenticated, async (req, res) => {
     try {
