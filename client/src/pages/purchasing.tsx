@@ -1065,107 +1065,102 @@ function PurchaseOrdersTab() {
           </Table>
         </div>
       ) : (
-        /* Other Status POs - Standard Display */
-        <div className="grid gap-4">
-          {filteredOrders?.map((po) => (
-            <Card 
-              key={po.id} 
-              data-testid={`card-po-${po.id}`}
-              className="cursor-pointer hover:shadow-md transition-shadow"
-              onClick={() => handleEditPO(po)}
-            >
-              <CardHeader>
-                <div className="flex justify-between items-start">
-                  <div>
-                    <CardTitle className="flex items-center gap-2">
-                      PO #{po.poNumber}
-                      <Badge variant={getStatusBadgeVariant(po.status)}>
-                        {po.status.replace('_', ' ').toUpperCase()}
-                      </Badge>
-                    </CardTitle>
-                    <CardDescription>
-                      Vendor: {po.vendor?.name} • Total: ${parseFloat(po.totalAmount).toFixed(2)}
-                    </CardDescription>
-                  </div>
-                  <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
-                    {po.status === 'draft' && (
-                      <>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleEditPO(po)}
-                          data-testid={`button-edit-po-${po.id}`}
-                        >
-                          <Edit className="h-4 w-4 mr-2" />
-                          Edit
-                        </Button>
-                        <Button
-                          size="sm"
-                          onClick={() => submitPOMutation.mutate(po.id)}
-                          disabled={submitPOMutation.isPending}
-                          data-testid={`button-submit-po-${po.id}`}
-                        >
-                          <Send className="h-4 w-4 mr-2" />
-                          Submit for Approval
-                        </Button>
-                      </>
-                    )}
-                    {(po.status === 'draft' || po.status === 'pending_approval') && (
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        onClick={() => {
-                          if (confirm('Are you sure you want to delete this purchase order?')) {
-                            deletePOMutation.mutate(po.id);
-                          }
-                        }}
-                        disabled={deletePOMutation.isPending}
-                        data-testid={`button-delete-po-${po.id}`}
-                      >
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Delete
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  <div className="text-sm text-muted-foreground">
-                    Created: {new Date(po.createdAt).toLocaleDateString()}
-                    {po.requestedDeliveryDate && ` • Requested Delivery: ${new Date(po.requestedDeliveryDate).toLocaleDateString()}`}
-                  </div>
-                  {po.lineItems && po.lineItems.length > 0 && (
-                    <div className="mt-4">
-                      <h4 className="font-semibold mb-2">Line Items</h4>
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Description</TableHead>
-                            <TableHead>Quantity</TableHead>
-                            <TableHead>Unit Price</TableHead>
-                            <TableHead className="text-right">Total</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {po.lineItems.map((item) => (
-                            <TableRow key={item.id}>
-                              <TableCell>{item.description}</TableCell>
-                              <TableCell>{item.quantity}</TableCell>
-                              <TableCell>${parseFloat((item as any).unitCost).toFixed(2)}</TableCell>
-                              <TableCell className="text-right">
-                                ${parseFloat((item as any).lineTotal).toFixed(2)}
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+        /* Other Status POs - Table View */
+        <div className="border rounded-lg">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>PO Number</TableHead>
+                <TableHead>Vendor</TableHead>
+                <TableHead>Products</TableHead>
+                <TableHead>Created By</TableHead>
+                <TableHead className="text-right">Total</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredOrders?.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                    No purchase orders found
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredOrders?.map((po) => (
+                  <TableRow key={po.id} data-testid={`row-po-${po.id}`}>
+                    <TableCell className="font-medium">
+                      <div className="flex items-center gap-2">
+                        {po.poNumber}
+                        <Badge variant={getStatusBadgeVariant(po.status)} className="text-xs">
+                          {po.status.replace('_', ' ').toUpperCase()}
+                        </Badge>
+                      </div>
+                    </TableCell>
+                    <TableCell>{po.vendor?.name || 'N/A'}</TableCell>
+                    <TableCell className="max-w-md">
+                      {po.lineItems && po.lineItems.length > 0 ? (
+                        <div className="text-sm">
+                          {po.lineItems[0].description}
+                          {po.lineItems.length > 1 && (
+                            <span className="text-muted-foreground ml-1">
+                              (+{po.lineItems.length - 1} more)
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground">No items</span>
+                      )}
+                    </TableCell>
+                    <TableCell>{po.creatorName || `User ${po.createdById}`}</TableCell>
+                    <TableCell className="text-right font-semibold">
+                      ${parseFloat(po.totalAmount).toFixed(2)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex gap-2 justify-end">
+                        {po.status === 'draft' && (
+                          <>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleEditPO(po)}
+                              data-testid={`button-edit-po-${po.id}`}
+                            >
+                              <Edit className="h-4 w-4 mr-1" />
+                              Edit
+                            </Button>
+                            <Button
+                              size="sm"
+                              onClick={() => submitPOMutation.mutate(po.id)}
+                              disabled={submitPOMutation.isPending}
+                              data-testid={`button-submit-po-${po.id}`}
+                            >
+                              <Send className="h-4 w-4 mr-1" />
+                              Submit
+                            </Button>
+                          </>
+                        )}
+                        {(po.status === 'draft' || po.status === 'pending_approval') && (
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => {
+                              if (confirm('Are you sure you want to delete this purchase order?')) {
+                                deletePOMutation.mutate(po.id);
+                              }
+                            }}
+                            disabled={deletePOMutation.isPending}
+                            data-testid={`button-delete-po-${po.id}`}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
         </div>
       )}
 
