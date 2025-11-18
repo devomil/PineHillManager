@@ -48,17 +48,20 @@ function CreateTaskDialog({
   open, 
   onOpenChange, 
   userId, 
-  employees 
+  employees,
+  userRole 
 }: { 
   open: boolean; 
   onOpenChange: (open: boolean) => void; 
   userId: string;
   employees: User[];
+  userRole: string;
 }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [taskSteps, setTaskSteps] = useState<TaskStep[]>([]);
   const [newStepText, setNewStepText] = useState("");
+  const isEmployee = userRole === 'employee';
 
   const form = useForm<TaskFormData>({
     resolver: zodResolver(taskFormSchema),
@@ -67,7 +70,7 @@ function CreateTaskDialog({
       description: "",
       status: "pending",
       priority: "medium",
-      assignedTo: undefined,
+      assignedTo: isEmployee ? userId : undefined,
       dueDate: "",
       steps: [],
     },
@@ -140,7 +143,7 @@ function CreateTaskDialog({
         <DialogHeader>
           <DialogTitle>Create New Task</DialogTitle>
           <DialogDescription>
-            Assign a new task to an employee or yourself
+            {isEmployee ? "Create a personal task to stay organized" : "Assign a new task to an employee or yourself"}
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -282,10 +285,11 @@ function CreateTaskDialog({
                     <Select 
                       onValueChange={field.onChange} 
                       value={field.value ?? undefined}
+                      disabled={isEmployee}
                     >
                       <FormControl>
                         <SelectTrigger data-testid="select-task-assignee">
-                          <SelectValue placeholder="Unassigned" />
+                          <SelectValue placeholder={isEmployee ? "Myself" : "Unassigned"} />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
@@ -608,12 +612,13 @@ export default function Tasks() {
             {isAdminOrManager ? "Create, assign, and manage tasks" : "View and manage your assigned tasks"}
           </p>
         </div>
-        {isAdminOrManager && user && (
+        {user && (
           <CreateTaskDialog
             open={isCreateDialogOpen}
             onOpenChange={setIsCreateDialogOpen}
             userId={user.id}
             employees={employees}
+            userRole={user.role}
           />
         )}
         </div>
