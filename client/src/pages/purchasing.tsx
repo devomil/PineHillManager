@@ -619,7 +619,7 @@ function PurchaseOrdersTab() {
     const currentLineItems = poForm.getValues('lineItems');
     const updatedLineItems = [...currentLineItems]; // Clone array to avoid mutation
     updatedLineItems[currentLineItemIndex] = {
-      description: product.itemName,
+      description: product.description || product.itemName,
       quantity: currentLineItems[currentLineItemIndex]?.quantity || '1',
       unitPrice: product.unitCost,
       productUrl: currentLineItems[currentLineItemIndex]?.productUrl || '',
@@ -628,7 +628,7 @@ function PurchaseOrdersTab() {
     
     toast({
       title: 'Product Added',
-      description: `${product.itemName} added to line items`,
+      description: `${product.itemName} added to line items with cost $${product.unitCost}`,
     });
   };
 
