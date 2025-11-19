@@ -2719,6 +2719,18 @@ export const purchaseOrderPayloadSchema = z.object({
   lineItems: z.array(purchaseOrderLineItemPayloadSchema).min(1, 'At least one line item is required'),
 });
 
+// Purchase Order Tracking Update Schema (for approved POs)
+export const purchaseOrderTrackingUpdateSchema = z.object({
+  orderPlacedDate: z.string().optional().nullable(),
+  vendorOrderNumber: z.string().optional().nullable(),
+  trackingNumber: z.string().optional().nullable(),
+  shippedDate: z.string().optional().nullable(),
+  receivedDate: z.string().optional().nullable(),
+  actualShippingCost: z.string().or(z.number()).optional().nullable().transform(val => val === null || val === undefined || val === '' ? null : (typeof val === 'string' ? val : val.toString())),
+  actualHandlingCost: z.string().or(z.number()).optional().nullable().transform(val => val === null || val === undefined || val === '' ? null : (typeof val === 'string' ? val : val.toString())),
+  actualProductCost: z.string().or(z.number()).optional().nullable().transform(val => val === null || val === undefined || val === '' ? null : (typeof val === 'string' ? val : val.toString())),
+});
+
 export const insertPurchaseOrderApprovalSchema = createInsertSchema(purchaseOrderApprovals).omit({
   id: true,
   createdAt: true,
