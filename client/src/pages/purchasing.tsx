@@ -52,7 +52,8 @@ import {
   Phone,
   Calendar,
   Scan,
-  Upload
+  Upload,
+  Search
 } from 'lucide-react';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import AdminLayout from '@/components/admin-layout';
@@ -1283,9 +1284,68 @@ function ReportsTab() {
     queryKey: ['/api/purchasing/reports/outstanding-payables'],
   });
 
-  // Calculate totals
-  const totalOutstanding = outstandingPayables?.reduce((sum, item) => sum + parseFloat(item.totalAmount), 0) || 0;
-  const overdueAmount = outstandingPayables?.filter(item => item.isOverdue).reduce((sum, item) => sum + parseFloat(item.totalAmount), 0) || 0;
+  // Outstanding Payables filters
+  const [payablesSearch, setPayablesSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [paymentTermsFilter, setPaymentTermsFilter] = useState<string>('all');
+
+  // Vendor Spend filters
+  const [vendorSearch, setVendorSearch] = useState('');
+  const [sortBy, setSortBy] = useState<string>('totalSpend');
+
+  // Filter outstanding payables
+  const filteredPayables = outstandingPayables?.filter((payable) => {
+    const daysUntilDue = parseFloat(payable.daysUntilDue);
+    const isOverdue = payable.isOverdue;
+    const isDueSoon = daysUntilDue <= 7 && daysUntilDue >= 0;
+
+    // Search filter
+    const searchMatch = payablesSearch === '' || 
+      payable.poNumber.toLowerCase().includes(payablesSearch.toLowerCase()) ||
+      payable.vendorName.toLowerCase().includes(payablesSearch.toLowerCase());
+
+    // Status filter
+    let statusMatch = true;
+    if (statusFilter === 'overdue') {
+      statusMatch = isOverdue;
+    } else if (statusFilter === 'due_soon') {
+      statusMatch = isDueSoon;
+    } else if (statusFilter === 'on_track') {
+      statusMatch = !isOverdue && !isDueSoon;
+    }
+
+    // Payment terms filter
+    const paymentTermsMatch = paymentTermsFilter === 'all' || 
+      payable.paymentTerms === paymentTermsFilter;
+
+    return searchMatch && statusMatch && paymentTermsMatch;
+  }) || [];
+
+  // Sort and filter vendor spend
+  const filteredVendorSpend = vendorSpendReport
+    ?.filter((vendor) => {
+      return vendorSearch === '' || 
+        vendor.vendorName.toLowerCase().includes(vendorSearch.toLowerCase());
+    })
+    ?.sort((a, b) => {
+      if (sortBy === 'totalSpend') {
+        return parseFloat(b.totalSpend) - parseFloat(a.totalSpend);
+      } else if (sortBy === 'orderCount') {
+        return b.orderCount - a.orderCount;
+      } else if (sortBy === 'lastOrder') {
+        return new Date(b.lastOrderDate || 0).getTime() - new Date(a.lastOrderDate || 0).getTime();
+      }
+      return 0;
+    }) || [];
+
+  // Get unique payment terms for filter dropdown
+  const uniquePaymentTerms = Array.from(
+    new Set(outstandingPayables?.map(p => p.paymentTerms) || [])
+  );
+
+  // Calculate totals based on filtered data
+  const totalOutstanding = filteredPayables.reduce((sum, item) => sum + parseFloat(item.totalAmount), 0);
+  const overdueAmount = filteredPayables.filter(item => item.isOverdue).reduce((sum, item) => sum + parseFloat(item.totalAmount), 0);
 
   return (
     <div className="space-y-6">
@@ -1317,10 +1377,47 @@ function ReportsTab() {
                 <Card>
                   <CardHeader className="pb-2">
                     <CardDescription>Bills Count</CardDescription>
-                    <CardTitle className="text-2xl">{outstandingPayables?.length || 0}</CardTitle>
+                    <CardTitle className="text-2xl">{filteredPayables.length}</CardTitle>
                   </CardHeader>
                 </Card>
               </div>
+
+              {/* Search and Filter Controls */}
+              <div className="flex gap-4 mb-4">
+                <div className="flex-1 relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search by PO number or vendor..."
+                    value={payablesSearch}
+                    onChange={(e) => setPayablesSearch(e.target.value)}
+                    className="pl-10"
+                    data-testid="input-payables-search"
+                  />
+                </div>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="w-[180px]" data-testid="select-status-filter">
+                    <SelectValue placeholder="Filter by status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Status</SelectItem>
+                    <SelectItem value="overdue">Overdue Only</SelectItem>
+                    <SelectItem value="due_soon">Due Soon</SelectItem>
+                    <SelectItem value="on_track">On Track</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={paymentTermsFilter} onValueChange={setPaymentTermsFilter}>
+                  <SelectTrigger className="w-[180px]" data-testid="select-payment-terms-filter">
+                    <SelectValue placeholder="Payment terms" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Terms</SelectItem>
+                    {uniquePaymentTerms.map((term) => (
+                      <SelectItem key={term} value={term}>{term}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -1335,59 +1432,62 @@ function ReportsTab() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {outstandingPayables?.map((payable, index) => {
-                    const daysUntilDue = parseFloat(payable.daysUntilDue);
-                    const isOverdue = payable.isOverdue;
-                    const isDueSoon = daysUntilDue <= 7 && daysUntilDue >= 0;
-                    
-                    return (
-                      <TableRow key={index} data-testid={`row-payable-${index}`}>
-                        <TableCell className="font-medium">{payable.poNumber}</TableCell>
-                        <TableCell>{payable.vendorName}</TableCell>
-                        <TableCell>${parseFloat(payable.totalAmount).toFixed(2)}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline">{payable.paymentTerms}</Badge>
-                        </TableCell>
-                        <TableCell>
-                          {payable.orderDate
-                            ? new Date(payable.orderDate).toLocaleDateString()
-                            : 'N/A'}
-                        </TableCell>
-                        <TableCell>
-                          {payable.dueDate
-                            ? new Date(payable.dueDate).toLocaleDateString()
-                            : 'N/A'}
-                        </TableCell>
-                        <TableCell className={
-                          isOverdue ? 'text-destructive font-bold' :
-                          isDueSoon ? 'text-orange-600 font-semibold' :
-                          'text-green-600'
-                        }>
-                          {isOverdue ? `${Math.abs(Math.floor(daysUntilDue))} days overdue` :
-                           isDueSoon ? `${Math.floor(daysUntilDue)} days` :
-                           `${Math.floor(daysUntilDue)} days`}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={
-                            isOverdue ? 'destructive' :
-                            isDueSoon ? 'secondary' :
-                            'default'
+                  {filteredPayables.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                        No payables found matching your filters
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredPayables.map((payable, index) => {
+                      const daysUntilDue = parseFloat(payable.daysUntilDue);
+                      const isOverdue = payable.isOverdue;
+                      const isDueSoon = daysUntilDue <= 7 && daysUntilDue >= 0;
+                      
+                      return (
+                        <TableRow key={index} data-testid={`row-payable-${index}`}>
+                          <TableCell className="font-medium">{payable.poNumber}</TableCell>
+                          <TableCell>{payable.vendorName}</TableCell>
+                          <TableCell>${parseFloat(payable.totalAmount).toFixed(2)}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline">{payable.paymentTerms}</Badge>
+                          </TableCell>
+                          <TableCell>
+                            {payable.orderDate
+                              ? new Date(payable.orderDate).toLocaleDateString()
+                              : 'N/A'}
+                          </TableCell>
+                          <TableCell>
+                            {payable.dueDate
+                              ? new Date(payable.dueDate).toLocaleDateString()
+                              : 'N/A'}
+                          </TableCell>
+                          <TableCell className={
+                            isOverdue ? 'text-destructive font-bold' :
+                            isDueSoon ? 'text-orange-600 font-semibold' :
+                            'text-green-600'
                           }>
-                            {isOverdue ? 'Overdue' :
-                             isDueSoon ? 'Due Soon' :
-                             'On Track'}
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
+                            {isOverdue ? `${Math.abs(Math.floor(daysUntilDue))} days overdue` :
+                             isDueSoon ? `${Math.floor(daysUntilDue)} days` :
+                             `${Math.floor(daysUntilDue)} days`}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={
+                              isOverdue ? 'destructive' :
+                              isDueSoon ? 'secondary' :
+                              'default'
+                            }>
+                              {isOverdue ? 'Overdue' :
+                               isDueSoon ? 'Due Soon' :
+                               'On Track'}
+                            </Badge>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  )}
                 </TableBody>
               </Table>
-              {(!outstandingPayables || outstandingPayables.length === 0) && (
-                <div className="text-center py-8 text-muted-foreground">
-                  No outstanding payables at this time
-                </div>
-              )}
             </>
           )}
         </CardContent>
@@ -1402,32 +1502,66 @@ function ReportsTab() {
           {isLoadingSpend ? (
             <div className="text-center py-4">Loading report...</div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Vendor</TableHead>
-                  <TableHead>Total Spend</TableHead>
-                  <TableHead>Order Count</TableHead>
-                  <TableHead>Avg Order Value</TableHead>
-                  <TableHead>Last Order</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {vendorSpendReport?.map((report) => (
-                  <TableRow key={report.vendorId} data-testid={`row-vendor-spend-${report.vendorId}`}>
-                    <TableCell className="font-medium">{report.vendorName}</TableCell>
-                    <TableCell>${parseFloat(report.totalSpend).toFixed(2)}</TableCell>
-                    <TableCell>{report.orderCount}</TableCell>
-                    <TableCell>${parseFloat(report.avgOrderValue).toFixed(2)}</TableCell>
-                    <TableCell>
-                      {report.lastOrderDate
-                        ? new Date(report.lastOrderDate).toLocaleDateString()
-                        : 'N/A'}
-                    </TableCell>
+            <>
+              {/* Search and Sort Controls */}
+              <div className="flex gap-4 mb-4">
+                <div className="flex-1 relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search by vendor name..."
+                    value={vendorSearch}
+                    onChange={(e) => setVendorSearch(e.target.value)}
+                    className="pl-10"
+                    data-testid="input-vendor-search"
+                  />
+                </div>
+                <Select value={sortBy} onValueChange={setSortBy}>
+                  <SelectTrigger className="w-[200px]" data-testid="select-sort-by">
+                    <SelectValue placeholder="Sort by" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="totalSpend">Total Spend (High to Low)</SelectItem>
+                    <SelectItem value="orderCount">Order Count (High to Low)</SelectItem>
+                    <SelectItem value="lastOrder">Last Order Date (Recent First)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Vendor</TableHead>
+                    <TableHead>Total Spend</TableHead>
+                    <TableHead>Order Count</TableHead>
+                    <TableHead>Avg Order Value</TableHead>
+                    <TableHead>Last Order</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {filteredVendorSpend.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                        No vendors found matching your search
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredVendorSpend.map((report) => (
+                      <TableRow key={report.vendorId} data-testid={`row-vendor-spend-${report.vendorId}`}>
+                        <TableCell className="font-medium">{report.vendorName}</TableCell>
+                        <TableCell>${parseFloat(report.totalSpend).toFixed(2)}</TableCell>
+                        <TableCell>{report.orderCount}</TableCell>
+                        <TableCell>${parseFloat(report.avgOrderValue).toFixed(2)}</TableCell>
+                        <TableCell>
+                          {report.lastOrderDate
+                            ? new Date(report.lastOrderDate).toLocaleDateString()
+                            : 'N/A'}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </>
           )}
         </CardContent>
       </Card>
