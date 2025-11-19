@@ -1428,8 +1428,8 @@ function ReportsTab() {
               </div>
 
               {/* Search and Filter Controls */}
-              <div className="flex gap-4 mb-4">
-                <div className="flex-1 relative">
+              <div className="flex flex-wrap gap-4 mb-4">
+                <div className="flex-1 min-w-[200px] relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
                     placeholder="Search by PO number or vendor..."
@@ -1461,6 +1461,28 @@ function ReportsTab() {
                     ))}
                   </SelectContent>
                 </Select>
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="payables-date-from" className="text-sm whitespace-nowrap">From:</Label>
+                  <Input
+                    id="payables-date-from"
+                    type="date"
+                    value={payablesDateFrom}
+                    onChange={(e) => setPayablesDateFrom(e.target.value)}
+                    className="w-[150px]"
+                    data-testid="input-payables-date-from"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="payables-date-to" className="text-sm whitespace-nowrap">To:</Label>
+                  <Input
+                    id="payables-date-to"
+                    type="date"
+                    value={payablesDateTo}
+                    onChange={(e) => setPayablesDateTo(e.target.value)}
+                    className="w-[150px]"
+                    data-testid="input-payables-date-to"
+                  />
+                </div>
               </div>
 
               <Table>
@@ -1549,8 +1571,8 @@ function ReportsTab() {
           ) : (
             <>
               {/* Search and Sort Controls */}
-              <div className="flex gap-4 mb-4">
-                <div className="flex-1 relative">
+              <div className="flex flex-wrap gap-4 mb-4">
+                <div className="flex-1 min-w-[200px] relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
                     placeholder="Search by vendor name..."
@@ -1570,6 +1592,28 @@ function ReportsTab() {
                     <SelectItem value="lastOrder">Last Order Date (Recent First)</SelectItem>
                   </SelectContent>
                 </Select>
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="vendor-date-from" className="text-sm whitespace-nowrap">From:</Label>
+                  <Input
+                    id="vendor-date-from"
+                    type="date"
+                    value={vendorDateFrom}
+                    onChange={(e) => setVendorDateFrom(e.target.value)}
+                    className="w-[150px]"
+                    data-testid="input-vendor-date-from"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="vendor-date-to" className="text-sm whitespace-nowrap">To:</Label>
+                  <Input
+                    id="vendor-date-to"
+                    type="date"
+                    value={vendorDateTo}
+                    onChange={(e) => setVendorDateTo(e.target.value)}
+                    className="w-[150px]"
+                    data-testid="input-vendor-date-to"
+                  />
+                </div>
               </div>
 
               <Table>
