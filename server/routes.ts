@@ -40,6 +40,7 @@ import {
   insertVendorProfileSchema,
   insertPurchaseOrderSchema,
   purchaseOrderPayloadSchema,
+  purchaseOrderTrackingUpdateSchema,
   insertPurchaseOrderLineItemSchema,
   insertPurchaseOrderApprovalSchema,
   insertPurchaseOrderEventSchema,

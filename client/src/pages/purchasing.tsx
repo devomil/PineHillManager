@@ -206,6 +206,17 @@ const purchaseOrderFormSchema = z.object({
   lineItems: z.array(lineItemSchema).min(1, 'At least one line item is required'),
 });
 
+const poTrackingFormSchema = z.object({
+  orderPlacedDate: z.string().optional(),
+  vendorOrderNumber: z.string().optional(),
+  trackingNumber: z.string().optional(),
+  shippedDate: z.string().optional(),
+  receivedDate: z.string().optional(),
+  actualShippingCost: z.string().optional(),
+  actualHandlingCost: z.string().optional(),
+  actualProductCost: z.string().optional(),
+});
+
 function VendorsTab() {
   const { toast } = useToast();
   const [isVendorDialogOpen, setIsVendorDialogOpen] = useState(false);
@@ -566,6 +577,8 @@ function PurchaseOrdersTab() {
   const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
   const [currentLineItemIndex, setCurrentLineItemIndex] = useState<number>(0);
   const [editingPO, setEditingPO] = useState<PurchaseOrder | null>(null);
+  const [isTrackingDialogOpen, setIsTrackingDialogOpen] = useState(false);
+  const [editingTrackingPO, setEditingTrackingPO] = useState<PurchaseOrder | null>(null);
 
   const { data: vendors } = useQuery<Vendor[]>({
     queryKey: ['/api/purchasing/vendors'],
@@ -585,6 +598,20 @@ function PurchaseOrdersTab() {
       poNumber: '',
       paymentTerms: 'Net 30',
       lineItems: [{ description: '', quantity: '1', unitPrice: '0.00', productUrl: '' }],
+    },
+  });
+
+  const trackingForm = useForm<z.infer<typeof poTrackingFormSchema>>({
+    resolver: zodResolver(poTrackingFormSchema),
+    defaultValues: {
+      orderPlacedDate: '',
+      vendorOrderNumber: '',
+      trackingNumber: '',
+      shippedDate: '',
+      receivedDate: '',
+      actualShippingCost: '',
+      actualHandlingCost: '',
+      actualProductCost: '',
     },
   });
   
@@ -680,6 +707,20 @@ function PurchaseOrdersTab() {
     },
   });
 
+  const updateTrackingMutation = useMutation({
+    mutationFn: async (data: z.infer<typeof poTrackingFormSchema> & { poId: number }) => {
+      const { poId, ...trackingData } = data;
+      return apiRequest('PATCH', `/api/purchasing/purchase-orders/${poId}/tracking`, trackingData);
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['/api/purchasing/purchase-orders'] });
+      toast({ title: 'Purchase order tracking updated successfully' });
+      setIsTrackingDialogOpen(false);
+      setEditingTrackingPO(null);
+      trackingForm.reset();
+    },
+  });
+
   const handleEditPO = (po: PurchaseOrder) => {
     setEditingPO(po);
     poForm.reset({
@@ -702,6 +743,22 @@ function PurchaseOrdersTab() {
     });
     setIsPODialogOpen(true);
   };
+
+  useEffect(() => {
+    if (editingTrackingPO) {
+      const po = editingTrackingPO as any;
+      trackingForm.reset({
+        orderPlacedDate: po.orderPlacedDate || '',
+        vendorOrderNumber: po.vendorOrderNumber || '',
+        trackingNumber: po.trackingNumber || '',
+        shippedDate: po.shippedDate || '',
+        receivedDate: po.receivedDate || '',
+        actualShippingCost: po.actualShippingCost || '',
+        actualHandlingCost: po.actualHandlingCost || '',
+        actualProductCost: po.actualProductCost || '',
+      });
+    }
+  }, [editingTrackingPO, trackingForm]);
 
   const filteredOrders = purchaseOrders?.filter((po) =>
     statusFilter === 'all' ? true : po.status === statusFilter
@@ -1039,12 +1096,13 @@ function PurchaseOrdersTab() {
                 <TableHead>Created By</TableHead>
                 <TableHead>Approved By</TableHead>
                 <TableHead className="text-right">Total</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredOrders?.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                     No approved purchase orders found
                   </TableCell>
                 </TableRow>
@@ -1076,6 +1134,20 @@ function PurchaseOrdersTab() {
                     <TableCell>{po.approverName || 'Admin/Manager'}</TableCell>
                     <TableCell className="text-right font-semibold">
                       ${parseFloat(po.totalAmount).toFixed(2)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setEditingTrackingPO(po);
+                          setIsTrackingDialogOpen(true);
+                        }}
+                        data-testid={`button-update-tracking-${po.id}`}
+                      >
+                        <Package className="h-4 w-4 mr-1" />
+                        Update Tracking
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))
@@ -1190,6 +1262,218 @@ function PurchaseOrdersTab() {
             onProductFound={handleProductScanned}
             onClose={() => setShowBarcodeScanner(false)}
           />
+        </DialogContent>
+      </Dialog>
+
+      {/* PO Tracking Dialog */}
+      <Dialog open={isTrackingDialogOpen} onOpenChange={(open) => {
+        setIsTrackingDialogOpen(open);
+        if (!open) {
+          setEditingTrackingPO(null);
+          trackingForm.reset();
+        }
+      }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              Update Purchase Order Tracking - {editingTrackingPO?.poNumber}
+            </DialogTitle>
+            <DialogDescription>
+              Update tracking and cost information for this approved purchase order
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...trackingForm}>
+            <form onSubmit={trackingForm.handleSubmit((data) => {
+              if (editingTrackingPO) {
+                updateTrackingMutation.mutate({ ...data, poId: editingTrackingPO.id });
+              }
+            })} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={trackingForm.control}
+                  name="orderPlacedDate"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Order Placed Date</FormLabel>
+                      <FormControl>
+                        <Input 
+                          type="datetime-local" 
+                          {...field} 
+                          data-testid="input-order-placed-date" 
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={trackingForm.control}
+                  name="vendorOrderNumber"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Vendor Order Number</FormLabel>
+                      <FormControl>
+                        <Input {...field} data-testid="input-vendor-order-number" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={trackingForm.control}
+                  name="trackingNumber"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Tracking Number</FormLabel>
+                      <FormControl>
+                        <Input {...field} data-testid="input-tracking-number" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={trackingForm.control}
+                  name="shippedDate"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Shipped Date</FormLabel>
+                      <FormControl>
+                        <Input 
+                          type="date" 
+                          {...field} 
+                          data-testid="input-shipped-date" 
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <FormField
+                control={trackingForm.control}
+                name="receivedDate"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Received Date</FormLabel>
+                    <FormControl>
+                      <Input 
+                        type="date" 
+                        {...field} 
+                        data-testid="input-received-date" 
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <Separator />
+              <h3 className="font-semibold">Actual Costs</h3>
+
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={trackingForm.control}
+                  name="actualShippingCost"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Actual Shipping Cost</FormLabel>
+                      <FormControl>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                            $
+                          </span>
+                          <Input 
+                            type="number" 
+                            step="0.01" 
+                            className="pl-6"
+                            {...field} 
+                            data-testid="input-actual-shipping-cost" 
+                          />
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={trackingForm.control}
+                  name="actualHandlingCost"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Actual Handling Cost</FormLabel>
+                      <FormControl>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                            $
+                          </span>
+                          <Input 
+                            type="number" 
+                            step="0.01" 
+                            className="pl-6"
+                            {...field} 
+                            data-testid="input-actual-handling-cost" 
+                          />
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <FormField
+                control={trackingForm.control}
+                name="actualProductCost"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Actual Product Cost</FormLabel>
+                    <FormControl>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                          $
+                        </span>
+                        <Input 
+                          type="number" 
+                          step="0.01" 
+                          className="pl-6"
+                          {...field} 
+                          data-testid="input-actual-product-cost" 
+                        />
+                      </div>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <DialogFooter>
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={() => {
+                    setIsTrackingDialogOpen(false);
+                    setEditingTrackingPO(null);
+                    trackingForm.reset();
+                  }}
+                  data-testid="button-cancel-tracking"
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  type="submit" 
+                  disabled={updateTrackingMutation.isPending}
+                  data-testid="button-update-tracking"
+                >
+                  {updateTrackingMutation.isPending ? 'Updating...' : 'Update Tracking'}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
         </DialogContent>
       </Dialog>
     </div>
