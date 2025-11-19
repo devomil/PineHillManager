@@ -196,6 +196,7 @@ const lineItemSchema = z.object({
 });
 
 const purchaseOrderFormSchema = z.object({
+  poNumber: z.string().min(1, 'PO Number is required'),
   vendorId: z.string().min(1, 'Vendor is required'),
   paymentTerms: z.string().default('Net 30'),
   expenseAccountId: z.string().optional(),
@@ -581,6 +582,7 @@ function PurchaseOrdersTab() {
   const poForm = useForm<z.infer<typeof purchaseOrderFormSchema>>({
     resolver: zodResolver(purchaseOrderFormSchema),
     defaultValues: {
+      poNumber: '',
       paymentTerms: 'Net 30',
       lineItems: [{ description: '', quantity: '1', unitPrice: '0.00', productUrl: '' }],
     },
@@ -612,11 +614,8 @@ function PurchaseOrdersTab() {
         productUrl: item.productUrl || null,
       }));
       
-      // Generate unique PO number
-      const poNumber = `PO-${Date.now()}-${Math.random().toString(36).substr(2, 5).toUpperCase()}`;
-      
       return apiRequest('POST', '/api/purchasing/purchase-orders', {
-        poNumber,
+        poNumber: data.poNumber,
         vendorId: parseInt(data.vendorId),
         requestedById: user?.id,
         createdById: user?.id,
@@ -684,6 +683,7 @@ function PurchaseOrdersTab() {
   const handleEditPO = (po: PurchaseOrder) => {
     setEditingPO(po);
     poForm.reset({
+      poNumber: po.poNumber,
       vendorId: po.vendorId.toString(),
       paymentTerms: po.paymentTerms || 'Net 30',
       expenseAccountId: po.expenseAccountId ? po.expenseAccountId.toString() : undefined,
@@ -751,6 +751,24 @@ function PurchaseOrdersTab() {
                     createPOMutation.mutate(data);
                   }
                 })} className="space-y-4">
+                  <FormField
+                    control={poForm.control}
+                    name="poNumber"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>PO Number *</FormLabel>
+                        <FormControl>
+                          <Input 
+                            {...field} 
+                            placeholder="e.g., PO-2024-001 or Custom-Name"
+                            data-testid="input-po-number"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
                   <FormField
                     control={poForm.control}
                     name="vendorId"
