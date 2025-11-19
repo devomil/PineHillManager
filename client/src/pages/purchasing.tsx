@@ -1288,10 +1288,14 @@ function ReportsTab() {
   const [payablesSearch, setPayablesSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [paymentTermsFilter, setPaymentTermsFilter] = useState<string>('all');
+  const [payablesDateFrom, setPayablesDateFrom] = useState('');
+  const [payablesDateTo, setPayablesDateTo] = useState('');
 
   // Vendor Spend filters
   const [vendorSearch, setVendorSearch] = useState('');
   const [sortBy, setSortBy] = useState<string>('totalSpend');
+  const [vendorDateFrom, setVendorDateFrom] = useState('');
+  const [vendorDateTo, setVendorDateTo] = useState('');
 
   // Filter outstanding payables
   const filteredPayables = outstandingPayables?.filter((payable) => {
@@ -1318,14 +1322,55 @@ function ReportsTab() {
     const paymentTermsMatch = paymentTermsFilter === 'all' || 
       payable.paymentTerms === paymentTermsFilter;
 
-    return searchMatch && statusMatch && paymentTermsMatch;
+    // Date filter (filter by order date)
+    let dateMatch = true;
+    if (payablesDateFrom || payablesDateTo) {
+      const orderDate = payable.orderDate ? new Date(payable.orderDate) : null;
+      if (orderDate) {
+        if (payablesDateFrom) {
+          const fromDate = new Date(payablesDateFrom);
+          dateMatch = dateMatch && orderDate >= fromDate;
+        }
+        if (payablesDateTo) {
+          const toDate = new Date(payablesDateTo);
+          toDate.setHours(23, 59, 59, 999); // Include the entire end date
+          dateMatch = dateMatch && orderDate <= toDate;
+        }
+      } else {
+        dateMatch = false; // Exclude items without order date when filtering by date
+      }
+    }
+
+    return searchMatch && statusMatch && paymentTermsMatch && dateMatch;
   }) || [];
 
   // Sort and filter vendor spend
   const filteredVendorSpend = vendorSpendReport
     ?.filter((vendor) => {
-      return vendorSearch === '' || 
+      // Search filter
+      const searchMatch = vendorSearch === '' || 
         vendor.vendorName.toLowerCase().includes(vendorSearch.toLowerCase());
+
+      // Date filter (filter by last order date)
+      let dateMatch = true;
+      if (vendorDateFrom || vendorDateTo) {
+        const lastOrderDate = vendor.lastOrderDate ? new Date(vendor.lastOrderDate) : null;
+        if (lastOrderDate) {
+          if (vendorDateFrom) {
+            const fromDate = new Date(vendorDateFrom);
+            dateMatch = dateMatch && lastOrderDate >= fromDate;
+          }
+          if (vendorDateTo) {
+            const toDate = new Date(vendorDateTo);
+            toDate.setHours(23, 59, 59, 999); // Include the entire end date
+            dateMatch = dateMatch && lastOrderDate <= toDate;
+          }
+        } else {
+          dateMatch = false; // Exclude vendors without last order date when filtering by date
+        }
+      }
+
+      return searchMatch && dateMatch;
     })
     ?.sort((a, b) => {
       if (sortBy === 'totalSpend') {
