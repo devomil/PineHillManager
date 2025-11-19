@@ -1984,6 +1984,16 @@ export const purchaseOrders = pgTable("purchase_orders", {
   orderDate: date("order_date"),
   expectedDeliveryDate: date("expected_delivery_date"),
   receivedDate: date("received_date"),
+  
+  // Order Tracking (post-approval)
+  orderPlacedDate: timestamp("order_placed_date"),
+  vendorOrderNumber: varchar("vendor_order_number"),
+  trackingNumber: varchar("tracking_number"),
+  shippedDate: date("shipped_date"),
+  actualShippingCost: decimal("actual_shipping_cost", { precision: 12, scale: 2 }),
+  actualHandlingCost: decimal("actual_handling_cost", { precision: 12, scale: 2 }),
+  actualProductCost: decimal("actual_product_cost", { precision: 12, scale: 2 }),
+  
   notes: text("notes"),
   internalNotes: text("internal_notes"),
   createdAt: timestamp("created_at").defaultNow(),
