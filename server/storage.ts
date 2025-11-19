@@ -334,7 +334,7 @@ import {
   type InsertPurchaseOrderEvent,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, desc, asc, gte, lte, or, sql, like, isNull, isNotNull, exists, sum, inArray } from "drizzle-orm";
+import { eq, and, desc, asc, gte, lte, or, sql, like, ilike, isNull, isNotNull, exists, sum, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { CloverIntegration } from "./integrations/clover";
 import { AmazonIntegration } from "./integrations/amazon";
@@ -654,6 +654,7 @@ export interface IStorage {
   getEmployeePurchasesByUser(employeeId: string, periodMonth?: string): Promise<EmployeePurchase[]>;
   getEmployeePurchaseMonthlyTotal(employeeId: string, periodMonth: string, userRole?: string): Promise<number>;
   searchInventoryByBarcode(barcode: string): Promise<InventoryItem | undefined>;
+  searchInventoryByText(query: string, limit?: number): Promise<InventoryItem[]>;
   getEmployeePurchaseUsersWithSpending(periodMonth: string): Promise<any[]>;
   updateEmployeePurchaseSettings(userId: string, settings: {
     employeePurchaseEnabled?: boolean;
@@ -4715,6 +4716,24 @@ export class DatabaseStorage implements IStorage {
       ))
       .limit(1);
     return item;
+  }
+
+  async searchInventoryByText(query: string, limit: number = 20): Promise<InventoryItem[]> {
+    const searchTerm = `%${query}%`;
+    const items = await db
+      .select()
+      .from(inventoryItems)
+      .where(and(
+        or(
+          ilike(inventoryItems.itemName, searchTerm),
+          ilike(inventoryItems.description, searchTerm),
+          ilike(inventoryItems.sku, searchTerm)
+        ),
+        eq(inventoryItems.isActive, true)
+      ))
+      .orderBy(inventoryItems.itemName)
+      .limit(limit);
+    return items;
   }
 
   async updateEmployeePurchasePayment(

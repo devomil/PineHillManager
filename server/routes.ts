@@ -4274,6 +4274,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Search inventory by text query (fuzzy search)
+  app.get('/api/inventory/search-text', isAuthenticated, async (req, res) => {
+    try {
+      const query = req.query.q as string;
+      const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 20;
+      
+      if (!query || query.trim().length === 0) {
+        return res.json([]);
+      }
+      
+      const items = await storage.searchInventoryByText(query.trim(), limit);
+      res.json(items);
+    } catch (error) {
+      console.error('Error searching inventory by text:', error);
+      res.status(500).json({ message: 'Failed to search inventory' });
+    }
+  });
+
   // Create employee purchase
   app.post('/api/employee-purchases', isAuthenticated, async (req, res) => {
     try {
