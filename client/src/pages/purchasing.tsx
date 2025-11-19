@@ -31,6 +31,19 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 import { Separator } from '@/components/ui/separator';
 import {
   Plus,
@@ -569,6 +582,107 @@ function VendorsTab() {
   );
 }
 
+// Inventory Autocomplete Component
+type InventoryItem = {
+  id: number;
+  itemName: string;
+  description?: string;
+  unitCost: string;
+  unitPrice: string;
+  sku?: string;
+};
+
+function InventoryAutocomplete({ 
+  value, 
+  onChange, 
+  onProductSelect,
+  lineItemIndex 
+}: { 
+  value: string; 
+  onChange: (value: string) => void;
+  onProductSelect: (product: InventoryItem) => void;
+  lineItemIndex: number;
+}) {
+  const [open, setOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const { data: searchResults = [], isLoading } = useQuery<InventoryItem[]>({
+    queryKey: ['/api/inventory/search-text', searchQuery],
+    queryFn: async () => {
+      if (!searchQuery || searchQuery.trim().length < 2) {
+        return [];
+      }
+      const response = await fetch(`/api/inventory/search-text?q=${encodeURIComponent(searchQuery)}&limit=15`);
+      if (!response.ok) {
+        throw new Error('Failed to search inventory');
+      }
+      return response.json();
+    },
+    enabled: searchQuery.trim().length >= 2,
+  });
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <div className="relative">
+          <Input
+            placeholder="Search or type product description..."
+            value={value}
+            onChange={(e) => {
+              onChange(e.target.value);
+              setSearchQuery(e.target.value);
+              if (e.target.value.length >= 2) {
+                setOpen(true);
+              }
+            }}
+            onFocus={() => {
+              if (value.length >= 2) {
+                setSearchQuery(value);
+                setOpen(true);
+              }
+            }}
+            data-testid={`input-line-item-description-${lineItemIndex}`}
+          />
+          {isLoading && (
+            <Search className="absolute right-3 top-3 h-4 w-4 animate-pulse text-muted-foreground" />
+          )}
+        </div>
+      </PopoverTrigger>
+      <PopoverContent className="w-[400px] p-0" align="start">
+        <Command>
+          <CommandList>
+            {searchResults.length === 0 && searchQuery.length >= 2 && !isLoading && (
+              <CommandEmpty>No products found.</CommandEmpty>
+            )}
+            {searchResults.length > 0 && (
+              <CommandGroup>
+                {searchResults.map((item) => (
+                  <CommandItem
+                    key={item.id}
+                    onSelect={() => {
+                      onProductSelect(item);
+                      setOpen(false);
+                    }}
+                    data-testid={`product-option-${item.id}`}
+                  >
+                    <div className="flex flex-col w-full">
+                      <div className="font-medium">{item.itemName}</div>
+                      <div className="flex justify-between text-xs text-muted-foreground">
+                        <span>{item.sku ? `SKU: ${item.sku}` : ''}</span>
+                        <span>${item.unitCost}</span>
+                      </div>
+                    </div>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            )}
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 function PurchaseOrdersTab() {
   const { toast } = useToast();
   const { user } = useAuth();
@@ -973,7 +1087,25 @@ function PurchaseOrdersTab() {
                               <FormItem>
                                 <FormLabel>Description</FormLabel>
                                 <FormControl>
-                                  <Input placeholder="Product description" {...field} data-testid={`input-line-item-description-${index}`} />
+                                  <InventoryAutocomplete
+                                    value={field.value}
+                                    onChange={field.onChange}
+                                    lineItemIndex={index}
+                                    onProductSelect={(product) => {
+                                      const currentLineItems = poForm.getValues('lineItems');
+                                      const updatedLineItems = [...currentLineItems];
+                                      updatedLineItems[index] = {
+                                        ...updatedLineItems[index],
+                                        description: product.description || product.itemName,
+                                        unitPrice: product.unitCost,
+                                      };
+                                      poForm.setValue('lineItems', updatedLineItems);
+                                      toast({
+                                        title: 'Product Selected',
+                                        description: `${product.itemName} - $${product.unitCost}`,
+                                      });
+                                    }}
+                                  />
                                 </FormControl>
                                 <FormMessage />
                               </FormItem>
