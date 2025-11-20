@@ -2414,6 +2414,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/tasks', isAuthenticated, async (req, res) => {
     try {
       const user = req.user;
+      if (!user) {
+        return res.status(401).json({ message: 'Unauthorized' });
+      }
       
       // Employees can only create tasks assigned to themselves
       if (user?.role === 'employee') {
