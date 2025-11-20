@@ -4722,21 +4722,31 @@ export class DatabaseStorage implements IStorage {
     const searchTerm = `%${query}%`;
     const startsWithTerm = `${query}%`;
     const wordStartTerm = `% ${query}%`;
+    const queryLength = query.length;
     
-    // Use relevance scoring for intelligent matching:
-    // 1. Exact match (highest priority)
-    // 2. Starts with query (high priority)
-    // 3. Word starts with query (medium priority)  
-    // 4. Contains query anywhere (lowest priority)
+    // Intelligent matching with minimum query length requirements:
+    // - For queries < 3 chars: Only match exact, starts-with, or word-start
+    // - For queries >= 3 chars: Also allow substring matches
+    // This prevents "cb" from matching "Garlic**B**eef"
+    
+    const whereConditions = queryLength >= 3
+      ? or(
+          ilike(inventoryItems.itemName, searchTerm),
+          ilike(inventoryItems.description, searchTerm),
+          ilike(inventoryItems.sku, searchTerm)
+        )
+      : or(
+          ilike(inventoryItems.itemName, startsWithTerm),
+          ilike(inventoryItems.itemName, wordStartTerm),
+          ilike(inventoryItems.sku, startsWithTerm),
+          ilike(inventoryItems.description, startsWithTerm)
+        );
+    
     const items = await db
       .select()
       .from(inventoryItems)
       .where(and(
-        or(
-          ilike(inventoryItems.itemName, searchTerm),
-          ilike(inventoryItems.description, searchTerm),
-          ilike(inventoryItems.sku, searchTerm)
-        ),
+        whereConditions,
         eq(inventoryItems.isActive, true)
       ))
       .orderBy(
