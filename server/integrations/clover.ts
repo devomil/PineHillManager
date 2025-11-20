@@ -287,10 +287,55 @@ export class CloverIntegration {
     return await this.makeCloverAPICallWithConfig(endpoint, this.config);
   }
 
-  // Get inventory item stocks for cost tracking
-  async fetchInventoryItemStocks(itemId: string): Promise<any> {
-    console.log(`📊 Fetching stock data for item: ${itemId}`);
-    return await this.makeCloverAPICallWithConfig(`inventory/items/${itemId}/stock`, this.config);
+  // Get inventory item stocks in bulk using supported endpoint
+  async fetchAllItemStocks(): Promise<Map<string, any>> {
+    const stockMap = new Map<string, any>();
+    let offset = 0;
+    const limit = 1000;
+    let hasMoreData = true;
+
+    console.log(`📊 Fetching stock data using /item_stocks endpoint...`);
+
+    while (hasMoreData) {
+      try {
+        const params = new URLSearchParams();
+        params.append('limit', limit.toString());
+        params.append('offset', offset.toString());
+        params.append('expand', 'item');
+
+        const endpoint = `item_stocks?${params.toString()}`;
+        const stockResponse = await this.makeCloverAPICallWithConfig(endpoint, this.config);
+        
+        if (!stockResponse || !stockResponse.elements || stockResponse.elements.length === 0) {
+          hasMoreData = false;
+          break;
+        }
+
+        // Map stock data by item ID
+        for (const stockData of stockResponse.elements) {
+          if (stockData.item && stockData.item.id) {
+            stockMap.set(stockData.item.id, stockData);
+          }
+        }
+
+        console.log(`📊 Fetched ${stockResponse.elements.length} stock records, total so far: ${stockMap.size}`);
+
+        if (stockResponse.elements.length < limit) {
+          hasMoreData = false;
+        } else {
+          offset += limit;
+        }
+      } catch (error) {
+        console.warn(`⚠️ Could not fetch stock data batch at offset ${offset}:`, error);
+        hasMoreData = false;
+      }
+
+      // Rate limiting between batches
+      await new Promise(resolve => setTimeout(resolve, 200));
+    }
+
+    console.log(`✅ Total stock records fetched: ${stockMap.size}`);
+    return stockMap;
   }
 
   // Get all inventory items with their stock data using proper inventory endpoints  
@@ -301,6 +346,9 @@ export class CloverIntegration {
     let hasMoreData = true;
 
     console.log(`🔄 Using Clover Inventory API endpoints for accurate cost data...`);
+
+    // Fetch all stock data in bulk first
+    const stockMap = await this.fetchAllItemStocks();
 
     while (hasMoreData) {
       console.log(`📦 Fetching inventory items: offset=${offset}, limit=${limit}`);
@@ -313,23 +361,25 @@ export class CloverIntegration {
           break;
         }
 
-        // Fetch stock data for each item to get accurate costs
+        // Merge stock data with items
         for (const item of itemsResponse.elements) {
-          try {
-            const stockData = await this.fetchInventoryItemStocks(item.id);
+          const stockData = stockMap.get(item.id);
+          
+          if (stockData) {
             item.stockInfo = stockData;
-            
             const cost = stockData?.cost ? (parseFloat(stockData.cost) / 100).toFixed(2) : '0.00';
             const stock = stockData?.quantity || 0;
-            
             console.log(`📊 Item ${item.name}: Cost=$${cost}, Stock=${stock}`);
-          } catch (error) {
-            console.warn(`⚠️ Could not fetch stock data for item ${item.id}:`, error);
+          } else {
+            // Use stockCount from item if available, otherwise mark as unavailable
             item.stockInfo = null;
+            item.stockSyncStatus = 'no_stock_record';
+            if (item.stockCount !== undefined) {
+              console.log(`📊 Item ${item.name}: Using stockCount=${item.stockCount} (no detailed stock record)`);
+            } else {
+              console.log(`📊 Item ${item.name}: No stock data available`);
+            }
           }
-          
-          // Rate limiting between stock requests
-          await new Promise(resolve => setTimeout(resolve, 50));
         }
 
         inventoryItems.push(...itemsResponse.elements);
@@ -349,7 +399,7 @@ export class CloverIntegration {
       await new Promise(resolve => setTimeout(resolve, 200));
     }
 
-    console.log(`🔄 Total inventory items fetched with cost data: ${inventoryItems.length}`);
+    console.log(`🔄 Total inventory items fetched: ${inventoryItems.length}, with stock data: ${stockMap.size}`);
     return inventoryItems;
   }
 
