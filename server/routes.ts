@@ -4280,11 +4280,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const query = req.query.q as string;
       const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 20;
       
+      console.log('📝 Inventory search query:', { query, limit });
+      
       if (!query || query.trim().length === 0) {
+        console.log('⚠️ Empty query, returning []');
         return res.json([]);
       }
       
+      const startTime = Date.now();
       const items = await storage.searchInventoryByText(query.trim(), limit);
+      const duration = Date.now() - startTime;
+      
+      console.log(`✅ Search complete: found ${items.length} results in ${duration}ms`);
       res.json(items);
     } catch (error) {
       console.error('Error searching inventory by text:', error);
