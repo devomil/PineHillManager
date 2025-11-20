@@ -4720,8 +4720,37 @@ export class DatabaseStorage implements IStorage {
 
   async searchInventoryByText(query: string, limit: number = 20): Promise<InventoryItem[]> {
     const searchTerm = `%${query}%`;
+    const startsWithTerm = `${query}%`;
+    const wordStartTerm = `% ${query}%`;
+    
+    // Use relevance scoring for intelligent matching:
+    // 1. Exact match (highest priority)
+    // 2. Starts with query (high priority)
+    // 3. Word starts with query (medium priority)  
+    // 4. Contains query anywhere (lowest priority)
     const items = await db
-      .select()
+      .select({
+        id: inventoryItems.id,
+        itemName: inventoryItems.itemName,
+        description: inventoryItems.description,
+        unitCost: inventoryItems.unitCost,
+        unitPrice: inventoryItems.unitPrice,
+        sku: inventoryItems.sku,
+        relevance: sql<number>`
+          CASE
+            WHEN LOWER(${inventoryItems.itemName}) = LOWER(${query}) THEN 1000
+            WHEN LOWER(${inventoryItems.sku}) = LOWER(${query}) THEN 900
+            WHEN ${inventoryItems.itemName} ILIKE ${startsWithTerm} THEN 800
+            WHEN ${inventoryItems.sku} ILIKE ${startsWithTerm} THEN 700
+            WHEN ${inventoryItems.itemName} ILIKE ${wordStartTerm} THEN 600
+            WHEN ${inventoryItems.description} ILIKE ${startsWithTerm} THEN 500
+            WHEN ${inventoryItems.itemName} ILIKE ${searchTerm} THEN 400
+            WHEN ${inventoryItems.description} ILIKE ${searchTerm} THEN 300
+            WHEN ${inventoryItems.sku} ILIKE ${searchTerm} THEN 200
+            ELSE 100
+          END
+        `.as('relevance')
+      })
       .from(inventoryItems)
       .where(and(
         or(
@@ -4731,8 +4760,9 @@ export class DatabaseStorage implements IStorage {
         ),
         eq(inventoryItems.isActive, true)
       ))
-      .orderBy(inventoryItems.itemName)
+      .orderBy(sql`relevance DESC, ${inventoryItems.itemName}`)
       .limit(limit);
+    
     return items;
   }
 
