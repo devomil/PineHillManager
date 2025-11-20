@@ -663,13 +663,14 @@ function InventoryAutocomplete({
                       onProductSelect(item);
                       setOpen(false);
                     }}
+                    className="aria-selected:bg-blue-50 aria-selected:text-blue-900 hover:bg-blue-50 hover:text-blue-900 cursor-pointer"
                     data-testid={`product-option-${item.id}`}
                   >
                     <div className="flex flex-col w-full">
                       <div className="font-medium">{item.itemName}</div>
-                      <div className="flex justify-between text-xs text-muted-foreground">
+                      <div className="flex justify-between text-xs opacity-70">
                         <span>{item.sku ? `SKU: ${item.sku}` : ''}</span>
-                        <span>${item.unitCost}</span>
+                        <span className="font-semibold">${item.unitCost}</span>
                       </div>
                     </div>
                   </CommandItem>

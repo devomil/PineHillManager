@@ -4729,14 +4729,18 @@ export class DatabaseStorage implements IStorage {
     // 3. Word starts with query (medium priority)  
     // 4. Contains query anywhere (lowest priority)
     const items = await db
-      .select({
-        id: inventoryItems.id,
-        itemName: inventoryItems.itemName,
-        description: inventoryItems.description,
-        unitCost: inventoryItems.unitCost,
-        unitPrice: inventoryItems.unitPrice,
-        sku: inventoryItems.sku,
-        relevance: sql<number>`
+      .select()
+      .from(inventoryItems)
+      .where(and(
+        or(
+          ilike(inventoryItems.itemName, searchTerm),
+          ilike(inventoryItems.description, searchTerm),
+          ilike(inventoryItems.sku, searchTerm)
+        ),
+        eq(inventoryItems.isActive, true)
+      ))
+      .orderBy(
+        sql`
           CASE
             WHEN LOWER(${inventoryItems.itemName}) = LOWER(${query}) THEN 1000
             WHEN LOWER(${inventoryItems.sku}) = LOWER(${query}) THEN 900
@@ -4748,19 +4752,10 @@ export class DatabaseStorage implements IStorage {
             WHEN ${inventoryItems.description} ILIKE ${searchTerm} THEN 300
             WHEN ${inventoryItems.sku} ILIKE ${searchTerm} THEN 200
             ELSE 100
-          END
-        `.as('relevance')
-      })
-      .from(inventoryItems)
-      .where(and(
-        or(
-          ilike(inventoryItems.itemName, searchTerm),
-          ilike(inventoryItems.description, searchTerm),
-          ilike(inventoryItems.sku, searchTerm)
-        ),
-        eq(inventoryItems.isActive, true)
-      ))
-      .orderBy(sql`relevance DESC, ${inventoryItems.itemName}`)
+          END DESC
+        `,
+        inventoryItems.itemName
+      )
       .limit(limit);
     
     return items;
