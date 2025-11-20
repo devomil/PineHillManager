@@ -4728,6 +4728,7 @@ export class DatabaseStorage implements IStorage {
     // - For queries < 3 chars: Only match exact, starts-with, or word-start
     // - For queries >= 3 chars: Also allow substring matches
     // This prevents "cb" from matching "Garlic**B**eef"
+    // Using trigram indexes (pg_trgm) for fast ILIKE queries
     
     const whereConditions = queryLength >= 3
       ? or(
