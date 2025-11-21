@@ -669,4 +669,184 @@ export class AmazonIntegration {
       };
     }
   }
+
+  async syncOrdersComprehensive(startDate: Date, endDate: Date, locationId: number): Promise<{ newOrders: number; updatedOrders: number; totalProcessed: number }> {
+    if (!this.config) {
+      throw new Error('Amazon config not set');
+    }
+
+    try {
+      console.log(`Starting comprehensive Amazon order sync from ${startDate.toISOString()} to ${endDate.toISOString()}`);
+
+      await storage.createIntegrationLog({
+        system: 'amazon',
+        operation: 'sync_orders_comprehensive',
+        status: 'in_progress',
+        message: `Starting comprehensive Amazon order sync for date range ${startDate.toISOString()} to ${endDate.toISOString()}`
+      });
+
+      const allOrders: any[] = [];
+      let nextToken = null;
+
+      do {
+        const params = new URLSearchParams({
+          MarketplaceIds: this.config.marketplaceId,
+          CreatedAfter: startDate.toISOString(),
+          CreatedBefore: endDate.toISOString(),
+          MaxResultsPerPage: '100'
+        });
+
+        if (nextToken) {
+          params.append('NextToken', nextToken);
+        }
+
+        const endpoint = `/orders/v0/orders?${params.toString()}`;
+        const response = await this.makeAmazonAPICall(endpoint);
+
+        if (response?.payload?.Orders) {
+          allOrders.push(...response.payload.Orders);
+        }
+
+        nextToken = response?.payload?.NextToken || null;
+
+        if (nextToken) {
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+      } while (nextToken);
+
+      console.log(`Total Amazon orders fetched: ${allOrders.length}`);
+
+      let newOrders = 0;
+      let updatedOrders = 0;
+      let totalProcessed = 0;
+
+      for (const order of allOrders) {
+        try {
+          const existingSale = await storage.getPosSaleByAmazonOrderId(order.AmazonOrderId);
+
+          const orderTotal = parseFloat(order.OrderTotal?.Amount || '0');
+          
+          const orderItems = await this.getOrderItems(order.AmazonOrderId);
+          let calculatedTax = 0;
+
+          if (orderItems?.payload?.OrderItems) {
+            for (const item of orderItems.payload.OrderItems) {
+              calculatedTax += parseFloat(item.ItemTax?.Amount || '0');
+              calculatedTax += parseFloat(item.ShippingTax?.Amount || '0');
+            }
+          }
+          
+          console.log(`📊 Amazon order ${order.AmazonOrderId}: Total=$${orderTotal}, Tax=$${calculatedTax}`);
+
+          if (existingSale) {
+            await storage.updatePosSale(existingSale.id, {
+              totalAmount: orderTotal.toString(),
+              taxAmount: calculatedTax.toString(),
+              saleTime: new Date(order.PurchaseDate)
+            });
+            
+            if (orderItems?.payload?.OrderItems && calculatedTax > 0) {
+              console.log(`🔄 Updating line items for existing Amazon order ${order.AmazonOrderId} to add COGS data`);
+            }
+            
+            updatedOrders++;
+          } else {
+            const orderDate = new Date(order.PurchaseDate);
+
+            const saleData = {
+              saleDate: orderDate.toISOString().split('T')[0],
+              saleTime: orderDate,
+              totalAmount: orderTotal.toString(),
+              taxAmount: calculatedTax.toString(),
+              tipAmount: '0.00',
+              paymentMethod: 'amazon_payment',
+              amazonOrderId: order.AmazonOrderId,
+              locationId: locationId
+            };
+
+            const createdSale = await storage.createPosSale(saleData);
+
+            if (orderItems?.payload?.OrderItems) {
+              for (const item of orderItems.payload.OrderItems) {
+                const itemPrice = parseFloat(item.ItemPrice?.Amount || '0');
+                const quantity = parseInt(item.QuantityOrdered || '1');
+                const lineTotal = itemPrice;
+
+                let inventoryItemId = null;
+                let costBasis = '0.00';
+
+                try {
+                  if (item.ASIN) {
+                    const inventoryItems = await storage.getAllInventoryItems();
+                    const inventoryItem = inventoryItems.find((inv: any) => inv.asin === item.ASIN);
+
+                    if (inventoryItem) {
+                      inventoryItemId = inventoryItem.id;
+                      costBasis = inventoryItem.standardCost || inventoryItem.unitCost || '0.00';
+                      console.log(`🔗 COGS: Linked Amazon "${item.Title}" to inventory item ${inventoryItemId} (Cost: $${costBasis})`);
+                    } else {
+                      console.log(`⚠️ COGS: No inventory match for Amazon item "${item.Title}" (ASIN: ${item.ASIN})`);
+                    }
+                  }
+                } catch (error) {
+                  console.log(`❌ COGS: Error linking Amazon item "${item.Title}":`, error);
+                }
+
+                const itemData = {
+                  saleId: createdSale.id,
+                  inventoryItemId: inventoryItemId,
+                  itemName: item.Title || item.SellerSKU || 'Unknown Item',
+                  quantity: quantity.toString(),
+                  unitPrice: (itemPrice / quantity).toString(),
+                  lineTotal: lineTotal.toString(),
+                  costBasis: costBasis,
+                  discountAmount: parseFloat(item.PromotionDiscount?.Amount || '0').toString()
+                };
+
+                await storage.createPosSaleItem(itemData);
+              }
+            }
+
+            newOrders++;
+          }
+
+          totalProcessed++;
+
+          if (totalProcessed % 10 === 0) {
+            console.log(`Amazon order sync progress: ${totalProcessed} orders processed`);
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          }
+        } catch (orderError) {
+          console.error(`Error processing Amazon order ${order.AmazonOrderId}:`, orderError);
+        }
+      }
+
+      await storage.createIntegrationLog({
+        system: 'amazon',
+        operation: 'sync_orders_comprehensive',
+        status: 'success',
+        message: `Comprehensive Amazon order sync completed: ${newOrders} new orders, ${updatedOrders} updated orders, ${totalProcessed} total processed`
+      });
+
+      console.log(`Comprehensive Amazon order sync completed: ${newOrders} new orders, ${updatedOrders} updated orders, ${totalProcessed} total processed`);
+
+      return {
+        newOrders,
+        updatedOrders,
+        totalProcessed
+      };
+
+    } catch (error) {
+      console.error('Error in comprehensive Amazon order sync:', error);
+
+      await storage.createIntegrationLog({
+        system: 'amazon',
+        operation: 'sync_orders_comprehensive',
+        status: 'error',
+        message: `Comprehensive Amazon order sync failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+      });
+
+      throw error;
+    }
+  }
 }

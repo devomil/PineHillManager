@@ -46,9 +46,9 @@ import {
   insertPurchaseOrderEventSchema,
 } from "@shared/schema";
 import { z } from "zod";
-import { eq, and, or, isNull, isNotNull, desc } from "drizzle-orm";
+import { eq, and, or, isNull, isNotNull, desc, gte, lte } from "drizzle-orm";
 import { db } from "./db";
-import { posSaleItems, stagedProducts, goals } from "@shared/schema";
+import { posSaleItems, stagedProducts, goals, posSales } from "@shared/schema";
 
 // Configure multer for file uploads
 const uploadsDir = path.join(process.cwd(), 'uploads');
@@ -501,6 +501,160 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error getting sync stats:', error);
       res.status(500).json({ message: 'Failed to get sync stats' });
+    }
+  });
+
+  // Backfill tax data for existing pos_sales records
+  app.post('/api/sync/clover/backfill-tax', isAuthenticated, async (req, res) => {
+    try {
+      if (req.user?.role !== 'admin') {
+        return res.status(403).json({ error: 'Admin access required' });
+      }
+
+      const { startDate, endDate, limit } = req.body;
+      
+      console.log(`🔄 Starting tax backfill for Clover orders...`);
+
+      const merchants = await storage.getAllPOSConfigs();
+      const cloverConfigs = merchants.filter(m => m.isActive);
+
+      let totalUpdated = 0;
+      let totalProcessed = 0;
+      let totalFailed = 0;
+
+      for (const config of cloverConfigs) {
+        console.log(`\n📍 Processing merchant: ${config.merchantName}`);
+        
+        const { CloverIntegration } = await import('./integrations/clover');
+        const cloverIntegration = new CloverIntegration(config);
+
+        const conditions: any[] = [
+          eq(posSales.locationId, config.locationId),
+          eq(posSales.taxAmount, '0.00')
+        ];
+
+        if (startDate) {
+          conditions.push(gte(posSales.saleDate, startDate));
+        }
+        if (endDate) {
+          conditions.push(lte(posSales.saleDate, endDate));
+        }
+
+        const salesQuery = db.select()
+          .from(posSales)
+          .where(and(...conditions))
+          .limit(limit || 1000);
+
+        const salesWithZeroTax = await salesQuery;
+        console.log(`Found ${salesWithZeroTax.length} sales with $0 tax for ${config.merchantName}`);
+
+        for (const sale of salesWithZeroTax) {
+          try {
+            if (!sale.cloverOrderId) {
+              console.log(`⚠️ Skipping sale ${sale.id}: No Clover order ID`);
+              continue;
+            }
+
+            const orderDetails = await cloverIntegration.getOrderDetails(sale.cloverOrderId, 'payments');
+            
+            let taxAmount = 0;
+            if (orderDetails.payments && orderDetails.payments.elements && orderDetails.payments.elements.length > 0) {
+              taxAmount = orderDetails.payments.elements.reduce((sum: number, payment: any) => {
+                return sum + parseFloat(payment.taxAmount || '0');
+              }, 0) / 100;
+              
+              console.log(`💰 Order ${sale.cloverOrderId}: Found ${orderDetails.payments.elements.length} payment(s), Tax=$${taxAmount.toFixed(2)}`);
+            } else {
+              console.log(`⚠️ Order ${sale.cloverOrderId}: No payment data available even after expansion`);
+            }
+
+            if (taxAmount > 0) {
+              await storage.updatePosSale(sale.id, {
+                taxAmount: taxAmount.toString()
+              });
+              
+              console.log(`✅ Updated sale ${sale.id} (order ${sale.cloverOrderId}): Tax=$${taxAmount.toFixed(2)}`);
+              totalUpdated++;
+            }
+
+            totalProcessed++;
+
+            if (totalProcessed % 50 === 0) {
+              console.log(`Progress: ${totalProcessed} processed, ${totalUpdated} updated, ${totalFailed} failed`);
+              await new Promise(resolve => setTimeout(resolve, 500));
+            }
+
+          } catch (orderError) {
+            console.error(`❌ Error processing sale ${sale.id}:`, orderError);
+            totalFailed++;
+          }
+        }
+      }
+
+      const summary = {
+        totalProcessed,
+        totalUpdated,
+        totalFailed,
+        message: `Backfill completed: ${totalUpdated} sales updated with tax data`
+      };
+
+      console.log(`\n✅ Tax backfill completed:`, summary);
+
+      res.json(summary);
+    } catch (error) {
+      console.error('Error in tax backfill:', error);
+      res.status(500).json({ message: 'Failed to backfill tax data' });
+    }
+  });
+
+  // ================================
+  // AMAZON SYNC ENDPOINTS
+  // ================================
+
+  // Trigger comprehensive Amazon order sync
+  app.post('/api/sync/amazon/comprehensive', isAuthenticated, async (req, res) => {
+    try {
+      if (req.user?.role !== 'admin') {
+        return res.status(403).json({ error: 'Admin access required' });
+      }
+
+      const { startDate, endDate, locationId } = req.body;
+
+      if (!startDate || !endDate) {
+        return res.status(400).json({ error: 'Start date and end date are required' });
+      }
+
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      const location = locationId || 1;
+
+      const amazonConfigs = await storage.getAllAmazonConfigs();
+      if (!amazonConfigs || amazonConfigs.length === 0) {
+        return res.status(404).json({ error: 'No Amazon configuration found' });
+      }
+
+      const config = amazonConfigs[0];
+      const { AmazonIntegration } = await import('./integrations/amazon');
+      const amazonIntegration = new AmazonIntegration(config);
+
+      amazonIntegration.syncOrdersComprehensive(start, end, location)
+        .then((result) => {
+          console.log('✅ Amazon comprehensive sync completed:', result);
+        })
+        .catch((error) => {
+          console.error('❌ Amazon comprehensive sync failed:', error);
+        });
+
+      res.json({
+        success: true,
+        message: 'Amazon comprehensive sync started',
+        startDate,
+        endDate,
+        locationId: location
+      });
+    } catch (error) {
+      console.error('Error starting Amazon comprehensive sync:', error);
+      res.status(500).json({ message: 'Failed to start Amazon comprehensive sync' });
     }
   });
 

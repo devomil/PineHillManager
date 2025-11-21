@@ -1539,7 +1539,24 @@ export class CloverIntegration {
             if (modifiedTime > existingModifiedTime) {
               // Update existing order
               const totalAmount = parseFloat(order.total) / 100;
-              const taxAmount = parseFloat(order.taxAmount || '0') / 100;
+              
+              // Calculate tax from payments instead of using null taxAmount
+              let taxAmount = 0;
+              if (order.payments && order.payments.elements && order.payments.elements.length > 0) {
+                const paymentsWithTax = order.payments.elements.filter((p: any) => parseFloat(p.taxAmount || '0') > 0).length;
+                taxAmount = order.payments.elements.reduce((sum: number, payment: any) => {
+                  return sum + parseFloat(payment.taxAmount || '0');
+                }, 0) / 100;
+                
+                if (taxAmount === 0 && paymentsWithTax === 0) {
+                  console.log(`⚠️ Order ${order.id}: No tax data in ${order.payments.elements.length} payment(s)`);
+                } else if (taxAmount > 0) {
+                  console.log(`✅ Order ${order.id}: Tax=$${taxAmount.toFixed(2)} from ${paymentsWithTax} payment(s)`);
+                }
+              } else {
+                console.log(`⚠️ Order ${order.id}: No payment data available for tax calculation`);
+              }
+              
               const tipAmount = parseFloat(order.tipAmount || '0') / 100;
 
               await storage.updatePosSale(existingSale.id, {
@@ -1555,7 +1572,24 @@ export class CloverIntegration {
           } else {
             // Create new order
             const totalAmount = parseFloat(order.total) / 100;
-            const taxAmount = parseFloat(order.taxAmount || '0') / 100;
+            
+            // Calculate tax from payments instead of using null taxAmount
+            let taxAmount = 0;
+            if (order.payments && order.payments.elements && order.payments.elements.length > 0) {
+              const paymentsWithTax = order.payments.elements.filter((p: any) => parseFloat(p.taxAmount || '0') > 0).length;
+              taxAmount = order.payments.elements.reduce((sum: number, payment: any) => {
+                return sum + parseFloat(payment.taxAmount || '0');
+              }, 0) / 100;
+              
+              if (taxAmount === 0 && paymentsWithTax === 0) {
+                console.log(`⚠️ Order ${order.id}: No tax data in ${order.payments.elements.length} payment(s)`);
+              } else if (taxAmount > 0) {
+                console.log(`✅ Order ${order.id}: Tax=$${taxAmount.toFixed(2)} from ${paymentsWithTax} payment(s)`);
+              }
+            } else {
+              console.log(`⚠️ Order ${order.id}: No payment data available for tax calculation`);
+            }
+            
             const tipAmount = parseFloat(order.tipAmount || '0') / 100;
             const orderDate = new Date(order.createdTime);
 
