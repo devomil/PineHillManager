@@ -6073,15 +6073,15 @@ export class DatabaseStorage implements IStorage {
           const [saleResult] = await saleQuery;
           balance = parseFloat(saleResult?.totalRevenue || '0');
         } else {
-          // Location-specific sales - join with posLocations to filter by name
-          const conditions: any[] = [eq(posLocations.name, locationName)];
+          // Location-specific sales - join with locations to filter by name
+          const conditions: any[] = [eq(locations.name, locationName)];
           if (startOfMonth) conditions.push(gte(posSales.saleDate, startOfMonth));
           if (endOfMonth) conditions.push(lte(posSales.saleDate, endOfMonth));
           
           const saleQuery = db
             .select({ totalRevenue: sum(posSales.totalAmount) })
             .from(posSales)
-            .innerJoin(posLocations, eq(posSales.locationId, posLocations.id))
+            .innerJoin(locations, eq(posSales.locationId, locations.id))
             .where(and(...conditions));
           const [saleResult] = await saleQuery;
           balance = parseFloat(saleResult?.totalRevenue || '0');
