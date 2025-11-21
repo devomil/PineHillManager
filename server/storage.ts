@@ -6111,23 +6111,28 @@ export class DatabaseStorage implements IStorage {
         const [pogpResult] = await pogpQuery;
         balance = parseFloat(pogpResult?.totalCost || '0');
       } else if (account.accountName === 'Payroll Expense') {
-        // Payroll from time clock entries
-        const conditions: any[] = [
-          eq(timeClockEntries.status, 'clocked_out'),
-          isNotNull(timeClockEntries.totalWorkedMinutes)
-        ];
-        if (startOfMonthDate) conditions.push(gte(timeClockEntries.clockInTime, startOfMonthDate));
-        if (endOfMonthDate) conditions.push(lte(timeClockEntries.clockInTime, endOfMonthDate));
+        // Payroll from SCHEDULED hours (work_schedules) - represents budgeted/expected payroll
+        // Note: Use time_clock_entries for actual worked hours
+        let scheduledPayrollSql = `
+          SELECT COALESCE(SUM(
+            EXTRACT(EPOCH FROM (CAST(ws.end_time AS TIMESTAMP) - CAST(ws.start_time AS TIMESTAMP))) / 3600 * 
+            COALESCE(CAST(u.hourly_rate AS DECIMAL), 0)
+          ), 0)::text as total_cost
+          FROM work_schedules ws
+          INNER JOIN users u ON ws.user_id = u.id
+          WHERE ws.status IN ('scheduled', 'completed')
+        `;
         
-        const payrollQuery = db
-          .select({
-            totalCost: sql<string>`COALESCE(SUM(CAST(${timeClockEntries.totalWorkedMinutes} AS DECIMAL) / 60 * COALESCE(CAST(${users.hourlyRate} AS DECIMAL), 0)), 0)::text`
-          })
-          .from(timeClockEntries)
-          .innerJoin(users, eq(timeClockEntries.userId, users.id))
-          .where(and(...conditions));
-        const [payrollResult] = await payrollQuery;
-        balance = parseFloat(payrollResult?.totalCost || '0');
+        if (startOfMonth && endOfMonth) {
+          scheduledPayrollSql += ` AND ws.date >= '${startOfMonth}' AND ws.date <= '${endOfMonth}'`;
+        } else if (startOfMonth) {
+          scheduledPayrollSql += ` AND ws.date >= '${startOfMonth}'`;
+        } else if (endOfMonth) {
+          scheduledPayrollSql += ` AND ws.date <= '${endOfMonth}'`;
+        }
+        
+        const scheduledPayrollQuery = await db.execute(sql.raw(scheduledPayrollSql));
+        balance = parseFloat((scheduledPayrollQuery.rows[0] as any)?.total_cost || '0');
       } else if (account.accountName === 'Office Supplies Expense' || account.accountName === 'Office Supplies') {
         // Office supplies from POs
         const conditions: any[] = [
@@ -6143,6 +6148,20 @@ export class DatabaseStorage implements IStorage {
           .where(and(...conditions));
         const [officeResult] = await officeQuery;
         balance = parseFloat(officeResult?.totalCost || '0');
+      } else if (account.accountName === 'Inventory') {
+        // Inventory asset value (current stock at cost)
+        // Uses unit_cost or standard_cost * quantity_on_hand for all active items
+        const inventoryQuery = db
+          .select({
+            totalValue: sql<string>`COALESCE(SUM(
+              COALESCE(CAST(${inventoryItems.unitCost} AS DECIMAL), CAST(${inventoryItems.standardCost} AS DECIMAL), 0) * 
+              COALESCE(CAST(${inventoryItems.quantityOnHand} AS DECIMAL), 0)
+            ), 0)::text`
+          })
+          .from(inventoryItems)
+          .where(eq(inventoryItems.isActive, true));
+        const [invResult] = await inventoryQuery;
+        balance = parseFloat(invResult?.totalValue || '0');
       } else if (account.accountName === 'Sales Tax Payable') {
         // Tax from sales
         const conditions: any[] = [];
