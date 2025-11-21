@@ -6087,15 +6087,20 @@ export class DatabaseStorage implements IStorage {
           balance = parseFloat(saleResult?.totalRevenue || '0');
         }
       } else if (account.accountName === 'Cost of Goods Sold') {
-        // COGS from order line items (calculated from actual goods sold)
+        // COGS from POS sale items
+        // NOTE: Currently returns minimal values because inventory items aren't fully linked during sync
+        // Only items with inventory_item_id linkage will have cost_basis populated
+        // TODO: Improve sync to link more items to inventory for accurate COGS
         const conditions: any[] = [];
-        if (startOfMonth) conditions.push(gte(orders.orderDate, startOfMonth));
-        if (endOfMonth) conditions.push(lte(orders.orderDate, endOfMonth));
+        if (startOfMonth) conditions.push(gte(posSales.saleDate, startOfMonth));
+        if (endOfMonth) conditions.push(lte(posSales.saleDate, endOfMonth));
         
         const cogsQuery = db
-          .select({ totalCOGS: sum(orderLineItems.lineCogs) })
-          .from(orderLineItems)
-          .innerJoin(orders, eq(orderLineItems.orderId, orders.id))
+          .select({ 
+            totalCOGS: sql<string>`COALESCE(SUM(CAST(${posSaleItems.costBasis} AS DECIMAL) * CAST(${posSaleItems.quantity} AS DECIMAL)), 0)::text`
+          })
+          .from(posSaleItems)
+          .innerJoin(posSales, eq(posSaleItems.saleId, posSales.id))
           .where(conditions.length > 0 ? and(...conditions) : undefined);
         const [cogsResult] = await cogsQuery;
         balance = parseFloat(cogsResult?.totalCOGS || '0');
@@ -6164,15 +6169,17 @@ export class DatabaseStorage implements IStorage {
         const [invResult] = await inventoryQuery;
         balance = parseFloat(invResult?.totalValue || '0');
       } else if (account.accountName === 'Sales Tax Payable') {
-        // Tax from order line items (calculated from actual sales)
+        // Tax from POS sales
+        // NOTE: Currently returns $0 because Clover API taxAmount field is null/0
+        // Tax is calculated on-the-fly in getOrderDetails from payment data
+        // TODO: Update sync to calculate and store tax_amount during order sync
         const conditions: any[] = [];
-        if (startOfMonth) conditions.push(gte(orders.orderDate, startOfMonth));
-        if (endOfMonth) conditions.push(lte(orders.orderDate, endOfMonth));
+        if (startOfMonth) conditions.push(gte(posSales.saleDate, startOfMonth));
+        if (endOfMonth) conditions.push(lte(posSales.saleDate, endOfMonth));
         
         const taxQuery = db
-          .select({ totalTax: sum(orderLineItems.taxAmount) })
-          .from(orderLineItems)
-          .innerJoin(orders, eq(orderLineItems.orderId, orders.id))
+          .select({ totalTax: sum(posSales.taxAmount) })
+          .from(posSales)
           .where(conditions.length > 0 ? and(...conditions) : undefined);
         const [taxResult] = await taxQuery;
         balance = parseFloat(taxResult?.totalTax || '0');

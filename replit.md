@@ -40,6 +40,9 @@ The system follows a clear separation of concerns between frontend and backend. 
 **Clover API Stock Endpoint Limitation**:  
 The Clover API's per-item stock endpoint (`/v3/merchants/{merchantId}/inventory/items/{itemId}/stock`) returns "405 Method Not Allowed" for GET requests, as Clover designates this endpoint for POST/PUT mutations only. **Solution**: The system uses the bulk `/item_stocks?limit=1000&expand=item` endpoint instead, which fetches stock data for all items in batches of up to 1,000 records. This approach is more efficient (fewer API calls, better rate limiting) and provides accurate cost and quantity data. The inventory sync process is decoupled: items and pricing sync successfully even if stock data is temporarily unavailable, with items flagged via `stockSyncStatus` for observability. Items without detailed stock records fall back to the `stockCount` field when available.
 
+**Chart of Accounts Tax & COGS Limitation**:  
+The Chart of Accounts currently shows $0 for "Sales Tax Payable" and minimal values for "Cost of Goods Sold" because these values aren't being fully populated during Clover order sync. The Clover API's `taxAmount` field returns null/0, and not all inventory items are linked during sync to calculate cost_basis. **Current Behavior**: Sales Tax Payable and COGS read from `pos_sales.tax_amount` and `pos_sale_items.cost_basis` which are mostly $0. **Workaround**: Accurate tax and COGS data is available in the Accounting Overview dashboard which calculates values on-the-fly from order details using `calculateOrderFinancialMetrics`. **Future Solution**: Update order sync process to calculate and persist tax amounts from payment data and improve inventory item linking for accurate COGS calculation during sync.
+
 ## External Dependencies
 
 -   **Email Service**: SendGrid
