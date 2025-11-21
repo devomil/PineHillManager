@@ -22,8 +22,8 @@ export function useWebSocket() {
   const connect = () => {
     try {
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-      // Use current host (includes port automatically)
-      const host = window.location.host;
+      // Use current host with proper port handling
+      const host = window.location.host || `${window.location.hostname}:5000`;
       const wsUrl = `${protocol}//${host}/ws`;
       
       if (import.meta.env.DEV) console.log("Connecting to WebSocket:", wsUrl);

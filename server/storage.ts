@@ -6029,12 +6029,11 @@ export class DatabaseStorage implements IStorage {
     balance: number;
     isActive: boolean;
   }>> {
-    let dateFilter: any; // Complex Drizzle filter type
-    
+    // Calculate date range for the month
+    let startOfMonth, endOfMonth;
     if (month && year) {
-      // Calculate balance up to the end of the specified month
-      const endOfMonth = new Date(year, month, 0); // Last day of the month
-      dateFilter = lte(financialTransactions.transactionDate, sql`${endOfMonth.toISOString().split('T')[0]}`);
+      startOfMonth = new Date(year, month - 1, 1).toISOString().split('T')[0];
+      endOfMonth = new Date(year, month, 0).toISOString().split('T')[0];
     }
 
     // Get all accounts
@@ -6044,34 +6043,98 @@ export class DatabaseStorage implements IStorage {
       .where(eq(financialAccounts.isActive, true))
       .orderBy(asc(financialAccounts.accountNumber), asc(financialAccounts.accountName));
 
-    // Calculate balances for each account
+    // Calculate balances for each account with live data
     const result = await Promise.all(accounts.map(async (account) => {
-      let balanceQuery = db
-        .select({
-          totalDebits: sum(financialTransactionLines.debitAmount),
-          totalCredits: sum(financialTransactionLines.creditAmount)
-        })
-        .from(financialTransactionLines)
-        .innerJoin(financialTransactions, eq(financialTransactionLines.transactionId, financialTransactions.id))
-        .where(eq(financialTransactionLines.accountId, account.id));
+      let balance = 0;
 
-      if (dateFilter) {
-        balanceQuery = (balanceQuery as any).where(dateFilter); // Drizzle type inference issue
-      }
-
-      const [balanceResult] = await balanceQuery;
-      
-      const totalDebits = parseFloat(balanceResult.totalDebits || '0');
-      const totalCredits = parseFloat(balanceResult.totalCredits || '0');
-      
-      // Calculate balance based on account type (normal balance)
-      let balance: number;
-      if (['asset', 'expense'].includes(account.accountType.toLowerCase())) {
-        // Assets and Expenses have normal debit balances
-        balance = totalDebits - totalCredits;
+      // Handle different account types with live data sources
+      if (account.accountName.includes('Sales - ') || account.accountName === 'Total Sales Revenue') {
+        // Live sales data from posSales
+        const saleQuery = db
+          .select({ totalRevenue: sum(posSales.totalAmount) })
+          .from(posSales)
+          .where(and(
+            gte(posSales.saleDate, startOfMonth || '1900-01-01'),
+            lte(posSales.saleDate, endOfMonth || '2099-12-31')
+          ));
+        const [saleResult] = await saleQuery;
+        balance = parseFloat(saleResult.totalRevenue || '0');
+      } else if (account.accountName === 'Cost of Goods Sold') {
+        // COGS from purchase orders
+        const poQuery = db
+          .select({ totalCost: sum(purchaseOrders.totalAmount) })
+          .from(purchaseOrders)
+          .where(and(
+            eq(purchaseOrders.status, 'received'),
+            gte(purchaseOrders.receivedDate, startOfMonth || '1900-01-01'),
+            lte(purchaseOrders.receivedDate, endOfMonth || '2099-12-31')
+          ));
+        const [poResult] = await poQuery;
+        balance = parseFloat(poResult.totalCost || '0');
+      } else if (account.accountName === 'Payroll Expense') {
+        // Payroll from time clock entries
+        const payrollQuery = db
+          .select({
+            totalCost: sql<string>`COALESCE(SUM(CAST(${timeClockEntries.totalWorkedMinutes} AS DECIMAL) / 60 * COALESCE(CAST(${users.hourlyRate} AS DECIMAL), 0)), 0)::text`
+          })
+          .from(timeClockEntries)
+          .innerJoin(users, eq(timeClockEntries.userId, users.id))
+          .where(and(
+            eq(timeClockEntries.status, 'clocked_out'),
+            isNotNull(timeClockEntries.totalWorkedMinutes),
+            gte(timeClockEntries.clockInTime, startOfMonth || '1900-01-01'),
+            lte(timeClockEntries.clockInTime, endOfMonth || '2099-12-31')
+          ));
+        const [payrollResult] = await payrollQuery;
+        balance = parseFloat(payrollResult.totalCost || '0');
+      } else if (account.accountName === 'Office Supplies Expense' || account.accountName === 'Office Supplies') {
+        // Office supplies from POs
+        const officeQuery = db
+          .select({ totalCost: sum(purchaseOrders.totalAmount) })
+          .from(purchaseOrders)
+          .where(and(
+            eq(purchaseOrders.status, 'received'),
+            ilike(purchaseOrders.notes, '%office%'),
+            gte(purchaseOrders.receivedDate, startOfMonth || '1900-01-01'),
+            lte(purchaseOrders.receivedDate, endOfMonth || '2099-12-31')
+          ));
+        const [officeResult] = await officeQuery;
+        balance = parseFloat(officeResult.totalCost || '0');
+      } else if (account.accountName === 'Sales Tax Payable') {
+        // Tax from sales
+        const taxQuery = db
+          .select({ totalTax: sum(posSales.taxAmount) })
+          .from(posSales)
+          .where(and(
+            gte(posSales.saleDate, startOfMonth || '1900-01-01'),
+            lte(posSales.saleDate, endOfMonth || '2099-12-31')
+          ));
+        const [taxResult] = await taxQuery;
+        balance = parseFloat(taxResult.totalTax || '0');
       } else {
-        // Liabilities, Equity, and Revenue have normal credit balances
-        balance = totalCredits - totalDebits;
+        // Fall back to financial transaction data
+        const transQuery = db
+          .select({
+            totalDebits: sum(financialTransactionLines.debitAmount),
+            totalCredits: sum(financialTransactionLines.creditAmount)
+          })
+          .from(financialTransactionLines)
+          .innerJoin(financialTransactions, eq(financialTransactionLines.transactionId, financialTransactions.id))
+          .where(and(
+            eq(financialTransactionLines.accountId, account.id),
+            startOfMonth ? gte(financialTransactions.transactionDate, startOfMonth) : undefined,
+            endOfMonth ? lte(financialTransactions.transactionDate, endOfMonth) : undefined
+          ).filter((c) => c !== undefined) as any);
+
+        const [transResult] = await transQuery;
+        const totalDebits = parseFloat(transResult.totalDebits || '0');
+        const totalCredits = parseFloat(transResult.totalCredits || '0');
+        
+        if (['asset', 'expense'].includes(account.accountType.toLowerCase())) {
+          balance = totalDebits - totalCredits;
+        } else {
+          balance = totalCredits - totalDebits;
+        }
       }
 
       return {
@@ -6079,8 +6142,8 @@ export class DatabaseStorage implements IStorage {
         accountName: account.accountName,
         accountType: account.accountType,
         accountCode: account.accountNumber,
-        balance: Math.round(balance * 100) / 100, // Round to 2 decimal places
-        isActive: account.isActive ?? true // Handle nullable boolean
+        balance: Math.round(balance * 100) / 100,
+        isActive: account.isActive ?? true
       };
     }));
 
