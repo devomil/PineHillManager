@@ -6037,9 +6037,12 @@ export class DatabaseStorage implements IStorage {
     balance: number;
     isActive: boolean;
   }>> {
-    // Calculate date range for the month with proper type annotation
-    const startOfMonth: string | null = month && year ? new Date(year, month - 1, 1).toISOString().split('T')[0] : null;
-    const endOfMonth: string | null = month && year ? new Date(year, month, 0).toISOString().split('T')[0] : null;
+    // Calculate date range for the month - dates for comparison
+    const startOfMonthDate: Date | null = month && year ? new Date(year, month - 1, 1) : null;
+    const endOfMonthDate: Date | null = month && year ? new Date(year, month, 0, 23, 59, 59, 999) : null;
+    // String dates for sale/order date comparisons
+    const startOfMonth: string | null = startOfMonthDate ? startOfMonthDate.toISOString().split('T')[0] : null;
+    const endOfMonth: string | null = endOfMonthDate ? endOfMonthDate.toISOString().split('T')[0] : null;
 
     // Get all accounts
     const accounts = await db
@@ -6113,8 +6116,8 @@ export class DatabaseStorage implements IStorage {
           eq(timeClockEntries.status, 'clocked_out'),
           isNotNull(timeClockEntries.totalWorkedMinutes)
         ];
-        if (startOfMonth) conditions.push(gte(timeClockEntries.clockInTime, startOfMonth));
-        if (endOfMonth) conditions.push(lte(timeClockEntries.clockInTime, endOfMonth));
+        if (startOfMonthDate) conditions.push(gte(timeClockEntries.clockInTime, startOfMonthDate));
+        if (endOfMonthDate) conditions.push(lte(timeClockEntries.clockInTime, endOfMonthDate));
         
         const payrollQuery = db
           .select({
