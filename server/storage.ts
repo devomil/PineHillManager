@@ -6087,15 +6087,16 @@ export class DatabaseStorage implements IStorage {
           balance = parseFloat(saleResult?.totalRevenue || '0');
         }
       } else if (account.accountName === 'Cost of Goods Sold') {
-        // COGS from orders (actual goods sold)
-        const conditions: any[] = [eq(orders.orderState, 'closed')];
+        // COGS from order line items (calculated from actual goods sold)
+        const conditions: any[] = [];
         if (startOfMonth) conditions.push(gte(orders.orderDate, startOfMonth));
         if (endOfMonth) conditions.push(lte(orders.orderDate, endOfMonth));
         
         const cogsQuery = db
-          .select({ totalCOGS: sum(orders.orderCogs) })
-          .from(orders)
-          .where(and(...conditions));
+          .select({ totalCOGS: sum(orderLineItems.lineCogs) })
+          .from(orderLineItems)
+          .innerJoin(orders, eq(orderLineItems.orderId, orders.id))
+          .where(conditions.length > 0 ? and(...conditions) : undefined);
         const [cogsResult] = await cogsQuery;
         balance = parseFloat(cogsResult?.totalCOGS || '0');
       } else if (account.accountName === 'Cost of Goods Purchased') {
@@ -6163,14 +6164,15 @@ export class DatabaseStorage implements IStorage {
         const [invResult] = await inventoryQuery;
         balance = parseFloat(invResult?.totalValue || '0');
       } else if (account.accountName === 'Sales Tax Payable') {
-        // Tax from sales
+        // Tax from order line items (calculated from actual sales)
         const conditions: any[] = [];
-        if (startOfMonth) conditions.push(gte(posSales.saleDate, startOfMonth));
-        if (endOfMonth) conditions.push(lte(posSales.saleDate, endOfMonth));
+        if (startOfMonth) conditions.push(gte(orders.orderDate, startOfMonth));
+        if (endOfMonth) conditions.push(lte(orders.orderDate, endOfMonth));
         
         const taxQuery = db
-          .select({ totalTax: sum(posSales.taxAmount) })
-          .from(posSales)
+          .select({ totalTax: sum(orderLineItems.taxAmount) })
+          .from(orderLineItems)
+          .innerJoin(orders, eq(orderLineItems.orderId, orders.id))
           .where(conditions.length > 0 ? and(...conditions) : undefined);
         const [taxResult] = await taxQuery;
         balance = parseFloat(taxResult?.totalTax || '0');
