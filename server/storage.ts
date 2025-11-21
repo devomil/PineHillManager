@@ -6059,91 +6059,97 @@ export class DatabaseStorage implements IStorage {
         
         if (account.accountName === 'Total Sales Revenue') {
           // Total sales from all locations
+          const conditions: any[] = [];
+          if (startOfMonth) conditions.push(gte(posSales.saleDate, startOfMonth));
+          if (endOfMonth) conditions.push(lte(posSales.saleDate, endOfMonth));
+          
           const saleQuery = db
             .select({ totalRevenue: sum(posSales.totalAmount) })
             .from(posSales)
-            .where(and(
-              startOfMonth ? gte(posSales.saleDate, startOfMonth) : undefined,
-              endOfMonth ? lte(posSales.saleDate, endOfMonth) : undefined
-            ).filter((c) => c !== undefined) as any);
+            .where(conditions.length > 0 ? and(...conditions) : undefined);
           const [saleResult] = await saleQuery;
           balance = parseFloat(saleResult?.totalRevenue || '0');
         } else {
           // Location-specific sales - join with posLocations to filter by name
+          const conditions: any[] = [eq(posLocations.name, locationName)];
+          if (startOfMonth) conditions.push(gte(posSales.saleDate, startOfMonth));
+          if (endOfMonth) conditions.push(lte(posSales.saleDate, endOfMonth));
+          
           const saleQuery = db
             .select({ totalRevenue: sum(posSales.totalAmount) })
             .from(posSales)
             .innerJoin(posLocations, eq(posSales.locationId, posLocations.id))
-            .where(and(
-              eq(posLocations.name, locationName),
-              startOfMonth ? gte(posSales.saleDate, startOfMonth) : undefined,
-              endOfMonth ? lte(posSales.saleDate, endOfMonth) : undefined
-            ).filter((c) => c !== undefined) as any);
+            .where(and(...conditions));
           const [saleResult] = await saleQuery;
           balance = parseFloat(saleResult?.totalRevenue || '0');
         }
       } else if (account.accountName === 'Cost of Goods Sold') {
         // COGS from orders (actual goods sold)
+        const conditions: any[] = [eq(orders.orderState, 'closed')];
+        if (startOfMonth) conditions.push(gte(orders.orderDate, startOfMonth));
+        if (endOfMonth) conditions.push(lte(orders.orderDate, endOfMonth));
+        
         const cogsQuery = db
           .select({ totalCOGS: sum(orders.orderCogs) })
           .from(orders)
-          .where(and(
-            eq(orders.orderState, 'closed'),
-            startOfMonth ? gte(orders.orderDate, startOfMonth) : undefined,
-            endOfMonth ? lte(orders.orderDate, endOfMonth) : undefined
-          ).filter((c) => c !== undefined) as any);
+          .where(and(...conditions));
         const [cogsResult] = await cogsQuery;
         balance = parseFloat(cogsResult?.totalCOGS || '0');
       } else if (account.accountName === 'Cost of Goods Purchased') {
         // COGP from purchase orders (goods purchased)
+        const conditions: any[] = [eq(purchaseOrders.status, 'received')];
+        if (startOfMonth) conditions.push(gte(purchaseOrders.receivedDate, startOfMonth));
+        if (endOfMonth) conditions.push(lte(purchaseOrders.receivedDate, endOfMonth));
+        
         const pogpQuery = db
           .select({ totalCost: sum(purchaseOrders.totalAmount) })
           .from(purchaseOrders)
-          .where(and(
-            eq(purchaseOrders.status, 'received'),
-            startOfMonth ? gte(purchaseOrders.receivedDate, startOfMonth) : undefined,
-            endOfMonth ? lte(purchaseOrders.receivedDate, endOfMonth) : undefined
-          ).filter((c) => c !== undefined) as any);
+          .where(and(...conditions));
         const [pogpResult] = await pogpQuery;
         balance = parseFloat(pogpResult?.totalCost || '0');
       } else if (account.accountName === 'Payroll Expense') {
         // Payroll from time clock entries
+        const conditions: any[] = [
+          eq(timeClockEntries.status, 'clocked_out'),
+          isNotNull(timeClockEntries.totalWorkedMinutes)
+        ];
+        if (startOfMonth) conditions.push(gte(timeClockEntries.clockInTime, startOfMonth));
+        if (endOfMonth) conditions.push(lte(timeClockEntries.clockInTime, endOfMonth));
+        
         const payrollQuery = db
           .select({
             totalCost: sql<string>`COALESCE(SUM(CAST(${timeClockEntries.totalWorkedMinutes} AS DECIMAL) / 60 * COALESCE(CAST(${users.hourlyRate} AS DECIMAL), 0)), 0)::text`
           })
           .from(timeClockEntries)
           .innerJoin(users, eq(timeClockEntries.userId, users.id))
-          .where(and(
-            eq(timeClockEntries.status, 'clocked_out'),
-            isNotNull(timeClockEntries.totalWorkedMinutes),
-            startOfMonth ? gte(timeClockEntries.clockInTime, startOfMonth) : undefined,
-            endOfMonth ? lte(timeClockEntries.clockInTime, endOfMonth) : undefined
-          ).filter((c) => c !== undefined) as any);
+          .where(and(...conditions));
         const [payrollResult] = await payrollQuery;
         balance = parseFloat(payrollResult?.totalCost || '0');
       } else if (account.accountName === 'Office Supplies Expense' || account.accountName === 'Office Supplies') {
         // Office supplies from POs
+        const conditions: any[] = [
+          eq(purchaseOrders.status, 'received'),
+          ilike(purchaseOrders.notes, '%office%')
+        ];
+        if (startOfMonth) conditions.push(gte(purchaseOrders.receivedDate, startOfMonth));
+        if (endOfMonth) conditions.push(lte(purchaseOrders.receivedDate, endOfMonth));
+        
         const officeQuery = db
           .select({ totalCost: sum(purchaseOrders.totalAmount) })
           .from(purchaseOrders)
-          .where(and(
-            eq(purchaseOrders.status, 'received'),
-            ilike(purchaseOrders.notes, '%office%'),
-            startOfMonth ? gte(purchaseOrders.receivedDate, startOfMonth) : undefined,
-            endOfMonth ? lte(purchaseOrders.receivedDate, endOfMonth) : undefined
-          ).filter((c) => c !== undefined) as any);
+          .where(and(...conditions));
         const [officeResult] = await officeQuery;
         balance = parseFloat(officeResult?.totalCost || '0');
       } else if (account.accountName === 'Sales Tax Payable') {
         // Tax from sales
+        const conditions: any[] = [];
+        if (startOfMonth) conditions.push(gte(posSales.saleDate, startOfMonth));
+        if (endOfMonth) conditions.push(lte(posSales.saleDate, endOfMonth));
+        
         const taxQuery = db
           .select({ totalTax: sum(posSales.taxAmount) })
           .from(posSales)
-          .where(and(
-            startOfMonth ? gte(posSales.saleDate, startOfMonth) : undefined,
-            endOfMonth ? lte(posSales.saleDate, endOfMonth) : undefined
-          ).filter((c) => c !== undefined) as any);
+          .where(conditions.length > 0 ? and(...conditions) : undefined);
         const [taxResult] = await taxQuery;
         balance = parseFloat(taxResult?.totalTax || '0');
       } else {
