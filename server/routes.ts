@@ -48,7 +48,7 @@ import {
 import { z } from "zod";
 import { eq, and, or, isNull, isNotNull, desc, gte, lte } from "drizzle-orm";
 import { db } from "./db";
-import { posSaleItems, stagedProducts, goals, posSales } from "@shared/schema";
+import { posSaleItems, stagedProducts, goals, posSales, inventoryItems } from "@shared/schema";
 
 // Configure multer for file uploads
 const uploadsDir = path.join(process.cwd(), 'uploads');
@@ -10870,53 +10870,95 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Backfill cost data for existing pos_sale_items
   app.post('/api/integrations/clover/backfill-costs', isAuthenticated, async (req, res) => {
     try {
-      // Get all pos_sale_items that have inventoryItemId but no costBasis
+      console.log('🔄 Starting COGS backfill - matching by item name...');
+      
+      // Get ALL pos_sale_items with NULL or $0 costBasis (not just ones with inventoryItemId)
       const itemsToUpdate = await db
         .select({
           id: posSaleItems.id,
           inventoryItemId: posSaleItems.inventoryItemId,
-          itemName: posSaleItems.itemName
+          itemName: posSaleItems.itemName,
+          quantity: posSaleItems.quantity
         })
         .from(posSaleItems)
-        .where(and(
-          isNotNull(posSaleItems.inventoryItemId),
+        .where(
           or(
             isNull(posSaleItems.costBasis),
-            eq(posSaleItems.costBasis, '0.00')
+            eq(posSaleItems.costBasis, '0.00'),
+            eq(posSaleItems.costBasis, '0')
           )
-        ));
+        );
+
+      console.log(`Found ${itemsToUpdate.length} items to process`);
 
       let updatedCount = 0;
-      let skippedCount = 0;
+      let skippedNoMatch = 0;
+      let skippedNoCost = 0;
 
       for (const item of itemsToUpdate) {
-        if (item.inventoryItemId) {
-          const inventoryItem = await storage.getInventoryItemById(item.inventoryItemId);
+        try {
+          let inventoryItem;
+          
+          // First try by inventoryItemId if available
+          if (item.inventoryItemId) {
+            inventoryItem = await storage.getInventoryItemById(item.inventoryItemId);
+          }
+          
+          // If not found, try matching by item name
+          if (!inventoryItem && item.itemName) {
+            const matches = await db
+              .select()
+              .from(inventoryItems)
+              .where(eq(inventoryItems.itemName, item.itemName))
+              .limit(1);
+            inventoryItem = matches[0];
+          }
+          
           if (inventoryItem) {
-            // Use standardCost first, fallback to unitCost - explicit positive value check
+            // Use standardCost first, fallback to unitCost
             const standardCost = parseFloat(inventoryItem.standardCost || '0');
             const unitCost = parseFloat(inventoryItem.unitCost || '0');
             const finalCost = standardCost > 0 ? standardCost : unitCost;
+            
             if (finalCost > 0) {
+              // Calculate total cost basis (unit cost * quantity)
+              const quantity = parseFloat(item.quantity || '1');
+              const totalCostBasis = finalCost * quantity;
+              
               await db
                 .update(posSaleItems)
-                .set({ costBasis: finalCost.toFixed(2) })
+                .set({ 
+                  costBasis: totalCostBasis.toFixed(2),
+                  // Also populate inventoryItemId if it was missing
+                  ...(item.inventoryItemId ? {} : { inventoryItemId: inventoryItem.id })
+                })
                 .where(eq(posSaleItems.id, item.id));
               updatedCount++;
             } else {
-              skippedCount++;
+              skippedNoCost++;
             }
           } else {
-            skippedCount++;
+            skippedNoMatch++;
           }
+          
+          // Progress update every 500 items
+          if ((updatedCount + skippedNoMatch + skippedNoCost) % 500 === 0) {
+            console.log(`Progress: ${updatedCount} updated, ${skippedNoMatch} no match, ${skippedNoCost} no cost`);
+          }
+        } catch (itemError) {
+          console.error(`Error processing item ${item.id}:`, itemError);
+          skippedNoMatch++;
         }
       }
 
+      console.log(`✅ COGS backfill complete: ${updatedCount} updated, ${skippedNoMatch} no match, ${skippedNoCost} no cost`);
+
       res.json({
         success: true,
-        message: `Backfilled cost data for ${updatedCount} items, skipped ${skippedCount} items with no cost data`,
+        message: `Backfilled cost data for ${updatedCount} items`,
         updatedCount,
-        skippedCount,
+        skippedNoMatch,
+        skippedNoCost,
         totalProcessed: itemsToUpdate.length
       });
     } catch (error) {
