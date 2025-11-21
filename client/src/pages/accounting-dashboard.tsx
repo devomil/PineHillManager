@@ -497,8 +497,8 @@ function AccountingContent() {
   // Chart of Accounts with period filtering state
   const [isPayrollDialogOpen, setIsPayrollDialogOpen] = useState(false);
 
-  // Financial accounts with period filtering - use COA endpoint when filtering, regular endpoint otherwise
-  const useCOAFiltering = isHistoricalMode;
+  // Financial accounts with period filtering - always use COA endpoint for live MTD calculations
+  const useCOAFiltering = true;
   const { data: coaData, isLoading: accountsLoading } = useQuery<{
     accounts: FinancialAccount[];
     period: { month: number; year: number } | null;

@@ -6054,16 +6054,34 @@ export class DatabaseStorage implements IStorage {
 
       // Handle different account types with live data sources
       if (account.accountName.includes('Sales - ') || account.accountName === 'Total Sales Revenue') {
-        // Live sales data from posSales
-        const saleQuery = db
-          .select({ totalRevenue: sum(posSales.totalAmount) })
-          .from(posSales)
-          .where(and(
-            startOfMonth ? gte(posSales.saleDate, startOfMonth) : undefined,
-            endOfMonth ? lte(posSales.saleDate, endOfMonth) : undefined
-          ).filter((c) => c !== undefined) as any);
-        const [saleResult] = await saleQuery;
-        balance = parseFloat(saleResult?.totalRevenue || '0');
+        // Extract location name from account name (e.g., "Sales - Lake Geneva Retail" -> "Lake Geneva Retail")
+        const locationName = account.accountName.replace('Sales - ', '').trim();
+        
+        if (account.accountName === 'Total Sales Revenue') {
+          // Total sales from all locations
+          const saleQuery = db
+            .select({ totalRevenue: sum(posSales.totalAmount) })
+            .from(posSales)
+            .where(and(
+              startOfMonth ? gte(posSales.saleDate, startOfMonth) : undefined,
+              endOfMonth ? lte(posSales.saleDate, endOfMonth) : undefined
+            ).filter((c) => c !== undefined) as any);
+          const [saleResult] = await saleQuery;
+          balance = parseFloat(saleResult?.totalRevenue || '0');
+        } else {
+          // Location-specific sales - join with posLocations to filter by name
+          const saleQuery = db
+            .select({ totalRevenue: sum(posSales.totalAmount) })
+            .from(posSales)
+            .innerJoin(posLocations, eq(posSales.locationId, posLocations.id))
+            .where(and(
+              eq(posLocations.name, locationName),
+              startOfMonth ? gte(posSales.saleDate, startOfMonth) : undefined,
+              endOfMonth ? lte(posSales.saleDate, endOfMonth) : undefined
+            ).filter((c) => c !== undefined) as any);
+          const [saleResult] = await saleQuery;
+          balance = parseFloat(saleResult?.totalRevenue || '0');
+        }
       } else if (account.accountName === 'Cost of Goods Sold') {
         // COGS from orders (actual goods sold)
         const cogsQuery = db
