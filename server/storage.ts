@@ -6183,6 +6183,19 @@ export class DatabaseStorage implements IStorage {
           .where(conditions.length > 0 ? and(...conditions) : undefined);
         const [taxResult] = await taxQuery;
         balance = parseFloat(taxResult?.totalTax || '0');
+      } else if (account.accountName === 'Cost of Goods Sold') {
+        // COGS from POS sale items (cost_basis field populated by backfill)
+        const conditions: any[] = [];
+        if (startOfMonth) conditions.push(gte(posSales.saleDate, startOfMonth));
+        if (endOfMonth) conditions.push(lte(posSales.saleDate, endOfMonth));
+        
+        const cogsQuery = db
+          .select({ totalCogs: sum(posSaleItems.costBasis) })
+          .from(posSaleItems)
+          .innerJoin(posSales, eq(posSaleItems.saleId, posSales.id))
+          .where(conditions.length > 0 ? and(...conditions) : undefined);
+        const [cogsResult] = await cogsQuery;
+        balance = parseFloat(cogsResult?.totalCogs || '0');
       } else {
         // Fall back to financial transaction data
         const whereConditions: any[] = [eq(financialTransactionLines.accountId, account.id)];
