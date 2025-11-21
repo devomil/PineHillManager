@@ -357,6 +357,34 @@ function AccountingContent() {
     },
   });
 
+  // Tax backfill mutation to update existing orders with calculated tax
+  const taxBackfillMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest('POST', '/api/sync/clover/backfill-tax');
+      return await response.json();
+    },
+    onSuccess: (data) => {
+      // Invalidate all accounting-related queries to refresh data
+      queryClient.invalidateQueries({ queryKey: ['/api/accounting'] });
+      const today = new Date().toISOString().split('T')[0];
+      queryClient.invalidateQueries({ queryKey: ['/api/accounting/analytics/profit-loss', today] });
+      queryClient.invalidateQueries({ queryKey: ['/api/accounting/accounts'] });
+      
+      toast({
+        title: "Tax Backfill Complete",
+        description: `Processed ${data.totalProcessed} orders, updated ${data.totalUpdated} with tax data${data.totalFailed > 0 ? `, ${data.totalFailed} failed` : ''}`,
+        variant: "default",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Tax Backfill Failed",
+        description: "Failed to backfill tax data. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
   // Job-based historical sync state (persisted across refreshes)
   const [currentJobId, setCurrentJobId] = useState<number | null>(() => {
     const stored = localStorage.getItem('cloverSyncJobId');
@@ -1034,6 +1062,17 @@ function AccountingContent() {
                 >
                   <Database className={`h-4 w-4 ${backfillCogsMutation.isPending ? 'animate-spin' : ''}`} />
                   {backfillCogsMutation.isPending ? 'Backfilling...' : 'Backfill COGS'}
+                </Button>
+                <Button 
+                  onClick={() => taxBackfillMutation.mutate()}
+                  disabled={taxBackfillMutation.isPending}
+                  className="flex items-center gap-2"
+                  variant="outline"
+                  size="sm"
+                  data-testid="button-backfill-tax"
+                >
+                  <Calculator className={`h-4 w-4 ${taxBackfillMutation.isPending ? 'animate-spin' : ''}`} />
+                  {taxBackfillMutation.isPending ? 'Backfilling Tax...' : 'Backfill Tax Data'}
                 </Button>
               </>
             )}
