@@ -907,7 +907,7 @@ function AccountingContent() {
 
   // Multi-location analytics - Today
   const { data: multiLocationData } = useQuery<MultiLocationAnalytics>({
-    queryKey: ['/api/accounting/analytics/multi-location', today],
+    queryKey: ['/api/accounting/analytics/multi-location', today, today],
     queryFn: async () => {
       const response = await apiRequest('GET', `/api/accounting/analytics/multi-location?startDate=${today}&endDate=${today}`);
       return await response.json();
