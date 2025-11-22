@@ -162,7 +162,14 @@ export default function AdminDashboard() {
   });
 
   // Fetch today's revenue
-  const { data: todayData } = useQuery<{ locationBreakdown: Array<{ locationName: string; totalRevenue: string | number }> }>({
+  const { data: todayData } = useQuery<{ 
+    locationBreakdown: Array<{ locationName: string; totalRevenue: string | number; totalSales?: string }>;
+    totalSummary?: {
+      totalRevenue: string;
+      totalTransactions: number;
+      integrations?: any;
+    };
+  }>({
     queryKey: ["/api/accounting/analytics/multi-location", today, today],
     queryFn: async () => {
       const response = await fetch(`/api/accounting/analytics/multi-location?startDate=${today}&endDate=${today}`);
