@@ -73,6 +73,7 @@ import {
 import { apiRequest } from '@/lib/queryClient';
 import AdminLayout from '@/components/admin-layout';
 import { useToast } from '@/hooks/use-toast';
+import { format } from 'date-fns';
 import { useAuth } from '@/hooks/use-auth';
 import { RevenueAnalytics } from '@/components/revenue-analytics';
 import { DreamViewDialog } from '@/components/dream-view-dialog';
@@ -551,7 +552,8 @@ function AccountingContent() {
   const selectedPeriod = coaData?.period;
 
   // Analytics data - Dynamic based on historical mode
-  const today = new Date().toISOString().split('T')[0];
+  const now = new Date();
+  const today = format(now, 'yyyy-MM-dd');
   const currentMonth = new Date();
   const monthStart = isHistoricalMode 
     ? new Date(selectedYear, selectedMonth - 1, 1).toISOString().split('T')[0]
