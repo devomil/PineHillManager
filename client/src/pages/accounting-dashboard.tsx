@@ -129,6 +129,8 @@ const accountFormSchema = z.object({
   description: z.string().optional(),
   accountNumber: z.string().optional(),
   parentAccountId: z.string().optional(),
+  dataSource: z.enum(['Auto', 'Manual', 'QuickBooks']).default('Auto'),
+  manualBalance: z.string().optional(),
 });
 
 const journalEntryFormSchema = z.object({
@@ -2466,6 +2468,8 @@ function AccountManagementDialog({
       description: editingAccount?.description || '',
       accountNumber: editingAccount?.accountNumber || '',
       parentAccountId: editingAccount?.parentAccountId?.toString() || 'none',
+      dataSource: (editingAccount?.dataSource as any) || 'Auto',
+      manualBalance: editingAccount?.manualBalance?.toString() || '',
     },
   });
 
@@ -2515,6 +2519,8 @@ function AccountManagementDialog({
         description: editingAccount.description || '',
         accountNumber: editingAccount.accountNumber || '',
         parentAccountId: editingAccount.parentAccountId?.toString() || 'none',
+        dataSource: (editingAccount.dataSource as any) || 'Auto',
+        manualBalance: editingAccount.manualBalance?.toString() || '',
       });
     } else {
       form.reset({
@@ -2524,6 +2530,8 @@ function AccountManagementDialog({
         description: '',
         accountNumber: '',
         parentAccountId: 'none',
+        dataSource: 'Auto',
+        manualBalance: '',
       });
     }
   }, [editingAccount, form]);
@@ -2634,6 +2642,57 @@ function AccountManagementDialog({
                 </FormItem>
               )}
             />
+            
+            <FormField
+              control={form.control}
+              name="dataSource"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Data Source</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger data-testid="select-data-source">
+                        <SelectValue placeholder="Select data source" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="Auto">🤖 Auto (API-calculated)</SelectItem>
+                      <SelectItem value="Manual">✍️ Manual Entry</SelectItem>
+                      <SelectItem value="QuickBooks">📊 QuickBooks</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormDescription>
+                    Auto: Balance calculated from API data. Manual: Enter fixed amount below. QuickBooks: Synced from QB.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            
+            {form.watch('dataSource') === 'Manual' && (
+              <FormField
+                control={form.control}
+                name="manualBalance"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Manual Balance</FormLabel>
+                    <FormControl>
+                      <Input 
+                        type="number" 
+                        step="0.01" 
+                        placeholder="e.g., 1500.00" 
+                        {...field} 
+                        data-testid="input-manual-balance"
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      Enter the fixed amount for this account (e.g., rent expense)
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
             
             <FormField
               control={form.control}
