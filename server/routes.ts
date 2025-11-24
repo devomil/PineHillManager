@@ -1155,45 +1155,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
       const newSwap = await storage.createShiftSwapRequest(swapData);
       
-      // Send SMS notifications to selected employees
-      if (req.body.notifiedEmployeeIds && Array.isArray(req.body.notifiedEmployeeIds) && req.body.notifiedEmployeeIds.length > 0) {
-        // Send notifications asynchronously (don't wait)
-        setImmediate(async () => {
-          try {
-            // Get shift details by fetching the full swap with schedule
-            const swaps = await storage.getShiftSwapRequests(undefined, undefined);
-            const fullSwap = swaps.find((s: any) => s.id === newSwap.id);
-            const requester = req.user;
+      // Send SMS notifications asynchronously (don't wait)
+      setImmediate(async () => {
+        try {
+          // Get shift details by fetching the full swap with schedule
+          const swaps = await storage.getShiftSwapRequests(undefined, undefined);
+          const fullSwap = swaps.find((s: any) => s.id === newSwap.id);
+          const requester = req.user;
+          
+          if (fullSwap && fullSwap.originalSchedule && requester) {
+            const schedule = fullSwap.originalSchedule;
+            const shiftDate = new Date(schedule.date).toLocaleDateString('en-US', { 
+              weekday: 'short', 
+              month: 'short', 
+              day: 'numeric' 
+            });
+            const shiftTime = `${new Date(schedule.startTime).toLocaleTimeString('en-US', { 
+              hour: 'numeric', 
+              minute: '2-digit' 
+            })} - ${new Date(schedule.endTime).toLocaleTimeString('en-US', { 
+              hour: 'numeric', 
+              minute: '2-digit' 
+            })}`;
             
-            if (fullSwap && fullSwap.originalSchedule && requester) {
-              const schedule = fullSwap.originalSchedule;
-              const shiftDate = new Date(schedule.date).toLocaleDateString('en-US', { 
-                weekday: 'short', 
-                month: 'short', 
-                day: 'numeric' 
-              });
-              const shiftTime = `${new Date(schedule.startTime).toLocaleTimeString('en-US', { 
-                hour: 'numeric', 
-                minute: '2-digit' 
-              })} - ${new Date(schedule.endTime).toLocaleTimeString('en-US', { 
-                hour: 'numeric', 
-                minute: '2-digit' 
-              })}`;
+            let urgencyText = '';
+            if (swapData.urgencyLevel === 'urgent') urgencyText = '\n⚡ URGENT';
+            else if (swapData.urgencyLevel === 'high') urgencyText = '\n🔥 High Priority';
+            
+            // Send SMS to selected employees
+            if (req.body.notifiedEmployeeIds && Array.isArray(req.body.notifiedEmployeeIds) && req.body.notifiedEmployeeIds.length > 0) {
+              const employeeMessage = `🔄 New Shift Swap Available!\n${requester.firstName} ${requester.lastName} needs coverage for:\n📅 ${shiftDate}\n⏰ ${shiftTime}${urgencyText}\n\nView details in Shift Swap Marketplace.`;
               
-              let urgencyText = '';
-              if (swapData.urgencyLevel === 'urgent') urgencyText = '\n⚡ URGENT';
-              else if (swapData.urgencyLevel === 'high') urgencyText = '\n🔥 High Priority';
-              
-              const message = `🔄 New Shift Swap Available!\n${requester.firstName} ${requester.lastName} needs coverage for:\n📅 ${shiftDate}\n⏰ ${shiftTime}${urgencyText}\n\nView details in Shift Swap Marketplace.`;
-              
-              // Send SMS to each selected employee
               for (const employeeId of req.body.notifiedEmployeeIds.slice(0, 10)) { // Max 10
                 try {
                   const employee = await storage.getUser(employeeId);
                   if (employee && employee.phone && employee.smsConsent) {
                     await smsService.sendSMS({
                       to: employee.phone,
-                      message: message,
+                      message: employeeMessage,
                       priority: swapData.urgencyLevel === 'urgent' ? 'high' : 'normal',
                       messageId: `shift-swap-${newSwap.id}-${employeeId}`
                     });
@@ -1203,11 +1202,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 }
               }
             }
-          } catch (notifError) {
-            console.error('Error sending shift swap notifications:', notifError);
+            
+            // Send SMS notification to all managers/admins for approval
+            try {
+              const allUsers = await storage.getAllUsers();
+              const managers = allUsers.filter(user => 
+                (user.role === 'admin' || user.role === 'manager') && 
+                user.phone && 
+                user.smsConsent &&
+                user.id !== requester.id // Don't notify the requester if they're a manager
+              );
+              
+              if (managers.length === 0) {
+                console.warn(`⚠️ No eligible managers found for shift swap approval notification (ID: ${newSwap.id})`);
+              }
+              
+              const baseUrl = process.env.REPLIT_DEV_DOMAIN 
+                ? `https://${process.env.REPLIT_DEV_DOMAIN}` 
+                : 'http://localhost:5000';
+              const approvalLink = `${baseUrl}/scheduling`;
+              
+              const managerMessage = `📋 Shift Swap Approval Needed\n${requester.firstName} ${requester.lastName} requested a shift swap for:\n📅 ${shiftDate}\n⏰ ${shiftTime}${urgencyText}\n\nReview and approve/reject:\n${approvalLink}`;
+              
+              for (const manager of managers) {
+                try {
+                  if (manager.phone) {
+                    await smsService.sendSMS({
+                      to: manager.phone,
+                      message: managerMessage,
+                      priority: swapData.urgencyLevel === 'urgent' ? 'high' : 'normal',
+                      messageId: `shift-swap-manager-${newSwap.id}-${manager.id}`
+                    });
+                    console.log(`✅ Shift swap approval notification sent to manager: ${manager.firstName} ${manager.lastName}`);
+                  }
+                } catch (smsError) {
+                  console.error(`Failed to send SMS to manager ${manager.id}:`, smsError);
+                }
+              }
+            } catch (managerError) {
+              console.error('Error sending manager notifications:', managerError);
+            }
           }
-        });
-      }
+        } catch (notifError) {
+          console.error('Error sending shift swap notifications:', notifError);
+        }
+      });
       
       res.status(201).json(newSwap);
     } catch (error) {
