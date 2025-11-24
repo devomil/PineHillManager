@@ -802,6 +802,7 @@ export interface IStorage {
     isActive: boolean;
     dataSource: string;
     manualBalance: string | null;
+    parentAccountId: number | null;
   }>>;
 
   // Customers and Vendors
@@ -6040,6 +6041,7 @@ export class DatabaseStorage implements IStorage {
     isActive: boolean;
     dataSource: string;
     manualBalance: string | null;
+    parentAccountId: number | null;
   }>> {
     // Calculate date range for the month - dates for comparison
     const startOfMonthDate: Date | null = month && year ? new Date(year, month - 1, 1) : null;
@@ -6239,7 +6241,8 @@ export class DatabaseStorage implements IStorage {
         balance: finalBalance,
         isActive: account.isActive ?? true,
         dataSource: account.dataSource || 'Auto',
-        manualBalance: account.manualBalance
+        manualBalance: account.manualBalance,
+        parentAccountId: account.parentAccountId
       };
     }));
 
