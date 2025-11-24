@@ -68,7 +68,9 @@ import {
   BookOpen,
   Store,
   Clock,
-  Sparkles
+  Sparkles,
+  ChevronDown,
+  ChevronRight
 } from 'lucide-react';
 import { apiRequest } from '@/lib/queryClient';
 import AdminLayout from '@/components/admin-layout';
@@ -259,6 +261,9 @@ function AccountingContent() {
   const [isQuickExpenseDialogOpen, setIsQuickExpenseDialogOpen] = useState(false);
   const [recentExpenseCategories, setRecentExpenseCategories] = useState<string[]>([]);
   const [expenseDescriptionSuggestions, setExpenseDescriptionSuggestions] = useState<string[]>([]);
+  
+  // Hierarchical account view state
+  const [expandedAccounts, setExpandedAccounts] = useState<Set<number>>(new Set());
 
   // Goal setting state
   const [isGoalDialogOpen, setIsGoalDialogOpen] = useState(false);
@@ -2156,68 +2161,120 @@ function AccountingContent() {
                     </div>
                   ) : accounts.length > 0 ? (
                     <div className="space-y-2">
-                      {accounts.map((account) => (
-                        <div key={account.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-3">
-                              <h3 className="font-medium">{account.accountName}</h3>
-                              {account.accountNumber && (
-                                <span className="text-xs bg-gray-100 px-2 py-1 rounded">
-                                  {account.accountNumber}
-                                </span>
+                      {(() => {
+                        // Organize accounts hierarchically
+                        const parentAccounts = accounts.filter(acc => !acc.parentAccountId);
+                        const childAccountsMap = new Map<number, typeof accounts>();
+                        accounts.forEach(acc => {
+                          if (acc.parentAccountId) {
+                            if (!childAccountsMap.has(acc.parentAccountId)) {
+                              childAccountsMap.set(acc.parentAccountId, []);
+                            }
+                            childAccountsMap.get(acc.parentAccountId)!.push(acc);
+                          }
+                        });
+                        
+                        const toggleExpand = (accountId: number) => {
+                          setExpandedAccounts(prev => {
+                            const next = new Set(prev);
+                            if (next.has(accountId)) {
+                              next.delete(accountId);
+                            } else {
+                              next.add(accountId);
+                            }
+                            return next;
+                          });
+                        };
+                        
+                        const renderAccount = (account: typeof accounts[0], isChild = false) => {
+                          const hasChildren = childAccountsMap.has(account.id);
+                          const isExpanded = expandedAccounts.has(account.id);
+                          const children = childAccountsMap.get(account.id) || [];
+                          
+                          return (
+                            <div key={account.id}>
+                              <div className={`flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 ${isChild ? 'ml-8 border-l-4 border-l-blue-200' : ''}`}>
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-3">
+                                    {hasChildren && (
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => toggleExpand(account.id)}
+                                        className="h-6 w-6 p-0"
+                                      >
+                                        {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                                      </Button>
+                                    )}
+                                    {!hasChildren && isChild && <div className="w-6" />}
+                                    <h3 className="font-medium">{account.accountName}</h3>
+                                    {account.accountNumber && (
+                                      <span className="text-xs bg-gray-100 px-2 py-1 rounded">
+                                        {account.accountNumber}
+                                      </span>
+                                    )}
+                                    <Badge 
+                                      variant={
+                                        account.dataSource === 'Manual' ? 'default' : 
+                                        account.dataSource === 'QuickBooks' ? 'outline' : 
+                                        'secondary'
+                                      }
+                                      className={
+                                        account.dataSource === 'Manual' ? 'bg-blue-600 text-white' :
+                                        account.dataSource === 'QuickBooks' ? 'border-green-600 text-green-700' :
+                                        'bg-gray-200 text-gray-700'
+                                      }
+                                      data-testid={`badge-data-source-${account.id}`}
+                                    >
+                                      {account.dataSource === 'Manual' ? 'Manual' : 
+                                       account.dataSource === 'QuickBooks' ? 'QuickBooks' : 
+                                       'API'}
+                                    </Badge>
+                                  </div>
+                                  <div className="flex items-center gap-4 mt-1">
+                                    <p className="text-sm text-gray-500">{account.accountType}</p>
+                                    {account.subType && (
+                                      <p className="text-sm text-gray-400">• {account.subType}</p>
+                                    )}
+                                  </div>
+                                  {account.description && (
+                                    <p className="text-sm text-gray-400 mt-1">{account.description}</p>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-4">
+                                  <div className="text-right">
+                                    <p className="font-medium text-lg">${account.manualBalance !== null && account.manualBalance !== undefined ? account.manualBalance : account.balance}</p>
+                                    <Badge variant={account.isActive ? "default" : "secondary"}>
+                                      {account.isActive ? "Active" : "Inactive"}
+                                    </Badge>
+                                  </div>
+                                  {canManageAccounts && (
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => {
+                                        setEditingAccount(account);
+                                        setIsAccountDialogOpen(true);
+                                      }}
+                                      className="flex items-center gap-1"
+                                    >
+                                      <Edit className="h-4 w-4" />
+                                      Edit
+                                    </Button>
+                                  )}
+                                </div>
+                              </div>
+                              {hasChildren && isExpanded && (
+                                <div className="mt-2 space-y-2">
+                                  {children.map(child => renderAccount(child, true))}
+                                </div>
                               )}
-                              <Badge 
-                                variant={
-                                  account.dataSource === 'Manual' ? 'default' : 
-                                  account.dataSource === 'QuickBooks' ? 'outline' : 
-                                  'secondary'
-                                }
-                                className={
-                                  account.dataSource === 'Manual' ? 'bg-blue-600 text-white' :
-                                  account.dataSource === 'QuickBooks' ? 'border-green-600 text-green-700' :
-                                  'bg-gray-200 text-gray-700'
-                                }
-                                data-testid={`badge-data-source-${account.id}`}
-                              >
-                                {account.dataSource === 'Manual' ? 'Manual' : 
-                                 account.dataSource === 'QuickBooks' ? 'QuickBooks' : 
-                                 'API'}
-                              </Badge>
                             </div>
-                            <div className="flex items-center gap-4 mt-1">
-                              <p className="text-sm text-gray-500">{account.accountType}</p>
-                              {account.subType && (
-                                <p className="text-sm text-gray-400">• {account.subType}</p>
-                              )}
-                            </div>
-                            {account.description && (
-                              <p className="text-sm text-gray-400 mt-1">{account.description}</p>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-4">
-                            <div className="text-right">
-                              <p className="font-medium text-lg">${account.manualBalance !== null && account.manualBalance !== undefined ? account.manualBalance : account.balance}</p>
-                              <Badge variant={account.isActive ? "default" : "secondary"}>
-                                {account.isActive ? "Active" : "Inactive"}
-                              </Badge>
-                            </div>
-                            {canManageAccounts && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => {
-                                  setEditingAccount(account);
-                                  setIsAccountDialogOpen(true);
-                                }}
-                                className="flex items-center gap-1"
-                              >
-                                <Edit className="h-4 w-4" />
-                                Edit
-                              </Button>
-                            )}
-                          </div>
-                        </div>
-                      ))}
+                          );
+                        };
+                        
+                        return parentAccounts.map(account => renderAccount(account));
+                      })()}
                     </div>
                   ) : (
                     <div className="text-center py-8">
