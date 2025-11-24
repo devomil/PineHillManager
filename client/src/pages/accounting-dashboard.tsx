@@ -264,8 +264,27 @@ function AccountingContent() {
   const [recentExpenseCategories, setRecentExpenseCategories] = useState<string[]>([]);
   const [expenseDescriptionSuggestions, setExpenseDescriptionSuggestions] = useState<string[]>([]);
   
-  // Hierarchical account view state
-  const [expandedAccounts, setExpandedAccounts] = useState<Set<number>>(new Set());
+  // Hierarchical account view state - expand all parents by default
+  const [expandedAccounts, setExpandedAccounts] = useState<Set<number>>(() => {
+    const parentIds = new Set<number>();
+    accounts.forEach(acc => {
+      if (acc.parentAccountId) {
+        parentIds.add(acc.parentAccountId);
+      }
+    });
+    return parentIds;
+  });
+
+  // Update expanded accounts when accounts change
+  useEffect(() => {
+    const parentIds = new Set<number>();
+    accounts.forEach(acc => {
+      if (acc.parentAccountId) {
+        parentIds.add(acc.parentAccountId);
+      }
+    });
+    setExpandedAccounts(parentIds);
+  }, [accounts]);
 
   // Goal setting state
   const [isGoalDialogOpen, setIsGoalDialogOpen] = useState(false);
