@@ -2164,6 +2164,23 @@ function AccountingContent() {
                                   {account.accountNumber}
                                 </span>
                               )}
+                              <Badge 
+                                variant={
+                                  account.dataSource === 'Manual' ? 'default' : 
+                                  account.dataSource === 'QuickBooks' ? 'outline' : 
+                                  'secondary'
+                                }
+                                className={
+                                  account.dataSource === 'Manual' ? 'bg-blue-600 text-white' :
+                                  account.dataSource === 'QuickBooks' ? 'border-green-600 text-green-700' :
+                                  'bg-gray-200 text-gray-700'
+                                }
+                                data-testid={`badge-data-source-${account.id}`}
+                              >
+                                {account.dataSource === 'Manual' ? '✍️ Manual' : 
+                                 account.dataSource === 'QuickBooks' ? '📊 QuickBooks' : 
+                                 '🤖 Auto'}
+                              </Badge>
                             </div>
                             <div className="flex items-center gap-4 mt-1">
                               <p className="text-sm text-gray-500">{account.accountType}</p>
@@ -2177,7 +2194,7 @@ function AccountingContent() {
                           </div>
                           <div className="flex items-center gap-4">
                             <div className="text-right">
-                              <p className="font-medium text-lg">${account.balance}</p>
+                              <p className="font-medium text-lg">${account.manualBalance !== null && account.manualBalance !== undefined ? account.manualBalance : account.balance}</p>
                               <Badge variant={account.isActive ? "default" : "secondary"}>
                                 {account.isActive ? "Active" : "Inactive"}
                               </Badge>
