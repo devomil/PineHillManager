@@ -2179,9 +2179,9 @@ function AccountingContent() {
                                 }
                                 data-testid={`badge-data-source-${account.id}`}
                               >
-                                {account.dataSource === 'Manual' ? '✍️ Manual' : 
-                                 account.dataSource === 'QuickBooks' ? '📊 QuickBooks' : 
-                                 '🤖 Auto'}
+                                {account.dataSource === 'Manual' ? 'Manual' : 
+                                 account.dataSource === 'QuickBooks' ? 'QuickBooks' : 
+                                 'API'}
                               </Badge>
                             </div>
                             <div className="flex items-center gap-4 mt-1">
@@ -2656,9 +2656,9 @@ function AccountManagementDialog({
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="Auto">🤖 Auto (API-calculated)</SelectItem>
-                      <SelectItem value="Manual">✍️ Manual Entry</SelectItem>
-                      <SelectItem value="QuickBooks">📊 QuickBooks</SelectItem>
+                      <SelectItem value="Auto">API (Auto-calculated)</SelectItem>
+                      <SelectItem value="Manual">Manual Entry</SelectItem>
+                      <SelectItem value="QuickBooks">QuickBooks</SelectItem>
                     </SelectContent>
                   </Select>
                   <FormDescription>
