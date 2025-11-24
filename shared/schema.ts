@@ -1868,6 +1868,8 @@ export const financialAccounts = pgTable("financial_accounts", {
   subType: varchar("sub_type"),
   description: text("description"),
   balance: decimal("balance", { precision: 15, scale: 2 }).default("0.00"),
+  dataSource: varchar("data_source").default("Auto"), // Auto (API-calculated), Manual, QuickBooks
+  manualBalance: decimal("manual_balance", { precision: 15, scale: 2 }), // For manually entered fixed expenses
   isActive: boolean("is_active").default(true),
   parentAccountId: integer("parent_account_id"),
   lastSyncAt: timestamp("last_sync_at"),
@@ -1877,6 +1879,7 @@ export const financialAccounts = pgTable("financial_accounts", {
   qbAccountIdIdx: index("idx_fa_qb_account_id").on(table.qbAccountId),
   accountTypeIdx: index("idx_fa_account_type").on(table.accountType),
   parentAccountIdx: index("idx_fa_parent_account").on(table.parentAccountId),
+  dataSourceIdx: index("idx_fa_data_source").on(table.dataSource),
 }));
 
 // Financial Transactions (General Ledger Entries)
