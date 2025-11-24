@@ -6246,6 +6246,21 @@ export class DatabaseStorage implements IStorage {
       };
     }));
 
+    // Roll up child account balances to parent accounts
+    // Create a map for quick account lookup by ID
+    const accountMap = new Map(result.map(acc => [acc.id, acc]));
+    
+    // Find all child accounts and add their balances to parents
+    result.forEach(account => {
+      if (account.parentAccountId) {
+        const parent = accountMap.get(account.parentAccountId);
+        if (parent) {
+          // Add child balance to parent balance
+          parent.balance = Math.round((parent.balance + account.balance) * 100) / 100;
+        }
+      }
+    });
+
     return result;
   }
 
