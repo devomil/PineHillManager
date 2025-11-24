@@ -2570,7 +2570,7 @@ function AccountManagementDialog({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Account Type</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select account type" />
@@ -2623,7 +2623,7 @@ function AccountManagementDialog({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Parent Account (Optional)</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select parent account" />
@@ -2649,7 +2649,7 @@ function AccountManagementDialog({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Data Source</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger data-testid="select-data-source">
                         <SelectValue placeholder="Select data source" />
