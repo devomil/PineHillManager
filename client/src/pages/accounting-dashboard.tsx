@@ -101,6 +101,8 @@ type FinancialAccount = {
   subType?: string;
   description?: string;
   balance: string;
+  dataSource?: string;
+  manualBalance?: string | null;
   isActive: boolean;
   parentAccountId?: number;
   createdAt: string;
