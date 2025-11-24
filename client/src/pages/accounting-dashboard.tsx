@@ -265,26 +265,7 @@ function AccountingContent() {
   const [expenseDescriptionSuggestions, setExpenseDescriptionSuggestions] = useState<string[]>([]);
   
   // Hierarchical account view state - expand all parents by default
-  const [expandedAccounts, setExpandedAccounts] = useState<Set<number>>(() => {
-    const parentIds = new Set<number>();
-    accounts.forEach(acc => {
-      if (acc.parentAccountId) {
-        parentIds.add(acc.parentAccountId);
-      }
-    });
-    return parentIds;
-  });
-
-  // Update expanded accounts when accounts change
-  useEffect(() => {
-    const parentIds = new Set<number>();
-    accounts.forEach(acc => {
-      if (acc.parentAccountId) {
-        parentIds.add(acc.parentAccountId);
-      }
-    });
-    setExpandedAccounts(parentIds);
-  }, [accounts]);
+  const [expandedAccounts, setExpandedAccounts] = useState<Set<number>>(new Set());
 
   // Goal setting state
   const [isGoalDialogOpen, setIsGoalDialogOpen] = useState(false);
@@ -578,6 +559,17 @@ function AccountingContent() {
 
   const accounts = coaData?.accounts || [];
   const selectedPeriod = coaData?.period;
+
+  // Update expanded accounts when accounts data changes - expand all parents by default
+  useEffect(() => {
+    const parentIds = new Set<number>();
+    accounts.forEach(acc => {
+      if (acc.parentAccountId) {
+        parentIds.add(acc.parentAccountId);
+      }
+    });
+    setExpandedAccounts(parentIds);
+  }, [accounts]);
 
   // Analytics data - Dynamic based on historical mode
   const now = new Date();
