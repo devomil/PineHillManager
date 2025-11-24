@@ -8239,7 +8239,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/accounting/accounts', isAuthenticated, async (req, res) => {
     try {
-      const { accountName, accountType, accountNumber, description, parentAccountId, qbAccountId } = req.body;
+      const { accountName, accountType, accountNumber, description, parentAccountId, qbAccountId, dataSource, manualBalance } = req.body;
       
       if (!accountName || !accountType) {
         return res.status(400).json({ message: 'Account name and type are required' });
@@ -8253,6 +8253,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         parentAccountId: parentAccountId || null,
         qbAccountId: qbAccountId || null,
         balance: '0.00',
+        dataSource: dataSource || 'Auto',
+        manualBalance: manualBalance || null,
         isActive: true
       });
       
