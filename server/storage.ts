@@ -800,6 +800,8 @@ export interface IStorage {
     accountCode: string | null;
     balance: number;
     isActive: boolean;
+    dataSource: string;
+    manualBalance: string | null;
   }>>;
 
   // Customers and Vendors
@@ -6036,6 +6038,8 @@ export class DatabaseStorage implements IStorage {
     accountCode: string | null;
     balance: number;
     isActive: boolean;
+    dataSource: string;
+    manualBalance: string | null;
   }>> {
     // Calculate date range for the month - dates for comparison
     const startOfMonthDate: Date | null = month && year ? new Date(year, month - 1, 1) : null;
@@ -6222,13 +6226,20 @@ export class DatabaseStorage implements IStorage {
         }
       }
 
+      // Use manual balance if data source is Manual and manualBalance is set
+      const finalBalance = account.dataSource === 'Manual' && account.manualBalance 
+        ? parseFloat(account.manualBalance) 
+        : Math.round(balance * 100) / 100;
+
       return {
         id: account.id,
         accountName: account.accountName,
         accountType: account.accountType,
         accountCode: account.accountNumber,
-        balance: Math.round(balance * 100) / 100,
-        isActive: account.isActive ?? true
+        balance: finalBalance,
+        isActive: account.isActive ?? true,
+        dataSource: account.dataSource || 'Auto',
+        manualBalance: account.manualBalance
       };
     }));
 
