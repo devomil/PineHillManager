@@ -1220,7 +1220,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               const baseUrl = process.env.REPLIT_DEV_DOMAIN 
                 ? `https://${process.env.REPLIT_DEV_DOMAIN}` 
                 : 'http://localhost:5000';
-              const approvalLink = `${baseUrl}/scheduling`;
+              const approvalLink = `${baseUrl}/shift-scheduling`;
               
               const managerMessage = `📋 Shift Swap Approval Needed\n${requester.firstName} ${requester.lastName} requested a shift swap for:\n📅 ${shiftDate}\n⏰ ${shiftTime}${urgencyText}\n\nReview and approve/reject:\n${approvalLink}`;
               
