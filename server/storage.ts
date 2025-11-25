@@ -6044,8 +6044,25 @@ export class DatabaseStorage implements IStorage {
     parentAccountId: number | null;
   }>> {
     // Calculate date range for the month - dates for comparison
+    const now = new Date();
+    const currentMonth = now.getMonth() + 1; // JavaScript months are 0-indexed
+    const currentYear = now.getFullYear();
+    
     const startOfMonthDate: Date | null = month && year ? new Date(year, month - 1, 1) : null;
-    const endOfMonthDate: Date | null = month && year ? new Date(year, month, 0, 23, 59, 59, 999) : null;
+    
+    // For current month, use today's date as end date (MTD behavior to match Revenue Analytics)
+    // For past/future months, use the last day of that month
+    let endOfMonthDate: Date | null = null;
+    if (month && year) {
+      if (month === currentMonth && year === currentYear) {
+        // Current month: use today's date for MTD
+        endOfMonthDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+      } else {
+        // Past or future month: use last day of the month
+        endOfMonthDate = new Date(year, month, 0, 23, 59, 59, 999);
+      }
+    }
+    
     // String dates for sale/order date comparisons
     const startOfMonth: string | null = startOfMonthDate ? startOfMonthDate.toISOString().split('T')[0] : null;
     const endOfMonth: string | null = endOfMonthDate ? endOfMonthDate.toISOString().split('T')[0] : null;
@@ -6079,7 +6096,7 @@ export class DatabaseStorage implements IStorage {
           const [saleResult] = await saleQuery;
           balance = parseFloat(saleResult?.totalRevenue || '0');
         } else if (locationName === 'Amazon Store') {
-          // Amazon Store - fetch revenue from Amazon API directly
+          // Amazon Store - fetch revenue from Amazon Sales API directly (same as Revenue Analytics)
           try {
             // Get Amazon configuration
             const amazonConfigs = await db.select().from(amazonConfig)
@@ -6093,19 +6110,28 @@ export class DatabaseStorage implements IStorage {
               });
               
               // Use month/year if provided, otherwise use current month
-              const queryStartDate = startOfMonth || new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
-              const queryEndDate = endOfMonth || new Date().toISOString().split('T')[0];
+              // Amazon Sales API needs ISO format with time - use start of day and end of day
+              const startDateStr = startOfMonth || new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
+              const endDateStr = endOfMonth || new Date().toISOString().split('T')[0];
+              const queryStartDate = `${startDateStr}T00:00:00.000Z`;
+              const queryEndDate = `${endDateStr}T23:59:59.999Z`;
               
-              // Fetch orders and calculate revenue from shipped/delivered orders
-              const orders = await amazon.getOrders(queryStartDate, queryEndDate);
-              if (orders && orders.length > 0) {
-                balance = orders.reduce((sum: number, order: any) => {
-                  if (order.OrderStatus === 'Shipped' || order.OrderStatus === 'Delivered') {
-                    return sum + parseFloat(order.OrderTotal?.Amount || '0');
+              // Use getSalesMetrics which matches Revenue Analytics (same as Seller Central reports)
+              const metrics = await amazon.getSalesMetrics(queryStartDate, queryEndDate, 'Total');
+              if (metrics && metrics.payload) {
+                // Parse Sales API response format
+                const orderMetrics = metrics.payload || [];
+                let amazonRevenue = 0;
+                for (const metric of orderMetrics) {
+                  if (metric.totalSales && metric.totalSales.amount) {
+                    amazonRevenue += parseFloat(metric.totalSales.amount);
                   }
-                  return sum;
-                }, 0);
-                console.log(`✅ Amazon Store COA balance: $${balance.toFixed(2)} from ${orders.filter((o: any) => o.OrderStatus === 'Shipped' || o.OrderStatus === 'Delivered').length} orders`);
+                }
+                balance = amazonRevenue;
+                console.log(`✅ Amazon Store COA balance: $${balance.toFixed(2)} from Sales API`);
+              } else if (metrics && metrics.totalSales) {
+                balance = metrics.totalSales.amount || 0;
+                console.log(`✅ Amazon Store COA balance: $${balance.toFixed(2)} from Sales API (legacy)`);
               }
             }
           } catch (error) {
@@ -6113,18 +6139,60 @@ export class DatabaseStorage implements IStorage {
             balance = 0;
           }
         } else {
-          // Location-specific sales - join with locations to filter by name
-          const conditions: any[] = [eq(locations.name, locationName)];
-          if (startOfMonth) conditions.push(gte(posSales.saleDate, startOfMonth));
-          if (endOfMonth) conditions.push(lte(posSales.saleDate, endOfMonth));
+          // Location-specific sales - try live Clover API first (matches Revenue Analytics), then fall back to database
+          const queryStartDate = startOfMonth || new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
+          const queryEndDate = endOfMonth || new Date().toISOString().split('T')[0];
           
-          const saleQuery = db
-            .select({ totalRevenue: sum(posSales.totalAmount) })
-            .from(posSales)
-            .innerJoin(locations, eq(posSales.locationId, locations.id))
-            .where(and(...conditions));
-          const [saleResult] = await saleQuery;
-          balance = parseFloat(saleResult?.totalRevenue || '0');
+          try {
+            // Find Clover configuration matching this location name
+            const cloverConfigs = await db.select().from(cloverConfig)
+              .where(and(
+                eq(cloverConfig.isActive, true),
+                eq(cloverConfig.merchantName, locationName)
+              ));
+            
+            if (cloverConfigs.length > 0) {
+              const config = cloverConfigs[0];
+              const clover = new CloverIntegration({
+                merchantId: config.merchantId,
+                apiToken: config.apiToken,
+                merchantName: config.merchantName || locationName
+              });
+              
+              // Fetch live revenue from Clover API (same as Revenue Analytics)
+              const revenue = await clover.getRevenue(new Date(queryStartDate), new Date(queryEndDate));
+              balance = revenue || 0;
+              console.log(`✅ ${locationName} COA balance (live API): $${balance.toFixed(2)}`);
+            } else {
+              // Fall back to database if no Clover config found
+              const conditions: any[] = [eq(locations.name, locationName)];
+              if (startOfMonth) conditions.push(gte(posSales.saleDate, startOfMonth));
+              if (endOfMonth) conditions.push(lte(posSales.saleDate, endOfMonth));
+              
+              const saleQuery = db
+                .select({ totalRevenue: sum(posSales.totalAmount) })
+                .from(posSales)
+                .innerJoin(locations, eq(posSales.locationId, locations.id))
+                .where(and(...conditions));
+              const [saleResult] = await saleQuery;
+              balance = parseFloat(saleResult?.totalRevenue || '0');
+              console.log(`ℹ️ ${locationName} COA balance (database): $${balance.toFixed(2)}`);
+            }
+          } catch (error) {
+            // Fall back to database on API error
+            console.log(`⚠️ Clover API error for ${locationName}, falling back to database: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            const conditions: any[] = [eq(locations.name, locationName)];
+            if (startOfMonth) conditions.push(gte(posSales.saleDate, startOfMonth));
+            if (endOfMonth) conditions.push(lte(posSales.saleDate, endOfMonth));
+            
+            const saleQuery = db
+              .select({ totalRevenue: sum(posSales.totalAmount) })
+              .from(posSales)
+              .innerJoin(locations, eq(posSales.locationId, locations.id))
+              .where(and(...conditions));
+            const [saleResult] = await saleQuery;
+            balance = parseFloat(saleResult?.totalRevenue || '0');
+          }
         }
       } else if (account.accountName === 'Cost of Goods Sold') {
         // COGS from POS sale items

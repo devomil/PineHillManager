@@ -1,0 +1,24 @@
+﻿Sales Report,,,,,,,,,,,
+"Sat, Nov 1, 2025, 12:00 AM CDT - Tue, Nov 25, 2025, 11:59 PM CST",,,,,,,,,,,
+"Requested on: Tue, Nov 25, 2025, 9:52 AM CST",,,,,,,,,,,
+Filters: Location = Pine Hill Farm,,,,,,,,,,,
+,,,,,,,,,,,
+Net sales,"$80,288.05 ","from 1,458 orders",,,,,,,,,
+Amount Collected,"$83,593.34 ",,,,,,,,,,
+Gross sales,"$89,580.58 ",,,,,,,,,,
+Unpaid Balance,$21.75 ,from 1 partial order,,,,,,,,,
+,,,,,,,,,,,
+Sales,,,,,,,,,,,
+Location,Gross sales,Discounts,Refunds,Net sales,Non-revenue items,Gift card activations,Taxes collected,Additional charges collected,Amount collected,Unpaid balance,Transactions
+Total,"$89,580.58 ","($8,703.05)",($589.48),"$80,288.05 ",$0.00 ,$596.79 ,"$2,507.57 ",$0.00 ,"$83,593.34 ",$21.75 ,1518
+Watertown Retail,"$63,693.66 ","($7,768.24)",($326.93),"$55,598.49 ",$0.00 ,$596.79 ,"$1,408.62 ",$0.00 ,"$57,714.90 ",$21.75 ,897
+Lake Geneva- Retail,"$19,654.55 ",($804.46),$0.00 ,"$18,850.09 ",$0.00 ,$0.00 ,$855.12 ,$0.00 ,"$19,795.14 ",$0.00 ,560
+Pinehillfarm.co-online,"$6,232.37 ",($130.35),($262.55),"$5,839.47 ",$0.00 ,$0.00 ,$243.83 ,$0.00 ,"$6,083.30 ",$0.00 ,61
+,,,,,,,,,,,
+Tender types,,,,,,,,,,,
+Tender,Total,,,,,,,,,,
+Credit and debit cards,"$70,101.72 ",,,,,,,,,,
+Cash,"$12,045.76 ",,,,,,,,,,
+Gift Cards,"$1,359.73 ",,,,,,,,,,
+External Gift Card,$86.13 ,,,,,,,,,,
+Amount Collected,"$83,593.34 ",,,,,,,,,,

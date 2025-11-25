@@ -93,28 +93,29 @@ export class CloverIntegration {
     
     if (options.limit) params.append('limit', options.limit.toString());
     if (options.offset) params.append('offset', options.offset.toString());
-    if (options.filter) params.append('filter', options.filter);
     if (options.expand) params.append('expand', options.expand);
     if (options.orderBy) params.append('orderBy', options.orderBy);
     if (options.modifiedTime) params.append('modifiedTime', options.modifiedTime);
     if (options.modifiedTimeMin) params.append('modifiedTime.min', options.modifiedTimeMin.toString());
     if (options.modifiedTimeMax) params.append('modifiedTime.max', options.modifiedTimeMax.toString());
-    // Convert millisecond timestamps to Unix seconds for Clover API
+    
+    // Add each filter condition as a separate filter parameter to avoid URL encoding issues
+    // Clover API format: filter=condition1&filter=condition2 (multiple filter params)
+    if (options.filter) {
+      params.append('filter', options.filter);
+    }
+    // Use millisecond timestamps for Clover API filter (Clover stores createdTime in milliseconds)
     if (options.createdTimeMin) {
-      const unixSeconds = Math.floor(options.createdTimeMin / 1000);
-      params.append('createdTime.min', unixSeconds.toString());
-      console.log('🔧 [CLOVER API] Converting createdTimeMin:', { 
+      params.append('filter', `createdTime>=${options.createdTimeMin}`);
+      console.log('🔧 [CLOVER API] Adding createdTime filter (min):', { 
         milliseconds: options.createdTimeMin, 
-        unixSeconds, 
         isoDate: new Date(options.createdTimeMin).toISOString() 
       });
     }
     if (options.createdTimeMax) {
-      const unixSeconds = Math.floor(options.createdTimeMax / 1000);
-      params.append('createdTime.max', unixSeconds.toString());
-      console.log('🔧 [CLOVER API] Converting createdTimeMax:', { 
+      params.append('filter', `createdTime<=${options.createdTimeMax}`);
+      console.log('🔧 [CLOVER API] Adding createdTime filter (max):', { 
         milliseconds: options.createdTimeMax, 
-        unixSeconds, 
         isoDate: new Date(options.createdTimeMax).toISOString() 
       });
     }
@@ -221,6 +222,15 @@ export class CloverIntegration {
           requestBody: body,
           responseBody: errorBody
         });
+        
+        // Handle rate limiting with exponential backoff
+        if (response.status === 429 && retries > 0) {
+          const delay = Math.pow(2, 4 - retries) * 1000; // 1s, 2s, 4s
+          console.warn(`⚠️ Rate limited (429), waiting ${delay}ms before retry... (${retries} attempts left)`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          return this.makeCloverAPICallWithConfig(endpoint, config, method, body, retries - 1);
+        }
+        
         throw new Error(`Clover API error: ${response.status} ${response.statusText} - ${errorBody}`);
       }
 
@@ -415,22 +425,19 @@ export class CloverIntegration {
     if (options.limit) params.append('limit', options.limit.toString());
     if (options.offset) params.append('offset', options.offset.toString());
     
-    // Convert millisecond timestamps to Unix seconds for Clover API
+    // Add each filter condition as a separate filter parameter to avoid URL encoding issues
+    // Clover API format: filter=condition1&filter=condition2 (multiple filter params)
     if (options.createdTimeMin) {
-      const unixSeconds = Math.floor(options.createdTimeMin / 1000);
-      params.append('createdTime.min', unixSeconds.toString());
-      console.log('💸 [CLOVER REFUNDS API] Converting createdTimeMin:', { 
+      params.append('filter', `createdTime>=${options.createdTimeMin}`);
+      console.log('💸 [CLOVER REFUNDS API] Adding createdTime filter (min):', { 
         milliseconds: options.createdTimeMin, 
-        unixSeconds, 
         isoDate: new Date(options.createdTimeMin).toISOString() 
       });
     }
     if (options.createdTimeMax) {
-      const unixSeconds = Math.floor(options.createdTimeMax / 1000);
-      params.append('createdTime.max', unixSeconds.toString());
-      console.log('💸 [CLOVER REFUNDS API] Converting createdTimeMax:', { 
+      params.append('filter', `createdTime<=${options.createdTimeMax}`);
+      console.log('💸 [CLOVER REFUNDS API] Adding createdTime filter (max):', { 
         milliseconds: options.createdTimeMax, 
-        unixSeconds, 
         isoDate: new Date(options.createdTimeMax).toISOString() 
       });
     }
@@ -744,40 +751,55 @@ export class CloverIntegration {
     return await this.makeCloverAPICall(endpoint);
   }
 
-  // Get revenue for a date range
+  // Get revenue for a date range (matches Revenue Analytics calculation)
   async getRevenue(startDate: Date, endDate: Date): Promise<number> {
+    const startMs = startDate.getTime();
+    const endMs = endDate.getTime();
+    let totalRevenue = 0;
+    let allOrders: CloverOrder[] = [];
+    
     try {
-      const startMs = startDate.getTime();
-      const endMs = endDate.getTime();
+      // Fetch all orders in the date range with pagination
+      let offset = 0;
+      const limit = 1000;
+      let hasMore = true;
       
-      // Fetch all orders in the date range with payments expanded
-      const ordersResponse = await this.fetchOrders({
-        createdTimeMin: startMs,
-        createdTimeMax: endMs,
-        expand: 'lineItems,payments,discounts',
-        limit: 1000
-      });
-      
-      const orders = ordersResponse?.elements || [];
-      let totalRevenue = 0;
-      
-      for (const order of orders) {
-        // Skip voided or refunded orders
-        if (order.state === 'open' || order.paymentState !== 'PAID') {
-          continue;
-        }
+      while (hasMore) {
+        const ordersResponse = await this.fetchOrders({
+          createdTimeMin: startMs,
+          createdTimeMax: endMs,
+          limit,
+          offset
+        });
         
-        // Sum all payments for this order (amounts are in cents)
-        if (order.payments && Array.isArray(order.payments)) {
-          for (const payment of order.payments) {
-            if (payment.result === 'SUCCESS') {
-              totalRevenue += (payment.amount || 0) / 100; // Convert cents to dollars
-            }
-          }
+        const orders = ordersResponse?.elements || [];
+        allOrders = allOrders.concat(orders);
+        
+        if (orders.length < limit) {
+          hasMore = false;
+        } else {
+          offset += limit;
+          // Add small delay between pagination calls to avoid rate limiting
+          await new Promise(resolve => setTimeout(resolve, 200));
         }
       }
       
-      // Fetch and subtract refunds
+      console.log(`📊 getRevenue: Fetched ${allOrders.length} orders for ${this.config.merchantName || 'unknown'}`);
+      
+      // Use order.total (same as Revenue Analytics) - amounts are in cents
+      for (const order of allOrders) {
+        const orderTotal = parseFloat(String(order.total || '0')) / 100; // Convert cents to dollars
+        totalRevenue += orderTotal;
+      }
+      
+      console.log(`📊 getRevenue: Calculated revenue $${totalRevenue.toFixed(2)} for ${this.config.merchantName || 'unknown'}`);
+    } catch (error) {
+      console.error(`Error fetching orders for revenue:`, error);
+      return 0; // Can't calculate revenue without orders
+    }
+    
+    // Try to fetch and subtract refunds - if this fails, continue with gross revenue
+    try {
       const refundsResponse = await this.fetchCreditRefunds({
         createdTimeMin: startMs,
         createdTimeMax: endMs,
@@ -785,15 +807,18 @@ export class CloverIntegration {
       });
       
       const refunds = refundsResponse?.elements || [];
+      let totalRefunds = 0;
       for (const refund of refunds) {
-        totalRevenue -= (refund.amount || 0) / 100; // Convert cents to dollars and subtract
+        totalRefunds += (refund.amount || 0) / 100; // Convert cents to dollars
       }
-      
-      return totalRevenue;
+      totalRevenue -= totalRefunds;
+      console.log(`📊 getRevenue: Subtracted $${totalRefunds.toFixed(2)} refunds, net revenue: $${totalRevenue.toFixed(2)}`);
     } catch (error) {
-      console.error(`Error getting revenue:`, error);
-      return 0;
+      console.warn(`Warning: Could not fetch refunds, returning gross revenue: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      // Continue with gross revenue (no refund subtraction)
     }
+    
+    return totalRevenue;
   }
 
   // Comprehensive order data aggregation for single source of truth

@@ -7866,9 +7866,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const limit = 1000;
           let hasMoreData = true;
           
+          // Use createdTimeMin/createdTimeMax (seconds) to match COA approach
+          const startMs = start.getTime();
+          const endMs = end.getTime();
+          
           while (hasMoreData) {
             const liveOrders = await cloverIntegration.fetchOrders({
-              filter: `createdTime>=${Math.floor(start.getTime())}`,
+              createdTimeMin: startMs,
+              createdTimeMax: endMs,
               limit: limit,
               offset: offset
             });
@@ -7882,6 +7887,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 hasMoreData = false;
               } else {
                 offset += limit;
+                // Add delay between pagination calls to avoid rate limiting
+                await new Promise(resolve => setTimeout(resolve, 200));
               }
             } else {
               hasMoreData = false;
