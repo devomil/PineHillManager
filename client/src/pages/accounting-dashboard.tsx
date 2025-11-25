@@ -534,6 +534,7 @@ function AccountingContent() {
 
   // Chart of Accounts with period filtering state
   const [isPayrollDialogOpen, setIsPayrollDialogOpen] = useState(false);
+  const [accountTypeFilter, setAccountTypeFilter] = useState<string>("all");
 
   // Financial accounts with period filtering - always use COA endpoint for live MTD calculations
   const useCOAFiltering = true;
@@ -2063,8 +2064,8 @@ function AccountingContent() {
                         </CardDescription>
                       </div>
 
-                      {/* Period Filtering Controls */}
-                      <div className="flex items-center gap-3">
+                      {/* Period and Type Filtering Controls */}
+                      <div className="flex flex-wrap items-center gap-3">
                         <div className="flex items-center gap-2">
                           <CalendarDays className="h-4 w-4 text-gray-500" />
                           <Label className="text-sm text-gray-600">Filter by Period:</Label>
@@ -2114,6 +2115,37 @@ function AccountingContent() {
                             Clear
                           </Button>
                         )}
+                        
+                        {/* Account Type Filter */}
+                        <div className="flex items-center gap-2 ml-4 border-l pl-4">
+                          <Label className="text-sm text-gray-600">Account Type:</Label>
+                          <Select 
+                            value={accountTypeFilter} 
+                            onValueChange={setAccountTypeFilter}
+                          >
+                            <SelectTrigger className="w-32" data-testid="select-account-type-filter">
+                              <SelectValue placeholder="All Types" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="all">All Types</SelectItem>
+                              <SelectItem value="Income">Income</SelectItem>
+                              <SelectItem value="Expense">Expense</SelectItem>
+                              <SelectItem value="Asset">Asset</SelectItem>
+                              <SelectItem value="Liability">Liability</SelectItem>
+                              <SelectItem value="Equity">Equity</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          {accountTypeFilter !== "all" && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setAccountTypeFilter("all")}
+                              className="text-gray-500 hover:text-gray-700 h-8 px-2"
+                            >
+                              Clear
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     </div>
 
