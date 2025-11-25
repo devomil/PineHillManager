@@ -6078,6 +6078,40 @@ export class DatabaseStorage implements IStorage {
             .where(conditions.length > 0 ? and(...conditions) : undefined);
           const [saleResult] = await saleQuery;
           balance = parseFloat(saleResult?.totalRevenue || '0');
+        } else if (locationName === 'Amazon Store') {
+          // Amazon Store - fetch revenue from Amazon API directly
+          try {
+            // Get Amazon configuration
+            const amazonConfigs = await db.select().from(amazonConfig)
+              .where(eq(amazonConfig.isActive, true));
+            
+            if (amazonConfigs.length > 0) {
+              const config = amazonConfigs[0];
+              const amazon = new AmazonIntegration({
+                sellerId: config.sellerId,
+                merchantName: config.merchantName || 'Amazon Store'
+              });
+              
+              // Use month/year if provided, otherwise use current month
+              const queryStartDate = startOfMonth || new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
+              const queryEndDate = endOfMonth || new Date().toISOString().split('T')[0];
+              
+              // Fetch orders and calculate revenue from shipped/delivered orders
+              const orders = await amazon.getOrders(queryStartDate, queryEndDate);
+              if (orders && orders.length > 0) {
+                balance = orders.reduce((sum: number, order: any) => {
+                  if (order.OrderStatus === 'Shipped' || order.OrderStatus === 'Delivered') {
+                    return sum + parseFloat(order.OrderTotal?.Amount || '0');
+                  }
+                  return sum;
+                }, 0);
+                console.log(`✅ Amazon Store COA balance: $${balance.toFixed(2)} from ${orders.filter((o: any) => o.OrderStatus === 'Shipped' || o.OrderStatus === 'Delivered').length} orders`);
+              }
+            }
+          } catch (error) {
+            console.log(`⚠️ Could not fetch Amazon Store balance: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            balance = 0;
+          }
         } else {
           // Location-specific sales - join with locations to filter by name
           const conditions: any[] = [eq(locations.name, locationName)];
