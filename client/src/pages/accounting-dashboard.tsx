@@ -159,7 +159,17 @@ const quickExpenseFormSchema = z.object({
   description: z.string().min(1, 'Description is required').max(255, 'Description must be less than 255 characters'),
   category: z.string().min(1, 'Category is required'),
   expenseDate: z.string().min(1, 'Date is required'),
+  frequency: z.enum(['one_time', 'weekly', 'bi_weekly', 'monthly', 'quarterly', 'annually']).default('one_time'),
 });
+
+const EXPENSE_FREQUENCIES = [
+  { value: 'one_time', label: 'One-time' },
+  { value: 'weekly', label: 'Weekly' },
+  { value: 'bi_weekly', label: 'Bi-Weekly' },
+  { value: 'monthly', label: 'Monthly' },
+  { value: 'quarterly', label: 'Every 3 Months' },
+  { value: 'annually', label: 'Annually' },
+];
 
 type CloverLocation = {
   id: number;
@@ -2866,6 +2876,7 @@ function QuickExpenseDialog({
       description: '',
       category: '',
       expenseDate: new Date().toISOString().split('T')[0],
+      frequency: 'one_time' as const,
     },
   });
 
@@ -2880,12 +2891,14 @@ function QuickExpenseDialog({
       description: string;
       category: string;
       expenseDate: string;
+      frequency: string;
     }) => {
       const response = await apiRequest('POST', '/api/accounting/expenses/quick', {
         amount: parseFloat(data.amount),
         description: data.description,
         category: data.category,
         expenseDate: data.expenseDate,
+        frequency: data.frequency,
       });
       return await response.json();
     },
@@ -3066,6 +3079,31 @@ function QuickExpenseDialog({
                       {...field} 
                     />
                   </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="frequency"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Frequency</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger data-testid="select-expense-frequency">
+                        <SelectValue placeholder="Select frequency" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {EXPENSE_FREQUENCIES.map((freq) => (
+                        <SelectItem key={freq.value} value={freq.value}>
+                          {freq.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}
