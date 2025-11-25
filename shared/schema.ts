@@ -1895,6 +1895,7 @@ export const financialTransactions = pgTable("financial_transactions", {
   sourceSystem: varchar("source_system").notNull(), // QB, Clover, HSA, Thrive, Manual
   sourceId: varchar("source_id"), // Original system's transaction ID
   status: varchar("status").default("pending"), // pending, posted, voided
+  frequency: varchar("frequency").default("one_time"), // one_time, weekly, bi_weekly, monthly, quarterly, annually
   createdBy: varchar("created_by").references(() => users.id),
   lastSyncAt: timestamp("last_sync_at"),
   createdAt: timestamp("created_at").defaultNow(),
@@ -1904,6 +1905,7 @@ export const financialTransactions = pgTable("financial_transactions", {
   transactionDateIdx: index("idx_ft_transaction_date").on(table.transactionDate),
   sourceSystemIdx: index("idx_ft_source_system").on(table.sourceSystem),
   statusIdx: index("idx_ft_status").on(table.status),
+  frequencyIdx: index("idx_ft_frequency").on(table.frequency),
 }));
 
 // Financial Transaction Lines (Journal Entry Details)

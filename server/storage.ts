@@ -757,6 +757,7 @@ export interface IStorage {
     category: string;
     expenseDate: string;
     userId: string;
+    frequency?: string;
   }): Promise<FinancialTransaction>;
   deleteFinancialTransaction(id: number): Promise<void>;
 
@@ -5664,6 +5665,7 @@ export class DatabaseStorage implements IStorage {
     category: string;
     expenseDate: string;
     userId: string;
+    frequency?: string;
   }): Promise<FinancialTransaction> {
     try {
       console.log('🧾 Creating quick expense:', data);
@@ -5712,7 +5714,7 @@ export class DatabaseStorage implements IStorage {
         })];
       }
 
-      // Create the financial transaction
+      // Create the financial transaction with frequency tracking
       const transaction = await this.createFinancialTransaction({
         transactionDate: new Date(data.expenseDate).toISOString(),
         description: `${data.category}: ${data.description}`,
@@ -5720,7 +5722,8 @@ export class DatabaseStorage implements IStorage {
         transactionType: 'Expense',
         sourceSystem: 'quick_expense',
         referenceNumber: `EXPENSE-${Date.now()}`,
-        sourceId: `quick_expense_${data.userId}_${Date.now()}`
+        sourceId: `quick_expense_${data.userId}_${Date.now()}`,
+        frequency: data.frequency || 'one_time'
       });
 
       // Create transaction lines for double-entry bookkeeping

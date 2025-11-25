@@ -8630,13 +8630,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Quick Expense Creation Route (streamlined for owners)
   app.post('/api/accounting/expenses/quick', isAuthenticated, async (req, res) => {
     try {
-      const { amount, description, category, expenseDate } = req.body;
+      const { amount, description, category, expenseDate, frequency } = req.body;
       const userId = req.user?.id;
 
       // Validate required fields
       if (!amount || !description || !category || !expenseDate) {
         return res.status(400).json({ 
           error: 'Missing required fields: amount, description, category, expenseDate' 
+        });
+      }
+
+      // Validate frequency if provided
+      const validFrequencies = ['one_time', 'weekly', 'bi_weekly', 'monthly', 'quarterly', 'annually'];
+      if (frequency && !validFrequencies.includes(frequency)) {
+        return res.status(400).json({ 
+          error: `Invalid frequency. Must be one of: ${validFrequencies.join(', ')}` 
         });
       }
 
@@ -8653,7 +8661,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         description,
         category,
         expenseDate,
-        userId
+        userId,
+        frequency: frequency || 'one_time'
       });
 
       res.status(201).json({
@@ -8663,7 +8672,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         amount: parseFloat(amount),
         description,
         category,
-        expenseDate
+        expenseDate,
+        frequency: frequency || 'one_time'
       });
     } catch (error) {
       console.error('Error creating quick expense:', error);
