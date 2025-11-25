@@ -353,14 +353,14 @@ export default function ShiftSwapMarketplace() {
               Post Shift Swap
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
+          <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
+            <DialogHeader className="flex-shrink-0">
               <DialogTitle>Create Shift Swap Request</DialogTitle>
               <DialogDescription>
                 Post your shift to the marketplace and find someone to cover it.
               </DialogDescription>
             </DialogHeader>
-            <div className="space-y-4">
+            <div className="space-y-4 overflow-y-auto flex-1 pr-2">
               <div>
                 <Label>Select Shift to Swap</Label>
                 <Select value={createForm.scheduleId} onValueChange={(value) => setCreateForm({...createForm, scheduleId: value})}>
@@ -469,13 +469,15 @@ export default function ShiftSwapMarketplace() {
                 </ScrollArea>
               </div>
             </div>
-            <DialogFooter>
+            <DialogFooter className="flex-shrink-0 pt-4 border-t mt-4">
               <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
                 Cancel
               </Button>
               <Button 
                 onClick={() => createSwapMutation.mutate(createForm)}
                 disabled={!createForm.scheduleId || createSwapMutation.isPending}
+                className="bg-green-600 hover:bg-green-700 text-white"
+                data-testid="button-post-swap-request"
               >
                 Post Swap Request
               </Button>
