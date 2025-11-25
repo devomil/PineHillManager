@@ -637,19 +637,29 @@ function InventoryAutocomplete({
       <PopoverTrigger asChild>
         <div className="relative">
           <Input
-            placeholder="Search or type product description..."
+            placeholder="Search inventory or type custom description..."
             value={value}
             onChange={(e) => {
               onChange(e.target.value);
               setSearchQuery(e.target.value);
               if (e.target.value.length >= 2) {
                 setOpen(true);
+              } else {
+                setOpen(false);
               }
             }}
             onFocus={() => {
               if (value.length >= 2) {
                 setSearchQuery(value);
                 setOpen(true);
+              }
+            }}
+            onBlur={() => {
+              setTimeout(() => setOpen(false), 200);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                setOpen(false);
               }
             }}
             data-testid={`input-line-item-description-${lineItemIndex}`}
@@ -659,14 +669,17 @@ function InventoryAutocomplete({
           )}
         </div>
       </PopoverTrigger>
-      <PopoverContent className="w-[400px] p-0" align="start">
+      <PopoverContent className="w-[400px] p-0" align="start" onOpenAutoFocus={(e) => e.preventDefault()}>
         <Command>
           <CommandList>
             {searchResults.length === 0 && searchQuery.length >= 2 && !isLoading && (
-              <CommandEmpty>No products found.</CommandEmpty>
+              <div className="py-3 px-4 text-sm text-muted-foreground">
+                <p>No matching products found.</p>
+                <p className="mt-1 text-xs">Press <kbd className="px-1 py-0.5 bg-muted rounded text-xs">Esc</kbd> or click outside to use your custom description.</p>
+              </div>
             )}
             {searchResults.length > 0 && (
-              <CommandGroup>
+              <CommandGroup heading="Matching Products">
                 {searchResults.map((item) => (
                   <CommandItem
                     key={item.id}
@@ -687,6 +700,18 @@ function InventoryAutocomplete({
                   </CommandItem>
                 ))}
               </CommandGroup>
+            )}
+            {searchResults.length > 0 && (
+              <div className="border-t px-4 py-2">
+                <button
+                  type="button"
+                  onClick={() => setOpen(false)}
+                  className="text-xs text-muted-foreground hover:text-foreground"
+                  data-testid={`button-use-custom-description-${lineItemIndex}`}
+                >
+                  Use "{value}" as custom description instead
+                </button>
+              </div>
             )}
           </CommandList>
         </Command>
