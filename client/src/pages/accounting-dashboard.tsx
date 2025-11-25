@@ -2207,10 +2207,15 @@ function AccountingContent() {
                   ) : accounts.length > 0 ? (
                     <div className="space-y-2">
                       {(() => {
+                        // Filter accounts by type first
+                        const filteredAccounts = accountTypeFilter === "all" 
+                          ? accounts 
+                          : accounts.filter(acc => acc.accountType?.toLowerCase() === accountTypeFilter.toLowerCase());
+                        
                         // Organize accounts hierarchically
-                        const parentAccounts = accounts.filter(acc => !acc.parentAccountId);
-                        const childAccountsMap = new Map<number, typeof accounts>();
-                        accounts.forEach(acc => {
+                        const parentAccounts = filteredAccounts.filter(acc => !acc.parentAccountId);
+                        const childAccountsMap = new Map<number, typeof filteredAccounts>();
+                        filteredAccounts.forEach(acc => {
                           if (acc.parentAccountId) {
                             if (!childAccountsMap.has(acc.parentAccountId)) {
                               childAccountsMap.set(acc.parentAccountId, []);
@@ -2317,6 +2322,22 @@ function AccountingContent() {
                             </div>
                           );
                         };
+                        
+                        if (filteredAccounts.length === 0 && accountTypeFilter !== "all") {
+                          return (
+                            <div className="text-center py-8">
+                              <BookOpen className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                              <p className="text-gray-500">No {accountTypeFilter} accounts found.</p>
+                              <Button
+                                variant="link"
+                                onClick={() => setAccountTypeFilter("all")}
+                                className="mt-2"
+                              >
+                                View all accounts
+                              </Button>
+                            </div>
+                          );
+                        }
                         
                         return parentAccounts.map(account => renderAccount(account));
                       })()}
