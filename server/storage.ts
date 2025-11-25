@@ -1828,6 +1828,7 @@ export interface IStorage {
   
   // Purchasing Reporting Operations
   getVendorSpendReport(vendorId?: number, startDate?: string, endDate?: string): Promise<any[]>;
+  getLocationSpendReport(locationId?: number, startDate?: string, endDate?: string): Promise<any[]>;
   getPurchaseFrequencyReport(startDate?: string, endDate?: string): Promise<any[]>;
   getOutstandingPurchaseOrders(): Promise<PurchaseOrder[]>;
   getPaymentComplianceReport(startDate?: string, endDate?: string): Promise<any[]>;
@@ -14985,6 +14986,37 @@ export class DatabaseStorage implements IStorage {
       .leftJoin(customersVendors, eq(purchaseOrders.vendorId, customersVendors.id))
       .where(conditions.length > 0 ? and(...conditions) : undefined)
       .groupBy(purchaseOrders.vendorId, customersVendors.name)
+      .orderBy(desc(sql`COALESCE(SUM(${purchaseOrders.totalAmount}), 0)`));
+  }
+
+  async getLocationSpendReport(locationId?: number, startDate?: string, endDate?: string): Promise<any[]> {
+    const conditions = [];
+    conditions.push(sql`${purchaseOrders.status} IN ('approved', 'received')`);
+    
+    if (locationId) {
+      conditions.push(eq(purchaseOrders.locationId, locationId));
+    }
+    if (startDate) {
+      conditions.push(sql`${purchaseOrders.orderDate} >= ${startDate}`);
+    }
+    if (endDate) {
+      conditions.push(sql`${purchaseOrders.orderDate} <= ${endDate}`);
+    }
+    
+    return await db
+      .select({
+        locationId: purchaseOrders.locationId,
+        locationName: sql<string>`COALESCE(${locations.name}, 'Unassigned')`,
+        totalSpend: sql<string>`CAST(COALESCE(SUM(${purchaseOrders.totalAmount}), 0) AS TEXT)`,
+        orderCount: sql<number>`COUNT(${purchaseOrders.id})::int`,
+        avgOrderValue: sql<string>`CAST(COALESCE(AVG(${purchaseOrders.totalAmount}), 0) AS TEXT)`,
+        lastOrderDate: sql`MAX(${purchaseOrders.orderDate})`,
+        vendorCount: sql<number>`COUNT(DISTINCT ${purchaseOrders.vendorId})::int`,
+      })
+      .from(purchaseOrders)
+      .leftJoin(locations, eq(purchaseOrders.locationId, locations.id))
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .groupBy(purchaseOrders.locationId, locations.name)
       .orderBy(desc(sql`COALESCE(SUM(${purchaseOrders.totalAmount}), 0)`));
   }
 

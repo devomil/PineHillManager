@@ -169,6 +169,16 @@ type VendorSpendReport = {
   lastOrderDate?: string;
 };
 
+type LocationSpendReport = {
+  locationId: number | null;
+  locationName: string;
+  totalSpend: string;
+  orderCount: number;
+  avgOrderValue: string;
+  lastOrderDate?: string;
+  vendorCount: number;
+};
+
 // Form schemas
 const vendorFormSchema = z.object({
   name: z.string().min(1, 'Vendor name is required'),
@@ -212,6 +222,7 @@ const purchaseOrderFormSchema = z.object({
   poNumber: z.string().min(1, 'PO Number is required'),
   vendorId: z.string().min(1, 'Vendor is required'),
   paymentTerms: z.string().default('Net 30'),
+  locationId: z.string().optional(),
   expenseAccountId: z.string().optional(),
   requestedDeliveryDate: z.string().optional(),
   notes: z.string().optional(),
@@ -699,6 +710,10 @@ function PurchaseOrdersTab() {
     queryKey: ['/api/purchasing/vendors'],
   });
 
+  const { data: locations } = useQuery<{ id: number; name: string; }[]>({
+    queryKey: ['/api/locations'],
+  });
+
   const { data: expenseAccounts } = useQuery<{ id: number; accountName: string; accountNumber: string; accountType: string; }[]>({
     queryKey: ['/api/accounting/expense-accounts'],
   });
@@ -762,6 +777,7 @@ function PurchaseOrdersTab() {
         requestedById: user?.id,
         createdById: user?.id,
         paymentTerms: data.paymentTerms,
+        locationId: data.locationId ? parseInt(data.locationId) : null,
         expenseAccountId: data.expenseAccountId ? parseInt(data.expenseAccountId) : null,
         requestedDeliveryDate: data.requestedDeliveryDate,
         notes: data.notes,
@@ -790,6 +806,7 @@ function PurchaseOrdersTab() {
       return apiRequest('PATCH', `/api/purchasing/purchase-orders/${poId}`, {
         vendorId: parseInt(data.vendorId),
         paymentTerms: data.paymentTerms,
+        locationId: data.locationId ? parseInt(data.locationId) : null,
         expenseAccountId: data.expenseAccountId ? parseInt(data.expenseAccountId) : null,
         requestedDeliveryDate: data.requestedDeliveryDate,
         notes: data.notes,
@@ -997,6 +1014,31 @@ function PurchaseOrdersTab() {
                             <SelectItem value="Credit Card">Credit Card</SelectItem>
                             <SelectItem value="Wire Transfer">Wire Transfer</SelectItem>
                             <SelectItem value="Check">Check</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={poForm.control}
+                    name="locationId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Location</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger data-testid="select-po-location">
+                              <SelectValue placeholder="Select location (optional)" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {locations?.map((location) => (
+                              <SelectItem key={location.id} value={location.id.toString()}>
+                                {location.name}
+                              </SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                         <FormMessage />
@@ -1715,6 +1757,10 @@ function ReportsTab() {
     queryKey: ['/api/purchasing/reports/vendor-spend'],
   });
 
+  const { data: locationSpendReport, isLoading: isLoadingLocationSpend } = useQuery<LocationSpendReport[]>({
+    queryKey: ['/api/purchasing/reports/location-spend'],
+  });
+
   const { data: outstandingPayables, isLoading: isLoadingPayables } = useQuery<any[]>({
     queryKey: ['/api/purchasing/reports/outstanding-payables'],
   });
@@ -1731,6 +1777,12 @@ function ReportsTab() {
   const [sortBy, setSortBy] = useState<string>('totalSpend');
   const [vendorDateFrom, setVendorDateFrom] = useState('');
   const [vendorDateTo, setVendorDateTo] = useState('');
+
+  // Location Spend filters
+  const [locationSearch, setLocationSearch] = useState('');
+  const [locationSortBy, setLocationSortBy] = useState<string>('totalSpend');
+  const [locationDateFrom, setLocationDateFrom] = useState('');
+  const [locationDateTo, setLocationDateTo] = useState('');
 
   // Filter outstanding payables
   const filteredPayables = outstandingPayables?.filter((payable) => {
@@ -1818,6 +1870,46 @@ function ReportsTab() {
       return 0;
     }) || [];
 
+  // Sort and filter location spend
+  const filteredLocationSpend = locationSpendReport
+    ?.filter((location) => {
+      const locationName = location.locationName || 'Unassigned';
+      const searchMatch = locationSearch === '' || 
+        locationName.toLowerCase().includes(locationSearch.toLowerCase());
+
+      let dateMatch = true;
+      if (locationDateFrom || locationDateTo) {
+        const lastOrderDate = location.lastOrderDate ? new Date(location.lastOrderDate) : null;
+        if (lastOrderDate) {
+          if (locationDateFrom) {
+            const fromDate = new Date(locationDateFrom);
+            dateMatch = dateMatch && lastOrderDate >= fromDate;
+          }
+          if (locationDateTo) {
+            const toDate = new Date(locationDateTo);
+            toDate.setHours(23, 59, 59, 999);
+            dateMatch = dateMatch && lastOrderDate <= toDate;
+          }
+        } else {
+          dateMatch = false;
+        }
+      }
+
+      return searchMatch && dateMatch;
+    })
+    ?.sort((a, b) => {
+      if (locationSortBy === 'totalSpend') {
+        return parseFloat(b.totalSpend) - parseFloat(a.totalSpend);
+      } else if (locationSortBy === 'orderCount') {
+        return b.orderCount - a.orderCount;
+      } else if (locationSortBy === 'vendorCount') {
+        return b.vendorCount - a.vendorCount;
+      } else if (locationSortBy === 'lastOrder') {
+        return new Date(b.lastOrderDate || 0).getTime() - new Date(a.lastOrderDate || 0).getTime();
+      }
+      return 0;
+    }) || [];
+
   // Get unique payment terms for filter dropdown
   const uniquePaymentTerms = Array.from(
     new Set(outstandingPayables?.map(p => p.paymentTerms) || [])
@@ -1826,6 +1918,10 @@ function ReportsTab() {
   // Calculate totals based on filtered data
   const totalOutstanding = filteredPayables.reduce((sum, item) => sum + parseFloat(item.totalAmount), 0);
   const overdueAmount = filteredPayables.filter(item => item.isOverdue).reduce((sum, item) => sum + parseFloat(item.totalAmount), 0);
+  
+  // Calculate location spend totals
+  const totalLocationSpend = filteredLocationSpend.reduce((sum, item) => sum + parseFloat(item.totalSpend), 0);
+  const totalLocationOrders = filteredLocationSpend.reduce((sum, item) => sum + item.orderCount, 0);
 
   return (
     <div className="space-y-6">
@@ -1987,6 +2083,124 @@ function ReportsTab() {
                         </TableRow>
                       );
                     })
+                  )}
+                </TableBody>
+              </Table>
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Location Spend Analysis</CardTitle>
+          <CardDescription>Total purchasing spend by store location</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {isLoadingLocationSpend ? (
+            <div className="text-center py-4">Loading location spend...</div>
+          ) : (
+            <>
+              <div className="grid gap-4 md:grid-cols-3 mb-6">
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardDescription>Total Location Spend</CardDescription>
+                    <CardTitle className="text-2xl">${totalLocationSpend.toFixed(2)}</CardTitle>
+                  </CardHeader>
+                </Card>
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardDescription>Total Orders</CardDescription>
+                    <CardTitle className="text-2xl">{totalLocationOrders}</CardTitle>
+                  </CardHeader>
+                </Card>
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardDescription>Locations</CardDescription>
+                    <CardTitle className="text-2xl">{filteredLocationSpend.length}</CardTitle>
+                  </CardHeader>
+                </Card>
+              </div>
+
+              <div className="flex flex-wrap gap-4 mb-4">
+                <div className="flex-1 min-w-[200px] relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search by location name..."
+                    value={locationSearch}
+                    onChange={(e) => setLocationSearch(e.target.value)}
+                    className="pl-10"
+                    data-testid="input-location-search"
+                  />
+                </div>
+                <Select value={locationSortBy} onValueChange={setLocationSortBy}>
+                  <SelectTrigger className="w-[200px]" data-testid="select-location-sort-by">
+                    <SelectValue placeholder="Sort by" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="totalSpend">Total Spend (High to Low)</SelectItem>
+                    <SelectItem value="orderCount">Order Count (High to Low)</SelectItem>
+                    <SelectItem value="vendorCount">Vendor Count (High to Low)</SelectItem>
+                    <SelectItem value="lastOrder">Last Order Date (Recent First)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="location-date-from" className="text-sm whitespace-nowrap">From:</Label>
+                  <Input
+                    id="location-date-from"
+                    type="date"
+                    value={locationDateFrom}
+                    onChange={(e) => setLocationDateFrom(e.target.value)}
+                    className="w-[150px]"
+                    data-testid="input-location-date-from"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="location-date-to" className="text-sm whitespace-nowrap">To:</Label>
+                  <Input
+                    id="location-date-to"
+                    type="date"
+                    value={locationDateTo}
+                    onChange={(e) => setLocationDateTo(e.target.value)}
+                    className="w-[150px]"
+                    data-testid="input-location-date-to"
+                  />
+                </div>
+              </div>
+
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Location</TableHead>
+                    <TableHead>Total Spend</TableHead>
+                    <TableHead>Order Count</TableHead>
+                    <TableHead>Avg Order Value</TableHead>
+                    <TableHead>Vendors Used</TableHead>
+                    <TableHead>Last Order</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredLocationSpend.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                        No location spend data found
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredLocationSpend.map((report, index) => (
+                      <TableRow key={report.locationId ?? `unassigned-${index}`} data-testid={`row-location-spend-${report.locationId ?? 'unassigned'}`}>
+                        <TableCell className="font-medium">{report.locationName || 'Unassigned'}</TableCell>
+                        <TableCell>${parseFloat(report.totalSpend).toFixed(2)}</TableCell>
+                        <TableCell>{report.orderCount}</TableCell>
+                        <TableCell>${parseFloat(report.avgOrderValue).toFixed(2)}</TableCell>
+                        <TableCell>{report.vendorCount}</TableCell>
+                        <TableCell>
+                          {report.lastOrderDate
+                            ? new Date(report.lastOrderDate).toLocaleDateString()
+                            : 'N/A'}
+                        </TableCell>
+                      </TableRow>
+                    ))
                   )}
                 </TableBody>
               </Table>

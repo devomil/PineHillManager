@@ -19440,6 +19440,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get('/api/purchasing/reports/location-spend', isAuthenticated, async (req, res) => {
+    try {
+      if (!req.user || !['admin', 'manager'].includes(req.user.role)) {
+        return res.status(403).json({ error: 'Admin or Manager access required' });
+      }
+
+      const { locationId, startDate, endDate } = req.query;
+
+      const report = await storage.getLocationSpendReport(
+        locationId ? parseInt(locationId as string) : undefined,
+        startDate as string | undefined,
+        endDate as string | undefined
+      );
+
+      res.json(report);
+    } catch (error) {
+      console.error('Error generating location spend report:', error);
+      res.status(500).json({ message: 'Failed to generate location spend report' });
+    }
+  });
+
   app.get('/api/purchasing/reports/purchase-frequency', isAuthenticated, async (req, res) => {
     try {
       if (!req.user || !['admin', 'manager'].includes(req.user.role)) {

@@ -2710,6 +2710,7 @@ export const purchaseOrderPayloadSchema = z.object({
   requestedById: z.string().optional().nullable(),
   createdById: z.string().optional().nullable(),
   status: z.string().default('draft'),
+  locationId: z.number().optional().nullable(),
   expenseAccountId: z.number().optional().nullable(),
   orderDate: z.string().optional().nullable(),
   requestedDeliveryDate: z.string().optional().nullable(),
