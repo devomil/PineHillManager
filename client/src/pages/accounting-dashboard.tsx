@@ -981,14 +981,38 @@ function AccountingContent() {
     const monthlyPayroll = parseFloat(scheduledPayrollData?.totalAmount || '0');
     
     // Calculate operating expenses from Chart of Accounts (exclude COGS and Payroll accounts)
+    // Note: Child account balances are rolled up into parent accounts by the backend,
+    // so we need to be careful about double-counting:
+    // - Exclude child accounts whose parent IS an operating expense (already rolled up)
+    // - Include child accounts whose parent is excluded (e.g., Officer Income under Payroll)
+    
+    // First, identify which parent accounts are operating expenses (not COGS/Payroll)
+    const isOperatingExpenseAccount = (acc: any) => {
+      const isExpenseAccount = acc.accountType?.toLowerCase() === 'expense';
+      const isCOGS = acc.accountName?.toLowerCase().includes('cost of goods') || 
+                     acc.accountNumber?.startsWith('50');
+      const isPayroll = acc.accountName?.toLowerCase().includes('payroll') ||
+                        acc.accountNumber?.startsWith('67');
+      return isExpenseAccount && !isCOGS && !isPayroll;
+    };
+    
+    // Create a set of operating expense parent account IDs
+    const operatingExpenseParentIds = new Set(
+      accounts.filter(acc => isOperatingExpenseAccount(acc) && !acc.parentAccountId).map(acc => acc.id)
+    );
+    
     const operatingExpenses = accounts
       .filter(acc => {
-        const isExpenseAccount = acc.accountType?.toLowerCase() === 'expense';
-        const isCOGS = acc.accountName?.toLowerCase().includes('cost of goods') || 
-                       acc.accountNumber?.startsWith('50'); // COGS accounts typically 5000-5999
-        const isPayroll = acc.accountName?.toLowerCase().includes('payroll') ||
-                          acc.accountNumber?.startsWith('67'); // Payroll expense account 6700
-        return isExpenseAccount && !isCOGS && !isPayroll;
+        if (!isOperatingExpenseAccount(acc)) return false;
+        
+        // If this is a child account, only include it if its parent is NOT an operating expense
+        // (because if parent IS operating expense, child balance is already rolled up into parent)
+        if (acc.parentAccountId != null) {
+          const parentIsOperatingExpense = operatingExpenseParentIds.has(acc.parentAccountId);
+          return !parentIsOperatingExpense; // Include only if parent is excluded (like Payroll)
+        }
+        
+        return true; // Include all top-level operating expense accounts
       })
       .reduce((sum, acc) => sum + parseFloat(acc.balance || '0'), 0);
     
