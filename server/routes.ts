@@ -46,7 +46,7 @@ import {
   insertPurchaseOrderEventSchema,
 } from "@shared/schema";
 import { z } from "zod";
-import { eq, and, or, isNull, isNotNull, desc, gte, lte } from "drizzle-orm";
+import { eq, and, or, isNull, isNotNull, desc, gte, lte, sql } from "drizzle-orm";
 import { db } from "./db";
 import { posSaleItems, stagedProducts, goals, posSales, inventoryItems } from "@shared/schema";
 
@@ -604,6 +604,103 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error in tax backfill:', error);
       res.status(500).json({ message: 'Failed to backfill tax data' });
+    }
+  });
+
+  // Backfill cost_basis for POS sale items by matching to inventory
+  app.post('/api/sync/clover/backfill-cost', isAuthenticated, async (req, res) => {
+    try {
+      if (req.user?.role !== 'admin') {
+        return res.status(403).json({ error: 'Admin access required' });
+      }
+
+      const { startDate, endDate, dryRun = false } = req.body;
+      
+      console.log(`🔄 Starting cost basis backfill for POS sale items... (dryRun: ${dryRun})`);
+
+      // Get sale items without cost that can be matched to inventory by exact name
+      const itemsToUpdate = await db.execute(sql`
+        SELECT DISTINCT ON (psi.id)
+          psi.id as sale_item_id,
+          psi.item_name,
+          psi.quantity,
+          psi.unit_price,
+          ii.id as inventory_id,
+          ii.unit_cost
+        FROM pos_sale_items psi
+        INNER JOIN pos_sales ps ON psi.sale_id = ps.id
+        INNER JOIN inventory_items ii ON LOWER(TRIM(psi.item_name)) = LOWER(TRIM(ii.item_name))
+        WHERE (psi.cost_basis IS NULL OR psi.cost_basis = 0)
+          AND ii.unit_cost IS NOT NULL AND CAST(ii.unit_cost AS DECIMAL) > 0
+          ${startDate ? sql`AND ps.sale_date >= ${startDate}` : sql``}
+          ${endDate ? sql`AND ps.sale_date <= ${endDate}` : sql``}
+        ORDER BY psi.id, ii.unit_cost DESC
+      `);
+
+      const items = itemsToUpdate.rows as Array<{
+        sale_item_id: number;
+        item_name: string;
+        quantity: number;
+        unit_price: string;
+        inventory_id: number;
+        unit_cost: string;
+      }>;
+
+      console.log(`Found ${items.length} sale items that can be matched to inventory`);
+
+      let totalUpdated = 0;
+      let totalCostAdded = 0;
+
+      if (!dryRun) {
+        for (const item of items) {
+          try {
+            const costBasis = parseFloat(item.unit_cost);
+            const quantity = item.quantity || 1;
+            const totalCost = costBasis * quantity;
+
+            await db.update(posSaleItems)
+              .set({ 
+                costBasis: costBasis.toString(),
+                inventoryItemId: item.inventory_id
+              })
+              .where(eq(posSaleItems.id, item.sale_item_id));
+
+            totalUpdated++;
+            totalCostAdded += totalCost;
+
+            if (totalUpdated % 100 === 0) {
+              console.log(`Progress: ${totalUpdated}/${items.length} updated, Total COGS added: $${totalCostAdded.toFixed(2)}`);
+            }
+          } catch (itemError) {
+            console.error(`Error updating item ${item.sale_item_id}:`, itemError);
+          }
+        }
+      } else {
+        // Dry run - just calculate totals
+        for (const item of items) {
+          const costBasis = parseFloat(item.unit_cost);
+          const quantity = item.quantity || 1;
+          totalCostAdded += costBasis * quantity;
+        }
+        totalUpdated = items.length;
+      }
+
+      const summary = {
+        dryRun,
+        totalItemsFound: items.length,
+        totalUpdated,
+        totalCostAdded: Math.round(totalCostAdded * 100) / 100,
+        message: dryRun 
+          ? `Dry run: Would update ${totalUpdated} items, adding $${totalCostAdded.toFixed(2)} to COGS`
+          : `Backfill completed: ${totalUpdated} items updated, $${totalCostAdded.toFixed(2)} added to COGS`
+      };
+
+      console.log(`\n✅ Cost basis backfill ${dryRun ? '(dry run)' : ''} completed:`, summary);
+
+      res.json(summary);
+    } catch (error) {
+      console.error('Error in cost basis backfill:', error);
+      res.status(500).json({ message: 'Failed to backfill cost basis data' });
     }
   });
 

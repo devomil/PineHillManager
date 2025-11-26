@@ -351,20 +351,26 @@ function AccountingContent() {
     },
   });
 
-  // Backfill COGS mutation to populate cost data for existing orders
+  // Backfill COGS mutation to populate cost data for existing orders by matching item names to inventory
   const backfillCogsMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest('POST', '/api/integrations/clover/backfill-costs');
+      const response = await apiRequest('POST', '/api/sync/clover/backfill-cost', {
+        startDate: '2025-01-01',
+        endDate: new Date().toISOString().split('T')[0],
+        dryRun: false
+      });
       return await response.json();
     },
     onSuccess: (data) => {
       // Invalidate COGS-related queries
       queryClient.invalidateQueries({ queryKey: ['/api/accounting/analytics/cogs'] });
       queryClient.invalidateQueries({ queryKey: ['/api/accounting'] });
+      const today = new Date().toISOString().split('T')[0];
+      queryClient.invalidateQueries({ queryKey: ['/api/accounting/analytics/profit-loss', today] });
       
       toast({
         title: "COGS Data Backfilled",
-        description: `Updated ${data.updatedCount} items, skipped ${data.skippedCount} items without cost data`,
+        description: `Updated ${data.totalUpdated} items, added $${data.totalCostAdded.toLocaleString()} to COGS`,
         variant: "default",
       });
     },
