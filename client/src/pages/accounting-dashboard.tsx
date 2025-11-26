@@ -980,8 +980,20 @@ function AccountingContent() {
     const monthlyCOGS = parseFloat(monthlyCogsData?.totalCost || '0');
     const monthlyPayroll = parseFloat(scheduledPayrollData?.totalAmount || '0');
     
-    // Total expenses = COGS + Payroll + other expenses
-    const monthlyExpenses = monthlyCOGS + monthlyPayroll;
+    // Calculate operating expenses from Chart of Accounts (exclude COGS and Payroll accounts)
+    const operatingExpenses = accounts
+      .filter(acc => {
+        const isExpenseAccount = acc.accountType?.toLowerCase() === 'expense';
+        const isCOGS = acc.accountName?.toLowerCase().includes('cost of goods') || 
+                       acc.accountNumber?.startsWith('50'); // COGS accounts typically 5000-5999
+        const isPayroll = acc.accountName?.toLowerCase().includes('payroll') ||
+                          acc.accountNumber?.startsWith('67'); // Payroll expense account 6700
+        return isExpenseAccount && !isCOGS && !isPayroll;
+      })
+      .reduce((sum, acc) => sum + parseFloat(acc.balance || '0'), 0);
+    
+    // Total expenses = COGS + Payroll + Operating Expenses from Chart of Accounts
+    const monthlyExpenses = monthlyCOGS + monthlyPayroll + operatingExpenses;
     
     const daysElapsed = new Date().getDate();
     const daysInMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0).getDate();
@@ -990,7 +1002,7 @@ function AccountingContent() {
     const dailyAverage = daysElapsed > 0 ? monthlyRevenue / daysElapsed : 0;
     const projectedRevenue = dailyAverage * daysInMonth;
     
-    // Gross profit = Revenue - COGS - Payroll
+    // Gross profit = Revenue - Total Expenses (COGS + Payroll + Operating)
     const grossProfit = monthlyRevenue - monthlyExpenses;
     const profitMargin = monthlyRevenue > 0 ? (grossProfit / monthlyRevenue * 100) : 0;
     
@@ -998,6 +1010,7 @@ function AccountingContent() {
       monthlyRevenue,
       monthlyCOGS,
       monthlyPayroll,
+      operatingExpenses,
       monthlyExpenses,
       grossProfit,
       profitMargin,
