@@ -1675,7 +1675,11 @@ function AccountingContent() {
                           <span className="font-bold text-red-600">${biMetrics?.monthlyPayroll?.toFixed(2) || '0.00'}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-sm text-gray-600">Total Expenses:</span>
+                          <span className="text-sm text-gray-600">Operating Expenses:</span>
+                          <span className="font-bold text-orange-600">${biMetrics?.operatingExpenses?.toFixed(2) || '0.00'}</span>
+                        </div>
+                        <div className="flex justify-between border-t pt-1">
+                          <span className="text-sm font-medium text-gray-700">Total Expenses:</span>
                           <span className="font-bold text-red-600">${biMetrics?.monthlyExpenses?.toFixed(2) || '0.00'}</span>
                         </div>
                         <div className="flex justify-between border-t pt-2">

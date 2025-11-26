@@ -8893,49 +8893,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
 
-        // For expenses, check if we have account-based data for July 2025 (sample period)
-        const isJulySamplePeriod = startDate === '2025-07-01' && endDate === '2025-07-31';
-        
-        if (isJulySamplePeriod) {
-          // Use account balances for July 2025 operating expenses (sample data)
-          const allExpenseAccounts = await storage.getAccountsByType('Expense');
-          const expenseAccounts = allExpenseAccounts.filter(account => 
-            !account.accountName.toLowerCase().includes('cost of goods sold')
-          );
+        // Calculate operating expenses from Chart of Accounts (exclude COGS and Payroll)
+        const allExpenseAccounts = await storage.getAccountsByType('Expense');
+        const operatingExpenseAccounts = allExpenseAccounts.filter(account => {
+          const name = account.accountName?.toLowerCase() || '';
+          const number = account.accountNumber || '';
+          const isCOGS = name.includes('cost of goods') || number.startsWith('50');
+          const isPayroll = name.includes('payroll') || number.startsWith('67');
+          return !isCOGS && !isPayroll;
+        });
 
-          totalExpenses = expenseAccounts.reduce((sum, account) => {
-            return sum + parseFloat(account.balance || '0');
-          }, 0);
-        } else {
-          // For other periods, no operating expenses entered yet (as user mentioned)
-          totalExpenses = 0;
-        }
+        totalExpenses = operatingExpenseAccounts.reduce((sum, account) => {
+          return sum + parseFloat(account.balance || '0');
+        }, 0);
 
       } catch (error) {
         console.error('Error fetching integration data for analytics P&L:', error);
         
         // Fallback to account data if integration fails
-        const isJulySamplePeriod = startDate === '2025-07-01' && endDate === '2025-07-31';
+        const incomeAccounts = await storage.getAccountsByType('Income');
+        const allExpenseAccounts = await storage.getAccountsByType('Expense');
+        const cogsAccounts = await storage.getAccountsByName('Cost of Goods Sold');
         
-        if (isJulySamplePeriod) {
-          const incomeAccounts = await storage.getAccountsByType('Income');
-          const allExpenseAccounts = await storage.getAccountsByType('Expense');
-          const cogsAccounts = await storage.getAccountsByName('Cost of Goods Sold');
-          
-          const expenseAccounts = allExpenseAccounts.filter(account => 
-            !account.accountName.toLowerCase().includes('cost of goods sold')
-          );
+        const operatingExpenseAccounts = allExpenseAccounts.filter(account => {
+          const name = account.accountName?.toLowerCase() || '';
+          const number = account.accountNumber || '';
+          const isCOGS = name.includes('cost of goods') || number.startsWith('50');
+          const isPayroll = name.includes('payroll') || number.startsWith('67');
+          return !isCOGS && !isPayroll;
+        });
 
-          totalRevenue = incomeAccounts.reduce((sum, account) => sum + parseFloat(account.balance || '0'), 0);
-          totalExpenses = expenseAccounts.reduce((sum, account) => sum + parseFloat(account.balance || '0'), 0);
-          totalCOGS = cogsAccounts.reduce((sum, account) => sum + parseFloat(account.balance || '0'), 0);
-        }
+        totalRevenue = incomeAccounts.reduce((sum, account) => sum + parseFloat(account.balance || '0'), 0);
+        totalExpenses = operatingExpenseAccounts.reduce((sum, account) => sum + parseFloat(account.balance || '0'), 0);
+        totalCOGS = cogsAccounts.reduce((sum, account) => sum + parseFloat(account.balance || '0'), 0);
       }
 
       const grossProfit = totalRevenue - totalCOGS;
       const netIncome = grossProfit - totalExpenses;
 
-      // Return full structure that frontend summary expects
+      // Note: This endpoint returns totalExpenses as OPERATING expenses only (excluding COGS and Payroll).
+      // The frontend MTD Performance card uses calculateBIMetrics() which separately:
+      // - Gets COGS from /api/accounting/analytics/cogs
+      // - Gets Payroll from /api/accounting/payroll/scheduled
+      // - Calculates operating expenses from Chart of Accounts
+      // - Then sums: monthlyExpenses = COGS + Payroll + Operating Expenses
       const profitLoss = {
         totalRevenue: totalRevenue.toFixed(2),
         totalCOGS: totalCOGS.toFixed(2),
@@ -15599,43 +15600,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: 'Start date and end date are required' });
       }
 
-      // Check if this is the July 2025 sample data period (only period with expense data entered)
-      const isJulySamplePeriod = startDate === '2025-07-01' && endDate === '2025-07-31';
-      
-      let totalExpenses = 0;
-      let expenseCategories: Array<{
-        id: number;
-        name: string;
-        amount: number;
-        description: string | null;
-        accountType: string;
-      }> = [];
+      // Calculate operating expenses from Chart of Accounts (exclude COGS and Payroll)
+      const allExpenseAccounts = await storage.getAccountsByType('Expense');
+      const operatingExpenseAccounts = allExpenseAccounts.filter((account: any) => {
+        const name = account.accountName?.toLowerCase() || '';
+        const number = account.accountNumber || '';
+        const isCOGS = name.includes('cost of goods') || number.startsWith('50');
+        const isPayroll = name.includes('payroll') || number.startsWith('67');
+        return !isCOGS && !isPayroll;
+      });
 
-      if (isJulySamplePeriod) {
-        // Use static account balances for July 2025 sample data
-        const allExpenseAccounts = await storage.getAccountsByType('Expense');
-        const expenseAccounts = allExpenseAccounts.filter((account: any) => 
-          !account.accountName.toLowerCase().includes('cost of goods sold')
-        );
+      // Calculate total expenses from account balances
+      const totalExpenses = operatingExpenseAccounts.reduce((sum: number, account: any) => {
+        return sum + parseFloat(account.balance || '0');
+      }, 0);
 
-        // Calculate total expenses from account balances
-        totalExpenses = expenseAccounts.reduce((sum: number, account: any) => {
-          return sum + parseFloat(account.balance || '0');
-        }, 0);
-
-        // Group expenses by category
-        expenseCategories = expenseAccounts.map((account: any) => ({
-          id: account.id,
-          name: account.accountName,
-          amount: parseFloat(account.balance || '0'),
-          description: account.description,
-          accountType: account.accountType
-        }));
-      } else {
-        // For other periods, no operating expenses entered yet (as mentioned by user)
-        totalExpenses = 0;
-        expenseCategories = [];
-      }
+      // Group expenses by category
+      const expenseCategories = operatingExpenseAccounts.map((account: any) => ({
+        id: account.id,
+        name: account.accountName,
+        amount: parseFloat(account.balance || '0'),
+        description: account.description,
+        accountType: account.accountType
+      }));
 
       res.json({
         totalExpenses: totalExpenses.toFixed(2),
@@ -15807,71 +15794,66 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
 
-        // For expenses, check if we have account-based data for July 2025 (sample period)
-        const isJulySamplePeriod = startDate === '2025-07-01' && endDate === '2025-07-31';
-        
-        if (isJulySamplePeriod) {
-          // Use account balances for July 2025 operating expenses (sample data)
-          const allExpenseAccounts = await storage.getAccountsByType('Expense');
-          const expenseAccounts = allExpenseAccounts.filter((account: any) => 
-            !account.accountName.toLowerCase().includes('cost of goods sold')
-          );
+        // Calculate operating expenses from Chart of Accounts (exclude COGS and Payroll)
+        const allExpenseAccounts = await storage.getAccountsByType('Expense');
+        const operatingExpenseAccounts = allExpenseAccounts.filter((account: any) => {
+          const name = account.accountName?.toLowerCase() || '';
+          const number = account.accountNumber || '';
+          const isCOGS = name.includes('cost of goods') || number.startsWith('50');
+          const isPayroll = name.includes('payroll') || number.startsWith('67');
+          return !isCOGS && !isPayroll;
+        });
 
-          totalExpenses = expenseAccounts.reduce((sum: number, account: any) => {
-            return sum + parseFloat(account.balance || '0');
-          }, 0);
+        totalExpenses = operatingExpenseAccounts.reduce((sum: number, account: any) => {
+          return sum + parseFloat(account.balance || '0');
+        }, 0);
 
-          expenseBreakdown = expenseAccounts.map((account: any) => ({
-            id: account.id,
-            name: account.accountName,
-            amount: parseFloat(account.balance || '0'),
-            percentage: totalExpenses > 0 ? ((parseFloat(account.balance || '0') / totalExpenses) * 100).toFixed(2) : '0.00'
-          }));
-        } else {
-          // For other periods, no operating expenses entered yet (as user mentioned)
-          totalExpenses = 0;
-          expenseBreakdown = [];
-        }
+        expenseBreakdown = operatingExpenseAccounts.map((account: any) => ({
+          id: account.id,
+          name: account.accountName,
+          amount: parseFloat(account.balance || '0'),
+          percentage: totalExpenses > 0 ? ((parseFloat(account.balance || '0') / totalExpenses) * 100).toFixed(2) : '0.00'
+        }));
 
       } catch (error) {
         console.error('Error fetching integration data for P&L:', error);
         
         // Fallback to account data if integration fails
-        const isJulySamplePeriod = startDate === '2025-07-01' && endDate === '2025-07-31';
+        const incomeAccounts = await storage.getAccountsByType('Income');
+        const allExpenseAccounts = await storage.getAccountsByType('Expense');
+        const cogsAccounts = await storage.getAccountsByName('Cost of Goods Sold');
         
-        if (isJulySamplePeriod) {
-          const incomeAccounts = await storage.getAccountsByType('Income');
-          const allExpenseAccounts = await storage.getAccountsByType('Expense');
-          const cogsAccounts = await storage.getAccountsByName('Cost of Goods Sold');
-          
-          const expenseAccounts = allExpenseAccounts.filter((account: any) => 
-            !account.accountName.toLowerCase().includes('cost of goods sold')
-          );
+        const operatingExpenseAccounts = allExpenseAccounts.filter((account: any) => {
+          const name = account.accountName?.toLowerCase() || '';
+          const number = account.accountNumber || '';
+          const isCOGS = name.includes('cost of goods') || number.startsWith('50');
+          const isPayroll = name.includes('payroll') || number.startsWith('67');
+          return !isCOGS && !isPayroll;
+        });
 
-          totalRevenue = incomeAccounts.reduce((sum: number, account: any) => sum + parseFloat(account.balance || '0'), 0);
-          totalExpenses = expenseAccounts.reduce((sum: number, account: any) => sum + parseFloat(account.balance || '0'), 0);
-          totalCOGS = cogsAccounts.reduce((sum: number, account: any) => sum + parseFloat(account.balance || '0'), 0);
+        totalRevenue = incomeAccounts.reduce((sum: number, account: any) => sum + parseFloat(account.balance || '0'), 0);
+        totalExpenses = operatingExpenseAccounts.reduce((sum: number, account: any) => sum + parseFloat(account.balance || '0'), 0);
+        totalCOGS = cogsAccounts.reduce((sum: number, account: any) => sum + parseFloat(account.balance || '0'), 0);
 
-          incomeBreakdown = incomeAccounts.map((account: any) => ({
-            id: account.id,
-            name: account.accountName,
-            amount: parseFloat(account.balance || '0'),
-            percentage: totalRevenue > 0 ? ((parseFloat(account.balance || '0') / totalRevenue) * 100).toFixed(2) : '0.00'
-          }));
+        incomeBreakdown = incomeAccounts.map((account: any) => ({
+          id: account.id,
+          name: account.accountName,
+          amount: parseFloat(account.balance || '0'),
+          percentage: totalRevenue > 0 ? ((parseFloat(account.balance || '0') / totalRevenue) * 100).toFixed(2) : '0.00'
+        }));
 
-          expenseBreakdown = expenseAccounts.map((account: any) => ({
-            id: account.id,
-            name: account.accountName,
-            amount: parseFloat(account.balance || '0'),
-            percentage: totalExpenses > 0 ? ((parseFloat(account.balance || '0') / totalExpenses) * 100).toFixed(2) : '0.00'
-          }));
+        expenseBreakdown = operatingExpenseAccounts.map((account: any) => ({
+          id: account.id,
+          name: account.accountName,
+          amount: parseFloat(account.balance || '0'),
+          percentage: totalExpenses > 0 ? ((parseFloat(account.balance || '0') / totalExpenses) * 100).toFixed(2) : '0.00'
+        }));
 
-          cogsBreakdown = cogsAccounts.map((account: any) => ({
-            id: account.id,
-            name: account.accountName,
-            amount: parseFloat(account.balance || '0')
-          }));
-        }
+        cogsBreakdown = cogsAccounts.map((account: any) => ({
+          id: account.id,
+          name: account.accountName,
+          amount: parseFloat(account.balance || '0')
+        }));
       }
 
       const grossProfit = totalRevenue - totalCOGS;
