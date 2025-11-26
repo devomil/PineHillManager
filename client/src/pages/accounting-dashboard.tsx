@@ -4257,10 +4257,49 @@ function ProfitLossReport({
   };
 
   const revenueAccounts = getAccountsByType('income');
-  const expenseAccounts = getAccountsByType('expense');
-  const cogsAccounts = accounts.filter(account => 
-    account.accountName.toLowerCase().includes('cost of goods')
+  
+  // COGS accounts - identify by name patterns or account number (50xx range)
+  const cogsAccounts = accounts.filter(account => {
+    const name = account.accountName.toLowerCase();
+    const accountNumber = (account as any).accountNumber || '';
+    return name.includes('cost of goods') || 
+           name.includes('cogs') || 
+           name.includes('cost of sales') ||
+           accountNumber.startsWith('50');
+  });
+  
+  // Exclude COGS from Operating Expenses to prevent double-counting (COGS is shown in its own section)
+  // Payroll remains in Operating Expenses as it's a legitimate operating cost
+  const cogsAccountIds = new Set(cogsAccounts.map(a => a.id));
+  const operatingExpenseAccounts = getAccountsByType('expense').filter(account => {
+    const name = account.accountName.toLowerCase();
+    const accountNumber = (account as any).accountNumber || '';
+    // Exclude Cost of Goods accounts by name or account number (50xx range)
+    const isCOGS = name.includes('cost of goods') || 
+                   name.includes('cogs') || 
+                   name.includes('cost of sales') ||
+                   cogsAccountIds.has(account.id) ||
+                   accountNumber.startsWith('50');
+    return !isCOGS;
+  });
+  
+  // Calculate totals from displayed account balances for consistency
+  const calculatedTotalRevenue = revenueAccounts.reduce((sum, account) => 
+    sum + parseFloat(account.balance || '0'), 0
   );
+  const calculatedTotalCOGS = cogsAccounts.reduce((sum, account) => 
+    sum + parseFloat(account.balance || '0'), 0
+  );
+  const calculatedTotalExpenses = operatingExpenseAccounts.reduce((sum, account) => 
+    sum + parseFloat(account.balance || '0'), 0
+  );
+  
+  // Use API data for COGS if available (more accurate from live transactions), otherwise use account balance
+  const totalCOGS = data.totalCOGS > 0 ? data.totalCOGS : calculatedTotalCOGS;
+  const totalRevenue = calculatedTotalRevenue;
+  const totalExpenses = calculatedTotalExpenses;
+  const grossProfit = totalRevenue - totalCOGS;
+  const netIncome = grossProfit - totalExpenses;
 
   return (
     <Card>
@@ -4299,46 +4338,56 @@ function ProfitLossReport({
                 <div className="flex justify-between items-center font-semibold">
                   <span>Total Revenue</span>
                   <span className="text-green-600">
-                    {formatCurrency(data.totalRevenue || 0)}
+                    {formatCurrency(totalRevenue)}
                   </span>
                 </div>
               </div>
             </div>
 
             {/* COGS Section */}
-            {cogsAccounts.length > 0 && (
-              <div>
-                <h3 className="text-lg font-semibold text-orange-600 mb-3 flex items-center gap-2">
-                  <Package className="h-5 w-5" />
-                  Cost of Goods Sold
-                </h3>
-                <div className="space-y-2 ml-4">
-                  {cogsAccounts.map((account) => (
+            <div>
+              <h3 className="text-lg font-semibold text-orange-600 mb-3 flex items-center gap-2">
+                <Package className="h-5 w-5" />
+                Cost of Goods Sold
+              </h3>
+              <div className="space-y-2 ml-4">
+                {cogsAccounts.length > 0 ? (
+                  cogsAccounts.map((account) => (
                     <div key={account.id} className="flex justify-between items-center">
                       <span className="text-sm">{account.accountName}</span>
                       <span className="font-medium text-orange-600">
                         {formatCurrency(account.balance)}
                       </span>
                     </div>
-                  ))}
-                  <Separator className="my-2" />
-                  <div className="flex justify-between items-center font-semibold">
-                    <span>Total COGS</span>
-                    <span className="text-orange-600">
-                      {formatCurrency(data.totalCOGS || 0)}
+                  ))
+                ) : (
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm">Cost of Goods Sold</span>
+                    <span className="font-medium text-orange-600">
+                      {formatCurrency(totalCOGS)}
                     </span>
                   </div>
+                )}
+                <Separator className="my-2" />
+                <div className="flex justify-between items-center font-semibold">
+                  <span>Total COGS</span>
+                  <span className="text-orange-600">
+                    {formatCurrency(totalCOGS)}
+                  </span>
                 </div>
               </div>
-            )}
+            </div>
 
             {/* Gross Profit */}
-            <div className="bg-blue-50 p-3 rounded-lg">
+            <div className={`p-3 rounded-lg ${grossProfit >= 0 ? 'bg-blue-50' : 'bg-red-50'}`}>
               <div className="flex justify-between items-center font-semibold text-lg">
                 <span>Gross Profit</span>
-                <span className="text-blue-600">
-                  {formatCurrency((data.totalRevenue || 0) - (data.totalCOGS || 0))}
+                <span className={grossProfit >= 0 ? 'text-blue-600' : 'text-red-600'}>
+                  {formatCurrency(grossProfit)}
                 </span>
+              </div>
+              <div className="text-xs text-gray-500 mt-1">
+                Revenue - COGS
               </div>
             </div>
 
@@ -4349,7 +4398,7 @@ function ProfitLossReport({
                 Operating Expenses
               </h3>
               <div className="space-y-2 ml-4">
-                {expenseAccounts.map((account) => (
+                {operatingExpenseAccounts.map((account) => (
                   <div key={account.id} className="flex justify-between items-center">
                     <span className="text-sm">{account.accountName}</span>
                     <span className="font-medium text-red-600">
@@ -4359,24 +4408,24 @@ function ProfitLossReport({
                 ))}
                 <Separator className="my-2" />
                 <div className="flex justify-between items-center font-semibold">
-                  <span>Total Expenses</span>
+                  <span>Total Operating Expenses</span>
                   <span className="text-red-600">
-                    {formatCurrency(data.totalExpenses || 0)}
+                    {formatCurrency(totalExpenses)}
                   </span>
                 </div>
               </div>
             </div>
 
             {/* Net Income */}
-            <div className="bg-purple-50 p-4 rounded-lg">
+            <div className={`p-4 rounded-lg ${netIncome >= 0 ? 'bg-green-50' : 'bg-red-50'}`}>
               <div className="flex justify-between items-center font-bold text-xl">
                 <span>Net Income</span>
-                <span className="text-purple-600">
-                  {formatCurrency(((data.totalRevenue || 0) - (data.totalCOGS || 0) - (data.totalExpenses || 0)))}
+                <span className={netIncome >= 0 ? 'text-green-600' : 'text-red-600'}>
+                  {formatCurrency(netIncome)}
                 </span>
               </div>
               <div className="text-sm text-gray-600 mt-1">
-                Revenue - COGS - Operating Expenses
+                Gross Profit - Operating Expenses
               </div>
             </div>
           </div>
