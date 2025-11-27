@@ -1388,7 +1388,7 @@ function AccountingContent() {
                   <DollarSign className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">${(cogsData as any)?.totalCost || (cogsData as any)?.total || '0.00'}</div>
+                  <div className="text-2xl font-bold">${parseFloat((cogsData as any)?.totalCost || (cogsData as any)?.total || '0').toFixed(2)}</div>
                   <p className="text-xs text-muted-foreground">Today</p>
                 </CardContent>
               </Card>
