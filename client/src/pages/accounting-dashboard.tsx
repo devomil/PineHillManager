@@ -4316,8 +4316,16 @@ function ProfitLossReport({
   });
   
   // Exclude COGS from Operating Expenses to prevent double-counting (COGS is shown in its own section)
-  // Payroll remains in Operating Expenses as it's a legitimate operating cost
+  // Also exclude child accounts whose parent is already displayed (prevents Officer Income + Payroll Expense double-counting)
   const cogsAccountIds = new Set(cogsAccounts.map(a => a.id));
+  
+  // Get all expense accounts that are top-level (no parent)
+  const topLevelExpenseIds = new Set(
+    getAccountsByType('expense')
+      .filter(acc => !(acc as any).parentAccountId)
+      .map(acc => acc.id)
+  );
+  
   const operatingExpenseAccounts = getAccountsByType('expense').filter(account => {
     const name = account.accountName.toLowerCase();
     const accountNumber = (account as any).accountNumber || '';
@@ -4327,7 +4335,16 @@ function ProfitLossReport({
                    name.includes('cost of sales') ||
                    cogsAccountIds.has(account.id) ||
                    accountNumber.startsWith('50');
-    return !isCOGS;
+    if (isCOGS) return false;
+    
+    // Exclude child accounts if their parent is already a top-level expense account
+    // (parent's balance includes child balances, so showing both would double-count)
+    const parentId = (account as any).parentAccountId;
+    if (parentId && topLevelExpenseIds.has(parentId)) {
+      return false;
+    }
+    
+    return true;
   });
   
   // Calculate totals from displayed account balances for consistency

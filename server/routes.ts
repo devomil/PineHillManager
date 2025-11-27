@@ -15891,14 +15891,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
 
-        // Calculate operating expenses from Chart of Accounts (exclude COGS and Payroll)
+        // Calculate operating expenses from Chart of Accounts (exclude COGS only)
+        // Include Payroll as it's a legitimate operating cost
         const allExpenseAccounts = await storage.getAccountsByType('Expense');
+        
+        // First, identify parent account IDs to avoid double-counting child accounts
+        const parentAccountIds = new Set(
+          allExpenseAccounts
+            .filter((acc: any) => !acc.parentAccountId) // top-level accounts only
+            .map((acc: any) => acc.id)
+        );
+        
         const operatingExpenseAccounts = allExpenseAccounts.filter((account: any) => {
           const name = account.accountName?.toLowerCase() || '';
           const number = account.accountNumber || '';
           const isCOGS = name.includes('cost of goods') || number.startsWith('50');
-          const isPayroll = name.includes('payroll') || number.startsWith('67');
-          return !isCOGS && !isPayroll;
+          
+          // Exclude COGS accounts
+          if (isCOGS) return false;
+          
+          // If this is a child account, exclude it (parent already has rolled-up balance)
+          if (account.parentAccountId && parentAccountIds.has(account.parentAccountId)) {
+            return false;
+          }
+          
+          return true;
         });
 
         totalExpenses = operatingExpenseAccounts.reduce((sum: number, account: any) => {
@@ -15920,12 +15937,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const allExpenseAccounts = await storage.getAccountsByType('Expense');
         const cogsAccounts = await storage.getAccountsByName('Cost of Goods Sold');
         
+        // Identify parent account IDs to avoid double-counting child accounts
+        const parentIds = new Set(
+          allExpenseAccounts
+            .filter((acc: any) => !acc.parentAccountId)
+            .map((acc: any) => acc.id)
+        );
+        
         const operatingExpenseAccounts = allExpenseAccounts.filter((account: any) => {
           const name = account.accountName?.toLowerCase() || '';
           const number = account.accountNumber || '';
           const isCOGS = name.includes('cost of goods') || number.startsWith('50');
-          const isPayroll = name.includes('payroll') || number.startsWith('67');
-          return !isCOGS && !isPayroll;
+          
+          // Exclude COGS
+          if (isCOGS) return false;
+          
+          // Exclude child accounts (parent has rolled-up balance)
+          if (account.parentAccountId && parentIds.has(account.parentAccountId)) {
+            return false;
+          }
+          
+          return true;
         });
 
         totalRevenue = incomeAccounts.reduce((sum: number, account: any) => sum + parseFloat(account.balance || '0'), 0);
