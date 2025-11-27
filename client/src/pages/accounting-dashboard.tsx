@@ -4167,7 +4167,41 @@ function ReportsSection({
             </div>
             <div className="text-center p-3 bg-red-50 rounded-lg">
               <div className="text-lg md:text-xl font-bold text-red-600">
-                {profitLossLoading ? '...' : formatCurrency(profitLossData.totalExpenses || 0)}
+                {profitLossLoading ? '...' : (() => {
+                  // Calculate operating expenses from accounts (same logic as detailed P&L report)
+                  const expenseAccounts = accounts.filter(acc => 
+                    acc.accountType.toLowerCase().includes('expense')
+                  );
+                  
+                  // Identify top-level expense account IDs
+                  const topLevelExpenseIds = new Set(
+                    expenseAccounts
+                      .filter(acc => !(acc as any).parentAccountId)
+                      .map(acc => acc.id)
+                  );
+                  
+                  const operatingExpenses = expenseAccounts.filter(account => {
+                    const name = account.accountName.toLowerCase();
+                    const accountNumber = (account as any).accountNumber || '';
+                    // Exclude COGS
+                    const isCOGS = name.includes('cost of goods') || 
+                                   name.includes('cogs') || 
+                                   name.includes('cost of sales') ||
+                                   accountNumber.startsWith('50');
+                    if (isCOGS) return false;
+                    
+                    // Exclude child accounts (parent has rolled-up balance)
+                    const parentId = (account as any).parentAccountId;
+                    if (parentId && topLevelExpenseIds.has(parentId)) return false;
+                    
+                    return true;
+                  });
+                  
+                  const total = operatingExpenses.reduce((sum, acc) => 
+                    sum + parseFloat(acc.balance || '0'), 0
+                  );
+                  return formatCurrency(total);
+                })()}
               </div>
               <div className="text-xs md:text-sm text-gray-600">Operating Expenses</div>
               <div className="text-xs text-gray-500 mt-1">
@@ -4182,8 +4216,19 @@ function ReportsSection({
                   ) || 0;
                   const totalCogs = parseFloat(reportsCogsData.totalCost || '0');
                   const grossProfit = totalRevenue - totalCogs;
-                  const operatingExpenses = parseFloat(profitLossData.totalExpenses || '0');
-                  const netIncome = grossProfit - operatingExpenses;
+                  
+                  // Calculate operating expenses from accounts (same logic as summary card)
+                  const expenseAccts = accounts.filter(acc => acc.accountType.toLowerCase().includes('expense'));
+                  const topLevelIds = new Set(expenseAccts.filter(acc => !(acc as any).parentAccountId).map(acc => acc.id));
+                  const opExpenses = expenseAccts.filter(acc => {
+                    const name = acc.accountName.toLowerCase();
+                    const num = (acc as any).accountNumber || '';
+                    if (name.includes('cost of goods') || name.includes('cogs') || name.includes('cost of sales') || num.startsWith('50')) return false;
+                    if ((acc as any).parentAccountId && topLevelIds.has((acc as any).parentAccountId)) return false;
+                    return true;
+                  }).reduce((sum, acc) => sum + parseFloat(acc.balance || '0'), 0);
+                  
+                  const netIncome = grossProfit - opExpenses;
                   return formatCurrency(netIncome);
                 })()}
               </div>
@@ -4200,8 +4245,19 @@ function ReportsSection({
                   ) || 0;
                   const totalCogs = parseFloat(reportsCogsData.totalCost || '0');
                   const grossProfit = totalRevenue - totalCogs;
-                  const operatingExpenses = parseFloat(profitLossData.totalExpenses || '0');
-                  const netIncome = grossProfit - operatingExpenses;
+                  
+                  // Calculate operating expenses from accounts (same logic as summary card)
+                  const expenseAccts = accounts.filter(acc => acc.accountType.toLowerCase().includes('expense'));
+                  const topLevelIds = new Set(expenseAccts.filter(acc => !(acc as any).parentAccountId).map(acc => acc.id));
+                  const opExpenses = expenseAccts.filter(acc => {
+                    const name = acc.accountName.toLowerCase();
+                    const num = (acc as any).accountNumber || '';
+                    if (name.includes('cost of goods') || name.includes('cogs') || name.includes('cost of sales') || num.startsWith('50')) return false;
+                    if ((acc as any).parentAccountId && topLevelIds.has((acc as any).parentAccountId)) return false;
+                    return true;
+                  }).reduce((sum, acc) => sum + parseFloat(acc.balance || '0'), 0);
+                  
+                  const netIncome = grossProfit - opExpenses;
                   const netMargin = totalRevenue > 0 ? ((netIncome / totalRevenue) * 100) : 0;
                   return `${netMargin.toFixed(1)}%`;
                 })()}
