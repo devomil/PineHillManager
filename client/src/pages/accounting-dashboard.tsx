@@ -1377,30 +1377,34 @@ function AccountingContent() {
                   <TrendingUp className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">${multiLocationData?.totalSummary?.totalRevenue || (cogsData as any)?.totalRevenue || (profitLoss as any)?.totalRevenue || '0.00'}</div>
+                  <div className="text-2xl font-bold">${multiLocationData?.totalSummary?.totalRevenue || (cogsData as any)?.totalRevenue || '0.00'}</div>
                   <p className="text-xs text-muted-foreground">Today</p>
                 </CardContent>
               </Card>
               
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Expenses</CardTitle>
+                  <CardTitle className="text-sm font-medium">COGS</CardTitle>
                   <DollarSign className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">${(profitLoss as any)?.totalExpenses || (cogsData as any)?.totalExpenses || '0.00'}</div>
+                  <div className="text-2xl font-bold">${(cogsData as any)?.totalCost || (cogsData as any)?.total || '0.00'}</div>
                   <p className="text-xs text-muted-foreground">Today</p>
                 </CardContent>
               </Card>
 
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Net Income</CardTitle>
+                  <CardTitle className="text-sm font-medium">Gross Profit</CardTitle>
                   <BarChart3 className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">${profitLoss?.netIncome || ((parseFloat(multiLocationData?.totalSummary?.totalRevenue || '0') - parseFloat(profitLoss?.totalExpenses || '0')).toFixed(2)) || '0.00'}</div>
-                  <p className="text-xs text-muted-foreground">Today</p>
+                  <div className="text-2xl font-bold">${(() => {
+                    const revenue = parseFloat(multiLocationData?.totalSummary?.totalRevenue || (cogsData as any)?.totalRevenue || '0');
+                    const cogs = parseFloat((cogsData as any)?.totalCost || (cogsData as any)?.total || '0');
+                    return (revenue - cogs).toFixed(2);
+                  })()}</div>
+                  <p className="text-xs text-muted-foreground">Today (Revenue - COGS)</p>
                 </CardContent>
               </Card>
 
