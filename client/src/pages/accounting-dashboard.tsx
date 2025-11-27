@@ -4303,7 +4303,17 @@ function ProfitLossReport({
     );
   };
 
-  const revenueAccounts = getAccountsByType('income');
+  // Filter revenue accounts to exclude summary/total accounts that would cause double-counting
+  // "Total Sales Revenue" is a summary of individual sales accounts, so exclude it
+  const allRevenueAccounts = getAccountsByType('income');
+  const revenueAccounts = allRevenueAccounts.filter(account => {
+    const name = account.accountName.toLowerCase();
+    // Exclude summary/total accounts - these aggregate child accounts
+    const isSummaryAccount = name.includes('total sales') || 
+                              name === 'total revenue' ||
+                              name.includes('total income');
+    return !isSummaryAccount;
+  });
   
   // COGS accounts - identify by name patterns or account number (50xx range)
   const cogsAccounts = accounts.filter(account => {
