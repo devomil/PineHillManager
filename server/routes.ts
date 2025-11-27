@@ -15980,6 +15980,283 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Profit Margin Trends Report - Last 6 months of margin data
+  app.get('/api/accounting/reports/margin-trends', isAuthenticated, async (req, res) => {
+    try {
+      const months: any[] = [];
+      const now = new Date();
+      
+      // Calculate data for the last 6 months
+      for (let i = 5; i >= 0; i--) {
+        const monthStart = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const monthEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 0);
+        
+        const startDateStr = monthStart.toISOString().split('T')[0];
+        const endDateStr = monthEnd.toISOString().split('T')[0];
+        
+        // Get sales data for this month from pos_sales
+        const salesData = await storage.getSalesByDateRange(startDateStr, endDateStr);
+        
+        // Calculate revenue and COGS from sales data
+        let revenue = 0;
+        let cogs = 0;
+        
+        if (salesData && salesData.length > 0) {
+          for (const sale of salesData) {
+            revenue += parseFloat(sale.totalAmount?.toString() || '0');
+            // Get COGS from sale items
+            const saleItems = await storage.getSaleItemsBySaleId(sale.id);
+            for (const item of saleItems) {
+              cogs += parseFloat(item.costBasis?.toString() || '0') * parseInt(item.quantity?.toString() || '1');
+            }
+          }
+        }
+        
+        const grossProfit = revenue - cogs;
+        const grossMargin = revenue > 0 ? (grossProfit / revenue) * 100 : 0;
+        
+        // Estimate operating expenses from account balances (simplified)
+        const expenseAccounts = await storage.getAccountsByType('Expense');
+        const monthlyExpenseEstimate = expenseAccounts.reduce((sum: number, acc: any) => {
+          const balance = parseFloat(acc.balance || '0');
+          // Divide by 12 for monthly estimate if this is a YTD balance
+          return sum + (balance / 12);
+        }, 0);
+        
+        const netProfit = grossProfit - monthlyExpenseEstimate;
+        const netMargin = revenue > 0 ? (netProfit / revenue) * 100 : 0;
+        
+        months.push({
+          month: startDateStr.substring(0, 7),
+          monthLabel: monthStart.toLocaleString('default', { month: 'long', year: 'numeric' }),
+          revenue,
+          cogs,
+          grossProfit,
+          grossMargin,
+          netMargin,
+          marginChange: 0 // Will be calculated below
+        });
+      }
+      
+      // Calculate month-over-month margin changes
+      for (let i = 1; i < months.length; i++) {
+        months[i].marginChange = months[i].grossMargin - months[i - 1].grossMargin;
+      }
+      
+      // Calculate averages and trend
+      const validMonths = months.filter(m => m.revenue > 0);
+      const averageGrossMargin = validMonths.length > 0 
+        ? validMonths.reduce((sum, m) => sum + m.grossMargin, 0) / validMonths.length 
+        : 0;
+      const averageNetMargin = validMonths.length > 0 
+        ? validMonths.reduce((sum, m) => sum + m.netMargin, 0) / validMonths.length 
+        : 0;
+      
+      // Determine trend direction
+      let trendDirection = 'stable';
+      if (validMonths.length >= 2) {
+        const recentAvg = (validMonths[validMonths.length - 1].grossMargin + validMonths[validMonths.length - 2].grossMargin) / 2;
+        const earlierAvg = (validMonths[0].grossMargin + (validMonths[1]?.grossMargin || validMonths[0].grossMargin)) / 2;
+        if (recentAvg > earlierAvg + 2) {
+          trendDirection = 'up';
+        } else if (recentAvg < earlierAvg - 2) {
+          trendDirection = 'down';
+        }
+      }
+      
+      res.json({
+        months,
+        averageGrossMargin,
+        averageNetMargin,
+        trendDirection
+      });
+    } catch (error) {
+      console.error('Error generating margin trends report:', error);
+      res.status(500).json({ error: 'Failed to generate margin trends report' });
+    }
+  });
+
+  // Product Profitability Report - Top and bottom performers
+  app.get('/api/accounting/reports/product-profitability', isAuthenticated, async (req, res) => {
+    try {
+      const { startDate, endDate } = req.query;
+      
+      if (!startDate || !endDate) {
+        return res.status(400).json({ error: 'Start date and end date are required' });
+      }
+      
+      // Get sales items for the period with cost data
+      const salesData = await storage.getSalesByDateRange(startDate as string, endDate as string);
+      
+      // Aggregate product performance
+      const productStats: Record<string, {
+        name: string;
+        revenue: number;
+        cost: number;
+        unitsSold: number;
+      }> = {};
+      
+      for (const sale of salesData || []) {
+        const saleItems = await storage.getSaleItemsBySaleId(sale.id);
+        
+        for (const item of saleItems) {
+          const itemId = item.itemId || item.name;
+          const revenue = parseFloat(item.price?.toString() || '0') * parseInt(item.quantity?.toString() || '1');
+          const cost = parseFloat(item.costBasis?.toString() || '0') * parseInt(item.quantity?.toString() || '1');
+          
+          if (!productStats[itemId]) {
+            productStats[itemId] = {
+              name: item.name || 'Unknown Product',
+              revenue: 0,
+              cost: 0,
+              unitsSold: 0
+            };
+          }
+          
+          productStats[itemId].revenue += revenue;
+          productStats[itemId].cost += cost;
+          productStats[itemId].unitsSold += parseInt(item.quantity?.toString() || '1');
+        }
+      }
+      
+      // Calculate margins and sort
+      const products = Object.entries(productStats).map(([id, stats]) => {
+        const profit = stats.revenue - stats.cost;
+        const margin = stats.revenue > 0 ? (profit / stats.revenue) * 100 : 0;
+        return {
+          id,
+          name: stats.name,
+          revenue: stats.revenue,
+          cost: stats.cost,
+          profit,
+          margin,
+          unitsSold: stats.unitsSold
+        };
+      }).filter(p => p.unitsSold > 0);
+      
+      // Sort by margin
+      const sortedByMargin = [...products].sort((a, b) => b.margin - a.margin);
+      
+      // Get top 10 and bottom 10
+      const topProducts = sortedByMargin.slice(0, 10);
+      const bottomProducts = sortedByMargin.slice(-10).reverse();
+      
+      // Calculate totals
+      const totalRevenue = products.reduce((sum, p) => sum + p.revenue, 0);
+      const totalCost = products.reduce((sum, p) => sum + p.cost, 0);
+      const totalProfit = totalRevenue - totalCost;
+      const averageMargin = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
+      
+      res.json({
+        topProducts,
+        bottomProducts,
+        totalProducts: products.length,
+        totalRevenue,
+        totalProfit,
+        averageMargin
+      });
+    } catch (error) {
+      console.error('Error generating product profitability report:', error);
+      res.status(500).json({ error: 'Failed to generate product profitability report' });
+    }
+  });
+
+  // Location Comparison Report - COGS and margins by location
+  app.get('/api/accounting/reports/location-comparison', isAuthenticated, async (req, res) => {
+    try {
+      const { startDate, endDate } = req.query;
+      
+      if (!startDate || !endDate) {
+        return res.status(400).json({ error: 'Start date and end date are required' });
+      }
+      
+      // Get all location configurations
+      const cloverConfigs = await storage.getAllCloverConfigs();
+      const amazonConfigs = await storage.getAllAmazonConfigs();
+      const allLocations = await storage.getAllLocations();
+      
+      // Create location lookup
+      const locationLookup: Record<number, any> = {};
+      for (const loc of allLocations) {
+        locationLookup[loc.id] = loc;
+      }
+      
+      // Get sales data grouped by location
+      const salesData = await storage.getSalesByDateRange(startDate as string, endDate as string);
+      
+      // Aggregate by location
+      const locationStats: Record<string | number, {
+        id: number | string;
+        name: string;
+        displayColor: string;
+        revenue: number;
+        cogs: number;
+        orderCount: number;
+      }> = {};
+      
+      for (const sale of salesData || []) {
+        const locationId = sale.locationId || sale.merchantId || 'unknown';
+        const locationConfig = cloverConfigs.find(c => c.merchantId === locationId || c.id.toString() === locationId.toString());
+        const locationInfo = locationLookup[locationId] || { name: 'Unknown', displayColor: '#6b7280' };
+        
+        if (!locationStats[locationId]) {
+          locationStats[locationId] = {
+            id: locationId,
+            name: locationConfig?.merchantName || locationInfo.name || 'Unknown Location',
+            displayColor: locationInfo.displayColor || '#3b82f6',
+            revenue: 0,
+            cogs: 0,
+            orderCount: 0
+          };
+        }
+        
+        locationStats[locationId].revenue += parseFloat(sale.totalAmount?.toString() || '0');
+        locationStats[locationId].orderCount += 1;
+        
+        // Get COGS from sale items
+        const saleItems = await storage.getSaleItemsBySaleId(sale.id);
+        for (const item of saleItems) {
+          locationStats[locationId].cogs += parseFloat(item.costBasis?.toString() || '0') * parseInt(item.quantity?.toString() || '1');
+        }
+      }
+      
+      // Calculate derived metrics
+      const locations = Object.values(locationStats).map(loc => {
+        const grossProfit = loc.revenue - loc.cogs;
+        const grossMargin = loc.revenue > 0 ? (grossProfit / loc.revenue) * 100 : 0;
+        const averageOrder = loc.orderCount > 0 ? loc.revenue / loc.orderCount : 0;
+        
+        return {
+          ...loc,
+          grossProfit,
+          grossMargin,
+          averageOrder
+        };
+      }).sort((a, b) => b.revenue - a.revenue);
+      
+      // Calculate totals
+      const totalRevenue = locations.reduce((sum, l) => sum + l.revenue, 0);
+      const totalCogs = locations.reduce((sum, l) => sum + l.cogs, 0);
+      const totalGrossProfit = totalRevenue - totalCogs;
+      const totalOrders = locations.reduce((sum, l) => sum + l.orderCount, 0);
+      const averageGrossMargin = totalRevenue > 0 ? (totalGrossProfit / totalRevenue) * 100 : 0;
+      const averageOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+      
+      res.json({
+        locations,
+        totalRevenue,
+        totalCogs,
+        totalGrossProfit,
+        totalOrders,
+        averageGrossMargin,
+        averageOrderValue
+      });
+    } catch (error) {
+      console.error('Error generating location comparison report:', error);
+      res.status(500).json({ error: 'Failed to generate location comparison report' });
+    }
+  });
+
   app.get('/api/accounting/inventory/items/:itemId/stock', async (req, res) => {
     try {
       if (!req.isAuthenticated() || !req.user) {

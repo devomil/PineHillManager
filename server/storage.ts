@@ -852,6 +852,7 @@ export interface IStorage {
   // POS Sale Items
   createPosSaleItem(item: InsertPosSaleItem): Promise<PosSaleItem>;
   getSaleItems(saleId: number): Promise<PosSaleItem[]>;
+  getSaleItemsBySaleId(saleId: number): Promise<PosSaleItem[]>;
   getPosSaleItemsBySaleIds(saleIds: number[]): Promise<PosSaleItem[]>;
   updatePosSaleItem(id: number, item: Partial<InsertPosSaleItem>): Promise<PosSaleItem>;
   deleteSaleItem(id: number): Promise<void>;
@@ -6543,9 +6544,37 @@ export class DatabaseStorage implements IStorage {
     const [sale] = await db.select().from(posSales).where(eq(posSales.amazonOrderId, amazonOrderId));
     return sale;
   }
-  async getSalesByDateRange(startDate: string, endDate: string): Promise<PosSale[]> { return []; }
-  async getSalesByLocation(locationId: number, startDate?: string, endDate?: string): Promise<PosSale[]> { return []; }
-  async getUnpostedSales(): Promise<PosSale[]> { return []; }
+  async getSalesByDateRange(startDate: string, endDate: string): Promise<PosSale[]> {
+    const sales = await db
+      .select()
+      .from(posSales)
+      .where(and(
+        gte(posSales.saleDate, startDate),
+        lte(posSales.saleDate, endDate)
+      ))
+      .orderBy(asc(posSales.saleDate));
+    return sales;
+  }
+  async getSalesByLocation(locationId: number, startDate?: string, endDate?: string): Promise<PosSale[]> {
+    let conditions = [eq(posSales.locationId, locationId)];
+    if (startDate) conditions.push(gte(posSales.saleDate, startDate));
+    if (endDate) conditions.push(lte(posSales.saleDate, endDate));
+    
+    const sales = await db
+      .select()
+      .from(posSales)
+      .where(and(...conditions))
+      .orderBy(asc(posSales.saleDate));
+    return sales;
+  }
+  async getUnpostedSales(): Promise<PosSale[]> {
+    const sales = await db
+      .select()
+      .from(posSales)
+      .where(eq(posSales.qbPosted, false))
+      .orderBy(asc(posSales.saleDate));
+    return sales;
+  }
   async updatePosSale(id: number, sale: Partial<InsertPosSale>): Promise<PosSale> {
     const [updated] = await db.update(posSales).set(sale).where(eq(posSales.id, id)).returning();
     return updated;
@@ -6573,7 +6602,21 @@ export class DatabaseStorage implements IStorage {
     const [saleItem] = await db.insert(posSaleItems).values(item).returning();
     return saleItem;
   }
-  async getSaleItems(saleId: number): Promise<PosSaleItem[]> { return []; }
+  async getSaleItems(saleId: number): Promise<PosSaleItem[]> {
+    const items = await db
+      .select()
+      .from(posSaleItems)
+      .where(eq(posSaleItems.saleId, saleId));
+    return items;
+  }
+  
+  async getSaleItemsBySaleId(saleId: number): Promise<PosSaleItem[]> {
+    const items = await db
+      .select()
+      .from(posSaleItems)
+      .where(eq(posSaleItems.saleId, saleId));
+    return items;
+  }
   async getPosSaleItemsBySaleIds(saleIds: number[]): Promise<PosSaleItem[]> {
     if (saleIds.length === 0) return [];
     const items = await db

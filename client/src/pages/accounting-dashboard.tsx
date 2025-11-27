@@ -70,7 +70,10 @@ import {
   Clock,
   Sparkles,
   ChevronDown,
-  ChevronRight
+  ChevronRight,
+  ArrowUp,
+  ArrowDown,
+  Minus
 } from 'lucide-react';
 import { apiRequest } from '@/lib/queryClient';
 import AdminLayout from '@/components/admin-layout';
@@ -4037,6 +4040,9 @@ function ReportsSection({
                   <SelectItem value="expense_detail">Expense Detail</SelectItem>
                   <SelectItem value="revenue_breakdown">Revenue Breakdown</SelectItem>
                   <SelectItem value="daily_sales">Daily Sales Report</SelectItem>
+                  <SelectItem value="profit_margin_trends">Profit Margin Trends</SelectItem>
+                  <SelectItem value="product_profitability">Product Profitability</SelectItem>
+                  <SelectItem value="location_comparison">Location Comparison</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -4224,6 +4230,24 @@ function ReportsSection({
           data={dailySalesData} 
           period={formatPeriodLabel()} 
           loading={dailySalesLoading}
+        />
+      )}
+
+      {reportType === 'profit_margin_trends' && (
+        <ProfitMarginTrendsReport />
+      )}
+
+      {reportType === 'product_profitability' && (
+        <ProductProfitabilityReport 
+          startDate={startDateStr}
+          endDate={endDateStr}
+        />
+      )}
+
+      {reportType === 'location_comparison' && (
+        <LocationComparisonReport 
+          startDate={startDateStr}
+          endDate={endDateStr}
         />
       )}
     </div>
@@ -4687,6 +4711,474 @@ function RevenueBreakdownReport({
                 </p>
               </div>
             )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// Profit Margin Trends Report Component - Shows 6-month margin trends
+function ProfitMarginTrendsReport() {
+  const { data: trendsData, isLoading } = useQuery({
+    queryKey: ['/api/accounting/reports/margin-trends'],
+    queryFn: async () => {
+      const response = await apiRequest('GET', '/api/accounting/reports/margin-trends');
+      return await response.json();
+    },
+  });
+
+  const formatCurrency = (amount: number | string) => {
+    const num = typeof amount === 'string' ? parseFloat(amount) : amount;
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+    }).format(num || 0);
+  };
+
+  const formatPercent = (value: number) => {
+    return `${value.toFixed(1)}%`;
+  };
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardContent className="py-8">
+          <div className="flex items-center justify-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const months = trendsData?.months || [];
+  const hasData = months.length > 0;
+
+  return (
+    <Card data-testid="profit-margin-trends-report">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <TrendingUp className="h-5 w-5 text-blue-600" />
+          Profit Margin Trends - Last 6 Months
+        </CardTitle>
+        <CardDescription>
+          Track gross and net margin performance over time
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {!hasData ? (
+          <div className="text-center py-8">
+            <TrendingUp className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+            <p className="text-gray-500">No margin data available for the selected period.</p>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {/* Summary Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="border rounded-lg p-4 bg-green-50">
+                <div className="text-sm text-gray-600 mb-1">Average Gross Margin</div>
+                <div className="text-2xl font-bold text-green-600">
+                  {formatPercent(trendsData?.averageGrossMargin || 0)}
+                </div>
+              </div>
+              <div className="border rounded-lg p-4 bg-blue-50">
+                <div className="text-sm text-gray-600 mb-1">Average Net Margin</div>
+                <div className="text-2xl font-bold text-blue-600">
+                  {formatPercent(trendsData?.averageNetMargin || 0)}
+                </div>
+              </div>
+              <div className="border rounded-lg p-4 bg-purple-50">
+                <div className="text-sm text-gray-600 mb-1">Trend Direction</div>
+                <div className={`text-2xl font-bold flex items-center gap-2 ${
+                  trendsData?.trendDirection === 'up' ? 'text-green-600' : 
+                  trendsData?.trendDirection === 'down' ? 'text-red-600' : 'text-gray-600'
+                }`}>
+                  {trendsData?.trendDirection === 'up' && <ArrowUp className="h-5 w-5" />}
+                  {trendsData?.trendDirection === 'down' && <ArrowDown className="h-5 w-5" />}
+                  {trendsData?.trendDirection === 'stable' && <Minus className="h-5 w-5" />}
+                  {trendsData?.trendDirection === 'up' ? 'Improving' : 
+                   trendsData?.trendDirection === 'down' ? 'Declining' : 'Stable'}
+                </div>
+              </div>
+            </div>
+
+            {/* Monthly Breakdown Table */}
+            <div className="border rounded-lg overflow-hidden">
+              <table className="w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Month</th>
+                    <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">Revenue</th>
+                    <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">COGS</th>
+                    <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">Gross Profit</th>
+                    <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">Gross Margin</th>
+                    <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">Net Margin</th>
+                    <th className="px-4 py-3 text-center text-sm font-medium text-gray-600">MoM Change</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {months.map((month: any, index: number) => (
+                    <tr key={month.month} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 font-medium">{month.monthLabel}</td>
+                      <td className="px-4 py-3 text-right">{formatCurrency(month.revenue)}</td>
+                      <td className="px-4 py-3 text-right text-red-600">{formatCurrency(month.cogs)}</td>
+                      <td className="px-4 py-3 text-right text-green-600">{formatCurrency(month.grossProfit)}</td>
+                      <td className="px-4 py-3 text-right font-medium">{formatPercent(month.grossMargin)}</td>
+                      <td className="px-4 py-3 text-right font-medium">{formatPercent(month.netMargin)}</td>
+                      <td className="px-4 py-3 text-center">
+                        {index > 0 && month.marginChange !== 0 && (
+                          <span className={`inline-flex items-center gap-1 ${
+                            month.marginChange > 0 ? 'text-green-600' : 'text-red-600'
+                          }`}>
+                            {month.marginChange > 0 ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
+                            {formatPercent(Math.abs(month.marginChange))}
+                          </span>
+                        )}
+                        {(index === 0 || month.marginChange === 0) && (
+                          <span className="text-gray-400">-</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Visual Progress Bar Chart */}
+            <div className="space-y-3">
+              <h4 className="font-medium text-gray-700">Gross Margin Visualization</h4>
+              {months.map((month: any) => (
+                <div key={`bar-${month.month}`} className="flex items-center gap-3">
+                  <div className="w-20 text-sm text-gray-600">{month.monthLabel?.substring(0, 3)}</div>
+                  <div className="flex-1 bg-gray-100 rounded-full h-6 relative overflow-hidden">
+                    <div 
+                      className="bg-gradient-to-r from-green-500 to-green-600 h-full rounded-full transition-all duration-500"
+                      style={{ width: `${Math.min(month.grossMargin, 100)}%` }}
+                    />
+                    <span className="absolute inset-0 flex items-center justify-center text-xs font-medium">
+                      {formatPercent(month.grossMargin)}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// Product Profitability Report Component - Top and bottom performing products
+function ProductProfitabilityReport({ startDate, endDate }: { startDate: string; endDate: string }) {
+  const { data: productData, isLoading } = useQuery({
+    queryKey: ['/api/accounting/reports/product-profitability', startDate, endDate],
+    queryFn: async () => {
+      const response = await apiRequest('GET', `/api/accounting/reports/product-profitability?startDate=${startDate}&endDate=${endDate}`);
+      return await response.json();
+    },
+  });
+
+  const formatCurrency = (amount: number | string) => {
+    const num = typeof amount === 'string' ? parseFloat(amount) : amount;
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+    }).format(num || 0);
+  };
+
+  const formatPercent = (value: number) => {
+    return `${value.toFixed(1)}%`;
+  };
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardContent className="py-8">
+          <div className="flex items-center justify-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const topProducts = productData?.topProducts || [];
+  const bottomProducts = productData?.bottomProducts || [];
+
+  return (
+    <Card data-testid="product-profitability-report">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Package className="h-5 w-5 text-blue-600" />
+          Product Profitability Analysis
+        </CardTitle>
+        <CardDescription>
+          Best and worst performing products by profit margin
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Top Performing Products */}
+          <div className="border rounded-lg p-4">
+            <h4 className="font-medium text-green-600 mb-4 flex items-center gap-2">
+              <ArrowUp className="h-4 w-4" />
+              Top Performers
+            </h4>
+            {topProducts.length === 0 ? (
+              <p className="text-gray-500 text-sm">No product data available</p>
+            ) : (
+              <div className="space-y-3">
+                {topProducts.map((product: any, index: number) => (
+                  <div key={product.id || index} className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
+                    <div className="flex-1">
+                      <div className="font-medium text-sm">{product.name}</div>
+                      <div className="text-xs text-gray-500">
+                        {product.unitsSold} units sold
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-sm font-bold text-green-600">
+                        {formatPercent(product.margin)}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        {formatCurrency(product.profit)} profit
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Bottom Performing Products */}
+          <div className="border rounded-lg p-4">
+            <h4 className="font-medium text-red-600 mb-4 flex items-center gap-2">
+              <ArrowDown className="h-4 w-4" />
+              Lowest Margins
+            </h4>
+            {bottomProducts.length === 0 ? (
+              <p className="text-gray-500 text-sm">No product data available</p>
+            ) : (
+              <div className="space-y-3">
+                {bottomProducts.map((product: any, index: number) => (
+                  <div key={product.id || index} className="flex items-center justify-between p-3 bg-red-50 rounded-lg">
+                    <div className="flex-1">
+                      <div className="font-medium text-sm">{product.name}</div>
+                      <div className="text-xs text-gray-500">
+                        {product.unitsSold} units sold
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-sm font-bold text-red-600">
+                        {formatPercent(product.margin)}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        {formatCurrency(product.profit)} profit
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Summary Stats */}
+        <div className="mt-6 grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="border rounded-lg p-3 text-center">
+            <div className="text-2xl font-bold text-blue-600">{productData?.totalProducts || 0}</div>
+            <div className="text-sm text-gray-500">Total Products</div>
+          </div>
+          <div className="border rounded-lg p-3 text-center">
+            <div className="text-2xl font-bold text-green-600">{formatPercent(productData?.averageMargin || 0)}</div>
+            <div className="text-sm text-gray-500">Average Margin</div>
+          </div>
+          <div className="border rounded-lg p-3 text-center">
+            <div className="text-2xl font-bold text-purple-600">{formatCurrency(productData?.totalRevenue || 0)}</div>
+            <div className="text-sm text-gray-500">Total Revenue</div>
+          </div>
+          <div className="border rounded-lg p-3 text-center">
+            <div className="text-2xl font-bold text-emerald-600">{formatCurrency(productData?.totalProfit || 0)}</div>
+            <div className="text-sm text-gray-500">Total Profit</div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// Location Comparison Report Component - COGS and margins across locations
+function LocationComparisonReport({ startDate, endDate }: { startDate: string; endDate: string }) {
+  const { data: locationData, isLoading } = useQuery({
+    queryKey: ['/api/accounting/reports/location-comparison', startDate, endDate],
+    queryFn: async () => {
+      const response = await apiRequest('GET', `/api/accounting/reports/location-comparison?startDate=${startDate}&endDate=${endDate}`);
+      return await response.json();
+    },
+  });
+
+  const formatCurrency = (amount: number | string) => {
+    const num = typeof amount === 'string' ? parseFloat(amount) : amount;
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+    }).format(num || 0);
+  };
+
+  const formatPercent = (value: number) => {
+    return `${value.toFixed(1)}%`;
+  };
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardContent className="py-8">
+          <div className="flex items-center justify-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const locations = locationData?.locations || [];
+
+  return (
+    <Card data-testid="location-comparison-report">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <MapPin className="h-5 w-5 text-blue-600" />
+          Location Comparison
+        </CardTitle>
+        <CardDescription>
+          Compare revenue, COGS, and margins across all store locations
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {locations.length === 0 ? (
+          <div className="text-center py-8">
+            <MapPin className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+            <p className="text-gray-500">No location data available for the selected period.</p>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {/* Location Comparison Table */}
+            <div className="border rounded-lg overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Location</th>
+                    <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">Revenue</th>
+                    <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">COGS</th>
+                    <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">Gross Profit</th>
+                    <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">Gross Margin</th>
+                    <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">Orders</th>
+                    <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">Avg Order</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {locations.map((location: any) => (
+                    <tr key={location.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <div 
+                            className="w-3 h-3 rounded-full" 
+                            style={{ backgroundColor: location.displayColor || '#3b82f6' }}
+                          />
+                          <span className="font-medium">{location.name}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-right font-medium">{formatCurrency(location.revenue)}</td>
+                      <td className="px-4 py-3 text-right text-red-600">{formatCurrency(location.cogs)}</td>
+                      <td className="px-4 py-3 text-right text-green-600">{formatCurrency(location.grossProfit)}</td>
+                      <td className="px-4 py-3 text-right">
+                        <span className={`font-medium ${
+                          location.grossMargin >= 50 ? 'text-green-600' :
+                          location.grossMargin >= 30 ? 'text-yellow-600' : 'text-red-600'
+                        }`}>
+                          {formatPercent(location.grossMargin)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right">{location.orderCount}</td>
+                      <td className="px-4 py-3 text-right">{formatCurrency(location.averageOrder)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot className="bg-gray-100 font-medium">
+                  <tr>
+                    <td className="px-4 py-3">Total / Average</td>
+                    <td className="px-4 py-3 text-right">{formatCurrency(locationData?.totalRevenue || 0)}</td>
+                    <td className="px-4 py-3 text-right text-red-600">{formatCurrency(locationData?.totalCogs || 0)}</td>
+                    <td className="px-4 py-3 text-right text-green-600">{formatCurrency(locationData?.totalGrossProfit || 0)}</td>
+                    <td className="px-4 py-3 text-right">{formatPercent(locationData?.averageGrossMargin || 0)}</td>
+                    <td className="px-4 py-3 text-right">{locationData?.totalOrders || 0}</td>
+                    <td className="px-4 py-3 text-right">{formatCurrency(locationData?.averageOrderValue || 0)}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+
+            {/* Visual Comparison Bars */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Revenue Comparison */}
+              <div className="border rounded-lg p-4">
+                <h4 className="font-medium text-gray-700 mb-4">Revenue by Location</h4>
+                <div className="space-y-3">
+                  {locations.map((location: any) => {
+                    const maxRevenue = Math.max(...locations.map((l: any) => l.revenue));
+                    const widthPercent = maxRevenue > 0 ? (location.revenue / maxRevenue) * 100 : 0;
+                    return (
+                      <div key={`rev-${location.id}`} className="space-y-1">
+                        <div className="flex justify-between text-sm">
+                          <span>{location.name}</span>
+                          <span className="font-medium">{formatCurrency(location.revenue)}</span>
+                        </div>
+                        <div className="bg-gray-100 rounded-full h-3">
+                          <div 
+                            className="h-full rounded-full transition-all duration-500"
+                            style={{ 
+                              width: `${widthPercent}%`,
+                              backgroundColor: location.displayColor || '#3b82f6'
+                            }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Margin Comparison */}
+              <div className="border rounded-lg p-4">
+                <h4 className="font-medium text-gray-700 mb-4">Gross Margin by Location</h4>
+                <div className="space-y-3">
+                  {locations.map((location: any) => (
+                    <div key={`margin-${location.id}`} className="space-y-1">
+                      <div className="flex justify-between text-sm">
+                        <span>{location.name}</span>
+                        <span className={`font-medium ${
+                          location.grossMargin >= 50 ? 'text-green-600' :
+                          location.grossMargin >= 30 ? 'text-yellow-600' : 'text-red-600'
+                        }`}>
+                          {formatPercent(location.grossMargin)}
+                        </span>
+                      </div>
+                      <div className="bg-gray-100 rounded-full h-3">
+                        <div 
+                          className={`h-full rounded-full transition-all duration-500 ${
+                            location.grossMargin >= 50 ? 'bg-green-500' :
+                            location.grossMargin >= 30 ? 'bg-yellow-500' : 'bg-red-500'
+                          }`}
+                          style={{ width: `${Math.min(location.grossMargin, 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </CardContent>
