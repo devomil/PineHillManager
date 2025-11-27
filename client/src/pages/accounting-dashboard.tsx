@@ -4172,7 +4172,16 @@ function ReportsSection({
             </div>
             <div className="text-center p-3 bg-blue-50 rounded-lg">
               <div className="text-lg md:text-xl font-bold text-blue-600">
-                {profitLossLoading ? '...' : formatCurrency(profitLossData.netIncome || 0)}
+                {(revenueLoading || cogsLoading || profitLossLoading) ? '...' : (() => {
+                  const totalRevenue = revenueData.locationBreakdown?.reduce((sum: number, location: LocationSalesData) => 
+                    sum + parseFloat(location.totalSales || location.totalRevenue || '0'), 0
+                  ) || 0;
+                  const totalCogs = parseFloat(reportsCogsData.totalCost || '0');
+                  const grossProfit = totalRevenue - totalCogs;
+                  const operatingExpenses = parseFloat(profitLossData.totalExpenses || '0');
+                  const netIncome = grossProfit - operatingExpenses;
+                  return formatCurrency(netIncome);
+                })()}
               </div>
               <div className="text-xs md:text-sm text-gray-600">Net Income</div>
               <div className="text-xs text-gray-500 mt-1">
@@ -4181,7 +4190,17 @@ function ReportsSection({
             </div>
             <div className="text-center p-3 bg-purple-50 rounded-lg">
               <div className="text-lg md:text-xl font-bold text-purple-600">
-                {profitLossLoading ? '...' : `${profitLossData.profitMargin || '0.0'}%`}
+                {(revenueLoading || cogsLoading || profitLossLoading) ? '...' : (() => {
+                  const totalRevenue = revenueData.locationBreakdown?.reduce((sum: number, location: LocationSalesData) => 
+                    sum + parseFloat(location.totalSales || location.totalRevenue || '0'), 0
+                  ) || 0;
+                  const totalCogs = parseFloat(reportsCogsData.totalCost || '0');
+                  const grossProfit = totalRevenue - totalCogs;
+                  const operatingExpenses = parseFloat(profitLossData.totalExpenses || '0');
+                  const netIncome = grossProfit - operatingExpenses;
+                  const netMargin = totalRevenue > 0 ? ((netIncome / totalRevenue) * 100) : 0;
+                  return `${netMargin.toFixed(1)}%`;
+                })()}
               </div>
               <div className="text-xs md:text-sm text-gray-600">Net Margin</div>
               <div className="text-xs text-gray-500 mt-1">
