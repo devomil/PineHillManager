@@ -176,6 +176,80 @@ export default function VideoCreator() {
     return scriptMode === 'manual' ? manualScript : generatedScript;
   };
 
+  // Generate video from script
+  const handleGenerateScriptVideo = async () => {
+    const script = getCurrentScript();
+    if (!script.trim()) {
+      toast({
+        title: "Script Required",
+        description: "Please enter or generate a script first.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsGenerating(true);
+    setGenerationProgress(0);
+
+    try {
+      // Phase 1: Setup
+      setGenerationProgress(10);
+      console.log("Preparing script video generation...");
+      
+      // Phase 2: Create video engine
+      const canvas = document.createElement('canvas');
+      const professionalEngine = new ProfessionalVideoEngine(canvas);
+      
+      // Show progress updates during rendering
+      const progressInterval = setInterval(() => {
+        setGenerationProgress(prev => {
+          if (prev < 85) return prev + 5;
+          return prev;
+        });
+      }, 500);
+      
+      setGenerationProgress(20);
+      console.log("Generating script-based marketing video...");
+      
+      // Generate video from script
+      const videoBlob = await professionalEngine.generateScriptVideo(
+        script, 
+        videoDuration,
+        videoStyle
+      );
+      
+      clearInterval(progressInterval);
+      setGenerationProgress(100);
+
+      // Create download URL
+      const timestamp = Date.now();
+      const downloadUrl = URL.createObjectURL(videoBlob);
+      const fileName = `pine_hill_farm_script_video_${timestamp}.webm`;
+
+      setGeneratedVideo({
+        videoBlob,
+        downloadUrl,
+        fileName
+      });
+      
+      toast({
+        title: "Script Video Generated!",
+        description: "Your marketing video is ready for download.",
+      });
+      
+    } catch (error) {
+      console.error('Script video generation failed:', error);
+      toast({
+        title: "Generation Failed",
+        description: "There was an issue generating the video. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGenerating(false);
+      setGenerationProgress(0);
+    }
+  };
+
   // Calculate script word count
   const getScriptWordCount = () => {
     const script = getCurrentScript();
@@ -753,29 +827,99 @@ Visit Pine Hill Farm today!`)}
                 </Card>
               )}
 
-              {/* Video Generation Placeholder - Future Integration */}
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <h4 className="font-semibold text-blue-800 flex items-center gap-2 mb-2">
-                  <Video className="h-5 w-5" />
-                  Video Generation Coming Soon
-                </h4>
-                <p className="text-sm text-blue-700">
-                  Script-to-video generation using AI will be available in a future update. 
-                  For now, you can generate and download your script to use with external video creation tools.
-                </p>
-                <div className="mt-3 flex gap-2">
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={copyScript}
-                    disabled={!getCurrentScript()}
-                    data-testid="btn-download-script"
-                  >
-                    <Download className="h-4 w-4 mr-1" />
-                    Download Script as Text
-                  </Button>
+              {/* Video Generation Progress */}
+              {isGenerating && activeTab === 'script' && (
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold flex items-center gap-2">
+                    <Sparkles className="h-5 w-5 animate-spin text-purple-600" />
+                    Generating Your Video...
+                  </h3>
+                  <Progress value={generationProgress} className="w-full" />
+                  <p className="text-sm text-gray-600 text-center">
+                    Creating video from script... ({generationProgress}%)
+                  </p>
                 </div>
-              </div>
+              )}
+
+              {/* Video Generation Button */}
+              {!isGenerating && (
+                <div className="space-y-4">
+                  <Button
+                    onClick={handleGenerateScriptVideo}
+                    disabled={!getCurrentScript().trim() || isGenerating}
+                    className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white py-4 text-lg"
+                    data-testid="btn-generate-script-video"
+                  >
+                    <Video className="mr-2 h-5 w-5" />
+                    Generate Video from Script
+                  </Button>
+                  
+                  <div className="flex gap-2 justify-center">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={copyScript}
+                      disabled={!getCurrentScript()}
+                      data-testid="btn-download-script"
+                    >
+                      <Download className="h-4 w-4 mr-1" />
+                      Download Script as Text
+                    </Button>
+                  </div>
+                </div>
+              )}
+              
+              {/* Generated Script Video Display */}
+              {generatedVideo && activeTab === 'script' && (
+                <Card className="border-green-200 bg-green-50">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-green-800">
+                      <CheckCircle className="h-6 w-6" />
+                      Marketing Video Generated!
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <video 
+                      controls 
+                      className="w-full rounded-lg shadow-lg"
+                      src={generatedVideo.downloadUrl}
+                    >
+                      Your browser does not support video playback.
+                    </video>
+                    
+                    <div className="flex gap-3">
+                      <Button onClick={downloadVideo} className="flex-1" data-testid="btn-download-script-video">
+                        <Download className="mr-2 h-4 w-4" />
+                        Download Video
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        onClick={() => setGeneratedVideo(null)}
+                        data-testid="btn-new-script-video"
+                      >
+                        Generate New Video
+                      </Button>
+                    </div>
+                    
+                    <p className="text-sm text-gray-600">
+                      File: {generatedVideo.fileName}
+                    </p>
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm">
+                      <div className="font-semibold text-blue-800 mb-1">Video Features:</div>
+                      <ul className="text-blue-700 text-xs space-y-1">
+                        <li>• Pine Hill Farm branded styling</li>
+                        <li>• Animated text overlays from your script sections</li>
+                        <li>• Smooth transitions between scenes</li>
+                        <li>• Professional color gradients and backgrounds</li>
+                        <li>• Call-to-action closing sequence</li>
+                      </ul>
+                    </div>
+                    <p className="text-xs text-gray-500">
+                      Video format: WebM • 1920x1080 HD • Ready for social media
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
             </TabsContent>
 
             {/* Product Explainer Tab - Existing functionality */}

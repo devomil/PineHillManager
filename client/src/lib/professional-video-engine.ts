@@ -1066,4 +1066,320 @@ export class ProfessionalVideoEngine {
       setTimeout(resolve, 1000 / this.fps);
     });
   }
+
+  // Script-based video generation
+  async generateScriptVideo(script: string, videoDuration: number, style: string): Promise<Blob> {
+    console.log("Starting script-based video generation...");
+    
+    // Parse script into sections
+    const sections = this.parseScriptSections(script, videoDuration);
+    
+    // Create scenes from parsed sections
+    const scenes = this.createScenesFromScript(sections, style);
+    
+    // Set up MediaRecorder with optimal settings
+    const stream = this.canvas.captureStream(this.fps);
+    const mediaRecorder = new MediaRecorder(stream, {
+      mimeType: 'video/webm;codecs=vp8',
+      videoBitsPerSecond: 5000000
+    });
+
+    const chunks: Blob[] = [];
+    
+    return new Promise((resolve, reject) => {
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) chunks.push(event.data);
+      };
+
+      mediaRecorder.onstop = () => {
+        console.log("Script video complete, size:", chunks.length, "chunks");
+        resolve(new Blob(chunks, { type: 'video/webm' }));
+      };
+
+      mediaRecorder.onerror = reject;
+
+      console.log("Starting script video recording...");
+      mediaRecorder.start(100);
+      
+      // Animate all scenes with smooth transitions
+      this.animateProfessionalScenes(scenes, mediaRecorder);
+    });
+  }
+
+  private parseScriptSections(script: string, totalDuration: number): Array<{
+    title: string;
+    body: string;
+    startTime: number;
+    endTime: number;
+    type: 'opening' | 'main' | 'closing';
+  }> {
+    const sections: Array<{
+      title: string;
+      body: string;
+      startTime: number;
+      endTime: number;
+      type: 'opening' | 'main' | 'closing';
+    }> = [];
+    
+    // Try to parse sections with timing markers like [OPENING - 0:00-0:15]
+    const sectionRegex = /\[([^\]]+?)(?:\s*[-–]\s*(\d+:\d+)\s*[-–]\s*(\d+:\d+))?\]\s*([\s\S]*?)(?=\[|$)/gi;
+    let match;
+    let lastEndTime = 0;
+    
+    while ((match = sectionRegex.exec(script)) !== null) {
+      const title = match[1].trim();
+      const body = match[4].trim();
+      
+      // Parse timing if available, otherwise calculate based on content
+      let startTime = lastEndTime;
+      let endTime: number;
+      
+      if (match[2] && match[3]) {
+        startTime = this.parseTimeToSeconds(match[2]);
+        endTime = this.parseTimeToSeconds(match[3]);
+      } else {
+        // Estimate duration based on word count (150 words/minute)
+        const words = body.split(/\s+/).length;
+        const duration = Math.max(5, (words / 150) * 60);
+        endTime = startTime + duration;
+      }
+      
+      lastEndTime = endTime;
+      
+      // Determine section type
+      let type: 'opening' | 'main' | 'closing' = 'main';
+      const titleLower = title.toLowerCase();
+      if (titleLower.includes('opening') || titleLower.includes('intro')) {
+        type = 'opening';
+      } else if (titleLower.includes('closing') || titleLower.includes('cta') || titleLower.includes('call to action')) {
+        type = 'closing';
+      }
+      
+      sections.push({ title, body, startTime, endTime, type });
+    }
+    
+    // If no sections found, create sections from paragraphs
+    if (sections.length === 0) {
+      const paragraphs = script.split(/\n\n+/).filter(p => p.trim());
+      const sectionDuration = totalDuration / Math.max(paragraphs.length, 1);
+      
+      paragraphs.forEach((para, index) => {
+        const startTime = index * sectionDuration;
+        const endTime = startTime + sectionDuration;
+        const type = index === 0 ? 'opening' : (index === paragraphs.length - 1 ? 'closing' : 'main');
+        
+        sections.push({
+          title: type === 'opening' ? 'Opening' : (type === 'closing' ? 'Closing' : `Section ${index}`),
+          body: para.trim(),
+          startTime,
+          endTime,
+          type
+        });
+      });
+    }
+    
+    return sections;
+  }
+
+  private parseTimeToSeconds(timeStr: string): number {
+    const parts = timeStr.split(':').map(Number);
+    if (parts.length === 2) {
+      return parts[0] * 60 + parts[1];
+    }
+    return parts[0];
+  }
+
+  private createScenesFromScript(sections: Array<{
+    title: string;
+    body: string;
+    startTime: number;
+    endTime: number;
+    type: 'opening' | 'main' | 'closing';
+  }>, style: string): ProfessionalScene[] {
+    const scenes: ProfessionalScene[] = [];
+    
+    // Pine Hill Farm brand colors
+    const brandColors = {
+      primary: '#2d5016',      // Dark green
+      secondary: '#4a7c23',    // Medium green
+      accent: '#7cb342',       // Light green
+      text: '#ffffff',
+      dark: '#1a2e0a'
+    };
+    
+    // Style-specific configurations
+    const styleConfigs: Record<string, {
+      backgrounds: Array<{ type: 'gradient' | 'medical' | 'corporate' | 'clean'; colors: string[] }>;
+      titleColor: string;
+      bodyColor: string;
+    }> = {
+      professional: {
+        backgrounds: [
+          { type: 'gradient', colors: [brandColors.primary, brandColors.secondary] },
+          { type: 'clean', colors: ['#f8fafc', '#e8f5e9'] },
+          { type: 'gradient', colors: [brandColors.secondary, brandColors.accent] },
+          { type: 'corporate', colors: ['#f1f8e9', '#c8e6c9'] },
+          { type: 'gradient', colors: ['#388e3c', '#4caf50'] }
+        ],
+        titleColor: '#ffffff',
+        bodyColor: '#f0f0f0'
+      },
+      empathetic: {
+        backgrounds: [
+          { type: 'gradient', colors: ['#5c6bc0', '#7986cb'] },
+          { type: 'clean', colors: ['#fff8e1', '#ffecb3'] },
+          { type: 'gradient', colors: ['#26a69a', '#4db6ac'] },
+          { type: 'corporate', colors: ['#e8f5e9', '#c8e6c9'] },
+          { type: 'gradient', colors: ['#66bb6a', '#81c784'] }
+        ],
+        titleColor: '#ffffff',
+        bodyColor: '#fafafa'
+      },
+      educational: {
+        backgrounds: [
+          { type: 'gradient', colors: ['#1565c0', '#1976d2'] },
+          { type: 'medical', colors: ['#ffffff', '#e3f2fd'] },
+          { type: 'clean', colors: ['#ffffff', '#f5f5f5'] },
+          { type: 'corporate', colors: ['#e8eaf6', '#c5cae9'] },
+          { type: 'gradient', colors: ['#43a047', '#66bb6a'] }
+        ],
+        titleColor: '#ffffff',
+        bodyColor: '#e3f2fd'
+      },
+      motivational: {
+        backgrounds: [
+          { type: 'gradient', colors: ['#ff5722', '#ff7043'] },
+          { type: 'gradient', colors: ['#f57c00', '#ff9800'] },
+          { type: 'clean', colors: ['#fff3e0', '#ffe0b2'] },
+          { type: 'gradient', colors: ['#388e3c', '#4caf50'] },
+          { type: 'gradient', colors: ['#d32f2f', '#e53935'] }
+        ],
+        titleColor: '#ffffff',
+        bodyColor: '#fff3e0'
+      },
+      testimonial: {
+        backgrounds: [
+          { type: 'gradient', colors: ['#37474f', '#546e7a'] },
+          { type: 'clean', colors: ['#fafafa', '#eeeeee'] },
+          { type: 'gradient', colors: [brandColors.primary, brandColors.secondary] },
+          { type: 'corporate', colors: ['#f5f5f5', '#e0e0e0'] },
+          { type: 'gradient', colors: ['#2e7d32', '#43a047'] }
+        ],
+        titleColor: '#ffffff',
+        bodyColor: '#eceff1'
+      }
+    };
+    
+    const config = styleConfigs[style] || styleConfigs.professional;
+    
+    sections.forEach((section, index) => {
+      const duration = section.endTime - section.startTime;
+      const bgIndex = index % config.backgrounds.length;
+      const background = config.backgrounds[bgIndex];
+      
+      // Split body into lines for display
+      const lines = this.wrapText(section.body, 60);
+      const displayLines = lines.slice(0, 6); // Max 6 lines per scene
+      
+      const elements: VideoElement[] = [];
+      
+      // Add section title
+      if (section.type === 'opening') {
+        // Opening scene - larger, centered title
+        elements.push({
+          type: 'text',
+          content: 'Pine Hill Farm',
+          x: 960,
+          y: 150,
+          fontSize: 72,
+          color: config.titleColor,
+          animation: { type: 'zoomIn', delay: 0, duration: 1000 }
+        });
+      }
+      
+      // Add section header if it's descriptive
+      if (section.title && !section.title.toLowerCase().includes('section')) {
+        elements.push({
+          type: 'text',
+          content: section.title.replace(/\s*-.*$/, '').trim(),
+          x: 960,
+          y: section.type === 'opening' ? 280 : 150,
+          fontSize: section.type === 'opening' ? 48 : 56,
+          color: section.type === 'opening' ? config.bodyColor : config.titleColor,
+          animation: { type: 'slideInLeft', delay: section.type === 'opening' ? 800 : 0, duration: 800 }
+        });
+      }
+      
+      // Add body text lines with staggered animations
+      displayLines.forEach((line, lineIndex) => {
+        const baseY = section.type === 'opening' ? 400 : 280;
+        elements.push({
+          type: 'text',
+          content: line,
+          x: 960,
+          y: baseY + (lineIndex * 80),
+          fontSize: 36,
+          color: section.type === 'closing' ? '#ffffff' : config.bodyColor,
+          animation: { 
+            type: 'fadeIn', 
+            delay: (section.type === 'opening' ? 1200 : 400) + (lineIndex * 300), 
+            duration: 600 
+          }
+        });
+      });
+      
+      // Add decorative elements based on section type
+      if (section.type === 'opening') {
+        elements.push({
+          type: 'shape',
+          x: 300,
+          y: 350,
+          width: 1320,
+          height: 4,
+          color: brandColors.accent,
+          animation: { type: 'scaleIn', delay: 1000, duration: 600 }
+        });
+      } else if (section.type === 'closing') {
+        elements.push({
+          type: 'text',
+          content: 'Visit Pine Hill Farm Today',
+          x: 960,
+          y: 800,
+          fontSize: 42,
+          color: '#ffc107',
+          animation: { type: 'bounceIn', delay: 1500, duration: 800 }
+        });
+      }
+      
+      scenes.push({
+        name: `scene_${index}_${section.type}`,
+        duration: Math.max(duration, 3),
+        background,
+        elements
+      });
+    });
+    
+    return scenes;
+  }
+
+  private wrapText(text: string, maxCharsPerLine: number): string[] {
+    const words = text.split(/\s+/);
+    const lines: string[] = [];
+    let currentLine = '';
+    
+    for (const word of words) {
+      const testLine = currentLine ? `${currentLine} ${word}` : word;
+      
+      if (testLine.length <= maxCharsPerLine) {
+        currentLine = testLine;
+      } else {
+        if (currentLine) lines.push(currentLine);
+        currentLine = word;
+      }
+    }
+    
+    if (currentLine) lines.push(currentLine);
+    
+    return lines;
+  }
 }
