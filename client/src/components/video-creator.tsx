@@ -234,8 +234,16 @@ export default function VideoCreator() {
       
       toast({
         title: "Script Video Generated!",
-        description: "Your marketing video is ready for download.",
+        description: "Your marketing video is ready for download. Scroll down to view it.",
       });
+      
+      // Auto-scroll to the video after a short delay
+      setTimeout(() => {
+        const videoElement = document.querySelector('[data-testid="script-video-result"]');
+        if (videoElement) {
+          videoElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 500);
       
     } catch (error) {
       console.error('Script video generation failed:', error);
@@ -871,7 +879,7 @@ Visit Pine Hill Farm today!`)}
               
               {/* Generated Script Video Display */}
               {generatedVideo && activeTab === 'script' && (
-                <Card className="border-green-200 bg-green-50">
+                <Card className="border-green-200 bg-green-50" data-testid="script-video-result">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2 text-green-800">
                       <CheckCircle className="h-6 w-6" />
