@@ -567,6 +567,13 @@ export default function VideoCreator() {
         await animatedEngine.loadSectionImages(sectionImages);
       }
       
+      // Load Runway video clip if available (will be used as background for hook section)
+      if (runwayVideoUrl) {
+        setGenerationPhase('Loading AI video clip...');
+        console.log("Loading Runway video clip for hook section...");
+        await animatedEngine.loadVideoClip('hook', runwayVideoUrl);
+      }
+      
       // Set audio buffer if available
       if (audioBlob) {
         animatedEngine.setAudioBuffer(audioBlob);

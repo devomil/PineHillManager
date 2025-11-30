@@ -130,6 +130,7 @@ export class AnimatedVideoEngine {
   private timeline: VideoTimeline | null = null;
   private onProgress?: (progress: number) => void;
   private sectionImages: Map<string, HTMLImageElement> = new Map();
+  private sectionVideoClips: Map<string, HTMLVideoElement> = new Map();
   private audioBuffer: Blob | null = null;
   private targetDuration: number = 60; // Default 60 seconds
 
@@ -154,6 +155,47 @@ export class AnimatedVideoEngine {
 
   setAudioBuffer(audio: Blob | null) {
     this.audioBuffer = audio;
+  }
+
+  /**
+   * Load a video clip for a specific section (e.g., from Runway AI)
+   */
+  async loadVideoClip(sectionType: string, videoUrl: string): Promise<void> {
+    console.log(`[VideoEngine] Loading video clip for ${sectionType}: ${videoUrl.substring(0, 80)}...`);
+    
+    try {
+      const video = document.createElement('video');
+      video.crossOrigin = 'anonymous';
+      video.muted = true;
+      video.loop = true;
+      video.playsInline = true;
+      video.preload = 'auto';
+      
+      await new Promise<void>((resolve, reject) => {
+        video.onloadeddata = async () => {
+          console.log(`[VideoEngine] Video clip loaded for ${sectionType} (${video.videoWidth}x${video.videoHeight}, ${video.duration}s)`);
+          
+          // Start playback so frames update properly
+          try {
+            await video.play();
+            console.log(`[VideoEngine] Video playback started for ${sectionType}`);
+          } catch (playError) {
+            console.warn(`[VideoEngine] Could not auto-play video for ${sectionType}:`, playError);
+          }
+          
+          this.sectionVideoClips.set(sectionType, video);
+          resolve();
+        };
+        video.onerror = () => {
+          console.warn(`[VideoEngine] Failed to load video clip for ${sectionType}`);
+          reject(new Error('Failed to load video'));
+        };
+        video.src = videoUrl;
+        video.load();
+      });
+    } catch (error) {
+      console.warn(`[VideoEngine] Video clip loading error for ${sectionType}:`, error);
+    }
   }
 
   /**
@@ -604,6 +646,19 @@ export class AnimatedVideoEngine {
    * Render background with optional animation and Ken Burns for images
    */
   private renderBackground(background: VideoSection['background'], time: number, sectionType: string, sectionDuration: number) {
+    // Check if we have a video clip for this section (highest priority)
+    const sectionVideo = this.sectionVideoClips.get(sectionType);
+    
+    if (sectionVideo && sectionVideo.readyState >= 2) {
+      // Render video frame
+      this.renderVideoFrame(sectionVideo, time, sectionDuration);
+      
+      // Add semi-transparent overlay for better text readability
+      this.ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+      this.ctx.fillRect(0, 0, this.width, this.height);
+      return;
+    }
+    
     // Check if we have an image for this section
     const sectionImage = this.sectionImages.get(sectionType);
     
@@ -631,6 +686,33 @@ export class AnimatedVideoEngine {
       // Add subtle animated particles/pattern
       this.renderBackgroundParticles(time);
     }
+  }
+
+  /**
+   * Render a frame from a video clip with cover scaling
+   * Video should already be playing (loop mode), so we just draw the current frame
+   */
+  private renderVideoFrame(video: HTMLVideoElement, time: number, sectionDuration: number) {
+    // Calculate dimensions to cover canvas (same aspect ratio logic as Ken Burns)
+    const videoAspect = video.videoWidth / video.videoHeight;
+    const canvasAspect = this.width / this.height;
+    
+    let drawWidth: number, drawHeight: number;
+    
+    if (videoAspect > canvasAspect) {
+      drawHeight = this.height;
+      drawWidth = drawHeight * videoAspect;
+    } else {
+      drawWidth = this.width;
+      drawHeight = drawWidth / videoAspect;
+    }
+    
+    // Center the video frame
+    const x = (this.width - drawWidth) / 2;
+    const y = (this.height - drawHeight) / 2;
+    
+    // Draw the current playing frame (video is looping in background)
+    this.ctx.drawImage(video, x, y, drawWidth, drawHeight);
   }
 
   /**
