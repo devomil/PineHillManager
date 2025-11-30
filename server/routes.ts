@@ -267,12 +267,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'promptText and promptImage are required' });
       }
 
+      // Extract image URL - handle both string and array formats
+      let imageUrl: string;
+      if (Array.isArray(promptImage)) {
+        imageUrl = promptImage[0]?.uri || promptImage[0];
+      } else {
+        imageUrl = promptImage;
+      }
+
+      // Truncate prompt to 1000 characters (Runway API limit)
+      const truncatedPrompt = promptText.substring(0, 1000);
+
       const RunwayML = (await import('@runwayml/sdk')).default;
       const client = new RunwayML({ apiKey });
 
       const task = await client.imageToVideo.create({
-        promptText,
-        promptImage,
+        promptText: truncatedPrompt,
+        promptImage: imageUrl,
         model: 'gen4_turbo',
         ratio: ratio || '1280:720',
         duration: duration || 4

@@ -162,7 +162,7 @@ export class ProfessionalVoiceoverService {
 
       const requestBody = {
         text: cleanScript,
-        model_id: options.model || "eleven_monolingual_v1",
+        model_id: options.model || "eleven_turbo_v2",
         voice_settings: {
           stability: options.stability || 0.71,
           similarity_boost: options.similarityBoost || 0.5,
