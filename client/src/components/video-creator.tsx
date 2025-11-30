@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -40,6 +40,8 @@ import { ProfessionalVoiceoverService } from '@/lib/professional-voiceover';
 import { ProfessionalLottieService } from '@/lib/lottie-animations';
 import { scriptPipeline, Platform, PLATFORM_SPECS } from '@/lib/script-pipeline';
 import { AnimatedVideoEngine } from '@/lib/animated-video-engine';
+import { RunwayVideoService } from '@/lib/runway-video-service';
+import { StableDiffusionService } from '@/lib/stable-diffusion-service';
 
 export default function VideoCreator() {
   const { toast } = useToast();
@@ -51,11 +53,22 @@ export default function VideoCreator() {
   const [imageryService] = useState(() => new ProfessionalImageryService());
   const [voiceoverService] = useState(() => new ProfessionalVoiceoverService());
   const [lottieService] = useState(() => new ProfessionalLottieService());
+  const [runwayService] = useState(() => new RunwayVideoService());
+  const [stableDiffusionService] = useState(() => new StableDiffusionService());
   const [generatedContent, setGeneratedContent] = useState<any>(null);
   const [enhancedContent, setEnhancedContent] = useState<any>(null);
   const [professionalImages, setProfessionalImages] = useState<any[]>([]);
   const [voiceoverReady, setVoiceoverReady] = useState(false);
   const [showContentPreview, setShowContentPreview] = useState(false);
+  
+  // AI Service availability state
+  const [runwayAvailable, setRunwayAvailable] = useState(false);
+  const [sdAvailable, setSdAvailable] = useState(false);
+  const [useRunwayClips, setUseRunwayClips] = useState(false);
+  const [useSDImages, setUseSDImages] = useState(false);
+  const [runwayModel, setRunwayModel] = useState<'gen4_turbo' | 'veo3.1'>('gen4_turbo');
+  const [runwayTaskStatus, setRunwayTaskStatus] = useState<string>('');
+  const [generatedAIImage, setGeneratedAIImage] = useState<string | null>(null);
   const [generatedVideo, setGeneratedVideo] = useState<{
     videoBlob: Blob;
     downloadUrl: string;
@@ -91,6 +104,24 @@ export default function VideoCreator() {
     ingredients: [],
     callToAction: ''
   });
+
+  // Check AI service availability on mount
+  useEffect(() => {
+    const checkServices = async () => {
+      try {
+        const runwayStatus = await runwayService.isServiceAvailable();
+        setRunwayAvailable(runwayStatus);
+        
+        const sdStatus = await stableDiffusionService.isServiceAvailable();
+        setSdAvailable(sdStatus);
+        
+        console.log('AI Services:', { runway: runwayStatus, stableDiffusion: sdStatus });
+      } catch (error) {
+        console.warn('Failed to check AI service availability:', error);
+      }
+    };
+    checkServices();
+  }, []);
 
   // Duration options with labels
   const durationOptions = [
@@ -351,35 +382,59 @@ export default function VideoCreator() {
       setGenerationProgress(10);
       console.log(`Script parsed: ${parsed.sections.length} sections, ${parsed.totalDuration}s total`);
 
-      // Phase 2: Fetch stock images for each section
-      setGenerationPhase('Fetching images...');
+      // Phase 2: Fetch or generate images for each section
+      setGenerationPhase(useSDImages ? 'Generating AI images...' : 'Fetching images...');
       setGenerationProgress(15);
-      console.log("Phase 2: Fetching stock images for sections...");
+      console.log("Phase 2:", useSDImages ? "Generating AI images with Stable Diffusion..." : "Fetching stock images...");
       
       const sectionImages: { sectionType: string; url: string }[] = [];
+      const sectionTypes = ['hook', 'problem', 'solution', 'social_proof', 'cta'];
       
       try {
-        // Determine search terms based on script content
         const healthConcern = scriptPrompt || 'health wellness';
         const productType = 'supplement herbal';
         
-        const imageResult = await imageryService.searchMedicalImages(healthConcern, productType);
-        
-        if (imageResult.success && imageResult.images.length > 0) {
-          // Assign images to sections
-          const sectionTypes = ['hook', 'problem', 'solution', 'social_proof', 'cta'];
-          for (let i = 0; i < sectionTypes.length && i < imageResult.images.length; i++) {
-            sectionImages.push({
-              sectionType: sectionTypes[i],
-              url: imageResult.images[i].urls.regular
-            });
+        if (useSDImages && sdAvailable) {
+          // Generate images with Stable Diffusion
+          const sectionPrompts = {
+            hook: `Eye-catching marketing visual for ${healthConcern}, vibrant and attention-grabbing, professional advertisement`,
+            problem: `Person experiencing health challenge related to ${healthConcern}, empathetic mood, soft lighting`,
+            solution: `Premium organic ${productType} products, natural ingredients, clean professional photography`,
+            social_proof: `Happy healthy people enjoying wellness lifestyle, testimonial style, warm lighting`,
+            cta: `Call to action visual for health products, inviting and professional, Pine Hill Farm branding`
+          };
+          
+          for (const sectionType of sectionTypes) {
+            setGenerationPhase(`Generating ${sectionType} image...`);
+            const prompt = sectionPrompts[sectionType as keyof typeof sectionPrompts];
+            const result = await stableDiffusionService.generateImage({ prompt });
+            
+            if (result.success && result.image) {
+              sectionImages.push({
+                sectionType,
+                url: result.image
+              });
+              console.log(`Generated AI image for ${sectionType}`);
+            }
           }
-          console.log(`Loaded ${sectionImages.length} section images`);
         } else {
-          console.log("Using gradient backgrounds (no images available)");
+          // Use Unsplash stock images
+          const imageResult = await imageryService.searchMedicalImages(healthConcern, productType);
+          
+          if (imageResult.success && imageResult.images.length > 0) {
+            for (let i = 0; i < sectionTypes.length && i < imageResult.images.length; i++) {
+              sectionImages.push({
+                sectionType: sectionTypes[i],
+                url: imageResult.images[i].urls.regular
+              });
+            }
+            console.log(`Loaded ${sectionImages.length} section images from Unsplash`);
+          } else {
+            console.log("Using gradient backgrounds (no images available)");
+          }
         }
       } catch (imageError) {
-        console.warn("Could not fetch images, using gradients:", imageError);
+        console.warn("Could not fetch/generate images, using gradients:", imageError);
       }
       
       setGenerationProgress(25);
@@ -940,6 +995,72 @@ export default function VideoCreator() {
                       />
                     </div>
                   </div>
+
+                  {/* AI Enhancement Options */}
+                  {(runwayAvailable || sdAvailable) && (
+                    <div className="p-4 bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 rounded-lg border border-purple-200 dark:border-purple-700">
+                      <h4 className="font-semibold text-purple-700 dark:text-purple-300 mb-3 flex items-center gap-2">
+                        <Sparkles className="w-4 h-4" />
+                        AI Enhancement Options
+                      </h4>
+                      <div className="grid gap-4 md:grid-cols-2">
+                        {runwayAvailable && (
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                              <Label htmlFor="useRunway" className="text-sm flex items-center gap-2">
+                                <Video className="w-4 h-4 text-purple-600" />
+                                Runway AI Video Clips
+                              </Label>
+                              <input
+                                type="checkbox"
+                                id="useRunway"
+                                checked={useRunwayClips}
+                                onChange={(e) => setUseRunwayClips(e.target.checked)}
+                                className="rounded border-purple-300 text-purple-600 focus:ring-purple-500"
+                                data-testid="checkbox-runway"
+                              />
+                            </div>
+                            {useRunwayClips && (
+                              <Select value={runwayModel} onValueChange={(v) => setRunwayModel(v as 'gen4_turbo' | 'veo3.1')}>
+                                <SelectTrigger className="text-sm" data-testid="select-runway-model">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="gen4_turbo">Gen-4 Turbo (4s clips, fast)</SelectItem>
+                                  <SelectItem value="veo3.1">VEO 3.1 (8s clips, premium)</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            )}
+                            <p className="text-xs text-gray-500">Generate AI video clips (takes 1-2 min per clip)</p>
+                          </div>
+                        )}
+                        {sdAvailable && (
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                              <Label htmlFor="useSD" className="text-sm flex items-center gap-2">
+                                <ImageIcon className="w-4 h-4 text-blue-600" />
+                                Stable Diffusion Images
+                              </Label>
+                              <input
+                                type="checkbox"
+                                id="useSD"
+                                checked={useSDImages}
+                                onChange={(e) => setUseSDImages(e.target.checked)}
+                                className="rounded border-blue-300 text-blue-600 focus:ring-blue-500"
+                                data-testid="checkbox-sd"
+                              />
+                            </div>
+                            <p className="text-xs text-gray-500">Generate custom AI images for each section</p>
+                          </div>
+                        )}
+                      </div>
+                      {runwayTaskStatus && (
+                        <div className="mt-3 p-2 bg-white/50 dark:bg-gray-800/50 rounded text-sm">
+                          <span className="text-purple-600 dark:text-purple-400">{runwayTaskStatus}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   <Button
                     onClick={handleGenerateScript}

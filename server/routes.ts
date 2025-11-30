@@ -179,18 +179,293 @@ export async function registerRoutes(app: Express): Promise<Server> {
         unsplash: {
           accessKey: process.env.UNSPLASH_ACCESS_KEY || null,
           applicationId: process.env.UNSPLASH_APPLICATION_ID || null,
-          // Don't expose secret key to frontend for security
         },
         huggingface: {
           apiToken: process.env.HUGGINGFACE_API_TOKEN || null
         },
         elevenlabs: {
           apiKey: process.env.ELEVENLABS_API_KEY || null
+        },
+        runway: {
+          available: !!(process.env.Runway || process.env.RUNWAYML_API_SECRET)
+        },
+        anthropic: {
+          available: !!process.env.ANTHROPIC_API_KEY
+        },
+        stableDiffusion: {
+          available: !!process.env.Stable_Diffusion
         }
       });
     } catch (error) {
       console.error('Error fetching API config:', error);
       res.status(500).json({ message: 'Failed to fetch API configuration' });
+    }
+  });
+
+  // ================================
+  // RUNWAY AI VIDEO GENERATION ROUTES
+  // ================================
+
+  // Check Runway API availability
+  app.get('/api/runway/status', isAuthenticated, async (req, res) => {
+    const apiKey = process.env.Runway || process.env.RUNWAYML_API_SECRET;
+    res.json({ available: !!apiKey });
+  });
+
+  // Generate text-to-video with Runway
+  app.post('/api/runway/text-to-video', isAuthenticated, requireRole(['admin', 'manager']), async (req, res) => {
+    try {
+      const apiKey = process.env.Runway || process.env.RUNWAYML_API_SECRET;
+      if (!apiKey) {
+        return res.status(400).json({ message: 'Runway API key not configured' });
+      }
+
+      const { promptText, model, ratio, duration, seed } = req.body;
+
+      if (!promptText) {
+        return res.status(400).json({ message: 'promptText is required' });
+      }
+
+      // Dynamic import for Runway SDK
+      const RunwayML = (await import('@runwayml/sdk')).default;
+      const client = new RunwayML({ apiKey });
+
+      let task;
+      if (model === 'veo3.1') {
+        task = await client.textToVideo.create({
+          promptText,
+          model: 'veo3.1',
+          ratio: ratio || '1920:1080',
+          duration: duration || 8,
+          seed: seed || Math.floor(Math.random() * 2000000000)
+        });
+      } else {
+        // Default to gen4_turbo for text-to-video
+        task = await client.textToVideo.create({
+          promptText,
+          model: 'gen4_turbo',
+          ratio: ratio || '1920:1080',
+          duration: duration || 4,
+          seed: seed || Math.floor(Math.random() * 2000000000)
+        });
+      }
+
+      res.json({
+        taskId: task.id,
+        status: 'PENDING',
+        estimatedTime: model === 'veo3.1' ? 120 : 60
+      });
+    } catch (error) {
+      console.error('Runway text-to-video error:', error);
+      res.status(500).json({ 
+        message: error instanceof Error ? error.message : 'Failed to start video generation' 
+      });
+    }
+  });
+
+  // Generate image-to-video with Runway
+  app.post('/api/runway/image-to-video', isAuthenticated, requireRole(['admin', 'manager']), async (req, res) => {
+    try {
+      const apiKey = process.env.Runway || process.env.RUNWAYML_API_SECRET;
+      if (!apiKey) {
+        return res.status(400).json({ message: 'Runway API key not configured' });
+      }
+
+      const { promptText, promptImage, model, ratio, duration, seed } = req.body;
+
+      if (!promptText || !promptImage) {
+        return res.status(400).json({ message: 'promptText and promptImage are required' });
+      }
+
+      const RunwayML = (await import('@runwayml/sdk')).default;
+      const client = new RunwayML({ apiKey });
+
+      const task = await client.imageToVideo.create({
+        promptText,
+        promptImage,
+        model: model || 'gen4_turbo',
+        ratio: ratio || '1280:720',
+        duration: duration || 4,
+        seed: seed || Math.floor(Math.random() * 2000000000)
+      });
+
+      res.json({
+        taskId: task.id,
+        status: 'PENDING',
+        estimatedTime: 60
+      });
+    } catch (error) {
+      console.error('Runway image-to-video error:', error);
+      res.status(500).json({ 
+        message: error instanceof Error ? error.message : 'Failed to start video generation' 
+      });
+    }
+  });
+
+  // Check Runway task status
+  app.get('/api/runway/task/:taskId', isAuthenticated, async (req, res) => {
+    try {
+      const apiKey = process.env.Runway || process.env.RUNWAYML_API_SECRET;
+      if (!apiKey) {
+        return res.status(400).json({ message: 'Runway API key not configured' });
+      }
+
+      const { taskId } = req.params;
+      
+      const RunwayML = (await import('@runwayml/sdk')).default;
+      const client = new RunwayML({ apiKey });
+
+      const task = await client.tasks.retrieve(taskId);
+
+      res.json({
+        id: task.id,
+        status: task.status,
+        progress: task.progress,
+        output: task.output,
+        failure: task.failure
+      });
+    } catch (error) {
+      console.error('Runway task status error:', error);
+      res.status(500).json({ 
+        message: error instanceof Error ? error.message : 'Failed to get task status' 
+      });
+    }
+  });
+
+  // ================================
+  // STABLE DIFFUSION IMAGE GENERATION ROUTES
+  // ================================
+
+  // Check Stable Diffusion availability
+  app.get('/api/stable-diffusion/status', isAuthenticated, async (req, res) => {
+    const apiKey = process.env.Stable_Diffusion;
+    res.json({ available: !!apiKey });
+  });
+
+  // Generate image with Stable Diffusion via Hugging Face
+  app.post('/api/stable-diffusion/generate', isAuthenticated, requireRole(['admin', 'manager']), async (req, res) => {
+    try {
+      const apiKey = process.env.Stable_Diffusion || process.env.HUGGINGFACE_API_TOKEN;
+      if (!apiKey) {
+        return res.status(400).json({ message: 'Stable Diffusion API key not configured' });
+      }
+
+      const { prompt, negativePrompt, width, height, steps } = req.body;
+
+      if (!prompt) {
+        return res.status(400).json({ message: 'prompt is required' });
+      }
+
+      // Use Hugging Face Inference API for Stable Diffusion
+      const response = await fetch(
+        'https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0',
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            inputs: prompt,
+            parameters: {
+              negative_prompt: negativePrompt || 'blurry, low quality, distorted',
+              width: width || 1024,
+              height: height || 1024,
+              num_inference_steps: steps || 30
+            }
+          })
+        }
+      );
+
+      if (!response.ok) {
+        const error = await response.text();
+        throw new Error(`Stable Diffusion API error: ${error}`);
+      }
+
+      const imageBuffer = await response.arrayBuffer();
+      const base64Image = Buffer.from(imageBuffer).toString('base64');
+
+      res.json({
+        success: true,
+        image: `data:image/png;base64,${base64Image}`
+      });
+    } catch (error) {
+      console.error('Stable Diffusion generation error:', error);
+      res.status(500).json({ 
+        message: error instanceof Error ? error.message : 'Failed to generate image' 
+      });
+    }
+  });
+
+  // ================================
+  // ANTHROPIC AI SCRIPT GENERATION ROUTES
+  // ================================
+
+  // Generate marketing script with Anthropic
+  app.post('/api/ai/generate-script', isAuthenticated, requireRole(['admin', 'manager']), async (req, res) => {
+    try {
+      const apiKey = process.env.ANTHROPIC_API_KEY;
+      if (!apiKey) {
+        return res.status(400).json({ message: 'Anthropic API key not configured' });
+      }
+
+      const { prompt, videoDuration, videoStyle, targetAudience } = req.body;
+
+      if (!prompt) {
+        return res.status(400).json({ message: 'prompt is required' });
+      }
+
+      const Anthropic = (await import('@anthropic-ai/sdk')).default;
+      const client = new Anthropic({ apiKey });
+
+      const systemPrompt = `You are a professional marketing video scriptwriter for Pine Hill Farm, a premium health and wellness company specializing in organic supplements and herbal products.
+
+Create engaging, persuasive video scripts that follow this exact structure:
+[HOOK] - Attention-grabbing opening (first 3-5 seconds)
+[PROBLEM] - Address the pain point or need
+[SOLUTION] - Present Pine Hill Farm's solution
+[SOCIAL_PROOF] - Build credibility with testimonials or statistics
+[CTA] - Strong call to action
+
+Guidelines:
+- Keep language natural and conversational
+- Focus on health benefits and natural ingredients
+- Include emotional triggers and storytelling
+- Target duration: ${videoDuration || 60} seconds
+- Style: ${videoStyle || 'professional'}
+${targetAudience ? `- Target audience: ${targetAudience}` : ''}
+
+Output the script with section markers in brackets.`;
+
+      const message = await client.messages.create({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1024,
+        messages: [
+          {
+            role: 'user',
+            content: `Create a marketing video script about: ${prompt}`
+          }
+        ],
+        system: systemPrompt
+      });
+
+      const scriptContent = message.content[0].type === 'text' ? message.content[0].text : '';
+
+      res.json({
+        success: true,
+        script: scriptContent,
+        metadata: {
+          duration: videoDuration || 60,
+          style: videoStyle || 'professional',
+          targetAudience: targetAudience || 'general',
+          model: 'claude-sonnet-4-20250514'
+        }
+      });
+    } catch (error) {
+      console.error('Anthropic script generation error:', error);
+      res.status(500).json({ 
+        message: error instanceof Error ? error.message : 'Failed to generate script' 
+      });
     }
   });
 
