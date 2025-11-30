@@ -173,9 +173,41 @@ export class AnimatedVideoEngine {
   private loadImage(url: string): Promise<HTMLImageElement> {
     return new Promise((resolve, reject) => {
       const img = new Image();
+      
+      // Handle data URLs differently - no CORS needed
+      if (url.startsWith('data:')) {
+        img.onload = () => resolve(img);
+        img.onerror = (e) => {
+          console.error('Data URL image failed to load:', url.substring(0, 100));
+          reject(new Error(`Failed to load data URL image`));
+        };
+        img.src = url;
+        return;
+      }
+      
+      // For external URLs, try with CORS first
       img.crossOrigin = 'anonymous';
-      img.onload = () => resolve(img);
-      img.onerror = () => reject(new Error(`Failed to load image: ${url}`));
+      
+      img.onload = () => {
+        console.log('Image loaded successfully:', url.substring(0, 60));
+        resolve(img);
+      };
+      
+      img.onerror = () => {
+        console.warn('CORS image load failed, trying without CORS:', url.substring(0, 60));
+        // Try again without CORS (may have canvas taint issues but will at least render)
+        const img2 = new Image();
+        img2.onload = () => {
+          console.log('Image loaded without CORS:', url.substring(0, 60));
+          resolve(img2);
+        };
+        img2.onerror = () => {
+          console.error('Image failed to load completely:', url.substring(0, 60));
+          reject(new Error(`Failed to load image: ${url}`));
+        };
+        img2.src = url;
+      };
+      
       img.src = url;
     });
   }

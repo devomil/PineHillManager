@@ -231,9 +231,9 @@ export class ProfessionalImageryService {
         urls: {
           raw: 'data:image/svg+xml;base64,' + btoa(this.createMedicalGradientSVG('#1e40af', '#3b82f6')),
           full: 'data:image/svg+xml;base64,' + btoa(this.createMedicalGradientSVG('#1e40af', '#3b82f6')),
-          regular: 'data:image/svg+xml;base64=' + btoa(this.createMedicalGradientSVG('#1e40af', '#3b82f6')),
-          small: 'data:image/svg+xml;base64=' + btoa(this.createMedicalGradientSVG('#1e40af', '#3b82f6')),
-          thumb: 'data:image/svg+xml;base64=' + btoa(this.createMedicalGradientSVG('#1e40af', '#3b82f6'))
+          regular: 'data:image/svg+xml;base64,' + btoa(this.createMedicalGradientSVG('#1e40af', '#3b82f6')),
+          small: 'data:image/svg+xml;base64,' + btoa(this.createMedicalGradientSVG('#1e40af', '#3b82f6')),
+          thumb: 'data:image/svg+xml;base64,' + btoa(this.createMedicalGradientSVG('#1e40af', '#3b82f6'))
         },
         alt_description: 'Professional medical gradient background',
         description: 'Medical blue gradient with molecular pattern',
@@ -244,9 +244,9 @@ export class ProfessionalImageryService {
         urls: {
           raw: 'data:image/svg+xml;base64,' + btoa(this.createMedicalGradientSVG('#059669', '#10b981')),
           full: 'data:image/svg+xml;base64,' + btoa(this.createMedicalGradientSVG('#059669', '#10b981')),
-          regular: 'data:image/svg+xml;base64=' + btoa(this.createMedicalGradientSVG('#059669', '#10b981')),
-          small: 'data:image/svg+xml;base64=' + btoa(this.createMedicalGradientSVG('#059669', '#10b981')),
-          thumb: 'data:image/svg+xml;base64=' + btoa(this.createMedicalGradientSVG('#059669', '#10b981'))
+          regular: 'data:image/svg+xml;base64,' + btoa(this.createMedicalGradientSVG('#059669', '#10b981')),
+          small: 'data:image/svg+xml;base64,' + btoa(this.createMedicalGradientSVG('#059669', '#10b981')),
+          thumb: 'data:image/svg+xml;base64,' + btoa(this.createMedicalGradientSVG('#059669', '#10b981'))
         },
         alt_description: 'Professional medical gradient background',
         description: 'Medical green gradient with clinical pattern',
@@ -256,10 +256,10 @@ export class ProfessionalImageryService {
         id: 'medical-gradient-3',
         urls: {
           raw: 'data:image/svg+xml;base64,' + btoa(this.createMedicalGradientSVG('#7c3aed', '#a855f7')),
-          full: 'data:image/svg+xml;base64=' + btoa(this.createMedicalGradientSVG('#7c3aed', '#a855f7')),
-          regular: 'data:image/svg+xml;base64=' + btoa(this.createMedicalGradientSVG('#7c3aed', '#a855f7')),
-          small: 'data:image/svg+xml;base64=' + btoa(this.createMedicalGradientSVG('#7c3aed', '#a855f7')),
-          thumb: 'data:image/svg+xml;base64=' + btoa(this.createMedicalGradientSVG('#7c3aed', '#a855f7'))
+          full: 'data:image/svg+xml;base64,' + btoa(this.createMedicalGradientSVG('#7c3aed', '#a855f7')),
+          regular: 'data:image/svg+xml;base64,' + btoa(this.createMedicalGradientSVG('#7c3aed', '#a855f7')),
+          small: 'data:image/svg+xml;base64,' + btoa(this.createMedicalGradientSVG('#7c3aed', '#a855f7')),
+          thumb: 'data:image/svg+xml;base64,' + btoa(this.createMedicalGradientSVG('#7c3aed', '#a855f7'))
         },
         alt_description: 'Professional medical gradient background',
         description: 'Medical purple gradient with pharmaceutical pattern',
