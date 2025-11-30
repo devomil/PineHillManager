@@ -212,7 +212,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json({ available: !!apiKey });
   });
 
-  // Generate text-to-video with Runway
+  // Generate text-to-video with Runway (uses VEO models)
   app.post('/api/runway/text-to-video', isAuthenticated, requireRole(['admin', 'manager']), async (req, res) => {
     try {
       const apiKey = process.env.Runway || process.env.RUNWAYML_API_SECRET;
@@ -220,7 +220,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'Runway API key not configured' });
       }
 
-      const { promptText, model, ratio, duration, seed } = req.body;
+      const { promptText, model, ratio, duration } = req.body;
 
       if (!promptText) {
         return res.status(400).json({ message: 'promptText is required' });
@@ -230,30 +230,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const RunwayML = (await import('@runwayml/sdk')).default;
       const client = new RunwayML({ apiKey });
 
-      let task;
-      if (model === 'veo3.1') {
-        task = await client.textToVideo.create({
-          promptText,
-          model: 'veo3.1',
-          ratio: ratio || '1920:1080',
-          duration: duration || 8,
-          seed: seed || Math.floor(Math.random() * 2000000000)
-        });
-      } else {
-        // Default to gen4_turbo for text-to-video
-        task = await client.textToVideo.create({
-          promptText,
-          model: 'gen4_turbo',
-          ratio: ratio || '1920:1080',
-          duration: duration || 4,
-          seed: seed || Math.floor(Math.random() * 2000000000)
-        });
-      }
+      // Text-to-video only supports VEO models (veo3.1, veo3.1_fast, veo3)
+      const veoModel = model === 'veo3.1_fast' ? 'veo3.1_fast' : model === 'veo3' ? 'veo3' : 'veo3.1';
+      
+      const task = await client.textToVideo.create({
+        promptText,
+        model: veoModel as 'veo3.1' | 'veo3.1_fast' | 'veo3',
+        ratio: ratio || '1920:1080',
+        duration: duration || 8
+      });
 
       res.json({
         taskId: task.id,
         status: 'PENDING',
-        estimatedTime: model === 'veo3.1' ? 120 : 60
+        estimatedTime: 120
       });
     } catch (error) {
       console.error('Runway text-to-video error:', error);
@@ -263,7 +253,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Generate image-to-video with Runway
+  // Generate image-to-video with Runway (uses Gen-4 Turbo)
   app.post('/api/runway/image-to-video', isAuthenticated, requireRole(['admin', 'manager']), async (req, res) => {
     try {
       const apiKey = process.env.Runway || process.env.RUNWAYML_API_SECRET;
@@ -271,7 +261,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'Runway API key not configured' });
       }
 
-      const { promptText, promptImage, model, ratio, duration, seed } = req.body;
+      const { promptText, promptImage, ratio, duration } = req.body;
 
       if (!promptText || !promptImage) {
         return res.status(400).json({ message: 'promptText and promptImage are required' });
@@ -283,10 +273,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const task = await client.imageToVideo.create({
         promptText,
         promptImage,
-        model: model || 'gen4_turbo',
+        model: 'gen4_turbo',
         ratio: ratio || '1280:720',
-        duration: duration || 4,
-        seed: seed || Math.floor(Math.random() * 2000000000)
+        duration: duration || 4
       });
 
       res.json({
