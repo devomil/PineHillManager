@@ -439,6 +439,70 @@ export default function VideoCreator() {
       
       setGenerationProgress(25);
 
+      // Phase 2.5: Generate AI video clip with Runway (optional)
+      let runwayVideoUrl: string | null = null;
+      if (useRunwayClips && runwayAvailable) {
+        setGenerationPhase('Generating AI video clip...');
+        setGenerationProgress(27);
+        console.log("Phase 2.5: Generating AI video clip with Runway...");
+        
+        try {
+          const hookImage = sectionImages.find(img => img.sectionType === 'hook');
+          const clipPrompt = `Cinematic motion for ${scriptPrompt || 'health wellness'} advertisement, professional marketing quality, smooth camera movement`;
+          
+          if (hookImage) {
+            // Use image-to-video if we have an image
+            setRunwayTaskStatus('Starting video generation...');
+            const result = await runwayService.generateImageToVideo(clipPrompt, hookImage.url);
+            
+            if (result.success && result.taskId) {
+              // Use the built-in waitForCompletion method
+              const completionResult = await runwayService.waitForCompletion(
+                result.taskId,
+                (progress, status) => {
+                  setRunwayTaskStatus(`Video generation: ${status} (${Math.round(progress)}%)`);
+                },
+                180000 // 3 minute timeout
+              );
+              
+              if (completionResult.success && completionResult.videoUrl) {
+                runwayVideoUrl = completionResult.videoUrl;
+                console.log('Runway video clip generated:', runwayVideoUrl);
+              } else {
+                console.warn('Runway video generation failed:', completionResult.error);
+              }
+            }
+          } else {
+            // Use text-to-video if no image available
+            setRunwayTaskStatus('Starting text-to-video generation...');
+            const result = await runwayService.generateTextToVideo(clipPrompt, { model: 'veo3.1' });
+            
+            if (result.success && result.taskId) {
+              const completionResult = await runwayService.waitForCompletion(
+                result.taskId,
+                (progress, status) => {
+                  setRunwayTaskStatus(`Video generation: ${status} (${Math.round(progress)}%)`);
+                },
+                180000
+              );
+              
+              if (completionResult.success && completionResult.videoUrl) {
+                runwayVideoUrl = completionResult.videoUrl;
+                console.log('Runway video clip generated:', runwayVideoUrl);
+              } else {
+                console.warn('Runway video generation failed:', completionResult.error);
+              }
+            }
+          }
+          setRunwayTaskStatus('');
+        } catch (runwayError) {
+          console.warn("Runway video generation failed:", runwayError);
+          setRunwayTaskStatus('');
+        }
+      }
+      
+      setGenerationProgress(30);
+
       // Phase 3: Generate voiceover
       setGenerationPhase('Generating voiceover...');
       setGenerationProgress(30);
