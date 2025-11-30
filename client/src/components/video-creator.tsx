@@ -38,6 +38,8 @@ import { EnhancedContentGenerator } from '@/lib/enhanced-content-generator';
 import { ProfessionalImageryService } from '@/lib/professional-imagery';
 import { ProfessionalVoiceoverService } from '@/lib/professional-voiceover';
 import { ProfessionalLottieService } from '@/lib/lottie-animations';
+import { scriptPipeline, Platform, PLATFORM_SPECS } from '@/lib/script-pipeline';
+import { AnimatedVideoEngine } from '@/lib/animated-video-engine';
 
 export default function VideoCreator() {
   const { toast } = useToast();
@@ -65,11 +67,18 @@ export default function VideoCreator() {
   const [scriptPrompt, setScriptPrompt] = useState('');
   const [manualScript, setManualScript] = useState('');
   const [generatedScript, setGeneratedScript] = useState('');
-  const [videoDuration, setVideoDuration] = useState(120); // Default 2 minutes
+  const [videoDuration, setVideoDuration] = useState(60); // Default 1 minute
   const [videoStyle, setVideoStyle] = useState('professional');
   const [targetAudience, setTargetAudience] = useState('');
   const [scriptMetadata, setScriptMetadata] = useState<any>(null);
   const [isGeneratingScript, setIsGeneratingScript] = useState(false);
+  const [videoPlatform, setVideoPlatform] = useState<Platform>('youtube');
+  const [scriptValidation, setScriptValidation] = useState<{
+    passed: boolean;
+    checks: Array<{ name: string; passed: boolean; message: string }>;
+  } | null>(null);
+  const [parsedScript, setParsedScript] = useState<any>(null);
+  const [generationPhase, setGenerationPhase] = useState('');
   
   const [config, setConfig] = useState<VideoConfig>({
     productName: '',
@@ -176,7 +185,25 @@ export default function VideoCreator() {
     return scriptMode === 'manual' ? manualScript : generatedScript;
   };
 
-  // Generate video from script
+  // Validate script before video generation
+  const validateCurrentScript = () => {
+    const script = getCurrentScript();
+    if (!script.trim()) {
+      setScriptValidation(null);
+      setParsedScript(null);
+      return null;
+    }
+
+    const parsed = scriptPipeline.parseScript(script, videoDuration, videoPlatform);
+    setParsedScript(parsed);
+    
+    const validation = scriptPipeline.validateScript(parsed);
+    setScriptValidation(validation);
+    
+    return { parsed, validation };
+  };
+
+  // Generate video from script with new animated engine
   const handleGenerateScriptVideo = async () => {
     const script = getCurrentScript();
     if (!script.trim()) {
@@ -190,41 +217,68 @@ export default function VideoCreator() {
 
     setIsGenerating(true);
     setGenerationProgress(0);
+    setGenerationPhase('Initializing...');
 
     try {
-      // Phase 1: Setup
-      setGenerationProgress(10);
-      console.log("Preparing script video generation...");
+      // Phase 1: Parse and validate script
+      setGenerationPhase('Parsing script...');
+      setGenerationProgress(5);
+      console.log("Phase 1: Parsing and validating script...");
       
-      // Phase 2: Create video engine
-      const canvas = document.createElement('canvas');
-      const professionalEngine = new ProfessionalVideoEngine(canvas);
+      const parsed = scriptPipeline.parseScript(script, videoDuration, videoPlatform);
+      setParsedScript(parsed);
       
-      // Show progress updates during rendering
-      const progressInterval = setInterval(() => {
-        setGenerationProgress(prev => {
-          if (prev < 85) return prev + 5;
-          return prev;
+      if (!parsed.isValid) {
+        console.warn("Script validation warnings:", parsed.validationErrors);
+      }
+      
+      const validation = scriptPipeline.validateScript(parsed);
+      setScriptValidation(validation);
+      
+      if (!validation.passed) {
+        toast({
+          title: "Script Quality Check",
+          description: "Some sections could be improved, but we'll proceed with generation.",
         });
-      }, 500);
+      }
       
-      setGenerationProgress(20);
-      console.log("Generating script-based marketing video...");
-      
-      // Generate video from script
-      const videoBlob = await professionalEngine.generateScriptVideo(
-        script, 
-        videoDuration,
-        videoStyle
-      );
-      
-      clearInterval(progressInterval);
-      setGenerationProgress(100);
+      setGenerationProgress(15);
+      console.log(`Script parsed: ${parsed.sections.length} sections, ${parsed.totalDuration}s total`);
 
-      // Create download URL
+      // Phase 2: Build video timeline
+      setGenerationPhase('Building timeline...');
+      setGenerationProgress(20);
+      console.log("Phase 2: Building video timeline...");
+      
+      const canvas = document.createElement('canvas');
+      const animatedEngine = new AnimatedVideoEngine(canvas, videoPlatform);
+      
+      // Set progress callback
+      animatedEngine.setProgressCallback((progress) => {
+        setGenerationProgress(20 + (progress * 0.75)); // Scale 0-100 to 20-95
+      });
+      
+      const timeline = animatedEngine.buildTimeline(parsed);
+      console.log(`Timeline built: ${timeline.sections.length} sections, ${timeline.totalDuration}s`);
+      
+      // Phase 3: Render video frames
+      setGenerationPhase('Rendering frames...');
+      setGenerationProgress(25);
+      console.log("Phase 3: Rendering animated video frames...");
+      
+      const videoBlob = await animatedEngine.renderVideo();
+      
+      setGenerationProgress(98);
+      setGenerationPhase('Finalizing...');
+      
+      // Phase 4: Create output
       const timestamp = Date.now();
+      const platformSpec = PLATFORM_SPECS[videoPlatform];
       const downloadUrl = URL.createObjectURL(videoBlob);
-      const fileName = `pine_hill_farm_script_video_${timestamp}.webm`;
+      const fileName = `pine_hill_farm_${videoPlatform}_${timestamp}.webm`;
+
+      setGenerationProgress(100);
+      setGenerationPhase('Complete!');
 
       setGeneratedVideo({
         videoBlob,
@@ -233,11 +287,11 @@ export default function VideoCreator() {
       });
       
       toast({
-        title: "Script Video Generated!",
-        description: "Your marketing video is ready for download. Scroll down to view it.",
+        title: "Video Generated Successfully!",
+        description: `Your ${platformSpec.aspectRatio} ${videoPlatform} video is ready. Scroll down to preview and download.`,
       });
       
-      // Auto-scroll to the video after a short delay
+      // Auto-scroll to the video
       setTimeout(() => {
         const videoElement = document.querySelector('[data-testid="script-video-result"]');
         if (videoElement) {
@@ -246,15 +300,16 @@ export default function VideoCreator() {
       }, 500);
       
     } catch (error) {
-      console.error('Script video generation failed:', error);
+      console.error('Video generation failed:', error);
       toast({
         title: "Generation Failed",
-        description: "There was an issue generating the video. Please try again.",
+        description: error instanceof Error ? error.message : "There was an issue generating the video.",
         variant: "destructive",
       });
     } finally {
       setIsGenerating(false);
       setGenerationProgress(0);
+      setGenerationPhase('');
     }
   };
 
@@ -538,6 +593,48 @@ export default function VideoCreator() {
 
             {/* Script-Based Video Tab */}
             <TabsContent value="script" className="space-y-6">
+              {/* Platform Selection */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold flex items-center gap-2">
+                  <Video className="h-5 w-5" />
+                  Video Platform
+                </h3>
+                <div className="grid grid-cols-3 gap-2 md:grid-cols-6">
+                  {(['youtube', 'tiktok', 'instagram_reels', 'instagram_feed', 'linkedin', 'facebook'] as Platform[]).map((platform) => {
+                    const spec = PLATFORM_SPECS[platform];
+                    const labels: Record<Platform, string> = {
+                      youtube: 'YouTube',
+                      tiktok: 'TikTok',
+                      instagram_reels: 'IG Reels',
+                      instagram_feed: 'IG Feed',
+                      linkedin: 'LinkedIn',
+                      facebook: 'Facebook'
+                    };
+                    return (
+                      <Button
+                        key={platform}
+                        variant={videoPlatform === platform ? "default" : "outline"}
+                        className={`flex flex-col h-auto py-2 ${videoPlatform === platform ? 'bg-green-600 text-white' : ''}`}
+                        onClick={() => setVideoPlatform(platform)}
+                        data-testid={`platform-${platform}`}
+                      >
+                        <span className="font-semibold text-sm">{labels[platform]}</span>
+                        <span className="text-xs opacity-75">{spec.aspectRatio}</span>
+                      </Button>
+                    );
+                  })}
+                </div>
+                <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                  <p className="text-sm text-green-700">
+                    <strong>{PLATFORM_SPECS[videoPlatform].aspectRatio}</strong> format 
+                    <span className="ml-2">•</span>
+                    <span className="ml-2">{PLATFORM_SPECS[videoPlatform].resolution.width}x{PLATFORM_SPECS[videoPlatform].resolution.height}</span>
+                    <span className="ml-2">•</span>
+                    <span className="ml-2">Max: {PLATFORM_SPECS[videoPlatform].maxDuration}s</span>
+                  </p>
+                </div>
+              </div>
+
               {/* Duration Selection */}
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold flex items-center gap-2">
@@ -551,6 +648,7 @@ export default function VideoCreator() {
                       variant={videoDuration === option.value ? "default" : "outline"}
                       className={`flex flex-col h-auto py-3 ${videoDuration === option.value ? 'bg-blue-600 text-white' : ''}`}
                       onClick={() => setVideoDuration(option.value)}
+                      disabled={option.value > PLATFORM_SPECS[videoPlatform].maxDuration}
                       data-testid={`duration-${option.value}`}
                     >
                       <span className="font-semibold">{option.label}</span>
@@ -837,30 +935,71 @@ Visit Pine Hill Farm today!`)}
 
               {/* Video Generation Progress */}
               {isGenerating && activeTab === 'script' && (
-                <div className="space-y-4">
+                <div className="space-y-4 p-4 bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg border border-purple-200">
                   <h3 className="text-lg font-semibold flex items-center gap-2">
                     <Sparkles className="h-5 w-5 animate-spin text-purple-600" />
                     Generating Your Video...
                   </h3>
-                  <Progress value={generationProgress} className="w-full" />
-                  <p className="text-sm text-gray-600 text-center">
-                    Creating video from script... ({generationProgress}%)
-                  </p>
+                  <Progress value={generationProgress} className="w-full h-3" />
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-purple-700 font-medium">{generationPhase || 'Initializing...'}</span>
+                    <span className="text-gray-600">{Math.round(generationProgress)}%</span>
+                  </div>
+                  {parsedScript && (
+                    <div className="text-xs text-gray-500 space-y-1">
+                      <p>Sections: {parsedScript.sections?.length || 0} | Duration: {parsedScript.totalDuration}s | Platform: {videoPlatform}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+              
+              {/* Script Validation Feedback */}
+              {scriptValidation && !isGenerating && getCurrentScript().trim() && (
+                <div className={`p-4 rounded-lg border ${scriptValidation.passed ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'}`}>
+                  <h4 className={`font-semibold mb-2 flex items-center gap-2 ${scriptValidation.passed ? 'text-green-700' : 'text-yellow-700'}`}>
+                    {scriptValidation.passed ? <CheckCircle className="h-4 w-4" /> : <Wand2 className="h-4 w-4" />}
+                    Script Quality Check
+                  </h4>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    {scriptValidation.checks.map((check, index) => (
+                      <div key={index} className={`flex items-start gap-2 ${check.passed ? 'text-green-600' : 'text-yellow-600'}`}>
+                        <span>{check.passed ? '✓' : '!'}</span>
+                        <span>{check.name}</span>
+                      </div>
+                    ))}
+                  </div>
+                  {!scriptValidation.passed && (
+                    <p className="text-xs text-yellow-600 mt-2">
+                      Some sections could be improved, but you can still generate a video.
+                    </p>
+                  )}
                 </div>
               )}
 
-              {/* Video Generation Button */}
+              {/* Video Generation Buttons */}
               {!isGenerating && (
                 <div className="space-y-4">
-                  <Button
-                    onClick={handleGenerateScriptVideo}
-                    disabled={!getCurrentScript().trim() || isGenerating}
-                    className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white py-4 text-lg"
-                    data-testid="btn-generate-script-video"
-                  >
-                    <Video className="mr-2 h-5 w-5" />
-                    Generate Video from Script
-                  </Button>
+                  <div className="flex gap-3">
+                    <Button
+                      variant="outline"
+                      onClick={validateCurrentScript}
+                      disabled={!getCurrentScript().trim()}
+                      className="flex-1"
+                      data-testid="btn-validate-script"
+                    >
+                      <CheckCircle className="mr-2 h-4 w-4" />
+                      Validate Script
+                    </Button>
+                    <Button
+                      onClick={handleGenerateScriptVideo}
+                      disabled={!getCurrentScript().trim() || isGenerating}
+                      className="flex-[2] bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white py-4 text-lg"
+                      data-testid="btn-generate-script-video"
+                    >
+                      <Video className="mr-2 h-5 w-5" />
+                      Generate {PLATFORM_SPECS[videoPlatform].aspectRatio} Video
+                    </Button>
+                  </div>
                   
                   <div className="flex gap-2 justify-center">
                     <Button 
@@ -914,16 +1053,20 @@ Visit Pine Hill Farm today!`)}
                     </p>
                     <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm">
                       <div className="font-semibold text-blue-800 mb-1">Video Features:</div>
-                      <ul className="text-blue-700 text-xs space-y-1">
-                        <li>• Pine Hill Farm branded styling</li>
-                        <li>• Animated text overlays from your script sections</li>
-                        <li>• Smooth transitions between scenes</li>
-                        <li>• Professional color gradients and backgrounds</li>
-                        <li>• Call-to-action closing sequence</li>
-                      </ul>
+                      <div className="grid grid-cols-2 gap-2 text-blue-700 text-xs">
+                        <span>Platform: {videoPlatform.replace('_', ' ')}</span>
+                        <span>Aspect Ratio: {PLATFORM_SPECS[videoPlatform].aspectRatio}</span>
+                        <span>Resolution: {PLATFORM_SPECS[videoPlatform].resolution.width}x{PLATFORM_SPECS[videoPlatform].resolution.height}</span>
+                        <span>Duration: {videoDuration}s</span>
+                        {parsedScript && <span>Sections: {parsedScript.sections?.length || 5}</span>}
+                        <span>Animated transitions</span>
+                      </div>
                     </div>
-                    <p className="text-xs text-gray-500">
-                      Video format: WebM • 1920x1080 HD • Ready for social media
+                    <div className="bg-green-100 border border-green-300 rounded-lg p-3 text-sm text-green-800">
+                      <strong>Tip:</strong> For best results, upload to {videoPlatform.replace('_', ' ')} in {PLATFORM_SPECS[videoPlatform].aspectRatio} format.
+                    </div>
+                    <p className="text-xs text-gray-500 mt-2">
+                      Video format: WebM • Ready for social media
                     </p>
                   </CardContent>
                 </Card>
