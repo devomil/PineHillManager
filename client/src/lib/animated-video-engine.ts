@@ -115,6 +115,11 @@ const SECTION_THEMES: Record<ScriptSection['type'], {
   }
 };
 
+export interface SectionImage {
+  url: string;
+  loadedImage?: HTMLImageElement;
+}
+
 export class AnimatedVideoEngine {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
@@ -123,6 +128,9 @@ export class AnimatedVideoEngine {
   private fps: number = 30;
   private timeline: VideoTimeline | null = null;
   private onProgress?: (progress: number) => void;
+  private sectionImages: Map<string, HTMLImageElement> = new Map();
+  private audioBuffer: Blob | null = null;
+  private targetDuration: number = 60; // Default 60 seconds
 
   constructor(canvas: HTMLCanvasElement, platform: Platform = 'youtube') {
     this.canvas = canvas;
@@ -139,22 +147,77 @@ export class AnimatedVideoEngine {
     this.onProgress = callback;
   }
 
+  setTargetDuration(seconds: number) {
+    this.targetDuration = seconds;
+  }
+
+  setAudioBuffer(audio: Blob | null) {
+    this.audioBuffer = audio;
+  }
+
+  /**
+   * Load images for sections
+   */
+  async loadSectionImages(images: { sectionType: string; url: string }[]): Promise<void> {
+    const loadPromises = images.map(async ({ sectionType, url }) => {
+      try {
+        const img = await this.loadImage(url);
+        this.sectionImages.set(sectionType, img);
+      } catch (error) {
+        console.warn(`Failed to load image for ${sectionType}:`, error);
+      }
+    });
+    await Promise.all(loadPromises);
+  }
+
+  private loadImage(url: string): Promise<HTMLImageElement> {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error(`Failed to load image: ${url}`));
+      img.src = url;
+    });
+  }
+
   /**
    * Build timeline from parsed script
    */
   buildTimeline(parsedScript: ParsedScript): VideoTimeline {
     const sections: VideoSection[] = [];
     
+    // Scale section times to match target duration
+    const scaleFactor = this.targetDuration / parsedScript.totalDuration;
+    
     for (const scriptSection of parsedScript.sections) {
       const theme = SECTION_THEMES[scriptSection.type];
-      const elements = this.createSectionElements(scriptSection, theme);
+      
+      // Scale times to target duration
+      const scaledStartTime = scriptSection.startTime * scaleFactor;
+      const scaledEndTime = scriptSection.endTime * scaleFactor;
+      
+      // Create scaled section for element creation
+      const scaledSection = {
+        ...scriptSection,
+        startTime: scaledStartTime,
+        endTime: scaledEndTime
+      };
+      
+      const elements = this.createSectionElements(scaledSection, theme);
+      
+      // Check if we have an image for this section type
+      const sectionImage = this.sectionImages.get(scriptSection.type);
       
       sections.push({
         id: scriptSection.id,
         type: scriptSection.type,
-        startTime: scriptSection.startTime,
-        endTime: scriptSection.endTime,
-        background: theme.background,
+        startTime: scaledStartTime,
+        endTime: scaledEndTime,
+        background: sectionImage ? {
+          type: 'image' as const,
+          colors: theme.background.colors,
+          imageUrl: undefined // Image loaded separately
+        } : theme.background,
         elements,
         transition: {
           in: 'crossfade',
@@ -167,7 +230,7 @@ export class AnimatedVideoEngine {
 
     this.timeline = {
       sections,
-      totalDuration: parsedScript.totalDuration,
+      totalDuration: this.targetDuration,
       fps: this.fps,
       resolution: parsedScript.resolution
     };
@@ -464,8 +527,11 @@ export class AnimatedVideoEngine {
     // Apply section transition
     this.ctx.globalAlpha = this.easeInOutCubic(transitionAlpha);
     
-    // Render background
-    this.renderBackground(section.background, sectionTime);
+    // Get section duration for Ken Burns calculation
+    const sectionDuration = section.endTime - section.startTime;
+    
+    // Render background (with image if available)
+    this.renderBackground(section.background, sectionTime, section.type, sectionDuration);
     
     // Render each visible element
     for (const element of section.elements) {
@@ -481,24 +547,72 @@ export class AnimatedVideoEngine {
   }
 
   /**
-   * Render background with optional animation
+   * Render background with optional animation and Ken Burns for images
    */
-  private renderBackground(background: VideoSection['background'], time: number) {
-    if (background.type === 'gradient') {
-      // Animated gradient - subtle shift over time
-      const shift = Math.sin(time * 0.5) * 50;
-      const gradient = this.ctx.createLinearGradient(0, shift, this.width, this.height + shift);
-      gradient.addColorStop(0, background.colors[0]);
-      gradient.addColorStop(1, background.colors[1]);
-      this.ctx.fillStyle = gradient;
+  private renderBackground(background: VideoSection['background'], time: number, sectionType: string, sectionDuration: number) {
+    // Check if we have an image for this section
+    const sectionImage = this.sectionImages.get(sectionType);
+    
+    if (sectionImage) {
+      // Render image with Ken Burns effect
+      this.renderImageWithKenBurns(sectionImage, time, sectionDuration);
+      
+      // Add semi-transparent overlay for better text readability
+      this.ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+      this.ctx.fillRect(0, 0, this.width, this.height);
     } else {
-      this.ctx.fillStyle = background.colors[0];
+      // Fallback to gradient/solid background
+      if (background.type === 'gradient') {
+        const shift = Math.sin(time * 0.5) * 50;
+        const gradient = this.ctx.createLinearGradient(0, shift, this.width, this.height + shift);
+        gradient.addColorStop(0, background.colors[0]);
+        gradient.addColorStop(1, background.colors[1]);
+        this.ctx.fillStyle = gradient;
+      } else {
+        this.ctx.fillStyle = background.colors[0];
+      }
+      
+      this.ctx.fillRect(0, 0, this.width, this.height);
+      
+      // Add subtle animated particles/pattern
+      this.renderBackgroundParticles(time);
+    }
+  }
+
+  /**
+   * Render image with Ken Burns zoom/pan effect
+   */
+  private renderImageWithKenBurns(img: HTMLImageElement, time: number, sectionDuration: number) {
+    const progress = time / sectionDuration;
+    
+    // Ken Burns parameters - slow zoom in and slight pan
+    const startScale = 1.0;
+    const endScale = 1.15;
+    const scale = startScale + (endScale - startScale) * this.easeInOutCubic(progress);
+    
+    // Calculate pan (slight movement)
+    const panX = Math.sin(progress * Math.PI) * 30;
+    const panY = Math.cos(progress * Math.PI * 0.5) * 20;
+    
+    // Calculate dimensions to cover canvas
+    const imgAspect = img.width / img.height;
+    const canvasAspect = this.width / this.height;
+    
+    let drawWidth: number, drawHeight: number;
+    
+    if (imgAspect > canvasAspect) {
+      drawHeight = this.height * scale;
+      drawWidth = drawHeight * imgAspect;
+    } else {
+      drawWidth = this.width * scale;
+      drawHeight = drawWidth / imgAspect;
     }
     
-    this.ctx.fillRect(0, 0, this.width, this.height);
+    // Center the image with pan offset
+    const x = (this.width - drawWidth) / 2 + panX;
+    const y = (this.height - drawHeight) / 2 + panY;
     
-    // Add subtle animated particles/pattern
-    this.renderBackgroundParticles(time);
+    this.ctx.drawImage(img, x, y, drawWidth, drawHeight);
   }
 
   /**

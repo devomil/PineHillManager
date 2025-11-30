@@ -203,6 +203,112 @@ export default function VideoCreator() {
     return { parsed, validation };
   };
 
+  // Helper function to combine video and audio using Web APIs
+  const combineVideoAndAudio = async (videoBlob: Blob, audioBlob: Blob): Promise<Blob> => {
+    // Since MediaRecorder can't easily mux separate streams post-hoc,
+    // we'll create an approach that plays both and re-records
+    return new Promise((resolve, reject) => {
+      try {
+        // Create video and audio elements
+        const video = document.createElement('video');
+        const audio = document.createElement('audio');
+        
+        video.src = URL.createObjectURL(videoBlob);
+        audio.src = URL.createObjectURL(audioBlob);
+        
+        video.muted = true; // Mute original video
+        
+        // Create canvas for re-recording
+        const canvas = document.createElement('canvas');
+        canvas.width = 1920;
+        canvas.height = 1080;
+        const ctx = canvas.getContext('2d')!;
+        
+        // Create audio context to capture audio
+        const audioContext = new AudioContext();
+        const audioSource = audioContext.createMediaElementSource(audio);
+        const destination = audioContext.createMediaStreamDestination();
+        audioSource.connect(destination);
+        audioSource.connect(audioContext.destination); // Also play locally
+        
+        // Combine video canvas stream with audio stream
+        const canvasStream = canvas.captureStream(30);
+        const audioTrack = destination.stream.getAudioTracks()[0];
+        if (audioTrack) {
+          canvasStream.addTrack(audioTrack);
+        }
+        
+        const mediaRecorder = new MediaRecorder(canvasStream, {
+          mimeType: 'video/webm;codecs=vp8,opus',
+          videoBitsPerSecond: 8000000
+        });
+        
+        const chunks: Blob[] = [];
+        mediaRecorder.ondataavailable = (e) => {
+          if (e.data.size > 0) chunks.push(e.data);
+        };
+        
+        mediaRecorder.onstop = () => {
+          // Clean up
+          URL.revokeObjectURL(video.src);
+          URL.revokeObjectURL(audio.src);
+          audioContext.close();
+          
+          const finalBlob = new Blob(chunks, { type: 'video/webm' });
+          resolve(finalBlob);
+        };
+        
+        // Start recording when video and audio are ready
+        let videoReady = false;
+        let audioReady = false;
+        
+        const startRecording = () => {
+          if (!videoReady || !audioReady) return;
+          
+          mediaRecorder.start(100);
+          video.play();
+          audio.play();
+          
+          // Draw video frames to canvas
+          const drawFrame = () => {
+            if (video.ended || video.paused) {
+              mediaRecorder.stop();
+              return;
+            }
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            requestAnimationFrame(drawFrame);
+          };
+          drawFrame();
+        };
+        
+        video.oncanplay = () => {
+          videoReady = true;
+          startRecording();
+        };
+        
+        audio.oncanplay = () => {
+          audioReady = true;
+          startRecording();
+        };
+        
+        video.onerror = reject;
+        audio.onerror = reject;
+        
+        // Timeout fallback - if combination fails, return original video
+        setTimeout(() => {
+          if (chunks.length === 0) {
+            console.warn("Audio combination timed out, using video without audio");
+            resolve(videoBlob);
+          }
+        }, 120000); // 2 minute timeout
+        
+      } catch (error) {
+        console.error("Error combining video and audio:", error);
+        resolve(videoBlob); // Fallback to video without audio
+      }
+    });
+  };
+
   // Generate video from script with new animated engine
   const handleGenerateScriptVideo = async () => {
     const script = getCurrentScript();
@@ -242,46 +348,137 @@ export default function VideoCreator() {
         });
       }
       
-      setGenerationProgress(15);
+      setGenerationProgress(10);
       console.log(`Script parsed: ${parsed.sections.length} sections, ${parsed.totalDuration}s total`);
 
-      // Phase 2: Build video timeline
+      // Phase 2: Fetch stock images for each section
+      setGenerationPhase('Fetching images...');
+      setGenerationProgress(15);
+      console.log("Phase 2: Fetching stock images for sections...");
+      
+      const sectionImages: { sectionType: string; url: string }[] = [];
+      
+      try {
+        // Determine search terms based on script content
+        const healthConcern = scriptPrompt || 'health wellness';
+        const productType = 'supplement herbal';
+        
+        const imageResult = await imageryService.searchMedicalImages(healthConcern, productType);
+        
+        if (imageResult.success && imageResult.images.length > 0) {
+          // Assign images to sections
+          const sectionTypes = ['hook', 'problem', 'solution', 'social_proof', 'cta'];
+          for (let i = 0; i < sectionTypes.length && i < imageResult.images.length; i++) {
+            sectionImages.push({
+              sectionType: sectionTypes[i],
+              url: imageResult.images[i].urls.regular
+            });
+          }
+          console.log(`Loaded ${sectionImages.length} section images`);
+        } else {
+          console.log("Using gradient backgrounds (no images available)");
+        }
+      } catch (imageError) {
+        console.warn("Could not fetch images, using gradients:", imageError);
+      }
+      
+      setGenerationProgress(25);
+
+      // Phase 3: Generate voiceover
+      setGenerationPhase('Generating voiceover...');
+      setGenerationProgress(30);
+      console.log("Phase 3: Generating voiceover with ElevenLabs...");
+      
+      let audioBlob: Blob | null = null;
+      
+      try {
+        // Clean script for voiceover (remove section markers)
+        const cleanScript = script
+          .replace(/\[(HOOK|PROBLEM|SOLUTION|SOCIAL_PROOF|CTA|OPENING|CALL TO ACTION)[^\]]*\]/gi, '')
+          .replace(/\s+/g, ' ')
+          .trim();
+        
+        const voiceResult = await voiceoverService.generateProfessionalVoiceover(
+          cleanScript,
+          voiceoverService.getRecommendedVoiceForHealthConcern(scriptPrompt || 'health').id
+        );
+        
+        if (voiceResult.blob) {
+          audioBlob = voiceResult.blob;
+          console.log("Voiceover generated successfully");
+        }
+      } catch (voiceError) {
+        console.warn("Could not generate voiceover:", voiceError);
+      }
+      
+      setGenerationProgress(40);
+
+      // Phase 4: Build video timeline
       setGenerationPhase('Building timeline...');
-      setGenerationProgress(20);
-      console.log("Phase 2: Building video timeline...");
+      setGenerationProgress(45);
+      console.log("Phase 4: Building video timeline...");
       
       const canvas = document.createElement('canvas');
       const animatedEngine = new AnimatedVideoEngine(canvas, videoPlatform);
       
+      // Set target duration
+      animatedEngine.setTargetDuration(videoDuration);
+      
+      // Load section images
+      if (sectionImages.length > 0) {
+        setGenerationPhase('Loading images...');
+        await animatedEngine.loadSectionImages(sectionImages);
+      }
+      
+      // Set audio buffer if available
+      if (audioBlob) {
+        animatedEngine.setAudioBuffer(audioBlob);
+      }
+      
       // Set progress callback
       animatedEngine.setProgressCallback((progress) => {
-        setGenerationProgress(20 + (progress * 0.75)); // Scale 0-100 to 20-95
+        setGenerationProgress(50 + (progress * 0.45)); // Scale 0-100 to 50-95
       });
       
       const timeline = animatedEngine.buildTimeline(parsed);
       console.log(`Timeline built: ${timeline.sections.length} sections, ${timeline.totalDuration}s`);
       
-      // Phase 3: Render video frames
+      // Phase 5: Render video frames
       setGenerationPhase('Rendering frames...');
-      setGenerationProgress(25);
-      console.log("Phase 3: Rendering animated video frames...");
+      setGenerationProgress(50);
+      console.log("Phase 5: Rendering animated video frames...");
       
       const videoBlob = await animatedEngine.renderVideo();
+      
+      // Phase 6: Combine with audio if available
+      let finalBlob = videoBlob;
+      
+      if (audioBlob) {
+        setGenerationPhase('Adding voiceover...');
+        setGenerationProgress(96);
+        console.log("Phase 6: Combining video with voiceover...");
+        
+        try {
+          finalBlob = await combineVideoAndAudio(videoBlob, audioBlob);
+        } catch (combineError) {
+          console.warn("Could not combine audio, using video only:", combineError);
+        }
+      }
       
       setGenerationProgress(98);
       setGenerationPhase('Finalizing...');
       
-      // Phase 4: Create output
+      // Phase 7: Create output
       const timestamp = Date.now();
       const platformSpec = PLATFORM_SPECS[videoPlatform];
-      const downloadUrl = URL.createObjectURL(videoBlob);
+      const downloadUrl = URL.createObjectURL(finalBlob);
       const fileName = `pine_hill_farm_${videoPlatform}_${timestamp}.webm`;
 
       setGenerationProgress(100);
       setGenerationPhase('Complete!');
 
       setGeneratedVideo({
-        videoBlob,
+        videoBlob: finalBlob,
         downloadUrl,
         fileName
       });
