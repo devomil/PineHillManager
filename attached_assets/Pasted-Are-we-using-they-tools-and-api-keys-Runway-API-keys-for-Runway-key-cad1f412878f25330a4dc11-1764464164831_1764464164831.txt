@@ -1,0 +1,150 @@
+Are we using they tools and api keys. 
+Runway
+
+
+API keys for Runway.
+key_cad1f412878f25330a4dc110b18fc3f2587741bfa93976efc40599daa7d0629314c11bf4ad23114f319e3a636d4d3b885ea1fc53aa70b3c6d6a31d4d48b8b0f9
+
+VEO 3.1
+
+import RunwayML from '@runwayml/sdk';
+
+const client = new RunwayML();
+
+async function main() {
+  let task = await client.textToVideo.create({
+    promptText: "We fly through a forest at high speeds and swivel in between the trees.",
+    model: "veo3.1",
+    ratio: "1920:1080",
+    duration: 8,
+    seed: 1842421208
+}).waitForTaskOutput();
+
+  console.log('Task complete:', task);
+}
+
+main();
+
+
+Gen-4 Turbo
+
+import RunwayML from '@runwayml/sdk';
+
+const client = new RunwayML();
+
+async function main() {
+  let task = await client.imageToVideo.create({
+    promptText: "Camera slowly moves horizontally.",
+    promptImage: [
+        {
+            uri: "https://runway-static-assets.s3.us-east-1.amazonaws.com/devportal/playground-examples/i2v-gen4_turbo-input.jpeg",
+            position: "first"
+        }
+    ],
+    model: "gen4_turbo",
+    ratio: "1280:720",
+    duration: 4,
+    seed: 162379030
+}).waitForTaskOutput();
+
+  console.log('Task complete:', task);
+}
+
+main();
+Stable_Diffusion
+
+
+ELEVENLABS_API_KEY
+
+
+HUGGINGFACE_API_TOKEN
+
+
+UNSPLASH_ACCESS_KEY
+
+
+ANTHROPIC_API_KEY
+Lottie 
+
+
+lottie
+npm install @lottiefiles/dotlottie-react
+
+Basic Usage
+import React from 'react';
+import { DotLottieReact } from '@lottiefiles/dotlottie-react';
+
+const App = () => {
+  return (
+    <DotLottieReact
+      src="path/to/animation.lottie"
+      loop
+      autoplay
+    />
+  );
+};
+
+Custom Playback Controls
+import React from 'react';
+import { DotLottieReact } from '@lottiefiles/dotlottie-react';
+
+const App = () => {
+  const dotLottieRef = React.useRef(null);
+
+  return (
+    <div>
+      <DotLottieReact
+        src="path/to/animation.lottie"
+        loop
+        autoplay
+        dotLottieRefCallback={(dotLottie) => {
+          dotLottieRef.current = dotLottie;
+        }}
+      />
+      <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
+        <button onClick={() => dotLottieRef.current?.play()}>Play</button>
+        <button onClick={() => dotLottieRef.current?.pause()}>Pause</button>
+        <button onClick={() => dotLottieRef.current?.stop()}>Stop</button>
+        <button onClick={() => dotLottieRef.current?.setFrame(30)}>Seek to frame 30</button>
+      </div>
+    </div>
+  );
+};
+
+
+Listening to Events
+import React from 'react';
+import { DotLottieReact } from '@lottiefiles/dotlottie-react';
+
+const App = () => {
+
+  const onPlay = () => {
+    console.log('Animation start playing');
+  }
+
+  const onPause = () => {
+    console.log('Animation paused');
+  }
+
+  const onComplete = () => {
+    console.log('Animation completed');
+  }
+
+  const onFrameChange = ({currentFrame}) => {
+    console.log('Current frame: ', currentFrame);
+  }
+
+  return (
+    <DotLottieReact
+      src="path/to/animation.lottie"
+      loop
+      autoplay
+      dotLottieRefCallback={(dotLottie) => {
+        dotLottie.addEventListener('play', onPlay);
+        dotLottie.addEventListener('pause', onPause);
+        dotLottie.addEventListener('complete', onComplete);
+        dotLottie.addEventListener('frame', onFrameChange);
+      }}
+    />
+  );
+};
