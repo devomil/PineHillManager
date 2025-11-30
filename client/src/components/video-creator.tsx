@@ -511,11 +511,29 @@ export default function VideoCreator() {
       let audioBlob: Blob | null = null;
       
       try {
-        // Clean script for voiceover (remove section markers)
+        // Clean script for voiceover (remove ALL section markers including timestamps)
         const cleanScript = script
-          .replace(/\[(HOOK|PROBLEM|SOLUTION|SOCIAL_PROOF|CTA|OPENING|CALL TO ACTION)[^\]]*\]/gi, '')
+          // Remove **[SECTION 1: THE PROBLEM - 0:15-0:30]** style markers (asterisks around brackets)
+          .replace(/\*\*\s*\[(?:SECTION\s*\d+\s*:\s*)?(?:THE\s+)?[^\]]*\]\s*\*\*/gi, '')
+          // Remove [SECTION 1: THE PROBLEM - 0:15-0:30] style markers  
+          .replace(/\[(?:SECTION\s*\d+\s*:\s*)?(?:THE\s+)?(?:HOOK|OPENING|PROBLEM|CHALLENGE|SOLUTION|SOCIAL[\s_]?PROOF|CTA|CLOSING|CALL[\s_]?TO[\s_]?ACTION|TESTIMONIAL|DIFFERENCE|BENEFIT)[^\]]*\]/gi, '')
+          // Remove ** SECTION ** style markers
+          .replace(/\*\*\s*(?:SECTION\s*\d+\s*:\s*)?(?:THE\s+)?(?:HOOK|OPENING|PROBLEM|CHALLENGE|SOLUTION|SOCIAL[\s_]?PROOF|CTA|CLOSING|CALL[\s_]?TO[\s_]?ACTION|TESTIMONIAL|DIFFERENCE|BENEFIT)[^\*]*\*\*/gi, '')
+          // Remove standalone **** markers  
+          .replace(/\*{4}/g, '')
+          // Remove ## Section headers
+          .replace(/^##\s+[^\n]+$/gm, '')
+          // Remove "Here's your refined marketing video script for..." intro
+          .replace(/Here's your refined marketing video script[^:]*:/gi, '')
+          // Remove timing markers like (0:15-0:30) or - 0:15-0:30
+          .replace(/[-–]\s*\d+:\d+\s*[-–]\s*\d+:\d+/g, '')
+          .replace(/\(\d+:\d+\s*[-–]\s*\d+:\d+\)/g, '')
+          // Clean up extra whitespace
+          .replace(/\n{3,}/g, '\n\n')
           .replace(/\s+/g, ' ')
           .trim();
+        
+        console.log("Clean voiceover script:", cleanScript.substring(0, 200) + "...");
         
         const voiceResult = await voiceoverService.generateProfessionalVoiceover(
           cleanScript,

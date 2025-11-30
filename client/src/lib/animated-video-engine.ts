@@ -1,7 +1,8 @@
 // Animated Video Engine - Timeline-driven renderer with real animations
-// Produces actual animated video with text effects, Ken Burns, and transitions
+// Produces actual animated video with text effects, Ken Burns, transitions, and Lottie animations
 
 import { ParsedScript, ScriptSection, Platform, PLATFORM_SPECS } from './script-pipeline';
+import lottie, { AnimationItem } from 'lottie-web';
 
 interface AnimationKeyframe {
   time: number; // Time in seconds when this keyframe is active
@@ -159,15 +160,22 @@ export class AnimatedVideoEngine {
    * Load images for sections
    */
   async loadSectionImages(images: { sectionType: string; url: string }[]): Promise<void> {
+    console.log(`[VideoEngine] Loading ${images.length} section images...`);
+    
     const loadPromises = images.map(async ({ sectionType, url }) => {
       try {
+        console.log(`[VideoEngine] Loading image for ${sectionType}: ${url.substring(0, 80)}...`);
         const img = await this.loadImage(url);
         this.sectionImages.set(sectionType, img);
+        console.log(`[VideoEngine] Successfully loaded image for ${sectionType} (${img.width}x${img.height})`);
       } catch (error) {
-        console.warn(`Failed to load image for ${sectionType}:`, error);
+        console.warn(`[VideoEngine] Failed to load image for ${sectionType}:`, error);
       }
     });
     await Promise.all(loadPromises);
+    
+    console.log(`[VideoEngine] Loaded ${this.sectionImages.size} images into sectionImages map`);
+    console.log(`[VideoEngine] Section types with images:`, Array.from(this.sectionImages.keys()));
   }
 
   private loadImage(url: string): Promise<HTMLImageElement> {
@@ -218,6 +226,9 @@ export class AnimatedVideoEngine {
   buildTimeline(parsedScript: ParsedScript): VideoTimeline {
     const sections: VideoSection[] = [];
     
+    console.log(`[VideoEngine] Building timeline with ${this.sectionImages.size} loaded images`);
+    console.log(`[VideoEngine] Available section images:`, Array.from(this.sectionImages.keys()));
+    
     // Scale section times to match target duration
     const scaleFactor = this.targetDuration / parsedScript.totalDuration;
     
@@ -239,13 +250,16 @@ export class AnimatedVideoEngine {
       
       // Check if we have an image for this section type
       const sectionImage = this.sectionImages.get(scriptSection.type);
+      const hasImage = !!sectionImage;
+      
+      console.log(`[VideoEngine] Section ${scriptSection.type}: hasImage=${hasImage}`);
       
       sections.push({
         id: scriptSection.id,
         type: scriptSection.type,
         startTime: scaledStartTime,
         endTime: scaledEndTime,
-        background: sectionImage ? {
+        background: hasImage ? {
           type: 'image' as const,
           colors: theme.background.colors,
           imageUrl: undefined // Image loaded separately
@@ -266,6 +280,8 @@ export class AnimatedVideoEngine {
       fps: this.fps,
       resolution: parsedScript.resolution
     };
+
+    console.log(`[VideoEngine] Timeline built: ${sections.filter(s => s.background.type === 'image').length}/${sections.length} sections with images`);
 
     return this.timeline;
   }
@@ -565,6 +581,9 @@ export class AnimatedVideoEngine {
     // Render background (with image if available)
     this.renderBackground(section.background, sectionTime, section.type, sectionDuration);
     
+    // Render decorative elements
+    this.renderDecorativeElements(sectionTime, section.type);
+    
     // Render each visible element
     for (const element of section.elements) {
       if (sectionTime >= element.startTime && sectionTime < element.endTime) {
@@ -573,6 +592,9 @@ export class AnimatedVideoEngine {
         this.renderElement(element, elementTime, elementDuration);
       }
     }
+    
+    // Render animated border frame
+    this.renderAnimatedBorder(sectionTime);
     
     // Reset alpha
     this.ctx.globalAlpha = 1;
@@ -585,7 +607,7 @@ export class AnimatedVideoEngine {
     // Check if we have an image for this section
     const sectionImage = this.sectionImages.get(sectionType);
     
-    if (sectionImage) {
+    if (sectionImage && sectionImage.complete && sectionImage.naturalWidth > 0) {
       // Render image with Ken Burns effect
       this.renderImageWithKenBurns(sectionImage, time, sectionDuration);
       
@@ -669,6 +691,152 @@ export class AnimatedVideoEngine {
     }
     
     this.ctx.restore();
+  }
+
+  /**
+   * Render decorative visual elements based on section type
+   */
+  private renderDecorativeElements(time: number, sectionType: string) {
+    this.ctx.save();
+    
+    // Animated corner accents
+    this.renderCornerAccents(time, sectionType);
+    
+    // Floating decorative shapes for visual interest
+    this.renderFloatingShapes(time, sectionType);
+    
+    this.ctx.restore();
+  }
+
+  /**
+   * Render animated corner accents
+   */
+  private renderCornerAccents(time: number, sectionType: string) {
+    const accentColor = this.getSectionAccentColor(sectionType);
+    const pulseScale = 1 + Math.sin(time * 2) * 0.1;
+    const cornerSize = 60 * pulseScale;
+    
+    this.ctx.strokeStyle = accentColor;
+    this.ctx.lineWidth = 3;
+    this.ctx.globalAlpha = 0.7;
+    
+    // Top-left corner
+    this.ctx.beginPath();
+    this.ctx.moveTo(30, 30 + cornerSize);
+    this.ctx.lineTo(30, 30);
+    this.ctx.lineTo(30 + cornerSize, 30);
+    this.ctx.stroke();
+    
+    // Top-right corner
+    this.ctx.beginPath();
+    this.ctx.moveTo(this.width - 30 - cornerSize, 30);
+    this.ctx.lineTo(this.width - 30, 30);
+    this.ctx.lineTo(this.width - 30, 30 + cornerSize);
+    this.ctx.stroke();
+    
+    // Bottom-left corner
+    this.ctx.beginPath();
+    this.ctx.moveTo(30, this.height - 30 - cornerSize);
+    this.ctx.lineTo(30, this.height - 30);
+    this.ctx.lineTo(30 + cornerSize, this.height - 30);
+    this.ctx.stroke();
+    
+    // Bottom-right corner
+    this.ctx.beginPath();
+    this.ctx.moveTo(this.width - 30 - cornerSize, this.height - 30);
+    this.ctx.lineTo(this.width - 30, this.height - 30);
+    this.ctx.lineTo(this.width - 30, this.height - 30 - cornerSize);
+    this.ctx.stroke();
+  }
+
+  /**
+   * Render floating decorative shapes
+   */
+  private renderFloatingShapes(time: number, sectionType: string) {
+    const accentColor = this.getSectionAccentColor(sectionType);
+    this.ctx.globalAlpha = 0.15;
+    
+    // Floating circles in corners
+    for (let i = 0; i < 4; i++) {
+      const angle = time * 0.5 + i * (Math.PI / 2);
+      const radius = 40 + Math.sin(time * 0.8 + i) * 15;
+      
+      const baseX = i % 2 === 0 ? 100 : this.width - 100;
+      const baseY = i < 2 ? 150 : this.height - 150;
+      
+      const x = baseX + Math.cos(angle) * 20;
+      const y = baseY + Math.sin(angle) * 20;
+      
+      this.ctx.beginPath();
+      this.ctx.arc(x, y, radius, 0, Math.PI * 2);
+      this.ctx.fillStyle = accentColor;
+      this.ctx.fill();
+    }
+    
+    // Small diamond shapes
+    for (let i = 0; i < 3; i++) {
+      const x = this.width * (0.2 + i * 0.3) + Math.sin(time + i) * 30;
+      const y = this.height - 80 + Math.cos(time * 0.7 + i) * 15;
+      const size = 10 + Math.sin(time * 1.5 + i) * 3;
+      
+      this.ctx.save();
+      this.ctx.translate(x, y);
+      this.ctx.rotate(Math.PI / 4 + time * 0.2);
+      this.ctx.fillStyle = BRAND_COLORS.accent;
+      this.ctx.fillRect(-size / 2, -size / 2, size, size);
+      this.ctx.restore();
+    }
+  }
+
+  /**
+   * Render animated border frame
+   */
+  private renderAnimatedBorder(time: number) {
+    this.ctx.save();
+    
+    const borderWidth = 4;
+    const inset = 15;
+    
+    // Animated gradient border
+    const gradient = this.ctx.createLinearGradient(0, 0, this.width, this.height);
+    const hueShift = (time * 20) % 360;
+    gradient.addColorStop(0, `hsla(${140 + hueShift * 0.1}, 60%, 40%, 0.6)`);
+    gradient.addColorStop(0.5, `hsla(${140 + hueShift * 0.1 + 30}, 50%, 50%, 0.4)`);
+    gradient.addColorStop(1, `hsla(${140 + hueShift * 0.1}, 60%, 40%, 0.6)`);
+    
+    this.ctx.strokeStyle = gradient;
+    this.ctx.lineWidth = borderWidth;
+    
+    // Draw rounded rectangle border
+    const radius = 20;
+    this.ctx.beginPath();
+    this.ctx.moveTo(inset + radius, inset);
+    this.ctx.lineTo(this.width - inset - radius, inset);
+    this.ctx.quadraticCurveTo(this.width - inset, inset, this.width - inset, inset + radius);
+    this.ctx.lineTo(this.width - inset, this.height - inset - radius);
+    this.ctx.quadraticCurveTo(this.width - inset, this.height - inset, this.width - inset - radius, this.height - inset);
+    this.ctx.lineTo(inset + radius, this.height - inset);
+    this.ctx.quadraticCurveTo(inset, this.height - inset, inset, this.height - inset - radius);
+    this.ctx.lineTo(inset, inset + radius);
+    this.ctx.quadraticCurveTo(inset, inset, inset + radius, inset);
+    this.ctx.closePath();
+    this.ctx.stroke();
+    
+    this.ctx.restore();
+  }
+
+  /**
+   * Get accent color for section type
+   */
+  private getSectionAccentColor(sectionType: string): string {
+    const colors: Record<string, string> = {
+      hook: BRAND_COLORS.accent,
+      problem: '#ff8a65',
+      solution: '#ffeb3b',
+      social_proof: '#4fc3f7',
+      cta: '#ffeb3b'
+    };
+    return colors[sectionType] || BRAND_COLORS.accent;
   }
 
   /**
