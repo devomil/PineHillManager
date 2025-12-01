@@ -588,6 +588,67 @@ export default function VideoCreator() {
         console.warn("Could not generate voiceover:", voiceError);
       }
       
+      setGenerationProgress(35);
+      
+      // Phase 3.5: Fetch and mix background music if enabled
+      if (useBackgroundMusic) {
+        setGenerationPhase('Adding background music...');
+        console.log("Phase 3.5: Fetching background music...");
+        
+        try {
+          // Search for music tracks matching the mood
+          const tracks = await backgroundMusicService.searchMusic(musicMood, videoDuration);
+          console.log(`Found ${tracks.length} music tracks for mood: ${musicMood}`);
+          
+          if (tracks.length > 0) {
+            // Get the first matching track
+            const selectedTrack = tracks[0];
+            console.log(`Selected track: ${selectedTrack.name} (${selectedTrack.duration}s)`);
+            
+            // Download the track
+            let musicBlob: Blob | null = null;
+            try {
+              musicBlob = await backgroundMusicService.downloadTrack(selectedTrack);
+              console.log("Background music downloaded successfully");
+            } catch (downloadError) {
+              console.warn("Could not download music track:", downloadError);
+            }
+            
+            // Mix music with voiceover if both are available
+            if (musicBlob) {
+              setGenerationPhase('Mixing audio tracks...');
+              console.log("Mixing background music with voiceover...");
+              
+              const musicConfig: MusicConfig = {
+                mood: musicMood,
+                duration: videoDuration,
+                volume: musicVolume,
+                fadeIn: 2,
+                fadeOut: 3
+              };
+              
+              try {
+                const mixedAudio = await backgroundMusicService.mixAudioTracks(
+                  musicBlob,
+                  audioBlob,
+                  musicConfig
+                );
+                audioBlob = mixedAudio;
+                console.log("Audio mixing complete - background music added");
+              } catch (mixError) {
+                console.warn("Could not mix audio tracks:", mixError);
+                // Continue with voiceover only
+              }
+            }
+          } else {
+            console.log("No suitable music tracks found, continuing without background music");
+          }
+        } catch (musicError) {
+          console.warn("Background music integration failed:", musicError);
+          // Continue with voiceover only
+        }
+      }
+      
       setGenerationProgress(40);
 
       // Phase 4: Build video timeline

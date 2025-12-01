@@ -135,86 +135,185 @@ export class ScriptPipeline {
   }
   
   /**
+   * Pre-process script to normalize AI-generated markers
+   */
+  private normalizeScript(script: string): string {
+    let normalized = script;
+    
+    // Remove markdown code blocks
+    normalized = normalized.replace(/```[\s\S]*?```/g, '');
+    
+    // Normalize various section header formats to standard format
+    // Handle: **[HOOK – 0:00-0:05]**, [HOOK], **HOOK**, ## HOOK, etc.
+    const sectionNames = ['HOOK', 'PROBLEM', 'SOLUTION', 'SOCIAL_PROOF', 'SOCIAL PROOF', 'CTA', 'CALL TO ACTION'];
+    
+    for (const name of sectionNames) {
+      // Match various formats and normalize to "[SECTION_NAME]"
+      const patterns = [
+        new RegExp(`\\*\\*\\[${name}[^\\]]*\\]\\*\\*`, 'gi'),
+        new RegExp(`\\[${name}[^\\]]*\\]`, 'gi'),
+        new RegExp(`\\*\\*${name}\\*\\*`, 'gi'),
+        new RegExp(`##\\s*${name}[^\\n]*`, 'gi'),
+        new RegExp(`^${name}:`, 'gim'),
+      ];
+      
+      for (const pattern of patterns) {
+        normalized = normalized.replace(pattern, `\n[${name.replace(' ', '_')}]\n`);
+      }
+    }
+    
+    return normalized;
+  }
+  
+  /**
+   * Clean timing metadata and markers from content
+   */
+  private cleanSectionContent(content: string): string {
+    return content
+      // Remove timing markers like [0:00-0:05], (0:00-0:45), **0:45-1:15]**
+      .replace(/\[?\d+:\d+\s*[-–]\s*\d+:\d+\]?\**/g, '')
+      // Remove duration markers like (3-5 seconds), (10-15s)
+      .replace(/\(\d+[-–]\d+\s*(?:seconds?|s)?\)/gi, '')
+      // Remove asterisks and brackets around text
+      .replace(/\*\*/g, '')
+      // Remove section headers that slipped through
+      .replace(/^\[(?:HOOK|PROBLEM|SOLUTION|SOCIAL_PROOF|CTA)\]/gim, '')
+      // Remove Visual direction and Audio notes
+      .replace(/Visual(?:\s+direction)?:\s*[^\n]+/gi, '')
+      .replace(/Audio(?:\s+notes)?:\s*[^\n]+/gi, '')
+      .replace(/Timing:\s*[^\n]+/gi, '')
+      // Remove script title headers
+      .replace(/^#[^\n]+\n/gm, '')
+      // Clean up excess whitespace
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+  }
+  
+  /**
    * Parse sections with explicit markers like ## HOOK, [PROBLEM], etc.
    */
   private parseExplicitSections(script: string): ScriptSection[] {
     const sections: ScriptSection[] = [];
     
-    // Match sections with various formats:
-    // ## HOOK (3-5 seconds)
-    // [HOOK - 0:00-0:05]
-    // **HOOK**
-    // HOOK:
-    const sectionPatterns = [
-      /(?:##\s*|^\*\*|\[)?(HOOK|PROBLEM(?:\s+IDENTIFICATION)?|SOLUTION(?:\s+PRESENTATION)?|SOCIAL[\s_]?PROOF|CALL[\s_]?TO[\s_]?ACTION|CTA)(?:\*\*|\])?(?:\s*[-:]\s*)?(?:\((\d+)[-–](\d+)\s*(?:seconds?|s)?\))?(?:\s*[-–]\s*(\d+:\d+)\s*[-–]\s*(\d+:\d+))?\s*[\n:]?\s*([\s\S]*?)(?=(?:##\s*|^\*\*|\[)?\s*(?:HOOK|PROBLEM|SOLUTION|SOCIAL|CALL|CTA)|$)/gim
-    ];
+    // Pre-process to normalize markers
+    const normalizedScript = this.normalizeScript(script);
     
-    for (const pattern of sectionPatterns) {
-      let match;
-      while ((match = pattern.exec(script)) !== null) {
-        const sectionName = match[1].toUpperCase().replace(/[\s_]+/g, '_');
-        const content = (match[6] || '').trim();
-        
-        if (!content) continue;
-        
-        // Determine section type
-        let type: ScriptSection['type'];
-        if (sectionName.includes('HOOK')) {
-          type = 'hook';
-        } else if (sectionName.includes('PROBLEM')) {
-          type = 'problem';
-        } else if (sectionName.includes('SOLUTION')) {
-          type = 'solution';
-        } else if (sectionName.includes('SOCIAL') || sectionName.includes('PROOF')) {
-          type = 'social_proof';
-        } else if (sectionName.includes('CTA') || sectionName.includes('CALL') || sectionName.includes('ACTION')) {
-          type = 'cta';
-        } else {
-          continue;
-        }
-        
-        // Skip if we already have this type
-        if (sections.some(s => s.type === type)) continue;
-        
-        // Calculate duration
-        let duration = SECTION_TIMING[type].default;
-        if (match[2] && match[3]) {
-          duration = (parseInt(match[2]) + parseInt(match[3])) / 2;
-        } else if (match[4] && match[5]) {
-          const start = this.parseTimeToSeconds(match[4]);
-          const end = this.parseTimeToSeconds(match[5]);
-          duration = end - start;
-        } else {
-          // Estimate from word count (150 words/min)
-          const wordCount = content.split(/\s+/).length;
-          duration = Math.max(SECTION_TIMING[type].min, Math.min(SECTION_TIMING[type].max, (wordCount / 150) * 60));
-        }
-        
-        // Extract visual direction and audio notes if present
-        const visualMatch = content.match(/Visual(?:\s+direction)?:\s*([^\n]+)/i);
-        const audioMatch = content.match(/Audio(?:\s+notes)?:\s*([^\n]+)/i);
-        
-        let cleanContent = content
-          .replace(/Visual(?:\s+direction)?:\s*[^\n]+/gi, '')
-          .replace(/Audio(?:\s+notes)?:\s*[^\n]+/gi, '')
-          .replace(/Timing:\s*[^\n]+/gi, '')
-          .trim();
-        
-        sections.push({
-          id: `section_${type}_${Date.now()}`,
-          type,
-          title: this.formatSectionTitle(type),
-          content: cleanContent,
-          duration: Math.round(duration),
-          startTime: 0,
-          endTime: 0,
-          visualDirection: visualMatch?.[1]?.trim(),
-          audioNotes: audioMatch?.[1]?.trim()
-        });
+    // Split by section markers
+    const sectionBlocks = normalizedScript.split(/\[(?=HOOK|PROBLEM|SOLUTION|SOCIAL_PROOF|CTA)\]/i);
+    
+    for (const block of sectionBlocks) {
+      if (!block.trim()) continue;
+      
+      // Extract section type from the beginning of the block
+      const typeMatch = block.match(/^(HOOK|PROBLEM|SOLUTION|SOCIAL_PROOF|CTA)/i);
+      if (!typeMatch) continue;
+      
+      const sectionName = typeMatch[1].toUpperCase();
+      const content = block.substring(typeMatch[0].length).trim();
+      
+      if (!content) continue;
+      
+      // Determine section type
+      let type: ScriptSection['type'];
+      if (sectionName === 'HOOK') {
+        type = 'hook';
+      } else if (sectionName === 'PROBLEM') {
+        type = 'problem';
+      } else if (sectionName === 'SOLUTION') {
+        type = 'solution';
+      } else if (sectionName === 'SOCIAL_PROOF') {
+        type = 'social_proof';
+      } else if (sectionName === 'CTA') {
+        type = 'cta';
+      } else {
+        continue;
       }
+      
+      // Skip if we already have this type
+      if (sections.some(s => s.type === type)) continue;
+      
+      // Clean the content of timing markers and metadata
+      const cleanContent = this.cleanSectionContent(content);
+      
+      if (!cleanContent) continue;
+      
+      // Estimate duration from word count (150 words/min)
+      const wordCount = cleanContent.split(/\s+/).length;
+      let duration = Math.max(SECTION_TIMING[type].min, Math.min(SECTION_TIMING[type].max * 2, (wordCount / 150) * 60));
+      
+      sections.push({
+        id: `section_${type}_${Date.now()}`,
+        type,
+        title: this.formatSectionTitle(type),
+        content: cleanContent,
+        duration: Math.round(duration),
+        startTime: 0,
+        endTime: 0
+      });
+    }
+    
+    // If block splitting didn't work, try regex fallback
+    if (sections.length < 2) {
+      return this.parseWithRegexFallback(normalizedScript);
     }
     
     // Sort sections in proper order
+    const typeOrder: ScriptSection['type'][] = ['hook', 'problem', 'solution', 'social_proof', 'cta'];
+    sections.sort((a, b) => typeOrder.indexOf(a.type) - typeOrder.indexOf(b.type));
+    
+    return sections;
+  }
+  
+  /**
+   * Fallback regex parsing for scripts that don't split cleanly
+   */
+  private parseWithRegexFallback(script: string): ScriptSection[] {
+    const sections: ScriptSection[] = [];
+    
+    // Match sections with various formats
+    const pattern = /\[?(HOOK|PROBLEM|SOLUTION|SOCIAL_PROOF|CTA)\]?\s*:?\s*([\s\S]*?)(?=\[?(?:HOOK|PROBLEM|SOLUTION|SOCIAL_PROOF|CTA)\]?|$)/gi;
+    
+    let match;
+    while ((match = pattern.exec(script)) !== null) {
+      const sectionName = match[1].toUpperCase();
+      const rawContent = (match[2] || '').trim();
+      
+      if (!rawContent) continue;
+      
+      let type: ScriptSection['type'];
+      if (sectionName === 'HOOK') {
+        type = 'hook';
+      } else if (sectionName === 'PROBLEM') {
+        type = 'problem';
+      } else if (sectionName === 'SOLUTION') {
+        type = 'solution';
+      } else if (sectionName === 'SOCIAL_PROOF') {
+        type = 'social_proof';
+      } else if (sectionName === 'CTA') {
+        type = 'cta';
+      } else {
+        continue;
+      }
+      
+      if (sections.some(s => s.type === type)) continue;
+      
+      const cleanContent = this.cleanSectionContent(rawContent);
+      if (!cleanContent) continue;
+      
+      const wordCount = cleanContent.split(/\s+/).length;
+      const duration = Math.max(SECTION_TIMING[type].min, Math.min(SECTION_TIMING[type].max * 2, (wordCount / 150) * 60));
+      
+      sections.push({
+        id: `section_${type}_${Date.now()}`,
+        type,
+        title: this.formatSectionTitle(type),
+        content: cleanContent,
+        duration: Math.round(duration),
+        startTime: 0,
+        endTime: 0
+      });
+    }
+    
     const typeOrder: ScriptSection['type'][] = ['hook', 'problem', 'solution', 'social_proof', 'cta'];
     sections.sort((a, b) => typeOrder.indexOf(a.type) - typeOrder.indexOf(b.type));
     

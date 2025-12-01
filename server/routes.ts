@@ -314,6 +314,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ================================
+  // UNSPLASH IMAGE API ROUTES
+  // ================================
+
+  // Unsplash Status
+  app.get('/api/unsplash/status', isAuthenticated, (req, res) => {
+    res.json({ available: !!process.env.UNSPLASH_ACCESS_KEY });
+  });
+
+  // Unsplash Image Search - Server-side proxy to avoid CORS issues
+  app.get('/api/unsplash/search', isAuthenticated, async (req, res) => {
+    try {
+      const apiKey = process.env.UNSPLASH_ACCESS_KEY;
+      if (!apiKey) {
+        return res.status(503).json({ error: 'Unsplash API key not configured', results: [] });
+      }
+
+      const { query, per_page = 10, orientation = 'landscape' } = req.query;
+
+      if (!query) {
+        return res.status(400).json({ error: 'Query parameter is required', results: [] });
+      }
+
+      const url = `https://api.unsplash.com/search/photos?query=${encodeURIComponent(query as string)}&per_page=${per_page}&orientation=${orientation}&content_filter=high`;
+
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Client-ID ${apiKey}`,
+          'Accept-Version': 'v1'
+        }
+      });
+
+      if (!response.ok) {
+        console.error(`Unsplash API error: ${response.status} ${response.statusText}`);
+        return res.status(response.status).json({ 
+          error: `Unsplash API error: ${response.statusText}`,
+          results: []
+        });
+      }
+
+      const data = await response.json();
+      res.json(data);
+    } catch (error) {
+      console.error('Unsplash search error:', error);
+      res.status(500).json({ error: 'Failed to search images', results: [] });
+    }
+  });
+
+  // ================================
   // RUNWAY AI VIDEO GENERATION ROUTES
   // ================================
 

@@ -50,32 +50,37 @@ export class ProfessionalImageryService {
   }
 
   async searchMedicalImages(healthConcern: string, productType: string): Promise<ImageSearchResult> {
-    // Ensure config is loaded before API calls
-    await this.loadConfig();
-    
-    if (!this.accessKey) {
-      console.warn('Unsplash API credentials not available, using professional fallback images');
-      return this.getProfessionalFallbackImages(healthConcern);
-    }
-
     try {
-      console.log('Searching premium medical imagery with full Unsplash API access...');
+      console.log('Searching medical imagery via server-side proxy...');
       const searchTerms = this.buildEnhancedSearchTerms(healthConcern, productType);
       const images: UnsplashImage[] = [];
 
-      // Enhanced search with premium features
-      for (const term of searchTerms) {
-        const searchResults = await this.searchUnsplashPremium(term, 3); // More images per search
-        images.push(...searchResults);
+      // Use server-side proxy for Unsplash API
+      for (const term of searchTerms.slice(0, 3)) { // Limit to 3 search terms for speed
+        try {
+          const searchResults = await this.searchUnsplashPremium(term, 3);
+          images.push(...searchResults);
+          
+          // Break early if we have enough images
+          if (images.length >= 6) break;
+        } catch (termError) {
+          console.warn(`Search failed for term "${term}":`, termError);
+        }
       }
 
+      if (images.length === 0) {
+        console.warn('No images found from Unsplash, using fallback');
+        return this.getProfessionalFallbackImages(healthConcern);
+      }
+
+      console.log(`Loaded ${images.length} section images from Unsplash`);
       return {
-        images: images.slice(0, 10), // More professional images with premium access
+        images: images.slice(0, 10),
         success: true
       };
 
     } catch (error) {
-      console.error('Unsplash API error:', error);
+      console.error('Unsplash search error:', error);
       return this.getProfessionalFallbackImages(healthConcern);
     }
   }
@@ -181,24 +186,16 @@ export class ProfessionalImageryService {
   }
 
   private async searchUnsplashPremium(query: string, perPage: number = 3): Promise<UnsplashImage[]> {
-    // Enhanced search with premium features using Application ID and Secret
-    const url = `${this.baseUrl}/search/photos?query=${encodeURIComponent(query)}&per_page=${perPage}&orientation=landscape&content_filter=high&color=white&order_by=relevance`;
+    // Use server-side proxy to avoid CORS issues
+    const url = `/api/unsplash/search?query=${encodeURIComponent(query)}&per_page=${perPage}&orientation=landscape`;
     
-    const headers: Record<string, string> = {
-      'Authorization': `Client-ID ${this.accessKey}`,
-      'Accept-Version': 'v1'
-    };
+    console.log('Using server-side Unsplash proxy for search');
 
-    // Add premium authentication if available
-    if (this.applicationId) {
-      console.log('Using premium Unsplash credentials for enhanced search');
-      // Additional headers for premium access could be added here
-    }
-
-    const response = await fetch(url, { headers });
+    const response = await fetch(url);
 
     if (!response.ok) {
-      throw new Error(`Unsplash Premium API error: ${response.status}`);
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(`Unsplash API error: ${response.status} - ${errorData.error || response.statusText}`);
     }
 
     const data = await response.json();
@@ -206,17 +203,14 @@ export class ProfessionalImageryService {
   }
 
   private async searchUnsplash(query: string, perPage: number = 2): Promise<UnsplashImage[]> {
-    const url = `${this.baseUrl}/search/photos?query=${encodeURIComponent(query)}&per_page=${perPage}&orientation=landscape&content_filter=high`;
+    // Use server-side proxy to avoid CORS issues
+    const url = `/api/unsplash/search?query=${encodeURIComponent(query)}&per_page=${perPage}&orientation=landscape`;
     
-    const response = await fetch(url, {
-      headers: {
-        'Authorization': `Client-ID ${this.accessKey}`,
-        'Accept-Version': 'v1'
-      }
-    });
+    const response = await fetch(url);
 
     if (!response.ok) {
-      throw new Error(`Unsplash API error: ${response.status}`);
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(`Unsplash API error: ${response.status} - ${errorData.error || response.statusText}`);
     }
 
     const data = await response.json();

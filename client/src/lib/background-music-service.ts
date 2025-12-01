@@ -62,7 +62,7 @@ export class BackgroundMusicService {
   }
 
   /**
-   * Search for music tracks by mood/genre
+   * Search for music tracks by mood/genre using server-side proxy
    */
   async searchMusic(mood: MusicConfig['mood'], minDuration: number = 30): Promise<MusicTrack[]> {
     const cacheKey = `${mood}-${minDuration}`;
@@ -70,10 +70,6 @@ export class BackgroundMusicService {
     // Check cache first
     if (this.cache.has(cacheKey)) {
       return this.cache.get(cacheKey)!;
-    }
-
-    if (!this.apiKey) {
-      throw new Error('Pixabay API key not configured');
     }
 
     // Map mood to Pixabay search terms
@@ -89,41 +85,40 @@ export class BackgroundMusicService {
     const query = searchTerms[mood];
 
     try {
-      // Note: Pixabay API v2 - adjust endpoint if using music-specific API
-      const url = new URL(this.PIXABAY_MUSIC_API);
-      url.searchParams.append('key', this.apiKey);
-      url.searchParams.append('q', query);
-      url.searchParams.append('audio_type', 'music');
-      url.searchParams.append('per_page', '20');
+      // Use server-side proxy to search Pixabay music
+      const url = `/api/pixabay/music/search?query=${encodeURIComponent(query)}&per_page=20`;
+      console.log(`[BackgroundMusic] Searching for ${mood} music via server proxy...`);
 
-      const response = await fetch(url.toString());
+      const response = await fetch(url);
 
       if (!response.ok) {
-        throw new Error(`Pixabay API error: ${response.statusText}`);
+        throw new Error(`Music search error: ${response.statusText}`);
       }
 
       const data = await response.json();
 
-      // Parse response - structure may vary based on actual Pixabay music API
+      // Parse response - Pixabay returns hits array
       const tracks: MusicTrack[] = (data.hits || [])
         .filter((hit: any) => hit.duration >= minDuration)
         .map((hit: any) => ({
           id: hit.id,
-          name: hit.name || hit.tags,
-          duration: hit.duration,
+          name: hit.name || hit.tags || 'Background Music',
+          duration: hit.duration || 60,
           tags: hit.tags?.split(',').map((t: string) => t.trim()) || [],
-          previewUrl: hit.previewURL || hit.url,
-          downloadUrl: hit.url || hit.previewURL,
+          previewUrl: hit.previewURL || hit.videos?.small?.url || '',
+          downloadUrl: hit.pageURL || hit.previewURL || '',
           artist: hit.user || 'Unknown',
           genre: mood
         }));
 
+      console.log(`[BackgroundMusic] Found ${tracks.length} tracks for mood: ${mood}`);
+      
       // Cache results
       this.cache.set(cacheKey, tracks);
 
       return tracks;
     } catch (error) {
-      console.error('Failed to fetch music from Pixabay:', error);
+      console.error('Failed to fetch music from server:', error);
 
       // Return fallback/demo tracks
       return this.getFallbackTracks(mood, minDuration);
@@ -132,73 +127,16 @@ export class BackgroundMusicService {
 
   /**
    * Get fallback tracks when API is unavailable
+   * Note: Pixabay does not have a public music API - the feature is limited.
+   * Returns empty array as no local music files are bundled.
+   * To enable background music, integrate with Freesound or Jamendo API.
    */
   private getFallbackTracks(mood: MusicConfig['mood'], minDuration: number): MusicTrack[] {
-    // These are example tracks - replace with actual free music URLs or local files
-    const fallbackTracks: Record<MusicConfig['mood'], MusicTrack> = {
-      corporate: {
-        id: 1,
-        name: 'Corporate Motivational',
-        duration: 120,
-        tags: ['corporate', 'business', 'professional'],
-        previewUrl: '/assets/music/corporate.mp3',
-        downloadUrl: '/assets/music/corporate.mp3',
-        artist: 'AudioLibrary',
-        genre: 'corporate'
-      },
-      uplifting: {
-        id: 2,
-        name: 'Uplifting Background',
-        duration: 180,
-        tags: ['uplifting', 'positive', 'inspiring'],
-        previewUrl: '/assets/music/uplifting.mp3',
-        downloadUrl: '/assets/music/uplifting.mp3',
-        artist: 'AudioLibrary',
-        genre: 'uplifting'
-      },
-      calm: {
-        id: 3,
-        name: 'Calm Meditation',
-        duration: 150,
-        tags: ['calm', 'peaceful', 'relaxing'],
-        previewUrl: '/assets/music/calm.mp3',
-        downloadUrl: '/assets/music/calm.mp3',
-        artist: 'AudioLibrary',
-        genre: 'calm'
-      },
-      energetic: {
-        id: 4,
-        name: 'Energetic Beat',
-        duration: 120,
-        tags: ['energetic', 'upbeat', 'dynamic'],
-        previewUrl: '/assets/music/energetic.mp3',
-        downloadUrl: '/assets/music/energetic.mp3',
-        artist: 'AudioLibrary',
-        genre: 'energetic'
-      },
-      medical: {
-        id: 5,
-        name: 'Medical Professional',
-        duration: 180,
-        tags: ['medical', 'professional', 'calm'],
-        previewUrl: '/assets/music/medical.mp3',
-        downloadUrl: '/assets/music/medical.mp3',
-        artist: 'AudioLibrary',
-        genre: 'medical'
-      },
-      inspirational: {
-        id: 6,
-        name: 'Inspirational Journey',
-        duration: 200,
-        tags: ['inspirational', 'emotional', 'hopeful'],
-        previewUrl: '/assets/music/inspirational.mp3',
-        downloadUrl: '/assets/music/inspirational.mp3',
-        artist: 'AudioLibrary',
-        genre: 'inspirational'
-      }
-    };
-
-    return [fallbackTracks[mood]].filter(track => track.duration >= minDuration);
+    console.log(`[BackgroundMusic] No music API available for mood: ${mood}. Background music feature requires music files.`);
+    // Return empty array - video will proceed without background music
+    // For future: integrate with Freesound API (https://freesound.org/docs/api/)
+    // or Jamendo API (https://developer.jamendo.com/)
+    return [];
   }
 
   /**
