@@ -259,30 +259,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json({ available: !!process.env.PIXABAY_API_KEY });
   });
 
-  // Pixabay Music Search
+  // Pixabay Music Search - NOTE: Pixabay API does NOT support music search
+  // This endpoint returns empty hits array since Pixabay only has image/video APIs
   app.get('/api/pixabay/music/search', isAuthenticated, async (req, res) => {
-    try {
-      const apiKey = process.env.PIXABAY_API_KEY;
-      if (!apiKey) {
-        return res.status(503).json({ error: 'Pixabay API key not configured' });
-      }
-
-      const { query, per_page = 20 } = req.query;
-
-      if (!query) {
-        return res.status(400).json({ error: 'Query parameter is required' });
-      }
-
-      const url = `https://pixabay.com/api/?key=${apiKey}&q=${encodeURIComponent(query as string)}&audio_type=music&per_page=${per_page}`;
-
-      const response = await fetch(url);
-      const data = await response.json();
-
-      res.json(data);
-    } catch (error) {
-      console.error('Pixabay music search error:', error);
-      res.status(500).json({ error: 'Failed to search music' });
-    }
+    console.log('[Music API] Note: Pixabay does not have a music API');
+    // Return empty hits array - videos will proceed without background music
+    // Future: Integrate with Freesound or Jamendo for royalty-free music
+    res.json({ 
+      hits: [], 
+      total: 0,
+      message: 'Music API not available. Pixabay only supports images and videos.'
+    });
   });
 
   // Pixabay Video Search

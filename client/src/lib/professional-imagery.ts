@@ -86,18 +86,19 @@ export class ProfessionalImageryService {
   }
 
   private buildEnhancedSearchTerms(healthConcern: string, productType: string): string[] {
+    // Simple, effective search terms that work well with Unsplash API
     const premiumTerms = [
-      'medical professional laboratory research',
-      'healthcare clinic modern professional',
-      'pharmaceutical research scientist laboratory',
-      'wellness health professional clean',
-      'medical technology equipment clinical',
-      'clinical research facility professional',
-      'medical doctor healthcare professional',
-      'pharmacy medicine professional clean'
+      'health wellness',
+      'medical clinic',
+      'doctor patient',
+      'supplement vitamin',
+      'natural medicine',
+      'laboratory research',
+      'healthy lifestyle',
+      'fitness exercise'
     ];
 
-    // Add health-specific terms with enhanced targeting
+    // Add health-specific terms with simplified targeting
     const healthTerms = this.getEnhancedHealthTerms(healthConcern);
     const productTerms = this.getEnhancedProductTerms(productType);
 
@@ -125,19 +126,25 @@ export class ProfessionalImageryService {
     const concernLower = healthConcern.toLowerCase();
     
     if (concernLower.includes('menopause') || concernLower.includes('hormone')) {
-      return ['women health professional doctor', 'hormone research laboratory medical', 'gynecology medical professional'];
+      return ['women health', 'hormone therapy'];
     }
     if (concernLower.includes('heart') || concernLower.includes('cardiovascular')) {
-      return ['cardiology medical equipment professional', 'heart health research laboratory', 'cardiac medical professional'];
+      return ['heart health', 'cardiology'];
     }
     if (concernLower.includes('joint') || concernLower.includes('arthritis')) {
-      return ['orthopedic medical clinic professional', 'joint health research laboratory', 'rheumatology medical professional'];
+      return ['joint health', 'physical therapy'];
     }
     if (concernLower.includes('immune') || concernLower.includes('immunity')) {
-      return ['immunology research laboratory medical', 'immune system medical professional', 'infectious disease medical'];
+      return ['immune system', 'wellness'];
+    }
+    if (concernLower.includes('weight') || concernLower.includes('diet')) {
+      return ['weight loss', 'healthy food', 'nutrition'];
+    }
+    if (concernLower.includes('detox') || concernLower.includes('toxin')) {
+      return ['detox cleanse', 'green juice', 'spa wellness'];
     }
     
-    return ['general health medical professional', 'wellness research facility medical', 'primary care medical professional'];
+    return ['health wellness', 'medical care'];
   }
 
   private getHealthSpecificTerms(healthConcern: string): string[] {
@@ -163,13 +170,13 @@ export class ProfessionalImageryService {
     const typeLower = productType.toLowerCase();
     
     if (typeLower.includes('supplement') || typeLower.includes('vitamin')) {
-      return ['supplement research laboratory medical', 'nutritional science facility professional', 'dietary supplement medical professional'];
+      return ['vitamins pills', 'nutrition supplement'];
     }
     if (typeLower.includes('extract') || typeLower.includes('herbal')) {
-      return ['botanical research laboratory medical', 'natural medicine facility professional', 'herbal medicine medical professional'];
+      return ['herbal medicine', 'natural remedy'];
     }
     
-    return ['pharmaceutical manufacturing medical', 'medical product development professional', 'clinical research pharmaceutical'];
+    return ['pharmaceutical', 'medicine'];
   }
 
   private getProductSpecificTerms(productType: string): string[] {
