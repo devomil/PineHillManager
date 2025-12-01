@@ -202,6 +202,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ============================================
+  // IMAGE PROXY - Fix CORS issues
+  // ============================================
+
+  app.get('/api/proxy-image', async (req, res) => {
+    try {
+      const { url } = req.query;
+
+      if (!url || typeof url !== 'string') {
+        return res.status(400).json({ error: 'Valid URL required' });
+      }
+
+      console.log(`[Image Proxy] Fetching: ${url.substring(0, 80)}...`);
+
+      const response = await fetch(url);
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const buffer = await response.arrayBuffer();
+      const contentType = response.headers.get('content-type') || 'image/jpeg';
+
+      console.log(`[Image Proxy] Success: ${buffer.byteLength} bytes, ${contentType}`);
+
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Cache-Control', 'public, max-age=3600');
+      res.send(Buffer.from(buffer));
+    } catch (error) {
+      console.error('[Image Proxy] Error:', error);
+      res.status(500).json({
+        error: 'Failed to fetch image',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
   // ================================
   // RUNWAY AI VIDEO GENERATION ROUTES
   // ================================

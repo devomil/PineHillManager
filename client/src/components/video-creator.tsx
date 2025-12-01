@@ -42,6 +42,11 @@ import { scriptPipeline, Platform, PLATFORM_SPECS } from '@/lib/script-pipeline'
 import { AnimatedVideoEngine } from '@/lib/animated-video-engine';
 import { RunwayVideoService } from '@/lib/runway-video-service';
 import { StableDiffusionService } from '@/lib/stable-diffusion-service';
+import { BackgroundMusicService } from '@/lib/background-music-service';
+import { SoundEffectsService } from '@/lib/sound-effects-service';
+import { SubtitleGenerator } from '@/lib/subtitle-generator';
+import { VisualEffectsEngine } from '@/lib/visual-effects-engine';
+import { BrollService } from '@/lib/broll-service';
 
 export default function VideoCreator() {
   const { toast } = useToast();
@@ -55,6 +60,10 @@ export default function VideoCreator() {
   const [lottieService] = useState(() => new ProfessionalLottieService());
   const [runwayService] = useState(() => new RunwayVideoService());
   const [stableDiffusionService] = useState(() => new StableDiffusionService());
+  const [musicService] = useState(() => new BackgroundMusicService());
+  const [soundEffectsService] = useState(() => new SoundEffectsService());
+  const [subtitleGenerator] = useState(() => new SubtitleGenerator());
+  const [brollService] = useState(() => new BrollService());
   const [generatedContent, setGeneratedContent] = useState<any>(null);
   const [enhancedContent, setEnhancedContent] = useState<any>(null);
   const [professionalImages, setProfessionalImages] = useState<any[]>([]);
@@ -92,7 +101,18 @@ export default function VideoCreator() {
   } | null>(null);
   const [parsedScript, setParsedScript] = useState<any>(null);
   const [generationPhase, setGenerationPhase] = useState('');
-  
+
+  // New feature states
+  const [enableBackgroundMusic, setEnableBackgroundMusic] = useState(true);
+  const [musicMood, setMusicMood] = useState<'corporate' | 'uplifting' | 'calm' | 'energetic' | 'medical' | 'inspirational'>('corporate');
+  const [musicVolume, setMusicVolume] = useState(0.25);
+  const [enableSoundEffects, setEnableSoundEffects] = useState(false);
+  const [enableSubtitles, setEnableSubtitles] = useState(true);
+  const [subtitleStyle, setSubtitleStyle] = useState<'tiktok' | 'traditional' | 'karaoke' | 'modern' | 'minimal'>('tiktok');
+  const [enableVisualEffects, setEnableVisualEffects] = useState(true);
+  const [colorGradingPreset, setColorGradingPreset] = useState('natural');
+  const [enableBroll, setEnableBroll] = useState(false);
+
   const [config, setConfig] = useState<VideoConfig>({
     productName: '',
     productDescription: '',
@@ -382,6 +402,18 @@ export default function VideoCreator() {
       setGenerationProgress(10);
       console.log(`Script parsed: ${parsed.sections.length} sections, ${parsed.totalDuration}s total`);
 
+      // Generate subtitles if enabled
+      console.log(`[Subtitles] Enabled: ${enableSubtitles}, Style: ${subtitleStyle}`);
+      let subtitleSegments: any[] = [];
+      if (enableSubtitles) {
+        try {
+          subtitleSegments = subtitleGenerator.generateSubtitles(parsed, videoDuration);
+          console.log(`[Subtitles] Generated ${subtitleSegments.length} segments`);
+        } catch (subError) {
+          console.error('[Subtitles] Failed to generate:', subError);
+        }
+      }
+
       // Phase 2: Fetch or generate images for each section
       setGenerationPhase(useSDImages ? 'Generating AI images...' : 'Fetching images...');
       setGenerationProgress(15);
@@ -547,8 +579,64 @@ export default function VideoCreator() {
       } catch (voiceError) {
         console.warn("Could not generate voiceover:", voiceError);
       }
-      
+
       setGenerationProgress(40);
+
+      // Phase 3.5: Fetch background music
+      let musicBlob: Blob | null = null;
+      if (enableBackgroundMusic) {
+        try {
+          setGenerationPhase('Fetching background music...');
+          setGenerationProgress(42);
+          console.log(`[Music] Fetching ${musicMood} music for ${videoDuration}s video...`);
+
+          const musicTracks = await musicService.searchMusic(musicMood, videoDuration);
+          if (musicTracks.length > 0) {
+            const selectedTrack = musicTracks[0];
+            console.log(`[Music] Selected track: ${selectedTrack.name} (${selectedTrack.duration}s)`);
+            musicBlob = await musicService.downloadTrack(selectedTrack);
+            console.log('[Music] Background music downloaded successfully');
+          } else {
+            console.warn('[Music] No tracks found, video will have voiceover only');
+          }
+        } catch (musicError) {
+          console.error('[Music] Failed to load background music:', musicError);
+          toast({
+            title: "Music Unavailable",
+            description: "Could not load background music. Video will have voiceover only.",
+          });
+        }
+      }
+
+      // Mix audio tracks if we have both voiceover and music
+      let finalAudioBlob: Blob | null = audioBlob;
+
+      if (audioBlob && musicBlob) {
+        try {
+          setGenerationPhase('Mixing audio tracks...');
+          setGenerationProgress(43);
+          console.log('[Audio] Mixing voiceover with background music...');
+
+          const musicConfig = musicService.createDefaultConfig(videoDuration, videoStyle);
+          musicConfig.volume = musicVolume;
+          musicConfig.mood = musicMood;
+
+          finalAudioBlob = await musicService.mixAudioTracks(musicBlob, audioBlob, musicConfig);
+          console.log('[Audio] Successfully mixed voiceover and background music');
+        } catch (mixError) {
+          console.error('[Audio] Failed to mix audio:', mixError);
+          console.log('[Audio] Using voiceover only');
+          finalAudioBlob = audioBlob;
+        }
+      } else if (musicBlob && !audioBlob) {
+        // Only music, no voiceover
+        finalAudioBlob = musicBlob;
+        console.log('[Audio] Using background music only (no voiceover)');
+      } else if (audioBlob && !musicBlob) {
+        console.log('[Audio] Using voiceover only (no music)');
+      }
+
+      console.log(`[Audio] Final audio: ${finalAudioBlob ? 'Ready' : 'None'}`);
 
       // Phase 4: Build video timeline
       setGenerationPhase('Building timeline...');
@@ -573,12 +661,55 @@ export default function VideoCreator() {
         console.log("Loading Runway video clip for hook section...");
         await animatedEngine.loadVideoClip('hook', runwayVideoUrl);
       }
-      
-      // Set audio buffer if available
-      if (audioBlob) {
-        animatedEngine.setAudioBuffer(audioBlob);
+
+      // Set audio buffer (voiceover + music mix)
+      if (finalAudioBlob) {
+        animatedEngine.setAudioBuffer(finalAudioBlob);
+        console.log('[Engine] Audio buffer set');
       }
-      
+
+      // Configure subtitles
+      if (enableSubtitles && subtitleSegments.length > 0) {
+        try {
+          const subtitleConfig = subtitleGenerator.createDefaultConfig(subtitleStyle);
+          animatedEngine.setSubtitleConfig(subtitleGenerator, subtitleConfig);
+          (animatedEngine as any).subtitleSegments = subtitleSegments;
+          console.log(`[Engine] Subtitles configured: ${subtitleStyle} style`);
+        } catch (subError) {
+          console.error('[Engine] Failed to configure subtitles:', subError);
+        }
+      }
+
+      // Configure visual effects
+      if (enableVisualEffects) {
+        try {
+          const platformSpec = PLATFORM_SPECS[videoPlatform];
+          const visualEffects = new VisualEffectsEngine(
+            platformSpec.resolution.width,
+            platformSpec.resolution.height
+          );
+
+          const presets = VisualEffectsEngine.getColorGradingPresets();
+          const selectedPreset = presets[colorGradingPreset] || presets.natural;
+
+          (animatedEngine as any).setVisualEffects?.(visualEffects, selectedPreset);
+
+          // Initialize subtle background particles
+          visualEffects.initializeParticles({
+            type: 'health-icons',
+            count: 12,
+            color: '#7cb342',
+            size: 18,
+            speed: 0.8,
+            opacity: 0.25
+          });
+
+          console.log(`[Engine] Visual effects configured: ${colorGradingPreset} preset`);
+        } catch (vfxError) {
+          console.error('[Engine] Failed to configure visual effects:', vfxError);
+        }
+      }
+
       // Set progress callback
       animatedEngine.setProgressCallback((progress) => {
         setGenerationProgress(50 + (progress * 0.45)); // Scale 0-100 to 50-95
@@ -596,16 +727,18 @@ export default function VideoCreator() {
       
       // Phase 6: Combine with audio if available
       let finalBlob = videoBlob;
-      
-      if (audioBlob) {
-        setGenerationPhase('Adding voiceover...');
+
+      if (finalAudioBlob) {
+        setGenerationPhase('Adding audio...');
         setGenerationProgress(96);
-        console.log("Phase 6: Combining video with voiceover...");
-        
+        console.log('[Final] Combining video with audio...');
+
         try {
-          finalBlob = await combineVideoAndAudio(videoBlob, audioBlob);
+          finalBlob = await combineVideoAndAudio(videoBlob, finalAudioBlob);
+          console.log('[Final] Video and audio combined successfully');
         } catch (combineError) {
-          console.warn("Could not combine audio, using video only:", combineError);
+          console.error('[Final] Could not combine audio:', combineError);
+          console.log('[Final] Using video without audio');
         }
       }
       
