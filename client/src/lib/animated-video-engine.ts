@@ -149,6 +149,7 @@ export class AnimatedVideoEngine {
   private sectionVideoClips: Map<string, HTMLVideoElement> = new Map();
   private audioBuffer: Blob | null = null;
   private targetDuration: number = 60; // Default 60 seconds
+  private actualVoiceoverDuration: number | null = null; // Actual voiceover duration if available
   private enhancementOptions: VideoEnhancementOptions = {
     useSubtitles: true,
     subtitleStyle: 'tiktok',
@@ -186,24 +187,41 @@ export class AnimatedVideoEngine {
   }
 
   /**
-   * Set the actual voiceover duration and recompute subtitle timing
-   * This ensures subtitles are synchronized with the voiceover audio
+   * Set the actual voiceover duration and update timing for synchronization
+   * This ensures both subtitles and timeline sections are synchronized with the voiceover audio
    */
   setVoiceoverDuration(durationSeconds: number) {
     if (durationSeconds > 0) {
-      console.log(`[VideoEngine] Setting voiceover duration: ${durationSeconds}s`);
+      console.log(`[VideoEngine] Setting voiceover duration: ${durationSeconds}s (target was ${this.targetDuration}s)`);
+      
+      // Store the actual voiceover duration for use during timeline building
+      this.actualVoiceoverDuration = durationSeconds;
+      
+      // Also update the target duration so the timeline is built to match voiceover
+      // This ensures sections are scaled to match the actual audio length
+      this.targetDuration = durationSeconds;
+      
       // Recompute subtitle segments scaled to the actual voiceover duration
       if (this.subtitleSegments.length > 0) {
         const currentDuration = this.subtitleSegments[this.subtitleSegments.length - 1].endTime;
-        const scale = durationSeconds / currentDuration;
-        this.subtitleSegments = this.subtitleSegments.map(seg => ({
-          ...seg,
-          startTime: seg.startTime * scale,
-          endTime: seg.endTime * scale
-        }));
-        console.log(`[VideoEngine] Scaled ${this.subtitleSegments.length} subtitle segments to match voiceover (scale: ${scale.toFixed(2)})`);
+        if (currentDuration > 0) {
+          const scale = durationSeconds / currentDuration;
+          this.subtitleSegments = this.subtitleSegments.map(seg => ({
+            ...seg,
+            startTime: seg.startTime * scale,
+            endTime: seg.endTime * scale
+          }));
+          console.log(`[VideoEngine] Scaled ${this.subtitleSegments.length} subtitle segments to match voiceover (scale: ${scale.toFixed(2)})`);
+        }
       }
     }
+  }
+  
+  /**
+   * Get the effective duration for rendering (voiceover duration if available, else target)
+   */
+  getEffectiveDuration(): number {
+    return this.actualVoiceoverDuration ?? this.targetDuration;
   }
 
   setEnhancementOptions(options: Partial<VideoEnhancementOptions>) {
