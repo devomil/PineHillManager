@@ -15,7 +15,9 @@ import AdminLayout from '@/components/admin-layout';
 import QrCodeHistory from '@/components/qr-code-history';
 import VideoCreator from '@/components/video-creator';
 import VideoHistory from '@/components/video-history';
+import AIVideoProducer from '@/components/ai-video-producer';
 import { useLocation } from 'wouter';
+import { Brain } from 'lucide-react';
 
 export default function MarketingPage() {
   const { toast } = useToast();
@@ -189,25 +191,33 @@ export default function MarketingPage() {
           </Button>
         </div>
 
-        <Tabs defaultValue="generator" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="generator" className="flex items-center gap-2">
+        <Tabs defaultValue="ai-producer" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-5">
+            <TabsTrigger value="ai-producer" className="flex items-center gap-2" data-testid="tab-ai-producer">
+              <Brain className="h-4 w-4" />
+              AI Producer
+            </TabsTrigger>
+            <TabsTrigger value="generator" className="flex items-center gap-2" data-testid="tab-qr-generator">
               <Plus className="h-4 w-4" />
-              QR Code Generator
+              QR Codes
             </TabsTrigger>
-            <TabsTrigger value="history" className="flex items-center gap-2">
+            <TabsTrigger value="history" className="flex items-center gap-2" data-testid="tab-qr-history">
               <History className="h-4 w-4" />
-              QR Code History
+              QR History
             </TabsTrigger>
-            <TabsTrigger value="video-creator" className="flex items-center gap-2">
+            <TabsTrigger value="video-creator" className="flex items-center gap-2" data-testid="tab-video-creator">
               <Video className="h-4 w-4" />
               Video Creator
             </TabsTrigger>
-            <TabsTrigger value="video-history" className="flex items-center gap-2">
+            <TabsTrigger value="video-history" className="flex items-center gap-2" data-testid="tab-video-history">
               <Video className="h-4 w-4" />
               Video History
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="ai-producer" className="space-y-6">
+            <AIVideoProducer />
+          </TabsContent>
 
           <TabsContent value="generator" className="space-y-6">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

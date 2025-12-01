@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Video Producer Architecture</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+      min-height: 100vh;
+      color: #e2e8f0;
+    }
+    
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 2rem;
+    }
+    
+    h1 {
+      text-align: center;
+      font-size: 2.5rem;
+      margin-bottom: 0.5rem;
+      background: linear-gradient(90deg, #22c55e, #3b82f6);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    
+    .subtitle {
+      text-align: center;
+      color: #94a3b8;
+      margin-bottom: 2rem;
+    }
+    
+    .architecture {
+      display: grid;
+      gap: 1.5rem;
+    }
+    
+    .producer-brain {
+      background: linear-gradient(135deg, #1e3a5f 0%, #0f2744 100%);
+      border: 2px solid #3b82f6;
+      border-radius: 16px;
+      padding: 1.5rem;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .producer-brain::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, #3b82f6, #8b5cf6, #ec4899);
+    }
+    
+    .producer-header {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    
+    .brain-icon {
+      font-size: 2.5rem;
+    }
+    
+    .producer-title {
+      font-size: 1.5rem;
+      font-weight: 700;
+    }
+    
+    .producer-subtitle {
+      color: #94a3b8;
+      font-size: 0.9rem;
+    }
+    
+    .phases {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 1rem;
+    }
+    
+    .phase {
+      background: rgba(30, 41, 59, 0.8);
+      border-radius: 12px;
+      padding: 1rem;
+      text-align: center;
+      border: 1px solid #334155;
+      transition: all 0.3s ease;
+      cursor: pointer;
+    }
+    
+    .phase:hover {
+      border-color: #3b82f6;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 20px rgba(59, 130, 246, 0.2);
+    }
+    
+    .phase.active {
+      border-color: #22c55e;
+      background: rgba(34, 197, 94, 0.1);
+    }
+    
+    .phase-number {
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      margin: 0 auto 0.75rem;
+    }
+    
+    .phase-name {
+      font-weight: 600;
+      margin-bottom: 0.25rem;
+    }
+    
+    .phase-desc {
+      font-size: 0.75rem;
+      color: #94a3b8;
+    }
+    
+    .arrow {
+      position: absolute;
+      color: #3b82f6;
+      font-size: 1.5rem;
+    }
+    
+    .services-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.5rem;
+    }
+    
+    .service-category {
+      background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+      border-radius: 12px;
+      padding: 1.25rem;
+      border: 1px solid #334155;
+    }
+    
+    .category-header {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+      padding-bottom: 0.75rem;
+      border-bottom: 1px solid #334155;
+    }
+    
+    .category-icon {
+      font-size: 1.5rem;
+    }
+    
+    .category-title {
+      font-weight: 600;
+    }
+    
+    .service-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    
+    .service-item {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.5rem 0.75rem;
+      background: rgba(51, 65, 85, 0.5);
+      border-radius: 8px;
+      font-size: 0.9rem;
+    }
+    
+    .service-badge {
+      font-size: 0.7rem;
+      padding: 0.15rem 0.5rem;
+      border-radius: 4px;
+      margin-left: auto;
+    }
+    
+    .badge-primary {
+      background: #22c55e;
+      color: #052e16;
+    }
+    
+    .badge-fallback {
+      background: #f59e0b;
+      color: #451a03;
+    }
+    
+    .quality-section {
+      background: linear-gradient(135deg, #1a2e1a 0%, #0f1f0f 100%);
+      border: 2px solid #22c55e;
+      border-radius: 16px;
+      padding: 1.5rem;
+    }
+    
+    .quality-header {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    
+    .quality-icon {
+      font-size: 2rem;
+    }
+    
+    .quality-metrics {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1rem;
+    }
+    
+    .metric {
+      text-align: center;
+      padding: 1rem;
+      background: rgba(34, 197, 94, 0.1);
+      border-radius: 8px;
+    }
+    
+    .metric-score {
+      font-size: 2rem;
+      font-weight: bold;
+      color: #22c55e;
+    }
+    
+    .metric-label {
+      font-size: 0.8rem;
+      color: #94a3b8;
+      margin-top: 0.25rem;
+    }
+    
+    .threshold {
+      text-align: center;
+      margin-top: 1rem;
+      padding: 0.75rem;
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px dashed #ef4444;
+      border-radius: 8px;
+      font-size: 0.9rem;
+    }
+    
+    .workflow-demo {
+      background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+      border-radius: 16px;
+      padding: 1.5rem;
+      border: 1px solid #334155;
+    }
+    
+    .demo-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.5rem;
+    }
+    
+    .demo-title {
+      font-size: 1.25rem;
+      font-weight: 600;
+    }
+    
+    .demo-btn {
+      background: linear-gradient(135deg, #22c55e, #16a34a);
+      border: none;
+      padding: 0.75rem 1.5rem;
+      border-radius: 8px;
+      color: white;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .demo-btn:hover {
+      transform: scale(1.05);
+      box-shadow: 0 4px 15px rgba(34, 197, 94, 0.4);
+    }
+    
+    .demo-btn:disabled {
+      background: #334155;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+    
+    .log-container {
+      background: #0f172a;
+      border-radius: 8px;
+      padding: 1rem;
+      max-height: 300px;
+      overflow-y: auto;
+      font-family: 'Monaco', 'Menlo', monospace;
+      font-size: 0.85rem;
+    }
+    
+    .log-entry {
+      display: flex;
+      gap: 0.75rem;
+      padding: 0.5rem 0;
+      border-bottom: 1px solid #1e293b;
+    }
+    
+    .log-time {
+      color: #64748b;
+      flex-shrink: 0;
+    }
+    
+    .log-icon {
+      flex-shrink: 0;
+    }
+    
+    .log-message {
+      color: #e2e8f0;
+    }
+    
+    .log-decision { color: #8b5cf6; }
+    .log-generation { color: #3b82f6; }
+    .log-evaluation { color: #f59e0b; }
+    .log-success { color: #22c55e; }
+    .log-error { color: #ef4444; }
+    
+    .data-flow {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      padding: 1rem;
+      background: rgba(59, 130, 246, 0.1);
+      border-radius: 8px;
+      margin: 1rem 0;
+    }
+    
+    .flow-item {
+      padding: 0.5rem 1rem;
+      background: #1e293b;
+      border-radius: 6px;
+      font-size: 0.85rem;
+    }
+    
+    .flow-arrow {
+      color: #3b82f6;
+      font-size: 1.25rem;
+    }
+    
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    
+    .processing {
+      animation: pulse 1.5s infinite;
+    }
+    
+    .section-title {
+      font-size: 1rem;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+    
+    const demoLogs = [
+      { type: 'decision', icon: '🧠', message: 'AI Producer analyzing Pine Hill Farm weight loss script...' },
+      { type: 'decision', icon: '📋', message: 'Created 5-section manifest: HOOK → PROBLEM → SOLUTION → SOCIAL_PROOF → CTA' },
+      { type: 'decision', icon: '🎨', message: 'Determined visual style: Medical/Professional with warm color grading' },
+      { type: 'generation', icon: '🎙️', message: 'Generating voiceover via ElevenLabs (Professional, measured pace)...' },
+      { type: 'generation', icon: '🖼️', message: 'HOOK Scene: Generating hero image via Stability AI...' },
+      { type: 'generation', icon: '🎬', message: 'HOOK Scene: Creating 4s motion graphic via Runway Gen-4 Turbo...' },
+      { type: 'generation', icon: '📹', message: 'PROBLEM Scene: Searching Pexels for "toxins environment body health"...' },
+      { type: 'generation', icon: '🔬', message: 'SOLUTION Scene: Generating BioScan technology visualization...' },
+      { type: 'evaluation', icon: '✅', message: 'HOOK hero image: 87/100 - Approved (High relevance, professional quality)' },
+      { type: 'evaluation', icon: '⚠️', message: 'PROBLEM B-roll #2: 62/100 - Below threshold, triggering regeneration...' },
+      { type: 'generation', icon: '🔄', message: 'Fallback: Searching Pixabay for alternative environmental toxins footage...' },
+      { type: 'evaluation', icon: '✅', message: 'PROBLEM B-roll #2 (retry): 78/100 - Approved' },
+      { type: 'generation', icon: '🎵', message: 'Selecting background music: "Uplifting/Motivational" from library...' },
+      { type: 'success', icon: '🎬', message: 'All assets approved. Beginning timeline assembly...' },
+      { type: 'success', icon: '✨', message: 'Video production complete! Duration: 1:48, Quality Score: 84/100' },
+    ];
+    
+    function App() {
+      const [activePhase, setActivePhase] = useState(0);
+      const [logs, setLogs] = useState([]);
+      const [isRunning, setIsRunning] = useState(false);
+      
+      const runDemo = () => {
+        setLogs([]);
+        setIsRunning(true);
+        setActivePhase(0);
+        
+        demoLogs.forEach((log, index) => {
+          setTimeout(() => {
+            setLogs(prev => [...prev, { ...log, time: new Date().toLocaleTimeString() }]);
+            
+            // Update active phase based on log type
+            if (index < 3) setActivePhase(0);
+            else if (index < 8) setActivePhase(1);
+            else if (index < 12) setActivePhase(2);
+            else if (index < 14) setActivePhase(3);
+            else setActivePhase(4);
+            
+            if (index === demoLogs.length - 1) {
+              setIsRunning(false);
+            }
+          }, index * 800);
+        });
+      };
+      
+      const phases = [
+        { name: 'Analyze', desc: 'Script breakdown' },
+        { name: 'Generate', desc: 'Create assets' },
+        { name: 'Evaluate', desc: 'Quality check' },
+        { name: 'Iterate', desc: 'Fix failures' },
+        { name: 'Assemble', desc: 'Final video' },
+      ];
+      
+      return (
+        <div className="container">
+          <h1>🎬 AI Video Producer Architecture</h1>
+          <p className="subtitle">Claude-powered orchestration for TV-quality marketing videos</p>
+          
+          <div className="architecture">
+            {/* AI Producer Brain */}
+            <div className="producer-brain">
+              <div className="producer-header">
+                <span className="brain-icon">🧠</span>
+                <div>
+                  <div className="producer-title">AI Producer (Claude via Anthropic API)</div>
+                  <div className="producer-subtitle">Orchestrates all decisions, evaluates quality, ensures coherent output</div>
+                </div>
+              </div>
+              
+              <div className="phases">
+                {phases.map((phase, i) => (
+                  <div 
+                    key={i} 
+                    className={`phase ${activePhase === i ? 'active' : ''} ${isRunning && activePhase === i ? 'processing' : ''}`}
+                  >
+                    <div className="phase-number">{i + 1}</div>
+                    <div className="phase-name">{phase.name}</div>
+                    <div className="phase-desc">{phase.desc}</div>
+                  </div>
+                ))}
+              </div>
+              
+              <div className="data-flow">
+                <span className="flow-item">Script Input</span>
+                <span className="flow-arrow">→</span>
+                <span className="flow-item">Scene Manifest</span>
+                <span className="flow-arrow">→</span>
+                <span className="flow-item">Asset Requirements</span>
+                <span className="flow-arrow">→</span>
+                <span className="flow-item">Generated Assets</span>
+                <span className="flow-arrow">→</span>
+                <span className="flow-item">Final Video</span>
+              </div>
+            </div>
+            
+            {/* Service Categories */}
+            <div className="section-title">API Integrations</div>
+            <div className="services-grid">
+              <div className="service-category">
+                <div className="category-header">
+                  <span className="category-icon">🖼️</span>
+                  <span className="category-title">Image Generation</span>
+                </div>
+                <div className="service-list">
+                  <div className="service-item">
+                    <span>Stability AI (SD3)</span>
+                    <span className="service-badge badge-primary">Primary</span>
+                  </div>
+                  <div className="service-item">
+                    <span>Hugging Face SDXL</span>
+                    <span className="service-badge badge-fallback">Fallback</span>
+                  </div>
+                  <div className="service-item">
+                    <span>Unsplash</span>
+                    <span className="service-badge badge-fallback">Stock</span>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="service-category">
+                <div className="category-header">
+                  <span className="category-icon">🎬</span>
+                  <span className="category-title">Video Generation</span>
+                </div>
+                <div className="service-list">
+                  <div className="service-item">
+                    <span>Runway Gen-4 Turbo</span>
+                    <span className="service-badge badge-primary">Primary</span>
+                  </div>
+                  <div className="service-item">
+                    <span>Pexels Video</span>
+                    <span className="service-badge badge-fallback">B-Roll</span>
+                  </div>
+                  <div className="service-item">
+                    <span>Pixabay Video</span>
+                    <span className="service-badge badge-fallback">B-Roll</span>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="service-category">
+                <div className="category-header">
+                  <span className="category-icon">🎙️</span>
+                  <span className="category-title">Audio Generation</span>
+                </div>
+                <div className="service-list">
+                  <div className="service-item">
+                    <span>ElevenLabs</span>
+                    <span className="service-badge badge-primary">Voiceover</span>
+                  </div>
+                  <div className="service-item">
+                    <span>Music Library</span>
+                    <span className="service-badge badge-primary">BGM</span>
+                  </div>
+                  <div className="service-item">
+                    <span>Sound Effects DB</span>
+                    <span className="service-badge badge-fallback">SFX</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            {/* Quality Gate */}
+            <div className="quality-section">
+              <div className="quality-header">
+                <span className="quality-icon">✅</span>
+                <div>
+                  <div className="producer-title">Quality Evaluation Gate</div>
+                  <div className="producer-subtitle">Every generated asset is evaluated by Claude before use</div>
+                </div>
+              </div>
+              
+              <div className="quality-metrics">
+                <div className="metric">
+                  <div className="metric-score">85</div>
+                  <div className="metric-label">Relevance</div>
+                </div>
+                <div className="metric">
+                  <div className="metric-score">92</div>
+                  <div className="metric-label">Technical Quality</div>
+                </div>
+                <div className="metric">
+                  <div className="metric-score">88</div>
+                  <div className="metric-label">Brand Alignment</div>
+                </div>
+                <div className="metric">
+                  <div className="metric-score">78</div>
+                  <div className="metric-label">Emotional Impact</div>
+                </div>
+              </div>
+              
+              <div className="threshold">
+                ⚠️ Assets scoring below <strong>70/100</strong> are automatically regenerated or replaced with fallbacks
+              </div>
+            </div>
+            
+            {/* Live Demo */}
+            <div className="workflow-demo">
+              <div className="demo-header">
+                <span className="demo-title">🎬 Production Workflow Demo</span>
+                <button className="demo-btn" onClick={runDemo} disabled={isRunning}>
+                  {isRunning ? 'Processing...' : 'Run Demo'}
+                </button>
+              </div>
+              
+              <div className="log-container">
+                {logs.length === 0 ? (
+                  <div style={{ color: '#64748b', textAlign: 'center', padding: '2rem' }}>
+                    Click "Run Demo" to see the AI Producer workflow in action
+                  </div>
+                ) : (
+                  logs.map((log, i) => (
+                    <div key={i} className="log-entry">
+                      <span className="log-time">{log.time}</span>
+                      <span className="log-icon">{log.icon}</span>
+                      <span className={`log-message log-${log.type}`}>{log.message}</span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    
+    ReactDOM.render(<App />, document.getElementById('root'));
+  </script>
+</body>
+</html>
