@@ -1870,6 +1870,7 @@ export const financialAccounts = pgTable("financial_accounts", {
   balance: decimal("balance", { precision: 15, scale: 2 }).default("0.00"),
   dataSource: varchar("data_source").default("Auto"), // Auto (API-calculated), Manual, QuickBooks
   manualBalance: decimal("manual_balance", { precision: 15, scale: 2 }), // For manually entered fixed expenses
+  billingFrequency: varchar("billing_frequency").default("monthly"), // weekly, monthly, quarterly, annual, custom - determines how expense resets per period
   isActive: boolean("is_active").default(true),
   parentAccountId: integer("parent_account_id"),
   lastSyncAt: timestamp("last_sync_at"),
@@ -1880,6 +1881,7 @@ export const financialAccounts = pgTable("financial_accounts", {
   accountTypeIdx: index("idx_fa_account_type").on(table.accountType),
   parentAccountIdx: index("idx_fa_parent_account").on(table.parentAccountId),
   dataSourceIdx: index("idx_fa_data_source").on(table.dataSource),
+  billingFrequencyIdx: index("idx_fa_billing_frequency").on(table.billingFrequency),
 }));
 
 // Financial Transactions (General Ledger Entries)
