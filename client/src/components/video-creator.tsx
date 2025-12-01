@@ -9,6 +9,7 @@ import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Slider } from '@/components/ui/slider';
+import { Switch } from '@/components/ui/switch';
 import { 
   Upload, 
   Video, 
@@ -26,7 +27,11 @@ import {
   Send,
   Copy,
   RotateCcw,
-  Loader2
+  Loader2,
+  Music,
+  Type,
+  Palette,
+  Film
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useMutation } from '@tanstack/react-query';
@@ -42,6 +47,11 @@ import { scriptPipeline, Platform, PLATFORM_SPECS } from '@/lib/script-pipeline'
 import { AnimatedVideoEngine } from '@/lib/animated-video-engine';
 import { RunwayVideoService } from '@/lib/runway-video-service';
 import { StableDiffusionService } from '@/lib/stable-diffusion-service';
+import { BackgroundMusicService, MusicConfig } from '@/lib/background-music-service';
+import { SoundEffectsService } from '@/lib/sound-effects-service';
+import { SubtitleGenerator, SubtitleStyle } from '@/lib/subtitle-generator';
+import { VisualEffectsEngine, ColorGradingPreset } from '@/lib/visual-effects-engine';
+import { BrollService } from '@/lib/broll-service';
 
 export default function VideoCreator() {
   const { toast } = useToast();
@@ -55,11 +65,27 @@ export default function VideoCreator() {
   const [lottieService] = useState(() => new ProfessionalLottieService());
   const [runwayService] = useState(() => new RunwayVideoService());
   const [stableDiffusionService] = useState(() => new StableDiffusionService());
+  const [backgroundMusicService] = useState(() => new BackgroundMusicService());
+  const [soundEffectsService] = useState(() => new SoundEffectsService());
+  const [subtitleGenerator] = useState(() => new SubtitleGenerator());
+  const [brollService] = useState(() => new BrollService());
   const [generatedContent, setGeneratedContent] = useState<any>(null);
   const [enhancedContent, setEnhancedContent] = useState<any>(null);
   const [professionalImages, setProfessionalImages] = useState<any[]>([]);
   const [voiceoverReady, setVoiceoverReady] = useState(false);
   const [showContentPreview, setShowContentPreview] = useState(false);
+  
+  // Enhanced features state
+  const [useBackgroundMusic, setUseBackgroundMusic] = useState(false);
+  const [musicMood, setMusicMood] = useState<MusicConfig['mood']>('corporate');
+  const [musicVolume, setMusicVolume] = useState(0.25);
+  const [useSoundEffects, setUseSoundEffects] = useState(false);
+  const [useSubtitles, setUseSubtitles] = useState(true);
+  const [subtitleStyle, setSubtitleStyle] = useState<SubtitleStyle>('tiktok');
+  const [colorGrading, setColorGrading] = useState<string>('natural');
+  const [useBroll, setUseBroll] = useState(false);
+  const [pixabayAvailable, setPixabayAvailable] = useState(false);
+  const [pexelsAvailable, setPexelsAvailable] = useState(false);
   
   // AI Service availability state
   const [runwayAvailable, setRunwayAvailable] = useState(false);
@@ -115,7 +141,21 @@ export default function VideoCreator() {
         const sdStatus = await stableDiffusionService.isServiceAvailable();
         setSdAvailable(sdStatus);
         
-        console.log('AI Services:', { runway: runwayStatus, stableDiffusion: sdStatus });
+        // Check Pixabay and Pexels availability
+        const [pixabayRes, pexelsRes] = await Promise.all([
+          fetch('/api/pixabay/status').then(r => r.json()).catch(() => ({ available: false })),
+          fetch('/api/pexels/status').then(r => r.json()).catch(() => ({ available: false }))
+        ]);
+        
+        setPixabayAvailable(pixabayRes.available || false);
+        setPexelsAvailable(pexelsRes.available || false);
+        
+        console.log('AI Services:', { 
+          runway: runwayStatus, 
+          stableDiffusion: sdStatus,
+          pixabay: pixabayRes.available,
+          pexels: pexelsRes.available
+        });
       } catch (error) {
         console.warn('Failed to check AI service availability:', error);
       }
@@ -1380,6 +1420,194 @@ Visit Pine Hill Farm today!`)}
                       Some sections could be improved, but you can still generate a video.
                     </p>
                   )}
+                </div>
+              )}
+
+              {/* Video Production Enhancements */}
+              {getCurrentScript().trim() && !isGenerating && (
+                <div className="space-y-6 p-4 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-lg border border-blue-200 dark:border-blue-700">
+                  <h3 className="text-lg font-semibold flex items-center gap-2 text-blue-800 dark:text-blue-200">
+                    <Sparkles className="h-5 w-5" />
+                    Video Production Enhancements
+                  </h3>
+                  
+                  <div className="grid gap-6 md:grid-cols-2">
+                    {/* Subtitles / Captions */}
+                    <div className="space-y-3 p-3 bg-white/50 dark:bg-gray-800/50 rounded-lg">
+                      <div className="flex items-center justify-between">
+                        <Label className="flex items-center gap-2 font-medium">
+                          <Type className="w-4 h-4 text-blue-600" />
+                          Dynamic Subtitles
+                        </Label>
+                        <Switch 
+                          checked={useSubtitles} 
+                          onCheckedChange={setUseSubtitles}
+                          data-testid="switch-subtitles"
+                        />
+                      </div>
+                      {useSubtitles && (
+                        <div className="space-y-2">
+                          <Label className="text-xs text-gray-600">Caption Style</Label>
+                          <div className="grid grid-cols-5 gap-1">
+                            {(['tiktok', 'karaoke', 'modern', 'traditional', 'minimal'] as SubtitleStyle[]).map((style) => (
+                              <Button
+                                key={style}
+                                variant={subtitleStyle === style ? "default" : "outline"}
+                                size="sm"
+                                className={`text-xs py-1 px-2 h-auto ${subtitleStyle === style ? 'bg-blue-600' : ''}`}
+                                onClick={() => setSubtitleStyle(style)}
+                                data-testid={`btn-subtitle-${style}`}
+                              >
+                                {style === 'tiktok' ? 'TikTok' : 
+                                 style.charAt(0).toUpperCase() + style.slice(1)}
+                              </Button>
+                            ))}
+                          </div>
+                          <p className="text-xs text-gray-500">
+                            {subtitleStyle === 'tiktok' && 'Word-by-word animation (social media style)'}
+                            {subtitleStyle === 'karaoke' && 'Highlighted word-by-word (karaoke style)'}
+                            {subtitleStyle === 'modern' && 'Large text with background box'}
+                            {subtitleStyle === 'traditional' && 'Bottom subtitles (YouTube style)'}
+                            {subtitleStyle === 'minimal' && 'Clean simple text with shadow'}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Color Grading */}
+                    <div className="space-y-3 p-3 bg-white/50 dark:bg-gray-800/50 rounded-lg">
+                      <Label className="flex items-center gap-2 font-medium">
+                        <Palette className="w-4 h-4 text-purple-600" />
+                        Color Grading
+                      </Label>
+                      <div className="grid grid-cols-3 gap-1">
+                        {['natural', 'cinematic', 'vibrant', 'medical', 'warm', 'cool'].map((preset) => (
+                          <Button
+                            key={preset}
+                            variant={colorGrading === preset ? "default" : "outline"}
+                            size="sm"
+                            className={`text-xs py-1 px-2 h-auto ${colorGrading === preset ? 'bg-purple-600' : ''}`}
+                            onClick={() => setColorGrading(preset)}
+                            data-testid={`btn-color-${preset}`}
+                          >
+                            {preset.charAt(0).toUpperCase() + preset.slice(1)}
+                          </Button>
+                        ))}
+                      </div>
+                      <p className="text-xs text-gray-500">
+                        {colorGrading === 'natural' && 'No color adjustments (original colors)'}
+                        {colorGrading === 'cinematic' && 'Film-like contrast with cool tones'}
+                        {colorGrading === 'vibrant' && 'Boosted saturation and colors'}
+                        {colorGrading === 'medical' && 'Clean, clinical look with reduced saturation'}
+                        {colorGrading === 'warm' && 'Warmer golden tones (friendly feel)'}
+                        {colorGrading === 'cool' && 'Cool blue tones (professional feel)'}
+                      </p>
+                    </div>
+
+                    {/* Background Music */}
+                    <div className="space-y-3 p-3 bg-white/50 dark:bg-gray-800/50 rounded-lg">
+                      <div className="flex items-center justify-between">
+                        <Label className="flex items-center gap-2 font-medium">
+                          <Music className="w-4 h-4 text-green-600" />
+                          Background Music
+                          {pixabayAvailable && <Badge variant="outline" className="text-xs ml-1">Available</Badge>}
+                        </Label>
+                        <Switch 
+                          checked={useBackgroundMusic} 
+                          onCheckedChange={setUseBackgroundMusic}
+                          data-testid="switch-music"
+                        />
+                      </div>
+                      {useBackgroundMusic && (
+                        <div className="space-y-3">
+                          <div className="space-y-1">
+                            <Label className="text-xs text-gray-600">Music Mood</Label>
+                            <Select value={musicMood} onValueChange={(v) => setMusicMood(v as MusicConfig['mood'])}>
+                              <SelectTrigger className="text-sm" data-testid="select-music-mood">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="corporate">Corporate / Professional</SelectItem>
+                                <SelectItem value="uplifting">Uplifting / Motivational</SelectItem>
+                                <SelectItem value="calm">Calm / Relaxing</SelectItem>
+                                <SelectItem value="energetic">Energetic / Dynamic</SelectItem>
+                                <SelectItem value="medical">Medical / Healthcare</SelectItem>
+                                <SelectItem value="inspirational">Inspirational / Emotional</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs text-gray-600">Volume: {Math.round(musicVolume * 100)}%</Label>
+                            <Slider
+                              value={[musicVolume * 100]}
+                              onValueChange={([v]) => setMusicVolume(v / 100)}
+                              max={50}
+                              min={5}
+                              step={5}
+                              className="w-full"
+                              data-testid="slider-music-volume"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Sound Effects */}
+                    <div className="space-y-3 p-3 bg-white/50 dark:bg-gray-800/50 rounded-lg">
+                      <div className="flex items-center justify-between">
+                        <Label className="flex items-center gap-2 font-medium">
+                          <Sparkles className="w-4 h-4 text-orange-600" />
+                          Sound Effects
+                        </Label>
+                        <Switch 
+                          checked={useSoundEffects} 
+                          onCheckedChange={setUseSoundEffects}
+                          data-testid="switch-sfx"
+                        />
+                      </div>
+                      {useSoundEffects && (
+                        <p className="text-xs text-gray-500">
+                          Adds transition sounds, emphasis effects, and subtle audio accents based on video style
+                        </p>
+                      )}
+                    </div>
+
+                    {/* B-Roll Footage */}
+                    <div className="space-y-3 p-3 bg-white/50 dark:bg-gray-800/50 rounded-lg md:col-span-2">
+                      <div className="flex items-center justify-between">
+                        <Label className="flex items-center gap-2 font-medium">
+                          <Film className="w-4 h-4 text-red-600" />
+                          B-Roll Stock Footage
+                          {(pixabayAvailable || pexelsAvailable) && (
+                            <div className="flex gap-1 ml-1">
+                              {pixabayAvailable && <Badge variant="outline" className="text-xs">Pixabay</Badge>}
+                              {pexelsAvailable && <Badge variant="outline" className="text-xs">Pexels</Badge>}
+                            </div>
+                          )}
+                        </Label>
+                        <Switch 
+                          checked={useBroll} 
+                          onCheckedChange={setUseBroll}
+                          disabled={!pixabayAvailable && !pexelsAvailable}
+                          data-testid="switch-broll"
+                        />
+                      </div>
+                      {useBroll && (
+                        <p className="text-xs text-gray-500">
+                          Automatically selects relevant stock video clips for each section from Pixabay and Pexels libraries
+                        </p>
+                      )}
+                      {!pixabayAvailable && !pexelsAvailable && (
+                        <p className="text-xs text-amber-600">
+                          B-Roll requires Pixabay or Pexels API keys. Configure in your environment settings.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div className="text-xs text-gray-500 text-center">
+                    These enhancements will be applied during video generation
+                  </div>
                 </div>
               )}
 
