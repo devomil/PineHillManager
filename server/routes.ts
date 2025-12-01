@@ -14411,13 +14411,19 @@ Output the script with section markers in brackets.`;
 
           const systemPrompt = `You are a professional marketing video scriptwriter for Pine Hill Farm, a health and wellness company specializing in supplements, detoxification, and whole body healing. 
 
-Your scripts should:
-- Be engaging, professional, and persuasive
-- Use clear section markers like [OPENING], [SECTION 1], [CLOSING]
-- Include timestamp guidance for each section
-- Be optimized for the target video duration
+Your scripts MUST follow this exact 5-section structure with these exact section markers:
+
+[HOOK] - Attention-grabbing opening (5-10 seconds) - Start with a question or bold statement
+[PROBLEM] - Address the pain point or challenge (10-15 seconds) - Connect with viewer's struggles
+[SOLUTION] - Present Pine Hill Farm's solution (15-25 seconds) - Explain how we help
+[SOCIAL_PROOF] - Build credibility (10-15 seconds) - Share testimonials, results, or expertise
+[CTA] - Clear call to action (5-10 seconds) - Tell viewers exactly what to do next
+
+Guidelines:
 - Use conversational, accessible language while maintaining credibility
-- Include calls-to-action appropriate for Pine Hill Farm
+- Be engaging, professional, and persuasive
+- Focus on emotional connection and benefits
+- Include natural pauses for voiceover breathing
 
 Target word count: approximately ${targetWordCount} words for a ${durationLabel} video.`;
 
@@ -14430,7 +14436,8 @@ Video Duration: ${durationLabel} (approximately ${targetWordCount} words)
 Video Style: ${videoStyle || 'Professional, trustworthy, empathetic'}
 Target Audience: ${targetAudience || 'Health-conscious individuals seeking natural wellness solutions'}
 
-Please create a complete video script with clear section markers and timing guidance. Format the script with clear sections like [OPENING - 0:00-0:15], [SECTION 1 - 0:15-0:45], etc.`;
+Use EXACTLY these 5 section markers: [HOOK], [PROBLEM], [SOLUTION], [SOCIAL_PROOF], [CTA].
+Each section should have content that will be displayed on screen AND spoken by the voiceover.`;
 
           const message = await anthropic.messages.create({
             model: 'claude-sonnet-4-20250514',
@@ -14476,105 +14483,100 @@ Please create a complete video script with clear section markers and timing guid
         }
       }
 
-      // Fallback: Enhanced template-based script generation
+      // Fallback: Enhanced template-based script generation using proper section markers
       const generateEnhancedScript = (productName: string, description: string, benefits: string[], length: number, style: string) => {
         const durationSecs = length || 60;
         
-        // Create timed sections based on duration
+        // Create timed sections based on duration - using proper [HOOK], [PROBLEM], [SOLUTION], [SOCIAL_PROOF], [CTA] markers
         if (durationSecs <= 30) {
           // 15-30 second script
-          return `[OPENING - 0:00-0:10]
+          return `[HOOK]
 ${productName ? `Discover ${productName} at Pine Hill Farm.` : 'Discover whole body healing at Pine Hill Farm.'}
 
-[MAIN MESSAGE - 0:10-0:25]
-${description || 'Our personalized approach helps you achieve lasting wellness results.'}
-${benefits && benefits.length > 0 ? `Key benefits: ${benefits.slice(0, 2).join(' and ')}.` : ''}
+[PROBLEM]
+Struggling to find real wellness solutions that work?
 
-[CLOSING - 0:25-0:30]
+[SOLUTION]
+${description || 'Our personalized approach helps you achieve lasting wellness results.'}
+
+[SOCIAL_PROOF]
+${benefits && benefits.length > 0 ? `Trusted by thousands: ${benefits.slice(0, 2).join(' and ')}.` : 'Trusted by thousands of wellness seekers.'}
+
+[CTA]
 Start your wellness journey today at Pine Hill Farm.`;
         } else if (durationSecs <= 60) {
           // 30-60 second script
-          return `[OPENING - 0:00-0:15]
+          return `[HOOK]
 Have you been struggling to achieve your health goals despite trying everything?
 ${productName ? `Introducing ${productName} from Pine Hill Farm.` : 'At Pine Hill Farm, we understand your journey.'}
 
-[SECTION 1: THE SOLUTION - 0:15-0:35]
+[PROBLEM]
+When your body is out of balance, even the best intentions can fall short.
+
+[SOLUTION]
 ${description || 'Our approach focuses on whole body healing, addressing root causes rather than just symptoms.'}
 
-[SECTION 2: BENEFITS - 0:35-0:50]
+[SOCIAL_PROOF]
 ${benefits && benefits.length > 0 ? `What makes us different: ${benefits.join('. ')}.` : 'We use FDA-approved BioScan technology and Functional Lab Tests for personalized support.'}
 
-[CLOSING - 0:50-1:00]
+[CTA]
 Your body wants to heal. Let Pine Hill Farm help you on your journey.
 Ready to start? Visit us today.`;
         } else if (durationSecs <= 120) {
           // 1-2 minute script
-          return `[OPENING - 0:00-0:15]
+          return `[HOOK]
 Have you been doing everything "right" but still struggling to see results?
 You're not alone. And there's a reason most approaches don't work.
 
-[SECTION 1: THE PROBLEM - 0:15-0:35]
+[PROBLEM]
 When your body is overwhelmed by toxins, stress, and imbalances, it goes into survival mode.
 Your metabolism slows. Inflammation increases. And your body holds onto what it should release.
 
-[SECTION 2: THE SOLUTION - 0:35-1:00]
+[SOLUTION]
 ${productName ? `That's where ${productName} comes in.` : 'That\'s where Pine Hill Farm comes in.'}
 ${description || 'We believe in whole body healing - addressing the root causes, not just the symptoms.'}
 
-[SECTION 3: BENEFITS - 1:00-1:30]
+[SOCIAL_PROOF]
 ${benefits && benefits.length > 0 ? `Our approach offers: ${benefits.join('. ')}.` : 'We use FDA-approved BioScan technology to identify underlying imbalances. Our Functional Lab Tests ensure personalized support for your unique biology.'}
 
-[SECTION 4: CALL TO ACTION - 1:30-2:00]
+[CTA]
 At Pine Hill Farm, we don't just help you feel better - we help you heal from the inside out.
 Your body is ready. Are you?
 
 Start your whole body healing journey today.`;
         } else {
           // 2-3 minute script
-          return `[OPENING - 0:00-0:15]
+          return `[HOOK]
 Have you been doing everything "right" but still struggling to reach your goals?
 Counting calories, hitting the gym, trying every supplement on the market?
 Here's what most people miss: your body can't heal what it's too busy defending against.
 
-[SECTION 1: WHOLE BODY HEALING - 0:15-0:35]
-True wellness isn't just about quick fixes or one-size-fits-all solutions.
-It's about whole body healing.
+[PROBLEM]
+True wellness isn't just about quick fixes or one-size-fits-all solutions. It's about whole body healing.
 When your body is overwhelmed by toxins, stress, and hidden imbalances, it goes into survival mode.
 Your metabolism slows down. Inflammation increases. And your body literally fights against your goals.
+Environmental toxins from our food, water, and air. Hidden stressors that drain your energy.
+Imbalances that disrupt your hormones. These aren't just wellness buzzwords – they're real obstacles preventing your body from functioning optimally.
 
-[SECTION 2: THE ROOT CAUSE - 0:35-0:55]
-Environmental toxins from our food, water, and air.
-Hidden stressors that drain your energy.
-Imbalances that disrupt your hormones.
-These aren't just wellness buzzwords – they're real obstacles preventing your body from functioning optimally.
-
-[SECTION 3: OUR APPROACH - 0:55-1:30]
+[SOLUTION]
 ${productName ? `This is why ${productName} works.` : 'This is why the Pine Hill Farm approach works.'}
 ${description || 'Instead of just treating symptoms, we address the foundation.'}
-
-We support your body's natural pathways.
-We identify and address root causes.
+We support your body's natural pathways. We identify and address root causes.
 We make sustainable changes that nourish rather than deplete.
-
 ${benefits && benefits.length > 0 ? `Key benefits include: ${benefits.join('. ')}.` : 'Our personalized approach ensures you get exactly what your body needs - and nothing it doesn\'t.'}
 
-[SECTION 4: PINE HILL FARM DIFFERENCE - 1:30-2:00]
+[SOCIAL_PROOF]
 At Pine Hill Farm, our approach is rooted in whole body healing.
 We use FDA-approved BioScan technology to identify underlying imbalances in your body.
 No guessing, no one-size-fits-all protocols.
-
 We also include Functional Lab Tests to take a deeper look at your hormones and unique biology.
 This ensures you receive the personalized support you truly need.
 
-[CLOSING - 2:00-2:30]
-Your body wants to heal.
-It's ready to feel better, perform better, and thrive.
+[CTA]
+Your body wants to heal. It's ready to feel better, perform better, and thrive.
 But it needs the right environment and the right support.
-
 At Pine Hill Farm, we don't just help you feel better – we help you heal from the inside out.
-
-Ready to start your whole body healing journey?
-Visit Pine Hill Farm today.`;
+Ready to start your whole body healing journey? Visit Pine Hill Farm today.`;
         }
       };
 
