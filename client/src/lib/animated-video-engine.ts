@@ -3,6 +3,22 @@
 
 import { ParsedScript, ScriptSection, Platform, PLATFORM_SPECS } from './script-pipeline';
 import lottie, { AnimationItem } from 'lottie-web';
+import { SubtitleStyle } from './subtitle-generator';
+
+// Color grading preset names
+export type ColorGradingPresetName = 'natural' | 'cinematic' | 'vibrant' | 'medical' | 'warm' | 'cool';
+
+// Video enhancement options passed from UI
+export interface VideoEnhancementOptions {
+  useSubtitles: boolean;
+  subtitleStyle: SubtitleStyle;
+  colorGrading: ColorGradingPresetName;
+  useBackgroundMusic: boolean;
+  musicMood: 'corporate' | 'uplifting' | 'calm' | 'energetic' | 'medical' | 'inspirational';
+  musicVolume: number;
+  useSoundEffects: boolean;
+  useBroll: boolean;
+}
 
 interface AnimationKeyframe {
   time: number; // Time in seconds when this keyframe is active
@@ -133,6 +149,18 @@ export class AnimatedVideoEngine {
   private sectionVideoClips: Map<string, HTMLVideoElement> = new Map();
   private audioBuffer: Blob | null = null;
   private targetDuration: number = 60; // Default 60 seconds
+  private enhancementOptions: VideoEnhancementOptions = {
+    useSubtitles: true,
+    subtitleStyle: 'tiktok',
+    colorGrading: 'natural',
+    useBackgroundMusic: false,
+    musicMood: 'corporate',
+    musicVolume: 0.25,
+    useSoundEffects: false,
+    useBroll: false
+  };
+  private scriptText: string = ''; // Store original script text for subtitle generation
+  private subtitleSegments: { startTime: number; endTime: number; text: string }[] = []; // Cached subtitle segments
 
   constructor(canvas: HTMLCanvasElement, platform: Platform = 'youtube') {
     this.canvas = canvas;
@@ -155,6 +183,63 @@ export class AnimatedVideoEngine {
 
   setAudioBuffer(audio: Blob | null) {
     this.audioBuffer = audio;
+  }
+
+  setEnhancementOptions(options: Partial<VideoEnhancementOptions>) {
+    this.enhancementOptions = { ...this.enhancementOptions, ...options };
+    console.log('[VideoEngine] Enhancement options set:', this.enhancementOptions);
+  }
+
+  setScriptText(script: string) {
+    this.scriptText = script;
+    // Pre-compute subtitle segments based on target duration
+    this.computeSubtitleSegments();
+  }
+
+  /**
+   * Pre-compute subtitle segments with timing for efficient rendering
+   */
+  private computeSubtitleSegments() {
+    if (!this.scriptText) {
+      this.subtitleSegments = [];
+      return;
+    }
+
+    // Clean script text
+    const cleanScript = this.scriptText
+      .replace(/\[(?:SECTION\s*\d+\s*:\s*)?(?:THE\s+)?[^\]]*\]/gi, '')
+      .replace(/\*{2,}/g, '')
+      .replace(/^##\s+[^\n]+$/gm, '')
+      .replace(/\n+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    const words = cleanScript.split(' ').filter(w => w.length > 0);
+    if (words.length === 0) {
+      this.subtitleSegments = [];
+      return;
+    }
+
+    // Calculate timing based on target duration and word count
+    // 150 words/min = 2.5 words/sec
+    const wordsPerSecond = 2.5;
+    const segmentWords = 4; // Words per segment
+    
+    this.subtitleSegments = [];
+    
+    for (let i = 0; i < words.length; i += segmentWords) {
+      const segmentText = words.slice(i, Math.min(i + segmentWords, words.length)).join(' ');
+      const startTime = i / wordsPerSecond;
+      const endTime = Math.min((i + segmentWords) / wordsPerSecond, this.targetDuration);
+      
+      this.subtitleSegments.push({
+        startTime,
+        endTime,
+        text: segmentText
+      });
+    }
+    
+    console.log(`[VideoEngine] Pre-computed ${this.subtitleSegments.length} subtitle segments`);
   }
 
   /**
@@ -638,8 +723,321 @@ export class AnimatedVideoEngine {
     // Render animated border frame
     this.renderAnimatedBorder(sectionTime);
     
+    // Apply color grading effect if enabled (not 'natural')
+    if (this.enhancementOptions.colorGrading !== 'natural') {
+      this.applyColorGrading(section.startTime + sectionTime);
+    }
+    
+    // Render dynamic subtitles if enabled
+    if (this.enhancementOptions.useSubtitles && this.scriptText) {
+      this.renderDynamicSubtitle(section.startTime + sectionTime);
+    }
+    
     // Reset alpha
     this.ctx.globalAlpha = 1;
+  }
+
+  /**
+   * Apply color grading effect to the current canvas
+   * Optimized to minimize per-frame overhead
+   */
+  private applyColorGrading(currentTime: number) {
+    const preset = this.enhancementOptions.colorGrading;
+    if (preset === 'natural') return; // Skip processing for natural preset
+    
+    this.ctx.save();
+    
+    // Apply preset-specific effects with minimal operations
+    switch (preset) {
+      case 'cinematic':
+        // Cool temperature overlay + vignette
+        this.ctx.globalCompositeOperation = 'overlay';
+        this.ctx.globalAlpha = 0.06;
+        this.ctx.fillStyle = '#4A90D9'; // Cool blue-gray tint
+        this.ctx.fillRect(0, 0, this.width, this.height);
+        this.ctx.globalCompositeOperation = 'source-over';
+        this.renderVignette(0.35);
+        break;
+        
+      case 'vibrant':
+        // Saturation boost via overlay
+        this.ctx.globalCompositeOperation = 'saturation';
+        this.ctx.globalAlpha = 0.1;
+        this.ctx.fillStyle = '#FF6B6B';
+        this.ctx.fillRect(0, 0, this.width, this.height);
+        break;
+        
+      case 'medical':
+        // Desaturated clean look
+        this.ctx.globalCompositeOperation = 'saturation';
+        this.ctx.globalAlpha = 0.15;
+        this.ctx.fillStyle = '#CCCCCC';
+        this.ctx.fillRect(0, 0, this.width, this.height);
+        // Slight brightness boost
+        this.ctx.globalCompositeOperation = 'overlay';
+        this.ctx.globalAlpha = 0.05;
+        this.ctx.fillStyle = '#FFFFFF';
+        this.ctx.fillRect(0, 0, this.width, this.height);
+        break;
+        
+      case 'warm':
+        // Warm golden overlay
+        this.ctx.globalCompositeOperation = 'overlay';
+        this.ctx.globalAlpha = 0.08;
+        this.ctx.fillStyle = '#FFB74D';
+        this.ctx.fillRect(0, 0, this.width, this.height);
+        break;
+        
+      case 'cool':
+        // Cool blue overlay
+        this.ctx.globalCompositeOperation = 'overlay';
+        this.ctx.globalAlpha = 0.08;
+        this.ctx.fillStyle = '#64B5F6';
+        this.ctx.fillRect(0, 0, this.width, this.height);
+        break;
+    }
+    
+    this.ctx.restore();
+  }
+
+  /**
+   * Render vignette effect
+   */
+  private renderVignette(intensity: number) {
+    const gradient = this.ctx.createRadialGradient(
+      this.width / 2, this.height / 2, this.height * 0.3,
+      this.width / 2, this.height / 2, this.height * 0.9
+    );
+    gradient.addColorStop(0, 'rgba(0,0,0,0)');
+    gradient.addColorStop(1, `rgba(0,0,0,${intensity})`);
+    
+    this.ctx.globalCompositeOperation = 'multiply';
+    this.ctx.fillStyle = gradient;
+    this.ctx.fillRect(0, 0, this.width, this.height);
+    this.ctx.globalCompositeOperation = 'source-over';
+  }
+
+  /**
+   * Render dynamic subtitles based on pre-computed segments
+   */
+  private renderDynamicSubtitle(currentTime: number) {
+    if (this.subtitleSegments.length === 0) return;
+    
+    const style = this.enhancementOptions.subtitleStyle;
+    
+    // Find the current segment based on time
+    const currentSegment = this.subtitleSegments.find(
+      seg => currentTime >= seg.startTime && currentTime < seg.endTime
+    );
+    
+    if (!currentSegment) return;
+    
+    // Calculate progress within segment for animations
+    const segmentProgress = (currentTime - currentSegment.startTime) / 
+                           (currentSegment.endTime - currentSegment.startTime);
+    
+    // Get words from current segment
+    const words = currentSegment.text.split(' ');
+    const currentWordInSegment = Math.floor(segmentProgress * words.length);
+    
+    // Render based on style using segment data
+    this.renderSubtitleStyle(words, currentWordInSegment, style, currentTime);
+  }
+
+  /**
+   * Render subtitle with specific style
+   */
+  private renderSubtitleStyle(words: string[], currentIndex: number, style: SubtitleStyle, time: number) {
+    this.ctx.save();
+    
+    const text = words.join(' ');
+    
+    switch (style) {
+      case 'tiktok':
+        this.renderTikTokSubtitle(words, currentIndex, time);
+        break;
+      case 'karaoke':
+        this.renderKaraokeSubtitle(words, currentIndex, time);
+        break;
+      case 'modern':
+        this.renderModernSubtitle(text, time);
+        break;
+      case 'traditional':
+        this.renderTraditionalSubtitle(text);
+        break;
+      case 'minimal':
+      default:
+        this.renderMinimalSubtitle(text);
+        break;
+    }
+    
+    this.ctx.restore();
+  }
+
+  /**
+   * TikTok-style word-by-word pop animation
+   */
+  private renderTikTokSubtitle(words: string[], currentIndex: number, time: number) {
+    const fontSize = Math.floor(this.height * 0.06);
+    this.ctx.font = `bold ${fontSize}px 'Arial Black', Arial, sans-serif`;
+    this.ctx.textAlign = 'center';
+    this.ctx.textBaseline = 'middle';
+    
+    const y = this.height * 0.75;
+    
+    // Calculate total width first for centering
+    let totalWidth = 0;
+    const wordSpacing = 15;
+    words.forEach(word => {
+      totalWidth += this.ctx.measureText(word).width + wordSpacing;
+    });
+    totalWidth -= wordSpacing; // Remove last spacing
+    
+    let xOffset = -totalWidth / 2;
+    const highlightIndex = Math.min(currentIndex, words.length - 1);
+    
+    words.forEach((word, i) => {
+      // Current word pulses and is larger/highlighted
+      const isCurrent = i === highlightIndex;
+      const pulse = isCurrent ? Math.sin(time * 15) * 0.15 + 1.15 : 1;
+      
+      const wordWidth = this.ctx.measureText(word).width;
+      const wordCenterX = this.width / 2 + xOffset + wordWidth / 2;
+      
+      this.ctx.save();
+      this.ctx.translate(wordCenterX, y);
+      this.ctx.scale(pulse, pulse);
+      
+      // Shadow
+      this.ctx.fillStyle = 'rgba(0,0,0,0.8)';
+      this.ctx.fillText(word, 3, 3);
+      
+      // Main text - current word is highlighted yellow
+      this.ctx.fillStyle = isCurrent ? '#FFEB3B' : (i < highlightIndex ? '#E0E0E0' : '#FFFFFF');
+      this.ctx.fillText(word, 0, 0);
+      
+      // Outline for visibility
+      this.ctx.strokeStyle = 'rgba(0,0,0,0.6)';
+      this.ctx.lineWidth = 2;
+      this.ctx.strokeText(word, 0, 0);
+      
+      this.ctx.restore();
+      
+      xOffset += wordWidth + wordSpacing;
+    });
+  }
+
+  /**
+   * Karaoke-style highlighted word
+   */
+  private renderKaraokeSubtitle(words: string[], currentIndex: number, time: number) {
+    const fontSize = Math.floor(this.height * 0.045);
+    this.ctx.font = `bold ${fontSize}px Arial, sans-serif`;
+    this.ctx.textAlign = 'center';
+    this.ctx.textBaseline = 'middle';
+    
+    const y = this.height * 0.8;
+    const text = words.join(' ');
+    
+    // Background box
+    const textWidth = this.ctx.measureText(text).width;
+    this.ctx.fillStyle = 'rgba(0,0,0,0.7)';
+    this.ctx.roundRect(
+      this.width / 2 - textWidth / 2 - 20,
+      y - fontSize / 2 - 10,
+      textWidth + 40,
+      fontSize + 20,
+      10
+    );
+    this.ctx.fill();
+    
+    // Render each word with highlighting based on currentIndex
+    let x = this.width / 2 - textWidth / 2;
+    const highlightIndex = Math.min(currentIndex, words.length - 1);
+    words.forEach((word, i) => {
+      // Highlight current word and all previous words (karaoke style - sung words stay highlighted)
+      const isHighlighted = i <= highlightIndex;
+      this.ctx.fillStyle = isHighlighted ? '#00E676' : '#FFFFFF';
+      this.ctx.fillText(word, x + this.ctx.measureText(word).width / 2, y);
+      x += this.ctx.measureText(word + ' ').width;
+    });
+  }
+
+  /**
+   * Modern large text with background box
+   */
+  private renderModernSubtitle(text: string, time: number) {
+    const fontSize = Math.floor(this.height * 0.055);
+    this.ctx.font = `700 ${fontSize}px 'Segoe UI', Arial, sans-serif`;
+    this.ctx.textAlign = 'center';
+    this.ctx.textBaseline = 'middle';
+    
+    const y = this.height * 0.75;
+    const textWidth = this.ctx.measureText(text).width;
+    
+    // Animated background box
+    const boxPadding = 25;
+    const animOffset = Math.sin(time * 3) * 2;
+    
+    this.ctx.fillStyle = 'rgba(45, 80, 22, 0.85)'; // Pine Hill green
+    this.ctx.roundRect(
+      this.width / 2 - textWidth / 2 - boxPadding + animOffset,
+      y - fontSize / 2 - 15,
+      textWidth + boxPadding * 2,
+      fontSize + 30,
+      8
+    );
+    this.ctx.fill();
+    
+    // White text
+    this.ctx.fillStyle = '#FFFFFF';
+    this.ctx.fillText(text, this.width / 2, y);
+  }
+
+  /**
+   * Traditional YouTube-style bottom subtitles
+   */
+  private renderTraditionalSubtitle(text: string) {
+    const fontSize = Math.floor(this.height * 0.04);
+    this.ctx.font = `500 ${fontSize}px Arial, sans-serif`;
+    this.ctx.textAlign = 'center';
+    this.ctx.textBaseline = 'bottom';
+    
+    const y = this.height - 50;
+    
+    // Semi-transparent background
+    const textWidth = this.ctx.measureText(text).width;
+    this.ctx.fillStyle = 'rgba(0,0,0,0.75)';
+    this.ctx.fillRect(
+      this.width / 2 - textWidth / 2 - 15,
+      y - fontSize - 5,
+      textWidth + 30,
+      fontSize + 10
+    );
+    
+    // Yellow text (classic CC style)
+    this.ctx.fillStyle = '#FFEB3B';
+    this.ctx.fillText(text, this.width / 2, y);
+  }
+
+  /**
+   * Minimal clean text with shadow
+   */
+  private renderMinimalSubtitle(text: string) {
+    const fontSize = Math.floor(this.height * 0.05);
+    this.ctx.font = `600 ${fontSize}px Arial, sans-serif`;
+    this.ctx.textAlign = 'center';
+    this.ctx.textBaseline = 'middle';
+    
+    const y = this.height * 0.82;
+    
+    // Shadow
+    this.ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    this.ctx.fillText(text, this.width / 2 + 2, y + 2);
+    
+    // Main text
+    this.ctx.fillStyle = '#FFFFFF';
+    this.ctx.fillText(text, this.width / 2, y);
   }
 
   /**

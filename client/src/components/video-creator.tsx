@@ -44,7 +44,7 @@ import { ProfessionalImageryService } from '@/lib/professional-imagery';
 import { ProfessionalVoiceoverService } from '@/lib/professional-voiceover';
 import { ProfessionalLottieService } from '@/lib/lottie-animations';
 import { scriptPipeline, Platform, PLATFORM_SPECS } from '@/lib/script-pipeline';
-import { AnimatedVideoEngine } from '@/lib/animated-video-engine';
+import { AnimatedVideoEngine, ColorGradingPresetName, VideoEnhancementOptions } from '@/lib/animated-video-engine';
 import { RunwayVideoService } from '@/lib/runway-video-service';
 import { StableDiffusionService } from '@/lib/stable-diffusion-service';
 import { BackgroundMusicService, MusicConfig } from '@/lib/background-music-service';
@@ -82,7 +82,7 @@ export default function VideoCreator() {
   const [useSoundEffects, setUseSoundEffects] = useState(false);
   const [useSubtitles, setUseSubtitles] = useState(true);
   const [subtitleStyle, setSubtitleStyle] = useState<SubtitleStyle>('tiktok');
-  const [colorGrading, setColorGrading] = useState<string>('natural');
+  const [colorGrading, setColorGrading] = useState<ColorGradingPresetName>('natural');
   const [useBroll, setUseBroll] = useState(false);
   const [pixabayAvailable, setPixabayAvailable] = useState(false);
   const [pexelsAvailable, setPexelsAvailable] = useState(false);
@@ -600,6 +600,21 @@ export default function VideoCreator() {
       
       // Set target duration
       animatedEngine.setTargetDuration(videoDuration);
+      
+      // Set enhancement options
+      animatedEngine.setEnhancementOptions({
+        useSubtitles,
+        subtitleStyle,
+        colorGrading,
+        useBackgroundMusic,
+        musicMood,
+        musicVolume,
+        useSoundEffects,
+        useBroll
+      });
+      
+      // Set script text for subtitle generation
+      animatedEngine.setScriptText(script);
       
       // Load section images
       if (sectionImages.length > 0) {
@@ -1481,7 +1496,7 @@ Visit Pine Hill Farm today!`)}
                         Color Grading
                       </Label>
                       <div className="grid grid-cols-3 gap-1">
-                        {['natural', 'cinematic', 'vibrant', 'medical', 'warm', 'cool'].map((preset) => (
+                        {(['natural', 'cinematic', 'vibrant', 'medical', 'warm', 'cool'] as ColorGradingPresetName[]).map((preset) => (
                           <Button
                             key={preset}
                             variant={colorGrading === preset ? "default" : "outline"}
