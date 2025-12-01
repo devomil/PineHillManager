@@ -187,13 +187,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           apiKey: process.env.ELEVENLABS_API_KEY || null
         },
         runway: {
-          available: !!(process.env.Runway || process.env.RUNWAYML_API_SECRET)
+          available: !!(process.env.RUNWAY_API_KEY || process.env.Runway || process.env.RUNWAYML_API_SECRET)
         },
         anthropic: {
           available: !!process.env.ANTHROPIC_API_KEY
         },
         stableDiffusion: {
-          available: !!process.env.Stable_Diffusion
+          available: !!(process.env.STABILITY_API_KEY || process.env.Stable_Diffusion)
         },
         pixabay: {
           apiKey: process.env.PIXABAY_API_KEY || null,
@@ -319,14 +319,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Check Runway API availability
   app.get('/api/runway/status', isAuthenticated, async (req, res) => {
-    const apiKey = process.env.Runway || process.env.RUNWAYML_API_SECRET;
+    const apiKey = process.env.RUNWAY_API_KEY || process.env.Runway || process.env.RUNWAYML_API_SECRET;
     res.json({ available: !!apiKey });
   });
 
   // Generate text-to-video with Runway (uses VEO models)
   app.post('/api/runway/text-to-video', isAuthenticated, requireRole(['admin', 'manager']), async (req, res) => {
     try {
-      const apiKey = process.env.Runway || process.env.RUNWAYML_API_SECRET;
+      const apiKey = process.env.RUNWAY_API_KEY || process.env.Runway || process.env.RUNWAYML_API_SECRET;
       if (!apiKey) {
         return res.status(400).json({ message: 'Runway API key not configured' });
       }
@@ -367,7 +367,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Generate image-to-video with Runway (uses Gen-4 Turbo)
   app.post('/api/runway/image-to-video', isAuthenticated, requireRole(['admin', 'manager']), async (req, res) => {
     try {
-      const apiKey = process.env.Runway || process.env.RUNWAYML_API_SECRET;
+      const apiKey = process.env.RUNWAY_API_KEY || process.env.Runway || process.env.RUNWAYML_API_SECRET;
       if (!apiKey) {
         return res.status(400).json({ message: 'Runway API key not configured' });
       }
@@ -416,7 +416,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Check Runway task status
   app.get('/api/runway/task/:taskId', isAuthenticated, async (req, res) => {
     try {
-      const apiKey = process.env.Runway || process.env.RUNWAYML_API_SECRET;
+      const apiKey = process.env.RUNWAY_API_KEY || process.env.Runway || process.env.RUNWAYML_API_SECRET;
       if (!apiKey) {
         return res.status(400).json({ message: 'Runway API key not configured' });
       }
@@ -449,14 +449,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Check Stable Diffusion availability
   app.get('/api/stable-diffusion/status', isAuthenticated, async (req, res) => {
-    const apiKey = process.env.Stable_Diffusion;
+    const apiKey = process.env.STABILITY_API_KEY || process.env.Stable_Diffusion;
     res.json({ available: !!apiKey });
   });
 
   // Generate image with Stable Diffusion via Hugging Face
   app.post('/api/stable-diffusion/generate', isAuthenticated, requireRole(['admin', 'manager']), async (req, res) => {
     try {
-      const apiKey = process.env.Stable_Diffusion || process.env.HUGGINGFACE_API_TOKEN;
+      const apiKey = process.env.STABILITY_API_KEY || process.env.Stable_Diffusion || process.env.HUGGINGFACE_API_TOKEN;
       if (!apiKey) {
         return res.status(400).json({ message: 'Stable Diffusion API key not configured' });
       }
