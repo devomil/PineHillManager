@@ -16374,16 +16374,66 @@ Visit Pine Hill Farm today.`;
           return true;
         });
 
+        // Calculate period length in days for proration
+        const periodStart = new Date(startDate as string);
+        const periodEnd = new Date(endDate as string);
+        const periodDays = Math.ceil((periodEnd.getTime() - periodStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+        
+        // Reference periods (average days)
+        const DAYS_PER_WEEK = 7;
+        const DAYS_PER_MONTH = 30;
+        const DAYS_PER_QUARTER = 91;
+        const DAYS_PER_YEAR = 365;
+        
+        // Calculate expense amount based on billing frequency using ratio-based proration
+        const getExpenseAmount = (account: any): number => {
+          // For Manual Entry accounts, use billing frequency to calculate period amount
+          if (account.dataSource === 'Manual' && account.manualBalance) {
+            const manualAmount = parseFloat(account.manualBalance || '0');
+            const frequency = account.billingFrequency || 'monthly';
+            
+            // Prorate based on actual period length vs frequency cycle
+            switch (frequency) {
+              case 'weekly':
+                // Weekly expense: prorate based on weeks in period
+                return manualAmount * (periodDays / DAYS_PER_WEEK);
+              case 'monthly':
+                // Monthly expense: prorate based on months in period
+                return manualAmount * (periodDays / DAYS_PER_MONTH);
+              case 'quarterly':
+                // Quarterly expense: prorate based on quarters in period
+                return manualAmount * (periodDays / DAYS_PER_QUARTER);
+              case 'annual':
+                // Annual expense: prorate based on years in period
+                return manualAmount * (periodDays / DAYS_PER_YEAR);
+              case 'custom':
+                // Custom/one-time: don't include in recurring period reports
+                return 0;
+              default:
+                // Default to monthly proration
+                return manualAmount * (periodDays / DAYS_PER_MONTH);
+            }
+          }
+          
+          // For Auto/API accounts, use the static balance (accumulated)
+          // TODO: In future, fetch transaction-level data for period filtering
+          return parseFloat(account.balance || '0');
+        };
+
         totalExpenses = operatingExpenseAccounts.reduce((sum: number, account: any) => {
-          return sum + parseFloat(account.balance || '0');
+          return sum + getExpenseAmount(account);
         }, 0);
 
-        expenseBreakdown = operatingExpenseAccounts.map((account: any) => ({
-          id: account.id,
-          name: account.accountName,
-          amount: parseFloat(account.balance || '0'),
-          percentage: totalExpenses > 0 ? ((parseFloat(account.balance || '0') / totalExpenses) * 100).toFixed(2) : '0.00'
-        }));
+        expenseBreakdown = operatingExpenseAccounts.map((account: any) => {
+          const amount = getExpenseAmount(account);
+          return {
+            id: account.id,
+            name: account.accountName,
+            amount: amount,
+            frequency: account.billingFrequency || 'monthly',
+            percentage: totalExpenses > 0 ? ((amount / totalExpenses) * 100).toFixed(2) : '0.00'
+          };
+        }).filter((item: any) => item.amount > 0); // Filter out zero amounts
 
       } catch (error) {
         console.error('Error fetching integration data for P&L:', error);
@@ -16416,8 +16466,36 @@ Visit Pine Hill Farm today.`;
           return true;
         });
 
+        // Calculate period length for proration (fallback path)
+        const fbPeriodStart = new Date(startDate as string);
+        const fbPeriodEnd = new Date(endDate as string);
+        const fbPeriodDays = Math.ceil((fbPeriodEnd.getTime() - fbPeriodStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+        
+        // Reference periods for ratio-based proration
+        const FB_DAYS_PER_WEEK = 7;
+        const FB_DAYS_PER_MONTH = 30;
+        const FB_DAYS_PER_QUARTER = 91;
+        const FB_DAYS_PER_YEAR = 365;
+        
+        // Helper for expense amount based on frequency with ratio-based proration
+        const getFallbackExpenseAmount = (account: any): number => {
+          if (account.dataSource === 'Manual' && account.manualBalance) {
+            const amount = parseFloat(account.manualBalance || '0');
+            const freq = account.billingFrequency || 'monthly';
+            switch (freq) {
+              case 'weekly': return amount * (fbPeriodDays / FB_DAYS_PER_WEEK);
+              case 'monthly': return amount * (fbPeriodDays / FB_DAYS_PER_MONTH);
+              case 'quarterly': return amount * (fbPeriodDays / FB_DAYS_PER_QUARTER);
+              case 'annual': return amount * (fbPeriodDays / FB_DAYS_PER_YEAR);
+              case 'custom': return 0;
+              default: return amount * (fbPeriodDays / FB_DAYS_PER_MONTH);
+            }
+          }
+          return parseFloat(account.balance || '0');
+        };
+
         totalRevenue = incomeAccounts.reduce((sum: number, account: any) => sum + parseFloat(account.balance || '0'), 0);
-        totalExpenses = operatingExpenseAccounts.reduce((sum: number, account: any) => sum + parseFloat(account.balance || '0'), 0);
+        totalExpenses = operatingExpenseAccounts.reduce((sum: number, account: any) => sum + getFallbackExpenseAmount(account), 0);
         totalCOGS = cogsAccounts.reduce((sum: number, account: any) => sum + parseFloat(account.balance || '0'), 0);
 
         incomeBreakdown = incomeAccounts.map((account: any) => ({
@@ -16427,12 +16505,16 @@ Visit Pine Hill Farm today.`;
           percentage: totalRevenue > 0 ? ((parseFloat(account.balance || '0') / totalRevenue) * 100).toFixed(2) : '0.00'
         }));
 
-        expenseBreakdown = operatingExpenseAccounts.map((account: any) => ({
-          id: account.id,
-          name: account.accountName,
-          amount: parseFloat(account.balance || '0'),
-          percentage: totalExpenses > 0 ? ((parseFloat(account.balance || '0') / totalExpenses) * 100).toFixed(2) : '0.00'
-        }));
+        expenseBreakdown = operatingExpenseAccounts.map((account: any) => {
+          const amount = getFallbackExpenseAmount(account);
+          return {
+            id: account.id,
+            name: account.accountName,
+            amount: amount,
+            frequency: account.billingFrequency || 'monthly',
+            percentage: totalExpenses > 0 ? ((amount / totalExpenses) * 100).toFixed(2) : '0.00'
+          };
+        }).filter((item: any) => item.amount > 0);
 
         cogsBreakdown = cogsAccounts.map((account: any) => ({
           id: account.id,
