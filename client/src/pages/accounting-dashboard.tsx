@@ -4401,8 +4401,8 @@ function ProfitLossReport({
     }));
   }
   
-  // COGS accounts - identify by name patterns or account number (50xx range)
-  const cogsAccounts = accounts.filter(account => {
+  // COGS accounts from Chart of Accounts (fallback only)
+  const cogsAccountsFromChartOfAccounts = accounts.filter(account => {
     const name = account.accountName.toLowerCase();
     const accountNumber = (account as any).accountNumber || '';
     return name.includes('cost of goods') || 
@@ -4411,9 +4411,29 @@ function ProfitLossReport({
            accountNumber.startsWith('50');
   });
   
+  // Build COGS items from API data (date-filtered) or Chart of Accounts (static)
+  const hasCogsBreakdown = data.cogsBreakdown && Array.isArray(data.cogsBreakdown) && data.cogsBreakdown.length > 0;
+  let cogsItems: Array<{ id: string | number; name: string; amount: number }> = [];
+  
+  if (hasCogsBreakdown) {
+    // Use COGS breakdown from P&L API (date-filtered data)
+    cogsItems = data.cogsBreakdown.map((item: any) => ({
+      id: item.id || item.name,
+      name: item.name,
+      amount: parseFloat(item.amount || '0')
+    }));
+  } else if (cogsAccountsFromChartOfAccounts.length > 0) {
+    // Fall back to Chart of Accounts (static balances - not date filtered)
+    cogsItems = cogsAccountsFromChartOfAccounts.map(account => ({
+      id: account.id,
+      name: account.accountName,
+      amount: parseFloat(account.balance || '0')
+    }));
+  }
+  
   // Exclude COGS from Operating Expenses to prevent double-counting (COGS is shown in its own section)
   // Also exclude child accounts whose parent is already displayed (prevents Officer Income + Payroll Expense double-counting)
-  const cogsAccountIds = new Set(cogsAccounts.map(a => a.id));
+  const cogsAccountIds = new Set(cogsAccountsFromChartOfAccounts.map(a => a.id));
   
   // Get all expense accounts that are top-level (no parent)
   const topLevelExpenseIds = new Set(
@@ -4445,9 +4465,7 @@ function ProfitLossReport({
   
   // Calculate totals
   const calculatedTotalRevenue = revenueItems.reduce((sum, item) => sum + item.amount, 0);
-  const calculatedTotalCOGS = cogsAccounts.reduce((sum, account) => 
-    sum + parseFloat(account.balance || '0'), 0
-  );
+  const calculatedTotalCOGS = cogsItems.reduce((sum, item) => sum + item.amount, 0);
   const calculatedTotalExpenses = operatingExpenseAccounts.reduce((sum, account) => 
     sum + parseFloat(account.balance || '0'), 0
   );
@@ -4515,12 +4533,12 @@ function ProfitLossReport({
                 Cost of Goods Sold
               </h3>
               <div className="space-y-2 ml-4">
-                {cogsAccounts.length > 0 ? (
-                  cogsAccounts.map((account) => (
-                    <div key={account.id} className="flex justify-between items-center">
-                      <span className="text-sm">{account.accountName}</span>
+                {cogsItems.length > 0 ? (
+                  cogsItems.map((item) => (
+                    <div key={item.id} className="flex justify-between items-center">
+                      <span className="text-sm">{item.name}</span>
                       <span className="font-medium text-orange-600">
-                        {formatCurrency(account.balance)}
+                        {formatCurrency(item.amount)}
                       </span>
                     </div>
                   ))
