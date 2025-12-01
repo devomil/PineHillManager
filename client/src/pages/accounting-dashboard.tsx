@@ -106,6 +106,7 @@ type FinancialAccount = {
   balance: string;
   dataSource?: string;
   manualBalance?: string | null;
+  billingFrequency?: string;
   isActive: boolean;
   parentAccountId?: number;
   createdAt: string;
@@ -128,6 +129,15 @@ type JournalEntryLine = {
   creditAmount: string;
 };
 
+// Billing frequency options for expense accounts
+const BILLING_FREQUENCIES = [
+  { value: 'weekly', label: 'Weekly' },
+  { value: 'monthly', label: 'Monthly' },
+  { value: 'quarterly', label: 'Every 3 Months (Quarterly)' },
+  { value: 'annual', label: 'Annual' },
+  { value: 'custom', label: 'Custom / One-time' },
+];
+
 // Form schemas
 const accountFormSchema = z.object({
   accountName: z.string().min(1, 'Account name is required'),
@@ -138,6 +148,7 @@ const accountFormSchema = z.object({
   parentAccountId: z.string().optional(),
   dataSource: z.enum(['Auto', 'Manual', 'QuickBooks']).default('Auto'),
   manualBalance: z.string().optional(),
+  billingFrequency: z.enum(['weekly', 'monthly', 'quarterly', 'annual', 'custom']).default('monthly'),
 });
 
 const journalEntryFormSchema = z.object({
@@ -2657,6 +2668,7 @@ function AccountManagementDialog({
       parentAccountId: editingAccount?.parentAccountId?.toString() || 'none',
       dataSource: (editingAccount?.dataSource as any) || 'Auto',
       manualBalance: editingAccount?.manualBalance?.toString() || '',
+      billingFrequency: (editingAccount?.billingFrequency as any) || 'monthly',
     },
   });
 
@@ -2708,6 +2720,7 @@ function AccountManagementDialog({
         parentAccountId: editingAccount.parentAccountId?.toString() || 'none',
         dataSource: (editingAccount.dataSource as any) || 'Auto',
         manualBalance: editingAccount.manualBalance?.toString() || '',
+        billingFrequency: (editingAccount.billingFrequency as any) || 'monthly',
       });
     } else {
       form.reset({
@@ -2719,6 +2732,7 @@ function AccountManagementDialog({
         parentAccountId: 'none',
         dataSource: 'Auto',
         manualBalance: '',
+        billingFrequency: 'monthly',
       });
     }
   }, [editingAccount, form]);
@@ -2874,6 +2888,36 @@ function AccountManagementDialog({
                     </FormControl>
                     <FormDescription>
                       Enter the fixed amount for this account (e.g., rent expense)
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+
+            {(form.watch('accountType') === 'Expense' || form.watch('accountType') === 'Income') && (
+              <FormField
+                control={form.control}
+                name="billingFrequency"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Billing Frequency</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger data-testid="select-billing-frequency">
+                          <SelectValue placeholder="Select billing frequency" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {BILLING_FREQUENCIES.map((freq) => (
+                          <SelectItem key={freq.value} value={freq.value}>
+                            {freq.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormDescription>
+                      How often this expense/income occurs. Used to calculate period-specific reports.
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
