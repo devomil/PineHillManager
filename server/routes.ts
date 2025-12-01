@@ -16324,10 +16324,10 @@ Visit Pine Hill Farm today.`;
           // COGS API returns: totalCost, laborCosts, materialCosts, laborBreakdown, materialBreakdown
           totalCOGS = parseFloat(cogsData.totalCost) || 0;
           
-          // Build COGS breakdown from labor and material costs
+          // Build COGS breakdown with summary-level items only (no detailed line items)
           cogsBreakdown = [];
           
-          // Add labor costs breakdown
+          // Add labor costs total
           if (cogsData.laborCosts && parseFloat(cogsData.laborCosts) > 0) {
             cogsBreakdown.push({
               id: 'labor_costs',
@@ -16336,33 +16336,12 @@ Visit Pine Hill Farm today.`;
             });
           }
           
-          // Add material costs breakdown
+          // Add material costs total
           if (cogsData.materialCosts && parseFloat(cogsData.materialCosts) > 0) {
             cogsBreakdown.push({
               id: 'material_costs',
               name: 'Material Costs (Inventory)',
               amount: parseFloat(cogsData.materialCosts) || 0
-            });
-          }
-          
-          // If we have detailed breakdowns, add them as sub-items
-          if (cogsData.laborBreakdown && cogsData.laborBreakdown.length > 0) {
-            cogsData.laborBreakdown.forEach((item: any, index: number) => {
-              cogsBreakdown.push({
-                id: `labor_${index}`,
-                name: `  ${item.employeeName || item.name || 'Employee'} (${item.hoursWorked?.toFixed(1) || 0} hrs)`,
-                amount: parseFloat(item.laborCost) || parseFloat(item.amount) || 0
-              });
-            });
-          }
-          
-          if (cogsData.materialBreakdown && cogsData.materialBreakdown.length > 0) {
-            cogsData.materialBreakdown.forEach((item: any, index: number) => {
-              cogsBreakdown.push({
-                id: `material_${index}`,
-                name: `  ${item.productName || item.name || 'Product'}`,
-                amount: parseFloat(item.totalCost) || parseFloat(item.amount) || 0
-              });
             });
           }
           
