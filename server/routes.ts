@@ -194,11 +194,122 @@ export async function registerRoutes(app: Express): Promise<Server> {
         },
         stableDiffusion: {
           available: !!process.env.Stable_Diffusion
+        },
+        pixabay: {
+          apiKey: process.env.PIXABAY_API_KEY || null,
+          available: !!process.env.PIXABAY_API_KEY
+        },
+        pexels: {
+          apiKey: process.env.PEXELS_API_KEY || null,
+          available: !!process.env.PEXELS_API_KEY
         }
       });
     } catch (error) {
       console.error('Error fetching API config:', error);
       res.status(500).json({ message: 'Failed to fetch API configuration' });
+    }
+  });
+
+  // ================================
+  // PIXABAY MUSIC & VIDEO API ROUTES
+  // ================================
+
+  // Pixabay Status
+  app.get('/api/pixabay/status', isAuthenticated, (req, res) => {
+    res.json({ available: !!process.env.PIXABAY_API_KEY });
+  });
+
+  // Pixabay Music Search
+  app.get('/api/pixabay/music/search', isAuthenticated, async (req, res) => {
+    try {
+      const apiKey = process.env.PIXABAY_API_KEY;
+      if (!apiKey) {
+        return res.status(503).json({ error: 'Pixabay API key not configured' });
+      }
+
+      const { query, per_page = 20 } = req.query;
+
+      if (!query) {
+        return res.status(400).json({ error: 'Query parameter is required' });
+      }
+
+      const url = `https://pixabay.com/api/?key=${apiKey}&q=${encodeURIComponent(query as string)}&audio_type=music&per_page=${per_page}`;
+
+      const response = await fetch(url);
+      const data = await response.json();
+
+      res.json(data);
+    } catch (error) {
+      console.error('Pixabay music search error:', error);
+      res.status(500).json({ error: 'Failed to search music' });
+    }
+  });
+
+  // Pixabay Video Search
+  app.get('/api/pixabay/videos/search', isAuthenticated, async (req, res) => {
+    try {
+      const apiKey = process.env.PIXABAY_API_KEY;
+      if (!apiKey) {
+        return res.status(503).json({ error: 'Pixabay API key not configured' });
+      }
+
+      const { query, per_page = 10, video_type = 'all' } = req.query;
+
+      if (!query) {
+        return res.status(400).json({ error: 'Query parameter is required' });
+      }
+
+      const url = `https://pixabay.com/api/videos/?key=${apiKey}&q=${encodeURIComponent(query as string)}&per_page=${per_page}&video_type=${video_type}`;
+
+      const response = await fetch(url);
+      const data = await response.json();
+
+      res.json(data);
+    } catch (error) {
+      console.error('Pixabay video search error:', error);
+      res.status(500).json({ error: 'Failed to search videos' });
+    }
+  });
+
+  // ================================
+  // PEXELS VIDEO API ROUTES
+  // ================================
+
+  // Pexels Status
+  app.get('/api/pexels/status', isAuthenticated, (req, res) => {
+    res.json({ available: !!process.env.PEXELS_API_KEY });
+  });
+
+  // Pexels Video Search
+  app.get('/api/pexels/videos/search', isAuthenticated, async (req, res) => {
+    try {
+      const apiKey = process.env.PEXELS_API_KEY;
+      if (!apiKey) {
+        return res.status(503).json({ error: 'Pexels API key not configured' });
+      }
+
+      const { query, per_page = 10, orientation } = req.query;
+
+      if (!query) {
+        return res.status(400).json({ error: 'Query parameter is required' });
+      }
+
+      let url = `https://api.pexels.com/videos/search?query=${encodeURIComponent(query as string)}&per_page=${per_page}`;
+      if (orientation) {
+        url += `&orientation=${orientation}`;
+      }
+
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': apiKey
+        }
+      });
+      const data = await response.json();
+
+      res.json(data);
+    } catch (error) {
+      console.error('Pexels video search error:', error);
+      res.status(500).json({ error: 'Failed to search videos' });
     }
   });
 
