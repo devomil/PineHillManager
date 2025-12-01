@@ -16286,7 +16286,12 @@ Visit Pine Hill Farm today.`;
 
       try {
         // Fetch revenue data from integrations (Clover + Amazon)
-        const revenueResponse = await fetch(`${req.protocol}://${req.get('host')}/api/accounting/analytics/multi-location?startDate=${startDate}&endDate=${endDate}`);
+        // Important: Include Cookie header for authentication
+        const revenueResponse = await fetch(`${req.protocol}://${req.get('host')}/api/accounting/analytics/multi-location?startDate=${startDate}&endDate=${endDate}`, {
+          headers: {
+            'Cookie': req.headers.cookie || ''
+          }
+        });
         if (revenueResponse.ok) {
           const revenueData = await revenueResponse.json();
           

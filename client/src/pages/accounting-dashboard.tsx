@@ -4282,8 +4282,9 @@ function ReportsSection({
             ) || 0) - parseFloat(reportsCogsData.totalCost || '0')
           }} 
           period={formatPeriodLabel()} 
-          loading={profitLossLoading || cogsLoading}
+          loading={profitLossLoading || cogsLoading || revenueLoading}
           accounts={accounts}
+          revenueData={revenueData}
         />
       )}
 
@@ -4338,12 +4339,14 @@ function ProfitLossReport({
   data, 
   period, 
   loading, 
-  accounts 
+  accounts,
+  revenueData = {}
 }: { 
   data: any; 
   period: string; 
   loading: boolean; 
   accounts: FinancialAccount[];
+  revenueData?: any;
 }) {
   const formatCurrency = (amount: number | string) => {
     const num = typeof amount === 'string' ? parseFloat(amount) : amount;
@@ -4359,17 +4362,44 @@ function ProfitLossReport({
     );
   };
 
-  // Filter revenue accounts to exclude summary/total accounts that would cause double-counting
-  // "Total Sales Revenue" is a summary of individual sales accounts, so exclude it
-  const allRevenueAccounts = getAccountsByType('income');
-  const revenueAccounts = allRevenueAccounts.filter(account => {
-    const name = account.accountName.toLowerCase();
-    // Exclude summary/total accounts - these aggregate child accounts
-    const isSummaryAccount = name.includes('total sales') || 
-                              name === 'total revenue' ||
-                              name.includes('total income');
-    return !isSummaryAccount;
-  });
+  // Use date-filtered revenue from API (locationBreakdown) or fall back to incomeBreakdown from P&L endpoint
+  const hasApiRevenueData = revenueData?.locationBreakdown && revenueData.locationBreakdown.length > 0;
+  const hasIncomeBreakdown = data?.incomeBreakdown && data.incomeBreakdown.length > 0;
+  
+  // Build revenue items from API data (date-filtered) or Chart of Accounts (static)
+  let revenueItems: Array<{ id: string | number; name: string; amount: number }> = [];
+  
+  if (hasApiRevenueData) {
+    // Use live date-filtered revenue from multi-location API
+    // API returns: locationId, locationName, totalSales, totalRevenue, platform
+    revenueItems = revenueData.locationBreakdown.map((location: any) => ({
+      id: location.locationId || location.locationName || 'unknown',
+      name: `Sales - ${location.locationName}`,
+      amount: parseFloat(location.totalSales || location.totalRevenue || '0')
+    }));
+  } else if (hasIncomeBreakdown) {
+    // Use income breakdown from P&L API
+    revenueItems = data.incomeBreakdown.map((item: any) => ({
+      id: item.id,
+      name: item.name,
+      amount: parseFloat(item.amount || '0')
+    }));
+  } else {
+    // Fall back to Chart of Accounts (static balances - not date filtered)
+    const allRevenueAccounts = getAccountsByType('income');
+    const filteredRevenueAccounts = allRevenueAccounts.filter(account => {
+      const name = account.accountName.toLowerCase();
+      const isSummaryAccount = name.includes('total sales') || 
+                                name === 'total revenue' ||
+                                name.includes('total income');
+      return !isSummaryAccount;
+    });
+    revenueItems = filteredRevenueAccounts.map(account => ({
+      id: account.id,
+      name: account.accountName,
+      amount: parseFloat(account.balance || '0')
+    }));
+  }
   
   // COGS accounts - identify by name patterns or account number (50xx range)
   const cogsAccounts = accounts.filter(account => {
@@ -4413,10 +4443,8 @@ function ProfitLossReport({
     return true;
   });
   
-  // Calculate totals from displayed account balances for consistency
-  const calculatedTotalRevenue = revenueAccounts.reduce((sum, account) => 
-    sum + parseFloat(account.balance || '0'), 0
-  );
+  // Calculate totals
+  const calculatedTotalRevenue = revenueItems.reduce((sum, item) => sum + item.amount, 0);
   const calculatedTotalCOGS = cogsAccounts.reduce((sum, account) => 
     sum + parseFloat(account.balance || '0'), 0
   );
@@ -4456,14 +4484,20 @@ function ProfitLossReport({
                 Revenue
               </h3>
               <div className="space-y-2 ml-4">
-                {revenueAccounts.map((account) => (
-                  <div key={account.id} className="flex justify-between items-center">
-                    <span className="text-sm">{account.accountName}</span>
-                    <span className="font-medium text-green-600">
-                      {formatCurrency(account.balance)}
-                    </span>
+                {revenueItems.length > 0 ? (
+                  revenueItems.map((item) => (
+                    <div key={item.id} className="flex justify-between items-center">
+                      <span className="text-sm">{item.name}</span>
+                      <span className="font-medium text-green-600">
+                        {formatCurrency(item.amount)}
+                      </span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-sm text-gray-500 italic">
+                    No revenue data available for this period
                   </div>
-                ))}
+                )}
                 <Separator className="my-2" />
                 <div className="flex justify-between items-center font-semibold">
                   <span>Total Revenue</span>
