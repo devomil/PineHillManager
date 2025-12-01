@@ -284,15 +284,18 @@ export class AnimatedVideoEngine {
   }
 
   /**
-   * Load images for sections
+   * Load images for sections using server-side proxy to avoid CORS issues
    */
   async loadSectionImages(images: { sectionType: string; url: string }[]): Promise<void> {
-    console.log(`[VideoEngine] Loading ${images.length} section images...`);
+    console.log(`[VideoEngine] Loading ${images.length} section images via proxy...`);
     
     const loadPromises = images.map(async ({ sectionType, url }) => {
       try {
-        console.log(`[VideoEngine] Loading image for ${sectionType}: ${url.substring(0, 80)}...`);
-        const img = await this.loadImage(url);
+        // Use server-side proxy for external URLs to avoid CORS issues
+        const proxyUrl = this.getProxiedImageUrl(url);
+        console.log(`[VideoEngine] Loading image for ${sectionType} via proxy...`);
+        
+        const img = await this.loadImage(proxyUrl);
         this.sectionImages.set(sectionType, img);
         console.log(`[VideoEngine] Successfully loaded image for ${sectionType} (${img.width}x${img.height})`);
       } catch (error) {
@@ -305,42 +308,44 @@ export class AnimatedVideoEngine {
     console.log(`[VideoEngine] Section types with images:`, Array.from(this.sectionImages.keys()));
   }
 
+  /**
+   * Get proxied URL for an image to avoid CORS issues
+   */
+  private getProxiedImageUrl(url: string): string {
+    // Data URLs and local URLs don't need proxying
+    if (url.startsWith('data:') || url.startsWith('/') || url.startsWith('blob:')) {
+      return url;
+    }
+    // Proxy external URLs through our server
+    return `/api/proxy-image?url=${encodeURIComponent(url)}`;
+  }
+
   private loadImage(url: string): Promise<HTMLImageElement> {
     return new Promise((resolve, reject) => {
       const img = new Image();
       
       // Handle data URLs differently - no CORS needed
-      if (url.startsWith('data:')) {
+      if (url.startsWith('data:') || url.startsWith('blob:')) {
         img.onload = () => resolve(img);
         img.onerror = (e) => {
-          console.error('Data URL image failed to load:', url.substring(0, 100));
-          reject(new Error(`Failed to load data URL image`));
+          console.error('Data/Blob URL image failed to load:', url.substring(0, 100));
+          reject(new Error(`Failed to load image`));
         };
         img.src = url;
         return;
       }
       
-      // For external URLs, try with CORS first
+      // For proxied URLs (local), CORS should work
       img.crossOrigin = 'anonymous';
       
       img.onload = () => {
-        console.log('Image loaded successfully:', url.substring(0, 60));
+        console.log('[VideoEngine] Image loaded successfully');
         resolve(img);
       };
       
       img.onerror = () => {
-        console.warn('CORS image load failed, trying without CORS:', url.substring(0, 60));
-        // Try again without CORS (may have canvas taint issues but will at least render)
-        const img2 = new Image();
-        img2.onload = () => {
-          console.log('Image loaded without CORS:', url.substring(0, 60));
-          resolve(img2);
-        };
-        img2.onerror = () => {
-          console.error('Image failed to load completely:', url.substring(0, 60));
-          reject(new Error(`Failed to load image: ${url}`));
-        };
-        img2.src = url;
+        console.error('[VideoEngine] Image failed to load:', url.substring(0, 80));
+        reject(new Error(`Failed to load image: ${url}`));
       };
       
       img.src = url;
