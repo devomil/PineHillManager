@@ -16321,31 +16321,23 @@ Visit Pine Hill Farm today.`;
         });
         if (cogsResponse.ok) {
           const cogsData = await cogsResponse.json();
-          // COGS API returns: totalCost, laborCosts, materialCosts, laborBreakdown, materialBreakdown
-          totalCOGS = parseFloat(cogsData.totalCost) || 0;
+          // COGS should only include Material Costs (inventory cost of products sold)
+          // Labor costs are already in Operating Expenses as Payroll Expense - don't double count
+          const materialCosts = parseFloat(cogsData.materialCosts) || 0;
+          totalCOGS = materialCosts;
           
-          // Build COGS breakdown with summary-level items only (no detailed line items)
+          // Build COGS breakdown - only material/inventory costs
           cogsBreakdown = [];
           
-          // Add labor costs total
-          if (cogsData.laborCosts && parseFloat(cogsData.laborCosts) > 0) {
-            cogsBreakdown.push({
-              id: 'labor_costs',
-              name: 'Labor Costs',
-              amount: parseFloat(cogsData.laborCosts) || 0
-            });
-          }
-          
-          // Add material costs total
-          if (cogsData.materialCosts && parseFloat(cogsData.materialCosts) > 0) {
+          if (materialCosts > 0) {
             cogsBreakdown.push({
               id: 'material_costs',
-              name: 'Material Costs (Inventory)',
-              amount: parseFloat(cogsData.materialCosts) || 0
+              name: 'Inventory Cost of Goods Sold',
+              amount: materialCosts
             });
           }
           
-          // If no breakdown items but we have a total, add a summary line
+          // If no material costs but we have a total from elsewhere, show it
           if (cogsBreakdown.length === 0 && totalCOGS > 0) {
             cogsBreakdown.push({
               id: 'cogs_total',
