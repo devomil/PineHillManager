@@ -185,6 +185,27 @@ export class AnimatedVideoEngine {
     this.audioBuffer = audio;
   }
 
+  /**
+   * Set the actual voiceover duration and recompute subtitle timing
+   * This ensures subtitles are synchronized with the voiceover audio
+   */
+  setVoiceoverDuration(durationSeconds: number) {
+    if (durationSeconds > 0) {
+      console.log(`[VideoEngine] Setting voiceover duration: ${durationSeconds}s`);
+      // Recompute subtitle segments scaled to the actual voiceover duration
+      if (this.subtitleSegments.length > 0) {
+        const currentDuration = this.subtitleSegments[this.subtitleSegments.length - 1].endTime;
+        const scale = durationSeconds / currentDuration;
+        this.subtitleSegments = this.subtitleSegments.map(seg => ({
+          ...seg,
+          startTime: seg.startTime * scale,
+          endTime: seg.endTime * scale
+        }));
+        console.log(`[VideoEngine] Scaled ${this.subtitleSegments.length} subtitle segments to match voiceover (scale: ${scale.toFixed(2)})`);
+      }
+    }
+  }
+
   setEnhancementOptions(options: Partial<VideoEnhancementOptions>) {
     this.enhancementOptions = { ...this.enhancementOptions, ...options };
     console.log('[VideoEngine] Enhancement options set:', this.enhancementOptions);

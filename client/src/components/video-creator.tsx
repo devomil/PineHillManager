@@ -549,6 +549,7 @@ export default function VideoCreator() {
       console.log("Phase 3: Generating voiceover with ElevenLabs...");
       
       let audioBlob: Blob | null = null;
+      let voiceoverDuration: number = videoDuration; // Default to target duration, will be updated with actual duration
       
       try {
         // Clean script for voiceover (remove ALL section markers including timestamps)
@@ -582,7 +583,8 @@ export default function VideoCreator() {
         
         if (voiceResult.blob) {
           audioBlob = voiceResult.blob;
-          console.log("Voiceover generated successfully");
+          voiceoverDuration = voiceResult.duration || videoDuration;
+          console.log(`Voiceover generated successfully - duration: ${voiceoverDuration}s`);
         }
       } catch (voiceError) {
         console.warn("Could not generate voiceover:", voiceError);
@@ -676,6 +678,11 @@ export default function VideoCreator() {
       
       // Set script text for subtitle generation
       animatedEngine.setScriptText(script);
+      
+      // Set voiceover duration for subtitle synchronization
+      if (voiceoverDuration > 0) {
+        animatedEngine.setVoiceoverDuration(voiceoverDuration);
+      }
       
       // Load section images
       if (sectionImages.length > 0) {
