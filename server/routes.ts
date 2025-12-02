@@ -15024,6 +15024,205 @@ Write ONLY the script narration, no scene labels or stage directions. Make it co
     }
   });
 
+  // AI Producer: Assemble final video package
+  app.post('/api/videos/ai-producer/assemble', isAuthenticated, async (req, res) => {
+    try {
+      const { productionId, assets, voiceoverUrl, title, duration } = req.body;
+      
+      if (!productionId || !assets) {
+        return res.status(400).json({ error: 'Production ID and assets are required' });
+      }
+
+      const sceneDuration = Math.floor((duration || 60) / Math.max(assets.length, 1));
+      
+      const scenes = assets.map((asset: any, index: number) => ({
+        id: index + 1,
+        imageUrl: asset.url,
+        section: asset.section || `scene_${index + 1}`,
+        duration: sceneDuration,
+        transition: index < assets.length - 1 ? 'fade' : 'none',
+      }));
+
+      const previewHtml = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${title || 'Video Production'} - Preview</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { 
+      font-family: system-ui, -apple-system, sans-serif;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      min-height: 100vh;
+      color: white;
+    }
+    .container { max-width: 1200px; margin: 0 auto; padding: 40px 20px; }
+    h1 { text-align: center; margin-bottom: 30px; font-size: 2.5rem; }
+    .video-player {
+      position: relative;
+      width: 100%;
+      max-width: 800px;
+      margin: 0 auto;
+      aspect-ratio: 16/9;
+      background: #000;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+    }
+    .scene-image {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      opacity: 0;
+      transition: opacity 1s ease-in-out;
+    }
+    .scene-image.active { opacity: 1; }
+    .controls {
+      text-align: center;
+      margin-top: 30px;
+    }
+    button {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      padding: 15px 40px;
+      font-size: 1.1rem;
+      border-radius: 50px;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    button:hover { transform: scale(1.05); box-shadow: 0 10px 30px rgba(102,126,234,0.4); }
+    .timeline {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      margin-top: 30px;
+      flex-wrap: wrap;
+    }
+    .timeline-item {
+      width: 80px;
+      height: 45px;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 2px solid transparent;
+      cursor: pointer;
+      transition: border-color 0.3s;
+    }
+    .timeline-item.active { border-color: #667eea; }
+    .timeline-item img { width: 100%; height: 100%; object-fit: cover; }
+    .info {
+      text-align: center;
+      margin-top: 30px;
+      padding: 20px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 12px;
+    }
+    .info p { margin: 5px 0; opacity: 0.8; }
+    ${voiceoverUrl ? `
+    audio {
+      width: 100%;
+      max-width: 400px;
+      margin: 20px auto;
+      display: block;
+    }` : ''}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>${title || 'AI Video Production'}</h1>
+    <div class="video-player" id="player">
+      ${scenes.map((scene: any, i: number) => `
+        <img src="${scene.imageUrl}" alt="Scene ${i + 1}" class="scene-image ${i === 0 ? 'active' : ''}" data-scene="${i}">
+      `).join('')}
+    </div>
+    
+    <div class="controls">
+      <button onclick="togglePlay()" id="playBtn">Play Preview</button>
+    </div>
+    
+    ${voiceoverUrl ? `<audio id="voiceover" src="${voiceoverUrl}"></audio>` : ''}
+    
+    <div class="timeline">
+      ${scenes.map((scene: any, i: number) => `
+        <div class="timeline-item ${i === 0 ? 'active' : ''}" onclick="goToScene(${i})">
+          <img src="${scene.imageUrl}" alt="Scene ${i + 1}">
+        </div>
+      `).join('')}
+    </div>
+    
+    <div class="info">
+      <p><strong>Production ID:</strong> ${productionId}</p>
+      <p><strong>Total Scenes:</strong> ${scenes.length}</p>
+      <p><strong>Target Duration:</strong> ${duration || 60} seconds</p>
+      <p><strong>Generated:</strong> ${new Date().toLocaleString()}</p>
+    </div>
+  </div>
+  
+  <script>
+    let currentScene = 0;
+    let isPlaying = false;
+    let interval = null;
+    const sceneDuration = ${sceneDuration * 1000};
+    const scenes = document.querySelectorAll('.scene-image');
+    const timelineItems = document.querySelectorAll('.timeline-item');
+    const playBtn = document.getElementById('playBtn');
+    ${voiceoverUrl ? `const audio = document.getElementById('voiceover');` : ''}
+    
+    function showScene(index) {
+      scenes.forEach((s, i) => {
+        s.classList.toggle('active', i === index);
+      });
+      timelineItems.forEach((t, i) => {
+        t.classList.toggle('active', i === index);
+      });
+      currentScene = index;
+    }
+    
+    function nextScene() {
+      const next = (currentScene + 1) % scenes.length;
+      showScene(next);
+      if (next === 0 && isPlaying) {
+        togglePlay();
+      }
+    }
+    
+    function togglePlay() {
+      isPlaying = !isPlaying;
+      if (isPlaying) {
+        playBtn.textContent = 'Pause';
+        interval = setInterval(nextScene, sceneDuration);
+        ${voiceoverUrl ? `audio.play();` : ''}
+      } else {
+        playBtn.textContent = 'Play Preview';
+        clearInterval(interval);
+        ${voiceoverUrl ? `audio.pause();` : ''}
+      }
+    }
+    
+    function goToScene(index) {
+      showScene(index);
+    }
+  </script>
+</body>
+</html>`;
+
+      res.json({
+        success: true,
+        productionId,
+        sceneCount: scenes.length,
+        previewHtml,
+        message: 'Video preview package ready for download',
+      });
+    } catch (error) {
+      console.error('[AI Producer] Assembly error:', error);
+      res.status(500).json({ error: 'Failed to assemble video' });
+    }
+  });
+
   // Inventory Management Routes - QUERY DATABASE (synced data)
   app.get('/api/accounting/inventory/items', async (req, res) => {
     try {

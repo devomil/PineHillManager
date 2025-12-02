@@ -89,6 +89,7 @@ export default function AIVideoProducer() {
   const [scriptGenKeywords, setScriptGenKeywords] = useState("");
   const [isGeneratingScript, setIsGeneratingScript] = useState(false);
   const [showScriptGenerator, setShowScriptGenerator] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
 
   useEffect(() => {
     logsEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -128,6 +129,50 @@ export default function AIVideoProducer() {
       console.error("Script generation error:", error);
     } finally {
       setIsGeneratingScript(false);
+    }
+  };
+
+  const downloadVideo = async () => {
+    if (!production) return;
+    
+    setIsDownloading(true);
+    try {
+      const response = await fetch("/api/videos/ai-producer/assemble", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          productionId: production.id,
+          assets: production.assets,
+          voiceoverUrl: production.voiceoverUrl,
+          title: producerMode === "product" ? formData.productName : scriptFormData.title,
+          duration: producerMode === "product" ? formData.videoDuration : scriptFormData.videoDuration,
+        }),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        
+        if (result.downloadUrl) {
+          const link = document.createElement("a");
+          link.href = result.downloadUrl;
+          link.download = `${production.id}_video.mp4`;
+          link.click();
+        } else if (result.previewHtml) {
+          const blob = new Blob([result.previewHtml], { type: "text/html" });
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement("a");
+          link.href = url;
+          link.download = `${producerMode === "product" ? formData.productName : scriptFormData.title || "video"}_preview.html`;
+          link.click();
+          URL.revokeObjectURL(url);
+        }
+      } else {
+        console.error("Failed to assemble video");
+      }
+    } catch (error) {
+      console.error("Download error:", error);
+    } finally {
+      setIsDownloading(false);
     }
   };
 
@@ -1271,9 +1316,23 @@ export default function AIVideoProducer() {
                       </p>
                     </div>
                   </div>
-                  <Button data-testid="button-download-video" className="bg-green-600 hover:bg-green-700">
-                    <Download className="mr-2 h-4 w-4" />
-                    Download Video
+                  <Button 
+                    data-testid="button-download-video" 
+                    className="bg-green-600 hover:bg-green-700"
+                    onClick={downloadVideo}
+                    disabled={isDownloading}
+                  >
+                    {isDownloading ? (
+                      <>
+                        <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                        Preparing Download...
+                      </>
+                    ) : (
+                      <>
+                        <Download className="mr-2 h-4 w-4" />
+                        Download Video
+                      </>
+                    )}
                   </Button>
                 </div>
               </div>
