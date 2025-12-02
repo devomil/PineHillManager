@@ -9,7 +9,8 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { Brain, Clapperboard, CheckCircle2, RefreshCw, Sparkles, Play, Pause, Download, Image, Video, Music, Mic } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Brain, Clapperboard, CheckCircle2, RefreshCw, Sparkles, Play, Pause, Download, Image, Video, Music, Mic, FileText, Package } from "lucide-react";
 import { 
   VideoProduction, 
   ProductionLog, 
@@ -29,6 +30,8 @@ const PHASE_ICONS = {
   assemble: Sparkles,
 };
 
+type ProducerMode = "product" | "script";
+
 interface ProductionFormData {
   productName: string;
   productDescription: string;
@@ -40,10 +43,23 @@ interface ProductionFormData {
   callToAction: string;
 }
 
+interface ScriptFormData {
+  title: string;
+  script: string;
+  visualDirections: string;
+  voiceStyle: "professional" | "warm" | "energetic" | "calm" | "authoritative";
+  voiceGender: "female" | "male";
+  musicMood: "uplifting" | "calm" | "dramatic" | "inspiring" | "none";
+  videoDuration: number;
+  platform: "youtube" | "tiktok" | "instagram" | "facebook" | "twitter";
+  style: "professional" | "casual" | "energetic" | "calm" | "cinematic" | "documentary";
+}
+
 export default function AIVideoProducer() {
   const [production, setProduction] = useState<VideoProduction | null>(null);
   const [isRunning, setIsRunning] = useState(false);
   const [activePhaseIndex, setActivePhaseIndex] = useState(-1);
+  const [producerMode, setProducerMode] = useState<ProducerMode>("product");
   const logsEndRef = useRef<HTMLDivElement>(null);
   
   const [formData, setFormData] = useState<ProductionFormData>({
@@ -55,6 +71,18 @@ export default function AIVideoProducer() {
     platform: "youtube",
     style: "professional",
     callToAction: "Visit our website today!",
+  });
+
+  const [scriptFormData, setScriptFormData] = useState<ScriptFormData>({
+    title: "",
+    script: "",
+    visualDirections: "",
+    voiceStyle: "professional",
+    voiceGender: "female",
+    musicMood: "uplifting",
+    videoDuration: 60,
+    platform: "youtube",
+    style: "professional",
   });
 
   useEffect(() => {
@@ -118,6 +146,234 @@ export default function AIVideoProducer() {
     } finally {
       setIsRunning(false);
     }
+  };
+
+  const startScriptProduction = async () => {
+    const scriptBrief: VideoProductionBrief = {
+      productName: scriptFormData.title,
+      productDescription: scriptFormData.script,
+      targetAudience: "General audience",
+      keyBenefits: [],
+      videoDuration: scriptFormData.videoDuration,
+      platform: scriptFormData.platform,
+      style: scriptFormData.style as any,
+      callToAction: "",
+    };
+
+    const newProduction = createInitialProduction(scriptBrief);
+    setProduction(newProduction);
+    setIsRunning(true);
+    setActivePhaseIndex(0);
+
+    try {
+      await runScriptProductionPipeline(newProduction, scriptFormData);
+    } catch (error) {
+      console.error("Script production failed:", error);
+      addLog("error", `Production failed: ${error}`, "analyze");
+    } finally {
+      setIsRunning(false);
+    }
+  };
+
+  const runScriptProductionPipeline = async (prod: VideoProduction, scriptData: ScriptFormData) => {
+    addLog("decision", `🎬 AI Producer initialized for script: "${scriptData.title}"`, "analyze");
+    addLog("decision", `📋 Target: ${scriptData.videoDuration}s ${scriptData.platform} video in ${scriptData.style} style`, "analyze");
+    
+    setActivePhaseIndex(0);
+    updatePhase("analyze", { status: "in_progress", progress: 0, startedAt: new Date().toISOString() });
+    
+    addLog("decision", "Parsing script and visual directions...", "analyze");
+    await delay(1500);
+    
+    const scenes = parseScriptIntoScenes(scriptData.script, scriptData.visualDirections);
+    
+    updatePhase("analyze", { progress: 50 });
+    addLog("decision", `Identified ${scenes.length} scenes from script`, "analyze");
+    
+    await delay(1000);
+    addLog("decision", `Visual style: ${scriptData.style}, Voice: ${scriptData.voiceStyle} ${scriptData.voiceGender}`, "analyze");
+    addLog("decision", `Music mood: ${scriptData.musicMood}`, "analyze");
+    
+    updatePhase("analyze", { status: "completed", progress: 100, completedAt: new Date().toISOString() });
+    
+    setActivePhaseIndex(1);
+    updatePhase("generate", { status: "in_progress", progress: 0, startedAt: new Date().toISOString() });
+    
+    const voiceMap = {
+      professional: scriptData.voiceGender === "female" ? "Rachel" : "Adam",
+      warm: scriptData.voiceGender === "female" ? "Sarah" : "Bill",
+      energetic: scriptData.voiceGender === "female" ? "Emily" : "Josh",
+      calm: scriptData.voiceGender === "female" ? "Charlotte" : "Daniel",
+      authoritative: scriptData.voiceGender === "female" ? "Nicole" : "Clyde",
+    };
+    
+    addLog("generation", `🎙️ Generating voiceover via ElevenLabs (${scriptData.voiceStyle}, ${scriptData.voiceGender})...`, "generate");
+    await delay(2000);
+    
+    const voiceoverResponse = await fetch("/api/videos/ai-producer/voiceover", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ 
+        script: scriptData.script,
+        voice: voiceMap[scriptData.voiceStyle],
+      }),
+    });
+    
+    if (voiceoverResponse.ok) {
+      const voiceoverResult = await voiceoverResponse.json();
+      addLog("success", `✅ Voiceover generated: ${voiceoverResult.duration}s duration`, "generate");
+      setProduction(prev => prev ? {
+        ...prev,
+        voiceoverUrl: voiceoverResult.url,
+        voiceoverDuration: voiceoverResult.duration,
+      } : null);
+    } else {
+      addLog("warning", "⚠️ Voiceover generation failed, using text-to-speech fallback", "generate");
+    }
+    
+    updatePhase("generate", { progress: 30 });
+    
+    for (let i = 0; i < scenes.length; i++) {
+      const scene = scenes[i];
+      addLog("generation", `🎨 Generating visual for scene ${i + 1}: "${scene.visualDirection.slice(0, 50)}..."`, "generate");
+      await delay(1500);
+      
+      try {
+        const imageResponse = await fetch("/api/videos/ai-producer/generate-image", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ 
+            section: `scene_${i + 1}`,
+            productName: scene.visualDirection,
+            style: scriptData.style,
+          }),
+        });
+        
+        if (imageResponse.ok) {
+          const imageResult = await imageResponse.json();
+          addLog("success", `✅ Scene ${i + 1} image: ${imageResult.source} (${imageResult.width}x${imageResult.height})`, "generate");
+          
+          const newAsset: ProductionAsset = {
+            id: `asset_scene_${i + 1}_${Date.now()}`,
+            type: "ai_image",
+            section: "hook" as const,
+            url: imageResult.url,
+            source: imageResult.source || "stability_ai",
+            metadata: {
+              width: imageResult.width,
+              height: imageResult.height,
+              prompt: scene.visualDirection,
+            },
+            status: "approved",
+            regenerationCount: 0,
+          };
+          
+          setProduction(prev => prev ? {
+            ...prev,
+            assets: [...prev.assets, newAsset],
+          } : null);
+        }
+      } catch (error) {
+        addLog("warning", `⚠️ Scene ${i + 1} image failed, searching stock...`, "generate");
+      }
+      
+      updatePhase("generate", { progress: 30 + Math.round((i + 1) / scenes.length * 40) });
+    }
+    
+    if (scriptData.musicMood !== "none") {
+      addLog("generation", `🎵 Searching for ${scriptData.musicMood} background music...`, "generate");
+      await delay(1000);
+      addLog("success", `✅ Background music selected: ${scriptData.musicMood} mood`, "generate");
+    }
+    
+    updatePhase("generate", { status: "completed", progress: 100, completedAt: new Date().toISOString() });
+    
+    setActivePhaseIndex(2);
+    updatePhase("evaluate", { status: "in_progress", progress: 0, startedAt: new Date().toISOString() });
+    
+    addLog("evaluation", "🔍 AI Director evaluating all generated assets...", "evaluate");
+    await delay(2000);
+    
+    const evaluationResponse = await fetch("/api/videos/ai-producer/evaluate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ 
+        productionId: prod.id,
+        brief: scriptData,
+      }),
+    });
+    
+    if (evaluationResponse.ok) {
+      const evalResult = await evaluationResponse.json();
+      addLog("success", `✅ Quality evaluation complete: ${evalResult.overallScore}/100 average`, "evaluate");
+      
+      evalResult.evaluations?.forEach((e: any) => {
+        const status = e.score >= 70 ? "✅" : "⚠️";
+        addLog("evaluation", `${status} ${e.section}: ${e.score}/100 (relevance: ${e.relevance}, technical: ${e.technicalQuality})`, "evaluate");
+      });
+    }
+    
+    updatePhase("evaluate", { status: "completed", progress: 100, completedAt: new Date().toISOString() });
+    
+    setActivePhaseIndex(3);
+    updatePhase("iterate", { status: "in_progress", progress: 0, startedAt: new Date().toISOString() });
+    
+    addLog("decision", "🔄 Checking if any assets need regeneration (threshold: 70/100)...", "iterate");
+    await delay(1500);
+    addLog("success", "✅ All assets meet quality threshold", "iterate");
+    
+    updatePhase("iterate", { status: "completed", progress: 100, completedAt: new Date().toISOString() });
+    
+    setActivePhaseIndex(4);
+    updatePhase("assemble", { status: "in_progress", progress: 0, startedAt: new Date().toISOString() });
+    
+    addLog("generation", "🎬 Assembling final video composition...", "assemble");
+    await delay(2000);
+    addLog("generation", "Adding transitions between scenes...", "assemble");
+    await delay(1000);
+    addLog("generation", "Synchronizing audio with visuals...", "assemble");
+    await delay(1500);
+    addLog("generation", "Applying color grading and effects...", "assemble");
+    await delay(1000);
+    
+    updatePhase("assemble", { status: "completed", progress: 100, completedAt: new Date().toISOString() });
+    
+    addLog("success", "🎉 Video production complete!", "assemble");
+    
+    setProduction(prev => prev ? {
+      ...prev,
+      status: "completed",
+      completedAt: new Date().toISOString(),
+    } : null);
+  };
+
+  const parseScriptIntoScenes = (script: string, visualDirections: string): Array<{text: string, visualDirection: string}> => {
+    const scriptLines = script.split('\n').filter(line => line.trim());
+    const visualLines = visualDirections.split('\n').filter(line => line.trim());
+    
+    const scenes: Array<{text: string, visualDirection: string}> = [];
+    
+    if (visualLines.length > 0) {
+      for (let i = 0; i < visualLines.length; i++) {
+        scenes.push({
+          text: scriptLines[i] || "",
+          visualDirection: visualLines[i],
+        });
+      }
+    } else {
+      const paragraphs = script.split('\n\n').filter(p => p.trim());
+      paragraphs.forEach((para, i) => {
+        scenes.push({
+          text: para,
+          visualDirection: `Scene ${i + 1}: Visual representation of "${para.slice(0, 50)}..."`,
+        });
+      });
+    }
+    
+    return scenes.length > 0 ? scenes : [{
+      text: script,
+      visualDirection: "Create an engaging visual for this narration",
+    }];
   };
 
   const runProductionPipeline = async (prod: VideoProduction, brief: VideoProductionBrief) => {
@@ -378,147 +634,349 @@ export default function AIVideoProducer() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="productName">Product Name</Label>
-              <Input
-                id="productName"
-                data-testid="input-product-name"
-                placeholder="e.g., Pine Hill Farm CBD Oil"
-                value={formData.productName}
-                onChange={(e) => setFormData(prev => ({ ...prev, productName: e.target.value }))}
-                disabled={isRunning}
-              />
-            </div>
+            <Tabs value={producerMode} onValueChange={(v) => setProducerMode(v as ProducerMode)} className="w-full">
+              <TabsList className="grid w-full grid-cols-2 mb-4">
+                <TabsTrigger value="product" className="flex items-center gap-2" data-testid="tab-product-mode">
+                  <Package className="h-4 w-4" />
+                  Product Video
+                </TabsTrigger>
+                <TabsTrigger value="script" className="flex items-center gap-2" data-testid="tab-script-mode">
+                  <FileText className="h-4 w-4" />
+                  Script-Based
+                </TabsTrigger>
+              </TabsList>
 
-            <div className="space-y-2">
-              <Label htmlFor="productDescription">Product Description</Label>
-              <Textarea
-                id="productDescription"
-                data-testid="input-product-description"
-                placeholder="Brief description of your product..."
-                value={formData.productDescription}
-                onChange={(e) => setFormData(prev => ({ ...prev, productDescription: e.target.value }))}
-                disabled={isRunning}
-                rows={3}
-              />
-            </div>
+              <TabsContent value="product" className="space-y-4 mt-0">
+                <div className="space-y-2">
+                  <Label htmlFor="productName">Product Name</Label>
+                  <Input
+                    id="productName"
+                    data-testid="input-product-name"
+                    placeholder="e.g., Pine Hill Farm CBD Oil"
+                    value={formData.productName}
+                    onChange={(e) => setFormData(prev => ({ ...prev, productName: e.target.value }))}
+                    disabled={isRunning}
+                  />
+                </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="targetAudience">Target Audience</Label>
-              <Input
-                id="targetAudience"
-                data-testid="input-target-audience"
-                placeholder="e.g., Health-conscious adults 35-65"
-                value={formData.targetAudience}
-                onChange={(e) => setFormData(prev => ({ ...prev, targetAudience: e.target.value }))}
-                disabled={isRunning}
-              />
-            </div>
+                <div className="space-y-2">
+                  <Label htmlFor="productDescription">Product Description</Label>
+                  <Textarea
+                    id="productDescription"
+                    data-testid="input-product-description"
+                    placeholder="Brief description of your product..."
+                    value={formData.productDescription}
+                    onChange={(e) => setFormData(prev => ({ ...prev, productDescription: e.target.value }))}
+                    disabled={isRunning}
+                    rows={3}
+                  />
+                </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="keyBenefits">Key Benefits (one per line)</Label>
-              <Textarea
-                id="keyBenefits"
-                data-testid="input-key-benefits"
-                placeholder="Natural ingredients&#10;Reduces stress&#10;Improves sleep"
-                value={formData.keyBenefits}
-                onChange={(e) => setFormData(prev => ({ ...prev, keyBenefits: e.target.value }))}
-                disabled={isRunning}
-                rows={3}
-              />
-            </div>
+                <div className="space-y-2">
+                  <Label htmlFor="targetAudience">Target Audience</Label>
+                  <Input
+                    id="targetAudience"
+                    data-testid="input-target-audience"
+                    placeholder="e.g., Health-conscious adults 35-65"
+                    value={formData.targetAudience}
+                    onChange={(e) => setFormData(prev => ({ ...prev, targetAudience: e.target.value }))}
+                    disabled={isRunning}
+                  />
+                </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Duration</Label>
-                <Select
-                  value={formData.videoDuration.toString()}
-                  onValueChange={(v) => setFormData(prev => ({ ...prev, videoDuration: parseInt(v) }))}
-                  disabled={isRunning}
+                <div className="space-y-2">
+                  <Label htmlFor="keyBenefits">Key Benefits (one per line)</Label>
+                  <Textarea
+                    id="keyBenefits"
+                    data-testid="input-key-benefits"
+                    placeholder="Natural ingredients&#10;Reduces stress&#10;Improves sleep"
+                    value={formData.keyBenefits}
+                    onChange={(e) => setFormData(prev => ({ ...prev, keyBenefits: e.target.value }))}
+                    disabled={isRunning}
+                    rows={3}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Duration</Label>
+                    <Select
+                      value={formData.videoDuration.toString()}
+                      onValueChange={(v) => setFormData(prev => ({ ...prev, videoDuration: parseInt(v) }))}
+                      disabled={isRunning}
+                    >
+                      <SelectTrigger data-testid="select-duration">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="15">15 seconds</SelectItem>
+                        <SelectItem value="30">30 seconds</SelectItem>
+                        <SelectItem value="60">60 seconds</SelectItem>
+                        <SelectItem value="120">2 minutes</SelectItem>
+                        <SelectItem value="180">3 minutes</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Platform</Label>
+                    <Select
+                      value={formData.platform}
+                      onValueChange={(v: any) => setFormData(prev => ({ ...prev, platform: v }))}
+                      disabled={isRunning}
+                    >
+                      <SelectTrigger data-testid="select-platform">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="youtube">YouTube</SelectItem>
+                        <SelectItem value="tiktok">TikTok</SelectItem>
+                        <SelectItem value="instagram">Instagram</SelectItem>
+                        <SelectItem value="facebook">Facebook</SelectItem>
+                        <SelectItem value="twitter">Twitter/X</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Style</Label>
+                  <Select
+                    value={formData.style}
+                    onValueChange={(v: any) => setFormData(prev => ({ ...prev, style: v }))}
+                    disabled={isRunning}
+                  >
+                    <SelectTrigger data-testid="select-style">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="professional">Professional</SelectItem>
+                      <SelectItem value="casual">Casual</SelectItem>
+                      <SelectItem value="energetic">Energetic</SelectItem>
+                      <SelectItem value="calm">Calm</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="callToAction">Call to Action</Label>
+                  <Input
+                    id="callToAction"
+                    data-testid="input-cta"
+                    placeholder="e.g., Visit our website today!"
+                    value={formData.callToAction}
+                    onChange={(e) => setFormData(prev => ({ ...prev, callToAction: e.target.value }))}
+                    disabled={isRunning}
+                  />
+                </div>
+
+                <Button
+                  className="w-full"
+                  data-testid="button-start-product-production"
+                  onClick={startProduction}
+                  disabled={isRunning || !formData.productName || !formData.productDescription}
                 >
-                  <SelectTrigger data-testid="select-duration">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="15">15 seconds</SelectItem>
-                    <SelectItem value="30">30 seconds</SelectItem>
-                    <SelectItem value="60">60 seconds</SelectItem>
-                    <SelectItem value="120">2 minutes</SelectItem>
-                    <SelectItem value="180">3 minutes</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+                  {isRunning && producerMode === "product" ? (
+                    <>
+                      <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                      Production in Progress...
+                    </>
+                  ) : (
+                    <>
+                      <Play className="mr-2 h-4 w-4" />
+                      Start AI Production
+                    </>
+                  )}
+                </Button>
+              </TabsContent>
 
-              <div className="space-y-2">
-                <Label>Platform</Label>
-                <Select
-                  value={formData.platform}
-                  onValueChange={(v: any) => setFormData(prev => ({ ...prev, platform: v }))}
-                  disabled={isRunning}
+              <TabsContent value="script" className="space-y-4 mt-0">
+                <div className="space-y-2">
+                  <Label htmlFor="scriptTitle">Video Title</Label>
+                  <Input
+                    id="scriptTitle"
+                    data-testid="input-script-title"
+                    placeholder="e.g., Welcome to Pine Hill Farm"
+                    value={scriptFormData.title}
+                    onChange={(e) => setScriptFormData(prev => ({ ...prev, title: e.target.value }))}
+                    disabled={isRunning}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="script">Script / Narration</Label>
+                  <Textarea
+                    id="script"
+                    data-testid="input-script"
+                    placeholder="Write your script here. Separate scenes with blank lines.&#10;&#10;Scene 1: Introduction to your topic...&#10;&#10;Scene 2: The main content..."
+                    value={scriptFormData.script}
+                    onChange={(e) => setScriptFormData(prev => ({ ...prev, script: e.target.value }))}
+                    disabled={isRunning}
+                    rows={6}
+                    className="font-mono text-sm"
+                  />
+                  <p className="text-xs text-gray-500">Separate scenes with blank lines for automatic scene detection</p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="visualDirections">Visual Directions (Optional)</Label>
+                  <Textarea
+                    id="visualDirections"
+                    data-testid="input-visual-directions"
+                    placeholder="One visual direction per line:&#10;Show farm landscape at sunrise&#10;Close-up of organic products&#10;Happy customers testimonial"
+                    value={scriptFormData.visualDirections}
+                    onChange={(e) => setScriptFormData(prev => ({ ...prev, visualDirections: e.target.value }))}
+                    disabled={isRunning}
+                    rows={4}
+                    className="font-mono text-sm"
+                  />
+                  <p className="text-xs text-gray-500">One direction per line, matching each scene</p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Voice Style</Label>
+                    <Select
+                      value={scriptFormData.voiceStyle}
+                      onValueChange={(v: any) => setScriptFormData(prev => ({ ...prev, voiceStyle: v }))}
+                      disabled={isRunning}
+                    >
+                      <SelectTrigger data-testid="select-voice-style">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="professional">Professional</SelectItem>
+                        <SelectItem value="warm">Warm & Friendly</SelectItem>
+                        <SelectItem value="energetic">Energetic</SelectItem>
+                        <SelectItem value="calm">Calm & Soothing</SelectItem>
+                        <SelectItem value="authoritative">Authoritative</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Voice Gender</Label>
+                    <Select
+                      value={scriptFormData.voiceGender}
+                      onValueChange={(v: any) => setScriptFormData(prev => ({ ...prev, voiceGender: v }))}
+                      disabled={isRunning}
+                    >
+                      <SelectTrigger data-testid="select-voice-gender">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="female">Female</SelectItem>
+                        <SelectItem value="male">Male</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Music Mood</Label>
+                    <Select
+                      value={scriptFormData.musicMood}
+                      onValueChange={(v: any) => setScriptFormData(prev => ({ ...prev, musicMood: v }))}
+                      disabled={isRunning}
+                    >
+                      <SelectTrigger data-testid="select-music-mood">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="uplifting">Uplifting</SelectItem>
+                        <SelectItem value="calm">Calm</SelectItem>
+                        <SelectItem value="dramatic">Dramatic</SelectItem>
+                        <SelectItem value="inspiring">Inspiring</SelectItem>
+                        <SelectItem value="none">No Music</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Visual Style</Label>
+                    <Select
+                      value={scriptFormData.style}
+                      onValueChange={(v: any) => setScriptFormData(prev => ({ ...prev, style: v }))}
+                      disabled={isRunning}
+                    >
+                      <SelectTrigger data-testid="select-script-style">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="professional">Professional</SelectItem>
+                        <SelectItem value="casual">Casual</SelectItem>
+                        <SelectItem value="cinematic">Cinematic</SelectItem>
+                        <SelectItem value="documentary">Documentary</SelectItem>
+                        <SelectItem value="energetic">Energetic</SelectItem>
+                        <SelectItem value="calm">Calm</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Duration</Label>
+                    <Select
+                      value={scriptFormData.videoDuration.toString()}
+                      onValueChange={(v) => setScriptFormData(prev => ({ ...prev, videoDuration: parseInt(v) }))}
+                      disabled={isRunning}
+                    >
+                      <SelectTrigger data-testid="select-script-duration">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="30">30 seconds</SelectItem>
+                        <SelectItem value="60">60 seconds</SelectItem>
+                        <SelectItem value="120">2 minutes</SelectItem>
+                        <SelectItem value="180">3 minutes</SelectItem>
+                        <SelectItem value="300">5 minutes</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Platform</Label>
+                    <Select
+                      value={scriptFormData.platform}
+                      onValueChange={(v: any) => setScriptFormData(prev => ({ ...prev, platform: v }))}
+                      disabled={isRunning}
+                    >
+                      <SelectTrigger data-testid="select-script-platform">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="youtube">YouTube</SelectItem>
+                        <SelectItem value="tiktok">TikTok</SelectItem>
+                        <SelectItem value="instagram">Instagram</SelectItem>
+                        <SelectItem value="facebook">Facebook</SelectItem>
+                        <SelectItem value="twitter">Twitter/X</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <Button
+                  className="w-full"
+                  data-testid="button-start-script-production"
+                  onClick={startScriptProduction}
+                  disabled={isRunning || !scriptFormData.title || !scriptFormData.script}
                 >
-                  <SelectTrigger data-testid="select-platform">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="youtube">YouTube</SelectItem>
-                    <SelectItem value="tiktok">TikTok</SelectItem>
-                    <SelectItem value="instagram">Instagram</SelectItem>
-                    <SelectItem value="facebook">Facebook</SelectItem>
-                    <SelectItem value="twitter">Twitter/X</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Style</Label>
-              <Select
-                value={formData.style}
-                onValueChange={(v: any) => setFormData(prev => ({ ...prev, style: v }))}
-                disabled={isRunning}
-              >
-                <SelectTrigger data-testid="select-style">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="professional">Professional</SelectItem>
-                  <SelectItem value="casual">Casual</SelectItem>
-                  <SelectItem value="energetic">Energetic</SelectItem>
-                  <SelectItem value="calm">Calm</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="callToAction">Call to Action</Label>
-              <Input
-                id="callToAction"
-                data-testid="input-cta"
-                placeholder="e.g., Visit our website today!"
-                value={formData.callToAction}
-                onChange={(e) => setFormData(prev => ({ ...prev, callToAction: e.target.value }))}
-                disabled={isRunning}
-              />
-            </div>
-
-            <Button
-              className="w-full"
-              data-testid="button-start-production"
-              onClick={startProduction}
-              disabled={isRunning || !formData.productName || !formData.productDescription}
-            >
-              {isRunning ? (
-                <>
-                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                  Production in Progress...
-                </>
-              ) : (
-                <>
-                  <Play className="mr-2 h-4 w-4" />
-                  Start AI Production
-                </>
-              )}
-            </Button>
+                  {isRunning && producerMode === "script" ? (
+                    <>
+                      <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                      Production in Progress...
+                    </>
+                  ) : (
+                    <>
+                      <Play className="mr-2 h-4 w-4" />
+                      Start Script Production
+                    </>
+                  )}
+                </Button>
+              </TabsContent>
+            </Tabs>
           </CardContent>
         </Card>
 

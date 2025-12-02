@@ -75,7 +75,7 @@ export interface ProductionPhase {
 export interface ProductionLog {
   id: string;
   timestamp: string;
-  type: "decision" | "generation" | "evaluation" | "success" | "error" | "fallback";
+  type: "decision" | "generation" | "evaluation" | "success" | "error" | "fallback" | "warning";
   icon: string;
   message: string;
   phase: ProductionPhaseType;
