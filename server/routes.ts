@@ -14627,6 +14627,82 @@ Ready to start your whole body healing journey? Visit Pine Hill Farm today.`;
   // AI VIDEO PRODUCER ROUTES
   // ================================
 
+  // AI Producer: Generate script using Claude AI
+  app.post('/api/videos/ai-producer/generate-script', isAuthenticated, async (req, res) => {
+    try {
+      const { topic, keywords, duration = 60, style = 'professional', targetAudience = 'general' } = req.body;
+      
+      if (!topic) {
+        return res.status(400).json({ error: 'Topic is required' });
+      }
+
+      const Anthropic = (await import('@anthropic-ai/sdk')).default;
+      const anthropicKey = process.env.ANTHROPIC_API_KEY;
+      
+      if (!anthropicKey) {
+        return res.status(500).json({ error: 'AI script generation not configured' });
+      }
+      
+      const client = new Anthropic({ apiKey: anthropicKey });
+      
+      const wordsPerSecond = 2.5;
+      const targetWords = Math.round(duration * wordsPerSecond);
+      
+      const systemPrompt = `You are an expert video scriptwriter specializing in creating compelling, TV-quality commercial scripts. 
+Your scripts should be professional, engaging, and optimized for ${style} video production.
+Write scripts that are emotionally resonant and guide viewers through a clear narrative arc.`;
+
+      const userPrompt = `Write a ${duration}-second video script (approximately ${targetWords} words) about: ${topic}
+
+${keywords ? `Key points to include: ${keywords}` : ''}
+Target audience: ${targetAudience}
+Style: ${style}
+
+Structure the script with clear scenes separated by blank lines. Each scene should be 2-4 sentences.
+Format it as narration that will be read aloud with voiceover.
+
+Scene structure:
+1. Opening Hook - Grab attention immediately
+2. Problem/Challenge - Identify the issue the audience faces  
+3. Solution - Present the solution or key message
+4. Benefits/Proof - Show the value and evidence
+5. Call to Action - Clear next step for the viewer
+
+Write ONLY the script narration, no scene labels or stage directions. Make it conversational and engaging.`;
+
+      const response = await client.messages.create({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 2000,
+        system: systemPrompt,
+        messages: [{ role: 'user', content: userPrompt }],
+      });
+
+      const scriptContent = response.content[0].type === 'text' ? response.content[0].text : '';
+      
+      const scenes = scriptContent.split('\n\n').filter((s: string) => s.trim());
+      
+      res.json({
+        success: true,
+        script: scriptContent,
+        scenes: scenes.map((text: string, i: number) => ({
+          id: i + 1,
+          text: text.trim(),
+          suggestedVisual: `Visual for scene ${i + 1}`,
+        })),
+        metadata: {
+          topic,
+          duration,
+          style,
+          wordCount: scriptContent.split(/\s+/).length,
+          sceneCount: scenes.length,
+        },
+      });
+    } catch (error) {
+      console.error('[AI Producer] Script generation error:', error);
+      res.status(500).json({ error: 'Failed to generate script' });
+    }
+  });
+
   // AI Producer: Analyze brief and create scene manifest
   app.post('/api/videos/ai-producer/analyze', isAuthenticated, async (req, res) => {
     try {
@@ -14690,10 +14766,10 @@ Ready to start your whole body healing journey? Visit Pine Hill Farm today.`;
     }
   });
 
-  // AI Producer: Generate image for section
+  // AI Producer: Generate image for section with smart keyword extraction
   app.post('/api/videos/ai-producer/generate-image', isAuthenticated, async (req, res) => {
     try {
-      const { section, productName, style } = req.body;
+      const { section, productName, style, sceneContent, sceneIndex } = req.body;
       
       if (!section || !productName) {
         return res.status(400).json({ error: 'Section and product name are required' });
@@ -14701,17 +14777,30 @@ Ready to start your whole body healing journey? Visit Pine Hill Farm today.`;
 
       const { assetGenerationService } = await import('./services/asset-generation-service');
       
-      const sectionPrompts: Record<string, string> = {
-        hook: `Professional product photography of ${productName}, high-end advertising style, clean background, dramatic lighting, ${style} aesthetic`,
-        problem: `Person looking stressed or tired, health and wellness context, empathetic mood, professional advertising photography`,
-        solution: `${productName} product showcase with natural ingredients, health and wellness, professional product photography, ${style} mood`,
-        social_proof: `Happy healthy person smiling, wellness lifestyle, testimonial style, warm lighting, ${style} aesthetic`,
-        cta: `${productName} logo and branding, call to action, professional marketing, clean design, ${style} style`,
-      };
+      let prompt: string;
+      let searchQuery: string;
       
-      const prompt = sectionPrompts[section] || `Professional image for ${productName}, ${style} style`;
+      // For scene-based generation from scripts, extract relevant keywords
+      if (section.startsWith('scene_') && sceneContent) {
+        const keywords = extractRelevantKeywords(sceneContent, productName);
+        prompt = `${keywords.imagePrompt}, professional ${style} photography, cinematic lighting, high quality`;
+        searchQuery = keywords.searchQuery;
+        console.log(`[AI Producer] Scene ${sceneIndex}: Keywords: "${keywords.searchQuery}"`);
+      } else {
+        const sectionPrompts: Record<string, string> = {
+          hook: `Professional product photography of ${productName}, high-end advertising style, clean background, dramatic lighting, ${style} aesthetic`,
+          problem: `Person looking stressed or tired, health and wellness context, empathetic mood, professional advertising photography`,
+          solution: `${productName} product showcase with natural ingredients, health and wellness, professional product photography, ${style} mood`,
+          social_proof: `Happy healthy person smiling, wellness lifestyle, testimonial style, warm lighting, ${style} aesthetic`,
+          cta: `${productName} logo and branding, call to action, professional marketing, clean design, ${style} style`,
+        };
+        prompt = sectionPrompts[section] || `Professional image for ${productName}, ${style} style`;
+        searchQuery = productName;
+      }
       
-      const result = await assetGenerationService.generateAIImage(prompt);
+      console.log(`[AI Producer] Image prompt: ${prompt.substring(0, 100)}...`);
+      
+      const result = await assetGenerationService.generateAIImageWithFallback(prompt, searchQuery);
       
       if (result) {
         res.json({
@@ -14729,6 +14818,99 @@ Ready to start your whole body healing journey? Visit Pine Hill Farm today.`;
       res.status(500).json({ error: 'Failed to generate image' });
     }
   });
+  
+  // Helper function to extract meaningful keywords from script content for relevant image search
+  function extractRelevantKeywords(content: string, defaultKeywords: string): { imagePrompt: string; searchQuery: string } {
+    const text = content.toLowerCase();
+    const keywords: string[] = [];
+    const searchTerms: string[] = [];
+    
+    // Weight management / health topic detection
+    if (text.includes('weight') || text.includes('lose weight') || text.includes('weight loss')) {
+      searchTerms.push('healthy weight loss');
+      keywords.push('healthy lifestyle', 'fitness transformation');
+    }
+    if (text.includes('heal') || text.includes('healing') || text.includes('whole body')) {
+      searchTerms.push('holistic wellness');
+      keywords.push('holistic healing', 'mind body wellness');
+    }
+    if (text.includes('detox') || text.includes('toxin')) {
+      searchTerms.push('natural detox');
+      keywords.push('cleanse', 'natural purification');
+    }
+    if (text.includes('metabolism') || text.includes('metabol')) {
+      searchTerms.push('metabolism boost');
+      keywords.push('active metabolism', 'healthy body');
+    }
+    if (text.includes('inflammation') || text.includes('inflam')) {
+      searchTerms.push('anti inflammatory');
+      keywords.push('healthy joints', 'wellness');
+    }
+    if (text.includes('pine hill') || text.includes('farm')) {
+      searchTerms.push('organic farm wellness');
+      keywords.push('organic farm', 'natural products', 'holistic wellness center');
+    }
+    if (text.includes('bioscan') || text.includes('fda') || text.includes('technology')) {
+      searchTerms.push('medical technology wellness');
+      keywords.push('modern health technology', 'medical screening');
+    }
+    if (text.includes('hormone') || text.includes('hormones')) {
+      searchTerms.push('hormone balance');
+      keywords.push('hormonal health', 'womens wellness');
+    }
+    if (text.includes('liver') || text.includes('kidney') || text.includes('lymph')) {
+      searchTerms.push('body detoxification');
+      keywords.push('organ health', 'natural cleanse');
+    }
+    if (text.includes('natural') || text.includes('organic')) {
+      searchTerms.push('organic natural products');
+      keywords.push('natural ingredients', 'organic wellness');
+    }
+    if (text.includes('supplement') || text.includes('vitamin')) {
+      searchTerms.push('natural supplements');
+      keywords.push('vitamins', 'nutritional supplements');
+    }
+    if (text.includes('stress') || text.includes('tired') || text.includes('exhausted')) {
+      searchTerms.push('stress relief relaxation');
+      keywords.push('peaceful relaxation', 'stress free');
+    }
+    if (text.includes('happy') || text.includes('healthy') || text.includes('energy')) {
+      searchTerms.push('happy healthy person');
+      keywords.push('vibrant health', 'positive energy');
+    }
+    if (text.includes('journey') || text.includes('start') || text.includes('begin')) {
+      searchTerms.push('wellness journey start');
+      keywords.push('new beginning', 'transformation');
+    }
+    if (text.includes('calorie') || text.includes('diet') || text.includes('eating')) {
+      searchTerms.push('healthy eating nutrition');
+      keywords.push('nutritious food', 'balanced diet');
+    }
+    if (text.includes('gym') || text.includes('exercise') || text.includes('workout')) {
+      searchTerms.push('fitness exercise healthy');
+      keywords.push('active lifestyle', 'fitness motivation');
+    }
+    
+    // If no specific keywords found, try to extract nouns from the content
+    if (searchTerms.length === 0) {
+      // Look for capitalized words (potential proper nouns/topics)
+      const capitalWords = content.match(/\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*/g) || [];
+      searchTerms.push(...capitalWords.slice(0, 2).map(w => w.toLowerCase()));
+      
+      if (searchTerms.length === 0) {
+        searchTerms.push('wellness healthy lifestyle');
+        keywords.push('health and wellness');
+      }
+    }
+    
+    const imagePrompt = keywords.length > 0 
+      ? keywords.slice(0, 4).join(', ')
+      : 'health and wellness, professional imagery';
+    
+    const searchQuery = searchTerms.slice(0, 3).join(' ');
+    
+    return { imagePrompt, searchQuery };
+  }
 
   // AI Producer: Generate video clip for section
   app.post('/api/videos/ai-producer/generate-video', isAuthenticated, async (req, res) => {

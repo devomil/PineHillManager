@@ -85,9 +85,51 @@ export default function AIVideoProducer() {
     style: "professional",
   });
 
+  const [scriptGenTopic, setScriptGenTopic] = useState("");
+  const [scriptGenKeywords, setScriptGenKeywords] = useState("");
+  const [isGeneratingScript, setIsGeneratingScript] = useState(false);
+  const [showScriptGenerator, setShowScriptGenerator] = useState(false);
+
   useEffect(() => {
     logsEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [production?.logs]);
+
+  const generateAIScript = async () => {
+    if (!scriptGenTopic.trim()) return;
+    
+    setIsGeneratingScript(true);
+    try {
+      const response = await fetch("/api/videos/ai-producer/generate-script", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          topic: scriptGenTopic,
+          keywords: scriptGenKeywords,
+          duration: scriptFormData.videoDuration,
+          style: scriptFormData.style,
+          targetAudience: "health-conscious consumers",
+        }),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        setScriptFormData(prev => ({
+          ...prev,
+          title: scriptGenTopic,
+          script: result.script,
+        }));
+        setShowScriptGenerator(false);
+        setScriptGenTopic("");
+        setScriptGenKeywords("");
+      } else {
+        console.error("Failed to generate script");
+      }
+    } catch (error) {
+      console.error("Script generation error:", error);
+    } finally {
+      setIsGeneratingScript(false);
+    }
+  };
 
   const addLog = (
     type: ProductionLog["type"],
@@ -235,8 +277,9 @@ export default function AIVideoProducer() {
     
     for (let i = 0; i < scenes.length; i++) {
       const scene = scenes[i];
-      addLog("generation", `🎨 Generating visual for scene ${i + 1}: "${scene.visualDirection.slice(0, 50)}..."`, "generate");
-      await delay(1500);
+      const scenePreview = scene.text ? scene.text.slice(0, 50) : scene.visualDirection.slice(0, 50);
+      addLog("generation", `🎨 Generating visual for scene ${i + 1}: "${scenePreview}..."`, "generate");
+      await delay(800);
       
       try {
         const imageResponse = await fetch("/api/videos/ai-producer/generate-image", {
@@ -244,8 +287,10 @@ export default function AIVideoProducer() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ 
             section: `scene_${i + 1}`,
-            productName: scene.visualDirection,
+            productName: scene.visualDirection || scriptData.title,
             style: scriptData.style,
+            sceneContent: scene.text,
+            sceneIndex: i + 1,
           }),
         });
         
@@ -253,16 +298,25 @@ export default function AIVideoProducer() {
           const imageResult = await imageResponse.json();
           addLog("success", `✅ Scene ${i + 1} image: ${imageResult.source} (${imageResult.width}x${imageResult.height})`, "generate");
           
+          const sectionMap: Record<number, "hook" | "problem" | "solution" | "social_proof" | "cta"> = {
+            0: "hook",
+            1: "problem",
+            2: "solution",
+            3: "social_proof",
+            4: "cta",
+          };
+          
           const newAsset: ProductionAsset = {
             id: `asset_scene_${i + 1}_${Date.now()}`,
-            type: "ai_image",
-            section: "hook" as const,
+            type: imageResult.source === "stability_ai" || imageResult.source === "huggingface" ? "ai_image" : "image",
+            section: sectionMap[i % 5] || "hook",
             url: imageResult.url,
-            source: imageResult.source || "stability_ai",
+            source: imageResult.source || "pexels",
             metadata: {
               width: imageResult.width,
               height: imageResult.height,
               prompt: scene.visualDirection,
+              sceneText: scene.text?.slice(0, 100),
             },
             status: "approved",
             regenerationCount: 0,
@@ -272,9 +326,11 @@ export default function AIVideoProducer() {
             ...prev,
             assets: [...prev.assets, newAsset],
           } : null);
+        } else {
+          addLog("warning", `⚠️ Scene ${i + 1} image generation failed`, "generate");
         }
       } catch (error) {
-        addLog("warning", `⚠️ Scene ${i + 1} image failed, searching stock...`, "generate");
+        addLog("warning", `⚠️ Scene ${i + 1} image failed: ${error}`, "generate");
       }
       
       updatePhase("generate", { progress: 30 + Math.round((i + 1) / scenes.length * 40) });
@@ -791,6 +847,79 @@ export default function AIVideoProducer() {
               </TabsContent>
 
               <TabsContent value="script" className="space-y-4 mt-0">
+                {showScriptGenerator ? (
+                  <div className="p-4 border rounded-lg bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-semibold text-green-800 dark:text-green-200 flex items-center gap-2">
+                        <Sparkles className="h-4 w-4" />
+                        AI Script Generator
+                      </h3>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setShowScriptGenerator(false)}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="scriptTopic">Topic / Subject</Label>
+                      <Input
+                        id="scriptTopic"
+                        data-testid="input-script-topic"
+                        placeholder="e.g., Pine Hill Farm Weight Management Program"
+                        value={scriptGenTopic}
+                        onChange={(e) => setScriptGenTopic(e.target.value)}
+                        disabled={isGeneratingScript}
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="scriptKeywords">Key Points (optional)</Label>
+                      <Textarea
+                        id="scriptKeywords"
+                        data-testid="input-script-keywords"
+                        placeholder="Whole body healing, detox support, FDA-approved BioScan technology, personalized approach..."
+                        value={scriptGenKeywords}
+                        onChange={(e) => setScriptGenKeywords(e.target.value)}
+                        disabled={isGeneratingScript}
+                        rows={2}
+                      />
+                    </div>
+                    
+                    <Button
+                      className="w-full bg-green-600 hover:bg-green-700"
+                      onClick={generateAIScript}
+                      disabled={isGeneratingScript || !scriptGenTopic.trim()}
+                    >
+                      {isGeneratingScript ? (
+                        <>
+                          <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                          Generating Script...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="mr-2 h-4 w-4" />
+                          Generate Script with AI
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      className="flex-1 border-green-300 text-green-700 hover:bg-green-50"
+                      onClick={() => setShowScriptGenerator(true)}
+                      disabled={isRunning}
+                    >
+                      <Sparkles className="mr-2 h-4 w-4" />
+                      Generate Script with AI
+                    </Button>
+                  </div>
+                )}
+
                 <div className="space-y-2">
                   <Label htmlFor="scriptTitle">Video Title</Label>
                   <Input
@@ -804,7 +933,14 @@ export default function AIVideoProducer() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="script">Script / Narration</Label>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="script">Script / Narration</Label>
+                    {scriptFormData.script && (
+                      <span className="text-xs text-gray-500">
+                        {scriptFormData.script.split(/\s+/).length} words, ~{Math.round(scriptFormData.script.split(/\s+/).length / 2.5)}s
+                      </span>
+                    )}
+                  </div>
                   <Textarea
                     id="script"
                     data-testid="input-script"
