@@ -347,7 +347,83 @@ Format as JSON array with structure:
         state.overallProgress = 20 + Math.floor((i + 1) / state.brief.scenes.length * 30);
       }
 
-      // Try to generate background music
+      // Generate voiceover for the full script
+      this.log(state, 'info', 'asset_generation', 'Generating voiceover with ElevenLabs...');
+      try {
+        const voiceName = state.brief.voiceGender === 'male' ? 'Adam' : 'Rachel';
+        const fullScript = state.brief.scenes.map(s => s.content).join(' ');
+        
+        const voiceoverResult = await assetGenerationService.generateVoiceover(fullScript, voiceName);
+        
+        if (voiceoverResult) {
+          const voiceoverAsset: ProductionAsset = {
+            id: `asset_${productionId}_voiceover`,
+            type: 'voiceover',
+            url: voiceoverResult.url,
+            thumbnailUrl: '',
+            source: 'elevenlabs',
+            section: 'hook',
+            sceneNumber: 0,
+            qualityScore: 90,
+            relevanceScore: 100,
+            technicalScore: 95,
+            emotionalScore: 85,
+            duration: voiceoverResult.duration,
+            prompt: fullScript.substring(0, 100)
+          };
+          
+          state.assets.push(voiceoverAsset);
+          this.log(state, 'info', 'asset_generation', 'Voiceover generated successfully', {
+            duration: voiceoverResult.duration
+          });
+        }
+      } catch (voErr: any) {
+        this.log(state, 'warn', 'asset_generation', 'Voiceover generation failed', { error: voErr.message });
+      }
+
+      // Search for B-roll video clips
+      this.log(state, 'info', 'asset_generation', 'Searching for B-roll video clips...');
+      try {
+        for (let i = 0; i < Math.min(2, state.brief.scenes.length); i++) {
+          const scene = state.brief.scenes[i];
+          const keywords = this.extractKeywords(scene.content, scene.visualDescription);
+          
+          const videoResults = await assetGenerationService.searchStockVideos(keywords.join(' '), 1);
+          
+          if (videoResults.length > 0) {
+            const video = videoResults[0];
+            const videoAsset: ProductionAsset = {
+              id: `asset_${productionId}_video_${i}`,
+              type: 'video',
+              url: video.url,
+              thumbnailUrl: video.thumbnailUrl,
+              source: video.source as any,
+              section: scene.section,
+              sceneNumber: i + 1,
+              qualityScore: 85,
+              relevanceScore: 80,
+              technicalScore: 90,
+              emotionalScore: 75,
+              duration: video.duration || 5,
+              prompt: keywords.join(', ')
+            };
+            
+            generatedAssets.push(videoAsset);
+            state.assets.push(videoAsset);
+            
+            this.log(state, 'info', 'asset_generation', `B-roll video found for scene ${i + 1}`, {
+              source: video.source,
+              duration: video.duration
+            });
+          }
+          
+          await this.delay(500);
+        }
+      } catch (vidErr: any) {
+        this.log(state, 'warn', 'asset_generation', 'B-roll search failed', { error: vidErr.message });
+      }
+
+      // Search for background music based on mood
       this.log(state, 'info', 'asset_generation', 'Searching for background music...');
       
       const phaseResult: ProductionPhaseResult = {
