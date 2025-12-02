@@ -15223,6 +15223,224 @@ Write ONLY the script narration, no scene labels or stage directions. Make it co
     }
   });
 
+  // AI Producer: Start full production workflow with realistic timing
+  app.post('/api/videos/ai-producer/start-production', isAuthenticated, async (req, res) => {
+    try {
+      const { title, script, visualDirections, targetDuration, platform, style, voiceStyle, voiceGender, musicMood, scenes } = req.body;
+      
+      if (!title || !script) {
+        return res.status(400).json({ error: 'Title and script are required' });
+      }
+
+      const { videoProductionWorkflow } = await import('./services/video-production-workflow');
+      
+      const productionId = `prod_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      const brief = {
+        title,
+        script,
+        visualDirections: visualDirections || '',
+        targetDuration: targetDuration || 60,
+        platform: platform || 'youtube',
+        style: style || 'professional',
+        voiceStyle: voiceStyle || 'professional',
+        voiceGender: voiceGender || 'female',
+        musicMood: musicMood || 'uplifting',
+        scenes: scenes || []
+      };
+
+      // Start production in background
+      const state = await videoProductionWorkflow.startProduction(productionId, brief);
+      
+      res.json({
+        success: true,
+        productionId,
+        status: state.status,
+        message: 'Production started. Use /api/videos/ai-producer/production-status to check progress.'
+      });
+    } catch (error) {
+      console.error('[AI Producer] Start production error:', error);
+      res.status(500).json({ error: 'Failed to start production' });
+    }
+  });
+
+  // AI Producer: Run specific phase
+  app.post('/api/videos/ai-producer/run-phase', isAuthenticated, async (req, res) => {
+    try {
+      const { productionId, phase } = req.body;
+      
+      if (!productionId || !phase) {
+        return res.status(400).json({ error: 'Production ID and phase are required' });
+      }
+
+      const { videoProductionWorkflow } = await import('./services/video-production-workflow');
+      
+      let result;
+      switch (phase) {
+        case 'analyze':
+          result = await videoProductionWorkflow.runAnalyzePhase(productionId);
+          break;
+        case 'generate':
+          result = await videoProductionWorkflow.runGeneratePhase(productionId);
+          break;
+        case 'evaluate':
+          result = await videoProductionWorkflow.runEvaluatePhase(productionId);
+          break;
+        case 'iterate':
+          result = await videoProductionWorkflow.runIteratePhase(productionId);
+          break;
+        case 'assemble':
+          result = await videoProductionWorkflow.runAssemblePhase(productionId);
+          break;
+        default:
+          return res.status(400).json({ error: 'Invalid phase' });
+      }
+
+      const state = videoProductionWorkflow.getProductionState(productionId);
+      
+      res.json({
+        success: true,
+        phase: result.phase,
+        status: result.status,
+        qualityScore: result.qualityScore,
+        duration: result.duration,
+        productionState: state
+      });
+    } catch (error) {
+      console.error('[AI Producer] Run phase error:', error);
+      res.status(500).json({ error: 'Failed to run phase' });
+    }
+  });
+
+  // AI Producer: Get production status
+  app.get('/api/videos/ai-producer/production-status/:productionId', isAuthenticated, async (req, res) => {
+    try {
+      const { productionId } = req.params;
+      
+      const { videoProductionWorkflow } = await import('./services/video-production-workflow');
+      
+      const state = videoProductionWorkflow.getProductionState(productionId);
+      
+      if (!state) {
+        return res.status(404).json({ error: 'Production not found' });
+      }
+
+      res.json({
+        success: true,
+        production: state
+      });
+    } catch (error) {
+      console.error('[AI Producer] Get status error:', error);
+      res.status(500).json({ error: 'Failed to get production status' });
+    }
+  });
+
+  // AI Producer: Run full production workflow
+  app.post('/api/videos/ai-producer/full-production', isAuthenticated, async (req, res) => {
+    try {
+      const { title, script, visualDirections, targetDuration, platform, style, voiceStyle, voiceGender, musicMood, scenes } = req.body;
+      
+      if (!title || !script) {
+        return res.status(400).json({ error: 'Title and script are required' });
+      }
+
+      const { videoProductionWorkflow } = await import('./services/video-production-workflow');
+      
+      const productionId = `prod_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      const brief = {
+        title,
+        script,
+        visualDirections: visualDirections || '',
+        targetDuration: targetDuration || 60,
+        platform: platform || 'youtube',
+        style: style || 'professional',
+        voiceStyle: voiceStyle || 'professional',
+        voiceGender: voiceGender || 'female',
+        musicMood: musicMood || 'uplifting',
+        scenes: scenes || []
+      };
+
+      // Run full production (this will take several minutes)
+      const finalState = await videoProductionWorkflow.runFullProduction(productionId, brief);
+      
+      res.json({
+        success: true,
+        productionId,
+        status: finalState.status,
+        overallQualityScore: finalState.overallQualityScore,
+        assets: finalState.assets,
+        outputUrl: finalState.outputUrl,
+        logs: finalState.logs.slice(-20) // Last 20 logs
+      });
+    } catch (error) {
+      console.error('[AI Producer] Full production error:', error);
+      res.status(500).json({ error: 'Failed to run full production' });
+    }
+  });
+
+  // Asset Library: Get all media assets
+  app.get('/api/videos/assets', isAuthenticated, async (req, res) => {
+    try {
+      const { type, category, mood, source, search, limit = '50', offset = '0' } = req.query;
+      
+      let query = `SELECT * FROM media_assets WHERE 1=1`;
+      const params: any[] = [];
+      let paramIndex = 1;
+      
+      if (type) {
+        query += ` AND type = $${paramIndex++}`;
+        params.push(type);
+      }
+      if (category) {
+        query += ` AND category = $${paramIndex++}`;
+        params.push(category);
+      }
+      if (mood) {
+        query += ` AND mood = $${paramIndex++}`;
+        params.push(mood);
+      }
+      if (source) {
+        query += ` AND source = $${paramIndex++}`;
+        params.push(source);
+      }
+      if (search) {
+        query += ` AND (name ILIKE $${paramIndex} OR description ILIKE $${paramIndex} OR prompt ILIKE $${paramIndex})`;
+        params.push(`%${search}%`);
+        paramIndex++;
+      }
+      
+      query += ` ORDER BY created_at DESC LIMIT $${paramIndex++} OFFSET $${paramIndex}`;
+      params.push(parseInt(limit as string), parseInt(offset as string));
+      
+      // For now, return empty array until we have assets
+      res.json({
+        success: true,
+        assets: [],
+        total: 0
+      });
+    } catch (error) {
+      console.error('[Asset Library] Get assets error:', error);
+      res.status(500).json({ error: 'Failed to get assets' });
+    }
+  });
+
+  // Asset Library: Get user uploads
+  app.get('/api/videos/uploads', isAuthenticated, async (req, res) => {
+    try {
+      const userId = (req.user as any)?.id;
+      
+      res.json({
+        success: true,
+        uploads: [],
+        total: 0
+      });
+    } catch (error) {
+      console.error('[Asset Library] Get uploads error:', error);
+      res.status(500).json({ error: 'Failed to get uploads' });
+    }
+  });
+
   // Inventory Management Routes - QUERY DATABASE (synced data)
   app.get('/api/accounting/inventory/items', async (req, res) => {
     try {
