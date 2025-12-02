@@ -189,11 +189,31 @@ class VideoAssemblyService {
 
         for (let i = 0; i < config.audioTracks.length; i++) {
           const track = config.audioTracks[i];
+          if (!track.url) continue; // Skip empty URLs
+          
+          const isVideoSource = track.url.includes('.mp4') || track.url.includes('pexels.com');
+          const downloadExt = isVideoSource ? '.mp4' : '.mp3';
+          const downloadPath = path.join(workDir, `audio_${i}_${track.type}_raw${downloadExt}`);
           const audioPath = path.join(workDir, `audio_${i}_${track.type}.mp3`);
           
           try {
-            await this.downloadFile(track.url, audioPath);
-            audioPaths.push({ path: audioPath, track });
+            await this.downloadFile(track.url, downloadPath);
+            
+            if (isVideoSource) {
+              // Extract audio from video file
+              try {
+                await execAsync(
+                  `ffmpeg -y -i "${downloadPath}" -vn -acodec libmp3lame -ar 44100 -ab 128k "${audioPath}"`
+                );
+                audioPaths.push({ path: audioPath, track });
+              } catch (extractErr) {
+                console.error(`Failed to extract audio from ${downloadPath}:`, extractErr);
+              }
+            } else {
+              // Direct audio file
+              await execAsync(`cp "${downloadPath}" "${audioPath}"`);
+              audioPaths.push({ path: audioPath, track });
+            }
           } catch (err) {
             console.error(`Failed to download audio ${i}:`, err);
           }

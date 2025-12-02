@@ -489,17 +489,17 @@ Format as JSON array with structure:
         this.log(state, 'warn', 'asset_generation', 'Voiceover generation failed', { error: voErr.message });
       }
 
-      // Phase 5: Search for background music
+      // Phase 5: Search for background music (optional enhancement)
       this.log(state, 'info', 'asset_generation', 'Searching for background music...');
       try {
         const moodKeywords = state.brief.style === 'corporate' ? 'corporate uplifting inspiring' : 
                             state.brief.style === 'lifestyle' ? 'lifestyle upbeat positive' :
                             'professional motivational background';
         
-        // Search for instrumental background music from Pixabay
+        // Search for background audio from video sources
         const musicResults = await this.searchBackgroundMusic(moodKeywords);
         
-        if (musicResults.length > 0) {
+        if (musicResults.length > 0 && musicResults[0].url) {
           const music = musicResults[0];
           const musicAsset: ProductionAsset = {
             id: `asset_${productionId}_music`,
@@ -523,6 +523,8 @@ Format as JSON array with structure:
             source: music.source,
             duration: music.duration
           });
+        } else {
+          this.log(state, 'info', 'asset_generation', 'No background music found - voiceover only video');
         }
       } catch (musicErr: any) {
         this.log(state, 'warn', 'asset_generation', 'Music search failed', { error: musicErr.message });
@@ -1068,40 +1070,50 @@ Respond in JSON format:
   private async searchBackgroundMusic(keywords: string): Promise<Array<{ url: string; source: string; duration: number }>> {
     const results: Array<{ url: string; source: string; duration: number }> = [];
     
-    // Search Pixabay for royalty-free music
-    const pixabayKey = process.env.PIXABAY_API_KEY;
-    if (pixabayKey) {
+    // Try to get stock video with audio from Pexels as a background track source
+    const pexelsKey = process.env.PEXELS_API_KEY;
+    if (pexelsKey) {
       try {
+        // Search for ambient/background videos that typically have music
+        const searchTerms = encodeURIComponent('corporate background ambient music');
         const response = await fetch(
-          `https://pixabay.com/api/?key=${pixabayKey}&q=${encodeURIComponent(keywords)}&category=music&per_page=3`
+          `https://api.pexels.com/videos/search?query=${searchTerms}&per_page=5&size=small`,
+          {
+            headers: {
+              'Authorization': pexelsKey
+            }
+          }
         );
         
         if (response.ok) {
           const data = await response.json();
-          if (data.hits && data.hits.length > 0) {
-            for (const hit of data.hits) {
-              if (hit.previewURL) {
-                results.push({
-                  url: hit.previewURL,
-                  source: 'pixabay',
-                  duration: hit.duration || 60
-                });
+          if (data.videos && data.videos.length > 0) {
+            // Get a video with audio as background music source
+            for (const video of data.videos) {
+              if (video.video_files && video.video_files.length > 0) {
+                // Get the smallest file for audio extraction
+                const smallFile = video.video_files.find((f: any) => f.quality === 'sd') || video.video_files[0];
+                if (smallFile && smallFile.link) {
+                  results.push({
+                    url: smallFile.link,
+                    source: 'pexels_video',
+                    duration: video.duration || 60
+                  });
+                  break; // Only need one
+                }
               }
             }
           }
         }
       } catch (e) {
-        console.warn('[VideoWorkflow] Pixabay music search failed:', e);
+        console.warn('[VideoWorkflow] Pexels background video search failed:', e);
       }
     }
-    
-    // If no Pixabay results, use a placeholder for ambient background
+
+    // If no results, return empty for silent video
     if (results.length === 0) {
-      results.push({
-        url: '', // Empty URL will be handled by the assembly service
-        source: 'none',
-        duration: 120
-      });
+      console.log('[VideoWorkflow] No background music found, video will have voiceover only');
+      return [];
     }
     
     return results;
