@@ -522,13 +522,17 @@ class AssetGenerationService {
         const base64 = Buffer.from(audioBuffer).toString("base64");
         const duration = this.estimateAudioDuration(text);
         
+        console.log("[AssetService] Voiceover generated successfully, duration:", duration);
         return {
           url: `data:audio/mpeg;base64,${base64}`,
           duration,
         };
+      } else {
+        const errorText = await response.text();
+        console.error("[AssetService] ElevenLabs API error:", response.status, errorText);
       }
     } catch (e) {
-      console.warn("[AssetService] ElevenLabs error:", e);
+      console.error("[AssetService] ElevenLabs error:", e);
     }
 
     return null;

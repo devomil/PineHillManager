@@ -1303,7 +1303,16 @@ export default function AIVideoProducer() {
                     className="relative aspect-square rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800"
                     data-testid={`asset-preview-${asset.section}`}
                   >
-                    {asset.type.includes("image") && asset.url && (
+                    {asset.type === "video" && asset.url ? (
+                      <video
+                        src={asset.url}
+                        className="w-full h-full object-cover"
+                        muted
+                        playsInline
+                        onMouseEnter={(e) => e.currentTarget.play()}
+                        onMouseLeave={(e) => { e.currentTarget.pause(); e.currentTarget.currentTime = 0; }}
+                      />
+                    ) : asset.url && (
                       <img
                         src={asset.url}
                         alt={asset.section}
@@ -1311,7 +1320,7 @@ export default function AIVideoProducer() {
                       />
                     )}
                     <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs p-1 text-center">
-                      {asset.section.toUpperCase()}
+                      {asset.type === "video" ? "🎥 " : ""}{asset.section.toUpperCase()}
                     </div>
                     {asset.qualityScore && (
                       <Badge

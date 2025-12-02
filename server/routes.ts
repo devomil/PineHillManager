@@ -15037,7 +15037,8 @@ Write ONLY the script narration, no scene labels or stage directions. Make it co
       
       const scenes = assets.map((asset: any, index: number) => ({
         id: index + 1,
-        imageUrl: asset.url,
+        url: asset.url,
+        type: asset.type || 'image',
         section: asset.section || `scene_${index + 1}`,
         duration: sceneDuration,
         transition: index < assets.length - 1 ? 'fade' : 'none',
@@ -15070,7 +15071,7 @@ Write ONLY the script narration, no scene labels or stage directions. Make it co
       overflow: hidden;
       box-shadow: 0 20px 60px rgba(0,0,0,0.5);
     }
-    .scene-image {
+    .scene-media {
       position: absolute;
       top: 0;
       left: 0;
@@ -15080,7 +15081,7 @@ Write ONLY the script narration, no scene labels or stage directions. Make it co
       opacity: 0;
       transition: opacity 1s ease-in-out;
     }
-    .scene-image.active { opacity: 1; }
+    .scene-media.active { opacity: 1; }
     .controls {
       text-align: center;
       margin-top: 30px;
@@ -15111,9 +15112,21 @@ Write ONLY the script narration, no scene labels or stage directions. Make it co
       border: 2px solid transparent;
       cursor: pointer;
       transition: border-color 0.3s;
+      position: relative;
+      background: #333;
     }
     .timeline-item.active { border-color: #667eea; }
-    .timeline-item img { width: 100%; height: 100%; object-fit: cover; }
+    .timeline-item img, .timeline-item video { width: 100%; height: 100%; object-fit: cover; }
+    .timeline-item .video-badge {
+      position: absolute;
+      bottom: 2px;
+      right: 2px;
+      background: rgba(0,0,0,0.7);
+      color: #fff;
+      font-size: 8px;
+      padding: 1px 3px;
+      border-radius: 2px;
+    }
     .info {
       text-align: center;
       margin-top: 30px;
@@ -15135,9 +15148,13 @@ Write ONLY the script narration, no scene labels or stage directions. Make it co
   <div class="container">
     <h1>${title || 'AI Video Production'}</h1>
     <div class="video-player" id="player">
-      ${scenes.map((scene: any, i: number) => `
-        <img src="${scene.imageUrl}" alt="Scene ${i + 1}" class="scene-image ${i === 0 ? 'active' : ''}" data-scene="${i}">
-      `).join('')}
+      ${scenes.map((scene: any, i: number) => {
+        if (scene.type === 'video') {
+          return `<video src="${scene.url}" class="scene-media ${i === 0 ? 'active' : ''}" data-scene="${i}" data-type="video" muted loop playsinline></video>`;
+        } else {
+          return `<img src="${scene.url}" alt="Scene ${i + 1}" class="scene-media ${i === 0 ? 'active' : ''}" data-scene="${i}" data-type="image">`;
+        }
+      }).join('')}
     </div>
     
     <div class="controls">
@@ -15147,11 +15164,18 @@ Write ONLY the script narration, no scene labels or stage directions. Make it co
     ${voiceoverUrl ? `<audio id="voiceover" src="${voiceoverUrl}"></audio>` : ''}
     
     <div class="timeline">
-      ${scenes.map((scene: any, i: number) => `
-        <div class="timeline-item ${i === 0 ? 'active' : ''}" onclick="goToScene(${i})">
-          <img src="${scene.imageUrl}" alt="Scene ${i + 1}">
-        </div>
-      `).join('')}
+      ${scenes.map((scene: any, i: number) => {
+        if (scene.type === 'video') {
+          return `<div class="timeline-item ${i === 0 ? 'active' : ''}" onclick="goToScene(${i})">
+            <video src="${scene.url}" muted></video>
+            <span class="video-badge">VIDEO</span>
+          </div>`;
+        } else {
+          return `<div class="timeline-item ${i === 0 ? 'active' : ''}" onclick="goToScene(${i})">
+            <img src="${scene.url}" alt="Scene ${i + 1}">
+          </div>`;
+        }
+      }).join('')}
     </div>
     
     <div class="info">
@@ -15167,14 +15191,23 @@ Write ONLY the script narration, no scene labels or stage directions. Make it co
     let isPlaying = false;
     let interval = null;
     const sceneDuration = ${sceneDuration * 1000};
-    const scenes = document.querySelectorAll('.scene-image');
+    const sceneElements = document.querySelectorAll('.scene-media');
     const timelineItems = document.querySelectorAll('.timeline-item');
     const playBtn = document.getElementById('playBtn');
     ${voiceoverUrl ? `const audio = document.getElementById('voiceover');` : ''}
     
     function showScene(index) {
-      scenes.forEach((s, i) => {
-        s.classList.toggle('active', i === index);
+      sceneElements.forEach((s, i) => {
+        const isActive = i === index;
+        s.classList.toggle('active', isActive);
+        if (s.tagName === 'VIDEO') {
+          if (isActive && isPlaying) {
+            s.play().catch(() => {});
+          } else {
+            s.pause();
+            s.currentTime = 0;
+          }
+        }
       });
       timelineItems.forEach((t, i) => {
         t.classList.toggle('active', i === index);
@@ -15183,7 +15216,7 @@ Write ONLY the script narration, no scene labels or stage directions. Make it co
     }
     
     function nextScene() {
-      const next = (currentScene + 1) % scenes.length;
+      const next = (currentScene + 1) % sceneElements.length;
       showScene(next);
       if (next === 0 && isPlaying) {
         togglePlay();
@@ -15194,11 +15227,20 @@ Write ONLY the script narration, no scene labels or stage directions. Make it co
       isPlaying = !isPlaying;
       if (isPlaying) {
         playBtn.textContent = 'Pause';
+        const currentEl = sceneElements[currentScene];
+        if (currentEl && currentEl.tagName === 'VIDEO') {
+          currentEl.play().catch(() => {});
+        }
         interval = setInterval(nextScene, sceneDuration);
         ${voiceoverUrl ? `audio.play();` : ''}
       } else {
         playBtn.textContent = 'Play Preview';
         clearInterval(interval);
+        sceneElements.forEach(s => {
+          if (s.tagName === 'VIDEO') {
+            s.pause();
+          }
+        });
         ${voiceoverUrl ? `audio.pause();` : ''}
       }
     }
