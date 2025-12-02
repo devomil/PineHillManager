@@ -819,44 +819,111 @@ Respond in JSON format:
     state.currentPhase = 'assemble';
     const startTime = Date.now();
 
-    this.log(state, 'info', 'phase', 'Starting ASSEMBLE phase', {
+    this.log(state, 'info', 'phase', 'Starting ASSEMBLE phase - TV Commercial Quality', {
       description: PHASE_TIMING.assemble.description,
-      scenesToAssemble: state.assets.length
+      totalAssets: state.assets.length,
+      targetDuration: state.brief.targetDuration
     });
 
     try {
-      // Build video assembly configuration
-      const scenes: VideoScene[] = state.assets.map((asset, index) => ({
-        id: index + 1,
-        imageUrl: asset.type === 'image' ? asset.url : undefined,
-        videoUrl: asset.type === 'video' ? asset.url : undefined,
-        duration: asset.duration || Math.floor(state.brief!.targetDuration / state.assets.length),
-        transition: index < state.assets.length - 1 ? 'fade' : 'none',
-        transitionDuration: 0.5,
-        kenBurnsEffect: true
-      }));
+      // Separate visual assets from audio assets
+      const visualAssets = state.assets.filter(a => a.type === 'image' || a.type === 'video');
+      const videoAssets = visualAssets.filter(a => a.type === 'video');
+      const imageAssets = visualAssets.filter(a => a.type === 'image');
+      
+      this.log(state, 'info', 'assembly', 'Organizing visual assets', {
+        totalVisual: visualAssets.length,
+        videos: videoAssets.length,
+        images: imageAssets.length
+      });
+
+      // Build optimized scene sequence - prioritize video clips, fill gaps with images
+      const targetDuration = state.brief.targetDuration;
+      const scenes: VideoScene[] = [];
+      let currentDuration = 0;
+      let sceneIndex = 0;
+
+      // First pass: Add all video clips (they provide motion)
+      for (const videoAsset of videoAssets) {
+        if (currentDuration >= targetDuration) break;
+        
+        const clipDuration = Math.min(videoAsset.duration || 5, targetDuration - currentDuration);
+        scenes.push({
+          id: sceneIndex + 1,
+          videoUrl: videoAsset.url,
+          duration: clipDuration,
+          transition: 'fade',
+          transitionDuration: 0.5,
+          kenBurnsEffect: false
+        });
+        currentDuration += clipDuration;
+        sceneIndex++;
+      }
+
+      // Second pass: Fill remaining duration with images
+      const remainingDuration = targetDuration - currentDuration;
+      if (remainingDuration > 0 && imageAssets.length > 0) {
+        const durationPerImage = Math.max(3, Math.ceil(remainingDuration / imageAssets.length));
+        
+        for (const imageAsset of imageAssets) {
+          if (currentDuration >= targetDuration) break;
+          
+          const imgDuration = Math.min(durationPerImage, targetDuration - currentDuration);
+          scenes.push({
+            id: sceneIndex + 1,
+            imageUrl: imageAsset.url,
+            duration: imgDuration,
+            transition: 'fade',
+            transitionDuration: 0.5,
+            kenBurnsEffect: true
+          });
+          currentDuration += imgDuration;
+          sceneIndex++;
+        }
+      }
+
+      // If still short on duration, extend the last scenes
+      if (currentDuration < targetDuration && scenes.length > 0) {
+        const extensionPerScene = (targetDuration - currentDuration) / scenes.length;
+        scenes.forEach(scene => {
+          scene.duration += extensionPerScene;
+        });
+      }
+
+      this.log(state, 'info', 'assembly', 'Scene sequence built', {
+        totalScenes: scenes.length,
+        estimatedDuration: scenes.reduce((sum, s) => sum + s.duration, 0),
+        videoScenes: scenes.filter(s => s.videoUrl).length,
+        imageScenes: scenes.filter(s => s.imageUrl).length
+      });
 
       const audioTracks: AudioTrack[] = [];
       
       // Add voiceover if available
       const voiceoverAsset = state.assets.find(a => a.type === 'voiceover');
-      if (voiceoverAsset) {
+      if (voiceoverAsset && voiceoverAsset.url) {
         audioTracks.push({
           url: voiceoverAsset.url,
           type: 'voiceover',
           volume: 100
         });
+        this.log(state, 'info', 'assembly', 'Added voiceover track', {
+          duration: voiceoverAsset.duration
+        });
       }
 
       // Add music if available
       const musicAsset = state.assets.find(a => a.type === 'music');
-      if (musicAsset) {
+      if (musicAsset && musicAsset.url) {
         audioTracks.push({
           url: musicAsset.url,
           type: 'music',
-          volume: 30,
+          volume: 25,
           fadeIn: 2,
           fadeOut: 3
+        });
+        this.log(state, 'info', 'assembly', 'Added background music', {
+          source: musicAsset.source
         });
       }
 
