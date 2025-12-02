@@ -15335,6 +15335,65 @@ Write ONLY the script narration, no scene labels or stage directions. Make it co
     }
   });
 
+  // AI Producer: Download completed video
+  app.get('/api/videos/ai-producer/download/:productionId', isAuthenticated, async (req, res) => {
+    try {
+      const { productionId } = req.params;
+      const fs = await import('fs');
+      const path = await import('path');
+      
+      const { videoProductionWorkflow } = await import('./services/video-production-workflow');
+      
+      const state = videoProductionWorkflow.getProductionState(productionId);
+      
+      if (!state) {
+        return res.status(404).json({ error: 'Production not found' });
+      }
+
+      if (state.status !== 'completed') {
+        return res.status(400).json({ error: 'Video not ready for download' });
+      }
+
+      // Use outputPath (filesystem path) for downloads, fallback to outputUrl
+      const videoPath = state.outputPath || state.outputUrl;
+      
+      if (!videoPath) {
+        return res.status(404).json({ error: 'Video path not found' });
+      }
+
+      // Resolve path - handle both absolute paths and relative /uploads paths
+      let resolvedPath = videoPath;
+      if (videoPath.startsWith('/uploads/')) {
+        resolvedPath = path.join(process.cwd(), videoPath);
+      }
+      
+      if (!fs.existsSync(resolvedPath)) {
+        console.error(`[AI Producer] Video file not found at path: ${resolvedPath}`);
+        return res.status(404).json({ error: 'Video file not found' });
+      }
+
+      const filename = `${state.brief?.title?.replace(/[^a-z0-9]/gi, '_') || 'video'}_${productionId}.mp4`;
+      
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.setHeader('Content-Type', 'video/mp4');
+      
+      const videoStream = fs.createReadStream(resolvedPath);
+      
+      // Handle stream errors
+      videoStream.on('error', (err) => {
+        console.error('[AI Producer] Stream error:', err);
+        if (!res.headersSent) {
+          res.status(500).json({ error: 'Failed to read video file' });
+        }
+      });
+      
+      videoStream.pipe(res);
+    } catch (error) {
+      console.error('[AI Producer] Download error:', error);
+      res.status(500).json({ error: 'Failed to download video' });
+    }
+  });
+
   // AI Producer: Run full production workflow
   app.post('/api/videos/ai-producer/full-production', isAuthenticated, async (req, res) => {
     try {

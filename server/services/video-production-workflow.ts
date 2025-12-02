@@ -74,6 +74,7 @@ export interface ProductionState {
   startedAt?: Date;
   completedAt?: Date;
   outputUrl?: string;
+  outputPath?: string; // Filesystem path for downloads
   iterationCount: number;
   maxIterations: number;
 }
@@ -769,7 +770,8 @@ Respond in JSON format:
       });
 
       if (assemblyResult.success && assemblyResult.outputPath) {
-        state.outputUrl = assemblyResult.outputPath;
+        state.outputPath = assemblyResult.outputPath; // Filesystem path for downloads
+        state.outputUrl = assemblyResult.outputPath; // Also keep URL for backwards compatibility
         
         this.log(state, 'info', 'assembly', 'Video assembly successful', {
           duration: assemblyResult.duration,

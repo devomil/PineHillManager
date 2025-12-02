@@ -137,37 +137,59 @@ export default function AIVideoProducer() {
     
     setIsDownloading(true);
     try {
-      const response = await fetch("/api/videos/ai-producer/assemble", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          productionId: production.id,
-          assets: production.assets,
-          voiceoverUrl: production.voiceoverUrl,
-          title: producerMode === "product" ? formData.productName : scriptFormData.title,
-          duration: producerMode === "product" ? formData.videoDuration : scriptFormData.videoDuration,
-        }),
-      });
-
-      if (response.ok) {
-        const result = await response.json();
+      // Check if video is already completed with output URL
+      if (production.status === "completed" && production.outputUrl) {
+        // Download directly from the download endpoint
+        const response = await fetch(`/api/videos/ai-producer/download/${production.id}`);
         
-        if (result.downloadUrl) {
-          const link = document.createElement("a");
-          link.href = result.downloadUrl;
-          link.download = `${production.id}_video.mp4`;
-          link.click();
-        } else if (result.previewHtml) {
-          const blob = new Blob([result.previewHtml], { type: "text/html" });
+        if (response.ok) {
+          const blob = await response.blob();
           const url = URL.createObjectURL(blob);
           const link = document.createElement("a");
           link.href = url;
-          link.download = `${producerMode === "product" ? formData.productName : scriptFormData.title || "video"}_preview.html`;
+          const title = producerMode === "product" ? formData.productName : scriptFormData.title;
+          link.download = `${title?.replace(/[^a-z0-9]/gi, '_') || 'video'}.mp4`;
+          document.body.appendChild(link);
           link.click();
+          document.body.removeChild(link);
           URL.revokeObjectURL(url);
+        } else {
+          console.error("Failed to download video");
         }
       } else {
-        console.error("Failed to assemble video");
+        // Trigger assembly if not completed
+        const response = await fetch("/api/videos/ai-producer/assemble", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            productionId: production.id,
+            assets: production.assets,
+            voiceoverUrl: production.voiceoverUrl,
+            title: producerMode === "product" ? formData.productName : scriptFormData.title,
+            duration: producerMode === "product" ? formData.videoDuration : scriptFormData.videoDuration,
+          }),
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          
+          if (result.downloadUrl) {
+            const link = document.createElement("a");
+            link.href = result.downloadUrl;
+            link.download = `${production.id}_video.mp4`;
+            link.click();
+          } else if (result.previewHtml) {
+            const blob = new Blob([result.previewHtml], { type: "text/html" });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = `${producerMode === "product" ? formData.productName : scriptFormData.title || "video"}_preview.html`;
+            link.click();
+            URL.revokeObjectURL(url);
+          }
+        } else {
+          console.error("Failed to assemble video");
+        }
       }
     } catch (error) {
       console.error("Download error:", error);
