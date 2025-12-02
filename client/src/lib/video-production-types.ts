@@ -53,6 +53,7 @@ export interface ProductionAsset {
     photographer?: string;
     license?: string;
     prompt?: string;
+    sceneText?: string;
   };
   qualityScore?: QualityScore;
   status: "pending" | "generating" | "evaluating" | "approved" | "rejected" | "regenerating";

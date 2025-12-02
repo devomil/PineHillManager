@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { QrCode, Download, Copy, ExternalLink, Zap, History, Plus, ArrowLeft, Video } from 'lucide-react';
+import { QrCode, Download, Copy, ExternalLink, Zap, History, Plus, ArrowLeft, Video, Image } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
@@ -16,6 +16,7 @@ import QrCodeHistory from '@/components/qr-code-history';
 import VideoCreator from '@/components/video-creator';
 import VideoHistory from '@/components/video-history';
 import AIVideoProducer from '@/components/ai-video-producer';
+import AssetLibrary from '@/components/asset-library';
 import { useLocation } from 'wouter';
 import { Brain } from 'lucide-react';
 
@@ -192,10 +193,14 @@ export default function MarketingPage() {
         </div>
 
         <Tabs defaultValue="ai-producer" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="ai-producer" className="flex items-center gap-2" data-testid="tab-ai-producer">
               <Brain className="h-4 w-4" />
               AI Producer
+            </TabsTrigger>
+            <TabsTrigger value="asset-library" className="flex items-center gap-2" data-testid="tab-asset-library">
+              <Image className="h-4 w-4" />
+              Assets
             </TabsTrigger>
             <TabsTrigger value="generator" className="flex items-center gap-2" data-testid="tab-qr-generator">
               <Plus className="h-4 w-4" />
@@ -217,6 +222,10 @@ export default function MarketingPage() {
 
           <TabsContent value="ai-producer" className="space-y-6">
             <AIVideoProducer />
+          </TabsContent>
+
+          <TabsContent value="asset-library" className="space-y-6">
+            <AssetLibrary />
           </TabsContent>
 
           <TabsContent value="generator" className="space-y-6">
