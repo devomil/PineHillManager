@@ -222,56 +222,116 @@ class AssetGenerationService {
     
     if (stabilityKey) {
       try {
-        console.log("[AssetService] Generating image with Stability AI:", prompt.substring(0, 50));
+        console.log("[AssetService] Generating image with Stability AI...");
+        console.log("[AssetService] Prompt:", prompt.substring(0, 100));
+        console.log("[AssetService] API key prefix:", stabilityKey.substring(0, 10) + "...");
         
-        const response = await fetch(
-          "https://api.stability.ai/v1/generation/stable-diffusion-xl-1024-v1-0/text-to-image",
+        // Try the newer Stability AI API (v2beta) first
+        const endpoints = [
           {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Accept: "application/json",
-              Authorization: `Bearer ${stabilityKey}`,
-            },
-            body: JSON.stringify({
-              text_prompts: [
-                {
-                  text: prompt,
-                  weight: 1,
-                },
-                {
-                  text: "blurry, low quality, distorted, ugly, bad anatomy",
-                  weight: -1,
-                },
-              ],
-              cfg_scale: 7,
-              height: 1024,
-              width: 1024,
-              steps: 30,
-              samples: 1,
-            }),
+            url: "https://api.stability.ai/v2beta/stable-image/generate/core",
+            isV2: true
+          },
+          {
+            url: "https://api.stability.ai/v1/generation/stable-diffusion-xl-1024-v1-0/text-to-image",
+            isV2: false
           }
-        );
+        ];
+        
+        for (const endpoint of endpoints) {
+          try {
+            console.log(`[AssetService] Trying endpoint: ${endpoint.url}`);
+            
+            let response;
+            if (endpoint.isV2) {
+              // V2 API uses multipart form data
+              const formData = new FormData();
+              formData.append("prompt", prompt);
+              formData.append("output_format", "png");
+              formData.append("aspect_ratio", "16:9");
+              
+              response = await fetch(endpoint.url, {
+                method: "POST",
+                headers: {
+                  Authorization: `Bearer ${stabilityKey}`,
+                  Accept: "image/*",
+                },
+                body: formData,
+              });
+            } else {
+              // V1 API uses JSON
+              response = await fetch(endpoint.url, {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Accept: "application/json",
+                  Authorization: `Bearer ${stabilityKey}`,
+                },
+                body: JSON.stringify({
+                  text_prompts: [
+                    { text: prompt, weight: 1 },
+                    { text: "blurry, low quality, distorted, ugly, bad anatomy", weight: -1 },
+                  ],
+                  cfg_scale: 7,
+                  height: 1024,
+                  width: 1024,
+                  steps: 30,
+                  samples: 1,
+                }),
+              });
+            }
 
-        if (response.ok) {
-          const data = await response.json();
-          if (data.artifacts && data.artifacts[0]) {
-            const base64 = data.artifacts[0].base64;
-            return {
-              id: `stability_${Date.now()}`,
-              url: `data:image/png;base64,${base64}`,
-              thumbnailUrl: `data:image/png;base64,${base64}`,
-              width: 1024,
-              height: 1024,
-              source: "stability_ai",
-            };
+            console.log(`[AssetService] Stability AI response status: ${response.status}`);
+
+            if (response.ok) {
+              if (endpoint.isV2) {
+                // V2 returns image directly
+                const imageBuffer = await response.arrayBuffer();
+                const base64 = Buffer.from(imageBuffer).toString("base64");
+                console.log("[AssetService] Stability AI V2 image generated successfully");
+                return {
+                  id: `stability_${Date.now()}`,
+                  url: `data:image/png;base64,${base64}`,
+                  thumbnailUrl: `data:image/png;base64,${base64}`,
+                  width: 1024,
+                  height: 576,
+                  source: "stability_ai",
+                };
+              } else {
+                // V1 returns JSON with base64
+                const data = await response.json();
+                if (data.artifacts && data.artifacts[0]) {
+                  const base64 = data.artifacts[0].base64;
+                  console.log("[AssetService] Stability AI V1 image generated successfully");
+                  return {
+                    id: `stability_${Date.now()}`,
+                    url: `data:image/png;base64,${base64}`,
+                    thumbnailUrl: `data:image/png;base64,${base64}`,
+                    width: 1024,
+                    height: 1024,
+                    source: "stability_ai",
+                  };
+                }
+              }
+            } else {
+              const errorText = await response.text();
+              console.error(`[AssetService] Stability AI error (${endpoint.isV2 ? 'V2' : 'V1'}):`, response.status, errorText);
+              
+              // If 401, the API key is invalid - don't try other endpoints
+              if (response.status === 401) {
+                console.error("[AssetService] Stability AI API key is invalid or expired");
+                break;
+              }
+            }
+          } catch (endpointError) {
+            console.warn(`[AssetService] Stability endpoint error:`, endpointError);
           }
-        } else {
-          console.warn("[AssetService] Stability AI failed:", response.status);
         }
       } catch (e) {
         console.warn("[AssetService] Stability AI error:", e);
       }
+    } else {
+      console.log("[AssetService] No Stability AI API key configured");
     }
 
     const hfToken = process.env.HUGGINGFACE_API_TOKEN;
@@ -319,46 +379,104 @@ class AssetGenerationService {
     
     if (stabilityKey) {
       try {
-        console.log("[AssetService] Generating image with Stability AI:", prompt.substring(0, 50));
+        console.log("[AssetService] Generating image with Stability AI...");
+        console.log("[AssetService] Prompt:", prompt.substring(0, 100));
         
-        const response = await fetch(
-          "https://api.stability.ai/v1/generation/stable-diffusion-xl-1024-v1-0/text-to-image",
+        // Try the newer Stability AI API (v2beta) first
+        const endpoints = [
           {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Accept: "application/json",
-              Authorization: `Bearer ${stabilityKey}`,
-            },
-            body: JSON.stringify({
-              text_prompts: [
-                { text: prompt, weight: 1 },
-                { text: "blurry, low quality, distorted, ugly, bad anatomy", weight: -1 },
-              ],
-              cfg_scale: 7,
-              height: 1024,
-              width: 1024,
-              steps: 30,
-              samples: 1,
-            }),
+            url: "https://api.stability.ai/v2beta/stable-image/generate/core",
+            isV2: true
+          },
+          {
+            url: "https://api.stability.ai/v1/generation/stable-diffusion-xl-1024-v1-0/text-to-image",
+            isV2: false
           }
-        );
+        ];
+        
+        for (const endpoint of endpoints) {
+          try {
+            console.log(`[AssetService] Trying Stability endpoint: ${endpoint.isV2 ? 'V2' : 'V1'}`);
+            
+            let response;
+            if (endpoint.isV2) {
+              const formData = new FormData();
+              formData.append("prompt", prompt);
+              formData.append("output_format", "png");
+              formData.append("aspect_ratio", "16:9");
+              
+              response = await fetch(endpoint.url, {
+                method: "POST",
+                headers: {
+                  Authorization: `Bearer ${stabilityKey}`,
+                  Accept: "image/*",
+                },
+                body: formData,
+              });
+            } else {
+              response = await fetch(endpoint.url, {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Accept: "application/json",
+                  Authorization: `Bearer ${stabilityKey}`,
+                },
+                body: JSON.stringify({
+                  text_prompts: [
+                    { text: prompt, weight: 1 },
+                    { text: "blurry, low quality, distorted, ugly, bad anatomy", weight: -1 },
+                  ],
+                  cfg_scale: 7,
+                  height: 1024,
+                  width: 1024,
+                  steps: 30,
+                  samples: 1,
+                }),
+              });
+            }
 
-        if (response.ok) {
-          const data = await response.json();
-          if (data.artifacts && data.artifacts[0]) {
-            const base64 = data.artifacts[0].base64;
-            return {
-              id: `stability_${Date.now()}`,
-              url: `data:image/png;base64,${base64}`,
-              thumbnailUrl: `data:image/png;base64,${base64}`,
-              width: 1024,
-              height: 1024,
-              source: "stability_ai",
-            };
+            console.log(`[AssetService] Stability AI response: ${response.status}`);
+
+            if (response.ok) {
+              if (endpoint.isV2) {
+                const imageBuffer = await response.arrayBuffer();
+                const base64 = Buffer.from(imageBuffer).toString("base64");
+                console.log("[AssetService] Stability AI V2 image generated successfully");
+                return {
+                  id: `stability_${Date.now()}`,
+                  url: `data:image/png;base64,${base64}`,
+                  thumbnailUrl: `data:image/png;base64,${base64}`,
+                  width: 1024,
+                  height: 576,
+                  source: "stability_ai",
+                };
+              } else {
+                const data = await response.json();
+                if (data.artifacts && data.artifacts[0]) {
+                  const base64 = data.artifacts[0].base64;
+                  console.log("[AssetService] Stability AI V1 image generated successfully");
+                  return {
+                    id: `stability_${Date.now()}`,
+                    url: `data:image/png;base64,${base64}`,
+                    thumbnailUrl: `data:image/png;base64,${base64}`,
+                    width: 1024,
+                    height: 1024,
+                    source: "stability_ai",
+                  };
+                }
+              }
+            } else {
+              const errorText = await response.text();
+              console.error(`[AssetService] Stability AI error (${endpoint.isV2 ? 'V2' : 'V1'}):`, response.status, errorText);
+              
+              if (response.status === 401) {
+                console.error("[AssetService] Stability AI API key is invalid or expired");
+                break;
+              }
+            }
+          } catch (endpointError) {
+            console.warn(`[AssetService] Stability endpoint error:`, endpointError);
           }
-        } else {
-          console.warn("[AssetService] Stability AI failed:", response.status);
         }
       } catch (e) {
         console.warn("[AssetService] Stability AI error:", e);
@@ -386,6 +504,7 @@ class AssetGenerationService {
           const blob = await response.blob();
           const buffer = await blob.arrayBuffer();
           const base64 = Buffer.from(buffer).toString("base64");
+          console.log("[AssetService] Hugging Face image generated successfully");
           return {
             id: `hf_${Date.now()}`,
             url: `data:image/png;base64,${base64}`,
@@ -394,15 +513,52 @@ class AssetGenerationService {
             height: 1024,
             source: "huggingface",
           };
+        } else {
+          console.warn("[AssetService] Hugging Face failed:", response.status);
         }
       } catch (e) {
         console.warn("[AssetService] Hugging Face error:", e);
       }
     }
 
+    // Enhanced stock image search with TV-quality focused queries
     console.log("[AssetService] Falling back to stock images with query:", searchQuery);
-    const stockImages = await this.searchStockImages(searchQuery, 1);
-    return stockImages[0] || null;
+    const enhancedQuery = this.enhanceSearchQueryForTV(searchQuery);
+    console.log("[AssetService] Enhanced search query:", enhancedQuery);
+    const stockImages = await this.searchStockImages(enhancedQuery, 3);
+    
+    // Return the best quality image (prefer larger/higher quality)
+    const bestImage = stockImages.sort((a, b) => (b.width * b.height) - (a.width * a.height))[0];
+    return bestImage || null;
+  }
+  
+  private enhanceSearchQueryForTV(query: string): string {
+    // Transform generic health keywords into specific, TV-quality image searches
+    const enhancements: Record<string, string> = {
+      "wellness healthy lifestyle": "professional woman healthy lifestyle studio portrait",
+      "healthy weight loss": "fitness transformation success portrait professional",
+      "holistic wellness": "wellness spa meditation professional photography",
+      "healthy eating nutrition": "healthy meal preparation chef kitchen professional",
+      "mind body wellness": "yoga meditation peaceful professional photography",
+      "fitness transformation": "fitness success before after professional portrait",
+      "natural health": "natural supplements wellness professional product photography",
+      "weight management": "healthy lifestyle fitness professional portrait",
+    };
+    
+    // Check for matching patterns
+    const lowerQuery = query.toLowerCase();
+    for (const [pattern, enhanced] of Object.entries(enhancements)) {
+      if (lowerQuery.includes(pattern) || pattern.includes(lowerQuery)) {
+        return enhanced;
+      }
+    }
+    
+    // Add professional photography terms to make results more TV-quality
+    if (!query.includes("professional") && !query.includes("studio")) {
+      return `${query} professional photography studio`;
+    }
+    
+    return query;
   }
 
   async generateAIVideo(prompt: string, duration: number = 4): Promise<VideoSearchResult | null> {
