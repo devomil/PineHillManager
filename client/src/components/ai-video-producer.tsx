@@ -288,6 +288,11 @@ export default function AIVideoProducer() {
     addLog("decision", `🎬 AI Producer initialized for script: "${scriptData.title}"`, "analyze");
     addLog("decision", `📋 Target: ${scriptData.videoDuration}s ${scriptData.platform} video in ${scriptData.style} style`, "analyze");
     
+    // Track accumulated data locally for final assembly
+    const accumulatedAssets: ProductionAsset[] = [];
+    let accumulatedVoiceoverUrl: string | undefined;
+    let accumulatedVoiceoverDuration: number | undefined;
+    
     setActivePhaseIndex(0);
     updatePhase("analyze", { status: "in_progress", progress: 0, startedAt: new Date().toISOString() });
     
@@ -331,6 +336,8 @@ export default function AIVideoProducer() {
     if (voiceoverResponse.ok) {
       const voiceoverResult = await voiceoverResponse.json();
       addLog("success", `✅ Voiceover generated: ${voiceoverResult.duration}s duration`, "generate");
+      accumulatedVoiceoverUrl = voiceoverResult.url;
+      accumulatedVoiceoverDuration = voiceoverResult.duration;
       setProduction(prev => prev ? {
         ...prev,
         voiceoverUrl: voiceoverResult.url,
@@ -399,6 +406,7 @@ export default function AIVideoProducer() {
               regenerationCount: 0,
             };
             
+            accumulatedAssets.push(newAsset);
             setProduction(prev => prev ? {
               ...prev,
               assets: [...prev.assets, newAsset],
@@ -449,6 +457,7 @@ export default function AIVideoProducer() {
             regenerationCount: 0,
           };
           
+          accumulatedAssets.push(videoAsset);
           setProduction(prev => prev ? {
             ...prev,
             assets: [...prev.assets, videoAsset],
@@ -512,13 +521,50 @@ export default function AIVideoProducer() {
     updatePhase("assemble", { status: "in_progress", progress: 0, startedAt: new Date().toISOString() });
     
     addLog("generation", "🎬 Assembling final video composition...", "assemble");
-    await delay(2000);
+    updatePhase("assemble", { progress: 20 });
+    
     addLog("generation", "Adding transitions between scenes...", "assemble");
-    await delay(1000);
+    updatePhase("assemble", { progress: 40 });
+    
     addLog("generation", "Synchronizing audio with visuals...", "assemble");
-    await delay(1500);
-    addLog("generation", "Applying color grading and effects...", "assemble");
-    await delay(1000);
+    updatePhase("assemble", { progress: 60 });
+    
+    // Actually call the assemble endpoint with audio
+    try {
+      const assembleResponse = await fetch("/api/videos/ai-producer/assemble", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          productionId: prod.id,
+          assets: accumulatedAssets,
+          voiceoverUrl: accumulatedVoiceoverUrl,
+          title: scriptData.title,
+          duration: scriptData.videoDuration,
+        }),
+      });
+      
+      if (assembleResponse.ok) {
+        const assembleResult = await assembleResponse.json();
+        addLog("generation", "Applying color grading and effects...", "assemble");
+        updatePhase("assemble", { progress: 80 });
+        
+        if (assembleResult.downloadUrl) {
+          setProduction(prev => prev ? {
+            ...prev,
+            outputUrl: assembleResult.downloadUrl,
+            finalVideoUrl: assembleResult.downloadUrl,
+          } : null);
+          addLog("success", "✅ Video assembled with audio successfully!", "assemble");
+        } else if (assembleResult.previewHtml) {
+          addLog("success", "✅ Video preview generated (click Download for full video)", "assemble");
+        }
+      } else {
+        addLog("warning", "⚠️ Video assembly API returned error, using preview mode", "assemble");
+      }
+    } catch (assembleError) {
+      console.error("Assembly error:", assembleError);
+      addLog("warning", "⚠️ Video assembly failed, assets available for manual download", "assemble");
+    }
     
     updatePhase("assemble", { status: "completed", progress: 100, completedAt: new Date().toISOString() });
     
