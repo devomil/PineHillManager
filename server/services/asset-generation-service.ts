@@ -489,56 +489,100 @@ class AssetGenerationService {
     const elevenLabsKey = process.env.ELEVENLABS_API_KEY;
     
     if (!elevenLabsKey) {
-      console.warn("[AssetService] No ElevenLabs API key");
+      console.warn("[AssetService] No ElevenLabs API key configured");
+      return null;
+    }
+
+    if (elevenLabsKey.length < 20) {
+      console.error("[AssetService] ElevenLabs API key appears invalid (too short)");
       return null;
     }
 
     try {
-      console.log("[AssetService] Generating voiceover:", text.substring(0, 50));
+      console.log("[AssetService] Generating voiceover with ElevenLabs...");
+      console.log("[AssetService] Text preview:", text.substring(0, 100) + "...");
+      console.log("[AssetService] Voice:", voice);
+      console.log("[AssetService] API key prefix:", elevenLabsKey.substring(0, 8) + "...");
       
-      const voiceId = await this.getElevenLabsVoiceId(voice, elevenLabsKey);
+      const voiceId = this.getElevenLabsVoiceId(voice);
+      console.log("[AssetService] Using voice ID:", voiceId);
       
-      const response = await fetch(
-        `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "xi-api-key": elevenLabsKey,
-          },
-          body: JSON.stringify({
-            text,
-            model_id: "eleven_monolingual_v1",
-            voice_settings: {
-              stability: 0.5,
-              similarity_boost: 0.75,
-            },
-          }),
-        }
-      );
-
-      if (response.ok) {
-        const audioBuffer = await response.arrayBuffer();
-        const base64 = Buffer.from(audioBuffer).toString("base64");
-        const duration = this.estimateAudioDuration(text);
+      const models = ["eleven_turbo_v2_5", "eleven_turbo_v2", "eleven_multilingual_v2", "eleven_monolingual_v1"];
+      
+      for (const modelId of models) {
+        console.log(`[AssetService] Trying model: ${modelId}`);
         
-        console.log("[AssetService] Voiceover generated successfully, duration:", duration);
-        return {
-          url: `data:audio/mpeg;base64,${base64}`,
-          duration,
-        };
-      } else {
-        const errorText = await response.text();
-        console.error("[AssetService] ElevenLabs API error:", response.status, errorText);
+        const response = await fetch(
+          `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "xi-api-key": elevenLabsKey,
+              "Accept": "audio/mpeg",
+            },
+            body: JSON.stringify({
+              text,
+              model_id: modelId,
+              voice_settings: {
+                stability: 0.5,
+                similarity_boost: 0.75,
+                style: 0.0,
+                use_speaker_boost: true,
+              },
+            }),
+          }
+        );
+
+        console.log(`[AssetService] ElevenLabs response status: ${response.status}`);
+
+        if (response.ok) {
+          const audioBuffer = await response.arrayBuffer();
+          const base64 = Buffer.from(audioBuffer).toString("base64");
+          const duration = this.estimateAudioDuration(text);
+          
+          console.log(`[AssetService] Voiceover generated successfully with model ${modelId}`);
+          console.log(`[AssetService] Audio size: ${audioBuffer.byteLength} bytes, estimated duration: ${duration}s`);
+          
+          return {
+            url: `data:audio/mpeg;base64,${base64}`,
+            duration,
+          };
+        } else {
+          const errorText = await response.text();
+          console.error(`[AssetService] ElevenLabs API error with model ${modelId}:`, response.status);
+          console.error(`[AssetService] Error details:`, errorText);
+          
+          try {
+            const errorJson = JSON.parse(errorText);
+            if (errorJson.detail?.status === "invalid_api_key" || response.status === 401) {
+              console.error("[AssetService] API key is invalid or expired");
+              return null;
+            }
+            if (errorJson.detail?.message?.includes("model")) {
+              console.log(`[AssetService] Model ${modelId} not available, trying next...`);
+              continue;
+            }
+          } catch {
+            // Not JSON, continue with next model
+          }
+          
+          if (response.status === 401 || response.status === 403) {
+            console.error("[AssetService] Authentication failed - check API key");
+            return null;
+          }
+        }
       }
+      
+      console.error("[AssetService] All ElevenLabs models failed");
     } catch (e) {
-      console.error("[AssetService] ElevenLabs error:", e);
+      console.error("[AssetService] ElevenLabs request error:", e);
     }
 
     return null;
   }
 
-  private async getElevenLabsVoiceId(voiceName: string, apiKey: string): Promise<string> {
+  private getElevenLabsVoiceId(voiceName: string): string {
     const voiceMap: Record<string, string> = {
       "Rachel": "21m00Tcm4TlvDq8ikWAM",
       "Drew": "29vD33N1CtxCmqQRPOHJ",
