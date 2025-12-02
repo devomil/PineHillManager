@@ -281,75 +281,180 @@ Format as JSON array with structure:
     state.currentPhase = 'generate';
     const startTime = Date.now();
 
-    this.log(state, 'info', 'phase', 'Starting GENERATE phase', {
+    // Calculate target assets: for a 2-minute video, need 10-20 visual assets
+    const targetDuration = state.brief.targetDuration;
+    const imagesPerScene = Math.max(2, Math.ceil(targetDuration / (state.brief.scenes.length * 10))); // 2-4 images per scene
+    const videosPerScene = 1; // At least 1 video clip per scene
+
+    this.log(state, 'info', 'phase', 'Starting GENERATE phase - TV Commercial Quality', {
       description: PHASE_TIMING.generate.description,
-      scenesToGenerate: state.brief.scenes.length
+      scenesToGenerate: state.brief.scenes.length,
+      targetImages: imagesPerScene * state.brief.scenes.length,
+      targetVideos: videosPerScene * state.brief.scenes.length,
+      targetDuration: `${targetDuration} seconds`
     });
 
     const generatedAssets: ProductionAsset[] = [];
 
     try {
+      // Phase 1: Generate multiple images per scene for visual variety
+      this.log(state, 'info', 'asset_generation', `Generating ${imagesPerScene} images per scene...`);
+      
       for (let i = 0; i < state.brief.scenes.length; i++) {
         const scene = state.brief.scenes[i];
-        const sceneStartTime = Date.now();
-
-        this.log(state, 'info', 'asset_generation', `Generating assets for scene ${i + 1}: ${scene.section}`, {
-          content: scene.content.substring(0, 100) + '...'
-        });
-
-        // Extract keywords for image search
         const keywords = this.extractKeywords(scene.content, scene.visualDescription);
         
-        this.log(state, 'debug', 'asset_generation', `Keywords extracted: ${keywords.join(', ')}`);
+        this.log(state, 'info', 'asset_generation', `Scene ${i + 1}: ${scene.section} - generating ${imagesPerScene} images`, {
+          keywords: keywords.slice(0, 5).join(', ')
+        });
 
-        // Try AI image generation first, fallback to stock
-        let imageResult: any = null;
-        
-        this.log(state, 'info', 'api_call', 'Attempting Stability AI generation...');
-        imageResult = await assetGenerationService.generateAIImageWithFallback(
-          `${scene.visualDescription || scene.content}, ${state.brief.style} style, TV commercial quality, cinematic lighting`,
-          keywords.join(' ')
-        );
+        // Generate multiple images for this scene
+        for (let imgIdx = 0; imgIdx < imagesPerScene; imgIdx++) {
+          const sceneStartTime = Date.now();
+          
+          // Vary the prompt for each image
+          const variations = [
+            'wide shot establishing view',
+            'close-up detail shot',
+            'medium shot lifestyle context',
+            'atmospheric mood lighting'
+          ];
+          const variation = variations[imgIdx % variations.length];
+          
+          const prompt = `${scene.visualDescription || scene.content}, ${variation}, ${state.brief.style} style, TV commercial quality, cinematic lighting, 4K resolution`;
+          
+          this.log(state, 'info', 'api_call', `Generating image ${imgIdx + 1}/${imagesPerScene} for scene ${i + 1}...`);
+          
+          const imageResult = await assetGenerationService.generateAIImageWithFallback(
+            prompt,
+            `${keywords.join(' ')} ${variation}`
+          );
 
-        if (imageResult) {
-          const asset: ProductionAsset = {
-            id: `asset_${productionId}_${i}`,
-            type: 'image',
-            url: imageResult.url,
-            thumbnailUrl: imageResult.url,
-            source: imageResult.source,
-            section: scene.section,
-            sceneNumber: i + 1,
-            qualityScore: 75 + Math.floor(Math.random() * 20), // Initial estimate
-            relevanceScore: 80 + Math.floor(Math.random() * 15),
-            technicalScore: 85 + Math.floor(Math.random() * 10),
-            emotionalScore: 70 + Math.floor(Math.random() * 25),
-            duration: scene.duration,
-            prompt: scene.content
-          };
+          if (imageResult) {
+            const asset: ProductionAsset = {
+              id: `asset_${productionId}_img_${i}_${imgIdx}`,
+              type: 'image',
+              url: imageResult.url,
+              thumbnailUrl: imageResult.url,
+              source: imageResult.source,
+              section: scene.section,
+              sceneNumber: i + 1,
+              qualityScore: 75 + Math.floor(Math.random() * 20),
+              relevanceScore: 80 + Math.floor(Math.random() * 15),
+              technicalScore: 85 + Math.floor(Math.random() * 10),
+              emotionalScore: 70 + Math.floor(Math.random() * 25),
+              duration: Math.ceil(scene.duration / imagesPerScene),
+              prompt: prompt
+            };
 
-          generatedAssets.push(asset);
-          state.assets.push(asset);
+            generatedAssets.push(asset);
+            state.assets.push(asset);
 
-          this.log(state, 'info', 'asset_generation', `Asset generated for scene ${i + 1}`, {
-            source: imageResult.source,
-            qualityScore: asset.qualityScore
-          });
-        }
+            this.log(state, 'info', 'asset_generation', `Image ${imgIdx + 1} generated for scene ${i + 1}`, {
+              source: imageResult.source,
+              variation
+            });
+          }
 
-        // Add realistic per-asset delay
-        const assetTime = Date.now() - sceneStartTime;
-        const targetTime = PHASE_TIMING.generate.perAssetTime;
-        if (assetTime < targetTime) {
-          await this.delay(targetTime - assetTime);
+          // Add delay between image generations
+          await this.delay(2000);
         }
 
         // Update progress
-        state.overallProgress = 20 + Math.floor((i + 1) / state.brief.scenes.length * 30);
+        state.overallProgress = 20 + Math.floor((i + 1) / state.brief.scenes.length * 15);
       }
 
-      // Generate voiceover for the full script
-      this.log(state, 'info', 'asset_generation', 'Generating voiceover with ElevenLabs...');
+      // Phase 2: Generate video clips for each scene using Runway Gen-4 or stock
+      this.log(state, 'info', 'asset_generation', 'Generating video clips with Runway Gen-4...');
+      
+      for (let i = 0; i < state.brief.scenes.length; i++) {
+        const scene = state.brief.scenes[i];
+        const keywords = this.extractKeywords(scene.content, scene.visualDescription);
+        
+        this.log(state, 'info', 'api_call', `Generating video clip for scene ${i + 1}: ${scene.section}...`);
+        
+        // Try Runway Gen-4 first, then fallback to stock video
+        const videoPrompt = `${scene.visualDescription || scene.content}, smooth cinematic motion, professional TV commercial quality`;
+        const videoResult = await assetGenerationService.generateAIVideo(videoPrompt, 5);
+        
+        if (videoResult) {
+          const videoAsset: ProductionAsset = {
+            id: `asset_${productionId}_vid_${i}`,
+            type: 'video',
+            url: videoResult.url,
+            thumbnailUrl: videoResult.thumbnailUrl || '',
+            source: videoResult.source,
+            section: scene.section,
+            sceneNumber: i + 1,
+            qualityScore: 90,
+            relevanceScore: 85,
+            technicalScore: 95,
+            emotionalScore: 80,
+            duration: videoResult.duration || 5,
+            prompt: videoPrompt
+          };
+
+          generatedAssets.push(videoAsset);
+          state.assets.push(videoAsset);
+
+          this.log(state, 'info', 'asset_generation', `Video clip generated for scene ${i + 1}`, {
+            source: videoResult.source,
+            duration: videoResult.duration
+          });
+        }
+        
+        await this.delay(1000);
+        
+        // Update progress
+        state.overallProgress = 35 + Math.floor((i + 1) / state.brief.scenes.length * 10);
+      }
+
+      // Phase 3: Search for additional B-roll video clips
+      this.log(state, 'info', 'asset_generation', 'Searching for B-roll video clips from stock libraries...');
+      
+      for (let i = 0; i < state.brief.scenes.length; i++) {
+        const scene = state.brief.scenes[i];
+        const keywords = this.extractKeywords(scene.content, scene.visualDescription);
+        
+        try {
+          const brollResults = await assetGenerationService.searchStockVideos(keywords.join(' '), 2);
+          
+          for (let bIdx = 0; bIdx < brollResults.length; bIdx++) {
+            const broll = brollResults[bIdx];
+            const brollAsset: ProductionAsset = {
+              id: `asset_${productionId}_broll_${i}_${bIdx}`,
+              type: 'video',
+              url: broll.url,
+              thumbnailUrl: broll.thumbnailUrl,
+              source: broll.source,
+              section: scene.section,
+              sceneNumber: i + 1,
+              qualityScore: 80,
+              relevanceScore: 75,
+              technicalScore: 85,
+              emotionalScore: 70,
+              duration: broll.duration || 3,
+              prompt: keywords.join(', ')
+            };
+            
+            generatedAssets.push(brollAsset);
+            state.assets.push(brollAsset);
+          }
+          
+          if (brollResults.length > 0) {
+            this.log(state, 'info', 'asset_generation', `Found ${brollResults.length} B-roll clips for scene ${i + 1}`, {
+              sources: brollResults.map(v => v.source).join(', ')
+            });
+          }
+        } catch (err: any) {
+          this.log(state, 'warn', 'asset_generation', `B-roll search failed for scene ${i + 1}`, { error: err.message });
+        }
+        
+        await this.delay(500);
+      }
+
+      // Phase 4: Generate voiceover for the full script
+      this.log(state, 'info', 'asset_generation', 'Generating professional voiceover with ElevenLabs...');
       try {
         const voiceName = state.brief.voiceGender === 'male' ? 'Adam' : 'Rachel';
         const fullScript = state.brief.scenes.map(s => s.content).join(' ');
@@ -363,69 +468,77 @@ Format as JSON array with structure:
             url: voiceoverResult.url,
             thumbnailUrl: '',
             source: 'elevenlabs',
-            section: 'hook',
+            section: 'full',
             sceneNumber: 0,
-            qualityScore: 90,
+            qualityScore: 95,
             relevanceScore: 100,
             technicalScore: 95,
-            emotionalScore: 85,
+            emotionalScore: 90,
             duration: voiceoverResult.duration,
             prompt: fullScript.substring(0, 100)
           };
           
+          generatedAssets.push(voiceoverAsset);
           state.assets.push(voiceoverAsset);
-          this.log(state, 'info', 'asset_generation', 'Voiceover generated successfully', {
-            duration: voiceoverResult.duration
+          this.log(state, 'info', 'asset_generation', 'Professional voiceover generated', {
+            duration: voiceoverResult.duration,
+            voice: voiceName
           });
         }
       } catch (voErr: any) {
         this.log(state, 'warn', 'asset_generation', 'Voiceover generation failed', { error: voErr.message });
       }
 
-      // Search for B-roll video clips
-      this.log(state, 'info', 'asset_generation', 'Searching for B-roll video clips...');
+      // Phase 5: Search for background music
+      this.log(state, 'info', 'asset_generation', 'Searching for background music...');
       try {
-        for (let i = 0; i < Math.min(2, state.brief.scenes.length); i++) {
-          const scene = state.brief.scenes[i];
-          const keywords = this.extractKeywords(scene.content, scene.visualDescription);
+        const moodKeywords = state.brief.style === 'corporate' ? 'corporate uplifting inspiring' : 
+                            state.brief.style === 'lifestyle' ? 'lifestyle upbeat positive' :
+                            'professional motivational background';
+        
+        // Search for instrumental background music from Pixabay
+        const musicResults = await this.searchBackgroundMusic(moodKeywords);
+        
+        if (musicResults.length > 0) {
+          const music = musicResults[0];
+          const musicAsset: ProductionAsset = {
+            id: `asset_${productionId}_music`,
+            type: 'music',
+            url: music.url,
+            thumbnailUrl: '',
+            source: music.source,
+            section: 'background',
+            sceneNumber: 0,
+            qualityScore: 85,
+            relevanceScore: 80,
+            technicalScore: 90,
+            emotionalScore: 85,
+            duration: music.duration || targetDuration,
+            prompt: moodKeywords
+          };
           
-          const videoResults = await assetGenerationService.searchStockVideos(keywords.join(' '), 1);
-          
-          if (videoResults.length > 0) {
-            const video = videoResults[0];
-            const videoAsset: ProductionAsset = {
-              id: `asset_${productionId}_video_${i}`,
-              type: 'video',
-              url: video.url,
-              thumbnailUrl: video.thumbnailUrl,
-              source: video.source as any,
-              section: scene.section,
-              sceneNumber: i + 1,
-              qualityScore: 85,
-              relevanceScore: 80,
-              technicalScore: 90,
-              emotionalScore: 75,
-              duration: video.duration || 5,
-              prompt: keywords.join(', ')
-            };
-            
-            generatedAssets.push(videoAsset);
-            state.assets.push(videoAsset);
-            
-            this.log(state, 'info', 'asset_generation', `B-roll video found for scene ${i + 1}`, {
-              source: video.source,
-              duration: video.duration
-            });
-          }
-          
-          await this.delay(500);
+          generatedAssets.push(musicAsset);
+          state.assets.push(musicAsset);
+          this.log(state, 'info', 'asset_generation', 'Background music added', {
+            source: music.source,
+            duration: music.duration
+          });
         }
-      } catch (vidErr: any) {
-        this.log(state, 'warn', 'asset_generation', 'B-roll search failed', { error: vidErr.message });
+      } catch (musicErr: any) {
+        this.log(state, 'warn', 'asset_generation', 'Music search failed', { error: musicErr.message });
       }
 
-      // Search for background music based on mood
-      this.log(state, 'info', 'asset_generation', 'Searching for background music...');
+      // Summary log
+      const imageCount = generatedAssets.filter(a => a.type === 'image').length;
+      const videoCount = generatedAssets.filter(a => a.type === 'video').length;
+      const audioCount = generatedAssets.filter(a => a.type === 'voiceover' || a.type === 'music').length;
+      
+      this.log(state, 'info', 'asset_generation', 'Asset generation complete', {
+        totalAssets: generatedAssets.length,
+        images: imageCount,
+        videos: videoCount,
+        audio: audioCount
+      });
       
       const phaseResult: ProductionPhaseResult = {
         phase: 'generate',
@@ -883,6 +996,48 @@ Respond in JSON format:
     const result = [...foundKeywords, ...uniqueWords].slice(0, alternative ? 10 : 6);
     
     return result.length > 0 ? result : ['professional', 'wellness', 'health', 'lifestyle'];
+  }
+
+  private async searchBackgroundMusic(keywords: string): Promise<Array<{ url: string; source: string; duration: number }>> {
+    const results: Array<{ url: string; source: string; duration: number }> = [];
+    
+    // Search Pixabay for royalty-free music
+    const pixabayKey = process.env.PIXABAY_API_KEY;
+    if (pixabayKey) {
+      try {
+        const response = await fetch(
+          `https://pixabay.com/api/?key=${pixabayKey}&q=${encodeURIComponent(keywords)}&category=music&per_page=3`
+        );
+        
+        if (response.ok) {
+          const data = await response.json();
+          if (data.hits && data.hits.length > 0) {
+            for (const hit of data.hits) {
+              if (hit.previewURL) {
+                results.push({
+                  url: hit.previewURL,
+                  source: 'pixabay',
+                  duration: hit.duration || 60
+                });
+              }
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('[VideoWorkflow] Pixabay music search failed:', e);
+      }
+    }
+    
+    // If no Pixabay results, use a placeholder for ambient background
+    if (results.length === 0) {
+      results.push({
+        url: '', // Empty URL will be handled by the assembly service
+        source: 'none',
+        duration: 120
+      });
+    }
+    
+    return results;
   }
 
   private delay(ms: number): Promise<void> {
