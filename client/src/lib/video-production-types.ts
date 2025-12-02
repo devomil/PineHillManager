@@ -127,10 +127,12 @@ export interface VideoProduction {
   voiceoverDuration?: number;
   musicUrl?: string;
   finalVideoUrl?: string;
+  outputUrl?: string;
   qualityThreshold: number;
   createdAt: string;
   updatedAt: string;
   aiDirectorNotes: string[];
+  completedAt?: string;
 }
 
 export const PHASE_DEFINITIONS: Omit<ProductionPhase, "status" | "progress">[] = [

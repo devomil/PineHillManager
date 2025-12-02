@@ -342,48 +342,108 @@ export default function AIVideoProducer() {
     
     updatePhase("generate", { progress: 30 });
     
+    // Generate 3-4 images + 1 video per scene for TV-quality commercials
+    const assetsPerScene = 4; // 3 images + 1 video clip
+    const totalAssets = scenes.length * assetsPerScene;
+    let assetsGenerated = 0;
+    
     for (let i = 0; i < scenes.length; i++) {
       const scene = scenes[i];
       const scenePreview = scene.text ? scene.text.slice(0, 50) : scene.visualDirection.slice(0, 50);
-      addLog("generation", `🎨 Generating visual for scene ${i + 1}: "${scenePreview}..."`, "generate");
-      await delay(800);
+      
+      const sectionMap: Record<number, "hook" | "problem" | "solution" | "social_proof" | "cta"> = {
+        0: "hook",
+        1: "problem",
+        2: "solution",
+        3: "social_proof",
+        4: "cta",
+      };
+      
+      // Generate multiple images for this scene (2-3 per scene)
+      for (let imgIdx = 0; imgIdx < 3; imgIdx++) {
+        const variation = imgIdx === 0 ? "" : imgIdx === 1 ? " close-up detail shot" : " wide establishing shot";
+        addLog("generation", `🎨 Scene ${i + 1} image ${imgIdx + 1}/3: "${scenePreview}${variation}..."`, "generate");
+        await delay(400);
+        
+        try {
+          const imageResponse = await fetch("/api/videos/ai-producer/generate-image", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ 
+              section: `scene_${i + 1}_img${imgIdx}`,
+              productName: (scene.visualDirection || scriptData.title) + variation,
+              style: scriptData.style,
+              sceneContent: scene.text,
+              sceneIndex: i + 1,
+              variation: imgIdx,
+            }),
+          });
+          
+          if (imageResponse.ok) {
+            const imageResult = await imageResponse.json();
+            addLog("success", `✅ Scene ${i + 1} image ${imgIdx + 1}: ${imageResult.source}`, "generate");
+            
+            const newAsset: ProductionAsset = {
+              id: `asset_scene_${i + 1}_img${imgIdx}_${Date.now()}`,
+              type: imageResult.source === "stability_ai" || imageResult.source === "huggingface" ? "ai_image" : "image",
+              section: sectionMap[i % 5] || "hook",
+              url: imageResult.url,
+              source: imageResult.source || "pexels",
+              metadata: {
+                width: imageResult.width,
+                height: imageResult.height,
+                prompt: scene.visualDirection + variation,
+                sceneText: scene.text?.slice(0, 100),
+              },
+              status: "approved",
+              regenerationCount: 0,
+            };
+            
+            setProduction(prev => prev ? {
+              ...prev,
+              assets: [...prev.assets, newAsset],
+            } : null);
+          }
+        } catch (error) {
+          addLog("warning", `⚠️ Scene ${i + 1} image ${imgIdx + 1} failed`, "generate");
+        }
+        
+        assetsGenerated++;
+        updatePhase("generate", { progress: 30 + Math.round((assetsGenerated / totalAssets) * 40) });
+      }
+      
+      // Generate 1 video clip for this scene
+      addLog("generation", `🎥 Scene ${i + 1} video clip: "${scenePreview}..."`, "generate");
+      await delay(500);
       
       try {
-        const imageResponse = await fetch("/api/videos/ai-producer/generate-image", {
+        const videoResponse = await fetch("/api/videos/ai-producer/generate-video", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ 
-            section: `scene_${i + 1}`,
+            section: `scene_${i + 1}_video`,
             productName: scene.visualDirection || scriptData.title,
             style: scriptData.style,
             sceneContent: scene.text,
-            sceneIndex: i + 1,
+            duration: Math.ceil(scriptData.videoDuration / scenes.length),
           }),
         });
         
-        if (imageResponse.ok) {
-          const imageResult = await imageResponse.json();
-          addLog("success", `✅ Scene ${i + 1} image: ${imageResult.source} (${imageResult.width}x${imageResult.height})`, "generate");
+        if (videoResponse.ok) {
+          const videoResult = await videoResponse.json();
+          addLog("success", `✅ Scene ${i + 1} video: ${videoResult.source} (${videoResult.duration}s)`, "generate");
           
-          const sectionMap: Record<number, "hook" | "problem" | "solution" | "social_proof" | "cta"> = {
-            0: "hook",
-            1: "problem",
-            2: "solution",
-            3: "social_proof",
-            4: "cta",
-          };
-          
-          const newAsset: ProductionAsset = {
-            id: `asset_scene_${i + 1}_${Date.now()}`,
-            type: imageResult.source === "stability_ai" || imageResult.source === "huggingface" ? "ai_image" : "image",
+          const videoAsset: ProductionAsset = {
+            id: `asset_scene_${i + 1}_video_${Date.now()}`,
+            type: "video",
             section: sectionMap[i % 5] || "hook",
-            url: imageResult.url,
-            source: imageResult.source || "pexels",
+            url: videoResult.url,
+            source: videoResult.source || "pexels",
             metadata: {
-              width: imageResult.width,
-              height: imageResult.height,
+              width: videoResult.width || 1920,
+              height: videoResult.height || 1080,
+              duration: videoResult.duration,
               prompt: scene.visualDirection,
-              sceneText: scene.text?.slice(0, 100),
             },
             status: "approved",
             regenerationCount: 0,
@@ -391,16 +451,17 @@ export default function AIVideoProducer() {
           
           setProduction(prev => prev ? {
             ...prev,
-            assets: [...prev.assets, newAsset],
+            assets: [...prev.assets, videoAsset],
           } : null);
         } else {
-          addLog("warning", `⚠️ Scene ${i + 1} image generation failed`, "generate");
+          addLog("warning", `⚠️ Scene ${i + 1} video generation failed, using fallback`, "generate");
         }
       } catch (error) {
-        addLog("warning", `⚠️ Scene ${i + 1} image failed: ${error}`, "generate");
+        addLog("warning", `⚠️ Scene ${i + 1} video failed: ${error}`, "generate");
       }
       
-      updatePhase("generate", { progress: 30 + Math.round((i + 1) / scenes.length * 40) });
+      assetsGenerated++;
+      updatePhase("generate", { progress: 30 + Math.round((assetsGenerated / totalAssets) * 40) });
     }
     
     if (scriptData.musicMood !== "none") {
