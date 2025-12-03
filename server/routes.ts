@@ -15706,6 +15706,73 @@ Respond in JSON format:
 
   // ===== Brand Assets API (for logo/watermark management) =====
   
+  // Serve brand asset files from object storage (proxy endpoint)
+  app.get('/api/brand-assets/file/:id', async (req, res) => {
+    try {
+      const { id } = req.params;
+      console.log('[Brand Assets] Serving file for asset ID:', id);
+      
+      // Get the asset from database to find its storage path
+      const assetId = parseInt(id);
+      
+      if (isNaN(assetId)) {
+        return res.status(400).json({ error: 'Invalid asset ID' });
+      }
+      
+      const [asset] = await db.select().from(brandAssets).where(eq(brandAssets.id, assetId));
+      
+      if (!asset) {
+        return res.status(404).json({ error: 'Brand asset not found' });
+      }
+      
+      // Get storage path from settings (format: bucketName|filePath)
+      const settings = asset.settings as any;
+      if (!settings?.storagePath) {
+        console.error('[Brand Assets] No storage path in settings for asset:', assetId);
+        return res.status(404).json({ error: 'Asset storage path not found' });
+      }
+      
+      const [bucketName, filePath] = settings.storagePath.split('|');
+      if (!bucketName || !filePath) {
+        console.error('[Brand Assets] Invalid storage path format:', settings.storagePath);
+        return res.status(500).json({ error: 'Invalid storage path format' });
+      }
+      
+      console.log('[Brand Assets] Fetching file from bucket:', bucketName, 'path:', filePath);
+      
+      const bucket = objectStorageClient.bucket(bucketName);
+      const file = bucket.file(filePath);
+      
+      const [exists] = await file.exists();
+      if (!exists) {
+        console.error('[Brand Assets] File not found in storage:', filePath);
+        return res.status(404).json({ error: 'File not found in storage' });
+      }
+      
+      // Get file metadata for content type
+      const [metadata] = await file.getMetadata();
+      const contentType = metadata.contentType || asset.mimeType || 'application/octet-stream';
+      
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
+      
+      // Stream the file to the response
+      const readStream = file.createReadStream();
+      
+      readStream.on('error', (err) => {
+        console.error('[Brand Assets] Stream error:', err);
+        if (!res.headersSent) {
+          res.status(500).json({ error: 'Failed to stream file' });
+        }
+      });
+      
+      readStream.pipe(res);
+    } catch (error) {
+      console.error('[Brand Assets] File serve error:', error);
+      res.status(500).json({ error: 'Failed to serve brand asset file' });
+    }
+  });
+  
   // Get all brand assets
   app.get('/api/brand-assets', isAuthenticated, async (req, res) => {
     try {
@@ -15799,32 +15866,39 @@ Respond in JSON format:
       });
       console.log('[Brand Assets] File saved successfully');
       
-      // Generate a signed URL for accessing the file (bucket has public access prevention)
-      console.log('[Brand Assets] Generating signed URL...');
-      const [signedUrl] = await fileRef.getSignedUrl({
-        action: 'read',
-        expires: Date.now() + 365 * 24 * 60 * 60 * 1000, // 1 year from now
-      });
-      console.log('[Brand Assets] Signed URL generated');
+      // Store the object path - we'll use the asset ID to serve files via API
+      // Format: bucketName|filePath (easily parseable)
+      const storagePath = `${bucketName}|${filename}`;
+      console.log('[Brand Assets] Storage path:', storagePath);
       
-      // Use the signed URL or construct a proxy URL through our API
-      const url = signedUrl;
-      console.log('[Brand Assets] File URL:', url);
+      // Parse any existing settings and add storage path
+      const parsedSettings = settings ? JSON.parse(settings) : {};
+      parsedSettings.storagePath = storagePath; // Store bucket|path for file serving
       
-      // Create database record
+      // Create database record with placeholder URL
       console.log('[Brand Assets] Inserting database record...');
       const [asset] = await db.insert(brandAssets).values({
         name: name || file.originalname,
         type: type || 'logo',
-        url,
-        thumbnailUrl: url,
+        url: 'pending', // Will update after we have the ID
+        thumbnailUrl: 'pending',
         fileSize: file.size,
         mimeType: file.mimetype,
         isDefault: isDefault === 'true',
-        settings: settings ? JSON.parse(settings) : null,
+        settings: parsedSettings,
         uploadedBy: user.id,
       }).returning();
       console.log('[Brand Assets] Database record created:', asset.id);
+      
+      // Update with the API URL using the asset ID
+      const apiUrl = `/api/brand-assets/file/${asset.id}`;
+      const [updatedAsset] = await db.update(brandAssets)
+        .set({ 
+          url: apiUrl,
+          thumbnailUrl: apiUrl,
+        })
+        .where(eq(brandAssets.id, asset.id))
+        .returning();
       
       // If this is set as default, unset other defaults of the same type
       if (isDefault === 'true') {
@@ -15832,14 +15906,14 @@ Respond in JSON format:
           .set({ isDefault: false })
           .where(and(
             eq(brandAssets.type, type || 'logo'),
-            ne(brandAssets.id, asset.id)
+            ne(brandAssets.id, updatedAsset.id)
           ));
       }
       
       console.log('[Brand Assets] ===== UPLOAD SUCCESS =====');
       res.json({
         success: true,
-        asset,
+        asset: updatedAsset,
       });
     } catch (error: any) {
       console.error('[Brand Assets] ===== UPLOAD ERROR =====');
