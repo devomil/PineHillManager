@@ -14355,7 +14355,12 @@ Output the script with section markers in brackets.`;
   // Get video status
   app.get('/api/videos/:id', isAuthenticated, async (req, res) => {
     try {
+      // Skip non-numeric IDs (e.g., /api/videos/assets, /api/videos/uploads)
       const videoId = parseInt(req.params.id);
+      if (isNaN(videoId)) {
+        return res.status(400).json({ message: 'Invalid video ID' });
+      }
+      
       const video = await storage.getProductVideoById(videoId);
       
       if (!video) {
@@ -15747,18 +15752,27 @@ Respond in JSON format:
       
       const user = req.user as any;
       
-      // Upload to object storage
-      const { Storage } = await import('@google-cloud/storage');
-      const bucketId = process.env.REPLIT_DEFAULT_BUCKET_ID;
+      // Get bucket info from PUBLIC_OBJECT_SEARCH_PATHS
+      const publicPaths = process.env.PUBLIC_OBJECT_SEARCH_PATHS || '';
+      const firstPath = publicPaths.split(',')[0]?.trim();
       
-      if (!bucketId) {
-        return res.status(500).json({ error: 'Object storage not configured' });
+      if (!firstPath) {
+        return res.status(500).json({ error: 'Object storage not configured - no PUBLIC_OBJECT_SEARCH_PATHS' });
       }
       
-      const storage = new Storage();
-      const bucket = storage.bucket(bucketId);
+      // Extract bucket name from path like /bucket-name/public
+      const pathParts = firstPath.startsWith('/') ? firstPath.slice(1).split('/') : firstPath.split('/');
+      const bucketName = pathParts[0];
       
-      const filename = `brand-assets/${Date.now()}_${file.originalname.replace(/[^a-z0-9.]/gi, '_')}`;
+      if (!bucketName) {
+        return res.status(500).json({ error: 'Could not determine bucket name from object storage paths' });
+      }
+      
+      // Use the objectStorageClient from objectStorage.ts
+      const { objectStorageClient } = await import('./objectStorage');
+      const bucket = objectStorageClient.bucket(bucketName);
+      
+      const filename = `public/brand-assets/${Date.now()}_${file.originalname.replace(/[^a-z0-9.]/gi, '_')}`;
       const fileRef = bucket.file(filename);
       
       await fileRef.save(file.buffer, {
@@ -15770,7 +15784,7 @@ Respond in JSON format:
       // Make the file publicly accessible
       await fileRef.makePublic();
       
-      const url = `https://storage.googleapis.com/${bucketId}/${filename}`;
+      const url = `https://storage.googleapis.com/${bucketName}/${filename}`;
       
       // Create database record
       const [asset] = await db.insert(brandAssets).values({
@@ -16012,19 +16026,118 @@ Respond in JSON format:
     }
   });
 
-  // Asset Library: Get user uploads
+  // Asset Library: Get user uploads (includes brand assets)
   app.get('/api/videos/uploads', isAuthenticated, async (req, res) => {
     try {
       const userId = (req.user as any)?.id;
       
+      // Fetch brand assets as user uploads
+      const assets = await db.select().from(brandAssets).orderBy(brandAssets.createdAt);
+      
+      // Transform brand assets to upload format
+      const uploads = assets.map(asset => ({
+        id: asset.id,
+        type: asset.type === 'logo' ? 'logo' : 'image',
+        name: asset.name,
+        url: asset.url,
+        thumbnailUrl: asset.thumbnailUrl,
+        description: '',
+        tags: [],
+        created_at: asset.createdAt?.toISOString() || new Date().toISOString(),
+        isDefault: asset.isDefault,
+        fileSize: asset.fileSize,
+        mimeType: asset.mimeType,
+      }));
+      
       res.json({
         success: true,
-        uploads: [],
-        total: 0
+        uploads,
+        total: uploads.length
       });
     } catch (error) {
       console.error('[Asset Library] Get uploads error:', error);
       res.status(500).json({ error: 'Failed to get uploads' });
+    }
+  });
+  
+  // Asset Library: Upload new asset (stores in object storage and brand_assets table)
+  app.post('/api/videos/uploads', isAuthenticated, upload.single('file'), async (req, res) => {
+    try {
+      const file = req.file;
+      const { name, type, description } = req.body;
+      
+      if (!file) {
+        return res.status(400).json({ error: 'No file uploaded' });
+      }
+      
+      const user = req.user as any;
+      
+      // Get bucket info from PUBLIC_OBJECT_SEARCH_PATHS
+      const publicPaths = process.env.PUBLIC_OBJECT_SEARCH_PATHS || '';
+      const firstPath = publicPaths.split(',')[0]?.trim();
+      
+      if (!firstPath) {
+        return res.status(500).json({ error: 'Object storage not configured' });
+      }
+      
+      // Extract bucket name from path
+      const pathParts = firstPath.startsWith('/') ? firstPath.slice(1).split('/') : firstPath.split('/');
+      const bucketName = pathParts[0];
+      
+      if (!bucketName) {
+        return res.status(500).json({ error: 'Could not determine bucket name' });
+      }
+      
+      // Use the objectStorageClient
+      const { objectStorageClient } = await import('./objectStorage');
+      const bucket = objectStorageClient.bucket(bucketName);
+      
+      const filename = `public/uploads/${Date.now()}_${file.originalname.replace(/[^a-z0-9.]/gi, '_')}`;
+      const fileRef = bucket.file(filename);
+      
+      await fileRef.save(file.buffer, {
+        metadata: {
+          contentType: file.mimetype,
+        },
+      });
+      
+      // Make the file publicly accessible
+      await fileRef.makePublic();
+      
+      const url = `https://storage.googleapis.com/${bucketName}/${filename}`;
+      
+      // Determine asset type
+      let assetType = type || 'image';
+      if (file.mimetype.startsWith('video/')) assetType = 'video';
+      else if (file.mimetype.startsWith('audio/')) assetType = 'music';
+      else if (file.mimetype.startsWith('image/')) assetType = 'image';
+      
+      // Store in brand_assets table for unified management
+      const [asset] = await db.insert(brandAssets).values({
+        name: name || file.originalname,
+        type: assetType,
+        url,
+        thumbnailUrl: url,
+        fileSize: file.size,
+        mimeType: file.mimetype,
+        isDefault: false,
+        uploadedBy: user.id,
+      }).returning();
+      
+      res.json({
+        success: true,
+        upload: {
+          id: asset.id,
+          type: assetType,
+          name: asset.name,
+          url,
+          thumbnailUrl: url,
+          created_at: asset.createdAt?.toISOString(),
+        }
+      });
+    } catch (error) {
+      console.error('[Asset Library] Upload error:', error);
+      res.status(500).json({ error: 'Failed to upload file' });
     }
   });
 
