@@ -15799,12 +15799,16 @@ Respond in JSON format:
       });
       console.log('[Brand Assets] File saved successfully');
       
-      // Make the file publicly accessible
-      console.log('[Brand Assets] Making file public...');
-      await fileRef.makePublic();
-      console.log('[Brand Assets] File made public');
+      // Generate a signed URL for accessing the file (bucket has public access prevention)
+      console.log('[Brand Assets] Generating signed URL...');
+      const [signedUrl] = await fileRef.getSignedUrl({
+        action: 'read',
+        expires: Date.now() + 365 * 24 * 60 * 60 * 1000, // 1 year from now
+      });
+      console.log('[Brand Assets] Signed URL generated');
       
-      const url = `https://storage.googleapis.com/${bucketName}/${filename}`;
+      // Use the signed URL or construct a proxy URL through our API
+      const url = signedUrl;
       console.log('[Brand Assets] File URL:', url);
       
       // Create database record
