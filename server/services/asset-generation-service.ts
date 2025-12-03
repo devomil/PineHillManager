@@ -466,7 +466,7 @@ class AssetGenerationService {
     return null;
   }
   
-  private async generateImageWithFal(prompt: string): Promise<ImageSearchResult | null> {
+  private async generateImageWithFal(prompt: string, negativePrompt: string = ""): Promise<ImageSearchResult | null> {
     const falKey = process.env.FAL_KEY;
     if (!falKey) {
       console.log("[AssetService] No FAL_KEY configured, skipping fal.ai image generation");
@@ -479,13 +479,20 @@ class AssetGenerationService {
     // Enhanced prompt for TV-quality output
     const enhancedPrompt = `${prompt}, professional photography, high resolution, 8k, cinematic lighting, commercial quality, sharp focus, award-winning`;
     
+    // Log negative prompt if provided
+    if (negativePrompt) {
+      console.log("[AssetService] fal.ai using negative prompt:", negativePrompt);
+    }
+    
     // FLUX models priority: FLUX Pro → FLUX Dev → FLUX Schnell
+    // Note: FLUX models support negative prompts through the "negative_prompt" parameter
     const models = [
       {
         id: "fal-ai/flux-pro/v1.1",
         name: "FLUX-Pro-1.1",
         params: { 
           prompt: enhancedPrompt,
+          negative_prompt: negativePrompt || undefined,
           image_size: { width: 1024, height: 1024 },
           num_inference_steps: 28,
           guidance_scale: 3.5
@@ -496,6 +503,7 @@ class AssetGenerationService {
         name: "FLUX-Dev",
         params: { 
           prompt: enhancedPrompt,
+          negative_prompt: negativePrompt || undefined,
           image_size: { width: 1024, height: 1024 },
           num_inference_steps: 28
         }
@@ -505,6 +513,7 @@ class AssetGenerationService {
         name: "FLUX-Schnell",
         params: { 
           prompt: enhancedPrompt,
+          negative_prompt: negativePrompt || undefined,
           image_size: { width: 1024, height: 1024 },
           num_inference_steps: 4
         }
@@ -556,13 +565,34 @@ class AssetGenerationService {
     return null;
   }
 
-  async generateAIImageWithFallback(prompt: string, searchQuery: string): Promise<ImageSearchResult | null> {
+  async generateAIImageWithFallback(prompt: string, searchQuery: string, negativePrompt: string = ""): Promise<ImageSearchResult | null> {
     const stabilityKey = process.env.STABILITY_API_KEY;
+    
+    // Combine default negative prompt with custom constraints
+    const fullNegativePrompt = negativePrompt 
+      ? `blurry, low quality, distorted, ugly, bad anatomy, ${negativePrompt}`
+      : "blurry, low quality, distorted, ugly, bad anatomy";
+    
+    console.log("[AssetService] Generating image...");
+    console.log("[AssetService] Prompt:", prompt.substring(0, 100));
+    if (negativePrompt) {
+      console.log("[AssetService] Negative prompt (from visual direction):", negativePrompt);
+    }
+    
+    // Try fal.ai FLUX models first (highest quality, supports negative prompts)
+    const falKey = process.env.FAL_KEY;
+    if (falKey) {
+      try {
+        const falResult = await this.generateImageWithFal(prompt, fullNegativePrompt);
+        if (falResult) return falResult;
+      } catch (e) {
+        console.warn("[AssetService] fal.ai image generation failed:", e);
+      }
+    }
     
     if (stabilityKey) {
       try {
-        console.log("[AssetService] Generating image with Stability AI...");
-        console.log("[AssetService] Prompt:", prompt.substring(0, 100));
+        console.log("[AssetService] Trying Stability AI...");
         
         // Try the newer Stability AI API (v2beta) first
         const endpoints = [
@@ -584,6 +614,7 @@ class AssetGenerationService {
             if (endpoint.isV2) {
               const formData = new FormData();
               formData.append("prompt", prompt);
+              formData.append("negative_prompt", fullNegativePrompt);
               formData.append("output_format", "png");
               formData.append("aspect_ratio", "16:9");
               
@@ -606,7 +637,7 @@ class AssetGenerationService {
                 body: JSON.stringify({
                   text_prompts: [
                     { text: prompt, weight: 1 },
-                    { text: "blurry, low quality, distorted, ugly, bad anatomy", weight: -1 },
+                    { text: fullNegativePrompt, weight: -1 },
                   ],
                   cfg_scale: 7,
                   height: 1024,

@@ -405,12 +405,15 @@ export default function AIVideoProducer() {
     await delay(1500);
     
     // Use approved visual plan sections if available, otherwise parse from script
-    let scenes: { text: string; visualDirection: string; section: string }[];
+    let scenes: { text: string; visualDirection: string; section?: string; shotType?: string; mood?: string; motionNotes?: string }[];
     if (approvedVisualPlan && approvedVisualPlan.sections.length > 0) {
       scenes = approvedVisualPlan.sections.map(s => ({
         text: s.scriptContent,
         visualDirection: s.visualDirection,
         section: s.id,
+        shotType: s.shotType,
+        mood: s.mood,
+        motionNotes: s.motionNotes,
       }));
       addLog("decision", `Using ${scenes.length} pre-approved visual directions from AI analysis`, "analyze");
     } else {
@@ -494,11 +497,15 @@ export default function AIVideoProducer() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ 
               section: `scene_${i + 1}_img${imgIdx}`,
-              productName: (scene.visualDirection || scriptData.title) + variation,
+              productName: scriptData.title,
               style: scriptData.style,
               sceneContent: scene.text,
               sceneIndex: i + 1,
               variation: imgIdx,
+              visualDirection: scene.visualDirection,
+              shotType: scene.shotType,
+              mood: scene.mood,
+              motionNotes: scene.motionNotes,
             }),
           });
           
@@ -1559,7 +1566,7 @@ export default function AIVideoProducer() {
                   className="w-full"
                   data-testid="button-start-script-production"
                   onClick={startScriptProduction}
-                  disabled={isRunning || !scriptFormData.title || !scriptFormData.script || (visualPlan && !visualsApproved)}
+                  disabled={isRunning || !scriptFormData.title || !scriptFormData.script || (!!visualPlan && !visualsApproved)}
                 >
                   {isRunning && producerMode === "script" ? (
                     <>

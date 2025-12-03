@@ -14880,10 +14880,10 @@ Respond in JSON format:
     }
   });
 
-  // AI Producer: Generate image for section with smart keyword extraction
+  // AI Producer: Generate image for section with smart keyword extraction and visual direction constraints
   app.post('/api/videos/ai-producer/generate-image', isAuthenticated, async (req, res) => {
     try {
-      const { section, productName, style, sceneContent, sceneIndex } = req.body;
+      const { section, productName, style, sceneContent, sceneIndex, visualDirection, shotType, mood, motionNotes, variation } = req.body;
       
       if (!section || !productName) {
         return res.status(400).json({ error: 'Section and product name are required' });
@@ -14893,9 +14893,52 @@ Respond in JSON format:
       
       let prompt: string;
       let searchQuery: string;
+      let negativePrompt: string = "";
       
-      // For scene-based generation from scripts, extract relevant keywords
-      if (section.startsWith('scene_') && sceneContent) {
+      // Parse visual direction for constraints (negative prompts)
+      if (visualDirection) {
+        const vdLower = visualDirection.toLowerCase();
+        
+        // Extract negative constraints from visual direction
+        const negativeConstraints: string[] = [];
+        
+        // Check for face/people restrictions
+        if (vdLower.includes('no face') || vdLower.includes('avoid face') || vdLower.includes('without face') || 
+            vdLower.includes('faceless') || vdLower.includes("don't show face") || vdLower.includes('no visible face')) {
+          negativeConstraints.push('faces', 'visible faces', 'human faces', 'face closeup', 'portrait');
+        }
+        if (vdLower.includes('no people') || vdLower.includes('avoid people') || vdLower.includes('without people')) {
+          negativeConstraints.push('people', 'humans', 'persons', 'crowd');
+        }
+        if (vdLower.includes('no text') || vdLower.includes('without text')) {
+          negativeConstraints.push('text', 'words', 'letters', 'typography');
+        }
+        if (vdLower.includes('no logo') || vdLower.includes('without logo')) {
+          negativeConstraints.push('logo', 'branding', 'watermark');
+        }
+        
+        // Build negative prompt
+        if (negativeConstraints.length > 0) {
+          negativePrompt = negativeConstraints.join(', ');
+          console.log(`[AI Producer] Scene ${sceneIndex}: Negative constraints detected: "${negativePrompt}"`);
+        }
+      }
+      
+      // For scene-based generation from scripts, use visual direction as primary prompt
+      if (section.startsWith('scene_') && visualDirection) {
+        // Use the visual direction directly as the prompt base
+        const shotVariation = variation === 1 ? "close-up detail shot, " : variation === 2 ? "wide establishing shot, " : "";
+        const moodText = mood ? `${mood} mood, ` : "";
+        const shotTypeText = shotType ? `${shotType}, ` : "";
+        
+        prompt = `${visualDirection}, ${shotVariation}${shotTypeText}${moodText}professional ${style} photography, cinematic lighting, high quality, 8k`;
+        
+        // Create a focused search query for stock images (fallback)
+        const keywords = extractRelevantKeywords(sceneContent || visualDirection, productName);
+        searchQuery = keywords.searchQuery;
+        
+        console.log(`[AI Producer] Scene ${sceneIndex}: Using visual direction: "${visualDirection.substring(0, 60)}..."`);
+      } else if (section.startsWith('scene_') && sceneContent) {
         const keywords = extractRelevantKeywords(sceneContent, productName);
         prompt = `${keywords.imagePrompt}, professional ${style} photography, cinematic lighting, high quality`;
         searchQuery = keywords.searchQuery;
@@ -14913,8 +14956,12 @@ Respond in JSON format:
       }
       
       console.log(`[AI Producer] Image prompt: ${prompt.substring(0, 100)}...`);
+      if (negativePrompt) {
+        console.log(`[AI Producer] Negative prompt: ${negativePrompt}`);
+      }
       
-      const result = await assetGenerationService.generateAIImageWithFallback(prompt, searchQuery);
+      // Pass negative prompt to the generation service
+      const result = await assetGenerationService.generateAIImageWithFallback(prompt, searchQuery, negativePrompt);
       
       if (result) {
         res.json({
