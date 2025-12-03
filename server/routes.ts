@@ -14703,6 +14703,120 @@ Write ONLY the script narration, no scene labels or stage directions. Make it co
     }
   });
 
+  // AI Producer: Analyze script and suggest visual directions per scene
+  app.post('/api/videos/ai-producer/suggest-visuals', isAuthenticated, async (req, res) => {
+    try {
+      const { script, title, style = 'professional', platform = 'youtube' } = req.body;
+      
+      if (!script) {
+        return res.status(400).json({ error: 'Script is required' });
+      }
+
+      const Anthropic = (await import('@anthropic-ai/sdk')).default;
+      const anthropicKey = process.env.ANTHROPIC_API_KEY;
+      
+      if (!anthropicKey) {
+        return res.status(500).json({ error: 'AI visual suggestion not configured' });
+      }
+      
+      const client = new Anthropic({ apiKey: anthropicKey });
+      
+      const systemPrompt = `You are an expert video director and cinematographer specializing in TV-quality commercial production.
+Your role is to analyze scripts and suggest compelling visual directions that will create engaging, professional videos.
+You understand composition, lighting, color theory, and visual storytelling techniques.
+Focus on visuals that are achievable with AI image/video generation (avoid overly complex scenes with many people or specific real locations).`;
+
+      const userPrompt = `Analyze this script and provide detailed visual directions for each scene/section.
+
+SCRIPT TITLE: ${title || 'Marketing Video'}
+STYLE: ${style}
+PLATFORM: ${platform}
+
+SCRIPT:
+${script}
+
+Break the script into 5 clear sections (Hook, Problem, Solution, Social Proof, Call to Action) and provide specific visual directions for each.
+
+For each section, provide:
+1. A clear, descriptive visual direction (what should be shown on screen)
+2. The type of shot (close-up, wide shot, medium shot, etc.)
+3. Mood/lighting suggestions
+4. Any motion or transition notes
+
+Respond in JSON format:
+{
+  "sections": [
+    {
+      "id": "hook",
+      "name": "Hook",
+      "scriptContent": "The portion of the script for this section",
+      "visualDirection": "Detailed description of what should appear on screen",
+      "shotType": "close-up|medium|wide|aerial|product-shot",
+      "mood": "bright|warm|dramatic|serene|energetic",
+      "motionNotes": "Any camera movement or transition suggestions",
+      "assetType": "ai_image|ai_video|stock_video|product_shot",
+      "searchKeywords": ["keyword1", "keyword2", "keyword3"]
+    }
+  ],
+  "overallStyle": "Brief description of the overall visual style",
+  "colorPalette": ["#color1", "#color2", "#color3"],
+  "directorNotes": "Any additional notes for the production"
+}`;
+
+      const response = await client.messages.create({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 3000,
+        system: systemPrompt,
+        messages: [{ role: 'user', content: userPrompt }],
+      });
+
+      const textContent = response.content[0].type === 'text' ? response.content[0].text : '';
+      
+      // Parse the JSON response
+      const jsonMatch = textContent.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const visualPlan = JSON.parse(jsonMatch[0]);
+        
+        res.json({
+          success: true,
+          visualPlan,
+          rawResponse: textContent,
+        });
+      } else {
+        // Fallback: Create basic sections from the script
+        const paragraphs = script.split('\n\n').filter((p: string) => p.trim());
+        const sectionNames = ['hook', 'problem', 'solution', 'social_proof', 'cta'];
+        const sectionLabels = ['Hook', 'Problem', 'Solution', 'Social Proof', 'Call to Action'];
+        
+        const fallbackSections = paragraphs.slice(0, 5).map((text: string, i: number) => ({
+          id: sectionNames[i] || `section_${i}`,
+          name: sectionLabels[i] || `Section ${i + 1}`,
+          scriptContent: text.trim(),
+          visualDirection: `Professional ${style} visual for: ${text.substring(0, 50)}...`,
+          shotType: i === 0 ? 'wide' : 'medium',
+          mood: 'professional',
+          motionNotes: 'Smooth transition',
+          assetType: 'ai_image',
+          searchKeywords: text.split(/\s+/).slice(0, 5),
+        }));
+        
+        res.json({
+          success: true,
+          visualPlan: {
+            sections: fallbackSections,
+            overallStyle: `${style} marketing video`,
+            colorPalette: ['#4a7c59', '#8b4513', '#f5f5dc'],
+            directorNotes: 'Fallback visual plan generated - consider regenerating for better suggestions',
+          },
+          rawResponse: textContent,
+        });
+      }
+    } catch (error) {
+      console.error('[AI Producer] Visual suggestion error:', error);
+      res.status(500).json({ error: 'Failed to generate visual suggestions' });
+    }
+  });
+
   // AI Producer: Analyze brief and create scene manifest
   app.post('/api/videos/ai-producer/analyze', isAuthenticated, async (req, res) => {
     try {
