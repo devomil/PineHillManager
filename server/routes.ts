@@ -15747,7 +15747,7 @@ Respond in JSON format:
 
   // Upload a new brand asset
   app.post('/api/brand-assets/upload', isAuthenticated, memoryUpload.single('file'), async (req, res) => {
-    console.log('[Brand Assets] Upload request received');
+    console.log('[Brand Assets] ===== UPLOAD REQUEST START =====');
     console.log('[Brand Assets] File:', req.file ? { name: req.file.originalname, size: req.file.size, mimetype: req.file.mimetype } : 'No file');
     console.log('[Brand Assets] Body:', req.body);
     try {
@@ -15755,46 +15755,60 @@ Respond in JSON format:
       const { name, type, isDefault, settings } = req.body;
       
       if (!file) {
+        console.log('[Brand Assets] ERROR: No file in request');
         return res.status(400).json({ error: 'No file uploaded' });
       }
       
       const user = req.user as any;
+      console.log('[Brand Assets] User:', user?.id);
       
       // Get bucket info from PUBLIC_OBJECT_SEARCH_PATHS
       const publicPaths = process.env.PUBLIC_OBJECT_SEARCH_PATHS || '';
+      console.log('[Brand Assets] PUBLIC_OBJECT_SEARCH_PATHS:', publicPaths);
       const firstPath = publicPaths.split(',')[0]?.trim();
       
       if (!firstPath) {
+        console.log('[Brand Assets] ERROR: No PUBLIC_OBJECT_SEARCH_PATHS');
         return res.status(500).json({ error: 'Object storage not configured - no PUBLIC_OBJECT_SEARCH_PATHS' });
       }
       
       // Extract bucket name from path like /bucket-name/public
       const pathParts = firstPath.startsWith('/') ? firstPath.slice(1).split('/') : firstPath.split('/');
       const bucketName = pathParts[0];
+      console.log('[Brand Assets] Bucket name:', bucketName);
       
       if (!bucketName) {
+        console.log('[Brand Assets] ERROR: Could not determine bucket name');
         return res.status(500).json({ error: 'Could not determine bucket name from object storage paths' });
       }
       
       // Use the objectStorageClient from objectStorage.ts
+      console.log('[Brand Assets] Importing objectStorageClient...');
       const { objectStorageClient } = await import('./objectStorage');
       const bucket = objectStorageClient.bucket(bucketName);
+      console.log('[Brand Assets] Got bucket reference');
       
       const filename = `public/brand-assets/${Date.now()}_${file.originalname.replace(/[^a-z0-9.]/gi, '_')}`;
       const fileRef = bucket.file(filename);
+      console.log('[Brand Assets] Saving file to:', filename);
       
       await fileRef.save(file.buffer, {
         metadata: {
           contentType: file.mimetype,
         },
       });
+      console.log('[Brand Assets] File saved successfully');
       
       // Make the file publicly accessible
+      console.log('[Brand Assets] Making file public...');
       await fileRef.makePublic();
+      console.log('[Brand Assets] File made public');
       
       const url = `https://storage.googleapis.com/${bucketName}/${filename}`;
+      console.log('[Brand Assets] File URL:', url);
       
       // Create database record
+      console.log('[Brand Assets] Inserting database record...');
       const [asset] = await db.insert(brandAssets).values({
         name: name || file.originalname,
         type: type || 'logo',
@@ -15806,6 +15820,7 @@ Respond in JSON format:
         settings: settings ? JSON.parse(settings) : null,
         uploadedBy: user.id,
       }).returning();
+      console.log('[Brand Assets] Database record created:', asset.id);
       
       // If this is set as default, unset other defaults of the same type
       if (isDefault === 'true') {
@@ -15817,13 +15832,18 @@ Respond in JSON format:
           ));
       }
       
+      console.log('[Brand Assets] ===== UPLOAD SUCCESS =====');
       res.json({
         success: true,
         asset,
       });
-    } catch (error) {
-      console.error('[Brand Assets] Upload error:', error);
-      res.status(500).json({ error: 'Failed to upload brand asset' });
+    } catch (error: any) {
+      console.error('[Brand Assets] ===== UPLOAD ERROR =====');
+      console.error('[Brand Assets] Error name:', error?.name);
+      console.error('[Brand Assets] Error message:', error?.message);
+      console.error('[Brand Assets] Error stack:', error?.stack);
+      console.error('[Brand Assets] Full error:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
+      res.status(500).json({ error: 'Failed to upload brand asset', details: error?.message });
     }
   });
 
