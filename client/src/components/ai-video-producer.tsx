@@ -354,6 +354,11 @@ export default function AIVideoProducer() {
   };
 
   const startScriptProduction = async () => {
+    if (visualPlan && !visualsApproved) {
+      console.error("Cannot start production without approved visual plan");
+      return;
+    }
+    
     const scriptBrief: VideoProductionBrief = {
       productName: scriptFormData.title,
       productDescription: scriptFormData.script,
@@ -371,7 +376,7 @@ export default function AIVideoProducer() {
     setActivePhaseIndex(0);
 
     try {
-      await runScriptProductionPipeline(newProduction, scriptFormData);
+      await runScriptProductionPipeline(newProduction, scriptFormData, visualPlan || undefined);
     } catch (error) {
       console.error("Script production failed:", error);
       addLog("error", `Production failed: ${error}`, "analyze");
@@ -380,9 +385,13 @@ export default function AIVideoProducer() {
     }
   };
 
-  const runScriptProductionPipeline = async (prod: VideoProduction, scriptData: ScriptFormData) => {
+  const runScriptProductionPipeline = async (prod: VideoProduction, scriptData: ScriptFormData, approvedVisualPlan?: VisualPlan) => {
     addLog("decision", `🎬 AI Producer initialized for script: "${scriptData.title}"`, "analyze");
     addLog("decision", `📋 Target: ${scriptData.videoDuration}s ${scriptData.platform} video in ${scriptData.style} style`, "analyze");
+    
+    if (approvedVisualPlan) {
+      addLog("success", `✅ Using approved visual plan with ${approvedVisualPlan.sections.length} scene directions`, "analyze");
+    }
     
     // Track accumulated data locally for final assembly
     const accumulatedAssets: ProductionAsset[] = [];
@@ -395,7 +404,18 @@ export default function AIVideoProducer() {
     addLog("decision", "Parsing script and visual directions...", "analyze");
     await delay(1500);
     
-    const scenes = parseScriptIntoScenes(scriptData.script, scriptData.visualDirections);
+    // Use approved visual plan sections if available, otherwise parse from script
+    let scenes: { text: string; visualDirection: string; section: string }[];
+    if (approvedVisualPlan && approvedVisualPlan.sections.length > 0) {
+      scenes = approvedVisualPlan.sections.map(s => ({
+        text: s.scriptContent,
+        visualDirection: s.visualDirection,
+        section: s.id,
+      }));
+      addLog("decision", `Using ${scenes.length} pre-approved visual directions from AI analysis`, "analyze");
+    } else {
+      scenes = parseScriptIntoScenes(scriptData.script, scriptData.visualDirections);
+    }
     
     updatePhase("analyze", { progress: 50 });
     addLog("decision", `Identified ${scenes.length} scenes from script`, "analyze");
@@ -1528,11 +1548,18 @@ export default function AIVideoProducer() {
                   </div>
                 </div>
 
+                {visualPlan && !visualsApproved && (
+                  <div className="p-3 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 rounded-lg text-sm text-amber-800 dark:text-amber-200 flex items-center gap-2">
+                    <Eye className="h-4 w-4" />
+                    Please approve the visual plan before starting production
+                  </div>
+                )}
+                
                 <Button
                   className="w-full"
                   data-testid="button-start-script-production"
                   onClick={startScriptProduction}
-                  disabled={isRunning || !scriptFormData.title || !scriptFormData.script}
+                  disabled={isRunning || !scriptFormData.title || !scriptFormData.script || (visualPlan && !visualsApproved)}
                 >
                   {isRunning && producerMode === "script" ? (
                     <>

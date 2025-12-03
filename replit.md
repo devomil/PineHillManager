@@ -80,11 +80,27 @@ The marketing page (`/marketing`) includes an AI-orchestrated video production s
 3. **Hugging Face** (SDXL via router.huggingface.co)
 4. **Stock images** (Pexels, Unsplash, Pixabay)
 
+### Visual Directions Workflow
+After a script is entered or generated, users can click "Generate AI Visual Directions" to have Claude analyze the script and suggest specific visuals for each scene section (Hook, Problem, Solution, Social Proof, CTA). Features include:
+- **AI Analysis**: Claude analyzes script structure and suggests appropriate visuals for each section
+- **Scene Breakdown**: Each section shows the script excerpt, suggested visual direction, shot type, mood, and motion notes
+- **Review Interface**: Users can review, edit, or regenerate suggestions before production starts
+- **Approval Workflow**: Users must approve the visual plan before starting video production
+- **API Endpoint**: `POST /api/videos/ai-producer/suggest-visuals`
+
+### Quality Evaluation System
+The Evaluate phase includes enhanced quality checks:
+- **Anatomical Accuracy Detection**: AI-generated images with human figures are checked for anatomical accuracy (score 0-100)
+- **Defect Detection**: Specific checks for bent limbs, extra appendages, distorted faces, unnatural proportions
+- **Auto-Regeneration**: Images with anatomicalScore < 85 or detected defects trigger automatic regeneration
+- **Overall Quality Threshold**: 70/100 minimum score for asset approval
+
 ### Required Environment Variables
 - `FAL_KEY` - fal.ai API key for LongCat-Video, Wan 2.2, and FLUX models
 - `ELEVENLABS_API_KEY` - ElevenLabs for voiceover generation
 - `HUGGINGFACE_API_TOKEN` - Hugging Face for backup image/video generation
 - `PEXELS_API_KEY`, `PIXABAY_API_KEY`, `UNSPLASH_ACCESS_KEY` - Stock media APIs
+- `ANTHROPIC_API_KEY` - Anthropic Claude for script analysis and visual direction suggestions
 
 ### API Endpoint Changes
 - Hugging Face now uses `router.huggingface.co` (deprecated: `api-inference.huggingface.co`)
