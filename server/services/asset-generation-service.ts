@@ -334,44 +334,127 @@ class AssetGenerationService {
       console.log("[AssetService] No Stability AI API key configured");
     }
 
+    // Try Hugging Face with multiple high-quality models
+    const hfResult = await this.generateWithHuggingFace(prompt);
+    if (hfResult) return hfResult;
+
+    console.log("[AssetService] Falling back to stock images for:", prompt);
+    const stockImages = await this.searchStockImages(prompt, 1);
+    return stockImages[0] || null;
+  }
+  
+  private async generateWithHuggingFace(prompt: string): Promise<ImageSearchResult | null> {
     const hfToken = process.env.HUGGINGFACE_API_TOKEN;
-    if (hfToken) {
+    if (!hfToken) {
+      console.log("[AssetService] No Hugging Face API token configured");
+      return null;
+    }
+
+    // Enhanced prompt for TV-quality output
+    const enhancedPrompt = `${prompt}, professional photography, high resolution, 8k, cinematic lighting, commercial quality, sharp focus`;
+    
+    // Model priority list: Best quality to fastest
+    const models = [
+      { 
+        id: "black-forest-labs/FLUX.1-dev", 
+        name: "FLUX.1-dev",
+        timeout: 120000  // 2 minutes - high quality takes longer
+      },
+      { 
+        id: "black-forest-labs/FLUX.1-schnell", 
+        name: "FLUX.1-schnell",
+        timeout: 60000  // 1 minute - faster model
+      },
+      { 
+        id: "stabilityai/stable-diffusion-xl-base-1.0", 
+        name: "SDXL",
+        timeout: 60000
+      },
+      { 
+        id: "runwayml/stable-diffusion-v1-5", 
+        name: "SD 1.5",
+        timeout: 45000
+      }
+    ];
+
+    for (const model of models) {
       try {
-        console.log("[AssetService] Falling back to Hugging Face for image generation");
+        console.log(`[AssetService] Trying Hugging Face model: ${model.name}`);
+        
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), model.timeout);
         
         const response = await fetch(
-          "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0",
+          `https://api-inference.huggingface.co/models/${model.id}`,
           {
             method: "POST",
             headers: {
               Authorization: `Bearer ${hfToken}`,
               "Content-Type": "application/json",
             },
-            body: JSON.stringify({ inputs: prompt }),
+            body: JSON.stringify({ 
+              inputs: enhancedPrompt,
+              parameters: {
+                negative_prompt: "blurry, low quality, distorted, ugly, bad anatomy, watermark, text, logo",
+                num_inference_steps: 30,
+                guidance_scale: 7.5
+              }
+            }),
+            signal: controller.signal,
           }
         );
+        
+        clearTimeout(timeoutId);
+        
+        console.log(`[AssetService] ${model.name} response status: ${response.status}`);
 
         if (response.ok) {
-          const blob = await response.blob();
-          const buffer = await blob.arrayBuffer();
-          const base64 = Buffer.from(buffer).toString("base64");
-          return {
-            id: `hf_${Date.now()}`,
-            url: `data:image/png;base64,${base64}`,
-            thumbnailUrl: `data:image/png;base64,${base64}`,
-            width: 1024,
-            height: 1024,
-            source: "huggingface",
-          };
+          const contentType = response.headers.get("content-type") || "";
+          
+          if (contentType.includes("image")) {
+            const blob = await response.blob();
+            const buffer = await blob.arrayBuffer();
+            const base64 = Buffer.from(buffer).toString("base64");
+            const mimeType = contentType.includes("jpeg") ? "image/jpeg" : "image/png";
+            
+            console.log(`[AssetService] ${model.name} generated image successfully`);
+            return {
+              id: `hf_${model.name.toLowerCase().replace(/[^a-z0-9]/g, "_")}_${Date.now()}`,
+              url: `data:${mimeType};base64,${base64}`,
+              thumbnailUrl: `data:${mimeType};base64,${base64}`,
+              width: 1024,
+              height: 1024,
+              source: `huggingface_${model.name}`,
+            };
+          } else {
+            // Model might be loading - check response
+            const data = await response.json();
+            if (data.error && data.error.includes("loading")) {
+              console.log(`[AssetService] ${model.name} is loading, trying next model...`);
+              continue;
+            }
+          }
+        } else if (response.status === 503) {
+          // Model is loading
+          const data = await response.json().catch(() => ({}));
+          const estimatedTime = data.estimated_time || "unknown";
+          console.log(`[AssetService] ${model.name} is loading (estimated: ${estimatedTime}s), trying next model...`);
+          continue;
+        } else {
+          const errorText = await response.text();
+          console.warn(`[AssetService] ${model.name} failed:`, response.status, errorText.substring(0, 200));
         }
-      } catch (e) {
-        console.warn("[AssetService] Hugging Face error:", e);
+      } catch (e: any) {
+        if (e.name === "AbortError") {
+          console.warn(`[AssetService] ${model.name} timed out after ${model.timeout}ms`);
+        } else {
+          console.warn(`[AssetService] ${model.name} error:`, e.message || e);
+        }
       }
     }
-
-    console.log("[AssetService] Falling back to stock images for:", prompt);
-    const stockImages = await this.searchStockImages(prompt, 1);
-    return stockImages[0] || null;
+    
+    console.log("[AssetService] All Hugging Face models failed");
+    return null;
   }
 
   async generateAIImageWithFallback(prompt: string, searchQuery: string): Promise<ImageSearchResult | null> {
@@ -483,43 +566,9 @@ class AssetGenerationService {
       }
     }
 
-    const hfToken = process.env.HUGGINGFACE_API_TOKEN;
-    if (hfToken) {
-      try {
-        console.log("[AssetService] Falling back to Hugging Face for image generation");
-        
-        const response = await fetch(
-          "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0",
-          {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${hfToken}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ inputs: prompt }),
-          }
-        );
-
-        if (response.ok) {
-          const blob = await response.blob();
-          const buffer = await blob.arrayBuffer();
-          const base64 = Buffer.from(buffer).toString("base64");
-          console.log("[AssetService] Hugging Face image generated successfully");
-          return {
-            id: `hf_${Date.now()}`,
-            url: `data:image/png;base64,${base64}`,
-            thumbnailUrl: `data:image/png;base64,${base64}`,
-            width: 1024,
-            height: 1024,
-            source: "huggingface",
-          };
-        } else {
-          console.warn("[AssetService] Hugging Face failed:", response.status);
-        }
-      } catch (e) {
-        console.warn("[AssetService] Hugging Face error:", e);
-      }
-    }
+    // Try Hugging Face with multiple high-quality models
+    const hfResult = await this.generateWithHuggingFace(prompt);
+    if (hfResult) return hfResult;
 
     // Enhanced stock image search with TV-quality focused queries
     console.log("[AssetService] Falling back to stock images with query:", searchQuery);
@@ -598,15 +647,128 @@ class AssetGenerationService {
               };
             }
           }
+        } else {
+          const errorText = await response.text();
+          console.warn("[AssetService] Runway API error:", response.status, errorText.substring(0, 200));
         }
       } catch (e) {
         console.warn("[AssetService] Runway error:", e);
       }
     }
 
+    // Try Hugging Face text-to-video models
+    const hfVideo = await this.generateVideoWithHuggingFace(prompt, duration);
+    if (hfVideo) return hfVideo;
+
     console.log("[AssetService] Falling back to stock B-roll for video");
     const stockVideos = await this.searchStockVideos(prompt, 1);
     return stockVideos[0] || null;
+  }
+  
+  private async generateVideoWithHuggingFace(prompt: string, duration: number): Promise<VideoSearchResult | null> {
+    const hfToken = process.env.HUGGINGFACE_API_TOKEN;
+    if (!hfToken) {
+      console.log("[AssetService] No Hugging Face API token for video generation");
+      return null;
+    }
+
+    // Enhanced prompt for better video quality
+    const enhancedPrompt = `${prompt}, cinematic, high quality, smooth motion, professional video`;
+    
+    // Available text-to-video models on Hugging Face
+    const videoModels = [
+      {
+        id: "ali-vilab/text-to-video-ms-1.7b",
+        name: "ModelScope",
+        timeout: 180000  // 3 minutes - video generation takes longer
+      },
+      {
+        id: "damo-vilab/text-to-video-ms-1.7b", 
+        name: "DAMO-ViLab",
+        timeout: 180000
+      },
+      {
+        id: "cerspense/zeroscope_v2_576w",
+        name: "Zeroscope",
+        timeout: 120000
+      }
+    ];
+
+    for (const model of videoModels) {
+      try {
+        console.log(`[AssetService] Trying Hugging Face video model: ${model.name}`);
+        
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), model.timeout);
+        
+        const response = await fetch(
+          `https://api-inference.huggingface.co/models/${model.id}`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${hfToken}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ 
+              inputs: enhancedPrompt,
+              parameters: {
+                num_frames: Math.min(duration * 8, 32),  // 8 fps, max 32 frames
+                num_inference_steps: 25
+              }
+            }),
+            signal: controller.signal,
+          }
+        );
+        
+        clearTimeout(timeoutId);
+        
+        console.log(`[AssetService] ${model.name} video response status: ${response.status}`);
+
+        if (response.ok) {
+          const contentType = response.headers.get("content-type") || "";
+          
+          if (contentType.includes("video") || contentType.includes("mp4")) {
+            const blob = await response.blob();
+            const buffer = await blob.arrayBuffer();
+            const base64 = Buffer.from(buffer).toString("base64");
+            
+            console.log(`[AssetService] ${model.name} generated video successfully`);
+            return {
+              id: `hf_video_${model.name.toLowerCase().replace(/[^a-z0-9]/g, "_")}_${Date.now()}`,
+              url: `data:video/mp4;base64,${base64}`,
+              thumbnailUrl: "",
+              duration: duration,
+              width: 576,
+              height: 320,
+              source: `huggingface_${model.name}`,
+            };
+          } else if (contentType.includes("application/json")) {
+            const data = await response.json();
+            if (data.error && data.error.includes("loading")) {
+              console.log(`[AssetService] ${model.name} is loading, trying next model...`);
+              continue;
+            }
+          }
+        } else if (response.status === 503) {
+          const data = await response.json().catch(() => ({}));
+          const estimatedTime = data.estimated_time || "unknown";
+          console.log(`[AssetService] ${model.name} is loading (estimated: ${estimatedTime}s), trying next model...`);
+          continue;
+        } else {
+          const errorText = await response.text();
+          console.warn(`[AssetService] ${model.name} video failed:`, response.status, errorText.substring(0, 200));
+        }
+      } catch (e: any) {
+        if (e.name === "AbortError") {
+          console.warn(`[AssetService] ${model.name} video timed out after ${model.timeout}ms`);
+        } else {
+          console.warn(`[AssetService] ${model.name} video error:`, e.message || e);
+        }
+      }
+    }
+    
+    console.log("[AssetService] All Hugging Face video models failed");
+    return null;
   }
 
   private async pollRunwayTask(taskId: string, apiKey: string, maxAttempts: number = 60): Promise<string | null> {
