@@ -1648,8 +1648,8 @@ export default function AIVideoProducer() {
                         </div>
                       )}
                       
-                      <ScrollArea className="max-h-[400px]">
-                        <div className="space-y-4 pr-3">
+                      <ScrollArea className="max-h-[60vh] min-h-[300px]">
+                        <div className="space-y-4 pr-4">
                           {visualPlan.sections.map((section, index) => (
                             <div
                               key={section.id}
