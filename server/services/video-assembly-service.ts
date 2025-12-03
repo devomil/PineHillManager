@@ -33,13 +33,20 @@ export interface AudioTrack {
   fadeOut?: number; // seconds
 }
 
+export interface WatermarkConfig {
+  url: string;
+  placement: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'center';
+  opacity: number; // 0-1
+  size: number; // percentage of video width (5-30)
+}
+
 export interface VideoAssemblyConfig {
   scenes: VideoScene[];
   audioTracks?: AudioTrack[];
   outputResolution?: string; // e.g., '1920x1080'
   outputFps?: number;
   title?: string;
-  watermark?: string;
+  watermark?: WatermarkConfig;
   backgroundColor?: string;
 }
 
@@ -253,20 +260,30 @@ class VideoAssemblyService {
         const clipPath = path.join(workDir, `clip_${i}.mp4`);
         const isImage = !scene.videoUrl;
 
+        // Build text overlay filter if scene has text
+        let textFilter = '';
+        if (scene.text && scene.text.trim()) {
+          const escapedText = scene.text.replace(/'/g, "\\'").replace(/:/g, "\\:");
+          const yPosition = scene.textPosition === 'top' ? 'h*0.08' : 
+                           scene.textPosition === 'center' ? '(h-text_h)/2' : 'h*0.85';
+          textFilter = `,drawtext=text='${escapedText}':fontcolor=white:fontsize=48:borderw=3:bordercolor=black:x=(w-text_w)/2:y=${yPosition}`;
+        }
+
         if (isImage) {
           // Convert image to video with Ken Burns effect (zoom and pan)
           const zoomFactor = scene.kenBurnsEffect !== false ? 1.04 : 1;
           const zoomFilter = scene.kenBurnsEffect !== false
-            ? `zoompan=z='min(zoom+0.0005,${zoomFactor})':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=${scene.duration * fps}:s=${width}x${height}:fps=${fps}`
-            : `scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2`;
+            ? `zoompan=z='min(zoom+0.0005,${zoomFactor})':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=${scene.duration * fps}:s=${width}x${height}:fps=${fps}${textFilter}`
+            : `scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2${textFilter}`;
 
           await execAsync(
             `ffmpeg -y -loop 1 -i "${sourcePath}" -vf "${zoomFilter}" -t ${scene.duration} -c:v libx264 -pix_fmt yuv420p -preset medium "${clipPath}"`
           );
         } else {
-          // Process video clip - scale and trim
+          // Process video clip - scale and trim with optional text overlay
+          const videoFilter = `scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2${textFilter}`;
           await execAsync(
-            `ffmpeg -y -i "${sourcePath}" -vf "scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2" -t ${scene.duration} -c:v libx264 -preset medium "${clipPath}"`
+            `ffmpeg -y -i "${sourcePath}" -vf "${videoFilter}" -t ${scene.duration} -c:v libx264 -preset medium "${clipPath}"`
           );
         }
 
@@ -364,6 +381,77 @@ class VideoAssemblyService {
               console.error('Fallback audio failed too:', innerErr);
             }
           }
+        }
+      }
+
+      // Apply watermark if configured
+      if (config.watermark && config.watermark.url) {
+        this.updateProgress({
+          phase: 'finalizing',
+          progress: 85,
+          message: 'Adding watermark...'
+        });
+
+        let watermarkPath = path.join(workDir, 'watermark.png');
+        try {
+          // Check if watermark URL is a local file path or a URL
+          if (config.watermark.url.startsWith('/') || config.watermark.url.includes(':\\')) {
+            // Local file path - copy it
+            if (fs.existsSync(config.watermark.url)) {
+              await execAsync(`cp "${config.watermark.url}" "${watermarkPath}"`);
+              console.log('[VideoAssembly] Using local watermark file:', config.watermark.url);
+            } else {
+              console.error('[VideoAssembly] Watermark file not found:', config.watermark.url);
+              watermarkPath = ''; // Skip watermark
+            }
+          } else {
+            // Remote URL - download it
+            await this.downloadFile(config.watermark.url, watermarkPath);
+          }
+          
+          if (fs.existsSync(watermarkPath)) {
+            const watermarkedPath = path.join(workDir, 'watermarked.mp4');
+            
+            // Calculate watermark size and position
+            const wmSize = Math.round((config.watermark.size || 15) / 100 * width);
+            const opacity = config.watermark.opacity || 0.8;
+            
+            // Position mapping
+            let overlayPosition = '';
+            switch (config.watermark.placement) {
+              case 'top-left':
+                overlayPosition = `x=20:y=20`;
+                break;
+              case 'top-right':
+                overlayPosition = `x=W-w-20:y=20`;
+                break;
+              case 'bottom-left':
+                overlayPosition = `x=20:y=H-h-20`;
+                break;
+              case 'bottom-right':
+                overlayPosition = `x=W-w-20:y=H-h-20`;
+                break;
+              case 'center':
+                overlayPosition = `x=(W-w)/2:y=(H-h)/2`;
+                break;
+              default:
+                overlayPosition = `x=W-w-20:y=H-h-20`; // Default to bottom-right
+            }
+            
+            const watermarkFilter = `[1:v]scale=${wmSize}:-1,format=rgba,colorchannelmixer=aa=${opacity}[wm];[0:v][wm]overlay=${overlayPosition}`;
+            
+            try {
+              await execAsync(
+                `ffmpeg -y -i "${finalVideoPath}" -i "${watermarkPath}" -filter_complex "${watermarkFilter}" -c:v libx264 -preset medium -c:a copy "${watermarkedPath}"`
+              );
+              finalVideoPath = watermarkedPath;
+              console.log('[VideoAssembly] Watermark applied successfully');
+            } catch (wmErr) {
+              console.error('[VideoAssembly] Watermark overlay failed:', wmErr);
+            }
+          }
+        } catch (dlErr) {
+          console.error('[VideoAssembly] Failed to download watermark:', dlErr);
         }
       }
 

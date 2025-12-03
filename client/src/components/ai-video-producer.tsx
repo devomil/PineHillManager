@@ -632,6 +632,7 @@ export default function AIVideoProducer() {
     const accumulatedAssets: ProductionAsset[] = [];
     let accumulatedVoiceoverUrl: string | undefined;
     let accumulatedVoiceoverDuration: number | undefined;
+    let accumulatedMusicUrl: string | undefined;
     
     setActivePhaseIndex(0);
     updatePhase("analyze", { status: "in_progress", progress: 0, startedAt: new Date().toISOString() });
@@ -718,6 +719,29 @@ export default function AIVideoProducer() {
       } : null);
     } else {
       addLog("warning", "⚠️ Voiceover generation failed, using text-to-speech fallback", "generate");
+    }
+    
+    updatePhase("generate", { progress: 25 });
+    
+    // Search for background music (using stock video audio extraction)
+    addLog("generation", "🎵 Searching for background music...", "generate");
+    await delay(1000);
+    
+    try {
+      // Search for videos that are more likely to have music/audio
+      const musicResponse = await fetch(`/api/videos/ai-producer/stock-videos?query=cinematic+background+music+ambient&count=3`);
+      if (musicResponse.ok) {
+        const musicResult = await musicResponse.json();
+        if (musicResult.videos && musicResult.videos.length > 0) {
+          // Use the first available video's audio (best effort)
+          accumulatedMusicUrl = musicResult.videos[0].url;
+          addLog("success", "✅ Background audio source found (will extract audio track)", "generate");
+        } else {
+          addLog("info", "ℹ️ No background music found, video will have voiceover only", "generate");
+        }
+      }
+    } catch (musicErr) {
+      addLog("info", "ℹ️ Music search skipped, video will have voiceover only", "generate");
     }
     
     updatePhase("generate", { progress: 30 });
@@ -906,6 +930,23 @@ export default function AIVideoProducer() {
     addLog("generation", "Synchronizing audio with visuals...", "assemble");
     updatePhase("assemble", { progress: 60 });
     
+    // Calculate scene timings based on voiceover duration with minimum safeguards
+    const voiceoverDuration = accumulatedVoiceoverDuration || scriptData.videoDuration || 60;
+    const numAssets = Math.max(accumulatedAssets.length, 1);
+    const minSceneDuration = 2; // Minimum 2 seconds per scene to prevent FFmpeg issues
+    
+    // Calculate total duration, ensuring we have enough time for all scenes
+    const totalDurationNeeded = Math.max(voiceoverDuration, numAssets * minSceneDuration);
+    const baseDuration = totalDurationNeeded / numAssets;
+    
+    const sceneTimings = accumulatedAssets.map((_: any, idx: number) => {
+      // Use floating point for even distribution, then round
+      const start = idx * baseDuration;
+      const end = (idx + 1) * baseDuration;
+      const duration = Math.max(Math.round(end - start), minSceneDuration);
+      return { duration };
+    });
+    
     // Actually call the assemble endpoint with audio and watermark config
     try {
       const assembleResponse = await fetch("/api/videos/ai-producer/assemble", {
@@ -915,9 +956,11 @@ export default function AIVideoProducer() {
           productionId: prod.id,
           assets: accumulatedAssets,
           voiceoverUrl: accumulatedVoiceoverUrl,
+          musicUrl: accumulatedMusicUrl,
           title: scriptData.title,
-          duration: scriptData.videoDuration,
+          duration: voiceoverDuration,
           watermark: watermarkConfig,
+          sceneTimings: sceneTimings,
         }),
       });
       

@@ -15470,23 +15470,168 @@ Respond in JSON format:
   // AI Producer: Assemble final video package
   app.post('/api/videos/ai-producer/assemble', isAuthenticated, async (req, res) => {
     try {
-      const { productionId, assets, voiceoverUrl, title, duration } = req.body;
+      const { productionId, assets, voiceoverUrl, musicUrl, title, duration, watermark, sceneTimings } = req.body;
       
       if (!productionId || !assets) {
         return res.status(400).json({ error: 'Production ID and assets are required' });
       }
 
-      const sceneDuration = Math.floor((duration || 60) / Math.max(assets.length, 1));
+      const { videoAssemblyService } = await import('./services/video-assembly-service');
       
-      const scenes = assets.map((asset: any, index: number) => ({
-        id: index + 1,
-        url: asset.url,
-        type: asset.type || 'image',
-        section: asset.section || `scene_${index + 1}`,
-        duration: sceneDuration,
-        transition: index < assets.length - 1 ? 'fade' : 'none',
-      }));
+      // Calculate scene durations - try to sync with voiceover if timings provided
+      const totalDuration = duration || 60;
+      let sceneDuration = Math.floor(totalDuration / Math.max(assets.length, 1));
+      
+      // Build video scenes with proper formatting for video assembly service
+      const videoScenes: any[] = assets.map((asset: any, index: number) => {
+        // Use provided timing if available, otherwise distribute evenly
+        const timing = sceneTimings && sceneTimings[index];
+        const sceneTime = timing?.duration || sceneDuration;
+        
+        return {
+          id: index + 1,
+          imageUrl: asset.type === 'image' ? asset.url : undefined,
+          videoUrl: asset.type === 'video' ? asset.url : undefined,
+          duration: sceneTime,
+          transition: 'fade' as const,
+          transitionDuration: 0.5,
+          text: asset.section || asset.name || undefined, // Use section name as text overlay
+          textPosition: 'bottom' as const,
+          kenBurnsEffect: asset.type === 'image',
+        };
+      });
 
+      // Build audio tracks
+      const audioTracks: any[] = [];
+      
+      // Add voiceover first (primary audio)
+      if (voiceoverUrl) {
+        audioTracks.push({
+          url: voiceoverUrl,
+          type: 'voiceover',
+          volume: 100,
+        });
+        console.log('[AI Producer] Added voiceover track');
+      }
+      
+      // Add background music (lower volume)
+      if (musicUrl) {
+        audioTracks.push({
+          url: musicUrl,
+          type: 'music',
+          volume: 25,
+          fadeIn: 2,
+          fadeOut: 3,
+        });
+        console.log('[AI Producer] Added music track');
+      }
+
+      // Build watermark config if provided
+      let watermarkConfig = undefined;
+      if (watermark && watermark.url) {
+        // Handle relative URLs (e.g., /api/brand-assets/file/1)
+        let watermarkUrl = watermark.url;
+        
+        if (watermark.url.startsWith('/api/brand-assets/file/')) {
+          // Extract asset ID and get the file from object storage
+          const assetId = parseInt(watermark.url.split('/').pop() || '0');
+          if (assetId > 0) {
+            try {
+              const [asset] = await db.select().from(brandAssets).where(eq(brandAssets.id, assetId));
+              if (asset) {
+                const settings = asset.settings as any;
+                if (settings?.storagePath) {
+                  // Create a local temp copy of the brand asset
+                  const fs = await import('fs');
+                  const path = await import('path');
+                  const { objectStorage } = await import('./objectStorage');
+                  
+                  const [bucketName, filePath] = settings.storagePath.split('|');
+                  const tempDir = path.join(process.cwd(), 'uploads', 'temp');
+                  await fs.promises.mkdir(tempDir, { recursive: true });
+                  
+                  const tempWatermarkPath = path.join(tempDir, `watermark_${assetId}_${Date.now()}.png`);
+                  
+                  // Download from object storage
+                  const bucket = objectStorage.bucket(bucketName);
+                  const file = bucket.file(filePath);
+                  const [fileContents] = await file.download();
+                  await fs.promises.writeFile(tempWatermarkPath, fileContents);
+                  
+                  watermarkUrl = tempWatermarkPath; // Use local file path
+                  console.log('[AI Producer] Watermark downloaded to:', tempWatermarkPath);
+                }
+              }
+            } catch (wmErr) {
+              console.error('[AI Producer] Failed to get brand asset for watermark:', wmErr);
+            }
+          }
+        }
+        
+        watermarkConfig = {
+          url: watermarkUrl,
+          placement: watermark.placement || 'bottom-right',
+          opacity: watermark.opacity || 0.8,
+          size: watermark.size || 15,
+        };
+        console.log('[AI Producer] Watermark configured:', watermarkConfig);
+      }
+
+      // Assemble the video using FFmpeg
+      console.log('[AI Producer] Starting FFmpeg video assembly...', {
+        scenes: videoScenes.length,
+        audioTracks: audioTracks.length,
+        hasWatermark: !!watermarkConfig,
+      });
+
+      const assemblyConfig = {
+        scenes: videoScenes,
+        audioTracks,
+        outputResolution: '1920x1080',
+        outputFps: 30,
+        title,
+        watermark: watermarkConfig,
+      };
+
+      const assemblyResult = await videoAssemblyService.assembleVideo(assemblyConfig, (progress) => {
+        console.log(`[AI Producer] Assembly progress: ${progress.phase} - ${progress.progress}%`);
+      });
+
+      if (assemblyResult.success && assemblyResult.outputPath) {
+        // Copy the video to uploads folder for serving
+        const fs = await import('fs');
+        const path = await import('path');
+        
+        const uploadsDir = path.join(process.cwd(), 'uploads', 'videos');
+        await fs.promises.mkdir(uploadsDir, { recursive: true });
+        
+        const filename = `${productionId}_${Date.now()}.mp4`;
+        const destinationPath = path.join(uploadsDir, filename);
+        
+        await fs.promises.copyFile(assemblyResult.outputPath, destinationPath);
+        
+        const downloadUrl = `/uploads/videos/${filename}`;
+        
+        console.log('[AI Producer] Video assembled successfully:', {
+          duration: assemblyResult.duration,
+          fileSize: assemblyResult.fileSize,
+          downloadUrl,
+        });
+        
+        return res.json({
+          success: true,
+          productionId,
+          sceneCount: videoScenes.length,
+          downloadUrl,
+          duration: assemblyResult.duration,
+          fileSize: assemblyResult.fileSize,
+          message: 'Video assembled successfully with watermark and audio',
+        });
+      }
+
+      // Fallback to HTML preview if assembly fails
+      console.warn('[AI Producer] FFmpeg assembly failed, falling back to HTML preview:', assemblyResult.error);
+      
       const previewHtml = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -15591,11 +15736,11 @@ Respond in JSON format:
   <div class="container">
     <h1>${title || 'AI Video Production'}</h1>
     <div class="video-player" id="player">
-      ${scenes.map((scene: any, i: number) => {
-        if (scene.type === 'video') {
-          return `<video src="${scene.url}" class="scene-media ${i === 0 ? 'active' : ''}" data-scene="${i}" data-type="video" muted loop playsinline></video>`;
+      ${videoScenes.map((scene: any, i: number) => {
+        if (scene.videoUrl) {
+          return `<video src="${scene.videoUrl}" class="scene-media ${i === 0 ? 'active' : ''}" data-scene="${i}" data-type="video" muted loop playsinline></video>`;
         } else {
-          return `<img src="${scene.url}" alt="Scene ${i + 1}" class="scene-media ${i === 0 ? 'active' : ''}" data-scene="${i}" data-type="image">`;
+          return `<img src="${scene.imageUrl}" alt="Scene ${i + 1}" class="scene-media ${i === 0 ? 'active' : ''}" data-scene="${i}" data-type="image">`;
         }
       }).join('')}
     </div>
@@ -15607,15 +15752,15 @@ Respond in JSON format:
     ${voiceoverUrl ? `<audio id="voiceover" src="${voiceoverUrl}"></audio>` : ''}
     
     <div class="timeline">
-      ${scenes.map((scene: any, i: number) => {
-        if (scene.type === 'video') {
+      ${videoScenes.map((scene: any, i: number) => {
+        if (scene.videoUrl) {
           return `<div class="timeline-item ${i === 0 ? 'active' : ''}" onclick="goToScene(${i})">
-            <video src="${scene.url}" muted></video>
+            <video src="${scene.videoUrl}" muted></video>
             <span class="video-badge">VIDEO</span>
           </div>`;
         } else {
           return `<div class="timeline-item ${i === 0 ? 'active' : ''}" onclick="goToScene(${i})">
-            <img src="${scene.url}" alt="Scene ${i + 1}">
+            <img src="${scene.imageUrl}" alt="Scene ${i + 1}">
           </div>`;
         }
       }).join('')}
@@ -15623,7 +15768,7 @@ Respond in JSON format:
     
     <div class="info">
       <p><strong>Production ID:</strong> ${productionId}</p>
-      <p><strong>Total Scenes:</strong> ${scenes.length}</p>
+      <p><strong>Total Scenes:</strong> ${videoScenes.length}</p>
       <p><strong>Target Duration:</strong> ${duration || 60} seconds</p>
       <p><strong>Generated:</strong> ${new Date().toLocaleString()}</p>
     </div>
@@ -15698,9 +15843,9 @@ Respond in JSON format:
       res.json({
         success: true,
         productionId,
-        sceneCount: scenes.length,
+        sceneCount: videoScenes.length,
         previewHtml,
-        message: 'Video preview package ready for download',
+        message: 'Video preview package ready for download (FFmpeg assembly failed)',
       });
     } catch (error) {
       console.error('[AI Producer] Assembly error:', error);
