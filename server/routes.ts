@@ -16178,6 +16178,8 @@ Respond in JSON format:
         return res.status(400).json({ error: 'No file uploaded' });
       }
       
+      console.log('[Asset Library] Starting upload for file:', file.originalname, 'size:', file.size);
+      
       const user = req.user as any;
       
       // Get bucket info from PUBLIC_OBJECT_SEARCH_PATHS
@@ -16185,6 +16187,7 @@ Respond in JSON format:
       const firstPath = publicPaths.split(',')[0]?.trim();
       
       if (!firstPath) {
+        console.error('[Asset Library] Object storage not configured - PUBLIC_OBJECT_SEARCH_PATHS empty');
         return res.status(500).json({ error: 'Object storage not configured' });
       }
       
@@ -16193,8 +16196,11 @@ Respond in JSON format:
       const bucketName = pathParts[0];
       
       if (!bucketName) {
+        console.error('[Asset Library] Could not determine bucket name from path:', firstPath);
         return res.status(500).json({ error: 'Could not determine bucket name' });
       }
+      
+      console.log('[Asset Library] Using bucket:', bucketName);
       
       // Use the objectStorageClient
       const { objectStorageClient } = await import('./objectStorage');
@@ -16209,10 +16215,7 @@ Respond in JSON format:
         },
       });
       
-      // Make the file publicly accessible
-      await fileRef.makePublic();
-      
-      const url = `https://storage.googleapis.com/${bucketName}/${filename}`;
+      console.log('[Asset Library] File saved to:', filename);
       
       // Determine asset type
       let assetType = type || 'image';
@@ -16220,17 +16223,28 @@ Respond in JSON format:
       else if (file.mimetype.startsWith('audio/')) assetType = 'music';
       else if (file.mimetype.startsWith('image/')) assetType = 'image';
       
-      // Store in brand_assets table for unified management
+      // Store in brand_assets table with storage path in settings (same as brand assets)
       const [asset] = await db.insert(brandAssets).values({
         name: name || file.originalname,
         type: assetType,
-        url,
-        thumbnailUrl: url,
+        url: '', // Will be set after we have the ID
+        thumbnailUrl: '',
         fileSize: file.size,
         mimeType: file.mimetype,
         isDefault: false,
         uploadedBy: user.id,
+        settings: {
+          storagePath: `${bucketName}|${filename}`,
+        },
       }).returning();
+      
+      // Update with the proxy URL that uses asset ID
+      const proxyUrl = `/api/brand-assets/file/${asset.id}`;
+      await db.update(brandAssets)
+        .set({ url: proxyUrl, thumbnailUrl: proxyUrl })
+        .where(eq(brandAssets.id, asset.id));
+      
+      console.log('[Asset Library] Upload complete, asset ID:', asset.id);
       
       res.json({
         success: true,
@@ -16238,8 +16252,8 @@ Respond in JSON format:
           id: asset.id,
           type: assetType,
           name: asset.name,
-          url,
-          thumbnailUrl: url,
+          url: proxyUrl,
+          thumbnailUrl: proxyUrl,
           created_at: asset.createdAt?.toISOString(),
         }
       });
