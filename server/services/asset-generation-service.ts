@@ -353,27 +353,26 @@ class AssetGenerationService {
     // Enhanced prompt for TV-quality output
     const enhancedPrompt = `${prompt}, professional photography, high resolution, 8k, cinematic lighting, commercial quality, sharp focus`;
     
-    // Model priority list: Best quality to fastest
+    // Model priority list using new router.huggingface.co API
+    // Prioritizing models that are verified working
     const models = [
       { 
-        id: "black-forest-labs/FLUX.1-dev", 
-        name: "FLUX.1-dev",
-        timeout: 120000  // 2 minutes - high quality takes longer
+        id: "stabilityai/stable-diffusion-xl-base-1.0", 
+        name: "SDXL",
+        timeout: 90000,
+        useRouter: true  // Use new router API - verified working
       },
       { 
         id: "black-forest-labs/FLUX.1-schnell", 
         name: "FLUX.1-schnell",
-        timeout: 60000  // 1 minute - faster model
+        timeout: 120000,
+        useRouter: true
       },
       { 
-        id: "stabilityai/stable-diffusion-xl-base-1.0", 
-        name: "SDXL",
-        timeout: 60000
-      },
-      { 
-        id: "runwayml/stable-diffusion-v1-5", 
-        name: "SD 1.5",
-        timeout: 45000
+        id: "CompVis/stable-diffusion-v1-4", 
+        name: "SD 1.4",
+        timeout: 60000,
+        useRouter: true
       }
     ];
 
@@ -384,8 +383,13 @@ class AssetGenerationService {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), model.timeout);
         
+        // Use the new router.huggingface.co endpoint
+        const baseUrl = model.useRouter 
+          ? "https://router.huggingface.co/hf-inference/models"
+          : "https://api-inference.huggingface.co/models";
+        
         const response = await fetch(
-          `https://api-inference.huggingface.co/models/${model.id}`,
+          `${baseUrl}/${model.id}`,
           {
             method: "POST",
             headers: {
@@ -396,7 +400,7 @@ class AssetGenerationService {
               inputs: enhancedPrompt,
               parameters: {
                 negative_prompt: "blurry, low quality, distorted, ugly, bad anatomy, watermark, text, logo",
-                num_inference_steps: 30,
+                num_inference_steps: 25,
                 guidance_scale: 7.5
               }
             }),
@@ -675,17 +679,12 @@ class AssetGenerationService {
     // Enhanced prompt for better video quality
     const enhancedPrompt = `${prompt}, cinematic, high quality, smooth motion, professional video`;
     
-    // Available text-to-video models on Hugging Face
+    // Available text-to-video models on Hugging Face (using new router API)
     const videoModels = [
       {
         id: "ali-vilab/text-to-video-ms-1.7b",
         name: "ModelScope",
         timeout: 180000  // 3 minutes - video generation takes longer
-      },
-      {
-        id: "damo-vilab/text-to-video-ms-1.7b", 
-        name: "DAMO-ViLab",
-        timeout: 180000
       },
       {
         id: "cerspense/zeroscope_v2_576w",
@@ -701,8 +700,9 @@ class AssetGenerationService {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), model.timeout);
         
+        // Use the new router.huggingface.co endpoint
         const response = await fetch(
-          `https://api-inference.huggingface.co/models/${model.id}`,
+          `https://router.huggingface.co/hf-inference/models/${model.id}`,
           {
             method: "POST",
             headers: {
