@@ -590,8 +590,8 @@ Format as JSON array with structure:
       for (const asset of state.assets) {
         this.log(state, 'info', 'evaluation', `Evaluating asset for ${asset.section}...`);
 
-        // Use Claude to evaluate asset quality
-        const evaluationPrompt = `Evaluate this marketing asset for a TV-quality pharmaceutical/wellness commercial:
+        // Use Claude to evaluate asset quality with enhanced anatomical accuracy checks
+        const evaluationPrompt = `Evaluate this marketing asset for a TV-quality pharmaceutical/wellness commercial.
 
 Scene Section: ${asset.section}
 Original Brief: ${state.brief.scenes.find(s => s.section === asset.section)?.content || ''}
@@ -603,7 +603,22 @@ Rate the following on a scale of 0-100:
 3. Brand alignment (professional, trustworthy, wellness-focused)
 4. Emotional impact
 
-Also identify any issues that would require regeneration.
+CRITICAL - HUMAN FIGURE ANALYSIS (if humans are present in the image):
+5. Does the image contain human figures? (yes/no)
+6. If yes, rate anatomical accuracy 0-100:
+   - Check for: correct limb proportions and positions
+   - Check for: natural joint angles (no backward bending, impossible poses)
+   - Check for: correct number of limbs/fingers
+   - Check for: proper facial features (no distortions, correct symmetry)
+   - Check for: natural body proportions
+
+AUTOMATIC FAIL CONDITIONS (set needsRegeneration=true if ANY detected):
+- Arms bent backward or at impossible angles
+- Extra or missing limbs/fingers
+- Distorted or asymmetric faces
+- Unnatural body proportions
+- Incomplete body parts or "melting" effect
+- Any obvious AI generation artifacts on human figures
 
 Respond in JSON format:
 {
@@ -611,7 +626,10 @@ Respond in JSON format:
   "technicalScore": 0-100,
   "brandScore": 0-100,
   "emotionalScore": 0-100,
-  "overallScore": 0-100,
+  "hasHumanFigures": true/false,
+  "anatomicalScore": 0-100 (100 if no humans, or actual score if humans present),
+  "anatomicalDefects": ["bent_arm", "extra_fingers", "distorted_face", etc.],
+  "overallScore": 0-100 (MUST be below 70 if anatomicalScore < 85 for human images),
   "issues": ["issue1", "issue2"],
   "needsRegeneration": true/false,
   "suggestions": ["suggestion1"]
@@ -622,10 +640,13 @@ Respond in JSON format:
           technicalScore: asset.technicalScore,
           brandScore: 80 + Math.floor(Math.random() * 15),
           emotionalScore: asset.emotionalScore,
+          hasHumanFigures: false,
+          anatomicalScore: 100,
+          anatomicalDefects: [] as string[],
           overallScore: asset.qualityScore,
-          issues: [],
+          issues: [] as string[],
           needsRegeneration: asset.qualityScore < QUALITY_THRESHOLD,
-          suggestions: []
+          suggestions: [] as string[]
         };
 
         try {
@@ -648,6 +669,26 @@ Respond in JSON format:
           }
         } catch (err: any) {
           this.log(state, 'warn', 'evaluation', 'AI evaluation failed, using heuristics', { error: err.message });
+        }
+
+        // Enforce anatomical accuracy requirements for images with humans
+        if (evaluation.hasHumanFigures && evaluation.anatomicalScore < 85) {
+          evaluation.needsRegeneration = true;
+          evaluation.overallScore = Math.min(evaluation.overallScore, 65); // Force below threshold
+          evaluation.issues.push(`Anatomical issues detected (score: ${evaluation.anatomicalScore})`);
+          this.log(state, 'warn', 'evaluation', `Asset ${asset.section} has anatomical defects`, {
+            anatomicalScore: evaluation.anatomicalScore,
+            defects: evaluation.anatomicalDefects
+          });
+        }
+
+        // If anatomical defects are explicitly listed, always flag for regeneration
+        if (evaluation.anatomicalDefects && evaluation.anatomicalDefects.length > 0) {
+          evaluation.needsRegeneration = true;
+          evaluation.overallScore = Math.min(evaluation.overallScore, 65);
+          this.log(state, 'warn', 'evaluation', `Asset ${asset.section} flagged for anatomical defects`, {
+            defects: evaluation.anatomicalDefects
+          });
         }
 
         // Update asset scores

@@ -668,7 +668,7 @@ export default function AIVideoProducer() {
     const sections = ["hook", "problem", "solution", "social_proof", "cta"];
     for (let i = 0; i < sections.length; i++) {
       const section = sections[i];
-      addLog("generation", `🖼️ ${section.toUpperCase()}: Generating hero image via Stability AI...`, "generate");
+      addLog("generation", `🖼️ ${section.toUpperCase()}: Generating hero image via fal.ai FLUX...`, "generate");
       await delay(1500);
       
       const imageResponse = await fetch("/api/videos/ai-producer/generate-image", {
@@ -1488,7 +1488,7 @@ export default function AIVideoProducer() {
             </CardHeader>
             <CardContent className="space-y-2">
               <div className="flex items-center justify-between text-sm">
-                <span>Stability AI (SD3)</span>
+                <span>fal.ai FLUX Pro</span>
                 <Badge className="bg-green-500">Primary</Badge>
               </div>
               <div className="flex items-center justify-between text-sm">
@@ -1496,7 +1496,7 @@ export default function AIVideoProducer() {
                 <Badge variant="outline">Fallback</Badge>
               </div>
               <div className="flex items-center justify-between text-sm">
-                <span>Unsplash/Pexels</span>
+                <span>Pexels/Unsplash</span>
                 <Badge variant="outline">Stock</Badge>
               </div>
             </CardContent>
@@ -1511,7 +1511,7 @@ export default function AIVideoProducer() {
             </CardHeader>
             <CardContent className="space-y-2">
               <div className="flex items-center justify-between text-sm">
-                <span>Runway Gen-4 Turbo</span>
+                <span>fal.ai LongCat-Video</span>
                 <Badge className="bg-green-500">Primary</Badge>
               </div>
               <div className="flex items-center justify-between text-sm">
