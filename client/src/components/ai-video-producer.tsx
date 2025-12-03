@@ -179,16 +179,27 @@ export default function AIVideoProducer() {
   // Upload brand asset mutation
   const uploadAssetMutation = useMutation({
     mutationFn: async (formData: FormData) => {
+      console.log('[Brand Assets] Starting upload...');
       const response = await fetch('/api/brand-assets/upload', {
         method: 'POST',
         body: formData,
         credentials: 'include',
       });
-      if (!response.ok) throw new Error('Upload failed');
-      return response.json();
+      console.log('[Brand Assets] Upload response status:', response.status);
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[Brand Assets] Upload failed:', errorText);
+        throw new Error(`Upload failed: ${response.status} - ${errorText}`);
+      }
+      const result = await response.json();
+      console.log('[Brand Assets] Upload success:', result);
+      return result;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/brand-assets'] });
+    },
+    onError: (error) => {
+      console.error('[Brand Assets] Upload mutation error:', error);
     },
   });
   

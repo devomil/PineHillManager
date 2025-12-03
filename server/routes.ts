@@ -15747,6 +15747,9 @@ Respond in JSON format:
 
   // Upload a new brand asset
   app.post('/api/brand-assets/upload', isAuthenticated, memoryUpload.single('file'), async (req, res) => {
+    console.log('[Brand Assets] Upload request received');
+    console.log('[Brand Assets] File:', req.file ? { name: req.file.originalname, size: req.file.size, mimetype: req.file.mimetype } : 'No file');
+    console.log('[Brand Assets] Body:', req.body);
     try {
       const file = req.file;
       const { name, type, isDefault, settings } = req.body;
