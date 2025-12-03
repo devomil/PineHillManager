@@ -149,6 +149,7 @@ export default function AIVideoProducer() {
 
   const [scriptGenTopic, setScriptGenTopic] = useState("");
   const [scriptGenKeywords, setScriptGenKeywords] = useState("");
+  const [scriptGenDuration, setScriptGenDuration] = useState(120); // Default 2 minutes
   const [isGeneratingScript, setIsGeneratingScript] = useState(false);
   const [showScriptGenerator, setShowScriptGenerator] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
@@ -266,9 +267,10 @@ export default function AIVideoProducer() {
         body: JSON.stringify({
           topic: scriptGenTopic,
           keywords: scriptGenKeywords,
-          duration: scriptFormData.videoDuration,
+          duration: scriptGenDuration,
           style: scriptFormData.style,
           targetAudience: "health-conscious consumers",
+          includeSceneStructure: true, // Request structured scene output
         }),
       });
 
@@ -278,10 +280,18 @@ export default function AIVideoProducer() {
           ...prev,
           title: scriptGenTopic,
           script: result.script,
+          videoDuration: scriptGenDuration, // Sync duration from script generator
         }));
         setShowScriptGenerator(false);
         setScriptGenTopic("");
         setScriptGenKeywords("");
+        
+        // If structured scene output is included, auto-populate visual plan
+        if (result.visualPlan) {
+          setVisualPlan(result.visualPlan);
+          setShowVisualPlanReview(true);
+          setVisualsApproved(false);
+        }
       } else {
         console.error("Failed to generate script");
       }
@@ -1463,6 +1473,34 @@ export default function AIVideoProducer() {
                         disabled={isGeneratingScript}
                         rows={2}
                       />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label>Target Duration</Label>
+                      <div className="grid grid-cols-5 gap-2">
+                        {[
+                          { value: 30, label: "30s" },
+                          { value: 60, label: "1 min" },
+                          { value: 90, label: "90s" },
+                          { value: 120, label: "2 min" },
+                          { value: 180, label: "3 min" },
+                        ].map((option) => (
+                          <Button
+                            key={option.value}
+                            type="button"
+                            variant={scriptGenDuration === option.value ? "default" : "outline"}
+                            className={`text-xs h-9 ${scriptGenDuration === option.value ? 'bg-green-600 hover:bg-green-700' : ''}`}
+                            onClick={() => setScriptGenDuration(option.value)}
+                            disabled={isGeneratingScript}
+                            data-testid={`duration-${option.value}`}
+                          >
+                            {option.label}
+                          </Button>
+                        ))}
+                      </div>
+                      <p className="text-xs text-gray-500">
+                        ~{Math.round(scriptGenDuration * 2.5)} words • {Math.floor(scriptGenDuration / 60)}:{(scriptGenDuration % 60).toString().padStart(2, '0')} video
+                      </p>
                     </div>
                     
                     <Button

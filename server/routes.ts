@@ -14640,7 +14640,7 @@ Ready to start your whole body healing journey? Visit Pine Hill Farm today.`;
   // AI Producer: Generate script using Claude AI
   app.post('/api/videos/ai-producer/generate-script', isAuthenticated, async (req, res) => {
     try {
-      const { topic, keywords, duration = 60, style = 'professional', targetAudience = 'general' } = req.body;
+      const { topic, keywords, duration = 60, style = 'professional', targetAudience = 'general', includeSceneStructure = false } = req.body;
       
       if (!topic) {
         return res.status(400).json({ error: 'Topic is required' });
@@ -14657,54 +14657,229 @@ Ready to start your whole body healing journey? Visit Pine Hill Farm today.`;
       
       const wordsPerSecond = 2.5;
       const targetWords = Math.round(duration * wordsPerSecond);
+      const sceneDuration = Math.ceil(duration / 5); // 5 scenes
       
-      const systemPrompt = `You are an expert video scriptwriter specializing in creating compelling, TV-quality commercial scripts. 
+      // Calculate timing guidance based on duration
+      const timingGuide = duration <= 60 
+        ? "Each scene should be 2-3 sentences."
+        : duration <= 120
+          ? "Each scene should be 4-6 sentences with more detail."
+          : "Each scene should be 6-8 sentences, allowing for rich storytelling and detail.";
+      
+      const systemPrompt = `You are an expert video scriptwriter and director specializing in creating compelling, TV-quality commercial scripts.
 Your scripts should be professional, engaging, and optimized for ${style} video production.
-Write scripts that are emotionally resonant and guide viewers through a clear narrative arc.`;
+Write scripts that are emotionally resonant and guide viewers through a clear narrative arc.
+You will provide BOTH the script narration AND detailed visual directions with multiple creative options for each scene.`;
 
-      const userPrompt = `Write a ${duration}-second video script (approximately ${targetWords} words) about: ${topic}
+      const userPrompt = `Create a ${duration}-second video script (approximately ${targetWords} words total) about: ${topic}
 
 ${keywords ? `Key points to include: ${keywords}` : ''}
 Target audience: ${targetAudience}
 Style: ${style}
+Duration per scene: approximately ${sceneDuration} seconds each
 
-Structure the script with clear scenes separated by blank lines. Each scene should be 2-4 sentences.
-Format it as narration that will be read aloud with voiceover.
+${timingGuide}
 
-Scene structure:
-1. Opening Hook - Grab attention immediately
-2. Problem/Challenge - Identify the issue the audience faces  
-3. Solution - Present the solution or key message
-4. Benefits/Proof - Show the value and evidence
-5. Call to Action - Clear next step for the viewer
+IMPORTANT: The total script should be approximately ${targetWords} words to fill ${duration} seconds of narration at 2.5 words/second.
 
-Write ONLY the script narration, no scene labels or stage directions. Make it conversational and engaging.`;
+Respond in JSON format with this exact structure:
+{
+  "script": "The complete script narration as one continuous text, with scenes separated by blank lines",
+  "sections": [
+    {
+      "id": "hook",
+      "name": "Hook",
+      "scriptContent": "The narration text for this scene",
+      "duration": ${sceneDuration},
+      "alternatives": [
+        {
+          "optionId": "A",
+          "optionLabel": "Product Focus",
+          "visualDirection": "Detailed description of what should appear on screen",
+          "shotType": "close-up|medium|wide|aerial|product-shot",
+          "mood": "bright|warm|dramatic|serene|energetic",
+          "motionNotes": "Camera movement or transition suggestions",
+          "constraints": "Restrictions like 'no faces', 'hands only', etc.",
+          "assetType": "ai_image|ai_video|stock_video|product_shot",
+          "searchKeywords": ["keyword1", "keyword2", "keyword3"]
+        },
+        {
+          "optionId": "B",
+          "optionLabel": "Lifestyle Focus",
+          "visualDirection": "Alternative visual description focusing on emotion/experience",
+          "shotType": "...",
+          "mood": "...",
+          "motionNotes": "...",
+          "constraints": "...",
+          "assetType": "...",
+          "searchKeywords": ["..."]
+        },
+        {
+          "optionId": "C",
+          "optionLabel": "Conceptual Focus",
+          "visualDirection": "Artistic/abstract visual interpretation",
+          "shotType": "...",
+          "mood": "...",
+          "motionNotes": "...",
+          "constraints": "...",
+          "assetType": "...",
+          "searchKeywords": ["..."]
+        }
+      ],
+      "selectedOption": null
+    },
+    {
+      "id": "problem",
+      "name": "Problem",
+      "scriptContent": "...",
+      "duration": ${sceneDuration},
+      "alternatives": [...]
+    },
+    {
+      "id": "solution",
+      "name": "Solution", 
+      "scriptContent": "...",
+      "duration": ${sceneDuration},
+      "alternatives": [...]
+    },
+    {
+      "id": "social_proof",
+      "name": "Social Proof",
+      "scriptContent": "...",
+      "duration": ${sceneDuration},
+      "alternatives": [...]
+    },
+    {
+      "id": "cta",
+      "name": "Call to Action",
+      "scriptContent": "...",
+      "duration": ${sceneDuration},
+      "alternatives": [...]
+    }
+  ],
+  "overallStyle": "Brief description of the overall visual style",
+  "colorPalette": ["#color1", "#color2", "#color3"],
+  "directorNotes": "Production notes and guidance for the video team"
+}
+
+CRITICAL REQUIREMENTS:
+1. The "script" field must contain the FULL narration text (~${targetWords} words total)
+2. Each scene's "scriptContent" must be substantial (at least ${Math.round(targetWords / 5)} words each)
+3. Visual directions must be specific and achievable with AI generation
+4. Include 3 distinct creative alternatives for EVERY scene
+5. Focus on visuals that work well with AI image/video generation (avoid complex multi-person scenes)`;
 
       const response = await client.messages.create({
         model: 'claude-sonnet-4-20250514',
-        max_tokens: 2000,
+        max_tokens: 8000,
         system: systemPrompt,
         messages: [{ role: 'user', content: userPrompt }],
       });
 
-      const scriptContent = response.content[0].type === 'text' ? response.content[0].text : '';
+      const responseText = response.content[0].type === 'text' ? response.content[0].text : '';
+      console.log('[AI Producer] Received response from Claude, length:', responseText.length);
       
-      const scenes = scriptContent.split('\n\n').filter((s: string) => s.trim());
+      // Try to parse as JSON with multiple extraction strategies
+      let parsedResponse;
+      try {
+        // Strategy 1: Extract from markdown code blocks
+        let jsonString = responseText;
+        const jsonMatch = responseText.match(/```(?:json)?\s*([\s\S]*?)```/);
+        if (jsonMatch && jsonMatch[1]) {
+          jsonString = jsonMatch[1];
+        }
+        
+        // Strategy 2: Find JSON object boundaries
+        const jsonStart = jsonString.indexOf('{');
+        const jsonEnd = jsonString.lastIndexOf('}');
+        if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
+          jsonString = jsonString.substring(jsonStart, jsonEnd + 1);
+        }
+        
+        parsedResponse = JSON.parse(jsonString.trim());
+        console.log('[AI Producer] Successfully parsed JSON response with', parsedResponse.sections?.length || 0, 'sections');
+        
+        // Validate required structure
+        if (!parsedResponse.script || !parsedResponse.sections || !Array.isArray(parsedResponse.sections)) {
+          throw new Error('Invalid response structure - missing script or sections');
+        }
+        
+      } catch (parseError) {
+        console.error('[AI Producer] Failed to parse JSON response:', parseError);
+        console.log('[AI Producer] Raw response (first 500 chars):', responseText.substring(0, 500));
+        
+        // Fallback: return plain script without visual plan
+        const scriptContent = responseText;
+        const scenes = scriptContent.split('\n\n').filter((s: string) => s.trim());
+        
+        return res.json({
+          success: true,
+          script: scriptContent,
+          scenes: scenes.map((text: string, i: number) => ({
+            id: i + 1,
+            text: text.trim(),
+            suggestedVisual: `Visual for scene ${i + 1}`,
+          })),
+          metadata: {
+            topic,
+            duration,
+            style,
+            wordCount: scriptContent.split(/\s+/).length,
+            sceneCount: scenes.length,
+          },
+          // No visualPlan on fallback - user can use manual "Generate AI Visual Directions" button
+        });
+      }
+      
+      // Return structured response with visual plan
+      const scriptContent = parsedResponse.script || '';
+      const wordCount = scriptContent.split(/\s+/).length;
+      
+      // Normalize sections to ensure they have the expected structure
+      const normalizedSections = parsedResponse.sections.map((section: any, i: number) => ({
+        id: section.id || ['hook', 'problem', 'solution', 'social_proof', 'cta'][i] || `scene_${i + 1}`,
+        name: section.name || `Scene ${i + 1}`,
+        scriptContent: section.scriptContent || '',
+        duration: section.duration || sceneDuration,
+        alternatives: (section.alternatives || []).map((alt: any) => ({
+          optionId: alt.optionId || 'A',
+          optionLabel: alt.optionLabel || 'Option',
+          visualDirection: alt.visualDirection || '',
+          shotType: alt.shotType || 'medium',
+          mood: alt.mood || 'professional',
+          motionNotes: alt.motionNotes || '',
+          constraints: alt.constraints || '',
+          assetType: alt.assetType || 'ai_image',
+          searchKeywords: alt.searchKeywords || [],
+        })),
+        selectedOption: null, // User will select via radio buttons
+      }));
+      
+      console.log('[AI Producer] Returning structured response with', normalizedSections.length, 'scenes, total word count:', wordCount);
       
       res.json({
         success: true,
         script: scriptContent,
-        scenes: scenes.map((text: string, i: number) => ({
-          id: i + 1,
-          text: text.trim(),
-          suggestedVisual: `Visual for scene ${i + 1}`,
+        scenes: normalizedSections.map((section: any, i: number) => ({
+          id: section.id,
+          name: section.name,
+          text: section.scriptContent,
+          duration: section.duration,
+          suggestedVisual: section.alternatives?.[0]?.visualDirection || '',
         })),
+        visualPlan: includeSceneStructure ? {
+          sections: normalizedSections,
+          overallStyle: parsedResponse.overallStyle || '',
+          colorPalette: parsedResponse.colorPalette || [],
+          directorNotes: parsedResponse.directorNotes || '',
+        } : undefined,
         metadata: {
           topic,
           duration,
           style,
-          wordCount: scriptContent.split(/\s+/).length,
-          sceneCount: scenes.length,
+          wordCount,
+          estimatedDuration: Math.round(wordCount / 2.5),
+          sceneCount: normalizedSections.length,
         },
       });
     } catch (error) {
