@@ -15740,6 +15740,8 @@ Respond in JSON format:
       
       console.log('[Brand Assets] Fetching file from bucket:', bucketName, 'path:', filePath);
       
+      // Import object storage client
+      const { objectStorageClient } = await import('./objectStorage');
       const bucket = objectStorageClient.bucket(bucketName);
       const file = bucket.file(filePath);
       
