@@ -63,6 +63,14 @@ const upload = multer({
   },
 });
 
+// Memory storage for object storage uploads (brand assets, video assets)
+const memoryUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 50 * 1024 * 1024, // 50MB limit for media files
+  },
+});
+
 // ================================
 // QUERY PARAMETER VALIDATION SCHEMAS
 // ================================
@@ -14352,14 +14360,11 @@ Output the script with section markers in brackets.`;
     }
   });
 
-  // Get video status
-  app.get('/api/videos/:id', isAuthenticated, async (req, res) => {
+  // Get video status - NOTE: This must be defined AFTER all specific /api/videos/* routes
+  // to avoid catching routes like /api/videos/assets, /api/videos/uploads, etc.
+  app.get('/api/videos/:id(\\d+)', isAuthenticated, async (req, res) => {
     try {
-      // Skip non-numeric IDs (e.g., /api/videos/assets, /api/videos/uploads)
       const videoId = parseInt(req.params.id);
-      if (isNaN(videoId)) {
-        return res.status(400).json({ message: 'Invalid video ID' });
-      }
       
       const video = await storage.getProductVideoById(videoId);
       
@@ -15741,7 +15746,7 @@ Respond in JSON format:
   });
 
   // Upload a new brand asset
-  app.post('/api/brand-assets/upload', isAuthenticated, upload.single('file'), async (req, res) => {
+  app.post('/api/brand-assets/upload', isAuthenticated, memoryUpload.single('file'), async (req, res) => {
     try {
       const file = req.file;
       const { name, type, isDefault, settings } = req.body;
@@ -16061,7 +16066,7 @@ Respond in JSON format:
   });
   
   // Asset Library: Upload new asset (stores in object storage and brand_assets table)
-  app.post('/api/videos/uploads', isAuthenticated, upload.single('file'), async (req, res) => {
+  app.post('/api/videos/uploads', isAuthenticated, memoryUpload.single('file'), async (req, res) => {
     try {
       const file = req.file;
       const { name, type, description } = req.body;
