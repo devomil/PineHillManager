@@ -46,9 +46,9 @@ import {
   insertPurchaseOrderEventSchema,
 } from "@shared/schema";
 import { z } from "zod";
-import { eq, and, or, isNull, isNotNull, desc, gte, lte, sql } from "drizzle-orm";
+import { eq, and, or, isNull, isNotNull, desc, gte, lte, sql, ne } from "drizzle-orm";
 import { db } from "./db";
-import { posSaleItems, stagedProducts, goals, posSales, inventoryItems } from "@shared/schema";
+import { posSaleItems, stagedProducts, goals, posSales, inventoryItems, brandAssets } from "@shared/schema";
 
 // Configure multer for file uploads
 const uploadsDir = path.join(process.cwd(), 'uploads');
@@ -14703,7 +14703,7 @@ Write ONLY the script narration, no scene labels or stage directions. Make it co
     }
   });
 
-  // AI Producer: Analyze script and suggest visual directions per scene
+  // AI Producer: Analyze script and suggest visual directions per scene with multiple alternatives
   app.post('/api/videos/ai-producer/suggest-visuals', isAuthenticated, async (req, res) => {
     try {
       const { script, title, style = 'professional', platform = 'youtube' } = req.body;
@@ -14724,7 +14724,8 @@ Write ONLY the script narration, no scene labels or stage directions. Make it co
       const systemPrompt = `You are an expert video director and cinematographer specializing in TV-quality commercial production.
 Your role is to analyze scripts and suggest compelling visual directions that will create engaging, professional videos.
 You understand composition, lighting, color theory, and visual storytelling techniques.
-Focus on visuals that are achievable with AI image/video generation (avoid overly complex scenes with many people or specific real locations).`;
+Focus on visuals that are achievable with AI image/video generation (avoid overly complex scenes with many people or specific real locations).
+When suggesting visuals, provide 3 distinct creative alternatives for each section so the user can choose their preferred approach.`;
 
       const userPrompt = `Analyze this script and provide detailed visual directions for each scene/section.
 
@@ -14735,13 +14736,19 @@ PLATFORM: ${platform}
 SCRIPT:
 ${script}
 
-Break the script into 5 clear sections (Hook, Problem, Solution, Social Proof, Call to Action) and provide specific visual directions for each.
+Break the script into 5 clear sections (Hook, Problem, Solution, Social Proof, Call to Action) and provide THREE alternative visual options for each section.
 
-For each section, provide:
+Each alternative should represent a different creative approach:
+- Option A: Product-focused approach (emphasize the product/brand)
+- Option B: Lifestyle/emotional approach (focus on feelings and experiences)
+- Option C: Abstract/conceptual approach (symbolic or artistic interpretation)
+
+For each section, provide 3 alternatives with:
 1. A clear, descriptive visual direction (what should be shown on screen)
 2. The type of shot (close-up, wide shot, medium shot, etc.)
 3. Mood/lighting suggestions
 4. Any motion or transition notes
+5. Important: Include any constraints (e.g., "no visible faces", "product only", "hands only")
 
 Respond in JSON format:
 {
@@ -14750,12 +14757,42 @@ Respond in JSON format:
       "id": "hook",
       "name": "Hook",
       "scriptContent": "The portion of the script for this section",
-      "visualDirection": "Detailed description of what should appear on screen",
-      "shotType": "close-up|medium|wide|aerial|product-shot",
-      "mood": "bright|warm|dramatic|serene|energetic",
-      "motionNotes": "Any camera movement or transition suggestions",
-      "assetType": "ai_image|ai_video|stock_video|product_shot",
-      "searchKeywords": ["keyword1", "keyword2", "keyword3"]
+      "alternatives": [
+        {
+          "optionId": "A",
+          "optionLabel": "Product Focus",
+          "visualDirection": "Detailed description of what should appear on screen",
+          "shotType": "close-up|medium|wide|aerial|product-shot",
+          "mood": "bright|warm|dramatic|serene|energetic",
+          "motionNotes": "Any camera movement or transition suggestions",
+          "constraints": "Any restrictions like 'no faces', 'hands only', etc.",
+          "assetType": "ai_image|ai_video|stock_video|product_shot",
+          "searchKeywords": ["keyword1", "keyword2", "keyword3"]
+        },
+        {
+          "optionId": "B",
+          "optionLabel": "Lifestyle Focus",
+          "visualDirection": "...",
+          "shotType": "...",
+          "mood": "...",
+          "motionNotes": "...",
+          "constraints": "...",
+          "assetType": "...",
+          "searchKeywords": ["..."]
+        },
+        {
+          "optionId": "C",
+          "optionLabel": "Conceptual Focus",
+          "visualDirection": "...",
+          "shotType": "...",
+          "mood": "...",
+          "motionNotes": "...",
+          "constraints": "...",
+          "assetType": "...",
+          "searchKeywords": ["..."]
+        }
+      ],
+      "selectedOption": null
     }
   ],
   "overallStyle": "Brief description of the overall visual style",
@@ -14765,7 +14802,7 @@ Respond in JSON format:
 
       const response = await client.messages.create({
         model: 'claude-sonnet-4-20250514',
-        max_tokens: 3000,
+        max_tokens: 5000,
         system: systemPrompt,
         messages: [{ role: 'user', content: userPrompt }],
       });
@@ -14777,13 +14814,43 @@ Respond in JSON format:
       if (jsonMatch) {
         const visualPlan = JSON.parse(jsonMatch[0]);
         
+        // Ensure each section has the alternatives structure
+        if (visualPlan.sections) {
+          visualPlan.sections = visualPlan.sections.map((section: any) => {
+            // If old format (single visualDirection), convert to new format with alternatives
+            if (!section.alternatives && section.visualDirection) {
+              return {
+                ...section,
+                alternatives: [
+                  {
+                    optionId: "A",
+                    optionLabel: "Suggested Direction",
+                    visualDirection: section.visualDirection,
+                    shotType: section.shotType || "medium",
+                    mood: section.mood || "professional",
+                    motionNotes: section.motionNotes || "",
+                    constraints: "",
+                    assetType: section.assetType || "ai_image",
+                    searchKeywords: section.searchKeywords || []
+                  }
+                ],
+                selectedOption: null
+              };
+            }
+            return {
+              ...section,
+              selectedOption: section.selectedOption || null
+            };
+          });
+        }
+        
         res.json({
           success: true,
           visualPlan,
           rawResponse: textContent,
         });
       } else {
-        // Fallback: Create basic sections from the script
+        // Fallback: Create basic sections from the script with alternatives
         const paragraphs = script.split('\n\n').filter((p: string) => p.trim());
         const sectionNames = ['hook', 'problem', 'solution', 'social_proof', 'cta'];
         const sectionLabels = ['Hook', 'Problem', 'Solution', 'Social Proof', 'Call to Action'];
@@ -14792,12 +14859,42 @@ Respond in JSON format:
           id: sectionNames[i] || `section_${i}`,
           name: sectionLabels[i] || `Section ${i + 1}`,
           scriptContent: text.trim(),
-          visualDirection: `Professional ${style} visual for: ${text.substring(0, 50)}...`,
-          shotType: i === 0 ? 'wide' : 'medium',
-          mood: 'professional',
-          motionNotes: 'Smooth transition',
-          assetType: 'ai_image',
-          searchKeywords: text.split(/\s+/).slice(0, 5),
+          alternatives: [
+            {
+              optionId: "A",
+              optionLabel: "Product Focus",
+              visualDirection: `Professional product shot for: ${text.substring(0, 50)}...`,
+              shotType: "product-shot",
+              mood: "professional",
+              motionNotes: "Smooth reveal",
+              constraints: "",
+              assetType: "ai_image",
+              searchKeywords: [title || "product", style]
+            },
+            {
+              optionId: "B",
+              optionLabel: "Lifestyle Focus",
+              visualDirection: `Lifestyle scene showing benefits of: ${text.substring(0, 50)}...`,
+              shotType: "medium",
+              mood: "warm",
+              motionNotes: "Natural movement",
+              constraints: "no visible faces",
+              assetType: "ai_image",
+              searchKeywords: ["lifestyle", "wellness", style]
+            },
+            {
+              optionId: "C",
+              optionLabel: "Abstract Focus",
+              visualDirection: `Abstract conceptual visual for: ${text.substring(0, 50)}...`,
+              shotType: "wide",
+              mood: "dramatic",
+              motionNotes: "Slow zoom",
+              constraints: "",
+              assetType: "ai_image",
+              searchKeywords: ["abstract", "concept", style]
+            }
+          ],
+          selectedOption: null
         }));
         
         res.json({
@@ -14806,7 +14903,7 @@ Respond in JSON format:
             sections: fallbackSections,
             overallStyle: `${style} marketing video`,
             colorPalette: ['#4a7c59', '#8b4513', '#f5f5dc'],
-            directorNotes: 'Fallback visual plan generated - consider regenerating for better suggestions',
+            directorNotes: 'Fallback visual plan generated with alternatives - consider regenerating for better suggestions',
           },
           rawResponse: textContent,
         });
@@ -15594,6 +15691,234 @@ Respond in JSON format:
     } catch (error) {
       console.error('[AI Producer] Download error:', error);
       res.status(500).json({ error: 'Failed to download video' });
+    }
+  });
+
+  // ===== Brand Assets API (for logo/watermark management) =====
+  
+  // Get all brand assets
+  app.get('/api/brand-assets', isAuthenticated, async (req, res) => {
+    try {
+      const { type } = req.query;
+      
+      let query = db.select().from(brandAssets).orderBy(brandAssets.createdAt);
+      
+      const assets = await query;
+      
+      // Filter by type if specified
+      const filteredAssets = type 
+        ? assets.filter(a => a.type === type)
+        : assets;
+      
+      res.json(filteredAssets);
+    } catch (error) {
+      console.error('[Brand Assets] List error:', error);
+      res.status(500).json({ error: 'Failed to list brand assets' });
+    }
+  });
+
+  // Get a specific brand asset
+  app.get('/api/brand-assets/:id', isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      const [asset] = await db.select().from(brandAssets).where(eq(brandAssets.id, parseInt(id)));
+      
+      if (!asset) {
+        return res.status(404).json({ error: 'Brand asset not found' });
+      }
+      
+      res.json(asset);
+    } catch (error) {
+      console.error('[Brand Assets] Get error:', error);
+      res.status(500).json({ error: 'Failed to get brand asset' });
+    }
+  });
+
+  // Upload a new brand asset
+  app.post('/api/brand-assets/upload', isAuthenticated, upload.single('file'), async (req, res) => {
+    try {
+      const file = req.file;
+      const { name, type, isDefault, settings } = req.body;
+      
+      if (!file) {
+        return res.status(400).json({ error: 'No file uploaded' });
+      }
+      
+      const user = req.user as any;
+      
+      // Upload to object storage
+      const { Storage } = await import('@google-cloud/storage');
+      const bucketId = process.env.REPLIT_DEFAULT_BUCKET_ID;
+      
+      if (!bucketId) {
+        return res.status(500).json({ error: 'Object storage not configured' });
+      }
+      
+      const storage = new Storage();
+      const bucket = storage.bucket(bucketId);
+      
+      const filename = `brand-assets/${Date.now()}_${file.originalname.replace(/[^a-z0-9.]/gi, '_')}`;
+      const fileRef = bucket.file(filename);
+      
+      await fileRef.save(file.buffer, {
+        metadata: {
+          contentType: file.mimetype,
+        },
+      });
+      
+      // Make the file publicly accessible
+      await fileRef.makePublic();
+      
+      const url = `https://storage.googleapis.com/${bucketId}/${filename}`;
+      
+      // Create database record
+      const [asset] = await db.insert(brandAssets).values({
+        name: name || file.originalname,
+        type: type || 'logo',
+        url,
+        thumbnailUrl: url,
+        fileSize: file.size,
+        mimeType: file.mimetype,
+        isDefault: isDefault === 'true',
+        settings: settings ? JSON.parse(settings) : null,
+        uploadedBy: user.id,
+      }).returning();
+      
+      // If this is set as default, unset other defaults of the same type
+      if (isDefault === 'true') {
+        await db.update(brandAssets)
+          .set({ isDefault: false })
+          .where(and(
+            eq(brandAssets.type, type || 'logo'),
+            ne(brandAssets.id, asset.id)
+          ));
+      }
+      
+      res.json({
+        success: true,
+        asset,
+      });
+    } catch (error) {
+      console.error('[Brand Assets] Upload error:', error);
+      res.status(500).json({ error: 'Failed to upload brand asset' });
+    }
+  });
+
+  // Update a brand asset
+  app.put('/api/brand-assets/:id', isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { name, type, isDefault, settings } = req.body;
+      
+      const [existing] = await db.select().from(brandAssets).where(eq(brandAssets.id, parseInt(id)));
+      
+      if (!existing) {
+        return res.status(404).json({ error: 'Brand asset not found' });
+      }
+      
+      const [updated] = await db.update(brandAssets)
+        .set({
+          name: name || existing.name,
+          type: type || existing.type,
+          isDefault: isDefault !== undefined ? isDefault : existing.isDefault,
+          settings: settings !== undefined ? settings : existing.settings,
+          updatedAt: new Date(),
+        })
+        .where(eq(brandAssets.id, parseInt(id)))
+        .returning();
+      
+      // If this is set as default, unset other defaults of the same type
+      if (isDefault === true) {
+        await db.update(brandAssets)
+          .set({ isDefault: false })
+          .where(and(
+            eq(brandAssets.type, updated.type),
+            ne(brandAssets.id, updated.id)
+          ));
+      }
+      
+      res.json({
+        success: true,
+        asset: updated,
+      });
+    } catch (error) {
+      console.error('[Brand Assets] Update error:', error);
+      res.status(500).json({ error: 'Failed to update brand asset' });
+    }
+  });
+
+  // Delete a brand asset
+  app.delete('/api/brand-assets/:id', isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      const [existing] = await db.select().from(brandAssets).where(eq(brandAssets.id, parseInt(id)));
+      
+      if (!existing) {
+        return res.status(404).json({ error: 'Brand asset not found' });
+      }
+      
+      // Delete from object storage
+      try {
+        const { Storage } = await import('@google-cloud/storage');
+        const bucketId = process.env.REPLIT_DEFAULT_BUCKET_ID;
+        
+        if (bucketId && existing.url.includes(bucketId)) {
+          const storage = new Storage();
+          const bucket = storage.bucket(bucketId);
+          const filename = existing.url.split(`${bucketId}/`)[1];
+          
+          if (filename) {
+            await bucket.file(filename).delete().catch(() => {
+              console.log('[Brand Assets] File already deleted or not found');
+            });
+          }
+        }
+      } catch (e) {
+        console.warn('[Brand Assets] Could not delete from storage:', e);
+      }
+      
+      await db.delete(brandAssets).where(eq(brandAssets.id, parseInt(id)));
+      
+      res.json({
+        success: true,
+        message: 'Brand asset deleted',
+      });
+    } catch (error) {
+      console.error('[Brand Assets] Delete error:', error);
+      res.status(500).json({ error: 'Failed to delete brand asset' });
+    }
+  });
+
+  // Get default brand asset by type
+  app.get('/api/brand-assets/default/:type', isAuthenticated, async (req, res) => {
+    try {
+      const { type } = req.params;
+      
+      const [asset] = await db.select().from(brandAssets)
+        .where(and(
+          eq(brandAssets.type, type),
+          eq(brandAssets.isDefault, true)
+        ));
+      
+      if (!asset) {
+        // Return the first asset of this type if no default is set
+        const [firstAsset] = await db.select().from(brandAssets)
+          .where(eq(brandAssets.type, type))
+          .limit(1);
+        
+        if (firstAsset) {
+          return res.json(firstAsset);
+        }
+        
+        return res.status(404).json({ error: 'No brand asset found for this type' });
+      }
+      
+      res.json(asset);
+    } catch (error) {
+      console.error('[Brand Assets] Get default error:', error);
+      res.status(500).json({ error: 'Failed to get default brand asset' });
     }
   });
 

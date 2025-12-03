@@ -10,7 +10,9 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Brain, Clapperboard, CheckCircle2, RefreshCw, Sparkles, Play, Pause, Download, Image, Video, Music, Mic, FileText, Package, Eye, Edit2, ChevronDown, ChevronUp, Check, X, Wand2 } from "lucide-react";
+import { Brain, Clapperboard, CheckCircle2, RefreshCw, Sparkles, Play, Pause, Download, Image, Video, Music, Mic, FileText, Package, Eye, Edit2, ChevronDown, ChevronUp, Check, X, Wand2, Upload, Trash2, Star, ImageIcon } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 import { 
   VideoProduction, 
   ProductionLog, 
@@ -55,16 +57,30 @@ interface ScriptFormData {
   style: "professional" | "casual" | "energetic" | "calm" | "cinematic" | "documentary";
 }
 
-interface VisualSection {
-  id: string;
-  name: string;
-  scriptContent: string;
+interface VisualAlternative {
+  optionId: string;
+  optionLabel: string;
   visualDirection: string;
   shotType: string;
   mood: string;
   motionNotes: string;
+  constraints: string;
   assetType: string;
   searchKeywords: string[];
+}
+
+interface VisualSection {
+  id: string;
+  name: string;
+  scriptContent: string;
+  alternatives: VisualAlternative[];
+  selectedOption: string | null;
+  visualDirection?: string;
+  shotType?: string;
+  mood?: string;
+  motionNotes?: string;
+  assetType?: string;
+  searchKeywords?: string[];
 }
 
 interface VisualPlan {
@@ -72,6 +88,33 @@ interface VisualPlan {
   overallStyle: string;
   colorPalette: string[];
   directorNotes: string;
+}
+
+interface BrandAsset {
+  id: number;
+  name: string;
+  type: string;
+  url: string;
+  thumbnailUrl?: string;
+  width?: number;
+  height?: number;
+  fileSize?: number;
+  mimeType?: string;
+  isDefault?: boolean;
+  settings?: {
+    placement?: string;
+    opacity?: number;
+    size?: number;
+    position?: { x: number; y: number };
+  };
+  createdAt?: string;
+}
+
+interface WatermarkConfig {
+  logoUrl: string;
+  placement: string;
+  opacity: number;
+  size: number;
 }
 
 export default function AIVideoProducer() {
@@ -115,6 +158,87 @@ export default function AIVideoProducer() {
   const [visualsApproved, setVisualsApproved] = useState(false);
   const [editingSection, setEditingSection] = useState<string | null>(null);
   const [showVisualPlanReview, setShowVisualPlanReview] = useState(false);
+  
+  // Brand Assets state
+  const [showAssetLibrary, setShowAssetLibrary] = useState(false);
+  const [selectedLogo, setSelectedLogo] = useState<BrandAsset | null>(null);
+  const [logoSettings, setLogoSettings] = useState({
+    enabled: false,
+    placement: 'bottom-right' as string,
+    opacity: 80,
+    size: 15,
+  });
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const queryClient = useQueryClient();
+  
+  // Fetch brand assets
+  const { data: brandAssets = [], isLoading: isLoadingAssets } = useQuery<BrandAsset[]>({
+    queryKey: ['/api/brand-assets'],
+  });
+  
+  // Upload brand asset mutation
+  const uploadAssetMutation = useMutation({
+    mutationFn: async (formData: FormData) => {
+      const response = await fetch('/api/brand-assets/upload', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Upload failed');
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/brand-assets'] });
+    },
+  });
+  
+  // Delete brand asset mutation
+  const deleteAssetMutation = useMutation({
+    mutationFn: async (id: number) => {
+      return apiRequest('DELETE', `/api/brand-assets/${id}`);
+    },
+    onSuccess: (_data, deletedId) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/brand-assets'] });
+      if (selectedLogo?.id === deletedId) {
+        setSelectedLogo(null);
+        setLogoSettings(prev => ({ ...prev, enabled: false }));
+      }
+    },
+  });
+  
+  // Set default asset mutation
+  const setDefaultMutation = useMutation({
+    mutationFn: async ({ id, type }: { id: number; type: string }) => {
+      return apiRequest('PUT', `/api/brand-assets/${id}`, { isDefault: true, type });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/brand-assets'] });
+    },
+  });
+  
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('name', file.name.replace(/\.[^/.]+$/, ''));
+    formData.append('type', 'logo');
+    
+    uploadAssetMutation.mutate(formData);
+    // Reset file input for re-upload of same file
+    e.target.value = '';
+  };
+  
+  // Auto-select default logo when assets load
+  useEffect(() => {
+    if (brandAssets.length > 0 && !selectedLogo) {
+      const defaultLogo = brandAssets.find(a => a.type === 'logo' && a.isDefault);
+      if (defaultLogo) {
+        setSelectedLogo(defaultLogo);
+      }
+    }
+  }, [brandAssets, selectedLogo]);
 
   useEffect(() => {
     logsEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -182,8 +306,15 @@ export default function AIVideoProducer() {
           setVisualPlan(result.visualPlan);
           setShowVisualPlanReview(true);
           
+          // Get visual directions from selected alternatives or first alternative
           const combinedDirections = result.visualPlan.sections
-            .map((s: VisualSection) => s.visualDirection)
+            .map((s: VisualSection) => {
+              if (s.alternatives && s.alternatives.length > 0) {
+                const selected = s.alternatives.find(a => a.optionId === s.selectedOption) || s.alternatives[0];
+                return selected.visualDirection;
+              }
+              return s.visualDirection || '';
+            })
             .join('\n');
           setScriptFormData(prev => ({
             ...prev,
@@ -200,7 +331,7 @@ export default function AIVideoProducer() {
     }
   };
 
-  const updateSectionVisual = (sectionId: string, newVisual: string) => {
+  const selectAlternative = (sectionId: string, optionId: string) => {
     if (!visualPlan) return;
     
     setVisualPlan(prev => {
@@ -208,18 +339,81 @@ export default function AIVideoProducer() {
       return {
         ...prev,
         sections: prev.sections.map(s => 
-          s.id === sectionId ? { ...s, visualDirection: newVisual } : s
+          s.id === sectionId ? { ...s, selectedOption: optionId } : s
         ),
       };
     });
     
+    // Update combined directions with newly selected option
+    const updatedSections = visualPlan.sections.map(s => {
+      if (s.id === sectionId) {
+        const selected = s.alternatives?.find(a => a.optionId === optionId);
+        return selected?.visualDirection || '';
+      }
+      if (s.alternatives && s.alternatives.length > 0) {
+        const selected = s.alternatives.find(a => a.optionId === s.selectedOption) || s.alternatives[0];
+        return selected.visualDirection;
+      }
+      return s.visualDirection || '';
+    });
+    
+    setScriptFormData(prev => ({
+      ...prev,
+      visualDirections: updatedSections.join('\n'),
+    }));
+  };
+
+  const updateSectionVisual = (sectionId: string, newVisual: string) => {
+    if (!visualPlan) return;
+    
+    setVisualPlan(prev => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        sections: prev.sections.map(s => {
+          if (s.id === sectionId) {
+            // Update the selected alternative's visual direction or the first one
+            const selectedIdx = s.alternatives?.findIndex(a => a.optionId === s.selectedOption) ?? 0;
+            const updatedAlternatives = s.alternatives ? [...s.alternatives] : [];
+            if (updatedAlternatives[selectedIdx >= 0 ? selectedIdx : 0]) {
+              updatedAlternatives[selectedIdx >= 0 ? selectedIdx : 0] = {
+                ...updatedAlternatives[selectedIdx >= 0 ? selectedIdx : 0],
+                visualDirection: newVisual
+              };
+            }
+            return { ...s, alternatives: updatedAlternatives, visualDirection: newVisual };
+          }
+          return s;
+        }),
+      };
+    });
+    
     const combinedDirections = visualPlan.sections
-      .map(s => s.id === sectionId ? newVisual : s.visualDirection)
+      .map(s => {
+        if (s.id === sectionId) return newVisual;
+        if (s.alternatives && s.alternatives.length > 0) {
+          const selected = s.alternatives.find(a => a.optionId === s.selectedOption) || s.alternatives[0];
+          return selected.visualDirection;
+        }
+        return s.visualDirection || '';
+      })
       .join('\n');
     setScriptFormData(prev => ({
       ...prev,
       visualDirections: combinedDirections,
     }));
+  };
+  
+  const getSelectedVisual = (section: VisualSection): VisualAlternative | null => {
+    if (!section.alternatives || section.alternatives.length === 0) return null;
+    return section.alternatives.find(a => a.optionId === section.selectedOption) || section.alternatives[0];
+  };
+  
+  const allSectionsHaveSelection = (): boolean => {
+    if (!visualPlan) return false;
+    return visualPlan.sections.every(s => 
+      s.selectedOption !== null || (s.alternatives && s.alternatives.length <= 1)
+    );
   };
 
   const approveVisualPlan = () => {
@@ -342,9 +536,17 @@ export default function AIVideoProducer() {
     setProduction(newProduction);
     setIsRunning(true);
     setActivePhaseIndex(0);
+    
+    // Prepare watermark settings if enabled
+    const watermarkConfig = logoSettings.enabled && selectedLogo ? {
+      logoUrl: selectedLogo.url,
+      placement: logoSettings.placement,
+      opacity: logoSettings.opacity / 100,
+      size: logoSettings.size,
+    } : undefined;
 
     try {
-      await runProductionPipeline(newProduction, brief);
+      await runProductionPipeline(newProduction, brief, watermarkConfig);
     } catch (error) {
       console.error("Production failed:", error);
       addLog("error", `Production failed: ${error}`, "analyze");
@@ -374,9 +576,17 @@ export default function AIVideoProducer() {
     setProduction(newProduction);
     setIsRunning(true);
     setActivePhaseIndex(0);
+    
+    // Prepare watermark settings if enabled
+    const watermarkConfig = logoSettings.enabled && selectedLogo ? {
+      logoUrl: selectedLogo.url,
+      placement: logoSettings.placement,
+      opacity: logoSettings.opacity / 100,
+      size: logoSettings.size,
+    } : undefined;
 
     try {
-      await runScriptProductionPipeline(newProduction, scriptFormData, visualPlan || undefined);
+      await runScriptProductionPipeline(newProduction, scriptFormData, visualPlan || undefined, watermarkConfig);
     } catch (error) {
       console.error("Script production failed:", error);
       addLog("error", `Production failed: ${error}`, "analyze");
@@ -384,13 +594,17 @@ export default function AIVideoProducer() {
       setIsRunning(false);
     }
   };
-
-  const runScriptProductionPipeline = async (prod: VideoProduction, scriptData: ScriptFormData, approvedVisualPlan?: VisualPlan) => {
+  
+  const runScriptProductionPipeline = async (prod: VideoProduction, scriptData: ScriptFormData, approvedVisualPlan?: VisualPlan, watermarkConfig?: WatermarkConfig) => {
     addLog("decision", `🎬 AI Producer initialized for script: "${scriptData.title}"`, "analyze");
     addLog("decision", `📋 Target: ${scriptData.videoDuration}s ${scriptData.platform} video in ${scriptData.style} style`, "analyze");
     
     if (approvedVisualPlan) {
       addLog("success", `✅ Using approved visual plan with ${approvedVisualPlan.sections.length} scene directions`, "analyze");
+    }
+    
+    if (watermarkConfig) {
+      addLog("decision", `🏷️ Brand watermark enabled: ${watermarkConfig.placement} position, ${Math.round(watermarkConfig.opacity * 100)}% opacity`, "analyze");
     }
     
     // Track accumulated data locally for final assembly
@@ -405,16 +619,35 @@ export default function AIVideoProducer() {
     await delay(1500);
     
     // Use approved visual plan sections if available, otherwise parse from script
-    let scenes: { text: string; visualDirection: string; section?: string; shotType?: string; mood?: string; motionNotes?: string }[];
+    let scenes: { text: string; visualDirection: string; section?: string; shotType?: string; mood?: string; motionNotes?: string; constraints?: string }[];
     if (approvedVisualPlan && approvedVisualPlan.sections.length > 0) {
-      scenes = approvedVisualPlan.sections.map(s => ({
-        text: s.scriptContent,
-        visualDirection: s.visualDirection,
-        section: s.id,
-        shotType: s.shotType,
-        mood: s.mood,
-        motionNotes: s.motionNotes,
-      }));
+      scenes = approvedVisualPlan.sections.map(s => {
+        // Get visual from selected alternative or first alternative or fallback to direct visualDirection
+        let visualDir = s.visualDirection || '';
+        let shotType = s.shotType;
+        let mood = s.mood;
+        let motionNotes = s.motionNotes;
+        let constraints = '';
+        
+        if (s.alternatives && s.alternatives.length > 0) {
+          const selectedAlt = s.alternatives.find(a => a.optionId === s.selectedOption) || s.alternatives[0];
+          visualDir = selectedAlt.visualDirection;
+          shotType = selectedAlt.shotType;
+          mood = selectedAlt.mood;
+          motionNotes = selectedAlt.motionNotes;
+          constraints = selectedAlt.constraints || '';
+        }
+        
+        return {
+          text: s.scriptContent,
+          visualDirection: visualDir,
+          section: s.id,
+          shotType,
+          mood,
+          motionNotes,
+          constraints,
+        };
+      });
       addLog("decision", `Using ${scenes.length} pre-approved visual directions from AI analysis`, "analyze");
     } else {
       scenes = parseScriptIntoScenes(scriptData.script, scriptData.visualDirections);
@@ -652,7 +885,7 @@ export default function AIVideoProducer() {
     addLog("generation", "Synchronizing audio with visuals...", "assemble");
     updatePhase("assemble", { progress: 60 });
     
-    // Actually call the assemble endpoint with audio
+    // Actually call the assemble endpoint with audio and watermark config
     try {
       const assembleResponse = await fetch("/api/videos/ai-producer/assemble", {
         method: "POST",
@@ -663,6 +896,7 @@ export default function AIVideoProducer() {
           voiceoverUrl: accumulatedVoiceoverUrl,
           title: scriptData.title,
           duration: scriptData.videoDuration,
+          watermark: watermarkConfig,
         }),
       });
       
@@ -729,9 +963,13 @@ export default function AIVideoProducer() {
     }];
   };
 
-  const runProductionPipeline = async (prod: VideoProduction, brief: VideoProductionBrief) => {
+  const runProductionPipeline = async (prod: VideoProduction, brief: VideoProductionBrief, watermarkConfig?: WatermarkConfig) => {
     addLog("decision", `🎬 AI Producer initialized for "${brief.productName}"`, "analyze");
     addLog("decision", `📋 Target: ${brief.videoDuration}s ${brief.platform} video in ${brief.style} style`, "analyze");
+    
+    if (watermarkConfig) {
+      addLog("decision", `🏷️ Brand watermark enabled: ${watermarkConfig.placement} position, ${Math.round(watermarkConfig.opacity * 100)}% opacity`, "analyze");
+    }
     
     setActivePhaseIndex(0);
     updatePhase("analyze", { status: "in_progress", progress: 0, startedAt: new Date().toISOString() });
@@ -927,16 +1165,47 @@ export default function AIVideoProducer() {
     updatePhase("assemble", { progress: 50 });
     await delay(1000);
     
-    addLog("generation", "Applying color grading and effects...", "assemble");
-    updatePhase("assemble", { progress: 70 });
-    await delay(1000);
-    
-    addLog("generation", "Adding subtitles and final touches...", "assemble");
-    updatePhase("assemble", { progress: 90 });
-    await delay(1500);
-    
-    const overallScore = 75 + Math.floor(Math.random() * 15);
-    addLog("success", `✨ Video production complete! Duration: ${formatDuration(brief.videoDuration)}, Quality Score: ${overallScore}/100`, "assemble");
+    // Actually call the assemble endpoint with watermark config
+    try {
+      const assembleResponse = await fetch("/api/videos/ai-producer/assemble", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          productionId: prod.id,
+          assets: prod.assets || [],
+          voiceoverUrl: prod.voiceoverUrl,
+          title: brief.productName,
+          duration: brief.videoDuration,
+          watermark: watermarkConfig,
+        }),
+      });
+      
+      if (assembleResponse.ok) {
+        const assembleResult = await assembleResponse.json();
+        addLog("generation", "Applying color grading and effects...", "assemble");
+        updatePhase("assemble", { progress: 70 });
+        await delay(1000);
+        
+        addLog("generation", "Adding subtitles and final touches...", "assemble");
+        updatePhase("assemble", { progress: 90 });
+        await delay(1500);
+        
+        if (assembleResult.videoUrl) {
+          addLog("success", `✨ Final video assembled: ${assembleResult.videoUrl}`, "assemble");
+          setProduction(prev => prev ? {
+            ...prev,
+            finalVideoUrl: assembleResult.videoUrl,
+          } : null);
+        } else {
+          addLog("success", `✨ Video production complete! Duration: ${formatDuration(brief.videoDuration)}`, "assemble");
+        }
+      } else {
+        addLog("warning", "⚠️ Video assembly API returned error, using preview mode", "assemble");
+      }
+    } catch (assembleError) {
+      console.error("Assembly error:", assembleError);
+      addLog("warning", "⚠️ Video assembly failed, assets available for manual download", "assemble");
+    }
     
     updatePhase("assemble", { status: "completed", progress: 100, completedAt: new Date().toISOString() });
     
@@ -1294,7 +1563,7 @@ export default function AIVideoProducer() {
                       <div className="flex items-center justify-between">
                         <h4 className="font-semibold text-purple-800 dark:text-purple-200 flex items-center gap-2">
                           <Eye className="h-4 w-4" />
-                          Review Visual Plan
+                          Choose Visual Direction for Each Scene
                         </h4>
                         <div className="flex gap-2">
                           <Button
@@ -1320,14 +1589,18 @@ export default function AIVideoProducer() {
                         </div>
                       </div>
                       
+                      <p className="text-xs text-purple-600 dark:text-purple-400">
+                        Select your preferred visual approach for each scene. Click an option to select it.
+                      </p>
+                      
                       {visualPlan.directorNotes && (
                         <div className="text-xs text-purple-700 dark:text-purple-300 bg-purple-100 dark:bg-purple-900/40 p-2 rounded">
                           <strong>Director Notes:</strong> {visualPlan.directorNotes}
                         </div>
                       )}
                       
-                      <ScrollArea className="max-h-[300px]">
-                        <div className="space-y-3 pr-3">
+                      <ScrollArea className="max-h-[400px]">
+                        <div className="space-y-4 pr-3">
                           {visualPlan.sections.map((section, index) => (
                             <div
                               key={section.id}
@@ -1335,57 +1608,118 @@ export default function AIVideoProducer() {
                             >
                               <div className="flex items-start justify-between mb-2">
                                 <div className="flex items-center gap-2">
-                                  <Badge variant="outline" className="text-xs">
+                                  <Badge variant="outline" className="text-xs font-semibold">
                                     {index + 1}. {section.name}
                                   </Badge>
-                                  <Badge className="text-xs bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">
-                                    {section.shotType}
-                                  </Badge>
-                                  <Badge className="text-xs bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300">
-                                    {section.mood}
-                                  </Badge>
+                                  {section.selectedOption && (
+                                    <Badge className="text-xs bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">
+                                      <Check className="h-3 w-3 mr-1" />
+                                      Option {section.selectedOption}
+                                    </Badge>
+                                  )}
                                 </div>
                                 <Button
                                   variant="ghost"
                                   size="sm"
                                   className="h-6 w-6 p-0"
                                   onClick={() => setEditingSection(editingSection === section.id ? null : section.id)}
+                                  title="Edit selected option"
                                 >
                                   <Edit2 className="h-3 w-3" />
                                 </Button>
                               </div>
                               
-                              <p className="text-xs text-gray-500 dark:text-gray-400 mb-2 italic">
-                                "{section.scriptContent.substring(0, 100)}..."
+                              <p className="text-xs text-gray-500 dark:text-gray-400 mb-3 italic border-l-2 border-purple-300 pl-2">
+                                "{section.scriptContent.substring(0, 120)}{section.scriptContent.length > 120 ? '...' : ''}"
                               </p>
                               
-                              {editingSection === section.id ? (
+                              {section.alternatives && section.alternatives.length > 0 ? (
                                 <div className="space-y-2">
-                                  <Textarea
-                                    value={section.visualDirection}
-                                    onChange={(e) => updateSectionVisual(section.id, e.target.value)}
-                                    rows={2}
-                                    className="text-sm"
-                                    data-testid={`textarea-visual-${section.id}`}
-                                  />
-                                  <Button
-                                    size="sm"
-                                    onClick={() => setEditingSection(null)}
-                                    className="bg-green-600 hover:bg-green-700"
-                                  >
-                                    <Check className="h-3 w-3 mr-1" />
-                                    Done
-                                  </Button>
+                                  {section.alternatives.map((alt) => {
+                                    const isSelected = section.selectedOption === alt.optionId || 
+                                      (!section.selectedOption && alt.optionId === section.alternatives[0].optionId);
+                                    
+                                    return (
+                                      <div
+                                        key={alt.optionId}
+                                        className={`p-2 rounded-lg border-2 cursor-pointer transition-all ${
+                                          isSelected 
+                                            ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/30' 
+                                            : 'border-gray-200 dark:border-gray-700 hover:border-purple-300 dark:hover:border-purple-600'
+                                        }`}
+                                        onClick={() => selectAlternative(section.id, alt.optionId)}
+                                        data-testid={`option-${section.id}-${alt.optionId}`}
+                                      >
+                                        <div className="flex items-center justify-between mb-1">
+                                          <div className="flex items-center gap-2">
+                                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                                              isSelected 
+                                                ? 'border-purple-500 bg-purple-500' 
+                                                : 'border-gray-300 dark:border-gray-600'
+                                            }`}>
+                                              {isSelected && <Check className="h-3 w-3 text-white" />}
+                                            </div>
+                                            <span className={`text-xs font-semibold ${
+                                              isSelected ? 'text-purple-700 dark:text-purple-300' : 'text-gray-600 dark:text-gray-400'
+                                            }`}>
+                                              {alt.optionLabel}
+                                            </span>
+                                          </div>
+                                          <div className="flex gap-1">
+                                            <Badge className="text-[10px] bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">
+                                              {alt.shotType}
+                                            </Badge>
+                                            <Badge className="text-[10px] bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300">
+                                              {alt.mood}
+                                            </Badge>
+                                          </div>
+                                        </div>
+                                        
+                                        {editingSection === section.id && isSelected ? (
+                                          <div className="space-y-2 mt-2">
+                                            <Textarea
+                                              value={alt.visualDirection}
+                                              onChange={(e) => updateSectionVisual(section.id, e.target.value)}
+                                              rows={2}
+                                              className="text-xs"
+                                              data-testid={`textarea-visual-${section.id}`}
+                                            />
+                                            <Button
+                                              size="sm"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                setEditingSection(null);
+                                              }}
+                                              className="bg-green-600 hover:bg-green-700 text-xs h-7"
+                                            >
+                                              <Check className="h-3 w-3 mr-1" />
+                                              Done
+                                            </Button>
+                                          </div>
+                                        ) : (
+                                          <p className="text-xs text-gray-700 dark:text-gray-300 ml-7">
+                                            {alt.visualDirection}
+                                          </p>
+                                        )}
+                                        
+                                        {alt.constraints && (
+                                          <p className="text-[10px] text-orange-600 dark:text-orange-400 ml-7 mt-1">
+                                            <strong>Constraints:</strong> {alt.constraints}
+                                          </p>
+                                        )}
+                                        
+                                        {alt.motionNotes && (
+                                          <p className="text-[10px] text-gray-500 dark:text-gray-400 ml-7 mt-1">
+                                            <strong>Motion:</strong> {alt.motionNotes}
+                                          </p>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
                                 </div>
                               ) : (
                                 <p className="text-sm text-gray-800 dark:text-gray-200">
-                                  {section.visualDirection}
-                                </p>
-                              )}
-                              
-                              {section.motionNotes && (
-                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                                  <strong>Motion:</strong> {section.motionNotes}
+                                  {section.visualDirection || 'No visual direction specified'}
                                 </p>
                               )}
                             </div>
@@ -1400,7 +1734,7 @@ export default function AIVideoProducer() {
                           data-testid="button-approve-visuals"
                         >
                           <Check className="mr-2 h-4 w-4" />
-                          Approve & Continue
+                          Approve Selections & Continue
                         </Button>
                       </div>
                     </div>
@@ -1582,6 +1916,196 @@ export default function AIVideoProducer() {
                 </Button>
               </TabsContent>
             </Tabs>
+            
+            <Separator className="my-4" />
+            
+            <div className="space-y-3">
+              <Button
+                variant="outline"
+                className="w-full justify-between"
+                onClick={() => setShowAssetLibrary(!showAssetLibrary)}
+                data-testid="button-toggle-asset-library"
+              >
+                <span className="flex items-center gap-2">
+                  <ImageIcon className="h-4 w-4" />
+                  Brand Assets Library
+                  {brandAssets.filter(a => a.type === 'logo').length > 0 && (
+                    <Badge variant="secondary" className="text-xs">
+                      {brandAssets.filter(a => a.type === 'logo').length} logo(s)
+                    </Badge>
+                  )}
+                </span>
+                {showAssetLibrary ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </Button>
+              
+              {showAssetLibrary && (
+                <div className="border rounded-lg p-4 space-y-4 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-semibold text-blue-800 dark:text-blue-200 flex items-center gap-2">
+                      <ImageIcon className="h-4 w-4" />
+                      Logo & Watermark Library
+                    </h4>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={uploadAssetMutation.isPending}
+                      data-testid="button-upload-logo"
+                    >
+                      {uploadAssetMutation.isPending ? (
+                        <RefreshCw className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <>
+                          <Upload className="h-4 w-4 mr-1" />
+                          Upload Logo
+                        </>
+                      )}
+                    </Button>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleFileUpload}
+                    />
+                  </div>
+                  
+                  {isLoadingAssets ? (
+                    <div className="flex justify-center py-4">
+                      <RefreshCw className="h-5 w-5 animate-spin text-gray-400" />
+                    </div>
+                  ) : brandAssets.filter(a => a.type === 'logo').length === 0 ? (
+                    <div className="text-center py-6 text-gray-500 dark:text-gray-400">
+                      <ImageIcon className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                      <p className="text-sm">No logos uploaded yet</p>
+                      <p className="text-xs">Upload your brand logo to include it as a watermark in your videos</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-3 gap-2">
+                      {brandAssets.filter(a => a.type === 'logo').map((asset) => (
+                        <div
+                          key={asset.id}
+                          className={`relative group rounded-lg border-2 cursor-pointer transition-all overflow-hidden ${
+                            selectedLogo?.id === asset.id
+                              ? 'border-blue-500 ring-2 ring-blue-200 dark:ring-blue-800'
+                              : 'border-gray-200 dark:border-gray-700 hover:border-blue-300'
+                          }`}
+                          onClick={() => setSelectedLogo(selectedLogo?.id === asset.id ? null : asset)}
+                          data-testid={`logo-asset-${asset.id}`}
+                        >
+                          <div className="aspect-square bg-gray-100 dark:bg-gray-800 flex items-center justify-center p-2">
+                            <img
+                              src={asset.url}
+                              alt={asset.name}
+                              className="max-w-full max-h-full object-contain"
+                            />
+                          </div>
+                          <div className="absolute bottom-0 left-0 right-0 bg-black/70 text-white text-[10px] p-1 text-center truncate">
+                            {asset.name}
+                          </div>
+                          {asset.isDefault && (
+                            <Star className="absolute top-1 left-1 h-3 w-3 text-yellow-400 fill-yellow-400" />
+                          )}
+                          {selectedLogo?.id === asset.id && (
+                            <Check className="absolute top-1 right-1 h-4 w-4 text-blue-500 bg-white rounded-full p-0.5" />
+                          )}
+                          <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-6 w-6 p-0 bg-white/90 hover:bg-white"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setDefaultMutation.mutate({ id: asset.id, type: 'logo' });
+                              }}
+                              title="Set as default"
+                            >
+                              <Star className={`h-3 w-3 ${asset.isDefault ? 'text-yellow-500 fill-yellow-500' : 'text-gray-500'}`} />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-6 w-6 p-0 bg-white/90 hover:bg-red-50"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (confirm('Delete this logo?')) {
+                                  deleteAssetMutation.mutate(asset.id);
+                                }
+                              }}
+                              title="Delete"
+                            >
+                              <Trash2 className="h-3 w-3 text-red-500" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  
+                  {selectedLogo && (
+                    <div className="border-t pt-3 space-y-3">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id="enableWatermark"
+                          checked={logoSettings.enabled}
+                          onChange={(e) => setLogoSettings(prev => ({ ...prev, enabled: e.target.checked }))}
+                          className="rounded"
+                        />
+                        <Label htmlFor="enableWatermark" className="text-sm">
+                          Add "{selectedLogo.name}" as watermark
+                        </Label>
+                      </div>
+                      
+                      {logoSettings.enabled && (
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-1">
+                            <Label className="text-xs">Placement</Label>
+                            <Select
+                              value={logoSettings.placement}
+                              onValueChange={(v) => setLogoSettings(prev => ({ ...prev, placement: v }))}
+                            >
+                              <SelectTrigger className="h-8 text-xs">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="top-left">Top Left</SelectItem>
+                                <SelectItem value="top-right">Top Right</SelectItem>
+                                <SelectItem value="bottom-left">Bottom Left</SelectItem>
+                                <SelectItem value="bottom-right">Bottom Right</SelectItem>
+                                <SelectItem value="center">Center</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Opacity: {logoSettings.opacity}%</Label>
+                            <input
+                              type="range"
+                              min="10"
+                              max="100"
+                              value={logoSettings.opacity}
+                              onChange={(e) => setLogoSettings(prev => ({ ...prev, opacity: parseInt(e.target.value) }))}
+                              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700"
+                            />
+                          </div>
+                          <div className="col-span-2 space-y-1">
+                            <Label className="text-xs">Size: {logoSettings.size}% of video width</Label>
+                            <input
+                              type="range"
+                              min="5"
+                              max="30"
+                              value={logoSettings.size}
+                              onChange={(e) => setLogoSettings(prev => ({ ...prev, size: parseInt(e.target.value) }))}
+                              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </CardContent>
         </Card>
 

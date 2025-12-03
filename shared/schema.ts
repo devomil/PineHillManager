@@ -4881,3 +4881,34 @@ export type InsertUserMediaUpload = z.infer<typeof insertUserMediaUploadSchema>;
 
 export type ProductionLog = typeof productionLogs.$inferSelect;
 export type InsertProductionLog = z.infer<typeof insertProductionLogSchema>;
+
+// Brand Assets for Video Production (logos, watermarks, etc.)
+export const brandAssets = pgTable("brand_assets", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  type: varchar("type", { length: 50 }).notNull(), // logo, watermark, overlay, intro, outro
+  url: text("url").notNull(),
+  thumbnailUrl: text("thumbnail_url"),
+  width: integer("width"),
+  height: integer("height"),
+  fileSize: integer("file_size"),
+  mimeType: varchar("mime_type", { length: 100 }),
+  isDefault: boolean("is_default").default(false),
+  settings: jsonb("settings"), // placement, opacity, size, position, animation
+  uploadedBy: varchar("uploaded_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const brandAssetsRelations = relations(brandAssets, ({ one }) => ({
+  uploader: one(users, { fields: [brandAssets.uploadedBy], references: [users.id] }),
+}));
+
+export const insertBrandAssetSchema = createInsertSchema(brandAssets).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type BrandAsset = typeof brandAssets.$inferSelect;
+export type InsertBrandAsset = z.infer<typeof insertBrandAssetSchema>;

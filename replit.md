@@ -82,11 +82,32 @@ The marketing page (`/marketing`) includes an AI-orchestrated video production s
 
 ### Visual Directions Workflow
 After a script is entered or generated, users can click "Generate AI Visual Directions" to have Claude analyze the script and suggest specific visuals for each scene section (Hook, Problem, Solution, Social Proof, CTA). Features include:
-- **AI Analysis**: Claude analyzes script structure and suggests appropriate visuals for each section
+- **AI Analysis**: Claude analyzes script structure and suggests 2-3 alternative visual options per scene
+- **Multiple Alternatives**: Each scene offers 2-3 creative alternatives with different approaches, shot types, and moods
 - **Scene Breakdown**: Each section shows the script excerpt, suggested visual direction, shot type, mood, and motion notes
+- **Alternative Selection**: Users can select their preferred visual option for each scene via radio buttons
 - **Review Interface**: Users can review, edit, or regenerate suggestions before production starts
+- **Visual Constraint Enforcement**: Negative prompts from approved visual directions are extracted and passed to AI generators
 - **Approval Workflow**: Users must approve the visual plan before starting video production
 - **API Endpoint**: `POST /api/videos/ai-producer/suggest-visuals`
+
+### Brand Assets Library
+The AI Video Producer includes a collapsible Brand Assets Library for logo/watermark management:
+- **Asset Upload**: Upload brand logos (PNG, JPG, SVG) via the "Upload Logo" button
+- **Asset Management**: View, select, set as default, and delete uploaded brand assets
+- **Grid Display**: Logos displayed in a 3-column grid with thumbnails and selection indicators
+- **Default Asset**: Set a default logo that auto-selects when the component loads
+- **Watermark Configuration**: When a logo is selected, enable watermark overlay with:
+  - **Placement**: Top-left, top-right, bottom-left, bottom-right, or center
+  - **Opacity**: Adjustable from 10% to 100%
+  - **Size**: Adjustable from 5% to 30% of video width
+- **Production Integration**: Watermark settings are passed to the video assembly pipeline
+- **Database Schema**: `brand_assets` table stores asset metadata (name, type, url, thumbnailUrl, dimensions, settings)
+- **API Endpoints**: 
+  - `GET /api/brand-assets` - List all brand assets
+  - `POST /api/brand-assets/upload` - Upload new brand asset
+  - `PUT /api/brand-assets/:id` - Update asset settings
+  - `DELETE /api/brand-assets/:id` - Delete brand asset
 
 ### Quality Evaluation System
 The Evaluate phase includes enhanced quality checks:
