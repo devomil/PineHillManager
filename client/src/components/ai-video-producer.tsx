@@ -1642,14 +1642,27 @@ export default function AIVideoProducer() {
                         Select your preferred visual approach for each scene. Click an option to select it.
                       </p>
                       
+                      {/* Scene count indicator */}
+                      <div className="flex items-center justify-between text-xs text-purple-600 dark:text-purple-400 bg-purple-100 dark:bg-purple-900/40 p-2 rounded">
+                        <span><strong>{visualPlan.sections.length} scenes</strong> - Scroll down to see all scenes</span>
+                        <div className="flex items-center gap-1">
+                          <ChevronUp className="h-4 w-4" />
+                          <ChevronDown className="h-4 w-4" />
+                        </div>
+                      </div>
+                      
                       {visualPlan.directorNotes && (
                         <div className="text-xs text-purple-700 dark:text-purple-300 bg-purple-100 dark:bg-purple-900/40 p-2 rounded">
                           <strong>Director Notes:</strong> {visualPlan.directorNotes}
                         </div>
                       )}
                       
-                      <ScrollArea className="max-h-[60vh] min-h-[300px]">
-                        <div className="space-y-4 pr-4">
+                      {/* Scrollable scenes container with visible scrollbar */}
+                      <div 
+                        className="max-h-[50vh] min-h-[200px] overflow-y-auto border rounded-lg bg-white/50 dark:bg-gray-900/50 p-2"
+                        style={{ scrollbarWidth: 'thin', scrollbarColor: '#a855f7 #f3e8ff' }}
+                      >
+                        <div className="space-y-4 pr-1">
                           {visualPlan.sections.map((section, index) => (
                             <div
                               key={section.id}
@@ -1774,7 +1787,7 @@ export default function AIVideoProducer() {
                             </div>
                           ))}
                         </div>
-                      </ScrollArea>
+                      </div>
                       
                       <div className="flex gap-2 pt-2 border-t">
                         <Button
