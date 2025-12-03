@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Brain, Clapperboard, CheckCircle2, RefreshCw, Sparkles, Play, Pause, Download, Image, Video, Music, Mic, FileText, Package } from "lucide-react";
+import { Brain, Clapperboard, CheckCircle2, RefreshCw, Sparkles, Play, Pause, Download, Image, Video, Music, Mic, FileText, Package, Eye, Edit2, ChevronDown, ChevronUp, Check, X, Wand2 } from "lucide-react";
 import { 
   VideoProduction, 
   ProductionLog, 
@@ -55,6 +55,25 @@ interface ScriptFormData {
   style: "professional" | "casual" | "energetic" | "calm" | "cinematic" | "documentary";
 }
 
+interface VisualSection {
+  id: string;
+  name: string;
+  scriptContent: string;
+  visualDirection: string;
+  shotType: string;
+  mood: string;
+  motionNotes: string;
+  assetType: string;
+  searchKeywords: string[];
+}
+
+interface VisualPlan {
+  sections: VisualSection[];
+  overallStyle: string;
+  colorPalette: string[];
+  directorNotes: string;
+}
+
 export default function AIVideoProducer() {
   const [production, setProduction] = useState<VideoProduction | null>(null);
   const [isRunning, setIsRunning] = useState(false);
@@ -90,6 +109,12 @@ export default function AIVideoProducer() {
   const [isGeneratingScript, setIsGeneratingScript] = useState(false);
   const [showScriptGenerator, setShowScriptGenerator] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  
+  const [visualPlan, setVisualPlan] = useState<VisualPlan | null>(null);
+  const [isGeneratingVisuals, setIsGeneratingVisuals] = useState(false);
+  const [visualsApproved, setVisualsApproved] = useState(false);
+  const [editingSection, setEditingSection] = useState<string | null>(null);
+  const [showVisualPlanReview, setShowVisualPlanReview] = useState(false);
 
   useEffect(() => {
     logsEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -130,6 +155,77 @@ export default function AIVideoProducer() {
     } finally {
       setIsGeneratingScript(false);
     }
+  };
+
+  const generateVisualDirections = async () => {
+    if (!scriptFormData.script.trim()) return;
+    
+    setIsGeneratingVisuals(true);
+    setVisualsApproved(false);
+    setVisualPlan(null);
+    
+    try {
+      const response = await fetch("/api/videos/ai-producer/suggest-visuals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          script: scriptFormData.script,
+          title: scriptFormData.title,
+          style: scriptFormData.style,
+          platform: scriptFormData.platform,
+        }),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.visualPlan) {
+          setVisualPlan(result.visualPlan);
+          setShowVisualPlanReview(true);
+          
+          const combinedDirections = result.visualPlan.sections
+            .map((s: VisualSection) => s.visualDirection)
+            .join('\n');
+          setScriptFormData(prev => ({
+            ...prev,
+            visualDirections: combinedDirections,
+          }));
+        }
+      } else {
+        console.error("Failed to generate visual directions");
+      }
+    } catch (error) {
+      console.error("Visual direction generation error:", error);
+    } finally {
+      setIsGeneratingVisuals(false);
+    }
+  };
+
+  const updateSectionVisual = (sectionId: string, newVisual: string) => {
+    if (!visualPlan) return;
+    
+    setVisualPlan(prev => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        sections: prev.sections.map(s => 
+          s.id === sectionId ? { ...s, visualDirection: newVisual } : s
+        ),
+      };
+    });
+    
+    const combinedDirections = visualPlan.sections
+      .map(s => s.id === sectionId ? newVisual : s.visualDirection)
+      .join('\n');
+    setScriptFormData(prev => ({
+      ...prev,
+      visualDirections: combinedDirections,
+    }));
+  };
+
+  const approveVisualPlan = () => {
+    setVisualsApproved(true);
+    setShowVisualPlanReview(false);
+    setEditingSection(null);
   };
 
   const downloadVideo = async () => {
@@ -1128,19 +1224,184 @@ export default function AIVideoProducer() {
                   <p className="text-xs text-gray-500">Separate scenes with blank lines for automatic scene detection</p>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="visualDirections">Visual Directions (Optional)</Label>
-                  <Textarea
-                    id="visualDirections"
-                    data-testid="input-visual-directions"
-                    placeholder="One visual direction per line:&#10;Show farm landscape at sunrise&#10;Close-up of organic products&#10;Happy customers testimonial"
-                    value={scriptFormData.visualDirections}
-                    onChange={(e) => setScriptFormData(prev => ({ ...prev, visualDirections: e.target.value }))}
-                    disabled={isRunning}
-                    rows={4}
-                    className="font-mono text-sm"
-                  />
-                  <p className="text-xs text-gray-500">One direction per line, matching each scene</p>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label>Visual Directions</Label>
+                    {visualsApproved && (
+                      <Badge className="bg-green-500 text-white">
+                        <Check className="h-3 w-3 mr-1" />
+                        Approved
+                      </Badge>
+                    )}
+                  </div>
+                  
+                  {!showVisualPlanReview && !visualPlan && (
+                    <div className="space-y-2">
+                      <Button
+                        variant="outline"
+                        className="w-full border-purple-300 text-purple-700 hover:bg-purple-50 dark:border-purple-600 dark:text-purple-300 dark:hover:bg-purple-900/30"
+                        onClick={generateVisualDirections}
+                        disabled={isRunning || isGeneratingVisuals || !scriptFormData.script.trim()}
+                        data-testid="button-generate-visuals"
+                      >
+                        {isGeneratingVisuals ? (
+                          <>
+                            <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                            AI Analyzing Script...
+                          </>
+                        ) : (
+                          <>
+                            <Wand2 className="mr-2 h-4 w-4" />
+                            Generate AI Visual Directions
+                          </>
+                        )}
+                      </Button>
+                      <p className="text-xs text-gray-500 text-center">
+                        AI will analyze your script and suggest visuals for each scene
+                      </p>
+                    </div>
+                  )}
+                  
+                  {showVisualPlanReview && visualPlan && (
+                    <div className="border rounded-lg bg-gradient-to-br from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 p-4 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-semibold text-purple-800 dark:text-purple-200 flex items-center gap-2">
+                          <Eye className="h-4 w-4" />
+                          Review Visual Plan
+                        </h4>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={generateVisualDirections}
+                            disabled={isGeneratingVisuals}
+                            title="Regenerate all suggestions"
+                          >
+                            <RefreshCw className={`h-4 w-4 ${isGeneratingVisuals ? 'animate-spin' : ''}`} />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setShowVisualPlanReview(false);
+                              setVisualPlan(null);
+                              setVisualsApproved(false);
+                            }}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                      
+                      {visualPlan.directorNotes && (
+                        <div className="text-xs text-purple-700 dark:text-purple-300 bg-purple-100 dark:bg-purple-900/40 p-2 rounded">
+                          <strong>Director Notes:</strong> {visualPlan.directorNotes}
+                        </div>
+                      )}
+                      
+                      <ScrollArea className="max-h-[300px]">
+                        <div className="space-y-3 pr-3">
+                          {visualPlan.sections.map((section, index) => (
+                            <div
+                              key={section.id}
+                              className="bg-white dark:bg-gray-800 rounded-lg p-3 border shadow-sm"
+                            >
+                              <div className="flex items-start justify-between mb-2">
+                                <div className="flex items-center gap-2">
+                                  <Badge variant="outline" className="text-xs">
+                                    {index + 1}. {section.name}
+                                  </Badge>
+                                  <Badge className="text-xs bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">
+                                    {section.shotType}
+                                  </Badge>
+                                  <Badge className="text-xs bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300">
+                                    {section.mood}
+                                  </Badge>
+                                </div>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 w-6 p-0"
+                                  onClick={() => setEditingSection(editingSection === section.id ? null : section.id)}
+                                >
+                                  <Edit2 className="h-3 w-3" />
+                                </Button>
+                              </div>
+                              
+                              <p className="text-xs text-gray-500 dark:text-gray-400 mb-2 italic">
+                                "{section.scriptContent.substring(0, 100)}..."
+                              </p>
+                              
+                              {editingSection === section.id ? (
+                                <div className="space-y-2">
+                                  <Textarea
+                                    value={section.visualDirection}
+                                    onChange={(e) => updateSectionVisual(section.id, e.target.value)}
+                                    rows={2}
+                                    className="text-sm"
+                                    data-testid={`textarea-visual-${section.id}`}
+                                  />
+                                  <Button
+                                    size="sm"
+                                    onClick={() => setEditingSection(null)}
+                                    className="bg-green-600 hover:bg-green-700"
+                                  >
+                                    <Check className="h-3 w-3 mr-1" />
+                                    Done
+                                  </Button>
+                                </div>
+                              ) : (
+                                <p className="text-sm text-gray-800 dark:text-gray-200">
+                                  {section.visualDirection}
+                                </p>
+                              )}
+                              
+                              {section.motionNotes && (
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                                  <strong>Motion:</strong> {section.motionNotes}
+                                </p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </ScrollArea>
+                      
+                      <div className="flex gap-2 pt-2 border-t">
+                        <Button
+                          className="flex-1 bg-green-600 hover:bg-green-700"
+                          onClick={approveVisualPlan}
+                          data-testid="button-approve-visuals"
+                        >
+                          <Check className="mr-2 h-4 w-4" />
+                          Approve & Continue
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {visualsApproved && visualPlan && !showVisualPlanReview && (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
+                        <span>{visualPlan.sections.length} scenes planned</span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setShowVisualPlanReview(true)}
+                          className="text-purple-600 hover:text-purple-800"
+                        >
+                          <Eye className="h-4 w-4 mr-1" />
+                          Review
+                        </Button>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {visualPlan.sections.map((s, i) => (
+                          <Badge key={s.id} variant="secondary" className="text-xs">
+                            {i + 1}. {s.name}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
