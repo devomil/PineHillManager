@@ -55,3 +55,36 @@ The Chart of Accounts currently shows $0 for "Sales Tax Payable" and minimal val
 -   **Accounting Integrations**: QuickBooks, Clover POS, Amazon Store API, HSA Providers, Thrive Inventory
 -   **Content Generation**: Hugging Face API
 -   **SMS Service**: Twilio API
+-   **AI Video Production**: fal.ai (LongCat-Video, Wan 2.2), ElevenLabs (voiceover), Pexels/Pixabay/Unsplash (stock media)
+
+## AI Video Production System
+
+The marketing page (`/marketing`) includes an AI-orchestrated video production system for creating TV-quality promotional videos.
+
+### Video Generation Priority Chain
+1. **fal.ai** (Primary - highest quality):
+   - LongCat-Video (13.6B params, 720p@30fps, minutes-long videos)
+   - LongCat-Video-Distilled (faster variant)
+   - Wan 2.2 A14B (MoE architecture, cinematic quality)
+   - Wan 2.2 5B (efficient, runs on consumer GPUs)
+2. **Runway Gen-4** (if API key configured)
+3. **Hugging Face** (ModelScope, Zeroscope text-to-video models)
+4. **Stock B-roll** (Pexels, Pixabay fallback)
+
+### Image Generation Priority Chain
+1. **fal.ai** (Primary - FLUX models):
+   - FLUX Pro 1.1 (highest quality)
+   - FLUX Dev
+   - FLUX Schnell (fastest)
+2. **Stability AI** (if API key valid)
+3. **Hugging Face** (SDXL via router.huggingface.co)
+4. **Stock images** (Pexels, Unsplash, Pixabay)
+
+### Required Environment Variables
+- `FAL_KEY` - fal.ai API key for LongCat-Video, Wan 2.2, and FLUX models
+- `ELEVENLABS_API_KEY` - ElevenLabs for voiceover generation
+- `HUGGINGFACE_API_TOKEN` - Hugging Face for backup image/video generation
+- `PEXELS_API_KEY`, `PIXABAY_API_KEY`, `UNSPLASH_ACCESS_KEY` - Stock media APIs
+
+### API Endpoint Changes
+- Hugging Face now uses `router.huggingface.co` (deprecated: `api-inference.huggingface.co`)

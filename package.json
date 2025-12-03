@@ -16,6 +16,7 @@
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@elevenlabs/elevenlabs-js": "^2.9.0",
+    "@fal-ai/client": "^1.7.2",
     "@ffmpeg/ffmpeg": "^0.12.15",
     "@ffmpeg/util": "^0.12.2",
     "@google-cloud/storage": "^7.17.2",

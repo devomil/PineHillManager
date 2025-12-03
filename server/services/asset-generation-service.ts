@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { fal } from "@fal-ai/client";
 
 export interface GeneratedAsset {
   id: string;
@@ -218,6 +219,10 @@ class AssetGenerationService {
   }
 
   async generateAIImage(prompt: string): Promise<ImageSearchResult | null> {
+    // Try fal.ai first (FLUX models - highest quality)
+    const falImage = await this.generateImageWithFal(prompt);
+    if (falImage) return falImage;
+    
     const stabilityKey = process.env.STABILITY_API_KEY;
     
     if (stabilityKey) {
@@ -460,6 +465,96 @@ class AssetGenerationService {
     console.log("[AssetService] All Hugging Face models failed");
     return null;
   }
+  
+  private async generateImageWithFal(prompt: string): Promise<ImageSearchResult | null> {
+    const falKey = process.env.FAL_KEY;
+    if (!falKey) {
+      console.log("[AssetService] No FAL_KEY configured, skipping fal.ai image generation");
+      return null;
+    }
+
+    // Configure fal.ai client
+    fal.config({ credentials: falKey });
+
+    // Enhanced prompt for TV-quality output
+    const enhancedPrompt = `${prompt}, professional photography, high resolution, 8k, cinematic lighting, commercial quality, sharp focus, award-winning`;
+    
+    // FLUX models priority: FLUX Pro → FLUX Dev → FLUX Schnell
+    const models = [
+      {
+        id: "fal-ai/flux-pro/v1.1",
+        name: "FLUX-Pro-1.1",
+        params: { 
+          prompt: enhancedPrompt,
+          image_size: { width: 1024, height: 1024 },
+          num_inference_steps: 28,
+          guidance_scale: 3.5
+        }
+      },
+      {
+        id: "fal-ai/flux/dev",
+        name: "FLUX-Dev",
+        params: { 
+          prompt: enhancedPrompt,
+          image_size: { width: 1024, height: 1024 },
+          num_inference_steps: 28
+        }
+      },
+      {
+        id: "fal-ai/flux/schnell",
+        name: "FLUX-Schnell",
+        params: { 
+          prompt: enhancedPrompt,
+          image_size: { width: 1024, height: 1024 },
+          num_inference_steps: 4
+        }
+      }
+    ];
+
+    for (const model of models) {
+      try {
+        console.log(`[AssetService] Generating image with fal.ai ${model.name}...`);
+        
+        const result = await fal.subscribe(model.id, {
+          input: model.params,
+          logs: false
+        }) as any;
+
+        // Handle different response structures
+        const imageUrl = result?.data?.images?.[0]?.url || 
+                        result?.images?.[0]?.url || 
+                        result?.data?.image?.url ||
+                        result?.image?.url;
+                        
+        if (imageUrl) {
+          console.log(`[AssetService] ${model.name} generated image successfully`);
+          
+          return {
+            id: `fal_${model.name.toLowerCase().replace(/[^a-z0-9]/g, "_")}_${Date.now()}`,
+            url: imageUrl,
+            thumbnailUrl: imageUrl,
+            width: 1024,
+            height: 1024,
+            source: `fal_${model.name}`,
+          };
+        }
+      } catch (e: any) {
+        const errorMessage = e.message || String(e);
+        if (errorMessage.includes("payment") || errorMessage.includes("quota") || errorMessage.includes("billing")) {
+          console.warn(`[AssetService] ${model.name} billing issue, trying next model...`);
+          continue;
+        }
+        if (errorMessage.includes("unavailable") || errorMessage.includes("not found")) {
+          console.warn(`[AssetService] ${model.name} unavailable, trying next model...`);
+          continue;
+        }
+        console.warn(`[AssetService] ${model.name} error:`, errorMessage.substring(0, 200));
+      }
+    }
+    
+    console.log("[AssetService] All fal.ai image models failed");
+    return null;
+  }
 
   async generateAIImageWithFallback(prompt: string, searchQuery: string): Promise<ImageSearchResult | null> {
     const stabilityKey = process.env.STABILITY_API_KEY;
@@ -615,6 +710,10 @@ class AssetGenerationService {
   }
 
   async generateAIVideo(prompt: string, duration: number = 4): Promise<VideoSearchResult | null> {
+    // Try fal.ai first - highest quality video generation (LongCat-Video, Wan 2.2)
+    const falVideo = await this.generateVideoWithFal(prompt, duration);
+    if (falVideo) return falVideo;
+    
     const runwayKey = process.env.RUNWAY_API_KEY;
     
     if (runwayKey) {
@@ -667,6 +766,113 @@ class AssetGenerationService {
     console.log("[AssetService] Falling back to stock B-roll for video");
     const stockVideos = await this.searchStockVideos(prompt, 1);
     return stockVideos[0] || null;
+  }
+  
+  private async generateVideoWithFal(prompt: string, duration: number): Promise<VideoSearchResult | null> {
+    const falKey = process.env.FAL_KEY;
+    if (!falKey) {
+      console.log("[AssetService] No FAL_KEY configured, skipping fal.ai video generation");
+      return null;
+    }
+
+    // Configure fal.ai client
+    fal.config({ credentials: falKey });
+
+    // Enhanced prompt for cinematic quality
+    const enhancedPrompt = `${prompt}, cinematic quality, professional lighting, smooth camera motion, high definition, 4K quality`;
+    
+    // Number of frames based on duration (30fps for LongCat, 24fps for Wan)
+    const numFrames = Math.min(duration * 30, 150); // Max ~5 seconds for LongCat
+
+    // Model priority: LongCat-Video (best quality) → Wan 2.2 A14B → Wan 2.2 5B
+    const models = [
+      {
+        id: "fal-ai/longcat-video/text-to-video/720p",
+        name: "LongCat-Video",
+        params: { prompt: enhancedPrompt, num_frames: numFrames },
+        width: 1280,
+        height: 720,
+        fps: 30
+      },
+      {
+        id: "fal-ai/longcat-video/distilled/text-to-video/720p",
+        name: "LongCat-Video-Distilled",
+        params: { prompt: enhancedPrompt, num_frames: numFrames },
+        width: 1280,
+        height: 720,
+        fps: 30
+      },
+      {
+        id: "fal-ai/wan/v2.2-a14b/text-to-video",
+        name: "Wan2.2-A14B",
+        params: { 
+          prompt: enhancedPrompt,
+          negative_prompt: "blurry, low quality, distorted, watermark, text overlay",
+          num_frames: Math.min(duration * 24, 81)  // Wan uses 24fps, max ~3.4s
+        },
+        width: 1280,
+        height: 720,
+        fps: 24
+      },
+      {
+        id: "fal-ai/wan/v2.2-5b/text-to-video",
+        name: "Wan2.2-5B",
+        params: { 
+          prompt: enhancedPrompt,
+          negative_prompt: "blurry, low quality, distorted, watermark"
+        },
+        width: 1280,
+        height: 704,
+        fps: 24
+      }
+    ];
+
+    for (const model of models) {
+      try {
+        console.log(`[AssetService] Generating video with fal.ai ${model.name}...`);
+        
+        const result = await fal.subscribe(model.id, {
+          input: model.params,
+          logs: false,
+          onQueueUpdate: (update: any) => {
+            if (update.status === "IN_PROGRESS") {
+              console.log(`[AssetService] ${model.name} progress: ${update.logs?.length || 0} logs`);
+            }
+          }
+        }) as any;
+
+        if (result?.data?.video?.url || result?.video?.url) {
+          const videoUrl = result?.data?.video?.url || result?.video?.url;
+          console.log(`[AssetService] ${model.name} generated video successfully`);
+          
+          return {
+            id: `fal_${model.name.toLowerCase().replace(/[^a-z0-9]/g, "_")}_${Date.now()}`,
+            url: videoUrl,
+            thumbnailUrl: "",
+            duration: duration,
+            width: model.width,
+            height: model.height,
+            source: `fal_${model.name}`,
+          };
+        }
+      } catch (e: any) {
+        const errorMessage = e.message || String(e);
+        // Skip to next model on payment/quota errors
+        if (errorMessage.includes("payment") || errorMessage.includes("quota") || errorMessage.includes("billing")) {
+          console.warn(`[AssetService] ${model.name} billing issue, trying next model...`);
+          continue;
+        }
+        // Skip on model unavailable errors
+        if (errorMessage.includes("unavailable") || errorMessage.includes("not found") || errorMessage.includes("404")) {
+          console.warn(`[AssetService] ${model.name} unavailable, trying next model...`);
+          continue;
+        }
+        console.warn(`[AssetService] ${model.name} error:`, errorMessage.substring(0, 200));
+      }
+    }
+    
+    console.log("[AssetService] All fal.ai video models failed");
+    return null;
   }
   
   private async generateVideoWithHuggingFace(prompt: string, duration: number): Promise<VideoSearchResult | null> {
