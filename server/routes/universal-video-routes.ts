@@ -40,15 +40,55 @@ const scriptVideoInputSchema = z.object({
 });
 
 const videoProjects: Map<string, VideoProject> = new Map();
+const projectMetadata: Map<string, { 
+  ownerId: string; 
+  renderId?: string; 
+  bucketName?: string; 
+  outputUrl?: string; 
+}> = new Map();
+
+router.get('/projects', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = (req.user as any)?.id;
+    if (!userId) {
+      return res.status(401).json({ success: false, error: 'Unauthorized' });
+    }
+    
+    const userProjects: VideoProject[] = [];
+    for (const [projectId, project] of videoProjects.entries()) {
+      const metadata = projectMetadata.get(projectId);
+      if (metadata?.ownerId === userId) {
+        const projectWithMeta = {
+          ...project,
+          renderId: metadata.renderId,
+          bucketName: metadata.bucketName,
+          outputUrl: metadata.outputUrl,
+        };
+        userProjects.push(projectWithMeta);
+      }
+    }
+    
+    userProjects.sort((a, b) => 
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+    
+    res.json({ success: true, projects: userProjects });
+  } catch (error: any) {
+    console.error('[UniversalVideo] Error listing projects:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
 
 router.post('/projects/product', isAuthenticated, async (req: Request, res: Response) => {
   try {
+    const userId = (req.user as any)?.id;
     const validatedInput = productVideoInputSchema.parse(req.body);
     
     console.log('[UniversalVideo] Creating product video project:', validatedInput.productName);
     
     const project = await universalVideoService.createProductVideoProject(validatedInput);
     videoProjects.set(project.id, project);
+    projectMetadata.set(project.id, { ownerId: userId });
     
     res.json({
       success: true,
@@ -73,6 +113,7 @@ router.post('/projects/product', isAuthenticated, async (req: Request, res: Resp
 
 router.post('/projects/script', isAuthenticated, async (req: Request, res: Response) => {
   try {
+    const userId = (req.user as any)?.id;
     const validatedInput = scriptVideoInputSchema.parse(req.body);
     
     console.log('[UniversalVideo] Parsing script for:', validatedInput.title);
@@ -117,6 +158,7 @@ router.post('/projects/script', isAuthenticated, async (req: Request, res: Respo
     };
     
     videoProjects.set(project.id, project);
+    projectMetadata.set(project.id, { ownerId: userId });
     
     res.json({
       success: true,
@@ -148,7 +190,15 @@ router.get('/projects/:projectId', isAuthenticated, async (req: Request, res: Re
       return res.status(404).json({ success: false, error: 'Project not found' });
     }
     
-    res.json({ success: true, project });
+    const metadata = projectMetadata.get(projectId);
+    const projectWithMeta = {
+      ...project,
+      renderId: metadata?.renderId,
+      bucketName: metadata?.bucketName,
+      outputUrl: metadata?.outputUrl,
+    };
+    
+    res.json({ success: true, project: projectWithMeta });
   } catch (error: any) {
     console.error('[UniversalVideo] Error getting project:', error);
     res.status(500).json({ success: false, error: error.message });
@@ -257,6 +307,13 @@ router.post('/projects/:projectId/render', isAuthenticated, async (req: Request,
       project.progress.steps.rendering.message = `Render started: ${renderResult.renderId}`;
       videoProjects.set(projectId, project);
       
+      const existingMeta = projectMetadata.get(projectId) || { ownerId: (req.user as any)?.id };
+      projectMetadata.set(projectId, {
+        ...existingMeta,
+        renderId: renderResult.renderId,
+        bucketName: renderResult.bucketName,
+      });
+      
       res.json({
         success: true,
         renderId: renderResult.renderId,
@@ -316,6 +373,14 @@ router.get('/projects/:projectId/render-status', isAuthenticated, async (req: Re
         project.progress.overallPercent = 100;
         project.updatedAt = new Date().toISOString();
         videoProjects.set(projectId, project);
+        
+        if (statusResult.outputFile) {
+          const existingMeta = projectMetadata.get(projectId) || { ownerId: (req.user as any)?.id };
+          projectMetadata.set(projectId, {
+            ...existingMeta,
+            outputUrl: statusResult.outputFile,
+          });
+        }
       } else {
         project.progress.steps.rendering.progress = Math.round(statusResult.overallProgress * 100);
         project.progress.overallPercent = 85 + Math.round(statusResult.overallProgress * 15);

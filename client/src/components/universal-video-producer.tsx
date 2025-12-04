@@ -14,11 +14,13 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { 
   Video, Package, FileText, Play, Sparkles, AlertTriangle,
   CheckCircle, Clock, Loader2, ImageIcon, Volume2, Clapperboard,
-  Download, RefreshCw, Settings, ChevronDown, ChevronUp, Upload, X, Star
+  Download, RefreshCw, Settings, ChevronDown, ChevronUp, Upload, X, Star,
+  FolderOpen, Plus, Eye
 } from "lucide-react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { formatDistanceToNow } from "date-fns";
 
 interface ProductImage {
   id: string;
@@ -786,8 +788,147 @@ function ScenePreview({ scenes, assets }: { scenes: Scene[]; assets: VideoProjec
   );
 }
 
+interface ProjectWithMeta extends VideoProject {
+  renderId?: string;
+  bucketName?: string;
+  outputUrl?: string;
+}
+
+function ProjectsList({ onSelectProject, onCreateNew }: { 
+  onSelectProject: (project: ProjectWithMeta) => void; 
+  onCreateNew: () => void;
+}) {
+  const { data: projectsData, isLoading } = useQuery({
+    queryKey: ['/api/universal-video/projects'],
+  });
+
+  const projects: ProjectWithMeta[] = projectsData?.projects || [];
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'complete':
+        return <Badge className="bg-green-500"><CheckCircle className="w-3 h-3 mr-1" /> Complete</Badge>;
+      case 'rendering':
+        return <Badge className="bg-blue-500"><Loader2 className="w-3 h-3 mr-1 animate-spin" /> Rendering</Badge>;
+      case 'ready':
+        return <Badge className="bg-yellow-500"><Play className="w-3 h-3 mr-1" /> Ready to Render</Badge>;
+      case 'generating':
+        return <Badge className="bg-purple-500"><Sparkles className="w-3 h-3 mr-1" /> Generating</Badge>;
+      case 'error':
+        return <Badge variant="destructive"><AlertTriangle className="w-3 h-3 mr-1" /> Error</Badge>;
+      default:
+        return <Badge variant="outline"><Clock className="w-3 h-3 mr-1" /> {status}</Badge>;
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-lg font-semibold">My Video Projects</h3>
+        <Button onClick={onCreateNew} data-testid="button-create-new-project">
+          <Plus className="w-4 h-4 mr-2" /> New Project
+        </Button>
+      </div>
+
+      {projects.length === 0 ? (
+        <Card className="p-8 text-center">
+          <Video className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+          <p className="text-muted-foreground mb-4">You don't have any video projects yet.</p>
+          <Button onClick={onCreateNew}>Create Your First Video</Button>
+        </Card>
+      ) : (
+        <div className="grid gap-4">
+          {projects.map((project) => (
+            <Card 
+              key={project.id} 
+              className="hover:border-primary/50 transition-colors cursor-pointer"
+              onClick={() => onSelectProject(project)}
+              data-testid={`card-project-${project.id}`}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base">{project.title}</CardTitle>
+                  {getStatusBadge(project.status)}
+                </div>
+                <CardDescription className="text-xs">
+                  Created {formatDistanceToNow(new Date(project.createdAt), { addSuffix: true })}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                  <span className="flex items-center gap-1">
+                    <Clapperboard className="w-4 h-4" />
+                    {project.scenes.length} scenes
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <Clock className="w-4 h-4" />
+                    {Math.round(project.totalDuration)}s
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <Video className="w-4 h-4" />
+                    {project.outputFormat.aspectRatio}
+                  </span>
+                </div>
+                
+                {project.status === 'complete' && project.outputUrl && (
+                  <div className="mt-3 flex gap-2">
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        window.open(project.outputUrl, '_blank');
+                      }}
+                      data-testid={`button-download-${project.id}`}
+                    >
+                      <Download className="w-4 h-4 mr-1" /> Download
+                    </Button>
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onSelectProject(project);
+                      }}
+                      data-testid={`button-view-${project.id}`}
+                    >
+                      <Eye className="w-4 h-4 mr-1" /> View
+                    </Button>
+                  </div>
+                )}
+
+                {project.status === 'rendering' && project.renderId && (
+                  <div className="mt-3">
+                    <div className="flex items-center gap-2 text-sm">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Rendering in progress...</span>
+                    </div>
+                    <Progress value={project.progress.steps.rendering?.progress || 0} className="mt-2" />
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+type ViewMode = 'list' | 'create' | 'edit';
+
 export default function UniversalVideoProducer() {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [workflowType, setWorkflowType] = useState<WorkflowType>("product");
   const [project, setProject] = useState<VideoProject | null>(null);
   const [renderId, setRenderId] = useState<string | null>(null);
@@ -802,6 +943,7 @@ export default function UniversalVideoProducer() {
     onSuccess: (data) => {
       if (data.success) {
         setProject(data.project);
+        setViewMode('edit');
         toast({
           title: "Project Created",
           description: `Generated ${data.project.scenes.length} scenes for your video.`,
@@ -825,6 +967,7 @@ export default function UniversalVideoProducer() {
     onSuccess: (data) => {
       if (data.success) {
         setProject(data.project);
+        setViewMode('edit');
         toast({
           title: "Script Parsed",
           description: `Identified ${data.project.scenes.length} scenes from your script.`,
@@ -938,6 +1081,33 @@ export default function UniversalVideoProducer() {
     setRenderId(null);
     setBucketName(null);
     setOutputUrl(null);
+    setViewMode('list');
+    queryClient.invalidateQueries({ queryKey: ['/api/universal-video/projects'] });
+  };
+
+  const handleSelectProject = (selectedProject: ProjectWithMeta) => {
+    setProject(selectedProject);
+    setRenderId(selectedProject.renderId || null);
+    setBucketName(selectedProject.bucketName || null);
+    setOutputUrl(selectedProject.outputUrl || null);
+    setViewMode('edit');
+    
+    if (selectedProject.status === 'rendering' && selectedProject.renderId && selectedProject.bucketName) {
+      pollRenderStatus(selectedProject.renderId, selectedProject.bucketName);
+    }
+  };
+
+  const handleCreateNew = () => {
+    setProject(null);
+    setRenderId(null);
+    setBucketName(null);
+    setOutputUrl(null);
+    setViewMode('create');
+  };
+
+  const handleBackToList = () => {
+    setViewMode('list');
+    queryClient.invalidateQueries({ queryKey: ['/api/universal-video/projects'] });
   };
 
   return (
@@ -954,16 +1124,26 @@ export default function UniversalVideoProducer() {
                 Create professional marketing videos using AI-powered generation
               </CardDescription>
             </div>
-            {project && (
-              <Button variant="outline" onClick={resetProject} data-testid="button-new-project">
-                <RefreshCw className="w-4 h-4 mr-2" />
-                New Project
-              </Button>
-            )}
+            <div className="flex gap-2">
+              {viewMode !== 'list' && (
+                <Button variant="outline" onClick={handleBackToList} data-testid="button-back-to-projects">
+                  <FolderOpen className="w-4 h-4 mr-2" />
+                  My Projects
+                </Button>
+              )}
+              {project && (
+                <Button variant="outline" onClick={handleCreateNew} data-testid="button-new-project">
+                  <Plus className="w-4 h-4 mr-2" />
+                  New Project
+                </Button>
+              )}
+            </div>
           </div>
         </CardHeader>
         <CardContent>
-          {!project ? (
+          {viewMode === 'list' ? (
+            <ProjectsList onSelectProject={handleSelectProject} onCreateNew={handleCreateNew} />
+          ) : !project ? (
             <Tabs value={workflowType} onValueChange={(v) => setWorkflowType(v as WorkflowType)}>
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="product" data-testid="tab-product">
