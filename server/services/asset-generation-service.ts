@@ -741,54 +741,13 @@ class AssetGenerationService {
   }
 
   async generateAIVideo(prompt: string, duration: number = 4): Promise<VideoSearchResult | null> {
-    // Try fal.ai first - highest quality video generation (LongCat-Video, Wan 2.2)
+    // Try fal.ai first - highest quality video generation
     const falVideo = await this.generateVideoWithFal(prompt, duration);
     if (falVideo) return falVideo;
     
-    const runwayKey = process.env.RUNWAY_API_KEY;
-    
-    if (runwayKey) {
-      try {
-        console.log("[AssetService] Generating video with Runway:", prompt.substring(0, 50));
-        
-        const response = await fetch("https://api.dev.runwayml.com/v1/image_to_video", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${runwayKey}`,
-            "X-Runway-Version": "2024-11-06",
-          },
-          body: JSON.stringify({
-            promptText: prompt,
-            model: "gen3a_turbo",
-            duration: Math.min(duration, 10),
-          }),
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          if (data.id) {
-            const videoUrl = await this.pollRunwayTask(data.id, runwayKey);
-            if (videoUrl) {
-              return {
-                id: `runway_${data.id}`,
-                url: videoUrl,
-                thumbnailUrl: "",
-                duration: duration,
-                width: 1280,
-                height: 768,
-                source: "runway",
-              };
-            }
-          }
-        } else {
-          const errorText = await response.text();
-          console.warn("[AssetService] Runway API error:", response.status, errorText.substring(0, 200));
-        }
-      } catch (e) {
-        console.warn("[AssetService] Runway error:", e);
-      }
-    }
+    // Try Runway Gen-3 Alpha Turbo (text-to-video)
+    const runwayVideo = await this.generateVideoWithRunway(prompt, duration);
+    if (runwayVideo) return runwayVideo;
 
     // Try Hugging Face text-to-video models
     const hfVideo = await this.generateVideoWithHuggingFace(prompt, duration);
@@ -797,6 +756,113 @@ class AssetGenerationService {
     console.log("[AssetService] Falling back to stock B-roll for video");
     const stockVideos = await this.searchStockVideos(prompt, 1);
     return stockVideos[0] || null;
+  }
+  
+  private async generateVideoWithRunway(prompt: string, duration: number): Promise<VideoSearchResult | null> {
+    const runwayKey = process.env.RUNWAY_API_KEY;
+    if (!runwayKey) {
+      console.log("[AssetService] No RUNWAY_API_KEY configured, skipping Runway video generation");
+      return null;
+    }
+    
+    try {
+      console.log("[AssetService] Generating video with Runway Gen-3:", prompt.substring(0, 50));
+      
+      // Runway Gen-3 Alpha Turbo text-to-video endpoint
+      const response = await fetch("https://api.dev.runwayml.com/v1/text_to_video", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${runwayKey}`,
+          "X-Runway-Version": "2024-11-06",
+        },
+        body: JSON.stringify({
+          text_prompt: prompt,
+          model: "gen3a_turbo",
+          duration: Math.min(duration, 10),
+          ratio: "16:9",
+          watermark: false
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log("[AssetService] Runway task created:", data.id);
+        if (data.id) {
+          const videoUrl = await this.pollRunwayTask(data.id, runwayKey);
+          if (videoUrl) {
+            return {
+              id: `runway_${data.id}`,
+              url: videoUrl,
+              thumbnailUrl: "",
+              duration: duration,
+              width: 1280,
+              height: 720,
+              source: "runway",
+            };
+          }
+        }
+      } else {
+        const errorText = await response.text();
+        console.warn("[AssetService] Runway API error:", response.status, errorText.substring(0, 300));
+        
+        // If text_to_video endpoint doesn't exist, try generate endpoint
+        if (response.status === 404 || errorText.includes("not found")) {
+          return await this.generateVideoWithRunwayGenerate(prompt, duration, runwayKey);
+        }
+      }
+    } catch (e) {
+      console.warn("[AssetService] Runway error:", e);
+    }
+    
+    return null;
+  }
+  
+  private async generateVideoWithRunwayGenerate(prompt: string, duration: number, runwayKey: string): Promise<VideoSearchResult | null> {
+    try {
+      console.log("[AssetService] Trying Runway /generate endpoint...");
+      
+      // Alternative Runway endpoint format
+      const response = await fetch("https://api.dev.runwayml.com/v1/generate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${runwayKey}`,
+          "X-Runway-Version": "2024-11-06",
+        },
+        body: JSON.stringify({
+          prompt: prompt,
+          model: "gen3a_turbo",
+          seconds: Math.min(duration, 10),
+          aspect_ratio: "16:9"
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.id) {
+          const videoUrl = await this.pollRunwayTask(data.id, runwayKey);
+          if (videoUrl) {
+            return {
+              id: `runway_${data.id}`,
+              url: videoUrl,
+              thumbnailUrl: "",
+              duration: duration,
+              width: 1280,
+              height: 720,
+              source: "runway",
+            };
+          }
+        }
+      } else {
+        const errorText = await response.text();
+        console.warn("[AssetService] Runway /generate error:", response.status, errorText.substring(0, 200));
+      }
+    } catch (e) {
+      console.warn("[AssetService] Runway /generate error:", e);
+    }
+    
+    return null;
   }
   
   private async generateVideoWithFal(prompt: string, duration: number): Promise<VideoSearchResult | null> {
@@ -812,49 +878,79 @@ class AssetGenerationService {
     // Enhanced prompt for cinematic quality
     const enhancedPrompt = `${prompt}, cinematic quality, professional lighting, smooth camera motion, high definition, 4K quality`;
     
-    // Number of frames based on duration (30fps for LongCat, 24fps for Wan)
-    const numFrames = Math.min(duration * 30, 150); // Max ~5 seconds for LongCat
+    // Number of frames based on duration
+    const numFrames = Math.min(duration * 24, 120);
 
-    // Model priority: LongCat-Video (best quality) → Wan 2.2 A14B → Wan 2.2 5B
+    // Model priority: Try multiple fal.ai video models in order of quality/availability
     const models = [
       {
-        id: "fal-ai/longcat-video/text-to-video/720p",
-        name: "LongCat-Video",
-        params: { prompt: enhancedPrompt, num_frames: numFrames },
-        width: 1280,
-        height: 720,
-        fps: 30
-      },
-      {
-        id: "fal-ai/longcat-video/distilled/text-to-video/720p",
-        name: "LongCat-Video-Distilled",
-        params: { prompt: enhancedPrompt, num_frames: numFrames },
-        width: 1280,
-        height: 720,
-        fps: 30
-      },
-      {
-        id: "fal-ai/wan/v2.2-a14b/text-to-video",
-        name: "Wan2.2-A14B",
+        id: "fal-ai/minimax-video/text-to-video",
+        name: "MiniMax-Video",
         params: { 
           prompt: enhancedPrompt,
-          negative_prompt: "blurry, low quality, distorted, watermark, text overlay",
-          num_frames: Math.min(duration * 24, 81)  // Wan uses 24fps, max ~3.4s
+          prompt_optimizer: true
+        },
+        width: 1280,
+        height: 720,
+        fps: 25
+      },
+      {
+        id: "fal-ai/kling-video/v1.5/pro/text-to-video",
+        name: "Kling-v1.5-Pro",
+        params: { 
+          prompt: enhancedPrompt,
+          duration: duration <= 5 ? "5" : "10",
+          aspect_ratio: "16:9"
+        },
+        width: 1920,
+        height: 1080,
+        fps: 30
+      },
+      {
+        id: "fal-ai/kling-video/v1/standard/text-to-video",
+        name: "Kling-v1-Standard",
+        params: { 
+          prompt: enhancedPrompt,
+          duration: "5",
+          aspect_ratio: "16:9"
+        },
+        width: 1280,
+        height: 720,
+        fps: 30
+      },
+      {
+        id: "fal-ai/luma-dream-machine",
+        name: "Luma-Dream-Machine",
+        params: { 
+          prompt: enhancedPrompt,
+          aspect_ratio: "16:9"
+        },
+        width: 1360,
+        height: 752,
+        fps: 24
+      },
+      {
+        id: "fal-ai/hunyuan-video",
+        name: "Hunyuan-Video",
+        params: { 
+          prompt: enhancedPrompt,
+          resolution: "720p",
+          num_frames: numFrames
         },
         width: 1280,
         height: 720,
         fps: 24
       },
       {
-        id: "fal-ai/wan/v2.2-5b/text-to-video",
-        name: "Wan2.2-5B",
+        id: "fal-ai/cogvideox-5b",
+        name: "CogVideoX-5B",
         params: { 
           prompt: enhancedPrompt,
-          negative_prompt: "blurry, low quality, distorted, watermark"
+          num_frames: Math.min(numFrames, 49)
         },
-        width: 1280,
-        height: 704,
-        fps: 24
+        width: 720,
+        height: 480,
+        fps: 8
       }
     ];
 
@@ -872,9 +968,28 @@ class AssetGenerationService {
           }
         }) as any;
 
-        if (result?.data?.video?.url || result?.video?.url) {
-          const videoUrl = result?.data?.video?.url || result?.video?.url;
-          console.log(`[AssetService] ${model.name} generated video successfully`);
+        // Handle different response formats from various fal.ai models
+        let videoUrl: string | null = null;
+        
+        // Try various paths where video URL might be
+        if (result?.data?.video?.url) {
+          videoUrl = result.data.video.url;
+        } else if (result?.video?.url) {
+          videoUrl = result.video.url;
+        } else if (result?.data?.video) {
+          videoUrl = result.data.video;
+        } else if (result?.video) {
+          videoUrl = typeof result.video === 'string' ? result.video : result.video.url;
+        } else if (result?.data?.output?.url) {
+          videoUrl = result.data.output.url;
+        } else if (result?.output?.url) {
+          videoUrl = result.output.url;
+        } else if (result?.url) {
+          videoUrl = result.url;
+        }
+        
+        if (videoUrl) {
+          console.log(`[AssetService] ${model.name} generated video successfully: ${videoUrl.substring(0, 100)}`);
           
           return {
             id: `fal_${model.name.toLowerCase().replace(/[^a-z0-9]/g, "_")}_${Date.now()}`,
@@ -885,12 +1000,15 @@ class AssetGenerationService {
             height: model.height,
             source: `fal_${model.name}`,
           };
+        } else {
+          console.warn(`[AssetService] ${model.name} returned no video URL. Response keys:`, Object.keys(result || {}));
         }
       } catch (e: any) {
         const errorMessage = e.message || String(e);
-        // Skip to next model on payment/quota errors
-        if (errorMessage.includes("payment") || errorMessage.includes("quota") || errorMessage.includes("billing")) {
-          console.warn(`[AssetService] ${model.name} billing issue, trying next model...`);
+        // Skip to next model on payment/quota/forbidden errors
+        if (errorMessage.includes("payment") || errorMessage.includes("quota") || errorMessage.includes("billing") || 
+            errorMessage.includes("Forbidden") || errorMessage.includes("403")) {
+          console.warn(`[AssetService] ${model.name} access issue (billing/forbidden), trying next model...`);
           continue;
         }
         // Skip on model unavailable errors
@@ -916,17 +1034,28 @@ class AssetGenerationService {
     // Enhanced prompt for better video quality
     const enhancedPrompt = `${prompt}, cinematic, high quality, smooth motion, professional video`;
     
-    // Available text-to-video models on Hugging Face (using new router API)
+    // Available text-to-video models on Hugging Face
     const videoModels = [
+      {
+        id: "ByteDance/AnimateDiff-Lightning",
+        name: "AnimateDiff-Lightning",
+        timeout: 180000,
+        width: 512,
+        height: 512
+      },
+      {
+        id: "stabilityai/stable-video-diffusion-img2vid-xt",
+        name: "SVD-XT",
+        timeout: 180000,
+        width: 1024,
+        height: 576
+      },
       {
         id: "ali-vilab/text-to-video-ms-1.7b",
         name: "ModelScope",
-        timeout: 180000  // 3 minutes - video generation takes longer
-      },
-      {
-        id: "cerspense/zeroscope_v2_576w",
-        name: "Zeroscope",
-        timeout: 120000
+        timeout: 180000,
+        width: 256,
+        height: 256
       }
     ];
 
@@ -975,8 +1104,8 @@ class AssetGenerationService {
               url: `data:video/mp4;base64,${base64}`,
               thumbnailUrl: "",
               duration: duration,
-              width: 576,
-              height: 320,
+              width: model.width,
+              height: model.height,
               source: `huggingface_${model.name}`,
             };
           } else if (contentType.includes("application/json")) {
