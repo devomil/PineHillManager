@@ -15271,7 +15271,7 @@ Respond in JSON format:
       const { assetGenerationService } = await import('./services/asset-generation-service');
       
       let prompt: string;
-      let searchQuery: string;
+      let searchQuery: string = "";
       let negativePrompt: string = "";
       
       // Parse visual direction for constraints (negative prompts)
@@ -15292,6 +15292,10 @@ Respond in JSON format:
         if (vdLower.includes('no text') || vdLower.includes('without text')) {
           negativeConstraints.push('text', 'words', 'letters', 'typography');
         }
+        
+        // IMPORTANT: Use visual direction directly for stock image search
+        // Extract key visual concepts from the visual direction itself
+        searchQuery = extractVisualSearchTerms(visualDirection, sceneContent || '', productName);
         if (vdLower.includes('no logo') || vdLower.includes('without logo')) {
           negativeConstraints.push('logo', 'branding', 'watermark');
         }
@@ -15312,11 +15316,14 @@ Respond in JSON format:
         
         prompt = `${visualDirection}, ${shotVariation}${shotTypeText}${moodText}professional ${style} photography, cinematic lighting, high quality, 8k`;
         
-        // Create a focused search query for stock images (fallback)
-        const keywords = extractRelevantKeywords(sceneContent || visualDirection, productName);
-        searchQuery = keywords.searchQuery;
+        // searchQuery was already set from extractVisualSearchTerms in the visualDirection block above
+        // Only update if it wasn't set yet (shouldn't happen, but just in case)
+        if (!searchQuery) {
+          searchQuery = extractVisualSearchTerms(visualDirection, sceneContent || '', productName);
+        }
         
         console.log(`[AI Producer] Scene ${sceneIndex}: Using visual direction: "${visualDirection.substring(0, 60)}..."`);
+        console.log(`[AI Producer] Scene ${sceneIndex}: Stock search query: "${searchQuery}"`);
       } else if (section.startsWith('scene_') && sceneContent) {
         const keywords = extractRelevantKeywords(sceneContent, productName);
         prompt = `${keywords.imagePrompt}, professional ${style} photography, cinematic lighting, high quality`;
@@ -15450,6 +15457,107 @@ Respond in JSON format:
     const searchQuery = searchTerms.slice(0, 3).join(' ');
     
     return { imagePrompt, searchQuery };
+  }
+  
+  // Helper function to extract visual-specific search terms from visual directions
+  // This creates stock-image-friendly search queries based on the actual visual description
+  function extractVisualSearchTerms(visualDirection: string, sceneContent: string, productName: string): string {
+    const vd = visualDirection.toLowerCase();
+    const sc = sceneContent.toLowerCase();
+    const combined = vd + ' ' + sc;
+    
+    const searchTerms: string[] = [];
+    
+    // Visual metaphors and concepts - look for actual visual descriptions
+    if (vd.includes('tree') || vd.includes('roots') || vd.includes('growing')) {
+      searchTerms.push('tree growth nature');
+    }
+    if (vd.includes('butterfly') || vd.includes('cocoon') || vd.includes('transformation')) {
+      searchTerms.push('butterfly transformation nature');
+    }
+    if (vd.includes('fire') || vd.includes('burning') || vd.includes('flame')) {
+      searchTerms.push('fire flames burning');
+    }
+    if (vd.includes('house') || vd.includes('building') || vd.includes('home')) {
+      searchTerms.push('house home building');
+    }
+    if (vd.includes('dna') || vd.includes('helix') || vd.includes('genetic')) {
+      searchTerms.push('dna science medical');
+    }
+    if (vd.includes('molecule') || vd.includes('cell') || vd.includes('scientific')) {
+      searchTerms.push('science molecules medical research');
+    }
+    if (vd.includes('toxin') || vd.includes('pathogen') || vd.includes('bacteria')) {
+      searchTerms.push('medical microscopic science');
+    }
+    if (vd.includes('key') || vd.includes('unlock') || vd.includes('vault')) {
+      searchTerms.push('key unlock security');
+    }
+    if (vd.includes('scale') || vd.includes('balance') || vd.includes('measuring')) {
+      searchTerms.push('balance scale measure');
+    }
+    if (vd.includes('liver') || vd.includes('kidney') || vd.includes('organ')) {
+      searchTerms.push('medical health anatomy');
+    }
+    if (vd.includes('detox') || vd.includes('cleanse') || vd.includes('purif')) {
+      searchTerms.push('detox cleanse wellness spa');
+    }
+    if (vd.includes('farm') || vd.includes('organic') || vd.includes('natural')) {
+      searchTerms.push('organic farm natural wellness');
+    }
+    if (vd.includes('scan') || vd.includes('technology') || vd.includes('fda') || vd.includes('medical device')) {
+      searchTerms.push('medical technology healthcare');
+    }
+    if (vd.includes('supplement') || vd.includes('vitamin') || vd.includes('capsule')) {
+      searchTerms.push('supplements vitamins natural health');
+    }
+    if (vd.includes('person') || vd.includes('woman') || vd.includes('man') || vd.includes('people')) {
+      if (vd.includes('stressed') || vd.includes('tired') || vd.includes('exhausted')) {
+        searchTerms.push('tired stressed person wellness');
+      } else if (vd.includes('happy') || vd.includes('healthy') || vd.includes('vibrant')) {
+        searchTerms.push('happy healthy person wellness');
+      } else {
+        searchTerms.push('wellness lifestyle person');
+      }
+    }
+    if (vd.includes('weight') || vd.includes('scale') || vd.includes('body')) {
+      searchTerms.push('healthy body wellness fitness');
+    }
+    if (vd.includes('food') || vd.includes('meal') || vd.includes('nutrition') || vd.includes('eating')) {
+      searchTerms.push('healthy food nutrition meal');
+    }
+    if (vd.includes('heal') || vd.includes('recovery') || vd.includes('wellness')) {
+      searchTerms.push('healing wellness recovery health');
+    }
+    if (vd.includes('journey') || vd.includes('path') || vd.includes('road')) {
+      searchTerms.push('journey path nature peaceful');
+    }
+    
+    // Scene content fallback terms
+    if (searchTerms.length === 0) {
+      if (sc.includes('weight') || sc.includes('calorie')) {
+        searchTerms.push('healthy lifestyle wellness');
+      }
+      if (sc.includes('detox') || sc.includes('toxin')) {
+        searchTerms.push('detox cleanse natural');
+      }
+      if (sc.includes('heal') || sc.includes('body')) {
+        searchTerms.push('wellness healing health');
+      }
+    }
+    
+    // If still nothing, use product name + wellness
+    if (searchTerms.length === 0) {
+      if (productName.toLowerCase().includes('pine hill') || productName.toLowerCase().includes('farm')) {
+        searchTerms.push('organic farm wellness natural');
+      } else {
+        searchTerms.push(productName + ' wellness health');
+      }
+    }
+    
+    // Join and limit length
+    const result = searchTerms.join(' ').substring(0, 80);
+    return result;
   }
 
   // AI Producer: Generate video clip for section

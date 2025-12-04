@@ -712,32 +712,63 @@ class AssetGenerationService {
   }
   
   private enhanceSearchQueryForTV(query: string): string {
-    // Transform generic health keywords into specific, TV-quality image searches
-    const enhancements: Record<string, string> = {
-      "wellness healthy lifestyle": "professional woman healthy lifestyle studio portrait",
-      "healthy weight loss": "fitness transformation success portrait professional",
-      "holistic wellness": "wellness spa meditation professional photography",
-      "healthy eating nutrition": "healthy meal preparation chef kitchen professional",
-      "mind body wellness": "yoga meditation peaceful professional photography",
-      "fitness transformation": "fitness success before after professional portrait",
-      "natural health": "natural supplements wellness professional product photography",
-      "weight management": "healthy lifestyle fitness professional portrait",
-    };
-    
-    // Check for matching patterns
+    // Keep the original query essence but make it more search-friendly
+    // DO NOT replace with unrelated generic terms
     const lowerQuery = query.toLowerCase();
-    for (const [pattern, enhanced] of Object.entries(enhancements)) {
-      if (lowerQuery.includes(pattern) || pattern.includes(lowerQuery)) {
-        return enhanced;
-      }
+    
+    // Extract meaningful concepts without replacing them
+    const concepts: string[] = [];
+    
+    // Health and wellness concepts - keep specific to query
+    if (lowerQuery.includes('detox') || lowerQuery.includes('toxin')) {
+      concepts.push('detox cleanse natural health');
+    }
+    if (lowerQuery.includes('heal') || lowerQuery.includes('healing')) {
+      concepts.push('healing wellness recovery');
+    }
+    if (lowerQuery.includes('weight loss') || lowerQuery.includes('metabolism')) {
+      concepts.push('healthy lifestyle nutrition wellness');
+    }
+    if (lowerQuery.includes('liver') || lowerQuery.includes('kidney')) {
+      concepts.push('organ health medical wellness');
+    }
+    if (lowerQuery.includes('inflammation')) {
+      concepts.push('anti-inflammatory health wellness');
+    }
+    if (lowerQuery.includes('farm') || lowerQuery.includes('pine hill')) {
+      concepts.push('organic farm natural products wellness');
+    }
+    if (lowerQuery.includes('bioscan') || lowerQuery.includes('scan') || lowerQuery.includes('technology')) {
+      concepts.push('medical technology health scan diagnostic');
+    }
+    if (lowerQuery.includes('supplement') || lowerQuery.includes('natural')) {
+      concepts.push('natural supplements herbal medicine');
+    }
+    if (lowerQuery.includes('calorie') || lowerQuery.includes('diet')) {
+      concepts.push('healthy diet nutrition food');
+    }
+    if (lowerQuery.includes('hormone') || lowerQuery.includes('lab test')) {
+      concepts.push('medical testing hormone health');
     }
     
-    // Add professional photography terms to make results more TV-quality
-    if (!query.includes("professional") && !query.includes("studio")) {
-      return `${query} professional photography studio`;
+    // If we found relevant concepts, use them
+    if (concepts.length > 0) {
+      return concepts.join(' ').substring(0, 100);
     }
     
-    return query;
+    // Fallback: clean up the query but keep it intact
+    // Remove AI-specific terms that won't work for stock search
+    let cleanQuery = query
+      .replace(/cinematic|8k|high quality|professional photography|dramatic lighting/gi, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    
+    // Keep it concise but meaningful
+    if (cleanQuery.length > 80) {
+      cleanQuery = cleanQuery.substring(0, 80);
+    }
+    
+    return cleanQuery || 'wellness health lifestyle';
   }
 
   async generateAIVideo(prompt: string, duration: number = 4): Promise<VideoSearchResult | null> {
