@@ -440,11 +440,12 @@ router.post('/upload-url', isAuthenticated, async (req: Request, res: Response) 
     }
     
     console.log('[UniversalVideo] Getting presigned upload URL for user:', userId);
-    const uploadUrl = await objectStorageService.getObjectEntityUploadURL(userId);
+    const { uploadUrl, objectPath } = await objectStorageService.getObjectEntityUploadURL(userId);
     
     res.json({
       success: true,
       uploadUrl,
+      objectPath,
       message: 'Upload URL generated. Use PUT request to upload image.',
     });
   } catch (error: any) {
@@ -456,7 +457,7 @@ router.post('/upload-url', isAuthenticated, async (req: Request, res: Response) 
 router.post('/projects/:projectId/product-images', isAuthenticated, async (req: Request, res: Response) => {
   try {
     const { projectId } = req.params;
-    const { imageUrl, name, description, isPrimary } = req.body;
+    const { objectPath, name, description, isPrimary } = req.body;
     
     const project = videoProjects.get(projectId);
     if (!project) {
@@ -468,7 +469,7 @@ router.post('/projects/:projectId/product-images', isAuthenticated, async (req: 
       return res.status(401).json({ success: false, error: 'User ID required' });
     }
     
-    const normalizedPath = objectStorageService.normalizeObjectEntityPath(imageUrl);
+    const normalizedPath = objectStorageService.normalizeObjectEntityPath(objectPath);
     
     if (!objectStorageService.verifyPresignedUpload(normalizedPath, userId)) {
       console.warn('[UniversalVideo] Upload verification failed, allowing anyway for flexibility');

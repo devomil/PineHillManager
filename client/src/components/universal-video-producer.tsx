@@ -112,6 +112,21 @@ const STEP_ICONS: Record<string, any> = {
   rendering: Play,
 };
 
+function getImageDisplayUrl(image: ProductImage): string {
+  if (image._blobUrl) return image._blobUrl;
+  if (!image.url) return '';
+  
+  const url = image.url;
+  
+  if (url.startsWith('http')) return url;
+  
+  let normalizedPath = url.startsWith('/') ? url : `/${url}`;
+  
+  if (normalizedPath.startsWith('/objects')) return normalizedPath;
+  
+  return `/objects${normalizedPath}`;
+}
+
 function ProductImageUpload({
   projectId,
   images,
@@ -131,7 +146,11 @@ function ProductImageUpload({
 
     setIsUploading(true);
     
-    for (const file of Array.from(files)) {
+    const newImages: ProductImage[] = [];
+    const startingCount = images.length;
+    
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
       try {
         const uploadUrlRes = await apiRequest("POST", "/api/universal-video/upload-url");
         const uploadUrlData = await uploadUrlRes.json();
@@ -154,27 +173,24 @@ function ProductImageUpload({
 
         if (projectId) {
           const addImageRes = await apiRequest("POST", `/api/universal-video/projects/${projectId}/product-images`, {
-            imageUrl: uploadUrlData.uploadUrl,
+            objectPath: uploadUrlData.objectPath,
             name: file.name,
-            isPrimary: images.length === 0,
+            isPrimary: startingCount + newImages.length === 0,
           });
           const addImageData = await addImageRes.json();
           
           if (addImageData.success) {
-            onImagesChange([...images, addImageData.image]);
-            toast({
-              title: "Image Uploaded",
-              description: `${file.name} has been added to your project.`,
-            });
+            newImages.push(addImageData.image);
           }
         } else {
           const tempImage: ProductImage = {
             id: `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-            url: URL.createObjectURL(file),
+            url: uploadUrlData.objectPath,
             name: file.name,
-            isPrimary: images.length === 0,
+            isPrimary: startingCount + newImages.length === 0,
+            _blobUrl: URL.createObjectURL(file),
           };
-          onImagesChange([...images, tempImage]);
+          newImages.push(tempImage);
         }
       } catch (error: any) {
         toast({
@@ -183,6 +199,14 @@ function ProductImageUpload({
           variant: "destructive",
         });
       }
+    }
+
+    if (newImages.length > 0) {
+      onImagesChange([...images, ...newImages]);
+      toast({
+        title: "Images Uploaded",
+        description: `${newImages.length} image${newImages.length > 1 ? 's' : ''} added successfully.`,
+      });
     }
 
     setIsUploading(false);
@@ -255,7 +279,7 @@ function ProductImageUpload({
             className="relative group aspect-square rounded-lg overflow-hidden border bg-muted"
           >
             <img
-              src={image.url.startsWith('blob:') ? image.url : `/objects${image.url}`}
+              src={getImageDisplayUrl(image)}
               alt={image.name}
               className="w-full h-full object-cover"
             />

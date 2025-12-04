@@ -177,6 +177,7 @@ export interface ProductImage {
   name: string;
   description?: string;
   isPrimary?: boolean;
+  _blobUrl?: string;
 }
 
 export interface ProductVideoInput {

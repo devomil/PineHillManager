@@ -145,7 +145,7 @@ export class ObjectStorageService {
   }
 
   // Gets the upload URL for an object entity.
-  async getObjectEntityUploadURL(userId: string): Promise<string> {
+  async getObjectEntityUploadURL(userId: string): Promise<{ uploadUrl: string; objectPath: string }> {
     const privateObjectDir = this.getPrivateObjectDir();
     if (!privateObjectDir) {
       throw new Error(
@@ -167,12 +167,17 @@ export class ObjectStorageService {
     });
 
     // Sign URL for PUT method with TTL
-    return signObjectURL({
+    const uploadUrl = await signObjectURL({
       bucketName,
       objectName,
       method: "PUT",
       ttlSec,
     });
+
+    return {
+      uploadUrl,
+      objectPath: fullPath,
+    };
   }
 
   // Verifies that the object was presigned for the given userId
