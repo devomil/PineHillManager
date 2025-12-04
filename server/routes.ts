@@ -16569,6 +16569,189 @@ Respond in JSON format:
     }
   });
 
+  // ================================
+  // REMOTION LAMBDA VIDEO RENDERING
+  // ================================
+
+  // Check Remotion Lambda status
+  app.get('/api/remotion/status', isAuthenticated, async (req, res) => {
+    try {
+      const { remotionLambdaService } = await import('./services/remotion-lambda-service');
+      
+      const isConfigured = await remotionLambdaService.isConfigured();
+      if (!isConfigured) {
+        return res.json({
+          configured: false,
+          deployed: false,
+          message: 'AWS credentials not configured'
+        });
+      }
+
+      const status = await remotionLambdaService.getDeploymentStatus();
+      
+      res.json({
+        configured: true,
+        deployed: status.deployed,
+        functionName: status.functionName,
+        bucketName: status.bucketName,
+        serveUrl: status.serveUrl
+      });
+    } catch (error) {
+      console.error('[Remotion Lambda] Status check error:', error);
+      res.status(500).json({ error: 'Failed to check Remotion Lambda status' });
+    }
+  });
+
+  // Deploy Remotion Lambda function
+  app.post('/api/remotion/deploy', isAuthenticated, requireRole(['admin']), async (req, res) => {
+    try {
+      const { remotionLambdaService } = await import('./services/remotion-lambda-service');
+      
+      console.log('[Remotion Lambda] Starting deployment...');
+      const result = await remotionLambdaService.deploy();
+      
+      res.json({
+        success: true,
+        functionName: result.functionName,
+        bucketName: result.bucketName,
+        serveUrl: result.serveUrl
+      });
+    } catch (error) {
+      console.error('[Remotion Lambda] Deployment error:', error);
+      res.status(500).json({ 
+        error: 'Failed to deploy Remotion Lambda',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  // Start a render on Remotion Lambda
+  app.post('/api/remotion/render', isAuthenticated, requireRole(['admin', 'manager']), async (req, res) => {
+    try {
+      const { remotionLambdaService } = await import('./services/remotion-lambda-service');
+      
+      const { 
+        compositionId = 'MarketingVideo',
+        scenes,
+        voiceoverUrl,
+        musicUrl,
+        watermark,
+        productName,
+        style,
+        codec = 'h264'
+      } = req.body;
+
+      if (!scenes || !Array.isArray(scenes)) {
+        return res.status(400).json({ error: 'Scenes array is required' });
+      }
+
+      console.log(`[Remotion Lambda] Starting render for ${compositionId} with ${scenes.length} scenes`);
+
+      const result = await remotionLambdaService.startRender({
+        compositionId,
+        inputProps: {
+          scenes,
+          voiceoverUrl: voiceoverUrl || null,
+          musicUrl: musicUrl || null,
+          watermark: watermark || null,
+          productName: productName || 'Product',
+          style: style || 'professional'
+        },
+        codec: codec as 'h264' | 'h265' | 'vp8' | 'vp9'
+      });
+
+      res.json({
+        success: true,
+        renderId: result.renderId,
+        bucketName: result.bucketName
+      });
+    } catch (error) {
+      console.error('[Remotion Lambda] Render start error:', error);
+      res.status(500).json({ 
+        error: 'Failed to start render',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  // Check render progress
+  app.get('/api/remotion/render/:renderId', isAuthenticated, async (req, res) => {
+    try {
+      const { remotionLambdaService } = await import('./services/remotion-lambda-service');
+      
+      const { renderId } = req.params;
+      const { bucketName } = req.query;
+
+      if (!bucketName || typeof bucketName !== 'string') {
+        return res.status(400).json({ error: 'bucketName query parameter is required' });
+      }
+
+      const progress = await remotionLambdaService.getRenderProgress(renderId, bucketName);
+
+      res.json({
+        renderId,
+        progress: Math.round(progress.overallProgress * 100),
+        done: progress.done,
+        outputFile: progress.outputFile,
+        errors: progress.errors
+      });
+    } catch (error) {
+      console.error('[Remotion Lambda] Progress check error:', error);
+      res.status(500).json({ 
+        error: 'Failed to get render progress',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  // Render and wait for completion (blocking)
+  app.post('/api/remotion/render-sync', isAuthenticated, requireRole(['admin', 'manager']), async (req, res) => {
+    try {
+      const { remotionLambdaService } = await import('./services/remotion-lambda-service');
+      
+      const { 
+        compositionId = 'MarketingVideo',
+        scenes,
+        voiceoverUrl,
+        musicUrl,
+        watermark,
+        productName,
+        style,
+        codec = 'h264'
+      } = req.body;
+
+      if (!scenes || !Array.isArray(scenes)) {
+        return res.status(400).json({ error: 'Scenes array is required' });
+      }
+
+      console.log(`[Remotion Lambda] Starting sync render for ${compositionId}...`);
+
+      const outputUrl = await remotionLambdaService.renderVideo({
+        compositionId,
+        inputProps: {
+          scenes,
+          voiceoverUrl: voiceoverUrl || null,
+          musicUrl: musicUrl || null,
+          watermark: watermark || null,
+          productName: productName || 'Product',
+          style: style || 'professional'
+        },
+        codec: codec as 'h264' | 'h265' | 'vp8' | 'vp9'
+      });
+
+      res.json({
+        success: true,
+        outputUrl
+      });
+    } catch (error) {
+      console.error('[Remotion Lambda] Sync render error:', error);
+      res.status(500).json({ 
+        error: 'Failed to render video',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
   // AI Producer: Run full production workflow
   app.post('/api/videos/ai-producer/full-production', isAuthenticated, async (req, res) => {
     try {
