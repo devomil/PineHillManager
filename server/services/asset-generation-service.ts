@@ -1294,7 +1294,7 @@ class AssetGenerationService {
   async searchElevenLabsVoices(
     search?: string,
     category?: string,
-    pageSize: number = 20
+    pageSize: number = 30
   ): Promise<{
     voices: Array<{
       voice_id: string;
@@ -1303,6 +1303,10 @@ class AssetGenerationService {
       description: string;
       preview_url: string;
       labels: Record<string, string>;
+      accent?: string;
+      age?: string;
+      gender?: string;
+      use_case?: string;
     }>;
     has_more: boolean;
   } | null> {
@@ -1314,44 +1318,69 @@ class AssetGenerationService {
     }
 
     try {
-      const params = new URLSearchParams();
-      params.set('page_size', String(pageSize));
-      params.set('include_total_count', 'false');
+      console.log("[AssetService] Fetching ElevenLabs voices...");
       
-      if (search) params.set('search', search);
-      if (category) params.set('category', category);
-      
+      // Use the correct ElevenLabs API endpoint - /v1/voices returns all available voices
       const response = await fetch(
-        `https://api.elevenlabs.io/v1/voices/search?${params.toString()}`,
+        `https://api.elevenlabs.io/v1/voices`,
         {
           headers: {
             "xi-api-key": elevenLabsKey,
+            "Content-Type": "application/json",
           },
         }
       );
 
       if (response.ok) {
         const data = await response.json();
-        console.log(`[AssetService] Found ${data.voices?.length || 0} voices`);
+        let voices = data.voices || [];
+        
+        console.log(`[AssetService] Retrieved ${voices.length} total voices from ElevenLabs`);
+        
+        // Apply search filter if provided
+        if (search) {
+          const searchLower = search.toLowerCase();
+          voices = voices.filter((v: any) => {
+            const nameMatch = v.name?.toLowerCase().includes(searchLower);
+            const descMatch = v.description?.toLowerCase().includes(searchLower);
+            const labelMatch = Object.values(v.labels || {}).some(
+              (label: any) => String(label).toLowerCase().includes(searchLower)
+            );
+            return nameMatch || descMatch || labelMatch;
+          });
+          console.log(`[AssetService] Filtered to ${voices.length} voices matching "${search}"`);
+        }
+        
+        // Apply category filter if provided
+        if (category) {
+          voices = voices.filter((v: any) => v.category === category);
+        }
+        
+        // Limit results
+        const limitedVoices = voices.slice(0, pageSize);
         
         return {
-          voices: (data.voices || []).map((v: any) => ({
+          voices: limitedVoices.map((v: any) => ({
             voice_id: v.voice_id,
             name: v.name,
-            category: v.category || 'unknown',
+            category: v.category || 'premade',
             description: v.description || '',
             preview_url: v.preview_url || '',
             labels: v.labels || {},
+            accent: v.labels?.accent || '',
+            age: v.labels?.age || '',
+            gender: v.labels?.gender || '',
+            use_case: v.labels?.use_case || v.labels?.['use case'] || '',
           })),
-          has_more: data.has_more || false,
+          has_more: voices.length > pageSize,
         };
       } else {
         const errorText = await response.text();
-        console.error("[AssetService] Voice search failed:", response.status, errorText);
+        console.error("[AssetService] Voice fetch failed:", response.status, errorText);
         return null;
       }
     } catch (e) {
-      console.error("[AssetService] Voice search error:", e);
+      console.error("[AssetService] Voice fetch error:", e);
       return null;
     }
   }

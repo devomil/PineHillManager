@@ -53,6 +53,10 @@ interface ElevenLabsVoice {
   description: string;
   preview_url: string;
   labels: Record<string, string>;
+  accent?: string;
+  age?: string;
+  gender?: string;
+  use_case?: string;
 }
 
 interface ScriptFormData {
