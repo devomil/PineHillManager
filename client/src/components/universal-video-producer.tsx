@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,11 +14,19 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { 
   Video, Package, FileText, Play, Sparkles, AlertTriangle,
   CheckCircle, Clock, Loader2, ImageIcon, Volume2, Clapperboard,
-  Download, RefreshCw, Settings, ChevronDown, ChevronUp
+  Download, RefreshCw, Settings, ChevronDown, ChevronUp, Upload, X, Star
 } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+
+interface ProductImage {
+  id: string;
+  url: string;
+  name: string;
+  description?: string;
+  isPrimary?: boolean;
+}
 
 type WorkflowType = "product" | "script";
 type ProjectStatus = "draft" | "generating" | "ready" | "rendering" | "complete" | "error";
@@ -40,6 +48,8 @@ interface Scene {
     imageUrl?: string;
     videoUrl?: string;
     voiceoverUrl?: string;
+    useAIImage?: boolean;
+    assignedProductImageId?: string;
   };
 }
 
@@ -70,6 +80,7 @@ interface VideoProject {
     music: { url: string; duration: number; volume: number };
     images: { sceneId: string; url: string }[];
     videos: { sceneId: string; url: string }[];
+    productImages: ProductImage[];
   };
 }
 
@@ -101,11 +112,206 @@ const STEP_ICONS: Record<string, any> = {
   rendering: Play,
 };
 
+function ProductImageUpload({
+  projectId,
+  images,
+  onImagesChange,
+}: {
+  projectId: string | null;
+  images: ProductImage[];
+  onImagesChange: (images: ProductImage[]) => void;
+}) {
+  const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isUploading, setIsUploading] = useState(false);
+
+  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+
+    setIsUploading(true);
+    
+    for (const file of Array.from(files)) {
+      try {
+        const uploadUrlRes = await apiRequest("POST", "/api/universal-video/upload-url");
+        const uploadUrlData = await uploadUrlRes.json();
+        
+        if (!uploadUrlData.success) {
+          throw new Error(uploadUrlData.error || "Failed to get upload URL");
+        }
+
+        const uploadResponse = await fetch(uploadUrlData.uploadUrl, {
+          method: "PUT",
+          body: file,
+          headers: {
+            "Content-Type": file.type,
+          },
+        });
+
+        if (!uploadResponse.ok) {
+          throw new Error("Failed to upload file");
+        }
+
+        if (projectId) {
+          const addImageRes = await apiRequest("POST", `/api/universal-video/projects/${projectId}/product-images`, {
+            imageUrl: uploadUrlData.uploadUrl,
+            name: file.name,
+            isPrimary: images.length === 0,
+          });
+          const addImageData = await addImageRes.json();
+          
+          if (addImageData.success) {
+            onImagesChange([...images, addImageData.image]);
+            toast({
+              title: "Image Uploaded",
+              description: `${file.name} has been added to your project.`,
+            });
+          }
+        } else {
+          const tempImage: ProductImage = {
+            id: `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            url: URL.createObjectURL(file),
+            name: file.name,
+            isPrimary: images.length === 0,
+          };
+          onImagesChange([...images, tempImage]);
+        }
+      } catch (error: any) {
+        toast({
+          title: "Upload Failed",
+          description: error.message,
+          variant: "destructive",
+        });
+      }
+    }
+
+    setIsUploading(false);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  const removeImage = async (imageId: string) => {
+    if (projectId) {
+      try {
+        const res = await apiRequest("DELETE", `/api/universal-video/projects/${projectId}/product-images/${imageId}`);
+        const data = await res.json();
+        if (!data.success) {
+          throw new Error(data.error);
+        }
+      } catch (error: any) {
+        toast({
+          title: "Delete Failed",
+          description: error.message,
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+    
+    const newImages = images.filter(img => img.id !== imageId);
+    if (images.find(img => img.id === imageId)?.isPrimary && newImages.length > 0) {
+      newImages[0].isPrimary = true;
+    }
+    onImagesChange(newImages);
+  };
+
+  const setPrimary = (imageId: string) => {
+    const newImages = images.map(img => ({
+      ...img,
+      isPrimary: img.id === imageId,
+    }));
+    onImagesChange(newImages);
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <Label>Product Images (Optional)</Label>
+        <Badge variant="outline" className="text-xs">
+          {images.length} image{images.length !== 1 ? 's' : ''} uploaded
+        </Badge>
+      </div>
+      
+      <p className="text-sm text-muted-foreground">
+        Upload photos of your product. These will be used in scenes where your product appears. 
+        AI will generate lifestyle imagery for other scenes.
+      </p>
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        onChange={handleFileSelect}
+        className="hidden"
+        data-testid="input-product-images"
+      />
+      
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {images.map((image) => (
+          <div 
+            key={image.id} 
+            className="relative group aspect-square rounded-lg overflow-hidden border bg-muted"
+          >
+            <img
+              src={image.url.startsWith('blob:') ? image.url : `/objects${image.url}`}
+              alt={image.name}
+              className="w-full h-full object-cover"
+            />
+            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-8 w-8 text-white hover:text-yellow-400"
+                onClick={() => setPrimary(image.id)}
+                data-testid={`button-set-primary-${image.id}`}
+              >
+                <Star className={`w-4 h-4 ${image.isPrimary ? 'fill-yellow-400 text-yellow-400' : ''}`} />
+              </Button>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-8 w-8 text-white hover:text-red-400"
+                onClick={() => removeImage(image.id)}
+                data-testid={`button-remove-image-${image.id}`}
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+            {image.isPrimary && (
+              <Badge className="absolute top-1 left-1 text-xs bg-yellow-500">
+                Primary
+              </Badge>
+            )}
+          </div>
+        ))}
+        
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          disabled={isUploading}
+          className="aspect-square rounded-lg border-2 border-dashed border-muted-foreground/30 hover:border-primary/50 transition-colors flex flex-col items-center justify-center gap-2 text-muted-foreground hover:text-primary"
+          data-testid="button-upload-image"
+        >
+          {isUploading ? (
+            <Loader2 className="w-6 h-6 animate-spin" />
+          ) : (
+            <>
+              <Upload className="w-6 h-6" />
+              <span className="text-xs">Add Image</span>
+            </>
+          )}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function ProductVideoForm({ 
   onSubmit, 
   isLoading 
 }: { 
-  onSubmit: (data: ProductFormData) => void;
+  onSubmit: (data: ProductFormData & { productImages?: ProductImage[] }) => void;
   isLoading: boolean;
 }) {
   const [formData, setFormData] = useState<ProductFormData>({
@@ -118,6 +324,7 @@ function ProductVideoForm({
     style: "professional",
     callToAction: "Visit pinehillfarm.com",
   });
+  const [productImages, setProductImages] = useState<ProductImage[]>([]);
 
   const addBenefit = () => {
     setFormData(prev => ({
@@ -145,7 +352,7 @@ function ProductVideoForm({
     if (filteredBenefits.length === 0) {
       return;
     }
-    onSubmit({ ...formData, benefits: filteredBenefits });
+    onSubmit({ ...formData, benefits: filteredBenefits, productImages });
   };
 
   return (
@@ -283,6 +490,14 @@ function ProductVideoForm({
           onChange={(e) => setFormData(prev => ({ ...prev, callToAction: e.target.value }))}
         />
       </div>
+
+      <Separator className="my-4" />
+
+      <ProductImageUpload
+        projectId={null}
+        images={productImages}
+        onImagesChange={setProductImages}
+      />
 
       <Button 
         className="w-full" 

@@ -709,29 +709,79 @@ Guidelines:
     updatedProject.progress.currentStep = 'images';
     updatedProject.progress.steps.images.status = 'in-progress';
 
+    const productImages = project.assets.productImages || [];
+    const primaryImage = productImages.find(img => img.isPrimary);
+    
+    const productSceneTypes = ['hook', 'feature', 'benefit', 'cta'];
+    const lifestyleSceneTypes = ['intro', 'explanation', 'process', 'testimonial', 'brand', 'outro'];
+
     for (let i = 0; i < project.scenes.length; i++) {
       const scene = project.scenes[i];
-      const imageResult = await this.generateImage(scene.background.source, scene.id);
+      
+      if (!updatedProject.scenes[i].assets) {
+        updatedProject.scenes[i].assets = {};
+      }
 
-      if (imageResult.success) {
+      if (scene.assets?.assignedProductImageId) {
+        const assignedImage = productImages.find(img => img.id === scene.assets?.assignedProductImageId);
+        if (assignedImage) {
+          updatedProject.assets.images.push({
+            sceneId: scene.id,
+            url: assignedImage.url,
+            prompt: scene.background.source,
+            source: 'uploaded',
+          });
+          updatedProject.scenes[i].assets!.imageUrl = assignedImage.url;
+          updatedProject.progress.steps.images.progress = Math.round(((i + 1) / project.scenes.length) * 100);
+          continue;
+        }
+      }
+
+      if (scene.assets?.useAIImage === false && productImages.length > 0) {
+        const imageToUse = primaryImage || productImages[0];
         updatedProject.assets.images.push({
           sceneId: scene.id,
-          url: imageResult.url,
+          url: imageToUse.url,
           prompt: scene.background.source,
+          source: 'uploaded',
         });
+        updatedProject.scenes[i].assets!.imageUrl = imageToUse.url;
+        updatedProject.progress.steps.images.progress = Math.round(((i + 1) / project.scenes.length) * 100);
+        continue;
+      }
 
-        if (!updatedProject.scenes[i].assets) {
-          updatedProject.scenes[i].assets = {};
-        }
-        updatedProject.scenes[i].assets!.imageUrl = imageResult.url;
+      if (productImages.length > 0 && productSceneTypes.includes(scene.type) && !scene.assets?.useAIImage) {
+        const imageIndex = i % productImages.length;
+        const productImage = productImages[imageIndex];
+        
+        updatedProject.assets.images.push({
+          sceneId: scene.id,
+          url: productImage.url,
+          prompt: scene.background.source,
+          source: 'uploaded',
+        });
+        updatedProject.scenes[i].assets!.imageUrl = productImage.url;
+        console.log(`[UniversalVideoService] Using uploaded product image for ${scene.type} scene: ${scene.id}`);
       } else {
-        if (imageResult.source === 'fal.ai') {
-          updatedProject.progress.serviceFailures.push({
-            service: 'fal.ai',
-            timestamp: new Date().toISOString(),
-            error: imageResult.error || 'Unknown error',
-            fallbackUsed: 'stock images',
+        const imageResult = await this.generateImage(scene.background.source, scene.id);
+
+        if (imageResult.success) {
+          updatedProject.assets.images.push({
+            sceneId: scene.id,
+            url: imageResult.url,
+            prompt: scene.background.source,
+            source: imageResult.source.includes('fal.ai') ? 'ai' : 'stock',
           });
+          updatedProject.scenes[i].assets!.imageUrl = imageResult.url;
+        } else {
+          if (imageResult.source === 'fal.ai') {
+            updatedProject.progress.serviceFailures.push({
+              service: 'fal.ai',
+              timestamp: new Date().toISOString(),
+              error: imageResult.error || 'Unknown error',
+              fallbackUsed: 'stock images',
+            });
+          }
         }
       }
 
