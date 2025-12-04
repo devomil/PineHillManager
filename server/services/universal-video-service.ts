@@ -668,6 +668,7 @@ Guidelines:
       project.progress.steps.script.status = 'complete';
       project.progress.steps.script.progress = 100;
       project.progress.steps.script.message = `Generated ${scenes.length} scenes`;
+      project.status = 'draft';
     } catch (error: any) {
       project.progress.steps.script.status = 'error';
       project.progress.steps.script.message = error.message;
