@@ -23146,5 +23146,11 @@ Respond in JSON format:
   // Export analytics service for use in other parts of the application
   (global as any).analyticsService = analyticsService;
 
+  // ================================
+  // UNIVERSAL VIDEO PRODUCTION ROUTES
+  // ================================
+  const universalVideoRoutes = await import('./routes/universal-video-routes');
+  app.use('/api/universal-video', universalVideoRoutes.default);
+
   return httpServer;
 }

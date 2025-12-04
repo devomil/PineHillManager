@@ -16,9 +16,10 @@ import QrCodeHistory from '@/components/qr-code-history';
 import VideoCreator from '@/components/video-creator';
 import VideoHistory from '@/components/video-history';
 import AIVideoProducer from '@/components/ai-video-producer';
+import UniversalVideoProducer from '@/components/universal-video-producer';
 import AssetLibrary from '@/components/asset-library';
 import { useLocation } from 'wouter';
-import { Brain } from 'lucide-react';
+import { Brain, Wand2 } from 'lucide-react';
 
 export default function MarketingPage() {
   const { toast } = useToast();
@@ -192,8 +193,12 @@ export default function MarketingPage() {
           </Button>
         </div>
 
-        <Tabs defaultValue="ai-producer" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-6">
+        <Tabs defaultValue="universal-producer" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-7">
+            <TabsTrigger value="universal-producer" className="flex items-center gap-2" data-testid="tab-universal-producer">
+              <Wand2 className="h-4 w-4" />
+              Video Studio
+            </TabsTrigger>
             <TabsTrigger value="ai-producer" className="flex items-center gap-2" data-testid="tab-ai-producer">
               <Brain className="h-4 w-4" />
               AI Producer
@@ -219,6 +224,10 @@ export default function MarketingPage() {
               Video History
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="universal-producer" className="space-y-6">
+            <UniversalVideoProducer />
+          </TabsContent>
 
           <TabsContent value="ai-producer" className="space-y-6">
             <AIVideoProducer />
