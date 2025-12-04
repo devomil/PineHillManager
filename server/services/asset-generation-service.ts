@@ -1162,6 +1162,194 @@ class AssetGenerationService {
     return Math.ceil(words / 2.5);
   }
 
+  async searchElevenLabsVoices(
+    search?: string,
+    category?: string,
+    pageSize: number = 20
+  ): Promise<{
+    voices: Array<{
+      voice_id: string;
+      name: string;
+      category: string;
+      description: string;
+      preview_url: string;
+      labels: Record<string, string>;
+    }>;
+    has_more: boolean;
+  } | null> {
+    const elevenLabsKey = process.env.ELEVENLABS_API_KEY;
+    
+    if (!elevenLabsKey) {
+      console.warn("[AssetService] No ElevenLabs API key configured for voice search");
+      return null;
+    }
+
+    try {
+      const params = new URLSearchParams();
+      params.set('page_size', String(pageSize));
+      params.set('include_total_count', 'false');
+      
+      if (search) params.set('search', search);
+      if (category) params.set('category', category);
+      
+      const response = await fetch(
+        `https://api.elevenlabs.io/v1/voices/search?${params.toString()}`,
+        {
+          headers: {
+            "xi-api-key": elevenLabsKey,
+          },
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log(`[AssetService] Found ${data.voices?.length || 0} voices`);
+        
+        return {
+          voices: (data.voices || []).map((v: any) => ({
+            voice_id: v.voice_id,
+            name: v.name,
+            category: v.category || 'unknown',
+            description: v.description || '',
+            preview_url: v.preview_url || '',
+            labels: v.labels || {},
+          })),
+          has_more: data.has_more || false,
+        };
+      } else {
+        const errorText = await response.text();
+        console.error("[AssetService] Voice search failed:", response.status, errorText);
+        return null;
+      }
+    } catch (e) {
+      console.error("[AssetService] Voice search error:", e);
+      return null;
+    }
+  }
+
+  async generateElevenLabsMusic(
+    prompt: string,
+    durationMs: number = 30000,
+    forceInstrumental: boolean = true
+  ): Promise<{ url: string; duration: number } | null> {
+    const elevenLabsKey = process.env.ELEVENLABS_API_KEY;
+    
+    if (!elevenLabsKey) {
+      console.warn("[AssetService] No ElevenLabs API key configured for music generation");
+      return null;
+    }
+
+    try {
+      console.log("[AssetService] Generating music with ElevenLabs...");
+      console.log("[AssetService] Prompt:", prompt);
+      console.log("[AssetService] Duration:", durationMs, "ms");
+      
+      const clampedDuration = Math.max(3000, Math.min(300000, durationMs));
+      
+      const response = await fetch(
+        `https://api.elevenlabs.io/v1/music/compose?output_format=mp3_44100_128`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "xi-api-key": elevenLabsKey,
+          },
+          body: JSON.stringify({
+            prompt,
+            music_length_ms: clampedDuration,
+            model_id: "music_v1",
+            force_instrumental: forceInstrumental,
+          }),
+        }
+      );
+
+      console.log(`[AssetService] ElevenLabs music response status: ${response.status}`);
+
+      if (response.ok) {
+        const audioBuffer = await response.arrayBuffer();
+        const base64 = Buffer.from(audioBuffer).toString("base64");
+        const durationSecs = Math.round(clampedDuration / 1000);
+        
+        console.log(`[AssetService] Music generated successfully`);
+        console.log(`[AssetService] Audio size: ${audioBuffer.byteLength} bytes, duration: ${durationSecs}s`);
+        
+        return {
+          url: `data:audio/mpeg;base64,${base64}`,
+          duration: durationSecs,
+        };
+      } else {
+        const errorText = await response.text();
+        console.error("[AssetService] ElevenLabs music API error:", response.status);
+        console.error("[AssetService] Error details:", errorText);
+        return null;
+      }
+    } catch (e) {
+      console.error("[AssetService] ElevenLabs music request error:", e);
+      return null;
+    }
+  }
+
+  async generateVoiceoverWithId(
+    text: string,
+    voiceId: string
+  ): Promise<{ url: string; duration: number } | null> {
+    const elevenLabsKey = process.env.ELEVENLABS_API_KEY;
+    
+    if (!elevenLabsKey) {
+      console.warn("[AssetService] No ElevenLabs API key configured");
+      return null;
+    }
+
+    try {
+      console.log("[AssetService] Generating voiceover with voice ID:", voiceId);
+      
+      const models = ["eleven_turbo_v2_5", "eleven_turbo_v2", "eleven_multilingual_v2"];
+      
+      for (const modelId of models) {
+        const response = await fetch(
+          `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "xi-api-key": elevenLabsKey,
+              "Accept": "audio/mpeg",
+            },
+            body: JSON.stringify({
+              text,
+              model_id: modelId,
+              voice_settings: {
+                stability: 0.5,
+                similarity_boost: 0.75,
+                style: 0.0,
+                use_speaker_boost: true,
+              },
+            }),
+          }
+        );
+
+        if (response.ok) {
+          const audioBuffer = await response.arrayBuffer();
+          const base64 = Buffer.from(audioBuffer).toString("base64");
+          const duration = this.estimateAudioDuration(text);
+          
+          console.log(`[AssetService] Voiceover generated with model ${modelId}`);
+          
+          return {
+            url: `data:audio/mpeg;base64,${base64}`,
+            duration,
+          };
+        }
+      }
+      
+      console.error("[AssetService] All models failed for voice ID:", voiceId);
+      return null;
+    } catch (e) {
+      console.error("[AssetService] Voiceover error:", e);
+      return null;
+    }
+  }
+
   async evaluateAsset(
     asset: GeneratedAsset,
     productContext: { name: string; description: string; audience: string }

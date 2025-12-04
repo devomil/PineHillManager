@@ -15162,6 +15162,103 @@ Respond in JSON format:
     }
   });
 
+  // AI Producer: Search ElevenLabs voices
+  app.get('/api/videos/ai-producer/voices/search', isAuthenticated, async (req, res) => {
+    try {
+      const { search, category, pageSize = '20' } = req.query;
+      
+      const { assetGenerationService } = await import('./services/asset-generation-service');
+      
+      const result = await assetGenerationService.searchElevenLabsVoices(
+        search as string | undefined,
+        category as string | undefined,
+        parseInt(pageSize as string)
+      );
+      
+      if (result) {
+        res.json({
+          success: true,
+          voices: result.voices,
+          hasMore: result.has_more,
+        });
+      } else {
+        res.status(500).json({ error: 'Failed to search voices' });
+      }
+    } catch (error) {
+      console.error('[AI Producer] Voice search error:', error);
+      res.status(500).json({ error: 'Failed to search voices' });
+    }
+  });
+
+  // AI Producer: Generate voiceover with specific voice ID
+  app.post('/api/videos/ai-producer/voiceover-with-id', isAuthenticated, async (req, res) => {
+    try {
+      const { script, voiceId } = req.body;
+      
+      if (!script || !voiceId) {
+        return res.status(400).json({ error: 'Script and voiceId are required' });
+      }
+
+      const { assetGenerationService } = await import('./services/asset-generation-service');
+      
+      const cleanScript = script
+        .replace(/\[VISUAL:[^\]]*\]/gi, '')
+        .replace(/\[TRANSITION:[^\]]*\]/gi, '')
+        .replace(/\[HOOK\]|\[PROBLEM\]|\[SOLUTION\]|\[SOCIAL_PROOF\]|\[CTA\]/gi, '')
+        .replace(/\n+/g, ' ')
+        .trim();
+      
+      const result = await assetGenerationService.generateVoiceoverWithId(cleanScript, voiceId);
+      
+      if (result) {
+        res.json({
+          success: true,
+          url: result.url,
+          duration: result.duration,
+        });
+      } else {
+        res.status(500).json({ error: 'Failed to generate voiceover' });
+      }
+    } catch (error) {
+      console.error('[AI Producer] Voiceover with ID error:', error);
+      res.status(500).json({ error: 'Failed to generate voiceover' });
+    }
+  });
+
+  // AI Producer: Generate background music with ElevenLabs
+  app.post('/api/videos/ai-producer/generate-music', isAuthenticated, async (req, res) => {
+    try {
+      const { prompt, durationMs = 30000, forceInstrumental = true } = req.body;
+      
+      if (!prompt) {
+        return res.status(400).json({ error: 'Music prompt is required' });
+      }
+
+      const { assetGenerationService } = await import('./services/asset-generation-service');
+      
+      console.log('[AI Producer] Generating music:', { prompt, durationMs, forceInstrumental });
+      
+      const result = await assetGenerationService.generateElevenLabsMusic(
+        prompt,
+        durationMs,
+        forceInstrumental
+      );
+      
+      if (result) {
+        res.json({
+          success: true,
+          url: result.url,
+          duration: result.duration,
+        });
+      } else {
+        res.status(500).json({ error: 'Failed to generate music' });
+      }
+    } catch (error) {
+      console.error('[AI Producer] Music generation error:', error);
+      res.status(500).json({ error: 'Failed to generate music' });
+    }
+  });
+
   // AI Producer: Generate image for section with smart keyword extraction and visual direction constraints
   app.post('/api/videos/ai-producer/generate-image', isAuthenticated, async (req, res) => {
     try {
