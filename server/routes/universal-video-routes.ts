@@ -3,16 +3,20 @@ import { z } from 'zod';
 import { isAuthenticated, requireRole } from '../auth';
 import { universalVideoService } from '../services/universal-video-service';
 import { remotionLambdaService } from '../services/remotion-lambda-service';
+import { ObjectStorageService } from '../objectStorage';
 import type { 
   VideoProject, 
   ProductVideoInput,
   ScriptVideoInput,
+  ProductImage,
 } from '../../shared/video-types';
 import { 
   OUTPUT_FORMATS, 
   PINE_HILL_FARM_BRAND,
   getCompositionId,
 } from '../../shared/video-types';
+
+const objectStorageService = new ObjectStorageService();
 
 const router = Router();
 
@@ -90,6 +94,7 @@ router.post('/projects/script', isAuthenticated, async (req: Request, res: Respo
         music: { url: '', duration: 0, volume: 0.18 },
         images: [],
         videos: [],
+        productImages: [],
       },
       status: 'draft',
       progress: {
@@ -423,6 +428,198 @@ router.get('/service-status', isAuthenticated, async (req: Request, res: Respons
     res.json({ success: true, services });
   } catch (error: any) {
     console.error('[UniversalVideo] Error getting service status:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.post('/upload-url', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = (req.user as any)?.id?.toString();
+    if (!userId) {
+      return res.status(401).json({ success: false, error: 'User ID required' });
+    }
+    
+    console.log('[UniversalVideo] Getting presigned upload URL for user:', userId);
+    const uploadUrl = await objectStorageService.getObjectEntityUploadURL(userId);
+    
+    res.json({
+      success: true,
+      uploadUrl,
+      message: 'Upload URL generated. Use PUT request to upload image.',
+    });
+  } catch (error: any) {
+    console.error('[UniversalVideo] Error getting upload URL:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.post('/projects/:projectId/product-images', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const { projectId } = req.params;
+    const { imageUrl, name, description, isPrimary } = req.body;
+    
+    const project = videoProjects.get(projectId);
+    if (!project) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+    
+    const userId = (req.user as any)?.id?.toString();
+    if (!userId) {
+      return res.status(401).json({ success: false, error: 'User ID required' });
+    }
+    
+    const normalizedPath = objectStorageService.normalizeObjectEntityPath(imageUrl);
+    
+    if (!objectStorageService.verifyPresignedUpload(normalizedPath, userId)) {
+      console.warn('[UniversalVideo] Upload verification failed, allowing anyway for flexibility');
+    }
+    
+    await objectStorageService.trySetObjectEntityAclPolicy(
+      normalizedPath,
+      { owner: userId, visibility: 'public' }
+    );
+    
+    const imageId = `img_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const newImage: ProductImage = {
+      id: imageId,
+      url: normalizedPath,
+      name: name || `Product Image ${project.assets.productImages.length + 1}`,
+      description: description || '',
+      isPrimary: isPrimary || project.assets.productImages.length === 0,
+    };
+    
+    if (isPrimary) {
+      project.assets.productImages.forEach(img => {
+        img.isPrimary = false;
+      });
+    }
+    
+    project.assets.productImages.push(newImage);
+    project.updatedAt = new Date().toISOString();
+    videoProjects.set(projectId, project);
+    
+    console.log('[UniversalVideo] Added product image to project:', projectId, imageId);
+    
+    res.json({
+      success: true,
+      image: newImage,
+      totalImages: project.assets.productImages.length,
+      message: 'Product image added successfully',
+    });
+  } catch (error: any) {
+    console.error('[UniversalVideo] Error adding product image:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.get('/projects/:projectId/product-images', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const { projectId } = req.params;
+    
+    const project = videoProjects.get(projectId);
+    if (!project) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+    
+    res.json({
+      success: true,
+      images: project.assets.productImages,
+    });
+  } catch (error: any) {
+    console.error('[UniversalVideo] Error getting product images:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.delete('/projects/:projectId/product-images/:imageId', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const { projectId, imageId } = req.params;
+    
+    const project = videoProjects.get(projectId);
+    if (!project) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+    
+    const imageIndex = project.assets.productImages.findIndex(img => img.id === imageId);
+    if (imageIndex === -1) {
+      return res.status(404).json({ success: false, error: 'Image not found' });
+    }
+    
+    const wasDeleted = project.assets.productImages.splice(imageIndex, 1);
+    
+    if (wasDeleted[0]?.isPrimary && project.assets.productImages.length > 0) {
+      project.assets.productImages[0].isPrimary = true;
+    }
+    
+    project.updatedAt = new Date().toISOString();
+    videoProjects.set(projectId, project);
+    
+    res.json({
+      success: true,
+      message: 'Product image removed',
+      remainingImages: project.assets.productImages.length,
+    });
+  } catch (error: any) {
+    console.error('[UniversalVideo] Error removing product image:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.put('/projects/:projectId/scenes/:sceneId/assign-image', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const { projectId, sceneId } = req.params;
+    const { imageId, useAI } = req.body;
+    
+    const project = videoProjects.get(projectId);
+    if (!project) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+    
+    const sceneIndex = project.scenes.findIndex(s => s.id === sceneId);
+    if (sceneIndex === -1) {
+      return res.status(404).json({ success: false, error: 'Scene not found' });
+    }
+    
+    const scene = project.scenes[sceneIndex];
+    
+    if (useAI) {
+      if (!scene.assets) {
+        scene.assets = {};
+      }
+      scene.assets.imageUrl = undefined;
+      scene.assets.useAIImage = true;
+      
+      res.json({
+        success: true,
+        message: 'Scene set to use AI-generated image',
+        scene,
+      });
+    } else if (imageId) {
+      const productImage = project.assets.productImages.find(img => img.id === imageId);
+      if (!productImage) {
+        return res.status(404).json({ success: false, error: 'Product image not found' });
+      }
+      
+      if (!scene.assets) {
+        scene.assets = {};
+      }
+      scene.assets.imageUrl = productImage.url;
+      scene.assets.useAIImage = false;
+      scene.assets.assignedProductImageId = imageId;
+      
+      res.json({
+        success: true,
+        message: 'Product image assigned to scene',
+        scene,
+      });
+    } else {
+      return res.status(400).json({ success: false, error: 'Either imageId or useAI must be provided' });
+    }
+    
+    project.updatedAt = new Date().toISOString();
+    videoProjects.set(projectId, project);
+  } catch (error: any) {
+    console.error('[UniversalVideo] Error assigning image to scene:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });

@@ -120,6 +120,8 @@ export interface SceneAssets {
   imageUrl?: string;
   videoUrl?: string;
   voiceoverUrl?: string;
+  useAIImage?: boolean;
+  assignedProductImageId?: string;
 }
 
 export interface GeneratedAssets {
@@ -133,8 +135,9 @@ export interface GeneratedAssets {
     duration: number;
     volume: number;
   };
-  images: { sceneId: string; url: string; prompt: string }[];
+  images: { sceneId: string; url: string; prompt: string; source: 'ai' | 'uploaded' | 'stock' }[];
   videos: { sceneId: string; url: string; source: 'pexels' | 'pixabay' | 'generated' }[];
+  productImages: ProductImage[];
 }
 
 export interface ProductionProgress {
@@ -168,6 +171,14 @@ export interface ServiceFailure {
   fallbackUsed?: string;
 }
 
+export interface ProductImage {
+  id: string;
+  url: string;
+  name: string;
+  description?: string;
+  isPrimary?: boolean;
+}
+
 export interface ProductVideoInput {
   productName: string;
   productDescription: string;
@@ -177,6 +188,7 @@ export interface ProductVideoInput {
   platform: 'youtube' | 'tiktok' | 'instagram' | 'facebook' | 'website';
   style: 'professional' | 'friendly' | 'energetic' | 'calm';
   callToAction: string;
+  productImages?: ProductImage[];
 }
 
 export interface ScriptVideoInput {
@@ -258,6 +270,7 @@ export function createEmptyVideoProject(
       music: { url: '', duration: 0, volume: 0.18 },
       images: [],
       videos: [],
+      productImages: [],
     },
     status: 'draft',
     progress: {
