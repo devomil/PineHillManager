@@ -713,8 +713,8 @@ Guidelines:
     const productImages = project.assets.productImages || [];
     const primaryImage = productImages.find(img => img.isPrimary);
     
-    const productSceneTypes = ['hook', 'feature', 'benefit', 'cta'];
-    const lifestyleSceneTypes = ['intro', 'explanation', 'process', 'testimonial', 'brand', 'outro'];
+    const productSceneTypes = ['hook', 'feature', 'benefit', 'cta', 'intro'];
+    const lifestyleSceneTypes = ['explanation', 'process', 'testimonial', 'brand', 'outro'];
 
     for (let i = 0; i < project.scenes.length; i++) {
       const scene = project.scenes[i];
