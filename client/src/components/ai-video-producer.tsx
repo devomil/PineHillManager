@@ -10,7 +10,8 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Brain, Clapperboard, CheckCircle2, RefreshCw, Sparkles, Play, Pause, Download, Image, Video, Music, Mic, FileText, Package, Eye, Edit2, ChevronDown, ChevronUp, Check, X, Wand2, Upload, Trash2, Star, ImageIcon } from "lucide-react";
+import { Brain, Clapperboard, CheckCircle2, RefreshCw, Sparkles, Play, Pause, Download, Image, Video, Music, Mic, FileText, Package, Eye, Edit2, ChevronDown, ChevronUp, Check, X, Wand2, Upload, Trash2, Star, ImageIcon, Square, Search, Loader2 } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { 
@@ -45,13 +46,24 @@ interface ProductionFormData {
   callToAction: string;
 }
 
+interface ElevenLabsVoice {
+  voice_id: string;
+  name: string;
+  category: string;
+  description: string;
+  preview_url: string;
+  labels: Record<string, string>;
+}
+
 interface ScriptFormData {
   title: string;
   script: string;
   visualDirections: string;
   voiceStyle: "professional" | "warm" | "energetic" | "calm" | "authoritative";
   voiceGender: "female" | "male";
+  selectedVoice: ElevenLabsVoice | null;
   musicMood: "uplifting" | "calm" | "dramatic" | "inspiring" | "none";
+  musicStyle: string;
   videoDuration: number;
   platform: "youtube" | "tiktok" | "instagram" | "facebook" | "twitter";
   style: "professional" | "casual" | "energetic" | "calm" | "cinematic" | "documentary";
@@ -141,11 +153,20 @@ export default function AIVideoProducer() {
     visualDirections: "",
     voiceStyle: "professional",
     voiceGender: "female",
+    selectedVoice: null,
     musicMood: "uplifting",
+    musicStyle: "Cinematic orchestral background music, subtle and professional",
     videoDuration: 60,
     platform: "youtube",
     style: "professional",
   });
+
+  const [availableVoices, setAvailableVoices] = useState<ElevenLabsVoice[]>([]);
+  const [voiceSearchQuery, setVoiceSearchQuery] = useState("");
+  const [isLoadingVoices, setIsLoadingVoices] = useState(false);
+  const [showVoicePicker, setShowVoicePicker] = useState(false);
+  const [previewingVoice, setPreviewingVoice] = useState<string | null>(null);
+  const audioPreviewRef = useRef<HTMLAudioElement | null>(null);
 
   const [scriptGenTopic, setScriptGenTopic] = useState("");
   const [scriptGenKeywords, setScriptGenKeywords] = useState("");
@@ -255,6 +276,55 @@ export default function AIVideoProducer() {
   useEffect(() => {
     logsEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [production?.logs]);
+
+  // Search ElevenLabs voices
+  const searchVoices = async (query?: string) => {
+    setIsLoadingVoices(true);
+    try {
+      const params = new URLSearchParams();
+      if (query) params.set('search', query);
+      params.set('pageSize', '30');
+      
+      const response = await fetch(`/api/videos/ai-producer/voices/search?${params.toString()}`);
+      if (response.ok) {
+        const result = await response.json();
+        setAvailableVoices(result.voices || []);
+      }
+    } catch (error) {
+      console.error('Failed to search voices:', error);
+    } finally {
+      setIsLoadingVoices(false);
+    }
+  };
+
+  // Load initial voices when picker opens
+  useEffect(() => {
+    if (showVoicePicker && availableVoices.length === 0) {
+      searchVoices();
+    }
+  }, [showVoicePicker]);
+
+  // Preview voice audio
+  const previewVoice = (voice: ElevenLabsVoice) => {
+    if (audioPreviewRef.current) {
+      audioPreviewRef.current.pause();
+    }
+    if (voice.preview_url) {
+      setPreviewingVoice(voice.voice_id);
+      const audio = new Audio(voice.preview_url);
+      audioPreviewRef.current = audio;
+      audio.play().catch(() => {});
+      audio.onended = () => setPreviewingVoice(null);
+    }
+  };
+
+  // Stop voice preview
+  const stopPreview = () => {
+    if (audioPreviewRef.current) {
+      audioPreviewRef.current.pause();
+      setPreviewingVoice(null);
+    }
+  };
 
   const generateAIScript = async () => {
     if (!scriptGenTopic.trim()) return;
@@ -687,7 +757,9 @@ export default function AIVideoProducer() {
     setActivePhaseIndex(1);
     updatePhase("generate", { status: "in_progress", progress: 0, startedAt: new Date().toISOString() });
     
-    const voiceMap = {
+    // Use selected voice ID or fall back to voice map
+    const useSelectedVoice = scriptData.selectedVoice?.voice_id;
+    const voiceMap: Record<string, string> = {
       professional: scriptData.voiceGender === "female" ? "Rachel" : "Adam",
       warm: scriptData.voiceGender === "female" ? "Sarah" : "Bill",
       energetic: scriptData.voiceGender === "female" ? "Emily" : "Josh",
@@ -695,17 +767,31 @@ export default function AIVideoProducer() {
       authoritative: scriptData.voiceGender === "female" ? "Nicole" : "Clyde",
     };
     
-    addLog("generation", `🎙️ Generating voiceover via ElevenLabs (${scriptData.voiceStyle}, ${scriptData.voiceGender})...`, "generate");
+    if (useSelectedVoice) {
+      addLog("generation", `🎙️ Generating voiceover via ElevenLabs (${scriptData.selectedVoice?.name})...`, "generate");
+    } else {
+      addLog("generation", `🎙️ Generating voiceover via ElevenLabs (${scriptData.voiceStyle}, ${scriptData.voiceGender})...`, "generate");
+    }
     await delay(2000);
     
-    const voiceoverResponse = await fetch("/api/videos/ai-producer/voiceover", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ 
-        script: scriptData.script,
-        voice: voiceMap[scriptData.voiceStyle],
-      }),
-    });
+    // Use voice ID endpoint if selected voice, otherwise use voice name endpoint
+    const voiceoverResponse = useSelectedVoice 
+      ? await fetch("/api/videos/ai-producer/voiceover-with-id", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ 
+            script: scriptData.script,
+            voiceId: scriptData.selectedVoice?.voice_id,
+          }),
+        })
+      : await fetch("/api/videos/ai-producer/voiceover", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ 
+            script: scriptData.script,
+            voice: voiceMap[scriptData.voiceStyle],
+          }),
+        });
     
     if (voiceoverResponse.ok) {
       const voiceoverResult = await voiceoverResponse.json();
@@ -723,25 +809,35 @@ export default function AIVideoProducer() {
     
     updatePhase("generate", { progress: 25 });
     
-    // Search for background music (using stock video audio extraction)
-    addLog("generation", "🎵 Searching for background music...", "generate");
-    await delay(1000);
-    
-    try {
-      // Search for videos that are more likely to have music/audio
-      const musicResponse = await fetch(`/api/videos/ai-producer/stock-videos?query=cinematic+background+music+ambient&count=3`);
-      if (musicResponse.ok) {
-        const musicResult = await musicResponse.json();
-        if (musicResult.videos && musicResult.videos.length > 0) {
-          // Use the first available video's audio (best effort)
-          accumulatedMusicUrl = musicResult.videos[0].url;
-          addLog("success", "✅ Background audio source found (will extract audio track)", "generate");
+    // Generate background music with ElevenLabs
+    if (scriptData.musicMood !== 'none' && scriptData.musicStyle) {
+      addLog("generation", "🎵 Generating AI background music via ElevenLabs...", "generate");
+      await delay(1000);
+      
+      try {
+        const musicDurationMs = (scriptData.videoDuration || 60) * 1000;
+        const musicResponse = await fetch("/api/videos/ai-producer/generate-music", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            prompt: scriptData.musicStyle,
+            durationMs: Math.min(musicDurationMs, 180000), // Max 3 minutes for music
+            forceInstrumental: true,
+          }),
+        });
+        
+        if (musicResponse.ok) {
+          const musicResult = await musicResponse.json();
+          accumulatedMusicUrl = musicResult.url;
+          addLog("success", `✅ AI music generated: ${musicResult.duration}s duration`, "generate");
         } else {
-          addLog("info", "ℹ️ No background music found, video will have voiceover only", "generate");
+          addLog("warning", "⚠️ Music generation failed, video will have voiceover only", "generate");
         }
+      } catch (musicErr) {
+        addLog("warning", "⚠️ Music generation skipped, video will have voiceover only", "generate");
       }
-    } catch (musicErr) {
-      addLog("info", "ℹ️ Music search skipped, video will have voiceover only", "generate");
+    } else {
+      addLog("info", "ℹ️ No music selected, video will have voiceover only", "generate");
     }
     
     updatePhase("generate", { progress: 30 });
@@ -1870,68 +1966,252 @@ export default function AIVideoProducer() {
                   )}
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Voice Style</Label>
-                    <Select
-                      value={scriptFormData.voiceStyle}
-                      onValueChange={(v: any) => setScriptFormData(prev => ({ ...prev, voiceStyle: v }))}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label>Voice Selection</Label>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowVoicePicker(true)}
                       disabled={isRunning}
+                      data-testid="button-open-voice-picker"
                     >
-                      <SelectTrigger data-testid="select-voice-style">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="professional">Professional</SelectItem>
-                        <SelectItem value="warm">Warm & Friendly</SelectItem>
-                        <SelectItem value="energetic">Energetic</SelectItem>
-                        <SelectItem value="calm">Calm & Soothing</SelectItem>
-                        <SelectItem value="authoritative">Authoritative</SelectItem>
-                      </SelectContent>
-                    </Select>
+                      <Mic className="h-4 w-4 mr-2" />
+                      {scriptFormData.selectedVoice ? 'Change Voice' : 'Browse Voices'}
+                    </Button>
                   </div>
+                  
+                  {scriptFormData.selectedVoice ? (
+                    <div className="flex items-center gap-3 p-3 bg-green-50 dark:bg-green-950 rounded-lg border border-green-200 dark:border-green-800">
+                      <div className="flex-1">
+                        <div className="font-medium text-green-900 dark:text-green-100">
+                          {scriptFormData.selectedVoice.name}
+                        </div>
+                        <div className="text-sm text-green-700 dark:text-green-300">
+                          {scriptFormData.selectedVoice.category} 
+                          {scriptFormData.selectedVoice.labels?.accent && ` • ${scriptFormData.selectedVoice.labels.accent}`}
+                          {scriptFormData.selectedVoice.labels?.gender && ` • ${scriptFormData.selectedVoice.labels.gender}`}
+                        </div>
+                      </div>
+                      {scriptFormData.selectedVoice.preview_url && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => previewVoice(scriptFormData.selectedVoice!)}
+                          data-testid="button-preview-selected-voice"
+                        >
+                          {previewingVoice === scriptFormData.selectedVoice.voice_id ? (
+                            <Square className="h-4 w-4" />
+                          ) : (
+                            <Play className="h-4 w-4" />
+                          )}
+                        </Button>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setScriptFormData(prev => ({ ...prev, selectedVoice: null }))}
+                        data-testid="button-clear-voice"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label className="text-muted-foreground text-sm">Fallback: Voice Style</Label>
+                        <Select
+                          value={scriptFormData.voiceStyle}
+                          onValueChange={(v: any) => setScriptFormData(prev => ({ ...prev, voiceStyle: v }))}
+                          disabled={isRunning}
+                        >
+                          <SelectTrigger data-testid="select-voice-style">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="professional">Professional</SelectItem>
+                            <SelectItem value="warm">Warm & Friendly</SelectItem>
+                            <SelectItem value="energetic">Energetic</SelectItem>
+                            <SelectItem value="calm">Calm & Soothing</SelectItem>
+                            <SelectItem value="authoritative">Authoritative</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
 
-                  <div className="space-y-2">
-                    <Label>Voice Gender</Label>
-                    <Select
-                      value={scriptFormData.voiceGender}
-                      onValueChange={(v: any) => setScriptFormData(prev => ({ ...prev, voiceGender: v }))}
-                      disabled={isRunning}
-                    >
-                      <SelectTrigger data-testid="select-voice-gender">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="female">Female</SelectItem>
-                        <SelectItem value="male">Male</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+                      <div className="space-y-2">
+                        <Label className="text-muted-foreground text-sm">Fallback: Voice Gender</Label>
+                        <Select
+                          value={scriptFormData.voiceGender}
+                          onValueChange={(v: any) => setScriptFormData(prev => ({ ...prev, voiceGender: v }))}
+                          disabled={isRunning}
+                        >
+                          <SelectTrigger data-testid="select-voice-gender">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="female">Female</SelectItem>
+                            <SelectItem value="male">Male</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Music Mood</Label>
-                    <Select
-                      value={scriptFormData.musicMood}
-                      onValueChange={(v: any) => setScriptFormData(prev => ({ ...prev, musicMood: v }))}
-                      disabled={isRunning}
-                    >
-                      <SelectTrigger data-testid="select-music-mood">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="uplifting">Uplifting</SelectItem>
-                        <SelectItem value="calm">Calm</SelectItem>
-                        <SelectItem value="dramatic">Dramatic</SelectItem>
-                        <SelectItem value="inspiring">Inspiring</SelectItem>
-                        <SelectItem value="none">No Music</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+                {/* Voice Picker Dialog */}
+                <Dialog open={showVoicePicker} onOpenChange={setShowVoicePicker}>
+                  <DialogContent className="max-w-2xl max-h-[80vh]">
+                    <DialogHeader>
+                      <DialogTitle className="flex items-center gap-2">
+                        <Mic className="h-5 w-5" />
+                        Browse ElevenLabs Voices
+                      </DialogTitle>
+                    </DialogHeader>
+                    
+                    <div className="space-y-4">
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="Search voices by name, accent, style..."
+                          value={voiceSearchQuery}
+                          onChange={(e) => setVoiceSearchQuery(e.target.value)}
+                          onKeyDown={(e) => e.key === 'Enter' && searchVoices(voiceSearchQuery)}
+                          data-testid="input-voice-search"
+                        />
+                        <Button 
+                          onClick={() => searchVoices(voiceSearchQuery)}
+                          disabled={isLoadingVoices}
+                          data-testid="button-search-voices"
+                        >
+                          {isLoadingVoices ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                        </Button>
+                      </div>
+                      
+                      <ScrollArea className="h-[400px] pr-4">
+                        {isLoadingVoices ? (
+                          <div className="flex items-center justify-center h-40">
+                            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                          </div>
+                        ) : availableVoices.length === 0 ? (
+                          <div className="text-center text-muted-foreground py-8">
+                            No voices found. Try a different search.
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            {availableVoices.map((voice) => (
+                              <div
+                                key={voice.voice_id}
+                                className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                                  scriptFormData.selectedVoice?.voice_id === voice.voice_id
+                                    ? 'border-primary bg-primary/5'
+                                    : 'border-border hover:border-primary/50 hover:bg-muted/50'
+                                }`}
+                                onClick={() => {
+                                  setScriptFormData(prev => ({ ...prev, selectedVoice: voice }));
+                                }}
+                                data-testid={`voice-option-${voice.voice_id}`}
+                              >
+                                <div className="flex-1 min-w-0">
+                                  <div className="font-medium truncate">{voice.name}</div>
+                                  <div className="text-sm text-muted-foreground flex flex-wrap gap-1">
+                                    <span className="bg-muted px-1.5 py-0.5 rounded text-xs">{voice.category}</span>
+                                    {voice.labels?.accent && (
+                                      <span className="bg-muted px-1.5 py-0.5 rounded text-xs">{voice.labels.accent}</span>
+                                    )}
+                                    {voice.labels?.gender && (
+                                      <span className="bg-muted px-1.5 py-0.5 rounded text-xs">{voice.labels.gender}</span>
+                                    )}
+                                    {voice.labels?.age && (
+                                      <span className="bg-muted px-1.5 py-0.5 rounded text-xs">{voice.labels.age}</span>
+                                    )}
+                                    {voice.labels?.use_case && (
+                                      <span className="bg-blue-100 dark:bg-blue-900 px-1.5 py-0.5 rounded text-xs">{voice.labels.use_case}</span>
+                                    )}
+                                  </div>
+                                  {voice.description && (
+                                    <div className="text-xs text-muted-foreground mt-1 line-clamp-2">{voice.description}</div>
+                                  )}
+                                </div>
+                                {voice.preview_url && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (previewingVoice === voice.voice_id) {
+                                        stopPreview();
+                                      } else {
+                                        previewVoice(voice);
+                                      }
+                                    }}
+                                    data-testid={`button-preview-voice-${voice.voice_id}`}
+                                  >
+                                    {previewingVoice === voice.voice_id ? (
+                                      <Square className="h-4 w-4" />
+                                    ) : (
+                                      <Play className="h-4 w-4" />
+                                    )}
+                                  </Button>
+                                )}
+                                {scriptFormData.selectedVoice?.voice_id === voice.voice_id && (
+                                  <Check className="h-5 w-5 text-primary" />
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </ScrollArea>
+                    </div>
+                    
+                    <DialogFooter>
+                      <Button variant="outline" onClick={() => setShowVoicePicker(false)}>
+                        Cancel
+                      </Button>
+                      <Button 
+                        onClick={() => setShowVoicePicker(false)}
+                        disabled={!scriptFormData.selectedVoice}
+                        data-testid="button-confirm-voice"
+                      >
+                        Use Selected Voice
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
 
-                  <div className="space-y-2">
-                    <Label>Visual Style</Label>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Music Mood</Label>
+                      <Select
+                        value={scriptFormData.musicMood}
+                        onValueChange={(v: any) => {
+                          setScriptFormData(prev => ({ 
+                            ...prev, 
+                            musicMood: v,
+                            musicStyle: v === 'none' ? '' : 
+                              v === 'uplifting' ? 'Uplifting orchestral background music with hopeful piano and strings, professional and cinematic' :
+                              v === 'calm' ? 'Calm ambient background music with soft piano and gentle pads, peaceful and relaxing' :
+                              v === 'dramatic' ? 'Dramatic cinematic background music with powerful orchestral swells and tension' :
+                              v === 'inspiring' ? 'Inspiring motivational background music with uplifting melody and building energy' :
+                              prev.musicStyle
+                          }));
+                        }}
+                        disabled={isRunning}
+                      >
+                        <SelectTrigger data-testid="select-music-mood">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="uplifting">Uplifting</SelectItem>
+                          <SelectItem value="calm">Calm</SelectItem>
+                          <SelectItem value="dramatic">Dramatic</SelectItem>
+                          <SelectItem value="inspiring">Inspiring</SelectItem>
+                          <SelectItem value="none">No Music</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Visual Style</Label>
                     <Select
                       value={scriptFormData.style}
                       onValueChange={(v: any) => setScriptFormData(prev => ({ ...prev, style: v }))}
@@ -1949,7 +2229,28 @@ export default function AIVideoProducer() {
                         <SelectItem value="calm">Calm</SelectItem>
                       </SelectContent>
                     </Select>
+                    </div>
                   </div>
+
+                  {scriptFormData.musicMood !== 'none' && (
+                    <div className="space-y-2">
+                      <Label className="flex items-center gap-2">
+                        <Music className="h-4 w-4" />
+                        Music Style (AI Generated via ElevenLabs)
+                      </Label>
+                      <Textarea
+                        placeholder="Describe the music style, instruments, tempo, and mood..."
+                        value={scriptFormData.musicStyle}
+                        onChange={(e) => setScriptFormData(prev => ({ ...prev, musicStyle: e.target.value }))}
+                        disabled={isRunning}
+                        className="h-20"
+                        data-testid="textarea-music-style"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        ElevenLabs will generate custom background music based on this description
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
