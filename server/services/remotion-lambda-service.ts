@@ -1,20 +1,17 @@
 import {
   deploySite,
-  getOrCreateBucket,
-  deployFunction,
   getFunctions,
   renderMediaOnLambda,
   getRenderProgress,
   AwsRegion,
-  RenderMediaOnLambdaOutput,
 } from "@remotion/lambda";
 import path from "path";
 
-const REMOTION_APP_NAME = "pine-hill-video-producer";
 const REGION: AwsRegion = "us-east-1";
-const MEMORY_SIZE = 2048;
-const DISK_SIZE = 2048;
-const TIMEOUT = 240;
+const DEPLOYED_FUNCTION_NAME = "remotion-render-4-0-382-mem2048mb-disk2048mb-240sec";
+const DEPLOYED_SITE_NAME = "pine-hill-farm-videos";
+const DEPLOYED_BUCKET_NAME = "remotionlambda-useast1-refjo5giq5";
+const DEPLOYED_SERVE_URL = `https://${DEPLOYED_BUCKET_NAME}.s3.${REGION}.amazonaws.com/sites/${DEPLOYED_SITE_NAME}/index.html`;
 
 interface DeploymentResult {
   functionName: string;
@@ -35,9 +32,9 @@ interface RenderProgress {
 }
 
 class RemotionLambdaService {
-  private functionName: string | null = null;
-  private bucketName: string | null = null;
-  private serveUrl: string | null = null;
+  private functionName: string = DEPLOYED_FUNCTION_NAME;
+  private bucketName: string = DEPLOYED_BUCKET_NAME;
+  private serveUrl: string = DEPLOYED_SERVE_URL;
 
   private getAwsCredentials() {
     const accessKeyId = process.env.REMOTION_AWS_ACCESS_KEY_ID;
@@ -66,7 +63,7 @@ class RemotionLambdaService {
     serveUrl: string | null;
   }> {
     try {
-      const { accessKeyId, secretAccessKey } = this.getAwsCredentials();
+      this.getAwsCredentials();
 
       const functions = await getFunctions({
         region: REGION,
@@ -74,14 +71,13 @@ class RemotionLambdaService {
       });
 
       const existingFunction = functions.find(
-        (f) => f.functionName.includes(REMOTION_APP_NAME)
+        (f) => f.functionName === DEPLOYED_FUNCTION_NAME
       );
 
       if (existingFunction) {
-        this.functionName = existingFunction.functionName;
         return {
           deployed: true,
-          functionName: existingFunction.functionName,
+          functionName: this.functionName,
           bucketName: this.bucketName,
           serveUrl: this.serveUrl,
         };
@@ -105,46 +101,35 @@ class RemotionLambdaService {
   }
 
   async deploy(): Promise<DeploymentResult> {
-    console.log("[Remotion Lambda] Starting deployment...");
+    console.log("[Remotion Lambda] Using pre-deployed Lambda infrastructure...");
+    console.log(`[Remotion Lambda] Function: ${this.functionName}`);
+    console.log(`[Remotion Lambda] Bucket: ${this.bucketName}`);
+    console.log(`[Remotion Lambda] ServeUrl: ${this.serveUrl}`);
+
+    return {
+      functionName: this.functionName,
+      bucketName: this.bucketName,
+      serveUrl: this.serveUrl,
+    };
+  }
+
+  async redeploySite(): Promise<string> {
+    console.log("[Remotion Lambda] Redeploying site to S3...");
 
     try {
-      const { accessKeyId, secretAccessKey } = this.getAwsCredentials();
+      this.getAwsCredentials();
 
-      console.log("[Remotion Lambda] Getting or creating S3 bucket...");
-      const { bucketName } = await getOrCreateBucket({
-        region: REGION,
-      });
-      this.bucketName = bucketName;
-      console.log(`[Remotion Lambda] Bucket: ${bucketName}`);
-
-      console.log("[Remotion Lambda] Deploying site to S3...");
       const { serveUrl } = await deploySite({
-        bucketName,
+        bucketName: this.bucketName,
         entryPoint: path.resolve(process.cwd(), "remotion/index.ts"),
         region: REGION,
-        siteName: REMOTION_APP_NAME,
+        siteName: DEPLOYED_SITE_NAME,
       });
-      this.serveUrl = serveUrl;
-      console.log(`[Remotion Lambda] Site deployed: ${serveUrl}`);
 
-      console.log("[Remotion Lambda] Deploying Lambda function...");
-      const { functionName } = await deployFunction({
-        region: REGION,
-        timeoutInSeconds: TIMEOUT,
-        memorySizeInMb: MEMORY_SIZE,
-        diskSizeInMb: DISK_SIZE,
-        createCloudWatchLogGroup: true,
-      });
-      this.functionName = functionName;
-      console.log(`[Remotion Lambda] Function deployed: ${functionName}`);
-
-      return {
-        functionName,
-        bucketName,
-        serveUrl,
-      };
+      console.log(`[Remotion Lambda] Site redeployed: ${serveUrl}`);
+      return serveUrl;
     } catch (error) {
-      console.error("[Remotion Lambda] Deployment failed:", error);
+      console.error("[Remotion Lambda] Site redeployment failed:", error);
       throw error;
     }
   }
@@ -155,21 +140,18 @@ class RemotionLambdaService {
     codec?: "h264" | "h265" | "vp8" | "vp9";
     imageFormat?: "jpeg" | "png";
   }): Promise<RenderResult> {
-    if (!this.functionName || !this.serveUrl) {
-      const status = await this.getDeploymentStatus();
-      if (!status.deployed) {
-        throw new Error("Lambda function not deployed. Call deploy() first.");
-      }
-    }
+    this.getAwsCredentials();
 
     console.log(`[Remotion Lambda] Starting render for ${params.compositionId}...`);
-    console.log(`[Remotion Lambda] Input props:`, JSON.stringify(params.inputProps).substring(0, 200));
+    console.log(`[Remotion Lambda] Function: ${this.functionName}`);
+    console.log(`[Remotion Lambda] ServeUrl: ${this.serveUrl}`);
+    console.log(`[Remotion Lambda] Input props:`, JSON.stringify(params.inputProps).substring(0, 500));
 
     try {
       const result = await renderMediaOnLambda({
         region: REGION,
-        functionName: this.functionName!,
-        serveUrl: this.serveUrl!,
+        functionName: this.functionName,
+        serveUrl: this.serveUrl,
         composition: params.compositionId,
         inputProps: params.inputProps,
         codec: params.codec || "h264",
@@ -196,14 +178,10 @@ class RemotionLambdaService {
 
   async getRenderProgress(renderId: string, bucketName: string): Promise<RenderProgress> {
     try {
-      if (!this.functionName) {
-        await this.getDeploymentStatus();
-      }
-
       const progress = await getRenderProgress({
         renderId,
         bucketName,
-        functionName: this.functionName!,
+        functionName: this.functionName,
         region: REGION,
       });
 
