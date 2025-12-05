@@ -791,11 +791,60 @@ Guidelines:
 
     updatedProject.progress.steps.images.status = 'complete';
 
-    updatedProject.progress.steps.videos.status = 'skipped';
-    updatedProject.progress.steps.videos.message = 'Using images for this video';
+    // VIDEOS STEP - Fetch B-roll for script-based videos > 60 seconds
+    updatedProject.progress.currentStep = 'videos';
+    updatedProject.progress.steps.videos.status = 'in-progress';
+    
+    if (project.type === 'script-based' && project.totalDuration > 60) {
+      console.log('[UniversalVideoService] Fetching B-roll videos for script-based video...');
+      let videosGenerated = 0;
+      
+      for (let i = 0; i < project.scenes.length; i++) {
+        const scene = project.scenes[i];
+        // Fetch video for every other scene to add variety
+        if (i % 2 === 0) {
+          const videoResult = await this.getStockVideo(scene.background.source);
+          if (videoResult) {
+            updatedProject.assets.videos.push({
+              sceneId: scene.id,
+              url: videoResult.url,
+              source: 'pexels',
+            });
+            videosGenerated++;
+            console.log(`[UniversalVideoService] B-roll fetched for scene ${scene.id}`);
+          }
+        }
+        updatedProject.progress.steps.videos.progress = Math.round(((i + 1) / project.scenes.length) * 100);
+      }
+      
+      updatedProject.progress.steps.videos.status = 'complete';
+      updatedProject.progress.steps.videos.message = `Fetched ${videosGenerated} B-roll clips`;
+    } else {
+      updatedProject.progress.steps.videos.status = 'skipped';
+      updatedProject.progress.steps.videos.message = 'Using images for this video type';
+      console.log('[UniversalVideoService] Videos step skipped - product video uses images');
+    }
 
-    updatedProject.progress.steps.music.status = 'skipped';
-    updatedProject.progress.steps.music.message = 'Background music optional';
+    // MUSIC STEP - Fetch background music from Pexels
+    updatedProject.progress.currentStep = 'music';
+    updatedProject.progress.steps.music.status = 'in-progress';
+    
+    const musicResult = await this.getBackgroundMusic(project.totalDuration);
+    if (musicResult) {
+      updatedProject.assets.music = {
+        url: musicResult.url,
+        duration: musicResult.duration,
+        volume: 0.18,
+      };
+      updatedProject.progress.steps.music.status = 'complete';
+      updatedProject.progress.steps.music.progress = 100;
+      updatedProject.progress.steps.music.message = `Background music selected (${musicResult.duration}s)`;
+      console.log(`[UniversalVideoService] Background music selected: ${musicResult.source}`);
+    } else {
+      updatedProject.progress.steps.music.status = 'skipped';
+      updatedProject.progress.steps.music.message = 'No suitable music found - video will render without background music';
+      console.log('[UniversalVideoService] Music step skipped - no suitable music found');
+    }
 
     updatedProject.progress.currentStep = 'assembly';
     updatedProject.progress.steps.assembly.status = 'complete';
@@ -806,6 +855,46 @@ Guidelines:
     updatedProject.updatedAt = new Date().toISOString();
 
     return updatedProject;
+  }
+
+  async getBackgroundMusic(duration: number): Promise<{ url: string; duration: number; source: string } | null> {
+    const pexelsKey = process.env.PEXELS_API_KEY;
+    if (!pexelsKey) {
+      console.log('[UniversalVideoService] Pexels API key not configured for music');
+      return null;
+    }
+
+    try {
+      // Search for ambient/corporate music videos that could be used as audio background
+      const musicKeywords = ['ambient music', 'corporate background', 'calm instrumental', 'meditation music'];
+      const keyword = musicKeywords[Math.floor(Math.random() * musicKeywords.length)];
+      
+      const response = await fetch(
+        `https://api.pexels.com/videos/search?query=${encodeURIComponent(keyword)}&per_page=5&orientation=landscape&size=small`,
+        { headers: { Authorization: pexelsKey } }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.videos && data.videos.length > 0) {
+          // Find a video with appropriate duration
+          const suitableVideo = data.videos.find((v: any) => v.duration >= duration * 0.8) || data.videos[0];
+          const audioFile = suitableVideo.video_files?.find((f: any) => f.quality === 'sd') || suitableVideo.video_files?.[0];
+          
+          if (audioFile?.link) {
+            return {
+              url: audioFile.link,
+              duration: suitableVideo.duration,
+              source: 'pexels',
+            };
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("[UniversalVideoService] Pexels music search error:", e);
+    }
+
+    return null;
   }
 
   getServiceFailures(project: VideoProject): ServiceFailure[] {

@@ -611,8 +611,10 @@ function ScriptVideoForm({
   );
 }
 
+type StepKey = keyof typeof STEP_ICONS;
+
 function ProgressTracker({ project }: { project: VideoProject }) {
-  const steps = ["script", "voiceover", "images", "videos", "music", "assembly", "rendering"];
+  const steps: StepKey[] = ["script", "voiceover", "images", "videos", "music", "assembly", "rendering"];
   
   return (
     <div className="space-y-4">
@@ -624,7 +626,7 @@ function ProgressTracker({ project }: { project: VideoProject }) {
       
       <div className="grid grid-cols-7 gap-1 mt-4">
         {steps.map((step) => {
-          const stepData = project.progress.steps[step];
+          const stepData = project.progress.steps[step as keyof typeof project.progress.steps];
           const Icon = STEP_ICONS[step] || Settings;
           
           return (
@@ -1009,24 +1011,42 @@ export default function UniversalVideoProducer() {
         );
         const data = await response.json();
         
-        if (data.success) {
+        // Update project state from response
+        if (data.project) {
           setProject(data.project);
-          
-          if (data.done && data.outputUrl) {
-            setOutputUrl(data.outputUrl);
-            toast({
-              title: "Video Complete!",
-              description: "Your video has been rendered successfully.",
-            });
-            return;
-          }
-          
-          if (!data.done) {
-            setTimeout(poll, 3000);
-          }
+        }
+        
+        // Handle timeout or errors
+        if (data.timeout || (data.errors && data.errors.length > 0)) {
+          toast({
+            title: "Render Failed",
+            description: data.errors?.[0] || "Render timed out. Please try again.",
+            variant: "destructive",
+          });
+          return;
+        }
+        
+        // Handle success with output
+        if (data.success && data.done && data.outputUrl) {
+          setOutputUrl(data.outputUrl);
+          toast({
+            title: "Video Complete!",
+            description: "Your video has been rendered successfully.",
+          });
+          return;
+        }
+        
+        // Continue polling if not done and no errors
+        if (data.success && !data.done) {
+          setTimeout(poll, 3000);
         }
       } catch (error) {
         console.error("Poll error:", error);
+        toast({
+          title: "Status Check Failed",
+          description: "Unable to check render status. Please refresh.",
+          variant: "destructive",
+        });
       }
     };
     

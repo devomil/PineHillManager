@@ -395,6 +395,9 @@ router.post('/projects/:projectId/render', isAuthenticated, async (req: Request,
       });
       
       renderBuckets.set(renderResult.renderId, renderResult.bucketName);
+      
+      // Store render start time in progress object (persists to DB for timeout detection)
+      (projectData.progress as any).renderStartedAt = Date.now();
       projectData.progress.steps.rendering.message = `Render started: ${renderResult.renderId}`;
       
       await saveProjectToDb(projectData, projectData.ownerId, renderResult.renderId, renderResult.bucketName);
@@ -430,6 +433,9 @@ router.post('/projects/:projectId/render', isAuthenticated, async (req: Request,
   }
 });
 
+const LAMBDA_TIMEOUT_MS = 240000; // 4 minutes - matches Lambda function timeout
+const RENDER_TIMEOUT_MS = 600000; // 10 minutes - max time we wait for any render
+
 router.get('/projects/:projectId/render-status', isAuthenticated, async (req: Request, res: Response) => {
   try {
     const userId = (req.user as any)?.id;
@@ -453,8 +459,78 @@ router.get('/projects/:projectId/render-status', isAuthenticated, async (req: Re
                    renderBuckets.get(renderId) || 
                    'remotionlambda-useast1-refjo5giq5';
     
+    // Get render start time (persisted in DB to survive restarts)
+    // Primary source: DB-persisted progress.renderStartedAt
+    // Fallback: current time (persisted immediately so timeout works for legacy renders)
+    let persistedStartTime = (projectData.progress as any).renderStartedAt;
+    let needsPersist = false;
+    
+    if (!persistedStartTime || typeof persistedStartTime !== 'number') {
+      persistedStartTime = Date.now();
+      (projectData.progress as any).renderStartedAt = persistedStartTime;
+      needsPersist = true;
+      console.log(`[UniversalVideo] Legacy render - persisting start time: ${persistedStartTime}`);
+    }
+    
+    const renderStartTime = persistedStartTime;
+    const elapsedTime = Date.now() - renderStartTime;
+    
+    // Persist fallback start time immediately so timeout works for legacy renders
+    if (needsPersist) {
+      await saveProjectToDb(projectData, projectData.ownerId);
+    }
+    
+    console.log(`[UniversalVideo] Render status check for ${renderId}: elapsed ${Math.round(elapsedTime/1000)}s (started: ${new Date(renderStartTime).toISOString()})`);
+    
+    if (elapsedTime > RENDER_TIMEOUT_MS && projectData.status === 'rendering') {
+      console.log(`[UniversalVideo] Render timeout detected for ${projectId} after ${Math.round(elapsedTime/1000)}s`);
+      
+      projectData.status = 'error';
+      projectData.progress.steps.rendering.status = 'error';
+      projectData.progress.steps.rendering.message = `Render timed out after ${Math.round(elapsedTime/60000)} minutes`;
+      projectData.progress.errors.push('Render timed out - Lambda may have exceeded its time limit');
+      projectData.progress.serviceFailures.push({
+        service: 'remotion-lambda',
+        timestamp: new Date().toISOString(),
+        error: 'Render timeout - please try again with a shorter video or fewer scenes',
+      });
+      
+      await saveProjectToDb(projectData, projectData.ownerId);
+      
+      return res.json({
+        success: false,
+        done: false,
+        progress: projectData.progress.steps.rendering.progress / 100,
+        outputUrl: null,
+        errors: ['Render timed out. The video may be too complex. Please try again.'],
+        project: projectData,
+        timeout: true,
+      });
+    }
+    
     try {
       const statusResult = await remotionLambdaService.getRenderProgress(renderId, bucket);
+      
+      // Check for errors from Lambda
+      if (statusResult.errors && statusResult.errors.length > 0) {
+        console.log(`[UniversalVideo] Render errors for ${projectId}:`, statusResult.errors);
+        
+        projectData.status = 'error';
+        projectData.progress.steps.rendering.status = 'error';
+        projectData.progress.steps.rendering.message = statusResult.errors[0];
+        projectData.progress.errors.push(...statusResult.errors);
+        
+        await saveProjectToDb(projectData, projectData.ownerId);
+        
+        return res.json({
+          success: false,
+          done: true,
+          progress: statusResult.overallProgress,
+          outputUrl: null,
+          errors: statusResult.errors,
+          project: projectData,
+        });
+      }
       
       if (statusResult.done) {
         projectData.status = 'complete';
@@ -485,6 +561,25 @@ router.get('/projects/:projectId/render-status', isAuthenticated, async (req: Re
         project: projectData,
       });
     } catch (progressError: any) {
+      console.error(`[UniversalVideo] Error getting render progress for ${projectId}:`, progressError.message);
+      
+      // If we can't get progress and it's been too long, mark as error
+      if (elapsedTime > LAMBDA_TIMEOUT_MS) {
+        projectData.status = 'error';
+        projectData.progress.steps.rendering.status = 'error';
+        projectData.progress.steps.rendering.message = 'Unable to get render status - render may have failed';
+        projectData.progress.errors.push(`Render status check failed: ${progressError.message}`);
+        
+        await saveProjectToDb(projectData, projectData.ownerId);
+        
+        return res.json({ 
+          success: false, 
+          error: progressError.message || 'Failed to get render status',
+          project: projectData,
+          timeout: true,
+        });
+      }
+      
       res.status(500).json({ 
         success: false, 
         error: progressError.message || 'Failed to get render status' 
