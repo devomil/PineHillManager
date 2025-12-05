@@ -285,6 +285,43 @@ const ProductOverlay: React.FC<{
   );
 };
 
+const isValidHttpsUrl = (url: string | null | undefined): boolean => {
+  if (!url) return false;
+  return url.startsWith('https://');
+};
+
+const SafeImg: React.FC<{
+  src: string | null | undefined;
+  style?: React.CSSProperties;
+  fallbackColor?: string;
+}> = ({ src, style, fallbackColor = '#1a1a1a' }) => {
+  if (!src || !isValidHttpsUrl(src)) {
+    return (
+      <div
+        style={{
+          ...style,
+          backgroundColor: fallbackColor,
+          width: '100%',
+          height: '100%',
+        }}
+      />
+    );
+  }
+
+  return <Img src={src} style={style} />;
+};
+
+const SafeAudio: React.FC<{
+  src: string | null | undefined;
+  volume?: number;
+}> = ({ src, volume = 1 }) => {
+  if (!src || !isValidHttpsUrl(src)) {
+    return null;
+  }
+
+  return <Audio src={src} volume={volume} />;
+};
+
 const SceneRenderer: React.FC<{
   scene: Scene;
   brand: BrandSettings;
@@ -295,8 +332,8 @@ const SceneRenderer: React.FC<{
   const { fps, width, height } = useVideoConfig();
   const durationInFrames = scene.duration * fps;
 
-  const transitionInFrames = scene.transitionIn.duration * fps;
-  const transitionOutFrames = scene.transitionOut.duration * fps;
+  const transitionInFrames = (scene.transitionIn?.duration || 0.5) * fps;
+  const transitionOutFrames = (scene.transitionOut?.duration || 0.5) * fps;
 
   let opacity = 1;
   if (!isFirst && frame < transitionInFrames) {
@@ -355,12 +392,13 @@ const SceneRenderer: React.FC<{
   const productOverlayUrl = scene.assets?.productOverlayUrl;
   const productPosition = scene.assets?.productOverlayPosition || { x: 'center', y: 'center', scale: 0.4, animation: 'fade' };
   const useProductOverlay = scene.assets?.useProductOverlay !== false;
+  const hasValidImage = imageUrl && isValidHttpsUrl(imageUrl);
 
   return (
     <AbsoluteFill style={{ opacity }}>
       <AbsoluteFill>
-        {imageUrl ? (
-          <Img
+        {hasValidImage ? (
+          <SafeImg
             src={imageUrl}
             style={{
               width: '100%',
@@ -368,6 +406,7 @@ const SceneRenderer: React.FC<{
               objectFit: 'cover',
               transform: `scale(${scale}) translate(${translateX}px, ${translateY}px)`,
             }}
+            fallbackColor={brand.colors.primary}
           />
         ) : (
           <div
@@ -434,7 +473,7 @@ const Watermark: React.FC<{ brand: BrandSettings }> = ({ brand }) => {
 
   const watermarkSize = width * 0.08;
 
-  if (!brand.logoUrl) return null;
+  if (!brand.logoUrl || !isValidHttpsUrl(brand.logoUrl)) return null;
 
   return (
     <AbsoluteFill style={{ pointerEvents: 'none' }}>
@@ -445,7 +484,7 @@ const Watermark: React.FC<{ brand: BrandSettings }> = ({ brand }) => {
           opacity: brand.watermarkOpacity * fadeIn,
         }}
       >
-        <Img
+        <SafeImg
           src={brand.logoUrl}
           style={{
             width: watermarkSize,
@@ -531,13 +570,8 @@ export const UniversalVideoComposition: React.FC<UniversalVideoProps> = ({
 
       <Watermark brand={brand} />
 
-      {musicUrl && (
-        <Audio src={musicUrl} volume={musicVolume} />
-      )}
-
-      {voiceoverUrl && (
-        <Audio src={voiceoverUrl} volume={1} />
-      )}
+      <SafeAudio src={musicUrl} volume={musicVolume} />
+      <SafeAudio src={voiceoverUrl} volume={1} />
     </AbsoluteFill>
   );
 };

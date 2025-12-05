@@ -1374,6 +1374,112 @@ Guidelines:
       f => f.service === 'fal.ai' || f.service === 'elevenlabs'
     );
   }
+
+  private isValidHttpsUrl(url: string | null | undefined): boolean {
+    if (!url) return false;
+    return url.startsWith('https://');
+  }
+
+  async prepareAssetsForLambda(project: VideoProject): Promise<{
+    valid: boolean;
+    issues: string[];
+    preparedProject: VideoProject;
+  }> {
+    const issues: string[] = [];
+    const preparedProject = JSON.parse(JSON.stringify(project)) as VideoProject;
+
+    console.log('[UniversalVideoService] Preparing assets for Lambda render...');
+
+    if (preparedProject.assets.voiceover.fullTrackUrl) {
+      const voiceoverUrl = preparedProject.assets.voiceover.fullTrackUrl;
+      if (!this.isValidHttpsUrl(voiceoverUrl)) {
+        if (voiceoverUrl.startsWith('data:')) {
+          const match = voiceoverUrl.match(/^data:([^;]+);base64,(.+)$/);
+          if (match) {
+            const [, contentType, base64Data] = match;
+            const buffer = Buffer.from(base64Data, 'base64');
+            const fileName = `voiceover_${Date.now()}_${Math.random().toString(36).substring(7)}.mp3`;
+            const s3Url = await this.uploadToS3(buffer, fileName, contentType);
+            
+            if (s3Url) {
+              preparedProject.assets.voiceover.fullTrackUrl = s3Url;
+              console.log(`[UniversalVideoService] Uploaded voiceover to S3: ${s3Url}`);
+            } else {
+              issues.push('Failed to upload voiceover to S3');
+              preparedProject.assets.voiceover.fullTrackUrl = null;
+            }
+          }
+        } else {
+          issues.push(`Invalid voiceover URL format: ${voiceoverUrl.substring(0, 50)}...`);
+          preparedProject.assets.voiceover.fullTrackUrl = null;
+        }
+      }
+    }
+
+    if (preparedProject.assets.music?.url) {
+      if (!this.isValidHttpsUrl(preparedProject.assets.music.url)) {
+        issues.push(`Invalid music URL: ${preparedProject.assets.music.url.substring(0, 50)}...`);
+        preparedProject.assets.music = { url: '', duration: 0, volume: 0 };
+      }
+    }
+
+    for (let i = 0; i < preparedProject.scenes.length; i++) {
+      const scene = preparedProject.scenes[i];
+      
+      if (scene.assets?.imageUrl && !this.isValidHttpsUrl(scene.assets.imageUrl)) {
+        if (scene.assets.imageUrl.startsWith('data:')) {
+          const match = scene.assets.imageUrl.match(/^data:([^;]+);base64,(.+)$/);
+          if (match) {
+            const [, contentType, base64Data] = match;
+            const buffer = Buffer.from(base64Data, 'base64');
+            const ext = contentType.includes('png') ? 'png' : 'jpg';
+            const fileName = `scene_${i}_image_${Date.now()}.${ext}`;
+            const s3Url = await this.uploadToS3(buffer, fileName, contentType);
+            
+            if (s3Url) {
+              preparedProject.scenes[i].assets!.imageUrl = s3Url;
+              console.log(`[UniversalVideoService] Uploaded scene ${i} image to S3: ${s3Url}`);
+            } else {
+              issues.push(`Failed to upload scene ${i} image to S3`);
+              preparedProject.scenes[i].assets!.imageUrl = undefined;
+            }
+          }
+        } else {
+          issues.push(`Scene ${i} has invalid image URL`);
+          preparedProject.scenes[i].assets!.imageUrl = undefined;
+        }
+      }
+      
+      if (scene.assets?.backgroundUrl && !this.isValidHttpsUrl(scene.assets.backgroundUrl)) {
+        preparedProject.scenes[i].assets!.backgroundUrl = undefined;
+      }
+      
+      if (scene.assets?.productOverlayUrl && !this.isValidHttpsUrl(scene.assets.productOverlayUrl)) {
+        preparedProject.scenes[i].assets!.productOverlayUrl = undefined;
+        preparedProject.scenes[i].assets!.useProductOverlay = false;
+      }
+    }
+
+    const validScenes = preparedProject.scenes.filter(
+      s => s.assets?.imageUrl || s.assets?.backgroundUrl
+    ).length;
+    
+    console.log(`[UniversalVideoService] Asset preparation complete:`);
+    console.log(`  - Valid scenes: ${validScenes}/${preparedProject.scenes.length}`);
+    console.log(`  - Voiceover: ${this.isValidHttpsUrl(preparedProject.assets.voiceover.fullTrackUrl) ? 'OK' : 'Missing/Invalid'}`);
+    console.log(`  - Music: ${this.isValidHttpsUrl(preparedProject.assets.music?.url) ? 'OK' : 'None'}`);
+    console.log(`  - Issues: ${issues.length}`);
+    
+    if (issues.length > 0) {
+      console.log(`  - Issue details: ${issues.join('; ')}`);
+    }
+
+    return {
+      valid: validScenes > 0,
+      issues,
+      preparedProject,
+    };
+  }
 }
 
 export const universalVideoService = new UniversalVideoService();
