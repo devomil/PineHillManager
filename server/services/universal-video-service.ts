@@ -505,11 +505,23 @@ Guidelines:
       console.log(`[UniversalVideoService] Product image URL: ${productImageUrl}`);
       console.log(`[UniversalVideoService] Background prompt: ${backgroundPrompt}`);
 
-      const resolvedImageUrl = productImageUrl.startsWith('http') 
-        ? productImageUrl 
-        : productImageUrl.startsWith('/objects/')
-          ? `https://storage.googleapis.com/repl-default-bucket-${process.env.REPL_ID}${productImageUrl.replace('/objects', '')}`
-          : productImageUrl;
+      // Handle various object storage URL formats:
+      // - http/https URLs: use as-is
+      // - /objects/replit-objstore-xxx/... : convert to GCS URL
+      // - /replit-objstore-xxx/... : convert to GCS URL (newer format)
+      let resolvedImageUrl = productImageUrl;
+      if (productImageUrl.startsWith('http')) {
+        resolvedImageUrl = productImageUrl;
+      } else if (productImageUrl.startsWith('/objects/')) {
+        resolvedImageUrl = `https://storage.googleapis.com/repl-default-bucket-${process.env.REPL_ID}${productImageUrl.replace('/objects', '')}`;
+      } else if (productImageUrl.startsWith('/replit-objstore-')) {
+        // Extract bucket ID and path from /replit-objstore-{bucketId}/.private/uploads/{fileId}
+        const match = productImageUrl.match(/^\/replit-objstore-([a-f0-9-]+)\/(.+)$/);
+        if (match) {
+          const [, bucketId, filePath] = match;
+          resolvedImageUrl = `https://storage.googleapis.com/replit-objstore-${bucketId}/${filePath}`;
+        }
+      }
 
       console.log(`[UniversalVideoService] Resolved image URL: ${resolvedImageUrl}`);
 
