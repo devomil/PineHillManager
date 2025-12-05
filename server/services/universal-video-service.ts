@@ -1390,6 +1390,12 @@ Guidelines:
 
     console.log('[UniversalVideoService] Preparing assets for Lambda render...');
 
+    // Validate brand logo - must be valid HTTPS URL for Lambda
+    if (preparedProject.brand?.logoUrl && !this.isValidHttpsUrl(preparedProject.brand.logoUrl)) {
+      console.log(`[UniversalVideoService] Invalid logo URL (not HTTPS): ${preparedProject.brand.logoUrl} - disabling watermark`);
+      preparedProject.brand.logoUrl = ''; // Empty string will cause Watermark to skip rendering
+    }
+
     if (preparedProject.assets.voiceover.fullTrackUrl) {
       const voiceoverUrl = preparedProject.assets.voiceover.fullTrackUrl;
       if (!this.isValidHttpsUrl(voiceoverUrl)) {
