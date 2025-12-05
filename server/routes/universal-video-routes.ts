@@ -381,21 +381,47 @@ router.post('/projects/:projectId/render', isAuthenticated, async (req: Request,
     
     console.log('[UniversalVideo] Starting render for project:', projectId);
     
-    projectData.status = 'rendering';
-    projectData.progress.currentStep = 'rendering';
-    projectData.progress.steps.rendering.status = 'in-progress';
-    projectData.updatedAt = new Date().toISOString();
+    console.log('[UniversalVideo] Preparing assets for Lambda...');
+    const assetPrep = await universalVideoService.prepareAssetsForLambda(projectData);
     
-    const compositionId = getCompositionId(projectData.outputFormat.aspectRatio);
+    if (!assetPrep.valid) {
+      console.error('[UniversalVideo] Asset preparation failed:', assetPrep.issues);
+      return res.status(400).json({
+        success: false,
+        error: 'Asset preparation failed - no valid scene images',
+        issues: assetPrep.issues,
+      });
+    }
+    
+    if (assetPrep.issues.length > 0) {
+      console.warn('[UniversalVideo] Asset preparation warnings:', assetPrep.issues);
+    }
+    
+    const preparedProject = assetPrep.preparedProject;
+    
+    preparedProject.status = 'rendering';
+    preparedProject.progress.currentStep = 'rendering';
+    preparedProject.progress.steps.rendering.status = 'in-progress';
+    preparedProject.updatedAt = new Date().toISOString();
+    
+    const compositionId = getCompositionId(preparedProject.outputFormat.aspectRatio);
     
     const inputProps = {
-      scenes: projectData.scenes,
-      voiceoverUrl: projectData.assets.voiceover.fullTrackUrl || null,
-      musicUrl: projectData.assets.music.url || null,
-      musicVolume: projectData.assets.music.volume,
-      brand: projectData.brand,
-      outputFormat: projectData.outputFormat,
+      scenes: preparedProject.scenes,
+      voiceoverUrl: preparedProject.assets.voiceover.fullTrackUrl || null,
+      musicUrl: preparedProject.assets.music?.url || null,
+      musicVolume: preparedProject.assets.music?.volume || 0.18,
+      brand: preparedProject.brand,
+      outputFormat: preparedProject.outputFormat,
     };
+    
+    console.log('[UniversalVideo] Prepared input props for Lambda:', {
+      sceneCount: inputProps.scenes.length,
+      hasVoiceover: !!inputProps.voiceoverUrl,
+      hasMusic: !!inputProps.musicUrl,
+      voiceoverUrl: inputProps.voiceoverUrl?.substring(0, 80),
+      musicUrl: inputProps.musicUrl?.substring(0, 80),
+    });
     
     try {
       const renderResult = await remotionLambdaService.startRender({
@@ -406,10 +432,10 @@ router.post('/projects/:projectId/render', isAuthenticated, async (req: Request,
       renderBuckets.set(renderResult.renderId, renderResult.bucketName);
       
       // Store render start time in progress object (persists to DB for timeout detection)
-      (projectData.progress as any).renderStartedAt = Date.now();
-      projectData.progress.steps.rendering.message = `Render started: ${renderResult.renderId}`;
+      (preparedProject.progress as any).renderStartedAt = Date.now();
+      preparedProject.progress.steps.rendering.message = `Render started: ${renderResult.renderId}`;
       
-      await saveProjectToDb(projectData, projectData.ownerId, renderResult.renderId, renderResult.bucketName);
+      await saveProjectToDb(preparedProject, projectData.ownerId, renderResult.renderId, renderResult.bucketName);
       
       res.json({
         success: true,
@@ -418,18 +444,18 @@ router.post('/projects/:projectId/render', isAuthenticated, async (req: Request,
         message: 'Render started on AWS Lambda',
       });
     } catch (renderError: any) {
-      projectData.status = 'error';
-      projectData.progress.steps.rendering.status = 'error';
-      projectData.progress.steps.rendering.message = renderError.message || 'Render failed';
-      projectData.progress.errors.push(`Render failed: ${renderError.message}`);
+      preparedProject.status = 'error';
+      preparedProject.progress.steps.rendering.status = 'error';
+      preparedProject.progress.steps.rendering.message = renderError.message || 'Render failed';
+      preparedProject.progress.errors.push(`Render failed: ${renderError.message}`);
       
-      projectData.progress.serviceFailures.push({
+      preparedProject.progress.serviceFailures.push({
         service: 'remotion-lambda',
         timestamp: new Date().toISOString(),
         error: renderError.message || 'Unknown error',
       });
       
-      await saveProjectToDb(projectData, projectData.ownerId);
+      await saveProjectToDb(preparedProject, projectData.ownerId);
       
       res.status(500).json({
         success: false,
