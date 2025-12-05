@@ -126,7 +126,22 @@ export interface SceneAssets {
   backgroundUrl?: string;
   productOverlayUrl?: string;
   productOverlayPosition?: ProductOverlayPosition;
+  useProductOverlay?: boolean;
 }
+
+export const SCENE_OVERLAY_DEFAULTS: Record<string, boolean> = {
+  hook: false,
+  intro: true,
+  benefit: false,
+  feature: true,
+  explanation: false,
+  process: false,
+  testimonial: false,
+  social_proof: false,
+  story: false,
+  cta: true,
+  outro: false,
+};
 
 export interface ProductOverlayPosition {
   x: 'left' | 'center' | 'right';

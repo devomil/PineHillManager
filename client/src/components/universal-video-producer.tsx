@@ -11,11 +11,12 @@ import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Switch } from "@/components/ui/switch";
 import { 
   Video, Package, FileText, Play, Sparkles, AlertTriangle,
   CheckCircle, Clock, Loader2, ImageIcon, Volume2, Clapperboard,
   Download, RefreshCw, Settings, ChevronDown, ChevronUp, Upload, X, Star,
-  FolderOpen, Plus, Eye
+  FolderOpen, Plus, Eye, Layers
 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -28,6 +29,7 @@ import type {
   ServiceFailure,
   VideoProjectStatus
 } from "@shared/video-types";
+import { SCENE_OVERLAY_DEFAULTS } from "@shared/video-types";
 
 interface ProductImage extends SharedProductImage {
   _blobUrl?: string;
@@ -688,7 +690,15 @@ function ServiceFailureAlert({ failures }: { failures: ServiceFailure[] }) {
   );
 }
 
-function ScenePreview({ scenes, assets }: { scenes: Scene[]; assets: VideoProject['assets'] }) {
+function ScenePreview({ 
+  scenes, 
+  assets,
+  onToggleProductOverlay 
+}: { 
+  scenes: Scene[]; 
+  assets: VideoProject['assets'];
+  onToggleProductOverlay?: (sceneId: string, useOverlay: boolean) => void;
+}) {
   const [expandedScene, setExpandedScene] = useState<string | null>(null);
   
   return (
@@ -697,7 +707,9 @@ function ScenePreview({ scenes, assets }: { scenes: Scene[]; assets: VideoProjec
         const imageAsset = assets.images.find(img => img.sceneId === scene.id);
         const isExpanded = expandedScene === scene.id;
         const hasAIBackground = scene.assets?.backgroundUrl;
-        const hasProductOverlay = scene.assets?.productOverlayUrl;
+        const hasProductOverlay = scene.assets?.productOverlayUrl && scene.assets?.useProductOverlay !== false;
+        const defaultOverlay = SCENE_OVERLAY_DEFAULTS[scene.type] ?? false;
+        const showsProductOverlay = scene.assets?.useProductOverlay ?? defaultOverlay;
         
         return (
           <Card key={scene.id} className="overflow-hidden">
@@ -713,12 +725,13 @@ function ScenePreview({ scenes, assets }: { scenes: Scene[]; assets: VideoProjec
                       alt={`Scene ${index + 1} background`}
                       className="w-full h-full object-cover"
                     />
-                    {hasProductOverlay && (
+                    {hasProductOverlay && showsProductOverlay && (
                       <div className="absolute inset-0 flex items-center justify-center">
                         <img 
                           src={convertToDisplayUrl(scene.assets!.productOverlayUrl!)} 
                           alt="Product overlay"
                           className="max-w-[60%] max-h-[80%] object-contain drop-shadow-lg"
+                          onError={(e) => { e.currentTarget.style.display = 'none'; }}
                         />
                       </div>
                     )}
@@ -736,21 +749,16 @@ function ScenePreview({ scenes, assets }: { scenes: Scene[]; assets: VideoProjec
                 )}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <Badge variant="outline" className="text-xs capitalize">
                     {scene.type}
                   </Badge>
                   <span className="text-xs text-muted-foreground">
                     {scene.duration}s
                   </span>
-                  {hasAIBackground && hasProductOverlay && (
-                    <Badge className="text-xs bg-gradient-to-r from-purple-500 to-blue-500">
-                      AI Composite
-                    </Badge>
-                  )}
-                  {imageAsset?.source === 'ai' && !hasProductOverlay && (
-                    <Badge className="text-xs bg-purple-500">
-                      AI Generated
+                  {hasAIBackground && (
+                    <Badge className={`text-xs ${showsProductOverlay ? 'bg-gradient-to-r from-purple-500 to-blue-500' : 'bg-purple-500'}`}>
+                      {showsProductOverlay ? 'AI + Product' : 'AI Background'}
                     </Badge>
                   )}
                 </div>
@@ -762,7 +770,7 @@ function ScenePreview({ scenes, assets }: { scenes: Scene[]; assets: VideoProjec
             {isExpanded && (
               <CardContent className="pt-0 pb-3">
                 <Separator className="mb-3" />
-                <div className="space-y-2">
+                <div className="space-y-3">
                   <div>
                     <Label className="text-xs text-muted-foreground">Narration</Label>
                     <p className="text-sm">{scene.narration}</p>
@@ -771,29 +779,60 @@ function ScenePreview({ scenes, assets }: { scenes: Scene[]; assets: VideoProjec
                     <Label className="text-xs text-muted-foreground">Visual Direction</Label>
                     <p className="text-sm">{scene.background.source}</p>
                   </div>
-                  {hasAIBackground && hasProductOverlay && (
-                    <div className="grid grid-cols-2 gap-2 mt-3">
-                      <div>
-                        <Label className="text-xs text-muted-foreground">AI Background</Label>
-                        <div className="w-full h-20 rounded overflow-hidden mt-1">
-                          <img 
-                            src={convertToDisplayUrl(scene.assets!.backgroundUrl!)} 
-                            alt="AI background"
-                            className="w-full h-full object-cover"
+                  
+                  {hasAIBackground && (
+                    <>
+                      <div className="flex items-center justify-between p-2 bg-muted/50 rounded-lg">
+                        <div className="flex items-center gap-2">
+                          <Layers className="w-4 h-4 text-muted-foreground" />
+                          <Label className="text-sm font-medium">Show Product Overlay</Label>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {!defaultOverlay && (
+                            <span className="text-xs text-muted-foreground">(Off by default for {scene.type})</span>
+                          )}
+                          <Switch 
+                            checked={showsProductOverlay}
+                            onCheckedChange={(checked) => {
+                              if (onToggleProductOverlay) {
+                                onToggleProductOverlay(scene.id, checked);
+                              }
+                            }}
+                            data-testid={`switch-product-overlay-${scene.id}`}
                           />
                         </div>
                       </div>
-                      <div>
-                        <Label className="text-xs text-muted-foreground">Product Overlay</Label>
-                        <div className="w-full h-20 rounded overflow-hidden mt-1 bg-gray-100 flex items-center justify-center">
-                          <img 
-                            src={convertToDisplayUrl(scene.assets!.productOverlayUrl!)} 
-                            alt="Product"
-                            className="max-w-full max-h-full object-contain"
-                          />
+                      
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <Label className="text-xs text-muted-foreground">AI Background</Label>
+                          <div className="w-full h-24 rounded overflow-hidden mt-1 border">
+                            <img 
+                              src={convertToDisplayUrl(scene.assets!.backgroundUrl!)} 
+                              alt="AI background"
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
                         </div>
+                        {scene.assets?.productOverlayUrl && (
+                          <div className={`${!showsProductOverlay ? 'opacity-50' : ''}`}>
+                            <Label className="text-xs text-muted-foreground">
+                              Product {!showsProductOverlay && '(Disabled)'}
+                            </Label>
+                            <div className="w-full h-24 rounded overflow-hidden mt-1 border bg-gray-50 flex items-center justify-center">
+                              <img 
+                                src={convertToDisplayUrl(scene.assets!.productOverlayUrl!)} 
+                                alt="Product"
+                                className="max-w-full max-h-full object-contain p-1"
+                                onError={(e) => { 
+                                  e.currentTarget.parentElement!.innerHTML = '<span class="text-xs text-muted-foreground">Image not loaded</span>';
+                                }}
+                              />
+                            </div>
+                          </div>
+                        )}
                       </div>
-                    </div>
+                    </>
                   )}
                 </div>
               </CardContent>
@@ -1133,6 +1172,36 @@ export default function UniversalVideoProducer() {
     },
   });
 
+  const toggleProductOverlayMutation = useMutation({
+    mutationFn: async ({ sceneId, useOverlay }: { sceneId: string; useOverlay: boolean }) => {
+      if (!project) throw new Error("No project selected");
+      const response = await apiRequest("PATCH", `/api/universal-video/${project.id}/scene/${sceneId}/overlay`, {
+        useProductOverlay: useOverlay
+      });
+      return response.json();
+    },
+    onSuccess: (data) => {
+      if (data.success && data.project) {
+        setProject(data.project);
+        toast({
+          title: "Scene Updated",
+          description: data.message || "Product overlay setting updated.",
+        });
+      }
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Update Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleToggleProductOverlay = (sceneId: string, useOverlay: boolean) => {
+    toggleProductOverlayMutation.mutate({ sceneId, useOverlay });
+  };
+
   const resetProject = () => {
     setProject(null);
     setRenderId(null);
@@ -1303,7 +1372,11 @@ export default function UniversalVideoProducer() {
               <div>
                 <h4 className="font-medium mb-3">Scenes Preview</h4>
                 <ScrollArea className="h-[400px] pr-4">
-                  <ScenePreview scenes={project.scenes} assets={project.assets} />
+                  <ScenePreview 
+                    scenes={project.scenes} 
+                    assets={project.assets}
+                    onToggleProductOverlay={handleToggleProductOverlay}
+                  />
                 </ScrollArea>
               </div>
             </div>

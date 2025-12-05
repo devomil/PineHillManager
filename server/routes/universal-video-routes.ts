@@ -905,4 +905,49 @@ router.put('/projects/:projectId/scenes/:sceneId/assign-image', isAuthenticated,
   }
 });
 
+router.patch('/:projectId/scene/:sceneId/overlay', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = (req.user as any)?.id;
+    const { projectId, sceneId } = req.params;
+    const { useProductOverlay } = req.body;
+    
+    if (typeof useProductOverlay !== 'boolean') {
+      return res.status(400).json({ success: false, error: 'useProductOverlay must be a boolean' });
+    }
+    
+    const projectData = await getProjectFromDb(projectId);
+    if (!projectData) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+    
+    if (projectData.ownerId !== userId) {
+      return res.status(403).json({ success: false, error: 'Access denied' });
+    }
+    
+    const sceneIndex = projectData.scenes.findIndex((s: Scene) => s.id === sceneId);
+    if (sceneIndex === -1) {
+      return res.status(404).json({ success: false, error: 'Scene not found' });
+    }
+    
+    const scene = projectData.scenes[sceneIndex];
+    
+    if (!scene.assets) {
+      scene.assets = {};
+    }
+    scene.assets.useProductOverlay = useProductOverlay;
+    
+    projectData.updatedAt = new Date().toISOString();
+    await saveProjectToDb(projectData, projectData.ownerId);
+    
+    res.json({
+      success: true,
+      message: useProductOverlay ? 'Product overlay enabled' : 'Product overlay disabled',
+      project: projectData,
+    });
+  } catch (error: any) {
+    console.error('[UniversalVideo] Error updating scene overlay:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 export default router;

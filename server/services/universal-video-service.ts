@@ -12,6 +12,7 @@ import {
   calculateTotalDuration,
   PINE_HILL_FARM_BRAND,
   OUTPUT_FORMATS,
+  SCENE_OVERLAY_DEFAULTS,
 } from "../../shared/video-types";
 
 interface ImageGenerationResult {
@@ -489,6 +490,23 @@ Guidelines:
     return { url: '', source: 'huggingface', success: false, error: 'All models failed' };
   }
 
+  private getBackgroundEnvironmentPrompt(sceneType: string): string {
+    const environments: Record<string, string> = {
+      hook: 'dramatic lighting with soft shadows, elegant minimalist setting',
+      intro: 'clean white studio environment with subtle reflections on surface',
+      benefit: 'natural setting with soft morning light, serene peaceful atmosphere',
+      feature: 'modern clean laboratory or wellness space with professional lighting',
+      explanation: 'educational setting with soft gradient background and subtle textures',
+      process: 'clean production environment with professional studio lighting',
+      testimonial: 'warm inviting home-like environment with natural window light',
+      social_proof: 'professional office or wellness center setting',
+      story: 'cinematic atmospheric background with bokeh lighting effects',
+      cta: 'premium studio setting with spotlight and elegant backdrop',
+      outro: 'soft gradient background transitioning to brand colors',
+    };
+    return environments[sceneType] || 'professional studio environment with clean composition';
+  }
+
   private async generateAIBackground(
     backgroundPrompt: string,
     sceneType: string
@@ -501,11 +519,24 @@ Guidelines:
 
     try {
       console.log(`[UniversalVideoService] Generating AI background for ${sceneType} scene...`);
-      console.log(`[UniversalVideoService] Background prompt: ${backgroundPrompt}`);
+      
+      const environmentContext = this.getBackgroundEnvironmentPrompt(sceneType);
+      
+      const cleanedPrompt = backgroundPrompt
+        .replace(/product\s*(shot|image|photo|photography)?/gi, '')
+        .replace(/bottle/gi, '')
+        .replace(/packaging/gi, '')
+        .replace(/label/gi, '')
+        .replace(/(Black Cohosh|Extract|Plus)/gi, '')
+        .trim();
+
+      const environmentOnlyPrompt = `Empty background scene for product photography: ${environmentContext}. ${cleanedPrompt}. IMPORTANT: No products, no bottles, no packaging, no text, no labels, no logos - ONLY the background environment and setting. Empty clean surface ready for product placement. Professional studio lighting, high quality, 4K, photorealistic background plate.`;
+      
+      console.log(`[UniversalVideoService] Environment-only prompt: ${environmentOnlyPrompt}`);
 
       const backgroundResult = await fal.subscribe("fal-ai/flux-pro/v1.1", {
         input: {
-          prompt: `Professional product photography background scene, ${backgroundPrompt}, studio lighting, soft natural colors, clean composition, empty space for product placement, high quality, 4K, photorealistic`,
+          prompt: environmentOnlyPrompt,
           image_size: "landscape_16_9",
           num_images: 1,
           safety_tolerance: "2",
@@ -848,6 +879,11 @@ Guidelines:
         // User can opt-out by setting enhanceWithAIBackground to false explicitly
         const shouldEnhanceBackground = scene.assets?.enhanceWithAIBackground !== false;
         
+        // Determine if product overlay should be shown based on scene type or explicit user choice
+        const useProductOverlay = scene.assets?.useProductOverlay !== undefined
+          ? scene.assets.useProductOverlay
+          : (SCENE_OVERLAY_DEFAULTS[scene.type] ?? true);
+        
         if (shouldEnhanceBackground) {
           console.log(`[UniversalVideoService] Generating AI background for ${scene.type} scene: ${scene.id}`);
           const backgroundResult = await this.generateAIBackground(
@@ -855,7 +891,7 @@ Guidelines:
             scene.type
           );
           
-          // Resolve product image URL for browser access
+          // Resolve product image URL for browser access - ensure proper public path
           const resolvedProductUrl = this.resolveProductImageUrl(productImage.url);
           
           if (backgroundResult.backgroundUrl) {
@@ -870,11 +906,18 @@ Guidelines:
             // Set up scene assets for Remotion layered compositing
             updatedProject.scenes[i].assets!.imageUrl = backgroundResult.backgroundUrl;
             updatedProject.scenes[i].assets!.backgroundUrl = backgroundResult.backgroundUrl;
-            updatedProject.scenes[i].assets!.productOverlayUrl = resolvedProductUrl;
-            updatedProject.scenes[i].assets!.productOverlayPosition = this.getProductOverlayPosition(scene.type);
+            updatedProject.scenes[i].assets!.useProductOverlay = useProductOverlay;
+            
+            // Only set product overlay if enabled for this scene type
+            if (useProductOverlay) {
+              updatedProject.scenes[i].assets!.productOverlayUrl = resolvedProductUrl;
+              updatedProject.scenes[i].assets!.productOverlayPosition = this.getProductOverlayPosition(scene.type);
+              console.log(`[UniversalVideoService] Product overlay ENABLED for ${scene.type}: ${resolvedProductUrl}`);
+            } else {
+              console.log(`[UniversalVideoService] Product overlay DISABLED for ${scene.type} (background only)`);
+            }
             
             console.log(`[UniversalVideoService] AI background: ${backgroundResult.backgroundUrl}`);
-            console.log(`[UniversalVideoService] Product overlay: ${resolvedProductUrl}`);
           } else {
             // Fallback: use product image with gradient background
             console.log(`[UniversalVideoService] AI background failed, using product image with gradient for ${scene.type} scene`);

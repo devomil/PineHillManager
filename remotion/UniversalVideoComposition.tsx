@@ -354,6 +354,7 @@ const SceneRenderer: React.FC<{
   const imageUrl = scene.assets?.backgroundUrl || scene.assets?.imageUrl || '';
   const productOverlayUrl = scene.assets?.productOverlayUrl;
   const productPosition = scene.assets?.productOverlayPosition || { x: 'center', y: 'center', scale: 0.4, animation: 'fade' };
+  const useProductOverlay = scene.assets?.useProductOverlay !== false;
 
   return (
     <AbsoluteFill style={{ opacity }}>
@@ -392,7 +393,7 @@ const SceneRenderer: React.FC<{
         />
       )}
 
-      {productOverlayUrl && (
+      {productOverlayUrl && useProductOverlay && (
         <ProductOverlay
           productUrl={productOverlayUrl}
           position={productPosition}
