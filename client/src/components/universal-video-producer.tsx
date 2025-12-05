@@ -12,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Switch } from "@/components/ui/switch";
+import { VoiceSelector } from "./voice-selector";
 import { 
   Video, Package, FileText, Play, Sparkles, AlertTriangle,
   CheckCircle, Clock, Loader2, ImageIcon, Volume2, Clapperboard,
@@ -54,6 +55,8 @@ interface ProductFormData {
   platform: "youtube" | "tiktok" | "instagram" | "facebook" | "website";
   style: "professional" | "friendly" | "energetic" | "calm";
   callToAction: string;
+  voiceId?: string;
+  voiceName?: string;
 }
 
 interface ScriptFormData {
@@ -313,6 +316,8 @@ function ProductVideoForm({
     platform: "youtube",
     style: "professional",
     callToAction: "Visit pinehillfarm.com",
+    voiceId: "21m00Tcm4TlvDq8ikWAM",  // Rachel - default
+    voiceName: "Rachel",
   });
   const [productImages, setProductImages] = useState<ProductImage[]>([]);
 
@@ -480,6 +485,15 @@ function ProductVideoForm({
           onChange={(e) => setFormData(prev => ({ ...prev, callToAction: e.target.value }))}
         />
       </div>
+
+      <Separator className="my-4" />
+
+      <VoiceSelector
+        selectedVoiceId={formData.voiceId}
+        onSelect={(voiceId, voiceName) => 
+          setFormData(prev => ({ ...prev, voiceId, voiceName }))
+        }
+      />
 
       <Separator className="my-4" />
 

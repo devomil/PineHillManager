@@ -14,6 +14,8 @@ export interface VideoProject {
   progress: ProductionProgress;
   createdAt: string;
   updatedAt: string;
+  voiceId?: string;
+  voiceName?: string;
 }
 
 export type VideoProjectStatus = 'draft' | 'generating' | 'ready' | 'rendering' | 'complete' | 'error';
@@ -212,6 +214,20 @@ export interface ProductImage {
   _blobUrl?: string;
 }
 
+export interface VoiceOption {
+  voice_id: string;
+  name: string;
+  category: 'premade' | 'cloned' | 'generated' | 'professional';
+  description: string;
+  preview_url: string;
+  labels: {
+    accent?: string;
+    age?: string;
+    gender?: string;
+    use_case?: string;
+  };
+}
+
 export interface ProductVideoInput {
   productName: string;
   productDescription: string;
@@ -222,6 +238,8 @@ export interface ProductVideoInput {
   style: 'professional' | 'friendly' | 'energetic' | 'calm';
   callToAction: string;
   productImages?: ProductImage[];
+  voiceId?: string;
+  voiceName?: string;
 }
 
 export interface ScriptVideoInput {

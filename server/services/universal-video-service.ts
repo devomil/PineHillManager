@@ -854,7 +854,15 @@ Guidelines:
     return { url: '', source: 'stock', success: false, error: 'No stock images found' };
   }
 
-  async generateVoiceover(text: string, voiceId?: string): Promise<VoiceoverResult> {
+  async generateVoiceover(
+    text: string, 
+    voiceId?: string,
+    options?: {
+      stability?: number;
+      similarityBoost?: number;
+      style?: number;
+    }
+  ): Promise<VoiceoverResult> {
     const elevenLabsKey = process.env.ELEVENLABS_API_KEY;
     if (!elevenLabsKey) {
       this.addNotification({
@@ -865,10 +873,25 @@ Guidelines:
       return { url: '', duration: 0, success: false, error: 'API key not configured' };
     }
 
-    const selectedVoiceId = voiceId || 'EXAVITQu4vr4xnSDxMaL'; // Sarah - professional female voice
+    // RECOMMENDED VOICES FOR HEALTH/WELLNESS:
+    // - Rachel (21m00Tcm4TlvDq8ikWAM) - Warm, calm, American female - BEST for wellness
+    // - Sarah (EXAVITQu4vr4xnSDxMaL) - Soft, friendly female
+    // - Charlotte (XB0fDUnXU5powFXDhCwa) - Warm British female
+    // - Matilda (XrExE9yKIg1WjnnlVkGX) - Warm, friendly female
+    // - Thomas (GBv7mTt0atIp3Br8iCZE) - Calm, professional male
+    const selectedVoiceId = voiceId || '21m00Tcm4TlvDq8ikWAM'; // Rachel - best for wellness
+
+    // IMPROVED VOICE SETTINGS for natural sound:
+    const voiceSettings = {
+      stability: options?.stability ?? 0.50,        // Lower = more expressive/natural
+      similarity_boost: options?.similarityBoost ?? 0.75,
+      style: options?.style ?? 0.40,                // Higher = more emotional delivery
+      use_speaker_boost: true,                       // Improves clarity
+    };
 
     try {
-      console.log(`[UniversalVideoService] Generating voiceover with ElevenLabs...`);
+      console.log(`[UniversalVideoService] Generating voiceover with voice: ${selectedVoiceId}`);
+      console.log(`[UniversalVideoService] Voice settings:`, voiceSettings);
 
       const response = await fetch(
         `https://api.elevenlabs.io/v1/text-to-speech/${selectedVoiceId}`,
@@ -881,13 +904,9 @@ Guidelines:
           },
           body: JSON.stringify({
             text,
+            // USE THE BEST MODEL - eleven_multilingual_v2 is highest quality
             model_id: "eleven_multilingual_v2",
-            voice_settings: {
-              stability: 0.5,
-              similarity_boost: 0.75,
-              style: 0.0,
-              use_speaker_boost: true,
-            },
+            voice_settings: voiceSettings,
           }),
         }
       );
@@ -985,6 +1004,12 @@ Guidelines:
     project.targetAudience = input.targetAudience;
     project.totalDuration = input.duration;
     
+    if (input.voiceId) {
+      project.voiceId = input.voiceId;
+      project.voiceName = input.voiceName;
+      console.log(`[UniversalVideoService] Using voice: ${input.voiceName} (${input.voiceId})`);
+    }
+    
     if (input.productImages && input.productImages.length > 0) {
       project.assets.productImages = input.productImages;
       console.log(`[UniversalVideoService] Attached ${input.productImages.length} product images to project`);
@@ -1021,7 +1046,7 @@ Guidelines:
     updatedProject.status = 'generating';
 
     const fullNarration = project.scenes.map(s => s.narration).join(' ... ');
-    const voiceoverResult = await this.generateVoiceover(fullNarration);
+    const voiceoverResult = await this.generateVoiceover(fullNarration, project.voiceId);
 
     if (voiceoverResult.success) {
       updatedProject.assets.voiceover.fullTrackUrl = voiceoverResult.url;
@@ -1261,21 +1286,24 @@ Guidelines:
       console.log('[UniversalVideoService] Videos step skipped - product video uses images');
     }
 
-    // MUSIC STEP - Fetch background music from Pexels
+    // MUSIC STEP - Fetch background music from Pixabay
     updatedProject.progress.currentStep = 'music';
     updatedProject.progress.steps.music.status = 'in-progress';
     
-    const musicResult = await this.getBackgroundMusic(project.totalDuration);
+    // Get style from project or default to professional
+    const style = (project as any).style || 'professional';
+    const musicResult = await this.getBackgroundMusic(project.totalDuration, style);
+    
     if (musicResult) {
       updatedProject.assets.music = {
         url: musicResult.url,
         duration: musicResult.duration,
-        volume: 0.18,
+        volume: 0.15, // Background music should be subtle
       };
       updatedProject.progress.steps.music.status = 'complete';
       updatedProject.progress.steps.music.progress = 100;
-      updatedProject.progress.steps.music.message = `Background music selected (${musicResult.duration}s)`;
-      console.log(`[UniversalVideoService] Background music selected: ${musicResult.source}`);
+      updatedProject.progress.steps.music.message = `Background music selected (${musicResult.duration}s from ${musicResult.source})`;
+      console.log(`[UniversalVideoService] Music URL: ${musicResult.url}`);
     } else {
       updatedProject.progress.steps.music.status = 'skipped';
       updatedProject.progress.steps.music.message = 'No suitable music found - video will render without background music';
@@ -1293,75 +1321,95 @@ Guidelines:
     return updatedProject;
   }
 
-  async getBackgroundMusic(duration: number): Promise<{ url: string; duration: number; source: string } | null> {
+  async getBackgroundMusic(duration: number, style?: string): Promise<{ url: string; duration: number; source: string } | null> {
     const pixabayKey = process.env.PIXABAY_API_KEY;
     
-    if (pixabayKey) {
-      try {
-        console.log('[UniversalVideoService] Searching Pixabay for background music...');
-        const musicCategories = ['ambient', 'corporate', 'calm', 'inspiring', 'meditation'];
-        const category = musicCategories[Math.floor(Math.random() * musicCategories.length)];
-        
-        const response = await fetch(
-          `https://pixabay.com/api/music/?key=${pixabayKey}&q=${encodeURIComponent(category)}&per_page=10`
-        );
+    if (!pixabayKey) {
+      console.log('[UniversalVideoService] No PIXABAY_API_KEY - skipping music');
+      this.addNotification({
+        type: 'warning',
+        service: 'Music',
+        message: 'No Pixabay API key configured - video will render without background music',
+      });
+      return null;
+    }
 
-        if (response.ok) {
-          const data = await response.json();
-          if (data.hits && data.hits.length > 0) {
-            const suitableTrack = data.hits.find((h: any) => h.duration >= duration * 0.8) || data.hits[0];
-            
-            if (suitableTrack?.audio) {
-              console.log(`[UniversalVideoService] Found Pixabay music: ${suitableTrack.title} (${suitableTrack.duration}s)`);
-              return {
-                url: suitableTrack.audio,
-                duration: suitableTrack.duration,
-                source: 'pixabay',
-              };
-            }
+    // Search terms based on video style
+    const searchTerms: Record<string, string> = {
+      professional: 'corporate ambient calm',
+      friendly: 'uplifting happy acoustic',
+      energetic: 'upbeat motivational electronic',
+      calm: 'relaxing meditation peaceful',
+      documentary: 'cinematic documentary emotional',
+    };
+    
+    const query = searchTerms[style || 'professional'] || 'ambient corporate background';
+
+    try {
+      console.log(`[UniversalVideoService] Searching Pixabay for music: ${query}`);
+      
+      // IMPORTANT: Use &media_type=music for audio, not videos
+      const response = await fetch(
+        `https://pixabay.com/api/?key=${pixabayKey}&q=${encodeURIComponent(query)}&media_type=music&per_page=10`
+      );
+      
+      if (!response.ok) {
+        console.warn('[UniversalVideoService] Pixabay API error:', response.status);
+        
+        // Try fallback search
+        const fallbackResponse = await fetch(
+          `https://pixabay.com/api/?key=${pixabayKey}&q=background+music&media_type=music&per_page=10`
+        );
+        if (fallbackResponse.ok) {
+          const fallbackData = await fallbackResponse.json();
+          if (fallbackData.hits?.length > 0) {
+            const track = this.selectBestMusicTrack(fallbackData.hits, duration);
+            if (track) return track;
           }
-        } else {
-          console.warn('[UniversalVideoService] Pixabay music API response not OK:', response.status);
         }
-      } catch (e) {
-        console.warn("[UniversalVideoService] Pixabay music search error:", e);
+        return null;
       }
+      
+      const data = await response.json();
+      
+      if (!data.hits || data.hits.length === 0) {
+        console.log('[UniversalVideoService] No music found for query:', query);
+        // Try a fallback query
+        const fallbackResponse = await fetch(
+          `https://pixabay.com/api/?key=${pixabayKey}&q=background+music&media_type=music&per_page=10`
+        );
+        const fallbackData = await fallbackResponse.json();
+        if (!fallbackData.hits?.length) return null;
+        data.hits = fallbackData.hits;
+      }
+      
+      return this.selectBestMusicTrack(data.hits, duration);
+    } catch (e: any) {
+      console.error('[UniversalVideoService] Pixabay music search error:', e.message);
+      return null;
+    }
+  }
+
+  private selectBestMusicTrack(hits: any[], duration: number): { url: string; duration: number; source: string } | null {
+    // Find a track with suitable duration (at least 80% of video length)
+    const minDuration = duration * 0.8;
+    let selectedTrack = hits.find((hit: any) => hit.duration >= minDuration);
+    
+    // If no long enough track, just use the longest one
+    if (!selectedTrack) {
+      selectedTrack = hits.sort((a: any, b: any) => b.duration - a.duration)[0];
     }
     
-    const pexelsKey = process.env.PEXELS_API_KEY;
-    if (pexelsKey) {
-      try {
-        console.log('[UniversalVideoService] Fallback: Searching Pexels videos for audio...');
-        const musicKeywords = ['ambient music', 'corporate background', 'calm instrumental'];
-        const keyword = musicKeywords[Math.floor(Math.random() * musicKeywords.length)];
-        
-        const response = await fetch(
-          `https://api.pexels.com/videos/search?query=${encodeURIComponent(keyword)}&per_page=5&orientation=landscape&size=small`,
-          { headers: { Authorization: pexelsKey } }
-        );
-
-        if (response.ok) {
-          const data = await response.json();
-          if (data.videos && data.videos.length > 0) {
-            const suitableVideo = data.videos.find((v: any) => v.duration >= duration * 0.8) || data.videos[0];
-            const audioFile = suitableVideo.video_files?.find((f: any) => f.quality === 'sd') || suitableVideo.video_files?.[0];
-            
-            if (audioFile?.link) {
-              console.log(`[UniversalVideoService] Using Pexels video audio as fallback (${suitableVideo.duration}s)`);
-              return {
-                url: audioFile.link,
-                duration: suitableVideo.duration,
-                source: 'pexels-video',
-              };
-            }
-          }
-        }
-      } catch (e) {
-        console.warn("[UniversalVideoService] Pexels music search error:", e);
-      }
+    // Pixabay audio API returns 'audio' field for the audio URL
+    if (selectedTrack?.audio) {
+      console.log(`[UniversalVideoService] Selected music track: ${selectedTrack.audio} (${selectedTrack.duration}s)`);
+      return {
+        url: selectedTrack.audio,  // This is already a valid HTTPS URL
+        duration: selectedTrack.duration,
+        source: 'pixabay',
+      };
     }
-
-    console.log('[UniversalVideoService] No background music found from any source');
+    
     return null;
   }
 

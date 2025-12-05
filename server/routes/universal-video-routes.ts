@@ -46,6 +46,8 @@ const productVideoInputSchema = z.object({
   style: z.enum(['professional', 'friendly', 'energetic', 'calm']),
   callToAction: z.string().min(1),
   productImages: z.array(productImageSchema).optional(),
+  voiceId: z.string().optional(),
+  voiceName: z.string().optional(),
 });
 
 const scriptVideoInputSchema = z.object({
@@ -691,6 +693,60 @@ router.post('/generate-voiceover', isAuthenticated, async (req: Request, res: Re
     });
   } catch (error: any) {
     console.error('[UniversalVideo] Error generating voiceover:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.get('/voices', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const elevenLabsKey = process.env.ELEVENLABS_API_KEY;
+    if (!elevenLabsKey) {
+      return res.status(500).json({ success: false, error: 'ElevenLabs not configured' });
+    }
+
+    const response = await fetch('https://api.elevenlabs.io/v1/voices', {
+      headers: {
+        'xi-api-key': elevenLabsKey,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch voices');
+    }
+
+    const data = await response.json();
+    
+    // Filter and format voices - prioritize natural-sounding voices
+    const voices = (data.voices || [])
+      .filter((v: any) => v.category === 'premade' || v.category === 'professional')
+      .map((v: any) => ({
+        voice_id: v.voice_id,
+        name: v.name,
+        category: v.category,
+        description: v.description || '',
+        preview_url: v.preview_url || '',
+        labels: {
+          accent: v.labels?.accent || '',
+          age: v.labels?.age || '',
+          gender: v.labels?.gender || '',
+          use_case: v.labels?.use_case || v.labels?.['use case'] || '',
+        },
+      }))
+      // Sort with best voices first
+      .sort((a: any, b: any) => {
+        // These are ElevenLabs' most natural-sounding voices
+        const priority = ['Rachel', 'Drew', 'Clyde', 'Paul', 'Domi', 'Dave', 'Fin', 'Sarah', 'Antoni', 'Thomas', 'Charlotte', 'Alice', 'Matilda'];
+        const aIndex = priority.indexOf(a.name);
+        const bIndex = priority.indexOf(b.name);
+        if (aIndex >= 0 && bIndex >= 0) return aIndex - bIndex;
+        if (aIndex >= 0) return -1;
+        if (bIndex >= 0) return 1;
+        return a.name.localeCompare(b.name);
+      });
+
+    res.json({ success: true, voices });
+  } catch (error: any) {
+    console.error('[UniversalVideo] Error fetching voices:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
