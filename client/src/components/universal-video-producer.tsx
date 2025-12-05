@@ -1339,7 +1339,7 @@ export default function UniversalVideoProducer() {
                     </Button>
                   )}
                   
-                  {project.status === 'ready' && (
+                  {(project.status === 'ready' || project.status === 'error') && (
                     <Button
                       onClick={() => renderMutation.mutate()}
                       disabled={renderMutation.isPending}
@@ -1350,7 +1350,7 @@ export default function UniversalVideoProducer() {
                       ) : (
                         <Play className="w-4 h-4 mr-2" />
                       )}
-                      Render Video
+                      {project.status === 'error' ? 'Retry Render' : 'Render Video'}
                     </Button>
                   )}
                   
