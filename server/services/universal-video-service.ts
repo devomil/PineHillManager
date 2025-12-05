@@ -752,6 +752,11 @@ Guidelines:
     project.description = input.productDescription;
     project.targetAudience = input.targetAudience;
     project.totalDuration = input.duration;
+    
+    if (input.productImages && input.productImages.length > 0) {
+      project.assets.productImages = input.productImages;
+      console.log(`[UniversalVideoService] Attached ${input.productImages.length} product images to project`);
+    }
 
     project.progress.currentStep = 'script';
     project.progress.steps.script.status = 'in-progress';

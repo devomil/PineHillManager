@@ -28,6 +28,14 @@ const objectStorageService = new ObjectStorageService();
 
 const router = Router();
 
+const productImageSchema = z.object({
+  id: z.string(),
+  url: z.string(),
+  name: z.string(),
+  description: z.string().optional(),
+  isPrimary: z.boolean().optional(),
+});
+
 const productVideoInputSchema = z.object({
   productName: z.string().min(1),
   productDescription: z.string().min(1),
@@ -37,6 +45,7 @@ const productVideoInputSchema = z.object({
   platform: z.enum(['youtube', 'tiktok', 'instagram', 'facebook', 'website']),
   style: z.enum(['professional', 'friendly', 'energetic', 'calm']),
   callToAction: z.string().min(1),
+  productImages: z.array(productImageSchema).optional(),
 });
 
 const scriptVideoInputSchema = z.object({
