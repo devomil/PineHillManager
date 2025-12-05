@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { fal } from "@fal-ai/client";
+import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import {
   VideoProject,
   Scene,
@@ -14,6 +15,9 @@ import {
   OUTPUT_FORMATS,
   SCENE_OVERLAY_DEFAULTS,
 } from "../../shared/video-types";
+
+const AWS_REGION = "us-east-1";
+const REMOTION_BUCKET = "remotionlambda-useast1-refjo5giq5";
 
 interface ImageGenerationResult {
   url: string;
@@ -41,10 +45,46 @@ class UniversalVideoService {
   private anthropic: Anthropic | null = null;
   private notifications: ServiceNotification[] = [];
   private projectCallbacks: Map<string, (progress: ProductionProgress) => void> = new Map();
+  private s3Client: S3Client | null = null;
 
   constructor() {
     if (process.env.ANTHROPIC_API_KEY) {
       this.anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+    }
+    
+    const accessKeyId = process.env.REMOTION_AWS_ACCESS_KEY_ID;
+    const secretAccessKey = process.env.REMOTION_AWS_SECRET_ACCESS_KEY;
+    if (accessKeyId && secretAccessKey) {
+      this.s3Client = new S3Client({
+        region: AWS_REGION,
+        credentials: { accessKeyId, secretAccessKey },
+      });
+    }
+  }
+
+  private async uploadToS3(buffer: Buffer, key: string, contentType: string): Promise<string | null> {
+    if (!this.s3Client) {
+      console.error('[UniversalVideoService] S3 client not configured');
+      return null;
+    }
+
+    try {
+      const command = new PutObjectCommand({
+        Bucket: REMOTION_BUCKET,
+        Key: `video-assets/${key}`,
+        Body: buffer,
+        ContentType: contentType,
+        ACL: 'public-read',
+      });
+
+      await this.s3Client.send(command);
+      
+      const publicUrl = `https://${REMOTION_BUCKET}.s3.${AWS_REGION}.amazonaws.com/video-assets/${key}`;
+      console.log(`[UniversalVideoService] Uploaded to S3: ${publicUrl}`);
+      return publicUrl;
+    } catch (error: any) {
+      console.error('[UniversalVideoService] S3 upload failed:', error.message);
+      return null;
     }
   }
 
@@ -854,18 +894,31 @@ Guidelines:
 
       if (response.ok) {
         const audioBuffer = await response.arrayBuffer();
-        const base64Audio = Buffer.from(audioBuffer).toString("base64");
-        const audioUrl = `data:audio/mpeg;base64,${base64Audio}`;
-
+        const buffer = Buffer.from(audioBuffer);
+        
         const wordCount = text.split(/\s+/).length;
         const estimatedDuration = Math.ceil(wordCount / 2.5);
-
-        console.log(`[UniversalVideoService] Voiceover generated successfully (${estimatedDuration}s)`);
-        return {
-          url: audioUrl,
-          duration: estimatedDuration,
-          success: true,
-        };
+        
+        const fileName = `voiceover_${Date.now()}_${Math.random().toString(36).substring(7)}.mp3`;
+        const s3Url = await this.uploadToS3(buffer, fileName, 'audio/mpeg');
+        
+        if (s3Url) {
+          console.log(`[UniversalVideoService] Voiceover uploaded to S3: ${s3Url} (${estimatedDuration}s)`);
+          return {
+            url: s3Url,
+            duration: estimatedDuration,
+            success: true,
+          };
+        } else {
+          console.warn('[UniversalVideoService] S3 upload failed, using base64 fallback');
+          const base64Audio = buffer.toString("base64");
+          const audioUrl = `data:audio/mpeg;base64,${base64Audio}`;
+          return {
+            url: audioUrl,
+            duration: estimatedDuration,
+            success: true,
+          };
+        }
       } else {
         const errorText = await response.text();
         console.error(`[UniversalVideoService] ElevenLabs error: ${response.status}`, errorText);
