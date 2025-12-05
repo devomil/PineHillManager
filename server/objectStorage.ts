@@ -207,6 +207,9 @@ export class ObjectStorageService {
   }
 
   // Gets the object entity file from the object path.
+  // Supports two formats:
+  // 1. /objects/uploads/uuid - needs private dir prepended
+  // 2. /objects/replit-objstore-xxx/.private/uploads/uuid - already has full path
   async getObjectEntityFile(objectPath: string): Promise<File> {
     if (!objectPath.startsWith("/objects/")) {
       throw new ObjectNotFoundError();
@@ -218,11 +221,21 @@ export class ObjectStorageService {
     }
 
     const entityId = parts.slice(1).join("/");
-    let entityDir = this.getPrivateObjectDir();
-    if (!entityDir.endsWith("/")) {
-      entityDir = `${entityDir}/`;
+    let objectEntityPath: string;
+    
+    // Check if the path already contains the bucket name (replit-objstore-xxx)
+    if (entityId.startsWith("replit-objstore-")) {
+      // Path already has full bucket path, use as-is with leading slash
+      objectEntityPath = `/${entityId}`;
+    } else {
+      // Legacy format: prepend the private object dir
+      let entityDir = this.getPrivateObjectDir();
+      if (!entityDir.endsWith("/")) {
+        entityDir = `${entityDir}/`;
+      }
+      objectEntityPath = `${entityDir}${entityId}`;
     }
-    const objectEntityPath = `${entityDir}${entityId}`;
+    
     const { bucketName, objectName } = parseObjectPath(objectEntityPath);
     const bucket = objectStorageClient.bucket(bucketName);
     const objectFile = bucket.file(objectName);
@@ -268,7 +281,27 @@ export class ObjectStorageService {
       return normalizedPath;
     }
 
-    const objectFile = await this.getObjectEntityFile(normalizedPath);
+    // Handle different path formats:
+    // - /objects/... : use getObjectEntityFile
+    // - /replit-objstore-xxx/... : direct bucket path, parse and access directly
+    let objectFile;
+    if (normalizedPath.startsWith("/objects/")) {
+      objectFile = await this.getObjectEntityFile(normalizedPath);
+    } else if (normalizedPath.startsWith("/replit-objstore-")) {
+      // Direct bucket path - parse and access
+      const { bucketName, objectName } = parseObjectPath(normalizedPath);
+      const bucket = objectStorageClient.bucket(bucketName);
+      objectFile = bucket.file(objectName);
+      const [exists] = await objectFile.exists();
+      if (!exists) {
+        console.warn(`[ObjectStorage] File not found for ACL update: ${normalizedPath}`);
+        return normalizedPath;
+      }
+    } else {
+      console.warn(`[ObjectStorage] Unknown path format for ACL: ${normalizedPath}`);
+      return normalizedPath;
+    }
+    
     await setObjectAclPolicy(objectFile, aclPolicy);
     return normalizedPath;
   }
@@ -288,6 +321,17 @@ export class ObjectStorageService {
       objectFile,
       requestedPermission: requestedPermission ?? ObjectPermission.READ,
     });
+  }
+
+  // Checks if an object has public visibility (can be accessed without authentication)
+  async isObjectPublic(objectFile: File): Promise<boolean> {
+    try {
+      const aclPolicy = await getObjectAclPolicy(objectFile);
+      return aclPolicy?.visibility === "public";
+    } catch (error) {
+      // If we can't get the ACL policy, assume it's not public
+      return false;
+    }
   }
 }
 

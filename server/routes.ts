@@ -21003,17 +21003,32 @@ Respond in JSON format:
   });
 
   // Serve uploaded objects from Object Storage
-  app.get('/objects/:objectPath(*)', isAuthenticated, async (req, res) => {
+  // Public objects can be accessed without authentication
+  app.get('/objects/:objectPath(*)', async (req, res) => {
     const objectStorageService = new ObjectStorageService();
     try {
       const objectFile = await objectStorageService.getObjectEntityFile(req.path);
+      
+      // Check if object is publicly accessible
+      const isPublic = await objectStorageService.isObjectPublic(objectFile);
+      
+      if (isPublic) {
+        // Public objects can be served without authentication
+        return objectStorageService.downloadObject(objectFile, res);
+      }
+      
+      // For private objects, require authentication
+      if (!req.user) {
+        return res.sendStatus(401);
+      }
+      
       const canAccess = await objectStorageService.canAccessObjectEntity({
         objectFile,
-        userId: req.user!.id,
+        userId: req.user.id,
         requestedPermission: ObjectPermission.READ,
       });
       if (!canAccess) {
-        return res.sendStatus(401);
+        return res.sendStatus(403);
       }
       objectStorageService.downloadObject(objectFile, res);
     } catch (error) {
