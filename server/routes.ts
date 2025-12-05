@@ -16625,6 +16625,28 @@ Respond in JSON format:
     }
   });
 
+  // Redeploy Remotion site to S3 (updates compositions without changing Lambda function)
+  app.post('/api/remotion/redeploy-site', isAuthenticated, requireRole(['admin']), async (req, res) => {
+    try {
+      const { remotionLambdaService } = await import('./services/remotion-lambda-service');
+      
+      console.log('[Remotion Lambda] Redeploying site to S3...');
+      const serveUrl = await remotionLambdaService.redeploySite();
+      
+      res.json({
+        success: true,
+        serveUrl,
+        message: 'Site redeployed successfully with updated compositions'
+      });
+    } catch (error) {
+      console.error('[Remotion Lambda] Site redeployment error:', error);
+      res.status(500).json({ 
+        error: 'Failed to redeploy site',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
   // Start a render on Remotion Lambda
   app.post('/api/remotion/render', isAuthenticated, requireRole(['admin', 'manager']), async (req, res) => {
     try {

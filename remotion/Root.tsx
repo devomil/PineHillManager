@@ -1,5 +1,4 @@
-import React from "react";
-import { Composition } from "remotion";
+import { Composition, CalculateMetadataFunction } from "remotion";
 import { VideoComposition } from "./VideoComposition";
 import type { VideoCompositionProps } from "./VideoComposition";
 import { UniversalVideoComposition } from "./UniversalVideoComposition";
@@ -15,6 +14,28 @@ const defaultUniversalProps: UniversalVideoProps = {
   outputFormat: OUTPUT_FORMATS.youtube,
 };
 
+const calculateUniversalMetadata: CalculateMetadataFunction<UniversalVideoProps> = async ({ props }) => {
+  const totalDuration = props.scenes.reduce(
+    (acc: number, scene) => acc + (scene.duration || 4),
+    0
+  );
+  return {
+    durationInFrames: Math.max(totalDuration * 30, 150),
+    props,
+  };
+};
+
+const calculateLegacyMetadata: CalculateMetadataFunction<VideoCompositionProps> = async ({ props }) => {
+  const totalDuration = props.scenes.reduce(
+    (acc: number, scene) => acc + (scene.duration || 4),
+    0
+  );
+  return {
+    durationInFrames: Math.max(totalDuration * 30, 150),
+    props,
+  };
+};
+
 export const RemotionRoot: React.FC = () => {
   return (
     <>
@@ -27,16 +48,7 @@ export const RemotionRoot: React.FC = () => {
         width={1920}
         height={1080}
         defaultProps={defaultUniversalProps}
-        calculateMetadata={async ({ props }) => {
-          const totalDuration = props.scenes.reduce(
-            (acc: number, scene: any) => acc + (scene.duration || 4),
-            0
-          );
-          return {
-            durationInFrames: Math.max(totalDuration * 30, 150),
-            props,
-          };
-        }}
+        calculateMetadata={calculateUniversalMetadata}
       />
       <Composition
         id="UniversalVideoVertical"
@@ -49,16 +61,7 @@ export const RemotionRoot: React.FC = () => {
           ...defaultUniversalProps,
           outputFormat: OUTPUT_FORMATS.tiktok,
         }}
-        calculateMetadata={async ({ props }) => {
-          const totalDuration = props.scenes.reduce(
-            (acc: number, scene: any) => acc + (scene.duration || 4),
-            0
-          );
-          return {
-            durationInFrames: Math.max(totalDuration * 30, 150),
-            props,
-          };
-        }}
+        calculateMetadata={calculateUniversalMetadata}
       />
       <Composition
         id="UniversalVideoSquare"
@@ -71,16 +74,7 @@ export const RemotionRoot: React.FC = () => {
           ...defaultUniversalProps,
           outputFormat: OUTPUT_FORMATS.instagram,
         }}
-        calculateMetadata={async ({ props }) => {
-          const totalDuration = props.scenes.reduce(
-            (acc: number, scene: any) => acc + (scene.duration || 4),
-            0
-          );
-          return {
-            durationInFrames: Math.max(totalDuration * 30, 150),
-            props,
-          };
-        }}
+        calculateMetadata={calculateUniversalMetadata}
       />
       
       {/* Legacy Marketing Video Compositions */}
@@ -99,16 +93,7 @@ export const RemotionRoot: React.FC = () => {
           productName: "Product",
           style: "professional",
         }}
-        calculateMetadata={async ({ props }) => {
-          const totalDuration = props.scenes.reduce(
-            (acc: number, scene: any) => acc + (scene.duration || 4),
-            0
-          );
-          return {
-            durationInFrames: Math.max(totalDuration * 30, 150),
-            props,
-          };
-        }}
+        calculateMetadata={calculateLegacyMetadata}
       />
       <Composition
         id="MarketingVideoVertical"
@@ -125,16 +110,7 @@ export const RemotionRoot: React.FC = () => {
           productName: "Product",
           style: "professional",
         }}
-        calculateMetadata={async ({ props }) => {
-          const totalDuration = props.scenes.reduce(
-            (acc: number, scene: any) => acc + (scene.duration || 4),
-            0
-          );
-          return {
-            durationInFrames: Math.max(totalDuration * 30, 150),
-            props,
-          };
-        }}
+        calculateMetadata={calculateLegacyMetadata}
       />
       <Composition
         id="MarketingVideoSquare"
@@ -151,16 +127,7 @@ export const RemotionRoot: React.FC = () => {
           productName: "Product",
           style: "professional",
         }}
-        calculateMetadata={async ({ props }) => {
-          const totalDuration = props.scenes.reduce(
-            (acc: number, scene: any) => acc + (scene.duration || 4),
-            0
-          );
-          return {
-            durationInFrames: Math.max(totalDuration * 30, 150),
-            props,
-          };
-        }}
+        calculateMetadata={calculateLegacyMetadata}
       />
     </>
   );

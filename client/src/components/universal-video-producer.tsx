@@ -1053,6 +1053,28 @@ export default function UniversalVideoProducer() {
     poll();
   };
 
+  const redeployLambdaSiteMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", "/api/remotion/redeploy-site");
+      return response.json();
+    },
+    onSuccess: (data) => {
+      if (data.success) {
+        toast({
+          title: "Lambda Site Redeployed",
+          description: "Video rendering compositions have been updated.",
+        });
+      }
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Redeployment Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const resetProject = () => {
     setProject(null);
     setRenderId(null);
@@ -1102,6 +1124,20 @@ export default function UniversalVideoProducer() {
               </CardDescription>
             </div>
             <div className="flex gap-2">
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={() => redeployLambdaSiteMutation.mutate()}
+                disabled={redeployLambdaSiteMutation.isPending}
+                title="Update Lambda rendering compositions"
+                data-testid="button-redeploy-lambda"
+              >
+                {redeployLambdaSiteMutation.isPending ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="w-4 h-4" />
+                )}
+              </Button>
               {viewMode !== 'list' && (
                 <Button variant="outline" onClick={handleBackToList} data-testid="button-back-to-projects">
                   <FolderOpen className="w-4 h-4 mr-2" />

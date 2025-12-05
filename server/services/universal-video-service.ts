@@ -489,6 +489,102 @@ Guidelines:
     return { url: '', source: 'huggingface', success: false, error: 'All models failed' };
   }
 
+  private async generateProductImageWithBackground(
+    productImageUrl: string,
+    backgroundPrompt: string,
+    productName: string
+  ): Promise<ImageGenerationResult> {
+    const falKey = process.env.FAL_KEY;
+    if (!falKey) {
+      console.log('[UniversalVideoService] FAL_KEY not available - using original product image');
+      return { url: productImageUrl, source: 'uploaded (original)', success: true };
+    }
+
+    try {
+      console.log(`[UniversalVideoService] Creating composite with product image and AI background...`);
+      console.log(`[UniversalVideoService] Product image URL: ${productImageUrl}`);
+      console.log(`[UniversalVideoService] Background prompt: ${backgroundPrompt}`);
+
+      const resolvedImageUrl = productImageUrl.startsWith('http') 
+        ? productImageUrl 
+        : productImageUrl.startsWith('/objects/')
+          ? `https://storage.googleapis.com/repl-default-bucket-${process.env.REPL_ID}${productImageUrl.replace('/objects', '')}`
+          : productImageUrl;
+
+      console.log(`[UniversalVideoService] Resolved image URL: ${resolvedImageUrl}`);
+
+      const backgroundResult = await fal.subscribe("fal-ai/flux-pro/v1.1", {
+        input: {
+          prompt: `Professional product photography background, ${backgroundPrompt}, studio lighting, soft gradient background, clean and minimal, no product, just background scenery, 4K, high quality`,
+          image_size: "landscape_16_9",
+          num_images: 1,
+          safety_tolerance: "2",
+          enable_safety_checker: true,
+        },
+        logs: true,
+        onQueueUpdate: (update: any) => {
+          if (update.status === "IN_PROGRESS") {
+            console.log(`[UniversalVideoService] Background generation in progress...`);
+          }
+        },
+      });
+
+      if (backgroundResult.data?.images?.[0]?.url) {
+        console.log('[UniversalVideoService] AI background generated, now attempting to composite...');
+        
+        try {
+          const compositeResult = await fal.subscribe("fal-ai/image-to-image", {
+            input: {
+              image_url: resolvedImageUrl,
+              prompt: `${productName} product placed on ${backgroundPrompt}, professional product photography, studio lighting, high quality, the product from the image placed naturally in the scene`,
+              strength: 0.35,
+              num_images: 1,
+            },
+            logs: true,
+          });
+
+          if (compositeResult.data?.images?.[0]?.url) {
+            console.log('[UniversalVideoService] Composite image created successfully');
+            return {
+              url: compositeResult.data.images[0].url,
+              source: 'fal.ai (product + AI background composite)',
+              success: true,
+            };
+          }
+        } catch (compositeError: any) {
+          console.warn('[UniversalVideoService] Composite failed, using original with background URL:', compositeError.message);
+        }
+
+        return {
+          url: productImageUrl,
+          source: 'uploaded (composite failed - using original)',
+          success: true,
+        };
+      }
+    } catch (error: any) {
+      console.warn('[UniversalVideoService] Background generation failed:', error.message);
+    }
+
+    console.log('[UniversalVideoService] All AI enhancement attempts failed, using original product image');
+    return { url: productImageUrl, source: 'uploaded (original)', success: true };
+  }
+
+  private resolveProductImageUrl(url: string): string {
+    if (!url) return '';
+    
+    if (url.startsWith('http')) return url;
+    
+    if (url.startsWith('/objects/')) {
+      return url;
+    }
+    
+    if (url.startsWith('public/') || url.startsWith('/public/')) {
+      return `/objects/${url.replace(/^\//, '')}`;
+    }
+    
+    return `/objects/${url.replace(/^\//, '')}`;
+  }
+
   private async getStockImage(query: string): Promise<ImageGenerationResult> {
     const pexelsKey = process.env.PEXELS_API_KEY;
     if (pexelsKey) {
@@ -713,11 +809,18 @@ Guidelines:
     const productImages = project.assets.productImages || [];
     const primaryImage = productImages.find(img => img.isPrimary);
     
+    console.log(`[UniversalVideoService] Product images available: ${productImages.length}`);
+    if (productImages.length > 0) {
+      console.log(`[UniversalVideoService] Product image URLs: ${productImages.map(img => img.url).join(', ')}`);
+      console.log(`[UniversalVideoService] Primary image: ${primaryImage?.url || 'none'}`);
+    }
+    
     const productSceneTypes = ['hook', 'feature', 'benefit', 'cta', 'intro'];
     const lifestyleSceneTypes = ['explanation', 'process', 'testimonial', 'brand', 'outro'];
 
     for (let i = 0; i < project.scenes.length; i++) {
       const scene = project.scenes[i];
+      console.log(`[UniversalVideoService] Processing scene ${i}: type=${scene.type}, isProductScene=${productSceneTypes.includes(scene.type)}, useAIImage=${scene.assets?.useAIImage}`);
       
       if (!updatedProject.scenes[i].assets) {
         updatedProject.scenes[i].assets = {};
@@ -755,14 +858,34 @@ Guidelines:
         const imageIndex = i % productImages.length;
         const productImage = productImages[imageIndex];
         
-        updatedProject.assets.images.push({
-          sceneId: scene.id,
-          url: productImage.url,
-          prompt: scene.background.source,
-          source: 'uploaded',
-        });
-        updatedProject.scenes[i].assets!.imageUrl = productImage.url;
-        console.log(`[UniversalVideoService] Using uploaded product image for ${scene.type} scene: ${scene.id}`);
+        const shouldEnhanceBackground = scene.assets?.enhanceWithAIBackground === true;
+        
+        if (shouldEnhanceBackground) {
+          console.log(`[UniversalVideoService] Generating AI-enhanced background for ${scene.type} scene: ${scene.id}`);
+          const enhancedResult = await this.generateProductImageWithBackground(
+            productImage.url,
+            scene.background.source,
+            project.title
+          );
+          
+          updatedProject.assets.images.push({
+            sceneId: scene.id,
+            url: enhancedResult.url,
+            prompt: scene.background.source,
+            source: enhancedResult.source,
+          });
+          updatedProject.scenes[i].assets!.imageUrl = enhancedResult.url;
+        } else {
+          const resolvedUrl = this.resolveProductImageUrl(productImage.url);
+          updatedProject.assets.images.push({
+            sceneId: scene.id,
+            url: resolvedUrl,
+            prompt: scene.background.source,
+            source: 'uploaded',
+          });
+          updatedProject.scenes[i].assets!.imageUrl = resolvedUrl;
+          console.log(`[UniversalVideoService] Using uploaded product image for ${scene.type} scene: ${scene.id}, URL: ${resolvedUrl}`);
+        }
       } else {
         const imageResult = await this.generateImage(scene.background.source, scene.id);
 
