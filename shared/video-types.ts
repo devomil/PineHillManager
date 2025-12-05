@@ -52,6 +52,7 @@ export interface Scene {
   type: SceneType;
   duration: number;
   narration: string;
+  visualDirection?: string;
   textOverlays: TextOverlay[];
   background: BackgroundConfig;
   transitionIn: TransitionConfig;
@@ -67,6 +68,9 @@ export type SceneType =
   | 'explanation'
   | 'process'
   | 'testimonial'
+  | 'social_proof'
+  | 'story'
+  | 'problem'
   | 'brand'
   | 'cta'
   | 'outro';
@@ -139,6 +143,8 @@ export const SCENE_OVERLAY_DEFAULTS: Record<string, boolean> = {
   testimonial: false,
   social_proof: false,
   story: false,
+  problem: false,
+  brand: true,
   cta: true,
   outro: false,
 };

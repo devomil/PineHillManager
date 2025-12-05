@@ -564,6 +564,173 @@ Guidelines:
     return { backgroundUrl: null, source: 'failed' };
   }
 
+  private isContentScene(sceneType: string): boolean {
+    const contentScenes = ['hook', 'benefit', 'story', 'explanation', 'process', 'testimonial', 'social_proof', 'problem'];
+    return contentScenes.includes(sceneType);
+  }
+
+  private async generateContentImage(
+    scene: Scene,
+    productName: string
+  ): Promise<{ imageUrl: string | null; source: string }> {
+    const falKey = process.env.FAL_KEY;
+    if (!falKey) {
+      console.log('[UniversalVideoService] FAL_KEY not available - trying stock images');
+      return this.getContentStockImage(scene);
+    }
+
+    try {
+      console.log(`[UniversalVideoService] Generating content image for ${scene.type} scene...`);
+      
+      const contentPrompt = this.buildContentPrompt(scene, productName);
+      console.log(`[UniversalVideoService] Content prompt: ${contentPrompt}`);
+
+      const result = await fal.subscribe("fal-ai/flux-pro/v1.1", {
+        input: {
+          prompt: contentPrompt,
+          image_size: "landscape_16_9",
+          num_images: 1,
+          safety_tolerance: "2",
+          enable_safety_checker: true,
+        },
+        logs: true,
+        onQueueUpdate: (update: any) => {
+          if (update.status === "IN_PROGRESS") {
+            console.log(`[UniversalVideoService] Content image generation in progress for ${scene.type}...`);
+          }
+        },
+      });
+
+      if (result.data?.images?.[0]?.url) {
+        console.log(`[UniversalVideoService] Content image generated successfully for ${scene.type}`);
+        return {
+          imageUrl: result.data.images[0].url,
+          source: 'fal.ai/flux-pro (content)',
+        };
+      }
+    } catch (error: any) {
+      console.warn('[UniversalVideoService] Content image generation failed:', error.message);
+    }
+
+    return this.getContentStockImage(scene);
+  }
+
+  private buildContentPrompt(scene: Scene, productName: string): string {
+    const sceneType = scene.type;
+    const visualDirection = scene.visualDirection || '';
+    const narration = scene.narration || '';
+    
+    let baseContext = '';
+    
+    switch (sceneType) {
+      case 'hook':
+        baseContext = `Emotional cinematic scene showing the problem or challenge. Person experiencing discomfort or frustration. Realistic lifestyle photography, dramatic lighting, evocative mood.`;
+        break;
+      case 'benefit':
+        baseContext = `Positive transformation scene showing wellness and relief. Person feeling happy, healthy, and vibrant. Bright natural lighting, optimistic mood, lifestyle photography.`;
+        break;
+      case 'story':
+        baseContext = `Authentic storytelling scene with emotional depth. Real-life moment captured naturally. Documentary style, warm tones, genuine expression.`;
+        break;
+      case 'explanation':
+      case 'process':
+        baseContext = `Educational visual showing scientific or natural process. Clean informational style, subtle medical/botanical elements, professional presentation.`;
+        break;
+      case 'testimonial':
+      case 'social_proof':
+        baseContext = `Happy satisfied person in natural home or lifestyle setting. Genuine smile, warm inviting atmosphere, trustworthy and relatable.`;
+        break;
+      case 'problem':
+        baseContext = `Person dealing with challenge or discomfort. Empathetic perspective, muted colors, realistic portrayal of struggle before solution.`;
+        break;
+      default:
+        baseContext = `Professional lifestyle photography with natural lighting.`;
+    }
+    
+    const extractedConcepts = this.extractVisualConcepts(visualDirection, narration);
+    
+    const fullPrompt = `${baseContext} ${extractedConcepts}. High quality, 4K, photorealistic, professional commercial photography. NO text, NO logos, NO product shots, NO bottles, NO packaging.`;
+    
+    return fullPrompt;
+  }
+
+  private extractVisualConcepts(visualDirection: string, narration: string): string {
+    const combined = `${visualDirection} ${narration}`.toLowerCase();
+    
+    const concepts: string[] = [];
+    
+    if (combined.includes('menopause') || combined.includes('hot flash') || combined.includes('hormonal')) {
+      concepts.push('middle-aged woman, wellness journey, natural health, serene expression');
+    }
+    if (combined.includes('sleep') || combined.includes('restful') || combined.includes('night')) {
+      concepts.push('peaceful sleep, comfortable bedroom, restful atmosphere');
+    }
+    if (combined.includes('energy') || combined.includes('vitality') || combined.includes('active')) {
+      concepts.push('energetic person, active lifestyle, vibrant health');
+    }
+    if (combined.includes('stress') || combined.includes('anxiety') || combined.includes('mood')) {
+      concepts.push('calm relaxed person, peaceful moment, stress relief');
+    }
+    if (combined.includes('natural') || combined.includes('herb') || combined.includes('botanical')) {
+      concepts.push('natural herbs, botanical elements, organic wellness');
+    }
+    if (combined.includes('woman') || combined.includes('female') || combined.includes('her')) {
+      concepts.push('woman in natural setting, feminine wellness');
+    }
+    if (combined.includes('science') || combined.includes('study') || combined.includes('research') || combined.includes('clinical')) {
+      concepts.push('scientific visualization, research imagery, medical illustration style');
+    }
+    
+    if (concepts.length === 0) {
+      concepts.push('wellness lifestyle, healthy living, natural setting');
+    }
+    
+    return concepts.join(', ');
+  }
+
+  private async getContentStockImage(scene: Scene): Promise<{ imageUrl: string | null; source: string }> {
+    const searchQuery = this.buildStockSearchQuery(scene);
+    console.log(`[UniversalVideoService] Searching stock images for: ${searchQuery}`);
+    
+    const result = await this.getStockImage(searchQuery);
+    if (result.success) {
+      return { imageUrl: result.url, source: result.source };
+    }
+    
+    return { imageUrl: null, source: 'failed' };
+  }
+
+  private buildStockSearchQuery(scene: Scene): string {
+    const sceneType = scene.type;
+    const narration = (scene.narration || '').toLowerCase();
+    
+    if (narration.includes('menopause') || narration.includes('hot flash')) {
+      return 'woman wellness health natural';
+    }
+    if (narration.includes('sleep') || narration.includes('restful')) {
+      return 'peaceful sleep relaxation bedroom';
+    }
+    if (narration.includes('energy') || narration.includes('vitality')) {
+      return 'active healthy lifestyle energy';
+    }
+    if (narration.includes('hormone') || narration.includes('estrogen')) {
+      return 'woman health wellness botanical';
+    }
+    
+    const stockQueries: Record<string, string> = {
+      hook: 'woman wellness challenge lifestyle',
+      benefit: 'happy healthy woman nature',
+      story: 'authentic lifestyle moment',
+      explanation: 'natural herbs botanical wellness',
+      process: 'science nature botanical',
+      testimonial: 'happy satisfied customer portrait',
+      social_proof: 'people wellness community',
+      problem: 'woman stress health concern',
+    };
+    
+    return stockQueries[sceneType] || 'wellness lifestyle health';
+  }
+
   private getProductOverlayPosition(sceneType: string): { x: 'left' | 'center' | 'right'; y: 'top' | 'center' | 'bottom'; scale: number; animation: 'fade' | 'zoom' | 'slide' | 'none' } {
     switch (sceneType) {
       case 'hook':
@@ -875,71 +1042,109 @@ Guidelines:
         const imageIndex = i % productImages.length;
         const productImage = productImages[imageIndex];
         
-        // Default: Generate AI background and layer product on top in Remotion
-        // User can opt-out by setting enhanceWithAIBackground to false explicitly
-        const shouldEnhanceBackground = scene.assets?.enhanceWithAIBackground !== false;
-        
         // Determine if product overlay should be shown based on scene type or explicit user choice
         const useProductOverlay = scene.assets?.useProductOverlay !== undefined
           ? scene.assets.useProductOverlay
           : (SCENE_OVERLAY_DEFAULTS[scene.type] ?? true);
         
-        if (shouldEnhanceBackground) {
-          console.log(`[UniversalVideoService] Generating AI background for ${scene.type} scene: ${scene.id}`);
-          const backgroundResult = await this.generateAIBackground(
-            scene.background.source,
-            scene.type
-          );
+        // For content scenes (hook, benefit, story, etc.) - generate script-relevant imagery
+        // For product overlay scenes (intro, feature, cta) - generate empty backgrounds for product overlay
+        const isContent = this.isContentScene(scene.type);
+        
+        if (isContent && !useProductOverlay) {
+          // CONTENT SCENE: Generate imagery that matches the script content
+          console.log(`[UniversalVideoService] Generating CONTENT image for ${scene.type} scene: ${scene.id}`);
+          const contentResult = await this.generateContentImage(scene, project.title);
           
-          // Resolve product image URL for browser access - ensure proper public path
-          const resolvedProductUrl = this.resolveProductImageUrl(productImage.url);
-          
-          if (backgroundResult.backgroundUrl) {
-            // Store both AI background and product overlay for Remotion compositing
+          if (contentResult.imageUrl) {
             updatedProject.assets.images.push({
               sceneId: scene.id,
-              url: backgroundResult.backgroundUrl,
-              prompt: scene.background.source,
-              source: 'ai',
+              url: contentResult.imageUrl,
+              prompt: scene.visualDirection || scene.background.source,
+              source: contentResult.source.includes('fal.ai') ? 'ai' : 'stock',
             });
             
-            // Set up scene assets for Remotion layered compositing
-            updatedProject.scenes[i].assets!.imageUrl = backgroundResult.backgroundUrl;
-            updatedProject.scenes[i].assets!.backgroundUrl = backgroundResult.backgroundUrl;
-            updatedProject.scenes[i].assets!.useProductOverlay = useProductOverlay;
-            
-            // Only set product overlay if enabled for this scene type
-            if (useProductOverlay) {
-              updatedProject.scenes[i].assets!.productOverlayUrl = resolvedProductUrl;
-              updatedProject.scenes[i].assets!.productOverlayPosition = this.getProductOverlayPosition(scene.type);
-              console.log(`[UniversalVideoService] Product overlay ENABLED for ${scene.type}: ${resolvedProductUrl}`);
-            } else {
-              console.log(`[UniversalVideoService] Product overlay DISABLED for ${scene.type} (background only)`);
-            }
-            
-            console.log(`[UniversalVideoService] AI background: ${backgroundResult.backgroundUrl}`);
+            updatedProject.scenes[i].assets!.imageUrl = contentResult.imageUrl;
+            updatedProject.scenes[i].assets!.backgroundUrl = contentResult.imageUrl;
+            updatedProject.scenes[i].assets!.useProductOverlay = false;
+            console.log(`[UniversalVideoService] Content image generated for ${scene.type}: ${contentResult.source}`);
           } else {
-            // Fallback: use product image with gradient background
-            console.log(`[UniversalVideoService] AI background failed, using product image with gradient for ${scene.type} scene`);
+            // Fallback to stock image search based on script content
+            const stockResult = await this.getContentStockImage(scene);
+            if (stockResult.imageUrl) {
+              updatedProject.assets.images.push({
+                sceneId: scene.id,
+                url: stockResult.imageUrl,
+                prompt: scene.visualDirection || scene.background.source,
+                source: 'stock',
+              });
+              updatedProject.scenes[i].assets!.imageUrl = stockResult.imageUrl;
+              updatedProject.scenes[i].assets!.backgroundUrl = stockResult.imageUrl;
+              updatedProject.scenes[i].assets!.useProductOverlay = false;
+              console.log(`[UniversalVideoService] Stock content image used for ${scene.type}: ${stockResult.source}`);
+            }
+          }
+        } else {
+          // PRODUCT OVERLAY SCENE: Generate empty background and layer product on top
+          const shouldEnhanceBackground = scene.assets?.enhanceWithAIBackground !== false;
+          
+          if (shouldEnhanceBackground) {
+            console.log(`[UniversalVideoService] Generating AI background for ${scene.type} scene: ${scene.id}`);
+            const backgroundResult = await this.generateAIBackground(
+              scene.background.source,
+              scene.type
+            );
+            
+            // Resolve product image URL for browser access - ensure proper public path
+            const resolvedProductUrl = this.resolveProductImageUrl(productImage.url);
+            
+            if (backgroundResult.backgroundUrl) {
+              // Store both AI background and product overlay for Remotion compositing
+              updatedProject.assets.images.push({
+                sceneId: scene.id,
+                url: backgroundResult.backgroundUrl,
+                prompt: scene.background.source,
+                source: 'ai',
+              });
+              
+              // Set up scene assets for Remotion layered compositing
+              updatedProject.scenes[i].assets!.imageUrl = backgroundResult.backgroundUrl;
+              updatedProject.scenes[i].assets!.backgroundUrl = backgroundResult.backgroundUrl;
+              updatedProject.scenes[i].assets!.useProductOverlay = useProductOverlay;
+              
+              // Only set product overlay if enabled for this scene type
+              if (useProductOverlay) {
+                updatedProject.scenes[i].assets!.productOverlayUrl = resolvedProductUrl;
+                updatedProject.scenes[i].assets!.productOverlayPosition = this.getProductOverlayPosition(scene.type);
+                console.log(`[UniversalVideoService] Product overlay ENABLED for ${scene.type}: ${resolvedProductUrl}`);
+              } else {
+                console.log(`[UniversalVideoService] Product overlay DISABLED for ${scene.type} (background only)`);
+              }
+              
+              console.log(`[UniversalVideoService] AI background: ${backgroundResult.backgroundUrl}`);
+            } else {
+              // Fallback: use product image with gradient background
+              console.log(`[UniversalVideoService] AI background failed, using product image with gradient for ${scene.type} scene`);
+              updatedProject.assets.images.push({
+                sceneId: scene.id,
+                url: resolvedProductUrl,
+                prompt: scene.background.source,
+                source: 'uploaded',
+              });
+              updatedProject.scenes[i].assets!.imageUrl = resolvedProductUrl;
+            }
+          } else {
+            // Only use raw product image if explicitly requested
+            const resolvedUrl = this.resolveProductImageUrl(productImage.url);
             updatedProject.assets.images.push({
               sceneId: scene.id,
-              url: resolvedProductUrl,
+              url: resolvedUrl,
               prompt: scene.background.source,
               source: 'uploaded',
             });
-            updatedProject.scenes[i].assets!.imageUrl = resolvedProductUrl;
+            updatedProject.scenes[i].assets!.imageUrl = resolvedUrl;
+            console.log(`[UniversalVideoService] Using raw product image (no AI background) for ${scene.type} scene: ${scene.id}`);
           }
-        } else {
-          // Only use raw product image if explicitly requested
-          const resolvedUrl = this.resolveProductImageUrl(productImage.url);
-          updatedProject.assets.images.push({
-            sceneId: scene.id,
-            url: resolvedUrl,
-            prompt: scene.background.source,
-            source: 'uploaded',
-          });
-          updatedProject.scenes[i].assets!.imageUrl = resolvedUrl;
-          console.log(`[UniversalVideoService] Using raw product image (no AI background) for ${scene.type} scene: ${scene.id}`);
         }
       } else {
         const imageResult = await this.generateImage(scene.background.source, scene.id);
