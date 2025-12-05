@@ -372,7 +372,7 @@ router.post('/projects/:projectId/render', isAuthenticated, async (req: Request,
       return res.status(403).json({ success: false, error: 'Access denied' });
     }
     
-    if (projectData.status !== 'ready') {
+    if (projectData.status !== 'ready' && projectData.status !== 'error') {
       return res.status(400).json({ 
         success: false, 
         error: 'Project must be ready before rendering. Generate assets first.' 
