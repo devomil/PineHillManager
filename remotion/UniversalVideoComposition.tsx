@@ -3,6 +3,7 @@ import {
   AbsoluteFill,
   Audio,
   Img,
+  Video,
   Sequence,
   useCurrentFrame,
   useVideoConfig,
@@ -498,21 +499,37 @@ const SceneRenderer: React.FC<{
     }
   }
 
-  // Get image URLs with fallback chain
+  // Get image/video URLs with fallback chain
   const imageUrl = scene.assets?.backgroundUrl || scene.assets?.imageUrl;
+  const videoUrl = scene.assets?.videoUrl;
   const productOverlayUrl = scene.assets?.productOverlayUrl;
   const productPosition = scene.assets?.productOverlayPosition || { x: 'center', y: 'center', scale: 0.4, animation: 'fade' };
   const useProductOverlay = scene.assets?.useProductOverlay !== false;
 
-  // Check image validity
+  // Check asset validity
   const imageStatus = getAssetStatus(imageUrl);
+  const videoStatus = getAssetStatus(videoUrl);
   const hasValidImage = imageStatus === 'valid';
+  const hasValidVideo = videoStatus === 'valid' && scene.background?.type === 'video';
 
   return (
     <AbsoluteFill style={{ opacity }}>
-      {/* Background Layer */}
+      {/* Background Layer - Video or Image */}
       <AbsoluteFill>
-        {hasValidImage ? (
+        {hasValidVideo ? (
+          // VIDEO BACKGROUND (B-roll)
+          <Video
+            src={videoUrl!}
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+            }}
+            volume={0}
+            playbackRate={1}
+          />
+        ) : hasValidImage ? (
+          // IMAGE BACKGROUND with Ken Burns effect
           <SafeImage
             src={imageUrl}
             style={{

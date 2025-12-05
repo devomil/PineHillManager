@@ -968,6 +968,33 @@ Guidelines:
     }
   }
 
+  private buildVideoSearchQuery(scene: Scene): string {
+    const narration = (scene.narration || '').toLowerCase();
+    
+    // Health/wellness specific keywords
+    if (narration.includes('menopause')) return 'mature woman wellness relaxation';
+    if (narration.includes('hot flash')) return 'woman cooling relief comfort';
+    if (narration.includes('sleep')) return 'peaceful sleep relaxation bedroom';
+    if (narration.includes('energy') || narration.includes('vitality')) return 'active woman healthy lifestyle';
+    if (narration.includes('hormone')) return 'woman wellness nature botanical';
+    if (narration.includes('natural') || narration.includes('herbal')) return 'herbs botanical plants nature';
+    if (narration.includes('relief') || narration.includes('comfort')) return 'woman relaxed peaceful happy';
+    if (narration.includes('weight') || narration.includes('metabolism')) return 'woman fitness healthy active';
+    if (narration.includes('stress') || narration.includes('anxiety')) return 'calm woman meditation relaxation';
+    
+    // Scene type defaults
+    const defaults: Record<string, string> = {
+      hook: 'woman concerned thinking wellness',
+      benefit: 'happy woman smiling healthy lifestyle',
+      testimonial: 'satisfied customer woman smiling',
+      story: 'woman transformation journey wellness',
+      intro: 'woman wellness morning routine',
+      cta: 'confident woman smiling action',
+    };
+    
+    return defaults[scene.type] || 'woman wellness healthy lifestyle';
+  }
+
   async getStockVideo(query: string): Promise<{ url: string; duration: number; source: string } | null> {
     const pexelsKey = process.env.PEXELS_API_KEY;
     if (pexelsKey) {
@@ -1252,38 +1279,65 @@ Guidelines:
 
     updatedProject.progress.steps.images.status = 'complete';
 
-    // VIDEOS STEP - Fetch B-roll for script-based videos > 60 seconds
+    // VIDEOS STEP - Fetch B-roll for hook and benefit scenes in ALL video types
     updatedProject.progress.currentStep = 'videos';
     updatedProject.progress.steps.videos.status = 'in-progress';
     
-    if (project.type === 'script-based' && project.totalDuration > 60) {
-      console.log('[UniversalVideoService] Fetching B-roll videos for script-based video...');
+    // Always try to get B-roll for hook and benefit scenes (they benefit most from motion)
+    const videoSceneTypes = ['hook', 'benefit', 'story', 'testimonial'];
+    const scenesNeedingVideo = project.scenes.filter(s => videoSceneTypes.includes(s.type));
+    
+    if (scenesNeedingVideo.length > 0) {
+      console.log(`[UniversalVideoService] Fetching B-roll for ${scenesNeedingVideo.length} scenes (types: ${videoSceneTypes.join(', ')})...`);
       let videosGenerated = 0;
       
-      for (let i = 0; i < project.scenes.length; i++) {
-        const scene = project.scenes[i];
-        // Fetch video for every other scene to add variety
-        if (i % 2 === 0) {
-          const videoResult = await this.getStockVideo(scene.background.source);
-          if (videoResult) {
-            updatedProject.assets.videos.push({
-              sceneId: scene.id,
-              url: videoResult.url,
-              source: 'pexels',
-            });
+      for (const scene of scenesNeedingVideo) {
+        const searchQuery = this.buildVideoSearchQuery(scene);
+        console.log(`[UniversalVideoService] Searching B-roll for scene ${scene.id} (${scene.type}): ${searchQuery}`);
+        
+        const videoResult = await this.getStockVideo(searchQuery);
+        
+        if (videoResult && videoResult.url) {
+          updatedProject.assets.videos.push({
+            sceneId: scene.id,
+            url: videoResult.url,
+            source: 'pexels',
+          });
+          
+          // Update scene to use video instead of image
+          const sceneIndex = updatedProject.scenes.findIndex(s => s.id === scene.id);
+          if (sceneIndex >= 0) {
+            // Initialize assets if needed
+            if (!updatedProject.scenes[sceneIndex].assets) {
+              updatedProject.scenes[sceneIndex].assets = {};
+            }
+            // Initialize background if needed
+            if (!updatedProject.scenes[sceneIndex].background) {
+              updatedProject.scenes[sceneIndex].background = {
+                type: 'video',
+                source: scene.background?.source || '',
+              };
+            } else {
+              updatedProject.scenes[sceneIndex].background.type = 'video';
+            }
+            updatedProject.scenes[sceneIndex].assets!.videoUrl = videoResult.url;
             videosGenerated++;
-            console.log(`[UniversalVideoService] B-roll fetched for scene ${scene.id}`);
+            console.log(`[UniversalVideoService] B-roll found for scene ${scene.id}: ${videoResult.url}`);
           }
+        } else {
+          console.log(`[UniversalVideoService] No B-roll found for scene ${scene.id} - will use AI image`);
         }
-        updatedProject.progress.steps.videos.progress = Math.round(((i + 1) / project.scenes.length) * 100);
       }
       
+      updatedProject.progress.steps.videos.progress = 100;
       updatedProject.progress.steps.videos.status = 'complete';
-      updatedProject.progress.steps.videos.message = `Fetched ${videosGenerated} B-roll clips`;
+      updatedProject.progress.steps.videos.message = videosGenerated > 0 
+        ? `Fetched ${videosGenerated} B-roll clips`
+        : 'No suitable B-roll found - using AI images';
     } else {
       updatedProject.progress.steps.videos.status = 'skipped';
-      updatedProject.progress.steps.videos.message = 'Using images for this video type';
-      console.log('[UniversalVideoService] Videos step skipped - product video uses images');
+      updatedProject.progress.steps.videos.message = 'No scenes require B-roll';
+      console.log('[UniversalVideoService] Videos step skipped - no hook/benefit scenes');
     }
 
     // MUSIC STEP - Fetch background music from Pixabay
@@ -1460,12 +1514,12 @@ Guidelines:
               console.log(`[UniversalVideoService] Uploaded voiceover to S3: ${s3Url}`);
             } else {
               issues.push('Failed to upload voiceover to S3');
-              preparedProject.assets.voiceover.fullTrackUrl = null;
+              preparedProject.assets.voiceover.fullTrackUrl = '';
             }
           }
         } else {
           issues.push(`Invalid voiceover URL format: ${voiceoverUrl.substring(0, 50)}...`);
-          preparedProject.assets.voiceover.fullTrackUrl = null;
+          preparedProject.assets.voiceover.fullTrackUrl = '';
         }
       }
     }
