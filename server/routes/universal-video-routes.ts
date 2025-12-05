@@ -55,9 +55,10 @@ router.get('/projects', isAuthenticated, async (req: Request, res: Response) => 
     }
     
     const userProjects: VideoProject[] = [];
-    for (const [projectId, project] of videoProjects.entries()) {
+    const projectEntries = Array.from(videoProjects.entries());
+    for (const [projectId, project] of projectEntries) {
       const metadata = projectMetadata.get(projectId);
-      if (metadata?.ownerId === userId) {
+      if (metadata && metadata.ownerId === userId) {
         const projectWithMeta = {
           ...project,
           renderId: metadata.renderId,
@@ -183,6 +184,11 @@ router.post('/projects/script', isAuthenticated, async (req: Request, res: Respo
 
 router.get('/projects/:projectId', isAuthenticated, async (req: Request, res: Response) => {
   try {
+    const userId = (req.user as any)?.id;
+    if (!userId) {
+      return res.status(401).json({ success: false, error: 'Unauthorized' });
+    }
+    
     const { projectId } = req.params;
     const project = videoProjects.get(projectId);
     
@@ -191,6 +197,11 @@ router.get('/projects/:projectId', isAuthenticated, async (req: Request, res: Re
     }
     
     const metadata = projectMetadata.get(projectId);
+    
+    if (metadata?.ownerId !== userId) {
+      return res.status(403).json({ success: false, error: 'Access denied' });
+    }
+    
     const projectWithMeta = {
       ...project,
       renderId: metadata?.renderId,

@@ -21,67 +21,24 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from "date-fns";
+import type { 
+  VideoProject as SharedVideoProject, 
+  Scene as SharedScene,
+  ProductImage as SharedProductImage,
+  ServiceFailure,
+  VideoProjectStatus
+} from "@shared/video-types";
 
-interface ProductImage {
-  id: string;
-  url: string;
-  name: string;
-  description?: string;
-  isPrimary?: boolean;
+interface ProductImage extends SharedProductImage {
+  _blobUrl?: string;
 }
 
 type WorkflowType = "product" | "script";
-type ProjectStatus = "draft" | "generating" | "ready" | "rendering" | "complete" | "error";
 
-interface Scene {
-  id: string;
-  order: number;
-  type: string;
-  duration: number;
-  narration: string;
-  textOverlays: any[];
-  background: {
-    type: string;
-    source: string;
-    effect?: any;
-    overlay?: any;
-  };
-  assets?: {
-    imageUrl?: string;
-    videoUrl?: string;
-    voiceoverUrl?: string;
-    useAIImage?: boolean;
-    assignedProductImageId?: string;
-  };
-}
+type Scene = SharedScene;
 
-interface ServiceFailure {
-  service: string;
-  timestamp: string;
-  error: string;
-  fallbackUsed?: string;
-}
-
-interface VideoProject {
-  id: string;
-  type: string;
-  title: string;
-  description: string;
-  totalDuration: number;
-  scenes: Scene[];
-  status: ProjectStatus;
-  progress: {
-    currentStep: string;
-    steps: Record<string, { status: string; progress: number; message?: string }>;
-    overallPercent: number;
-    errors: string[];
-    serviceFailures: ServiceFailure[];
-  };
-  assets: {
-    voiceover: { fullTrackUrl: string; duration: number };
-    music: { url: string; duration: number; volume: number };
-    images: { sceneId: string; url: string }[];
-    videos: { sceneId: string; url: string }[];
+interface VideoProject extends SharedVideoProject {
+  assets: SharedVideoProject['assets'] & {
     productImages: ProductImage[];
   };
 }
@@ -798,7 +755,7 @@ function ProjectsList({ onSelectProject, onCreateNew }: {
   onSelectProject: (project: ProjectWithMeta) => void; 
   onCreateNew: () => void;
 }) {
-  const { data: projectsData, isLoading } = useQuery({
+  const { data: projectsData, isLoading } = useQuery<{ success: boolean; projects: ProjectWithMeta[] }>({
     queryKey: ['/api/universal-video/projects'],
   });
 
@@ -1177,10 +1134,10 @@ export default function UniversalVideoProducer() {
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="font-semibold">{project.title}</h3>
-                  <p className="text-sm text-muted-foreground">
-                    {project.scenes.length} scenes | {project.totalDuration}s | 
+                  <div className="flex items-center text-sm text-muted-foreground">
+                    <span>{project.scenes.length} scenes | {project.totalDuration}s</span>
                     <Badge variant="outline" className="ml-2 capitalize">{project.status}</Badge>
-                  </p>
+                  </div>
                 </div>
                 
                 <div className="flex gap-2">
