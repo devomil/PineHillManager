@@ -140,24 +140,11 @@ router.get('/projects', isAuthenticated, async (req: Request, res: Response) => 
       return res.status(401).json({ success: false, error: 'Unauthorized' });
     }
     
-    const userProjects: VideoProject[] = [];
-    const projectEntries = Array.from(videoProjects.entries());
-    for (const [projectId, project] of projectEntries) {
-      const metadata = projectMetadata.get(projectId);
-      if (metadata && metadata.ownerId === userId) {
-        const projectWithMeta = {
-          ...project,
-          renderId: metadata.renderId,
-          bucketName: metadata.bucketName,
-          outputUrl: metadata.outputUrl,
-        };
-        userProjects.push(projectWithMeta);
-      }
-    }
+    const rows = await db.select().from(universalVideoProjects)
+      .where(eq(universalVideoProjects.ownerId, userId))
+      .orderBy(desc(universalVideoProjects.createdAt));
     
-    userProjects.sort((a, b) => 
-      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    );
+    const userProjects = rows.map(dbRowToVideoProject);
     
     res.json({ success: true, projects: userProjects });
   } catch (error: any) {
@@ -174,8 +161,9 @@ router.post('/projects/product', isAuthenticated, async (req: Request, res: Resp
     console.log('[UniversalVideo] Creating product video project:', validatedInput.productName);
     
     const project = await universalVideoService.createProductVideoProject(validatedInput);
-    videoProjects.set(project.id, project);
-    projectMetadata.set(project.id, { ownerId: userId });
+    
+    await saveProjectToDb(project, userId);
+    console.log('[UniversalVideo] Project saved to database:', project.id);
     
     res.json({
       success: true,
@@ -244,8 +232,8 @@ router.post('/projects/script', isAuthenticated, async (req: Request, res: Respo
       updatedAt: new Date().toISOString(),
     };
     
-    videoProjects.set(project.id, project);
-    projectMetadata.set(project.id, { ownerId: userId });
+    await saveProjectToDb(project, userId);
+    console.log('[UniversalVideo] Script project saved to database:', project.id);
     
     res.json({
       success: true,
@@ -276,26 +264,17 @@ router.get('/projects/:projectId', isAuthenticated, async (req: Request, res: Re
     }
     
     const { projectId } = req.params;
-    const project = videoProjects.get(projectId);
+    const projectData = await getProjectFromDb(projectId);
     
-    if (!project) {
+    if (!projectData) {
       return res.status(404).json({ success: false, error: 'Project not found' });
     }
     
-    const metadata = projectMetadata.get(projectId);
-    
-    if (metadata?.ownerId !== userId) {
+    if (projectData.ownerId !== userId) {
       return res.status(403).json({ success: false, error: 'Access denied' });
     }
     
-    const projectWithMeta = {
-      ...project,
-      renderId: metadata?.renderId,
-      bucketName: metadata?.bucketName,
-      outputUrl: metadata?.outputUrl,
-    };
-    
-    res.json({ success: true, project: projectWithMeta });
+    res.json({ success: true, project: projectData });
   } catch (error: any) {
     console.error('[UniversalVideo] Error getting project:', error);
     res.status(500).json({ success: false, error: error.message });
@@ -304,21 +283,26 @@ router.get('/projects/:projectId', isAuthenticated, async (req: Request, res: Re
 
 router.put('/projects/:projectId/scenes', isAuthenticated, async (req: Request, res: Response) => {
   try {
+    const userId = (req.user as any)?.id;
     const { projectId } = req.params;
     const { scenes } = req.body;
     
-    const project = videoProjects.get(projectId);
-    if (!project) {
+    const projectData = await getProjectFromDb(projectId);
+    if (!projectData) {
       return res.status(404).json({ success: false, error: 'Project not found' });
     }
     
-    project.scenes = scenes;
-    project.totalDuration = scenes.reduce((acc: number, s: any) => acc + s.duration, 0);
-    project.updatedAt = new Date().toISOString();
+    if (projectData.ownerId !== userId) {
+      return res.status(403).json({ success: false, error: 'Access denied' });
+    }
     
-    videoProjects.set(projectId, project);
+    projectData.scenes = scenes;
+    projectData.totalDuration = scenes.reduce((acc: number, s: Scene) => acc + s.duration, 0);
+    projectData.updatedAt = new Date().toISOString();
     
-    res.json({ success: true, project });
+    await saveProjectToDb(projectData, projectData.ownerId);
+    
+    res.json({ success: true, project: projectData });
   } catch (error: any) {
     console.error('[UniversalVideo] Error updating scenes:', error);
     res.status(500).json({ success: false, error: error.message });
@@ -327,18 +311,23 @@ router.put('/projects/:projectId/scenes', isAuthenticated, async (req: Request, 
 
 router.post('/projects/:projectId/generate-assets', isAuthenticated, async (req: Request, res: Response) => {
   try {
+    const userId = (req.user as any)?.id;
     const { projectId } = req.params;
     
-    const project = videoProjects.get(projectId);
-    if (!project) {
+    const projectData = await getProjectFromDb(projectId);
+    if (!projectData) {
       return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+    
+    if (projectData.ownerId !== userId) {
+      return res.status(403).json({ success: false, error: 'Access denied' });
     }
     
     console.log('[UniversalVideo] Generating assets for project:', projectId);
     
     universalVideoService.clearNotifications();
-    const updatedProject = await universalVideoService.generateProjectAssets(project);
-    videoProjects.set(projectId, updatedProject);
+    const updatedProject = await universalVideoService.generateProjectAssets(projectData);
+    await saveProjectToDb(updatedProject, projectData.ownerId);
     
     const notifications = universalVideoService.getNotifications();
     const paidServiceFailures = universalVideoService.hasPaidServiceFailures(updatedProject);
@@ -362,14 +351,19 @@ const renderBuckets: Map<string, string> = new Map();
 
 router.post('/projects/:projectId/render', isAuthenticated, async (req: Request, res: Response) => {
   try {
+    const userId = (req.user as any)?.id;
     const { projectId } = req.params;
     
-    const project = videoProjects.get(projectId);
-    if (!project) {
+    const projectData = await getProjectFromDb(projectId);
+    if (!projectData) {
       return res.status(404).json({ success: false, error: 'Project not found' });
     }
     
-    if (project.status !== 'ready') {
+    if (projectData.ownerId !== userId) {
+      return res.status(403).json({ success: false, error: 'Access denied' });
+    }
+    
+    if (projectData.status !== 'ready') {
       return res.status(400).json({ 
         success: false, 
         error: 'Project must be ready before rendering. Generate assets first.' 
@@ -378,20 +372,20 @@ router.post('/projects/:projectId/render', isAuthenticated, async (req: Request,
     
     console.log('[UniversalVideo] Starting render for project:', projectId);
     
-    project.status = 'rendering';
-    project.progress.currentStep = 'rendering';
-    project.progress.steps.rendering.status = 'in-progress';
-    project.updatedAt = new Date().toISOString();
+    projectData.status = 'rendering';
+    projectData.progress.currentStep = 'rendering';
+    projectData.progress.steps.rendering.status = 'in-progress';
+    projectData.updatedAt = new Date().toISOString();
     
-    const compositionId = getCompositionId(project.outputFormat.aspectRatio);
+    const compositionId = getCompositionId(projectData.outputFormat.aspectRatio);
     
     const inputProps = {
-      scenes: project.scenes,
-      voiceoverUrl: project.assets.voiceover.fullTrackUrl || null,
-      musicUrl: project.assets.music.url || null,
-      musicVolume: project.assets.music.volume,
-      brand: project.brand,
-      outputFormat: project.outputFormat,
+      scenes: projectData.scenes,
+      voiceoverUrl: projectData.assets.voiceover.fullTrackUrl || null,
+      musicUrl: projectData.assets.music.url || null,
+      musicVolume: projectData.assets.music.volume,
+      brand: projectData.brand,
+      outputFormat: projectData.outputFormat,
     };
     
     try {
@@ -401,15 +395,9 @@ router.post('/projects/:projectId/render', isAuthenticated, async (req: Request,
       });
       
       renderBuckets.set(renderResult.renderId, renderResult.bucketName);
-      project.progress.steps.rendering.message = `Render started: ${renderResult.renderId}`;
-      videoProjects.set(projectId, project);
+      projectData.progress.steps.rendering.message = `Render started: ${renderResult.renderId}`;
       
-      const existingMeta = projectMetadata.get(projectId) || { ownerId: (req.user as any)?.id };
-      projectMetadata.set(projectId, {
-        ...existingMeta,
-        renderId: renderResult.renderId,
-        bucketName: renderResult.bucketName,
-      });
+      await saveProjectToDb(projectData, projectData.ownerId, renderResult.renderId, renderResult.bucketName);
       
       res.json({
         success: true,
@@ -418,18 +406,18 @@ router.post('/projects/:projectId/render', isAuthenticated, async (req: Request,
         message: 'Render started on AWS Lambda',
       });
     } catch (renderError: any) {
-      project.status = 'error';
-      project.progress.steps.rendering.status = 'error';
-      project.progress.steps.rendering.message = renderError.message || 'Render failed';
-      project.progress.errors.push(`Render failed: ${renderError.message}`);
+      projectData.status = 'error';
+      projectData.progress.steps.rendering.status = 'error';
+      projectData.progress.steps.rendering.message = renderError.message || 'Render failed';
+      projectData.progress.errors.push(`Render failed: ${renderError.message}`);
       
-      project.progress.serviceFailures.push({
+      projectData.progress.serviceFailures.push({
         service: 'remotion-lambda',
         timestamp: new Date().toISOString(),
         error: renderError.message || 'Unknown error',
       });
       
-      videoProjects.set(projectId, project);
+      await saveProjectToDb(projectData, projectData.ownerId);
       
       res.status(500).json({
         success: false,
@@ -444,12 +432,17 @@ router.post('/projects/:projectId/render', isAuthenticated, async (req: Request,
 
 router.get('/projects/:projectId/render-status', isAuthenticated, async (req: Request, res: Response) => {
   try {
+    const userId = (req.user as any)?.id;
     const { projectId } = req.params;
     const { renderId, bucketName } = req.query;
     
-    const project = videoProjects.get(projectId);
-    if (!project) {
+    const projectData = await getProjectFromDb(projectId);
+    if (!projectData) {
       return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+    
+    if (projectData.ownerId !== userId) {
+      return res.status(403).json({ success: false, error: 'Access denied' });
     }
     
     if (!renderId || typeof renderId !== 'string') {
@@ -464,24 +457,23 @@ router.get('/projects/:projectId/render-status', isAuthenticated, async (req: Re
       const statusResult = await remotionLambdaService.getRenderProgress(renderId, bucket);
       
       if (statusResult.done) {
-        project.status = 'complete';
-        project.progress.steps.rendering.status = 'complete';
-        project.progress.steps.rendering.progress = 100;
-        project.progress.overallPercent = 100;
-        project.updatedAt = new Date().toISOString();
-        videoProjects.set(projectId, project);
+        projectData.status = 'complete';
+        projectData.progress.steps.rendering.status = 'complete';
+        projectData.progress.steps.rendering.progress = 100;
+        projectData.progress.overallPercent = 100;
+        projectData.updatedAt = new Date().toISOString();
         
-        if (statusResult.outputFile) {
-          const existingMeta = projectMetadata.get(projectId) || { ownerId: (req.user as any)?.id };
-          projectMetadata.set(projectId, {
-            ...existingMeta,
-            outputUrl: statusResult.outputFile,
-          });
-        }
+        await saveProjectToDb(
+          projectData, 
+          projectData.ownerId, 
+          undefined, 
+          undefined, 
+          statusResult.outputFile || undefined
+        );
       } else {
-        project.progress.steps.rendering.progress = Math.round(statusResult.overallProgress * 100);
-        project.progress.overallPercent = 85 + Math.round(statusResult.overallProgress * 15);
-        videoProjects.set(projectId, project);
+        projectData.progress.steps.rendering.progress = Math.round(statusResult.overallProgress * 100);
+        projectData.progress.overallPercent = 85 + Math.round(statusResult.overallProgress * 15);
+        await saveProjectToDb(projectData, projectData.ownerId);
       }
       
       res.json({
@@ -490,7 +482,7 @@ router.get('/projects/:projectId/render-status', isAuthenticated, async (req: Re
         progress: statusResult.overallProgress,
         outputUrl: statusResult.outputFile,
         errors: statusResult.errors,
-        project,
+        project: projectData,
       });
     } catch (progressError: any) {
       res.status(500).json({ 
@@ -621,14 +613,18 @@ router.post('/projects/:projectId/product-images', isAuthenticated, async (req: 
     const { projectId } = req.params;
     const { objectPath, name, description, isPrimary } = req.body;
     
-    const project = videoProjects.get(projectId);
-    if (!project) {
-      return res.status(404).json({ success: false, error: 'Project not found' });
-    }
-    
     const userId = (req.user as any)?.id?.toString();
     if (!userId) {
       return res.status(401).json({ success: false, error: 'User ID required' });
+    }
+    
+    const projectData = await getProjectFromDb(projectId);
+    if (!projectData) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+    
+    if (projectData.ownerId !== userId) {
+      return res.status(403).json({ success: false, error: 'Access denied' });
     }
     
     const normalizedPath = objectStorageService.normalizeObjectEntityPath(objectPath);
@@ -646,27 +642,27 @@ router.post('/projects/:projectId/product-images', isAuthenticated, async (req: 
     const newImage: ProductImage = {
       id: imageId,
       url: normalizedPath,
-      name: name || `Product Image ${project.assets.productImages.length + 1}`,
+      name: name || `Product Image ${projectData.assets.productImages.length + 1}`,
       description: description || '',
-      isPrimary: isPrimary || project.assets.productImages.length === 0,
+      isPrimary: isPrimary || projectData.assets.productImages.length === 0,
     };
     
     if (isPrimary) {
-      project.assets.productImages.forEach(img => {
+      projectData.assets.productImages.forEach((img: ProductImage) => {
         img.isPrimary = false;
       });
     }
     
-    project.assets.productImages.push(newImage);
-    project.updatedAt = new Date().toISOString();
-    videoProjects.set(projectId, project);
+    projectData.assets.productImages.push(newImage);
+    projectData.updatedAt = new Date().toISOString();
+    await saveProjectToDb(projectData, projectData.ownerId);
     
     console.log('[UniversalVideo] Added product image to project:', projectId, imageId);
     
     res.json({
       success: true,
       image: newImage,
-      totalImages: project.assets.productImages.length,
+      totalImages: projectData.assets.productImages.length,
       message: 'Product image added successfully',
     });
   } catch (error: any) {
@@ -677,16 +673,21 @@ router.post('/projects/:projectId/product-images', isAuthenticated, async (req: 
 
 router.get('/projects/:projectId/product-images', isAuthenticated, async (req: Request, res: Response) => {
   try {
+    const userId = (req.user as any)?.id;
     const { projectId } = req.params;
     
-    const project = videoProjects.get(projectId);
-    if (!project) {
+    const projectData = await getProjectFromDb(projectId);
+    if (!projectData) {
       return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+    
+    if (projectData.ownerId !== userId) {
+      return res.status(403).json({ success: false, error: 'Access denied' });
     }
     
     res.json({
       success: true,
-      images: project.assets.productImages,
+      images: projectData.assets.productImages,
     });
   } catch (error: any) {
     console.error('[UniversalVideo] Error getting product images:', error);
@@ -696,31 +697,36 @@ router.get('/projects/:projectId/product-images', isAuthenticated, async (req: R
 
 router.delete('/projects/:projectId/product-images/:imageId', isAuthenticated, async (req: Request, res: Response) => {
   try {
+    const userId = (req.user as any)?.id;
     const { projectId, imageId } = req.params;
     
-    const project = videoProjects.get(projectId);
-    if (!project) {
+    const projectData = await getProjectFromDb(projectId);
+    if (!projectData) {
       return res.status(404).json({ success: false, error: 'Project not found' });
     }
     
-    const imageIndex = project.assets.productImages.findIndex(img => img.id === imageId);
+    if (projectData.ownerId !== userId) {
+      return res.status(403).json({ success: false, error: 'Access denied' });
+    }
+    
+    const imageIndex = projectData.assets.productImages.findIndex((img: ProductImage) => img.id === imageId);
     if (imageIndex === -1) {
       return res.status(404).json({ success: false, error: 'Image not found' });
     }
     
-    const wasDeleted = project.assets.productImages.splice(imageIndex, 1);
+    const wasDeleted = projectData.assets.productImages.splice(imageIndex, 1);
     
-    if (wasDeleted[0]?.isPrimary && project.assets.productImages.length > 0) {
-      project.assets.productImages[0].isPrimary = true;
+    if (wasDeleted[0]?.isPrimary && projectData.assets.productImages.length > 0) {
+      projectData.assets.productImages[0].isPrimary = true;
     }
     
-    project.updatedAt = new Date().toISOString();
-    videoProjects.set(projectId, project);
+    projectData.updatedAt = new Date().toISOString();
+    await saveProjectToDb(projectData, projectData.ownerId);
     
     res.json({
       success: true,
       message: 'Product image removed',
-      remainingImages: project.assets.productImages.length,
+      remainingImages: projectData.assets.productImages.length,
     });
   } catch (error: any) {
     console.error('[UniversalVideo] Error removing product image:', error);
@@ -730,20 +736,25 @@ router.delete('/projects/:projectId/product-images/:imageId', isAuthenticated, a
 
 router.put('/projects/:projectId/scenes/:sceneId/assign-image', isAuthenticated, async (req: Request, res: Response) => {
   try {
+    const userId = (req.user as any)?.id;
     const { projectId, sceneId } = req.params;
     const { imageId, useAI } = req.body;
     
-    const project = videoProjects.get(projectId);
-    if (!project) {
+    const projectData = await getProjectFromDb(projectId);
+    if (!projectData) {
       return res.status(404).json({ success: false, error: 'Project not found' });
     }
     
-    const sceneIndex = project.scenes.findIndex(s => s.id === sceneId);
+    if (projectData.ownerId !== userId) {
+      return res.status(403).json({ success: false, error: 'Access denied' });
+    }
+    
+    const sceneIndex = projectData.scenes.findIndex((s: Scene) => s.id === sceneId);
     if (sceneIndex === -1) {
       return res.status(404).json({ success: false, error: 'Scene not found' });
     }
     
-    const scene = project.scenes[sceneIndex];
+    const scene = projectData.scenes[sceneIndex];
     
     if (useAI) {
       if (!scene.assets) {
@@ -752,13 +763,16 @@ router.put('/projects/:projectId/scenes/:sceneId/assign-image', isAuthenticated,
       scene.assets.imageUrl = undefined;
       scene.assets.useAIImage = true;
       
+      projectData.updatedAt = new Date().toISOString();
+      await saveProjectToDb(projectData, projectData.ownerId);
+      
       res.json({
         success: true,
         message: 'Scene set to use AI-generated image',
         scene,
       });
     } else if (imageId) {
-      const productImage = project.assets.productImages.find(img => img.id === imageId);
+      const productImage = projectData.assets.productImages.find((img: ProductImage) => img.id === imageId);
       if (!productImage) {
         return res.status(404).json({ success: false, error: 'Product image not found' });
       }
@@ -770,6 +784,9 @@ router.put('/projects/:projectId/scenes/:sceneId/assign-image', isAuthenticated,
       scene.assets.useAIImage = false;
       scene.assets.assignedProductImageId = imageId;
       
+      projectData.updatedAt = new Date().toISOString();
+      await saveProjectToDb(projectData, projectData.ownerId);
+      
       res.json({
         success: true,
         message: 'Product image assigned to scene',
@@ -778,9 +795,6 @@ router.put('/projects/:projectId/scenes/:sceneId/assign-image', isAuthenticated,
     } else {
       return res.status(400).json({ success: false, error: 'Either imageId or useAI must be provided' });
     }
-    
-    project.updatedAt = new Date().toISOString();
-    videoProjects.set(projectId, project);
   } catch (error: any) {
     console.error('[UniversalVideo] Error assigning image to scene:', error);
     res.status(500).json({ success: false, error: error.message });
