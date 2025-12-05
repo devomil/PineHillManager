@@ -147,35 +147,63 @@ class RemotionLambdaService {
     console.log(`[Remotion Lambda] ServeUrl: ${this.serveUrl}`);
     console.log(`[Remotion Lambda] Input props:`, JSON.stringify(params.inputProps).substring(0, 500));
 
-    try {
-      const result = await renderMediaOnLambda({
-        region: REGION,
-        functionName: this.functionName,
-        serveUrl: this.serveUrl,
-        composition: params.compositionId,
-        inputProps: params.inputProps,
-        codec: params.codec || "h264",
-        imageFormat: params.imageFormat || "jpeg",
-        maxRetries: 1,
-        privacy: "public",
-        framesPerLambda: 60,
-        concurrencyPerLambda: 1,
-        downloadBehavior: {
-          type: "download",
-          fileName: `${params.compositionId}-${Date.now()}.mp4`,
-        },
-      });
+    const maxRetries = 3;
+    let lastError: Error | null = null;
 
-      console.log(`[Remotion Lambda] Render started: ${result.renderId}`);
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const result = await renderMediaOnLambda({
+          region: REGION,
+          functionName: this.functionName,
+          serveUrl: this.serveUrl,
+          composition: params.compositionId,
+          inputProps: params.inputProps,
+          codec: params.codec || "h264",
+          imageFormat: params.imageFormat || "jpeg",
+          maxRetries: 1,
+          privacy: "public",
+          framesPerLambda: 60,
+          concurrencyPerLambda: 1,
+          downloadBehavior: {
+            type: "download",
+            fileName: `${params.compositionId}-${Date.now()}.mp4`,
+          },
+        });
 
-      return {
-        renderId: result.renderId,
-        bucketName: result.bucketName,
-      };
-    } catch (error) {
-      console.error("[Remotion Lambda] Render failed to start:", error);
-      throw error;
+        console.log(`[Remotion Lambda] Render started: ${result.renderId}`);
+
+        return {
+          renderId: result.renderId,
+          bucketName: result.bucketName,
+        };
+      } catch (error: any) {
+        lastError = error;
+        const errorMessage = error?.message || String(error);
+        
+        // Check for concurrency/rate limit errors
+        const isConcurrencyError = 
+          errorMessage.includes('Concurrency limit') ||
+          errorMessage.includes('Rate Exceeded') ||
+          errorMessage.includes('TooManyRequestsException') ||
+          errorMessage.includes('rate limit');
+
+        if (isConcurrencyError && attempt < maxRetries) {
+          const delay = Math.min(5000 * Math.pow(2, attempt - 1), 30000); // 5s, 10s, 20s, max 30s
+          console.log(`[Remotion Lambda] Concurrency limit hit, waiting ${delay/1000}s before retry ${attempt + 1}/${maxRetries}...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
+        }
+
+        console.error(`[Remotion Lambda] Render failed to start (attempt ${attempt}/${maxRetries}):`, error);
+        
+        if (isConcurrencyError) {
+          throw new Error(`AWS Lambda is currently busy. Please wait a minute and try again. If this persists, there may be other renders in progress.`);
+        }
+        throw error;
+      }
     }
+
+    throw lastError || new Error("Render failed after all retries");
   }
 
   async getRenderProgress(renderId: string, bucketName: string): Promise<RenderProgress> {
