@@ -23,7 +23,7 @@ export default function Sidebar({ mobileMenuOpen, setMobileMenuOpen }: SidebarPr
     { name: "Order Management", href: "/orders", icon: ShoppingCart, roles: ["employee", "admin", "manager"] },
     { name: "Documents", href: "/documents", icon: FileText, roles: ["employee", "admin", "manager"] },
     { name: "Notifications", href: "/notifications", icon: Bell, roles: ["employee", "admin", "manager"] },
-    { name: "Marketing", href: "/marketing", icon: Megaphone, roles: ["employee", "admin", "manager"] },
+    { name: "Marketing", href: "/admin/marketing", icon: Megaphone, roles: ["admin", "manager"] },
     { name: "Training Portal", href: "/training", icon: BookOpen, roles: ["employee", "admin", "manager"] },
     { name: "Reports", href: "/reports", icon: BarChart3, roles: ["employee", "admin", "manager"] },
     { name: "My Profile", href: "/profile", icon: User, roles: ["employee", "admin", "manager"] },
