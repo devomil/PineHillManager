@@ -4912,3 +4912,54 @@ export const insertBrandAssetSchema = createInsertSchema(brandAssets).omit({
 
 export type BrandAsset = typeof brandAssets.$inferSelect;
 export type InsertBrandAsset = z.infer<typeof insertBrandAssetSchema>;
+
+// Universal Video Projects - Stores VideoProject entities for the Universal Video Producer
+export const universalVideoProjects = pgTable("universal_video_projects", {
+  id: serial("id").primaryKey(),
+  projectId: varchar("project_id", { length: 100 }).notNull().unique(),
+  ownerId: varchar("owner_id").notNull().references(() => users.id),
+  type: varchar("type", { length: 20 }).notNull(), // 'product' | 'script-based'
+  title: varchar("title", { length: 255 }).notNull(),
+  description: text("description"),
+  targetAudience: text("target_audience"),
+  
+  // Video settings
+  totalDuration: integer("total_duration").notNull(),
+  fps: integer("fps").notNull().default(30),
+  
+  // Complex nested data stored as JSONB
+  outputFormat: jsonb("output_format").notNull(), // OutputFormat
+  brand: jsonb("brand").notNull(), // BrandSettings
+  scenes: jsonb("scenes").notNull(), // Scene[]
+  assets: jsonb("assets").notNull(), // GeneratedAssets
+  progress: jsonb("progress").notNull(), // ProductionProgress
+  
+  // Status
+  status: varchar("status", { length: 20 }).notNull().default("draft"),
+  
+  // Render metadata
+  renderId: varchar("render_id", { length: 100 }),
+  bucketName: varchar("bucket_name", { length: 255 }),
+  outputUrl: text("output_url"),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  projectIdIdx: index("idx_universal_video_projects_project_id").on(table.projectId),
+  ownerIdIdx: index("idx_universal_video_projects_owner_id").on(table.ownerId),
+  statusIdx: index("idx_universal_video_projects_status").on(table.status),
+  createdAtIdx: index("idx_universal_video_projects_created_at").on(table.createdAt),
+}));
+
+export const universalVideoProjectsRelations = relations(universalVideoProjects, ({ one }) => ({
+  owner: one(users, { fields: [universalVideoProjects.ownerId], references: [users.id] }),
+}));
+
+export const insertUniversalVideoProjectSchema = createInsertSchema(universalVideoProjects).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type UniversalVideoProject = typeof universalVideoProjects.$inferSelect;
+export type InsertUniversalVideoProject = z.infer<typeof insertUniversalVideoProjectSchema>;
