@@ -71,19 +71,24 @@ const STEP_ICONS: Record<string, any> = {
   rendering: Play,
 };
 
-function getImageDisplayUrl(image: ProductImage): string {
-  if (image._blobUrl) return image._blobUrl;
-  if (!image.url) return '';
-  
-  const url = image.url;
+function convertToDisplayUrl(url: string): string {
+  if (!url) return '';
   
   if (url.startsWith('http')) return url;
   
+  if (url.startsWith('/objects')) return url;
+  
+  if (url.startsWith('/replit-objstore-')) {
+    return `/objects${url}`;
+  }
+  
   let normalizedPath = url.startsWith('/') ? url : `/${url}`;
-  
-  if (normalizedPath.startsWith('/objects')) return normalizedPath;
-  
   return `/objects${normalizedPath}`;
+}
+
+function getImageDisplayUrl(image: ProductImage): string {
+  if (image._blobUrl) return image._blobUrl;
+  return convertToDisplayUrl(image.url);
 }
 
 function ProductImageUpload({
