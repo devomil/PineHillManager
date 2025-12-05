@@ -1100,6 +1100,8 @@ export default function UniversalVideoProducer() {
   const pollRenderStatus = async (id: string, bucket: string) => {
     if (!project) return;
     
+    let pollInterval = 5000; // Start with 5 second intervals
+    
     const poll = async () => {
       try {
         const response = await apiRequest(
@@ -1112,6 +1114,17 @@ export default function UniversalVideoProducer() {
         if (data.project) {
           setProject(data.project);
         }
+        
+        // Handle rate limiting - slow down polling
+        if (data.rateLimited) {
+          pollInterval = Math.min(pollInterval * 1.5, 15000); // Increase delay, max 15s
+          console.log(`Rate limited, slowing poll to ${pollInterval}ms`);
+          setTimeout(poll, pollInterval);
+          return;
+        }
+        
+        // Reset poll interval on successful response
+        pollInterval = 5000;
         
         // Handle timeout or errors
         if (data.timeout || (data.errors && data.errors.length > 0)) {
@@ -1135,15 +1148,13 @@ export default function UniversalVideoProducer() {
         
         // Continue polling if not done and no errors
         if (data.success && !data.done) {
-          setTimeout(poll, 3000);
+          setTimeout(poll, pollInterval);
         }
       } catch (error) {
         console.error("Poll error:", error);
-        toast({
-          title: "Status Check Failed",
-          description: "Unable to check render status. Please refresh.",
-          variant: "destructive",
-        });
+        // On error, slow down but keep trying
+        pollInterval = Math.min(pollInterval * 2, 20000);
+        setTimeout(poll, pollInterval);
       }
     };
     

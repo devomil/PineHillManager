@@ -598,6 +598,25 @@ router.get('/projects/:projectId/render-status', isAuthenticated, async (req: Re
     } catch (progressError: any) {
       console.error(`[UniversalVideo] Error getting render progress for ${projectId}:`, progressError.message);
       
+      // Handle rate limit errors gracefully - tell frontend to slow down
+      const isRateLimited = progressError.message?.includes('Rate Exceeded') || 
+                            progressError.message?.includes('TooManyRequests') ||
+                            progressError.name === 'TooManyRequestsException';
+      
+      if (isRateLimited) {
+        console.log(`[UniversalVideo] Rate limited - advising frontend to slow polling for ${projectId}`);
+        return res.json({
+          success: true,
+          done: false,
+          progress: projectData.progress.steps.rendering.progress / 100 || 0.1,
+          outputUrl: null,
+          errors: [],
+          project: projectData,
+          rateLimited: true,
+          retryAfter: 10, // Suggest 10 second delay
+        });
+      }
+      
       // If we can't get progress and it's been too long, mark as error
       if (elapsedTime > LAMBDA_TIMEOUT_MS) {
         projectData.status = 'error';
