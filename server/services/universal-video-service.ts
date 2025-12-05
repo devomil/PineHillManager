@@ -1294,42 +1294,74 @@ Guidelines:
   }
 
   async getBackgroundMusic(duration: number): Promise<{ url: string; duration: number; source: string } | null> {
-    const pexelsKey = process.env.PEXELS_API_KEY;
-    if (!pexelsKey) {
-      console.log('[UniversalVideoService] Pexels API key not configured for music');
-      return null;
+    const pixabayKey = process.env.PIXABAY_API_KEY;
+    
+    if (pixabayKey) {
+      try {
+        console.log('[UniversalVideoService] Searching Pixabay for background music...');
+        const musicCategories = ['ambient', 'corporate', 'calm', 'inspiring', 'meditation'];
+        const category = musicCategories[Math.floor(Math.random() * musicCategories.length)];
+        
+        const response = await fetch(
+          `https://pixabay.com/api/music/?key=${pixabayKey}&q=${encodeURIComponent(category)}&per_page=10`
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.hits && data.hits.length > 0) {
+            const suitableTrack = data.hits.find((h: any) => h.duration >= duration * 0.8) || data.hits[0];
+            
+            if (suitableTrack?.audio) {
+              console.log(`[UniversalVideoService] Found Pixabay music: ${suitableTrack.title} (${suitableTrack.duration}s)`);
+              return {
+                url: suitableTrack.audio,
+                duration: suitableTrack.duration,
+                source: 'pixabay',
+              };
+            }
+          }
+        } else {
+          console.warn('[UniversalVideoService] Pixabay music API response not OK:', response.status);
+        }
+      } catch (e) {
+        console.warn("[UniversalVideoService] Pixabay music search error:", e);
+      }
     }
+    
+    const pexelsKey = process.env.PEXELS_API_KEY;
+    if (pexelsKey) {
+      try {
+        console.log('[UniversalVideoService] Fallback: Searching Pexels videos for audio...');
+        const musicKeywords = ['ambient music', 'corporate background', 'calm instrumental'];
+        const keyword = musicKeywords[Math.floor(Math.random() * musicKeywords.length)];
+        
+        const response = await fetch(
+          `https://api.pexels.com/videos/search?query=${encodeURIComponent(keyword)}&per_page=5&orientation=landscape&size=small`,
+          { headers: { Authorization: pexelsKey } }
+        );
 
-    try {
-      // Search for ambient/corporate music videos that could be used as audio background
-      const musicKeywords = ['ambient music', 'corporate background', 'calm instrumental', 'meditation music'];
-      const keyword = musicKeywords[Math.floor(Math.random() * musicKeywords.length)];
-      
-      const response = await fetch(
-        `https://api.pexels.com/videos/search?query=${encodeURIComponent(keyword)}&per_page=5&orientation=landscape&size=small`,
-        { headers: { Authorization: pexelsKey } }
-      );
-
-      if (response.ok) {
-        const data = await response.json();
-        if (data.videos && data.videos.length > 0) {
-          // Find a video with appropriate duration
-          const suitableVideo = data.videos.find((v: any) => v.duration >= duration * 0.8) || data.videos[0];
-          const audioFile = suitableVideo.video_files?.find((f: any) => f.quality === 'sd') || suitableVideo.video_files?.[0];
-          
-          if (audioFile?.link) {
-            return {
-              url: audioFile.link,
-              duration: suitableVideo.duration,
-              source: 'pexels',
-            };
+        if (response.ok) {
+          const data = await response.json();
+          if (data.videos && data.videos.length > 0) {
+            const suitableVideo = data.videos.find((v: any) => v.duration >= duration * 0.8) || data.videos[0];
+            const audioFile = suitableVideo.video_files?.find((f: any) => f.quality === 'sd') || suitableVideo.video_files?.[0];
+            
+            if (audioFile?.link) {
+              console.log(`[UniversalVideoService] Using Pexels video audio as fallback (${suitableVideo.duration}s)`);
+              return {
+                url: audioFile.link,
+                duration: suitableVideo.duration,
+                source: 'pexels-video',
+              };
+            }
           }
         }
+      } catch (e) {
+        console.warn("[UniversalVideoService] Pexels music search error:", e);
       }
-    } catch (e) {
-      console.warn("[UniversalVideoService] Pexels music search error:", e);
     }
 
+    console.log('[UniversalVideoService] No background music found from any source');
     return null;
   }
 
