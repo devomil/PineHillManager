@@ -1,14 +1,22 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
+import { eq, desc } from 'drizzle-orm';
 import { isAuthenticated, requireRole } from '../auth';
 import { universalVideoService } from '../services/universal-video-service';
 import { remotionLambdaService } from '../services/remotion-lambda-service';
 import { ObjectStorageService } from '../objectStorage';
+import { db } from '../db';
+import { universalVideoProjects } from '../../shared/schema';
 import type { 
   VideoProject, 
   ProductVideoInput,
   ScriptVideoInput,
   ProductImage,
+  Scene,
+  GeneratedAssets,
+  ProductionProgress,
+  OutputFormat,
+  BrandSettings,
 } from '../../shared/video-types';
 import { 
   OUTPUT_FORMATS, 
@@ -39,13 +47,91 @@ const scriptVideoInputSchema = z.object({
   targetDuration: z.number().optional(),
 });
 
-const videoProjects: Map<string, VideoProject> = new Map();
-const projectMetadata: Map<string, { 
-  ownerId: string; 
-  renderId?: string; 
-  bucketName?: string; 
-  outputUrl?: string; 
-}> = new Map();
+function dbRowToVideoProject(row: any): VideoProject & { renderId?: string; bucketName?: string; outputUrl?: string | null } {
+  return {
+    id: row.projectId,
+    type: row.type as 'product' | 'script-based',
+    title: row.title,
+    description: row.description || '',
+    targetAudience: row.targetAudience,
+    totalDuration: row.totalDuration,
+    fps: row.fps as 30,
+    outputFormat: row.outputFormat as OutputFormat,
+    brand: row.brand as BrandSettings,
+    scenes: row.scenes as Scene[],
+    assets: row.assets as GeneratedAssets,
+    status: row.status as VideoProject['status'],
+    progress: row.progress as ProductionProgress,
+    createdAt: row.createdAt?.toISOString() || new Date().toISOString(),
+    updatedAt: row.updatedAt?.toISOString() || new Date().toISOString(),
+    renderId: row.renderId || undefined,
+    bucketName: row.bucketName || undefined,
+    outputUrl: row.outputUrl || undefined,
+  };
+}
+
+async function saveProjectToDb(project: VideoProject, ownerId: string, renderId?: string, bucketName?: string, outputUrl?: string) {
+  const existingProject = await db.select().from(universalVideoProjects)
+    .where(eq(universalVideoProjects.projectId, project.id))
+    .limit(1);
+
+  if (existingProject.length > 0) {
+    await db.update(universalVideoProjects)
+      .set({
+        type: project.type,
+        title: project.title,
+        description: project.description,
+        targetAudience: project.targetAudience,
+        totalDuration: project.totalDuration,
+        fps: project.fps,
+        outputFormat: project.outputFormat,
+        brand: project.brand,
+        scenes: project.scenes,
+        assets: project.assets,
+        progress: project.progress,
+        status: project.status,
+        renderId: renderId ?? existingProject[0].renderId,
+        bucketName: bucketName ?? existingProject[0].bucketName,
+        outputUrl: outputUrl ?? existingProject[0].outputUrl,
+        updatedAt: new Date(),
+      })
+      .where(eq(universalVideoProjects.projectId, project.id));
+  } else {
+    await db.insert(universalVideoProjects).values({
+      projectId: project.id,
+      ownerId,
+      type: project.type,
+      title: project.title,
+      description: project.description,
+      targetAudience: project.targetAudience,
+      totalDuration: project.totalDuration,
+      fps: project.fps,
+      outputFormat: project.outputFormat,
+      brand: project.brand,
+      scenes: project.scenes,
+      assets: project.assets,
+      progress: project.progress,
+      status: project.status,
+      renderId,
+      bucketName,
+      outputUrl,
+    });
+  }
+}
+
+async function getProjectFromDb(projectId: string): Promise<(VideoProject & { ownerId: string; renderId?: string; bucketName?: string; outputUrl?: string | null }) | null> {
+  const rows = await db.select().from(universalVideoProjects)
+    .where(eq(universalVideoProjects.projectId, projectId))
+    .limit(1);
+  
+  if (rows.length === 0) return null;
+  
+  const row = rows[0];
+  return {
+    ...dbRowToVideoProject(row),
+    ownerId: row.ownerId,
+  };
+}
 
 router.get('/projects', isAuthenticated, async (req: Request, res: Response) => {
   try {
