@@ -489,45 +489,23 @@ Guidelines:
     return { url: '', source: 'huggingface', success: false, error: 'All models failed' };
   }
 
-  private async generateProductImageWithBackground(
-    productImageUrl: string,
+  private async generateAIBackground(
     backgroundPrompt: string,
-    productName: string
-  ): Promise<ImageGenerationResult> {
+    sceneType: string
+  ): Promise<{ backgroundUrl: string | null; source: string }> {
     const falKey = process.env.FAL_KEY;
     if (!falKey) {
-      console.log('[UniversalVideoService] FAL_KEY not available - using original product image');
-      return { url: productImageUrl, source: 'uploaded (original)', success: true };
+      console.log('[UniversalVideoService] FAL_KEY not available - cannot generate AI background');
+      return { backgroundUrl: null, source: 'none' };
     }
 
     try {
-      console.log(`[UniversalVideoService] Creating composite with product image and AI background...`);
-      console.log(`[UniversalVideoService] Product image URL: ${productImageUrl}`);
+      console.log(`[UniversalVideoService] Generating AI background for ${sceneType} scene...`);
       console.log(`[UniversalVideoService] Background prompt: ${backgroundPrompt}`);
-
-      // Handle various object storage URL formats:
-      // - http/https URLs: use as-is
-      // - /objects/replit-objstore-xxx/... : convert to GCS URL
-      // - /replit-objstore-xxx/... : convert to GCS URL (newer format)
-      let resolvedImageUrl = productImageUrl;
-      if (productImageUrl.startsWith('http')) {
-        resolvedImageUrl = productImageUrl;
-      } else if (productImageUrl.startsWith('/objects/')) {
-        resolvedImageUrl = `https://storage.googleapis.com/repl-default-bucket-${process.env.REPL_ID}${productImageUrl.replace('/objects', '')}`;
-      } else if (productImageUrl.startsWith('/replit-objstore-')) {
-        // Extract bucket ID and path from /replit-objstore-{bucketId}/.private/uploads/{fileId}
-        const match = productImageUrl.match(/^\/replit-objstore-([a-f0-9-]+)\/(.+)$/);
-        if (match) {
-          const [, bucketId, filePath] = match;
-          resolvedImageUrl = `https://storage.googleapis.com/replit-objstore-${bucketId}/${filePath}`;
-        }
-      }
-
-      console.log(`[UniversalVideoService] Resolved image URL: ${resolvedImageUrl}`);
 
       const backgroundResult = await fal.subscribe("fal-ai/flux-pro/v1.1", {
         input: {
-          prompt: `Professional product photography background, ${backgroundPrompt}, studio lighting, soft gradient background, clean and minimal, no product, just background scenery, 4K, high quality`,
+          prompt: `Professional product photography background scene, ${backgroundPrompt}, studio lighting, soft natural colors, clean composition, empty space for product placement, high quality, 4K, photorealistic`,
           image_size: "landscape_16_9",
           num_images: 1,
           safety_tolerance: "2",
@@ -536,49 +514,40 @@ Guidelines:
         logs: true,
         onQueueUpdate: (update: any) => {
           if (update.status === "IN_PROGRESS") {
-            console.log(`[UniversalVideoService] Background generation in progress...`);
+            console.log(`[UniversalVideoService] Background generation in progress for ${sceneType}...`);
           }
         },
       });
 
       if (backgroundResult.data?.images?.[0]?.url) {
-        console.log('[UniversalVideoService] AI background generated, now attempting to composite...');
-        
-        try {
-          const compositeResult = await fal.subscribe("fal-ai/image-to-image", {
-            input: {
-              image_url: resolvedImageUrl,
-              prompt: `${productName} product placed on ${backgroundPrompt}, professional product photography, studio lighting, high quality, the product from the image placed naturally in the scene`,
-              strength: 0.35,
-              num_images: 1,
-            },
-            logs: true,
-          });
-
-          if (compositeResult.data?.images?.[0]?.url) {
-            console.log('[UniversalVideoService] Composite image created successfully');
-            return {
-              url: compositeResult.data.images[0].url,
-              source: 'fal.ai (product + AI background composite)',
-              success: true,
-            };
-          }
-        } catch (compositeError: any) {
-          console.warn('[UniversalVideoService] Composite failed, using original with background URL:', compositeError.message);
-        }
-
+        console.log(`[UniversalVideoService] AI background generated successfully for ${sceneType}`);
         return {
-          url: productImageUrl,
-          source: 'uploaded (composite failed - using original)',
-          success: true,
+          backgroundUrl: backgroundResult.data.images[0].url,
+          source: 'fal.ai/flux-pro',
         };
       }
     } catch (error: any) {
       console.warn('[UniversalVideoService] Background generation failed:', error.message);
     }
 
-    console.log('[UniversalVideoService] All AI enhancement attempts failed, using original product image');
-    return { url: productImageUrl, source: 'uploaded (original)', success: true };
+    return { backgroundUrl: null, source: 'failed' };
+  }
+
+  private getProductOverlayPosition(sceneType: string): { x: 'left' | 'center' | 'right'; y: 'top' | 'center' | 'bottom'; scale: number; animation: 'fade' | 'zoom' | 'slide' | 'none' } {
+    switch (sceneType) {
+      case 'hook':
+        return { x: 'right', y: 'center', scale: 0.4, animation: 'slide' };
+      case 'intro':
+        return { x: 'center', y: 'center', scale: 0.5, animation: 'zoom' };
+      case 'feature':
+        return { x: 'left', y: 'center', scale: 0.45, animation: 'slide' };
+      case 'benefit':
+        return { x: 'right', y: 'bottom', scale: 0.35, animation: 'fade' };
+      case 'cta':
+        return { x: 'center', y: 'center', scale: 0.55, animation: 'zoom' };
+      default:
+        return { x: 'center', y: 'center', scale: 0.4, animation: 'fade' };
+    }
   }
 
   private resolveProductImageUrl(url: string): string {
@@ -875,28 +844,48 @@ Guidelines:
         const imageIndex = i % productImages.length;
         const productImage = productImages[imageIndex];
         
-        // Default: Always composite product onto AI-generated background for professional look
+        // Default: Generate AI background and layer product on top in Remotion
         // User can opt-out by setting enhanceWithAIBackground to false explicitly
         const shouldEnhanceBackground = scene.assets?.enhanceWithAIBackground !== false;
         
         if (shouldEnhanceBackground) {
-          console.log(`[UniversalVideoService] Compositing product onto AI background for ${scene.type} scene: ${scene.id}`);
-          const enhancedResult = await this.generateProductImageWithBackground(
-            productImage.url,
+          console.log(`[UniversalVideoService] Generating AI background for ${scene.type} scene: ${scene.id}`);
+          const backgroundResult = await this.generateAIBackground(
             scene.background.source,
-            project.title
+            scene.type
           );
           
-          // Map source to proper type: AI-generated composites count as 'ai'
-          const sourceType: 'ai' | 'uploaded' | 'stock' = enhancedResult.source.includes('fal.ai') ? 'ai' : 'uploaded';
+          // Resolve product image URL for browser access
+          const resolvedProductUrl = this.resolveProductImageUrl(productImage.url);
           
-          updatedProject.assets.images.push({
-            sceneId: scene.id,
-            url: enhancedResult.url,
-            prompt: scene.background.source,
-            source: sourceType,
-          });
-          updatedProject.scenes[i].assets!.imageUrl = enhancedResult.url;
+          if (backgroundResult.backgroundUrl) {
+            // Store both AI background and product overlay for Remotion compositing
+            updatedProject.assets.images.push({
+              sceneId: scene.id,
+              url: backgroundResult.backgroundUrl,
+              prompt: scene.background.source,
+              source: 'ai',
+            });
+            
+            // Set up scene assets for Remotion layered compositing
+            updatedProject.scenes[i].assets!.imageUrl = backgroundResult.backgroundUrl;
+            updatedProject.scenes[i].assets!.backgroundUrl = backgroundResult.backgroundUrl;
+            updatedProject.scenes[i].assets!.productOverlayUrl = resolvedProductUrl;
+            updatedProject.scenes[i].assets!.productOverlayPosition = this.getProductOverlayPosition(scene.type);
+            
+            console.log(`[UniversalVideoService] AI background: ${backgroundResult.backgroundUrl}`);
+            console.log(`[UniversalVideoService] Product overlay: ${resolvedProductUrl}`);
+          } else {
+            // Fallback: use product image with gradient background
+            console.log(`[UniversalVideoService] AI background failed, using product image with gradient for ${scene.type} scene`);
+            updatedProject.assets.images.push({
+              sceneId: scene.id,
+              url: resolvedProductUrl,
+              prompt: scene.background.source,
+              source: 'uploaded',
+            });
+            updatedProject.scenes[i].assets!.imageUrl = resolvedProductUrl;
+          }
         } else {
           // Only use raw product image if explicitly requested
           const resolvedUrl = this.resolveProductImageUrl(productImage.url);

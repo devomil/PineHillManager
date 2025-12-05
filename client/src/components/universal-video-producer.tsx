@@ -696,6 +696,8 @@ function ScenePreview({ scenes, assets }: { scenes: Scene[]; assets: VideoProjec
       {scenes.map((scene, index) => {
         const imageAsset = assets.images.find(img => img.sceneId === scene.id);
         const isExpanded = expandedScene === scene.id;
+        const hasAIBackground = scene.assets?.backgroundUrl;
+        const hasProductOverlay = scene.assets?.productOverlayUrl;
         
         return (
           <Card key={scene.id} className="overflow-hidden">
@@ -703,8 +705,25 @@ function ScenePreview({ scenes, assets }: { scenes: Scene[]; assets: VideoProjec
               className="flex items-center gap-3 p-3 cursor-pointer hover:bg-muted/50"
               onClick={() => setExpandedScene(isExpanded ? null : scene.id)}
             >
-              <div className="w-24 h-14 bg-muted rounded overflow-hidden flex-shrink-0">
-                {imageAsset?.url ? (
+              <div className="w-24 h-14 bg-muted rounded overflow-hidden flex-shrink-0 relative">
+                {hasAIBackground ? (
+                  <>
+                    <img 
+                      src={convertToDisplayUrl(scene.assets!.backgroundUrl!)} 
+                      alt={`Scene ${index + 1} background`}
+                      className="w-full h-full object-cover"
+                    />
+                    {hasProductOverlay && (
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <img 
+                          src={convertToDisplayUrl(scene.assets!.productOverlayUrl!)} 
+                          alt="Product overlay"
+                          className="max-w-[60%] max-h-[80%] object-contain drop-shadow-lg"
+                        />
+                      </div>
+                    )}
+                  </>
+                ) : imageAsset?.url ? (
                   <img 
                     src={convertToDisplayUrl(imageAsset.url)} 
                     alt={`Scene ${index + 1}`}
@@ -724,6 +743,16 @@ function ScenePreview({ scenes, assets }: { scenes: Scene[]; assets: VideoProjec
                   <span className="text-xs text-muted-foreground">
                     {scene.duration}s
                   </span>
+                  {hasAIBackground && hasProductOverlay && (
+                    <Badge className="text-xs bg-gradient-to-r from-purple-500 to-blue-500">
+                      AI Composite
+                    </Badge>
+                  )}
+                  {imageAsset?.source === 'ai' && !hasProductOverlay && (
+                    <Badge className="text-xs bg-purple-500">
+                      AI Generated
+                    </Badge>
+                  )}
                 </div>
                 <p className="text-sm truncate mt-1">{scene.narration.substring(0, 60)}...</p>
               </div>
@@ -742,6 +771,30 @@ function ScenePreview({ scenes, assets }: { scenes: Scene[]; assets: VideoProjec
                     <Label className="text-xs text-muted-foreground">Visual Direction</Label>
                     <p className="text-sm">{scene.background.source}</p>
                   </div>
+                  {hasAIBackground && hasProductOverlay && (
+                    <div className="grid grid-cols-2 gap-2 mt-3">
+                      <div>
+                        <Label className="text-xs text-muted-foreground">AI Background</Label>
+                        <div className="w-full h-20 rounded overflow-hidden mt-1">
+                          <img 
+                            src={convertToDisplayUrl(scene.assets!.backgroundUrl!)} 
+                            alt="AI background"
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Product Overlay</Label>
+                        <div className="w-full h-20 rounded overflow-hidden mt-1 bg-gray-100 flex items-center justify-center">
+                          <img 
+                            src={convertToDisplayUrl(scene.assets!.productOverlayUrl!)} 
+                            alt="Product"
+                            className="max-w-full max-h-full object-contain"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             )}

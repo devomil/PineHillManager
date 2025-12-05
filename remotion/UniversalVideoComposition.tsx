@@ -208,6 +208,83 @@ const TextOverlayComponent: React.FC<{
   );
 };
 
+const ProductOverlay: React.FC<{
+  productUrl: string;
+  position: { x: 'left' | 'center' | 'right'; y: 'top' | 'center' | 'bottom'; scale: number; animation?: string };
+  fps: number;
+  width: number;
+  height: number;
+}> = ({ productUrl, position, fps, width, height }) => {
+  const frame = useCurrentFrame();
+  const animDuration = fps * 0.8;
+
+  const productSize = Math.min(width, height) * position.scale;
+
+  let posX = 0;
+  let posY = 0;
+
+  switch (position.x) {
+    case 'left': posX = width * 0.15; break;
+    case 'center': posX = width * 0.5; break;
+    case 'right': posX = width * 0.85; break;
+  }
+  switch (position.y) {
+    case 'top': posY = height * 0.25; break;
+    case 'center': posY = height * 0.5; break;
+    case 'bottom': posY = height * 0.75; break;
+  }
+
+  let opacity = 1;
+  let scale = 1;
+  let translateX = 0;
+
+  if (frame < animDuration) {
+    const progress = frame / animDuration;
+    switch (position.animation) {
+      case 'fade':
+        opacity = interpolate(progress, [0, 1], [0, 1]);
+        break;
+      case 'zoom':
+        opacity = interpolate(progress, [0, 1], [0, 1]);
+        scale = interpolate(progress, [0, 1], [0.7, 1]);
+        break;
+      case 'slide':
+        opacity = interpolate(progress, [0, 1], [0, 1]);
+        translateX = interpolate(progress, [0, 1], [position.x === 'left' ? -200 : 200, 0]);
+        break;
+      default:
+        opacity = interpolate(progress, [0, 1], [0, 1]);
+    }
+  }
+
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        left: posX - productSize / 2,
+        top: posY - productSize / 2,
+        width: productSize,
+        height: productSize,
+        opacity,
+        transform: `scale(${scale}) translateX(${translateX}px)`,
+        filter: 'drop-shadow(0 20px 40px rgba(0,0,0,0.4))',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <Img
+        src={productUrl}
+        style={{
+          maxWidth: '100%',
+          maxHeight: '100%',
+          objectFit: 'contain',
+        }}
+      />
+    </div>
+  );
+};
+
 const SceneRenderer: React.FC<{
   scene: Scene;
   brand: BrandSettings;
@@ -274,7 +351,9 @@ const SceneRenderer: React.FC<{
     }
   }
 
-  const imageUrl = scene.assets?.imageUrl || '';
+  const imageUrl = scene.assets?.backgroundUrl || scene.assets?.imageUrl || '';
+  const productOverlayUrl = scene.assets?.productOverlayUrl;
+  const productPosition = scene.assets?.productOverlayPosition || { x: 'center', y: 'center', scale: 0.4, animation: 'fade' };
 
   return (
     <AbsoluteFill style={{ opacity }}>
@@ -310,6 +389,16 @@ const SceneRenderer: React.FC<{
               : scene.background.overlay.color,
             opacity: scene.background.overlay.opacity,
           }}
+        />
+      )}
+
+      {productOverlayUrl && (
+        <ProductOverlay
+          productUrl={productOverlayUrl}
+          position={productPosition}
+          fps={fps}
+          width={width}
+          height={height}
         />
       )}
 

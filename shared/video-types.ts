@@ -123,6 +123,16 @@ export interface SceneAssets {
   useAIImage?: boolean;
   assignedProductImageId?: string;
   enhanceWithAIBackground?: boolean;
+  backgroundUrl?: string;
+  productOverlayUrl?: string;
+  productOverlayPosition?: ProductOverlayPosition;
+}
+
+export interface ProductOverlayPosition {
+  x: 'left' | 'center' | 'right';
+  y: 'top' | 'center' | 'bottom';
+  scale: number;
+  animation?: 'fade' | 'zoom' | 'slide' | 'none';
 }
 
 export interface GeneratedAssets {
