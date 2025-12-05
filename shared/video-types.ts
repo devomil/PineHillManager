@@ -122,6 +122,7 @@ export interface SceneAssets {
   voiceoverUrl?: string;
   useAIImage?: boolean;
   assignedProductImageId?: string;
+  enhanceWithAIBackground?: boolean;
 }
 
 export interface GeneratedAssets {

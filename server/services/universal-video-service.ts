@@ -863,24 +863,30 @@ Guidelines:
         const imageIndex = i % productImages.length;
         const productImage = productImages[imageIndex];
         
-        const shouldEnhanceBackground = scene.assets?.enhanceWithAIBackground === true;
+        // Default: Always composite product onto AI-generated background for professional look
+        // User can opt-out by setting enhanceWithAIBackground to false explicitly
+        const shouldEnhanceBackground = scene.assets?.enhanceWithAIBackground !== false;
         
         if (shouldEnhanceBackground) {
-          console.log(`[UniversalVideoService] Generating AI-enhanced background for ${scene.type} scene: ${scene.id}`);
+          console.log(`[UniversalVideoService] Compositing product onto AI background for ${scene.type} scene: ${scene.id}`);
           const enhancedResult = await this.generateProductImageWithBackground(
             productImage.url,
             scene.background.source,
             project.title
           );
           
+          // Map source to proper type: AI-generated composites count as 'ai'
+          const sourceType: 'ai' | 'uploaded' | 'stock' = enhancedResult.source.includes('fal.ai') ? 'ai' : 'uploaded';
+          
           updatedProject.assets.images.push({
             sceneId: scene.id,
             url: enhancedResult.url,
             prompt: scene.background.source,
-            source: enhancedResult.source,
+            source: sourceType,
           });
           updatedProject.scenes[i].assets!.imageUrl = enhancedResult.url;
         } else {
+          // Only use raw product image if explicitly requested
           const resolvedUrl = this.resolveProductImageUrl(productImage.url);
           updatedProject.assets.images.push({
             sceneId: scene.id,
@@ -889,7 +895,7 @@ Guidelines:
             source: 'uploaded',
           });
           updatedProject.scenes[i].assets!.imageUrl = resolvedUrl;
-          console.log(`[UniversalVideoService] Using uploaded product image for ${scene.type} scene: ${scene.id}, URL: ${resolvedUrl}`);
+          console.log(`[UniversalVideoService] Using raw product image (no AI background) for ${scene.type} scene: ${scene.id}`);
         }
       } else {
         const imageResult = await this.generateImage(scene.background.source, scene.id);
