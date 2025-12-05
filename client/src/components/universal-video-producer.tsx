@@ -706,7 +706,7 @@ function ScenePreview({ scenes, assets }: { scenes: Scene[]; assets: VideoProjec
               <div className="w-24 h-14 bg-muted rounded overflow-hidden flex-shrink-0">
                 {imageAsset?.url ? (
                   <img 
-                    src={imageAsset.url} 
+                    src={convertToDisplayUrl(imageAsset.url)} 
                     alt={`Scene ${index + 1}`}
                     className="w-full h-full object-cover"
                   />
