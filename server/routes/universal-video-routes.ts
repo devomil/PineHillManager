@@ -173,6 +173,23 @@ router.post('/projects/product', isAuthenticated, async (req: Request, res: Resp
     
     const project = await universalVideoService.createProductVideoProject(validatedInput);
     
+    // Set ACL for any product images to make them publicly accessible
+    if (project.assets.productImages && project.assets.productImages.length > 0) {
+      console.log('[UniversalVideo] Setting ACL for', project.assets.productImages.length, 'product images');
+      for (const img of project.assets.productImages) {
+        try {
+          const normalizedPath = objectStorageService.normalizeObjectEntityPath(img.url);
+          await objectStorageService.trySetObjectEntityAclPolicy(
+            normalizedPath,
+            { owner: userId, visibility: 'public' }
+          );
+          console.log('[UniversalVideo] Set public ACL for:', normalizedPath);
+        } catch (aclError) {
+          console.warn('[UniversalVideo] Failed to set ACL for image:', img.url, aclError);
+        }
+      }
+    }
+    
     await saveProjectToDb(project, userId);
     console.log('[UniversalVideo] Project saved to database:', project.id);
     
