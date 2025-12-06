@@ -245,12 +245,12 @@ function ProductImageUpload({
         {images.map((image) => (
           <div 
             key={image.id} 
-            className="relative group aspect-square rounded-lg overflow-hidden border bg-muted"
+            className="relative group aspect-square rounded-lg overflow-hidden border checkerboard-bg"
           >
             <img
               src={getImageDisplayUrl(image)}
               alt={image.name}
-              className="w-full h-full object-cover"
+              className="w-full h-full object-contain"
             />
             <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
               <Button
@@ -869,7 +869,7 @@ function ScenePreview({
                             <Label className="text-xs text-muted-foreground">
                               Product {!showsProductOverlay && '(Disabled)'}
                             </Label>
-                            <div className="w-full aspect-video rounded-lg overflow-hidden mt-2 border bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+                            <div className="w-full aspect-video rounded-lg overflow-hidden mt-2 border checkerboard-bg flex items-center justify-center">
                               <img 
                                 src={convertToDisplayUrl(scene.assets!.productOverlayUrl!)} 
                                 alt="Product"

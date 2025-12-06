@@ -69,6 +69,27 @@
     font-size: var(--mobile-font-size);
     line-height: 1.5;
   }
+}
+
+/* Checkerboard pattern for transparent image backgrounds */
+@layer utilities {
+  .checkerboard-bg {
+    background-image: linear-gradient(45deg, #e0e0e0 25%, transparent 25%), 
+                      linear-gradient(-45deg, #e0e0e0 25%, transparent 25%), 
+                      linear-gradient(45deg, transparent 75%, #e0e0e0 75%), 
+                      linear-gradient(-45deg, transparent 75%, #e0e0e0 75%);
+    background-size: 16px 16px;
+    background-position: 0 0, 0 8px, 8px -8px, -8px 0px;
+    background-color: #f5f5f5;
+  }
+  
+  .dark .checkerboard-bg {
+    background-image: linear-gradient(45deg, #404040 25%, transparent 25%), 
+                      linear-gradient(-45deg, #404040 25%, transparent 25%), 
+                      linear-gradient(45deg, transparent 75%, #404040 75%), 
+                      linear-gradient(-45deg, transparent 75%, #404040 75%);
+    background-color: #2a2a2a;
+  }
   
   /* Headings use Poppins Bold */
   h1, h2, h3, h4, h5, h6 {

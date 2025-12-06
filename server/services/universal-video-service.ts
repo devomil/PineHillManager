@@ -1400,54 +1400,74 @@ Guidelines:
     const query = searchTerms[style || 'professional'] || 'ambient';
 
     try {
-      console.log(`[UniversalVideoService] Searching Pixabay for music: ${query}`);
+      console.log(`[UniversalVideoService] Searching Pixabay Audio API for music: ${query}`);
+      console.log(`[UniversalVideoService] Using API key: ${pixabayKey.substring(0, 8)}...`);
       
-      // IMPORTANT: Use &media_type=music for audio, not videos
-      const response = await fetch(
-        `https://pixabay.com/api/?key=${pixabayKey}&q=${encodeURIComponent(query)}&media_type=music&per_page=10`
-      );
+      // Pixabay has a SEPARATE audio API endpoint for music
+      // The main API with media_type=music has been deprecated
+      // Use the audio API endpoint instead
+      const audioApiUrl = `https://pixabay.com/api/videos/?key=${pixabayKey}&q=${encodeURIComponent(query)}&video_type=animation&per_page=3`;
+      
+      // Try Pixabay music API first (separate endpoint)
+      const musicApiUrl = `https://pixabay.com/api/?key=${pixabayKey}&q=${encodeURIComponent(query)}&category=music&per_page=20`;
+      console.log(`[UniversalVideoService] Trying Pixabay API: ${musicApiUrl.replace(pixabayKey, 'KEY')}`);
+      
+      const response = await fetch(musicApiUrl);
+      const responseText = await response.text();
+      console.log(`[UniversalVideoService] Pixabay response status: ${response.status}`);
+      console.log(`[UniversalVideoService] Pixabay response: ${responseText.substring(0, 500)}`);
       
       if (!response.ok) {
-        console.warn('[UniversalVideoService] Pixabay API error:', response.status);
-        
-        // Try fallback search
-        const fallbackResponse = await fetch(
-          `https://pixabay.com/api/?key=${pixabayKey}&q=background+music&media_type=music&per_page=10`
-        );
-        if (fallbackResponse.ok) {
-          const fallbackData = await fallbackResponse.json();
-          if (fallbackData.hits?.length > 0) {
-            const track = this.selectBestMusicTrack(fallbackData.hits, duration);
-            if (track) return track;
-          }
-        }
+        console.warn('[UniversalVideoService] Pixabay API error:', response.status, responseText);
         return null;
       }
       
-      const data = await response.json();
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error('[UniversalVideoService] Failed to parse Pixabay response:', responseText);
+        return null;
+      }
       
-      if (!data.hits || data.hits.length === 0) {
-        console.log('[UniversalVideoService] No music found for query:', query);
-        // Try multiple fallback queries
-        const fallbackQueries = ['background', 'ambient', 'instrumental', 'music'];
-        for (const fallbackQuery of fallbackQueries) {
-          console.log(`[UniversalVideoService] Trying fallback music query: ${fallbackQuery}`);
-          const fallbackResponse = await fetch(
-            `https://pixabay.com/api/?key=${pixabayKey}&q=${encodeURIComponent(fallbackQuery)}&media_type=music&per_page=10`
-          );
-          if (fallbackResponse.ok) {
-            const fallbackData = await fallbackResponse.json();
-            if (fallbackData.hits?.length > 0) {
-              console.log(`[UniversalVideoService] Found ${fallbackData.hits.length} tracks with fallback query: ${fallbackQuery}`);
-              data.hits = fallbackData.hits;
-              break;
+      console.log(`[UniversalVideoService] Pixabay API returned ${data.hits?.length || 0} results, total: ${data.total || 0}`);
+      
+      // Check if we got any results with audio
+      if (data.hits && data.hits.length > 0) {
+        // Look for audio field in results
+        const audioHits = data.hits.filter((hit: any) => hit.audio || hit.music_url || hit.url_download);
+        console.log(`[UniversalVideoService] Found ${audioHits.length} hits with audio URLs`);
+        
+        if (audioHits.length > 0) {
+          return this.selectBestMusicTrack(audioHits, duration);
+        }
+      }
+      
+      // If no audio results, try the direct search without category filter
+      console.log('[UniversalVideoService] No audio in results, trying broader search...');
+      const fallbackQueries = ['background music', 'ambient music', 'instrumental', 'corporate music'];
+      
+      for (const fallbackQuery of fallbackQueries) {
+        console.log(`[UniversalVideoService] Trying fallback music query: ${fallbackQuery}`);
+        const fallbackUrl = `https://pixabay.com/api/?key=${pixabayKey}&q=${encodeURIComponent(fallbackQuery)}&per_page=20`;
+        
+        const fallbackResponse = await fetch(fallbackUrl);
+        if (fallbackResponse.ok) {
+          const fallbackData = await fallbackResponse.json();
+          console.log(`[UniversalVideoService] Fallback '${fallbackQuery}' returned ${fallbackData.hits?.length || 0} results`);
+          
+          if (fallbackData.hits?.length > 0) {
+            const audioHits = fallbackData.hits.filter((hit: any) => hit.audio || hit.music_url);
+            if (audioHits.length > 0) {
+              console.log(`[UniversalVideoService] Found ${audioHits.length} tracks with audio`);
+              return this.selectBestMusicTrack(audioHits, duration);
             }
           }
         }
-        if (!data.hits?.length) return null;
       }
       
-      return this.selectBestMusicTrack(data.hits, duration);
+      console.log('[UniversalVideoService] No music found after all attempts');
+      return null;
     } catch (e: any) {
       console.error('[UniversalVideoService] Pixabay music search error:', e.message);
       return null;
