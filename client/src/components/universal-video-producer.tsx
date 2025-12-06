@@ -722,6 +722,7 @@ function ScenePreview({
         const isExpanded = expandedScene === scene.id;
         const hasAIBackground = scene.assets?.backgroundUrl;
         const hasProductOverlay = scene.assets?.productOverlayUrl && scene.assets?.useProductOverlay !== false;
+        const hasBrollVideo = scene.background?.type === 'video' && scene.background?.videoUrl;
         const defaultOverlay = SCENE_OVERLAY_DEFAULTS[scene.type] ?? false;
         const showsProductOverlay = scene.assets?.useProductOverlay ?? defaultOverlay;
         
@@ -731,8 +732,20 @@ function ScenePreview({
               className="flex items-center gap-3 p-3 cursor-pointer hover:bg-muted/50"
               onClick={() => setExpandedScene(isExpanded ? null : scene.id)}
             >
-              <div className="w-24 h-14 bg-muted rounded overflow-hidden flex-shrink-0 relative">
-                {hasAIBackground ? (
+              <div className="w-28 h-16 bg-muted rounded overflow-hidden flex-shrink-0 relative">
+                {hasBrollVideo ? (
+                  <div className="relative w-full h-full">
+                    <video 
+                      src={convertToDisplayUrl(scene.background!.videoUrl!)}
+                      className="w-full h-full object-cover"
+                      muted
+                      playsInline
+                    />
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                      <Video className="w-5 h-5 text-white drop-shadow" />
+                    </div>
+                  </div>
+                ) : hasAIBackground ? (
                   <>
                     <img 
                       src={convertToDisplayUrl(scene.assets!.backgroundUrl!)} 
@@ -770,6 +783,11 @@ function ScenePreview({
                   <span className="text-xs text-muted-foreground">
                     {scene.duration}s
                   </span>
+                  {hasBrollVideo && (
+                    <Badge className="text-xs bg-blue-500">
+                      <Video className="w-3 h-3 mr-1" /> B-Roll
+                    </Badge>
+                  )}
                   {hasAIBackground && (
                     <Badge className={`text-xs ${showsProductOverlay ? 'bg-gradient-to-r from-purple-500 to-blue-500' : 'bg-purple-500'}`}>
                       {showsProductOverlay ? 'AI + Product' : 'AI Background'}
@@ -784,7 +802,7 @@ function ScenePreview({
             {isExpanded && (
               <CardContent className="pt-0 pb-3">
                 <Separator className="mb-3" />
-                <div className="space-y-3">
+                <div className="space-y-4">
                   <div>
                     <Label className="text-xs text-muted-foreground">Narration</Label>
                     <p className="text-sm">{scene.narration}</p>
@@ -793,6 +811,24 @@ function ScenePreview({
                     <Label className="text-xs text-muted-foreground">Visual Direction</Label>
                     <p className="text-sm">{scene.background.source}</p>
                   </div>
+                  
+                  {hasBrollVideo && (
+                    <div>
+                      <Label className="text-xs text-muted-foreground flex items-center gap-1">
+                        <Video className="w-3 h-3" /> B-Roll Video
+                      </Label>
+                      <div className="w-full aspect-video rounded-lg overflow-hidden mt-2 border bg-black">
+                        <video 
+                          src={convertToDisplayUrl(scene.background!.videoUrl!)}
+                          className="w-full h-full object-contain"
+                          controls
+                          muted
+                          playsInline
+                          data-testid={`video-broll-${scene.id}`}
+                        />
+                      </div>
+                    </div>
+                  )}
                   
                   {hasAIBackground && (
                     <>
@@ -817,10 +853,10 @@ function ScenePreview({
                         </div>
                       </div>
                       
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-2 gap-3">
                         <div>
                           <Label className="text-xs text-muted-foreground">AI Background</Label>
-                          <div className="w-full h-24 rounded overflow-hidden mt-1 border">
+                          <div className="w-full aspect-video rounded-lg overflow-hidden mt-2 border">
                             <img 
                               src={convertToDisplayUrl(scene.assets!.backgroundUrl!)} 
                               alt="AI background"
@@ -833,11 +869,11 @@ function ScenePreview({
                             <Label className="text-xs text-muted-foreground">
                               Product {!showsProductOverlay && '(Disabled)'}
                             </Label>
-                            <div className="w-full h-24 rounded overflow-hidden mt-1 border bg-gray-50 flex items-center justify-center">
+                            <div className="w-full aspect-video rounded-lg overflow-hidden mt-2 border bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
                               <img 
                                 src={convertToDisplayUrl(scene.assets!.productOverlayUrl!)} 
                                 alt="Product"
-                                className="max-w-full max-h-full object-contain p-1"
+                                className="max-w-[90%] max-h-[90%] object-contain"
                                 onError={(e) => { 
                                   e.currentTarget.parentElement!.innerHTML = '<span class="text-xs text-muted-foreground">Image not loaded</span>';
                                 }}
