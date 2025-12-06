@@ -1388,16 +1388,16 @@ Guidelines:
       return null;
     }
 
-    // Search terms based on video style
+    // Search terms based on video style - using simpler terms for better Pixabay matches
     const searchTerms: Record<string, string> = {
-      professional: 'corporate ambient calm',
-      friendly: 'uplifting happy acoustic',
-      energetic: 'upbeat motivational electronic',
-      calm: 'relaxing meditation peaceful',
-      documentary: 'cinematic documentary emotional',
+      professional: 'corporate',
+      friendly: 'happy',
+      energetic: 'upbeat',
+      calm: 'relaxing',
+      documentary: 'cinematic',
     };
     
-    const query = searchTerms[style || 'professional'] || 'ambient corporate background';
+    const query = searchTerms[style || 'professional'] || 'ambient';
 
     try {
       console.log(`[UniversalVideoService] Searching Pixabay for music: ${query}`);
@@ -1428,13 +1428,23 @@ Guidelines:
       
       if (!data.hits || data.hits.length === 0) {
         console.log('[UniversalVideoService] No music found for query:', query);
-        // Try a fallback query
-        const fallbackResponse = await fetch(
-          `https://pixabay.com/api/?key=${pixabayKey}&q=background+music&media_type=music&per_page=10`
-        );
-        const fallbackData = await fallbackResponse.json();
-        if (!fallbackData.hits?.length) return null;
-        data.hits = fallbackData.hits;
+        // Try multiple fallback queries
+        const fallbackQueries = ['background', 'ambient', 'instrumental', 'music'];
+        for (const fallbackQuery of fallbackQueries) {
+          console.log(`[UniversalVideoService] Trying fallback music query: ${fallbackQuery}`);
+          const fallbackResponse = await fetch(
+            `https://pixabay.com/api/?key=${pixabayKey}&q=${encodeURIComponent(fallbackQuery)}&media_type=music&per_page=10`
+          );
+          if (fallbackResponse.ok) {
+            const fallbackData = await fallbackResponse.json();
+            if (fallbackData.hits?.length > 0) {
+              console.log(`[UniversalVideoService] Found ${fallbackData.hits.length} tracks with fallback query: ${fallbackQuery}`);
+              data.hits = fallbackData.hits;
+              break;
+            }
+          }
+        }
+        if (!data.hits?.length) return null;
       }
       
       return this.selectBestMusicTrack(data.hits, duration);
