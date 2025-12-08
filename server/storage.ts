@@ -351,20 +351,39 @@ const STANDARD_ACCOUNTS = [
     balance: '0'
   },
   {
-    accountNumber: '5100',
-    accountName: 'Cost of Goods Purchased',
-    accountType: 'Expense',
-    subType: 'Cost of Goods Purchased',
-    description: 'Cost of inventory purchased from vendors - auto-populated from purchase orders',
-    balance: '0'
-  },
-  {
     accountNumber: '1300',
     accountName: 'Inventory',
     accountType: 'Asset',
     subType: 'Current Asset',
-    description: 'Products and materials inventory - auto-populated from Thrive inventory data',
+    description: 'Products and materials inventory - Beginning + Purchases - Ending = COGS',
     balance: '0'
+  },
+  {
+    accountNumber: '1310',
+    accountName: 'Inventory Purchases (Unrealized Cost)',
+    accountType: 'Asset',
+    subType: 'Current Asset',
+    description: 'Cost of inventory purchased from vendors - feeds into inventory value until sold',
+    balance: '0',
+    parentAccountNumber: '1300'
+  },
+  {
+    accountNumber: '1320',
+    accountName: 'Beginning Inventory',
+    accountType: 'Asset',
+    subType: 'Current Asset',
+    description: 'Inventory value at start of period',
+    balance: '0',
+    parentAccountNumber: '1300'
+  },
+  {
+    accountNumber: '1330',
+    accountName: 'Ending Inventory',
+    accountType: 'Asset',
+    subType: 'Current Asset',
+    description: 'Inventory value at end of period',
+    balance: '0',
+    parentAccountNumber: '1300'
   },
   {
     accountNumber: '6700',
@@ -5542,6 +5561,30 @@ export class DatabaseStorage implements IStorage {
   async ensureStandardAccounts(): Promise<void> {
     console.log('📊 Ensuring standard Chart of Accounts...');
     
+    // First, rename old "Cost of Goods Purchased" to new name if it exists
+    const [oldCOGP] = await db.select().from(financialAccounts)
+      .where(and(
+        eq(financialAccounts.accountName, 'Cost of Goods Purchased'),
+        eq(financialAccounts.isActive, true)
+      ));
+    
+    if (oldCOGP) {
+      console.log('  🔄 Migrating "Cost of Goods Purchased" to "Inventory Purchases (Unrealized Cost)"...');
+      await db.update(financialAccounts)
+        .set({
+          accountName: 'Inventory Purchases (Unrealized Cost)',
+          accountNumber: '1310',
+          accountType: 'Asset',
+          subType: 'Current Asset',
+          description: 'Cost of inventory purchased from vendors - feeds into inventory value until sold',
+          updatedAt: new Date()
+        })
+        .where(eq(financialAccounts.id, oldCOGP.id));
+    }
+    
+    // Build a map of account numbers to IDs for parent linking
+    const accountIdMap = new Map<string, number>();
+    
     for (const stdAccount of STANDARD_ACCOUNTS) {
       // Check if account already exists by name or account number
       const existing = await db.select().from(financialAccounts)
@@ -5558,7 +5601,7 @@ export class DatabaseStorage implements IStorage {
       if (existing.length === 0) {
         // Create the account if it doesn't exist
         console.log(`  ✅ Creating standard account: ${stdAccount.accountNumber} - ${stdAccount.accountName}`);
-        await this.createFinancialAccount({
+        const newAccount = await this.createFinancialAccount({
           accountNumber: stdAccount.accountNumber,
           accountName: stdAccount.accountName,
           accountType: stdAccount.accountType,
@@ -5567,8 +5610,26 @@ export class DatabaseStorage implements IStorage {
           balance: stdAccount.balance,
           isActive: true
         });
+        accountIdMap.set(stdAccount.accountNumber, newAccount.id);
       } else {
         console.log(`  ℹ️  Standard account already exists: ${stdAccount.accountNumber} - ${stdAccount.accountName}`);
+        accountIdMap.set(stdAccount.accountNumber, existing[0].id);
+      }
+    }
+    
+    // Link parent accounts
+    for (const stdAccount of STANDARD_ACCOUNTS) {
+      const parentAccountNumber = (stdAccount as any).parentAccountNumber;
+      if (parentAccountNumber) {
+        const parentId = accountIdMap.get(parentAccountNumber);
+        const childId = accountIdMap.get(stdAccount.accountNumber);
+        
+        if (parentId && childId) {
+          console.log(`  🔗 Linking ${stdAccount.accountNumber} to parent ${parentAccountNumber}`);
+          await db.update(financialAccounts)
+            .set({ parentAccountId: parentId, updatedAt: new Date() })
+            .where(eq(financialAccounts.id, childId));
+        }
       }
     }
     
@@ -6229,8 +6290,8 @@ export class DatabaseStorage implements IStorage {
           .where(conditions.length > 0 ? and(...conditions) : undefined);
         const [cogsResult] = await cogsQuery;
         balance = parseFloat(cogsResult?.totalCOGS || '0');
-      } else if (account.accountName === 'Cost of Goods Purchased') {
-        // COGP from purchase orders (goods purchased)
+      } else if (account.accountName === 'Inventory Purchases (Unrealized Cost)') {
+        // Inventory purchases from purchase orders (feeds into inventory value until sold)
         const conditions: any[] = [eq(purchaseOrders.status, 'received')];
         if (startOfMonth) conditions.push(gte(purchaseOrders.receivedDate, startOfMonth));
         if (endOfMonth) conditions.push(lte(purchaseOrders.receivedDate, endOfMonth));
@@ -6241,6 +6302,50 @@ export class DatabaseStorage implements IStorage {
           .where(and(...conditions));
         const [pogpResult] = await pogpQuery;
         balance = parseFloat(pogpResult?.totalCost || '0');
+      } else if (account.accountName === 'Beginning Inventory') {
+        // Beginning inventory = total inventory value at start of period
+        // Sum of all inventory items cost at the start of the period
+        const inventoryQuery = db
+          .select({ 
+            totalValue: sql<string>`COALESCE(SUM(
+              COALESCE(CAST(${inventoryItems.standardCost} AS DECIMAL), 
+                       COALESCE(CAST(${inventoryItems.unitCost} AS DECIMAL), 0)) * 
+              COALESCE(CAST(${inventoryItems.quantityOnHand} AS DECIMAL), 0)
+            ), 0)::text`
+          })
+          .from(inventoryItems)
+          .where(eq(inventoryItems.isActive, true));
+        const [inventoryResult] = await inventoryQuery;
+        balance = parseFloat(inventoryResult?.totalValue || '0');
+      } else if (account.accountName === 'Ending Inventory') {
+        // Ending inventory = current inventory value (total cost of items on hand)
+        const inventoryQuery = db
+          .select({ 
+            totalValue: sql<string>`COALESCE(SUM(
+              COALESCE(CAST(${inventoryItems.standardCost} AS DECIMAL), 
+                       COALESCE(CAST(${inventoryItems.unitCost} AS DECIMAL), 0)) * 
+              COALESCE(CAST(${inventoryItems.quantityOnHand} AS DECIMAL), 0)
+            ), 0)::text`
+          })
+          .from(inventoryItems)
+          .where(eq(inventoryItems.isActive, true));
+        const [inventoryResult] = await inventoryQuery;
+        balance = parseFloat(inventoryResult?.totalValue || '0');
+      } else if (account.accountName === 'Inventory') {
+        // Total Inventory = sum of sub-accounts (Beginning + Purchases - COGS = Ending)
+        // For simplicity, show current inventory value
+        const inventoryQuery = db
+          .select({ 
+            totalValue: sql<string>`COALESCE(SUM(
+              COALESCE(CAST(${inventoryItems.standardCost} AS DECIMAL), 
+                       COALESCE(CAST(${inventoryItems.unitCost} AS DECIMAL), 0)) * 
+              COALESCE(CAST(${inventoryItems.quantityOnHand} AS DECIMAL), 0)
+            ), 0)::text`
+          })
+          .from(inventoryItems)
+          .where(eq(inventoryItems.isActive, true));
+        const [inventoryResult] = await inventoryQuery;
+        balance = parseFloat(inventoryResult?.totalValue || '0');
       } else if (account.accountName === 'Payroll Expense') {
         // Payroll from SCHEDULED hours (work_schedules) - represents budgeted/expected payroll
         // Note: Use time_clock_entries for actual worked hours

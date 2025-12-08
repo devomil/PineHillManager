@@ -5041,6 +5041,53 @@ function BalanceSheetReport({
               {renderAccountSection('Assets', assetAccounts, 'text-blue-600', totalAssets)}
             </div>
 
+            {/* Inventory COGS Side Schedule */}
+            {(() => {
+              const inventoryAccount = assetAccounts.find(a => a.accountName === 'Inventory');
+              const beginningInventory = assetAccounts.find(a => a.accountName === 'Beginning Inventory');
+              const purchases = assetAccounts.find(a => a.accountName === 'Inventory Purchases (Unrealized Cost)');
+              const endingInventory = assetAccounts.find(a => a.accountName === 'Ending Inventory');
+              
+              if (inventoryAccount || beginningInventory || purchases || endingInventory) {
+                const beginningValue = parseFloat(beginningInventory?.balance || '0');
+                const purchasesValue = parseFloat(purchases?.balance || '0');
+                const endingValue = parseFloat(endingInventory?.balance || '0');
+                const calculatedCOGS = beginningValue + purchasesValue - endingValue;
+                
+                return (
+                  <div className="border rounded-lg p-4 bg-amber-50">
+                    <h4 className="font-semibold text-lg text-amber-800 mb-3 flex items-center gap-2">
+                      <Package className="h-5 w-5" />
+                      Inventory COGS Calculation Schedule
+                    </h4>
+                    <div className="space-y-2 ml-4">
+                      <div className="flex justify-between items-center py-1 border-b border-amber-200">
+                        <span className="text-gray-700">Beginning Inventory</span>
+                        <span className="font-medium">{formatCurrency(beginningValue)}</span>
+                      </div>
+                      <div className="flex justify-between items-center py-1 border-b border-amber-200">
+                        <span className="text-gray-700">+ Purchases (All Inventory Purchased)</span>
+                        <span className="font-medium">{formatCurrency(purchasesValue)}</span>
+                      </div>
+                      <div className="flex justify-between items-center py-1 border-b border-amber-200">
+                        <span className="text-gray-700">– Ending Inventory</span>
+                        <span className="font-medium text-red-600">({formatCurrency(endingValue)})</span>
+                      </div>
+                      <Separator className="my-2" />
+                      <div className="flex justify-between items-center font-semibold bg-amber-100 p-2 rounded">
+                        <span>= COGS (flows to P&L)</span>
+                        <span className="text-amber-800">{formatCurrency(calculatedCOGS)}</span>
+                      </div>
+                    </div>
+                    <p className="text-xs text-amber-700 mt-3">
+                      Purchases feed into inventory value until items are sold
+                    </p>
+                  </div>
+                );
+              }
+              return null;
+            })()}
+
             {/* Liabilities & Equity Section */}
             <div className="border rounded-lg p-4 space-y-6">
               {renderAccountSection('Liabilities', liabilityAccounts, 'text-red-600', totalLiabilities)}
