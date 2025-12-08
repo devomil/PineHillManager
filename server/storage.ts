@@ -804,6 +804,10 @@ export interface IStorage {
     dataSource: string;
     manualBalance: string | null;
     parentAccountId: number | null;
+    billingFrequency: string | null;
+    subType: string | null;
+    description: string | null;
+    accountNumber: string | null;
   }>>;
 
   // Customers and Vendors
@@ -6047,6 +6051,10 @@ export class DatabaseStorage implements IStorage {
     dataSource: string;
     manualBalance: string | null;
     parentAccountId: number | null;
+    billingFrequency: string | null;
+    subType: string | null;
+    description: string | null;
+    accountNumber: string | null;
   }>> {
     // Calculate date range for the month - dates for comparison
     const now = new Date();
@@ -6349,7 +6357,11 @@ export class DatabaseStorage implements IStorage {
         isActive: account.isActive ?? true,
         dataSource: account.dataSource || 'Auto',
         manualBalance: account.manualBalance,
-        parentAccountId: account.parentAccountId
+        parentAccountId: account.parentAccountId,
+        billingFrequency: account.billingFrequency || 'monthly',
+        subType: account.subType || null,
+        description: account.description || null,
+        accountNumber: account.accountNumber || null
       };
     }));
 
