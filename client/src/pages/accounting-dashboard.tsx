@@ -107,6 +107,8 @@ type FinancialAccount = {
   dataSource?: string;
   manualBalance?: string | null;
   billingFrequency?: string;
+  effectiveMonth?: number | null;
+  effectiveYear?: number | null;
   isActive: boolean;
   parentAccountId?: number;
   createdAt: string;
@@ -138,6 +140,29 @@ const BILLING_FREQUENCIES = [
   { value: 'custom', label: 'Custom / One-time' },
 ];
 
+// Month options for effective month selection
+const MONTH_OPTIONS = [
+  { value: '1', label: 'January' },
+  { value: '2', label: 'February' },
+  { value: '3', label: 'March' },
+  { value: '4', label: 'April' },
+  { value: '5', label: 'May' },
+  { value: '6', label: 'June' },
+  { value: '7', label: 'July' },
+  { value: '8', label: 'August' },
+  { value: '9', label: 'September' },
+  { value: '10', label: 'October' },
+  { value: '11', label: 'November' },
+  { value: '12', label: 'December' },
+];
+
+// Generate year options (current year + 2 years back/forward)
+const currentYear = new Date().getFullYear();
+const YEAR_OPTIONS = Array.from({ length: 5 }, (_, i) => ({
+  value: String(currentYear - 2 + i),
+  label: String(currentYear - 2 + i),
+}));
+
 // Form schemas
 const accountFormSchema = z.object({
   accountName: z.string().min(1, 'Account name is required'),
@@ -149,6 +174,8 @@ const accountFormSchema = z.object({
   dataSource: z.enum(['Auto', 'Manual', 'QuickBooks']).default('Auto'),
   manualBalance: z.string().optional(),
   billingFrequency: z.enum(['weekly', 'monthly', 'quarterly', 'annual', 'custom']).default('monthly'),
+  effectiveMonth: z.string().optional(),
+  effectiveYear: z.string().optional(),
 });
 
 const journalEntryFormSchema = z.object({
@@ -2669,6 +2696,8 @@ function AccountManagementDialog({
       dataSource: (editingAccount?.dataSource as any) || 'Auto',
       manualBalance: editingAccount?.manualBalance?.toString() || '',
       billingFrequency: (editingAccount?.billingFrequency as any) || 'monthly',
+      effectiveMonth: editingAccount?.effectiveMonth?.toString() || '',
+      effectiveYear: editingAccount?.effectiveYear?.toString() || '',
     },
   });
 
@@ -2677,6 +2706,8 @@ function AccountManagementDialog({
       const payload = {
         ...data,
         parentAccountId: data.parentAccountId && data.parentAccountId !== 'none' ? parseInt(data.parentAccountId) : null,
+        effectiveMonth: data.effectiveMonth ? parseInt(data.effectiveMonth) : null,
+        effectiveYear: data.effectiveYear ? parseInt(data.effectiveYear) : null,
       };
       
       if (editingAccount) {
@@ -2722,6 +2753,8 @@ function AccountManagementDialog({
         dataSource: (editingAccount.dataSource as any) || 'Auto',
         manualBalance: editingAccount.manualBalance?.toString() || '',
         billingFrequency: (editingAccount.billingFrequency as any) || 'monthly',
+        effectiveMonth: editingAccount.effectiveMonth?.toString() || '',
+        effectiveYear: editingAccount.effectiveYear?.toString() || '',
       });
     } else {
       form.reset({
@@ -2734,6 +2767,8 @@ function AccountManagementDialog({
         dataSource: 'Auto',
         manualBalance: '',
         billingFrequency: 'monthly',
+        effectiveMonth: '',
+        effectiveYear: '',
       });
     }
   }, [editingAccount, form]);
@@ -2924,6 +2959,69 @@ function AccountManagementDialog({
                   </FormItem>
                 )}
               />
+            )}
+
+            {(form.watch('billingFrequency') === 'annual' || form.watch('billingFrequency') === 'quarterly') && (
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="effectiveMonth"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Applies to Month</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-effective-month">
+                            <SelectValue placeholder="Select month" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {MONTH_OPTIONS.map((month) => (
+                            <SelectItem key={month.value} value={month.value}>
+                              {month.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                {form.watch('billingFrequency') === 'annual' && (
+                  <FormField
+                    control={form.control}
+                    name="effectiveYear"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Applies to Year</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger data-testid="select-effective-year">
+                              <SelectValue placeholder="Select year" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {YEAR_OPTIONS.map((year) => (
+                              <SelectItem key={year.value} value={year.value}>
+                                {year.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
+              </div>
+            )}
+
+            {(form.watch('billingFrequency') === 'annual' || form.watch('billingFrequency') === 'quarterly') && (
+              <p className="text-sm text-muted-foreground">
+                {form.watch('billingFrequency') === 'annual' 
+                  ? 'This annual expense will only appear in P&L reports for the selected month and year.'
+                  : 'This quarterly expense will only appear in P&L reports for the selected month.'}
+              </p>
             )}
             
             <FormField

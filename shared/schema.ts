@@ -1871,6 +1871,8 @@ export const financialAccounts = pgTable("financial_accounts", {
   dataSource: varchar("data_source").default("Auto"), // Auto (API-calculated), Manual, QuickBooks
   manualBalance: decimal("manual_balance", { precision: 15, scale: 2 }), // For manually entered fixed expenses
   billingFrequency: varchar("billing_frequency").default("monthly"), // weekly, monthly, quarterly, annual, custom - determines how expense resets per period
+  effectiveMonth: integer("effective_month"), // For annual/quarterly expenses: which month (1-12) the expense applies to
+  effectiveYear: integer("effective_year"), // For annual expenses: which year the expense applies to
   isActive: boolean("is_active").default(true),
   parentAccountId: integer("parent_account_id"),
   lastSyncAt: timestamp("last_sync_at"),

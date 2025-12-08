@@ -808,6 +808,8 @@ export interface IStorage {
     subType: string | null;
     description: string | null;
     accountNumber: string | null;
+    effectiveMonth: number | null;
+    effectiveYear: number | null;
   }>>;
 
   // Customers and Vendors
@@ -6055,6 +6057,8 @@ export class DatabaseStorage implements IStorage {
     subType: string | null;
     description: string | null;
     accountNumber: string | null;
+    effectiveMonth: number | null;
+    effectiveYear: number | null;
   }>> {
     // Calculate date range for the month - dates for comparison
     const now = new Date();
@@ -6361,7 +6365,9 @@ export class DatabaseStorage implements IStorage {
         billingFrequency: account.billingFrequency || 'monthly',
         subType: account.subType || null,
         description: account.description || null,
-        accountNumber: account.accountNumber || null
+        accountNumber: account.accountNumber || null,
+        effectiveMonth: account.effectiveMonth || null,
+        effectiveYear: account.effectiveYear || null
       };
     }));
 

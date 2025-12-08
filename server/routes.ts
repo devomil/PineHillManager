@@ -18945,33 +18945,58 @@ Respond in JSON format:
         const DAYS_PER_QUARTER = 91;
         const DAYS_PER_YEAR = 365;
         
-        // Calculate expense amount based on billing frequency using ratio-based proration
+        // Calculate expense amount based on billing frequency
+        // For annual/quarterly expenses, only include them in the period they're assigned to
         const getExpenseAmount = (account: any): number => {
           // For Manual Entry accounts, use billing frequency to calculate period amount
           if (account.dataSource === 'Manual' && account.manualBalance) {
             const manualAmount = parseFloat(account.manualBalance || '0');
             const frequency = account.billingFrequency || 'monthly';
             
-            // Prorate based on actual period length vs frequency cycle
+            // Get effective month/year from account (for annual/quarterly expenses)
+            const effectiveMonth = account.effectiveMonth;
+            const effectiveYear = account.effectiveYear;
+            
+            // Get the report period's month and year
+            const reportMonth = periodStart.getMonth() + 1; // JavaScript months are 0-indexed
+            const reportYear = periodStart.getFullYear();
+            
             switch (frequency) {
               case 'weekly':
                 // Weekly expense: prorate based on weeks in period
                 return manualAmount * (periodDays / DAYS_PER_WEEK);
               case 'monthly':
-                // Monthly expense: prorate based on months in period
-                return manualAmount * (periodDays / DAYS_PER_MONTH);
+                // Monthly expense: full amount for any month in the period
+                return manualAmount;
               case 'quarterly':
-                // Quarterly expense: prorate based on quarters in period
+                // Quarterly expense: only include if report period includes the effective month
+                // If effectiveMonth is set, only show in that month; otherwise prorate
+                if (effectiveMonth) {
+                  // Check if report month matches effective month
+                  if (reportMonth === effectiveMonth) {
+                    return manualAmount;
+                  }
+                  return 0; // Don't include in other months
+                }
+                // Fallback: prorate if no effective month set
                 return manualAmount * (periodDays / DAYS_PER_QUARTER);
               case 'annual':
-                // Annual expense: prorate based on years in period
+                // Annual expense: only include if report period matches the effective month/year
+                // If effectiveMonth and effectiveYear are set, only show in that specific month
+                if (effectiveMonth && effectiveYear) {
+                  if (reportMonth === effectiveMonth && reportYear === effectiveYear) {
+                    return manualAmount;
+                  }
+                  return 0; // Don't include in other months/years
+                }
+                // Fallback: prorate if no effective period set
                 return manualAmount * (periodDays / DAYS_PER_YEAR);
               case 'custom':
                 // Custom/one-time: don't include in recurring period reports
                 return 0;
               default:
-                // Default to monthly proration
-                return manualAmount * (periodDays / DAYS_PER_MONTH);
+                // Default to monthly (full amount)
+                return manualAmount;
             }
           }
           
@@ -19037,18 +19062,34 @@ Respond in JSON format:
         const FB_DAYS_PER_QUARTER = 91;
         const FB_DAYS_PER_YEAR = 365;
         
-        // Helper for expense amount based on frequency with ratio-based proration
+        // Helper for expense amount based on frequency
+        // For annual/quarterly expenses, only include them in the period they're assigned to
         const getFallbackExpenseAmount = (account: any): number => {
           if (account.dataSource === 'Manual' && account.manualBalance) {
             const amount = parseFloat(account.manualBalance || '0');
             const freq = account.billingFrequency || 'monthly';
+            
+            // Get effective month/year from account
+            const effectiveMonth = account.effectiveMonth;
+            const effectiveYear = account.effectiveYear;
+            const reportMonth = fbPeriodStart.getMonth() + 1;
+            const reportYear = fbPeriodStart.getFullYear();
+            
             switch (freq) {
               case 'weekly': return amount * (fbPeriodDays / FB_DAYS_PER_WEEK);
-              case 'monthly': return amount * (fbPeriodDays / FB_DAYS_PER_MONTH);
-              case 'quarterly': return amount * (fbPeriodDays / FB_DAYS_PER_QUARTER);
-              case 'annual': return amount * (fbPeriodDays / FB_DAYS_PER_YEAR);
+              case 'monthly': return amount;
+              case 'quarterly':
+                if (effectiveMonth) {
+                  return reportMonth === effectiveMonth ? amount : 0;
+                }
+                return amount * (fbPeriodDays / FB_DAYS_PER_QUARTER);
+              case 'annual':
+                if (effectiveMonth && effectiveYear) {
+                  return (reportMonth === effectiveMonth && reportYear === effectiveYear) ? amount : 0;
+                }
+                return amount * (fbPeriodDays / FB_DAYS_PER_YEAR);
               case 'custom': return 0;
-              default: return amount * (fbPeriodDays / FB_DAYS_PER_MONTH);
+              default: return amount;
             }
           }
           return parseFloat(account.balance || '0');
