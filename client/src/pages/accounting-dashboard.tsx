@@ -1048,6 +1048,37 @@ function AccountingContent() {
       accounts.filter(acc => isOperatingExpenseAccount(acc) && !acc.parentAccountId).map(acc => acc.id)
     );
     
+    // Get current month/year for billing frequency filtering
+    const now = new Date();
+    const currentMonthNum = now.getMonth() + 1;
+    const currentYearNum = now.getFullYear();
+    
+    // Helper to calculate expense amount based on billing frequency
+    const calcExpenseAmount = (acc: any): number => {
+      const dataSource = acc.dataSource;
+      const billingFreq = acc.billingFrequency || 'monthly';
+      const manualBal = parseFloat(acc.manualBalance || '0');
+      const balance = parseFloat(acc.balance || '0');
+      const effMonth = acc.effectiveMonth;
+      const effYear = acc.effectiveYear;
+      
+      if (dataSource === 'Manual' && manualBal > 0) {
+        switch (billingFreq) {
+          case 'weekly': return manualBal * 4.33;
+          case 'monthly': return manualBal;
+          case 'quarterly':
+            if (effMonth) return currentMonthNum === effMonth ? manualBal : 0;
+            return manualBal / 3;
+          case 'annual':
+            if (effMonth && effYear) return (currentMonthNum === effMonth && currentYearNum === effYear) ? manualBal : 0;
+            return manualBal / 12;
+          case 'custom': return 0;
+          default: return manualBal;
+        }
+      }
+      return balance;
+    };
+    
     const operatingExpenses = accounts
       .filter(acc => {
         if (!isOperatingExpenseAccount(acc)) return false;
@@ -1056,12 +1087,16 @@ function AccountingContent() {
         // (because if parent IS operating expense, child balance is already rolled up into parent)
         if (acc.parentAccountId != null) {
           const parentIsOperatingExpense = operatingExpenseParentIds.has(acc.parentAccountId);
-          return !parentIsOperatingExpense; // Include only if parent is excluded (like Payroll)
+          if (parentIsOperatingExpense) return false; // Exclude if parent is included
         }
+        
+        // Exclude zero-amount expenses based on billing frequency (e.g., annual not in this month)
+        const amt = calcExpenseAmount(acc);
+        if (amt === 0 && acc.billingFrequency && acc.billingFrequency !== 'monthly') return false;
         
         return true; // Include all top-level operating expense accounts
       })
-      .reduce((sum, acc) => sum + parseFloat(acc.balance || '0'), 0);
+      .reduce((sum, acc) => sum + calcExpenseAmount(acc), 0);
     
     // Total expenses = COGS + Payroll + Operating Expenses from Chart of Accounts
     const monthlyExpenses = monthlyCOGS + monthlyPayroll + operatingExpenses;
