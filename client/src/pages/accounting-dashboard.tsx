@@ -1550,7 +1550,7 @@ function AccountingContent() {
                       <div className="space-y-1">
                         <p className="text-sm text-muted-foreground">Total Cost of Goods Sold</p>
                         <p className="text-xl font-bold text-red-600">${(Number.parseFloat((cogsData as any).totalCost ?? '0') || 0).toFixed(2)}</p>
-                        <p className="text-xs text-muted-foreground">Period: {(cogsData as any).period || 'Today'}</p>
+                        <p className="text-xs text-muted-foreground">Materials + Labor</p>
                       </div>
                       <div className="space-y-1">
                         <p className="text-sm text-muted-foreground">Labor Costs</p>
@@ -1563,55 +1563,6 @@ function AccountingContent() {
                         <p className="text-xs text-muted-foreground">{((Number.parseFloat((cogsData as any).materialCosts ?? '0') || 0) / (Number.parseFloat((cogsData as any).totalCost ?? '1') || 1) * 100).toFixed(1)}% of COGS</p>
                       </div>
                     </div>
-
-                    {/* COGS Breakdown - Always show if data exists */}
-                    {((cogsData as any).laborCosts || (cogsData as any).materialCosts) && (
-                      <div className="border-t pt-4">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                          {/* Labor Costs Breakdown */}
-                          {Number.parseFloat((cogsData as any).laborCosts ?? '0') > 0 && (
-                            <div className="space-y-3">
-                              <div className="flex items-center gap-2">
-                                <Clock className="h-4 w-4 text-orange-600" />
-                                <h4 className="font-semibold text-orange-600">Labor Costs Detail</h4>
-                              </div>
-                              <div className="text-lg font-bold text-orange-600">${(Number.parseFloat((cogsData as any).laborCosts) || 0).toFixed(2)}</div>
-                              <div className="text-xs text-muted-foreground">
-                                Employee time and wages allocated to cost of goods
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Material Costs Breakdown */}
-                          {Number.parseFloat((cogsData as any).materialCosts ?? '0') > 0 && (
-                            <div className="space-y-3">
-                              <div className="flex items-center gap-2">
-                                <Package className="h-4 w-4 text-teal-600" />
-                                <h4 className="font-semibold text-teal-600">Material Costs Detail</h4>
-                              </div>
-                              <div className="text-lg font-bold text-teal-600">${(Number.parseFloat((cogsData as any).materialCosts) || 0).toFixed(2)}</div>
-                              <div className="text-xs text-muted-foreground">
-                                Inventory and raw materials used in production
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Other Costs Breakdown */}
-                          {Number.parseFloat((cogsData as any).breakdown?.other ?? '0') > 0 && (
-                            <div className="space-y-3">
-                              <div className="flex items-center gap-2">
-                                <Calculator className="h-4 w-4 text-purple-600" />
-                                <h4 className="font-semibold text-purple-600">Other Costs</h4>
-                              </div>
-                              <div className="text-lg font-bold text-purple-600">${(Number.parseFloat((cogsData as any).breakdown.other) || 0).toFixed(2)}</div>
-                              <div className="text-xs text-muted-foreground">
-                                Additional production and overhead costs
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
 
                     {/* Summary Info */}
                     <div className="border-t pt-4">
