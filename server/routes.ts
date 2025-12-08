@@ -8812,7 +8812,7 @@ Output the script with section markers in brackets.`;
 
   app.post('/api/accounting/accounts', isAuthenticated, async (req, res) => {
     try {
-      const { accountName, accountType, accountNumber, description, parentAccountId, qbAccountId, dataSource, manualBalance } = req.body;
+      const { accountName, accountType, accountNumber, description, parentAccountId, qbAccountId, dataSource, manualBalance, billingFrequency, subType } = req.body;
       
       if (!accountName || !accountType) {
         return res.status(400).json({ message: 'Account name and type are required' });
@@ -8828,6 +8828,8 @@ Output the script with section markers in brackets.`;
         balance: '0.00',
         dataSource: dataSource || 'Auto',
         manualBalance: manualBalance || null,
+        billingFrequency: billingFrequency || 'monthly',
+        subType: subType || null,
         isActive: true
       });
       

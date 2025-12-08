@@ -2689,6 +2689,7 @@ function AccountManagementDialog({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/accounting/accounts'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/accounting/coa'] });
       toast({
         title: editingAccount ? "Account Updated" : "Account Created",
         description: editingAccount ? "Account has been updated successfully" : "New account has been created successfully",
@@ -4085,6 +4086,7 @@ function ReportsSection({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="profit_loss">Profit & Loss</SelectItem>
+                  <SelectItem value="balance_sheet">Balance Sheet</SelectItem>
                   <SelectItem value="expense_detail">Expense Detail</SelectItem>
                   <SelectItem value="revenue_breakdown">Revenue Breakdown</SelectItem>
                   <SelectItem value="daily_sales">Daily Sales Report</SelectItem>
@@ -4329,6 +4331,14 @@ function ReportsSection({
           loading={profitLossLoading || cogsLoading || revenueLoading}
           accounts={accounts}
           revenueData={revenueData}
+        />
+      )}
+
+      {reportType === 'balance_sheet' && (
+        <BalanceSheetReport 
+          accounts={accounts}
+          period={formatPeriodLabel()}
+          loading={false}
         />
       )}
 
@@ -4654,6 +4664,162 @@ function ProfitLossReport({
                 Gross Profit - Operating Expenses
               </div>
             </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// Balance Sheet Report Component
+function BalanceSheetReport({ 
+  accounts, 
+  period, 
+  loading 
+}: { 
+  accounts: FinancialAccount[]; 
+  period: string; 
+  loading: boolean;
+}) {
+  const formatCurrency = (amount: number | string) => {
+    const num = typeof amount === 'string' ? parseFloat(amount) : amount;
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+    }).format(num || 0);
+  };
+
+  const getAccountsByType = (type: string) => {
+    return accounts.filter(account => 
+      account.accountType.toLowerCase() === type.toLowerCase()
+    );
+  };
+
+  const assetAccounts = getAccountsByType('Asset');
+  const liabilityAccounts = getAccountsByType('Liability');
+  const equityAccounts = getAccountsByType('Equity');
+
+  const calculateTotal = (accts: FinancialAccount[]) => {
+    const topLevelIds = new Set(accts.filter(acc => !acc.parentAccountId).map(acc => acc.id));
+    return accts.filter(acc => {
+      if (acc.parentAccountId && topLevelIds.has(acc.parentAccountId)) return false;
+      return true;
+    }).reduce((sum, acc) => sum + parseFloat(acc.balance || '0'), 0);
+  };
+
+  const totalAssets = calculateTotal(assetAccounts);
+  const totalLiabilities = calculateTotal(liabilityAccounts);
+  const totalEquity = calculateTotal(equityAccounts);
+  const liabilitiesAndEquity = totalLiabilities + totalEquity;
+
+  const renderAccountSection = (title: string, accts: FinancialAccount[], colorClass: string, total: number) => {
+    const topLevelIds = new Set(accts.filter(acc => !acc.parentAccountId).map(acc => acc.id));
+    const displayAccounts = accts.filter(acc => {
+      if (acc.parentAccountId && topLevelIds.has(acc.parentAccountId)) return false;
+      return true;
+    });
+
+    return (
+      <div className="space-y-2">
+        <h4 className={`font-semibold text-lg ${colorClass}`}>{title}</h4>
+        <div className="space-y-1 ml-4">
+          {displayAccounts.map((account) => (
+            <div key={account.id} className="flex justify-between items-center py-1 border-b border-gray-100">
+              <span className="text-gray-700">{account.accountName}</span>
+              <span className="font-medium">
+                {formatCurrency(parseFloat(account.balance || '0'))}
+              </span>
+            </div>
+          ))}
+        </div>
+        <Separator className="my-2" />
+        <div className="flex justify-between items-center font-semibold">
+          <span>Total {title}</span>
+          <span className={colorClass}>{formatCurrency(total)}</span>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <FileText className="h-5 w-5 text-blue-600" />
+          Balance Sheet - {period}
+        </CardTitle>
+        <CardDescription>
+          Statement of financial position showing assets, liabilities, and equity
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {loading ? (
+          <div className="flex items-center justify-center h-40">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {/* Summary Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="text-center p-4 bg-blue-50 rounded-lg">
+                <div className="text-2xl font-bold text-blue-600">
+                  {formatCurrency(totalAssets)}
+                </div>
+                <div className="text-sm text-gray-600">Total Assets</div>
+              </div>
+              <div className="text-center p-4 bg-red-50 rounded-lg">
+                <div className="text-2xl font-bold text-red-600">
+                  {formatCurrency(totalLiabilities)}
+                </div>
+                <div className="text-sm text-gray-600">Total Liabilities</div>
+              </div>
+              <div className="text-center p-4 bg-green-50 rounded-lg">
+                <div className="text-2xl font-bold text-green-600">
+                  {formatCurrency(totalEquity)}
+                </div>
+                <div className="text-sm text-gray-600">Total Equity</div>
+              </div>
+              <div className={`text-center p-4 rounded-lg ${Math.abs(totalAssets - liabilitiesAndEquity) < 0.01 ? 'bg-green-50' : 'bg-yellow-50'}`}>
+                <div className={`text-2xl font-bold ${Math.abs(totalAssets - liabilitiesAndEquity) < 0.01 ? 'text-green-600' : 'text-yellow-600'}`}>
+                  {Math.abs(totalAssets - liabilitiesAndEquity) < 0.01 ? 'Balanced' : formatCurrency(totalAssets - liabilitiesAndEquity)}
+                </div>
+                <div className="text-sm text-gray-600">
+                  {Math.abs(totalAssets - liabilitiesAndEquity) < 0.01 ? 'Assets = L + E' : 'Difference'}
+                </div>
+              </div>
+            </div>
+
+            {/* Assets Section */}
+            <div className="border rounded-lg p-4">
+              {renderAccountSection('Assets', assetAccounts, 'text-blue-600', totalAssets)}
+            </div>
+
+            {/* Liabilities & Equity Section */}
+            <div className="border rounded-lg p-4 space-y-6">
+              {renderAccountSection('Liabilities', liabilityAccounts, 'text-red-600', totalLiabilities)}
+              <div className="border-t pt-4">
+                {renderAccountSection('Equity', equityAccounts, 'text-green-600', totalEquity)}
+              </div>
+              <Separator className="my-2" />
+              <div className="flex justify-between items-center font-bold text-lg bg-gray-100 p-3 rounded">
+                <span>Total Liabilities & Equity</span>
+                <span className="text-gray-900">{formatCurrency(liabilitiesAndEquity)}</span>
+              </div>
+            </div>
+
+            {/* Balance Check */}
+            {Math.abs(totalAssets - liabilitiesAndEquity) >= 0.01 && (
+              <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <div className="flex items-center gap-2 text-yellow-800">
+                  <AlertTriangle className="h-5 w-5" />
+                  <span className="font-medium">Balance Sheet Out of Balance</span>
+                </div>
+                <p className="text-sm text-yellow-700 mt-1">
+                  Assets ({formatCurrency(totalAssets)}) do not equal Liabilities + Equity ({formatCurrency(liabilitiesAndEquity)}). 
+                  Difference: {formatCurrency(totalAssets - liabilitiesAndEquity)}
+                </p>
+              </div>
+            )}
           </div>
         )}
       </CardContent>
