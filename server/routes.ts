@@ -9471,8 +9471,53 @@ Output the script with section markers in brackets.`;
           return !isCOGS && !isPayroll;
         });
 
+        // Calculate period info for billing frequency filtering
+        const periodStart = new Date(startDate as string);
+        const periodEnd = new Date(endDate as string);
+        const periodDays = Math.ceil((periodEnd.getTime() - periodStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+        const reportMonth = periodStart.getMonth() + 1;
+        const reportYear = periodStart.getFullYear();
+        
+        // Reference periods for proration
+        const DAYS_PER_WEEK = 7;
+        const DAYS_PER_QUARTER = 91;
+        const DAYS_PER_YEAR = 365;
+        
+        // Helper function to calculate expense amount based on billing frequency
+        const getExpenseAmount = (account: any): number => {
+          if (account.dataSource === 'Manual' && account.manualBalance) {
+            const manualAmount = parseFloat(account.manualBalance || '0');
+            const frequency = account.billingFrequency || 'monthly';
+            const effectiveMonth = account.effectiveMonth;
+            const effectiveYear = account.effectiveYear;
+            
+            switch (frequency) {
+              case 'weekly':
+                return manualAmount * (periodDays / DAYS_PER_WEEK);
+              case 'monthly':
+                return manualAmount;
+              case 'quarterly':
+                if (effectiveMonth) {
+                  return reportMonth === effectiveMonth ? manualAmount : 0;
+                }
+                return manualAmount * (periodDays / DAYS_PER_QUARTER);
+              case 'annual':
+                // Only include if report period matches the effective month/year
+                if (effectiveMonth && effectiveYear) {
+                  return (reportMonth === effectiveMonth && reportYear === effectiveYear) ? manualAmount : 0;
+                }
+                return manualAmount * (periodDays / DAYS_PER_YEAR);
+              case 'custom':
+                return 0;
+              default:
+                return manualAmount;
+            }
+          }
+          return parseFloat(account.balance || '0');
+        };
+
         totalExpenses = operatingExpenseAccounts.reduce((sum, account) => {
-          return sum + parseFloat(account.balance || '0');
+          return sum + getExpenseAmount(account);
         }, 0);
 
       } catch (error) {
@@ -9491,8 +9536,46 @@ Output the script with section markers in brackets.`;
           return !isCOGS && !isPayroll;
         });
 
+        // Calculate period info for billing frequency filtering (fallback path)
+        const fbPeriodStart = new Date(startDate as string);
+        const fbPeriodEnd = new Date(endDate as string);
+        const fbPeriodDays = Math.ceil((fbPeriodEnd.getTime() - fbPeriodStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+        const fbReportMonth = fbPeriodStart.getMonth() + 1;
+        const fbReportYear = fbPeriodStart.getFullYear();
+        
+        const FB_DAYS_PER_WEEK = 7;
+        const FB_DAYS_PER_QUARTER = 91;
+        const FB_DAYS_PER_YEAR = 365;
+        
+        const getFallbackExpenseAmount = (account: any): number => {
+          if (account.dataSource === 'Manual' && account.manualBalance) {
+            const manualAmount = parseFloat(account.manualBalance || '0');
+            const freq = account.billingFrequency || 'monthly';
+            const effectiveMonth = account.effectiveMonth;
+            const effectiveYear = account.effectiveYear;
+            
+            switch (freq) {
+              case 'weekly': return manualAmount * (fbPeriodDays / FB_DAYS_PER_WEEK);
+              case 'monthly': return manualAmount;
+              case 'quarterly':
+                if (effectiveMonth) {
+                  return fbReportMonth === effectiveMonth ? manualAmount : 0;
+                }
+                return manualAmount * (fbPeriodDays / FB_DAYS_PER_QUARTER);
+              case 'annual':
+                if (effectiveMonth && effectiveYear) {
+                  return (fbReportMonth === effectiveMonth && fbReportYear === effectiveYear) ? manualAmount : 0;
+                }
+                return manualAmount * (fbPeriodDays / FB_DAYS_PER_YEAR);
+              case 'custom': return 0;
+              default: return manualAmount;
+            }
+          }
+          return parseFloat(account.balance || '0');
+        };
+
         totalRevenue = incomeAccounts.reduce((sum, account) => sum + parseFloat(account.balance || '0'), 0);
-        totalExpenses = operatingExpenseAccounts.reduce((sum, account) => sum + parseFloat(account.balance || '0'), 0);
+        totalExpenses = operatingExpenseAccounts.reduce((sum, account) => sum + getFallbackExpenseAmount(account), 0);
         totalCOGS = cogsAccounts.reduce((sum, account) => sum + parseFloat(account.balance || '0'), 0);
       }
 
