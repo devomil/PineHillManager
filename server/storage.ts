@@ -6848,8 +6848,8 @@ export class DatabaseStorage implements IStorage {
     }>;
   }> {
     try {
-      // Get time clock entries with employee info
-      let query = db
+      // Get completed time clock entries with employee info
+      let completedQuery = db
         .select({
           userId: timeClockEntries.userId,
           firstName: users.firstName,
@@ -6857,7 +6857,8 @@ export class DatabaseStorage implements IStorage {
           hourlyRate: users.hourlyRate,
           totalWorkedMinutes: timeClockEntries.totalWorkedMinutes,
           locationId: timeClockEntries.locationId,
-          clockInTime: timeClockEntries.clockInTime
+          clockInTime: timeClockEntries.clockInTime,
+          status: timeClockEntries.status
         })
         .from(timeClockEntries)
         .innerJoin(users, eq(timeClockEntries.userId, users.id))
@@ -6869,10 +6870,75 @@ export class DatabaseStorage implements IStorage {
         ));
 
       if (locationId) {
-        query = (query as any).where(eq(timeClockEntries.locationId, locationId));
+        completedQuery = (completedQuery as any).where(eq(timeClockEntries.locationId, locationId));
       }
 
-      const timeEntries = await query;
+      const completedEntries = await completedQuery;
+
+      // Also get currently clocked-in entries to include real-time labor costs
+      let activeQuery = db
+        .select({
+          userId: timeClockEntries.userId,
+          firstName: users.firstName,
+          lastName: users.lastName,
+          hourlyRate: users.hourlyRate,
+          clockInTime: timeClockEntries.clockInTime,
+          locationId: timeClockEntries.locationId,
+          status: timeClockEntries.status
+        })
+        .from(timeClockEntries)
+        .innerJoin(users, eq(timeClockEntries.userId, users.id))
+        .where(and(
+          gte(sql`DATE(${timeClockEntries.clockInTime})`, startDate),
+          lte(sql`DATE(${timeClockEntries.clockInTime})`, endDate),
+          eq(timeClockEntries.status, 'clocked_in')
+        ));
+
+      if (locationId) {
+        activeQuery = (activeQuery as any).where(eq(timeClockEntries.locationId, locationId));
+      }
+
+      const activeEntries = await activeQuery;
+
+      // Combine completed and active entries
+      const timeEntries: Array<{
+        userId: string;
+        firstName: string | null;
+        lastName: string | null;
+        hourlyRate: string | null;
+        totalWorkedMinutes: number | null;
+        clockInTime: Date | null;
+        isActive?: boolean;
+      }> = [];
+
+      // Add completed entries
+      for (const entry of completedEntries) {
+        timeEntries.push({
+          userId: entry.userId,
+          firstName: entry.firstName,
+          lastName: entry.lastName,
+          hourlyRate: entry.hourlyRate,
+          totalWorkedMinutes: entry.totalWorkedMinutes,
+          clockInTime: entry.clockInTime,
+          isActive: false
+        });
+      }
+
+      // Add active entries with calculated time
+      for (const entry of activeEntries) {
+        const clockInTime = entry.clockInTime ? new Date(entry.clockInTime) : new Date();
+        const now = new Date();
+        const minutesWorked = Math.floor((now.getTime() - clockInTime.getTime()) / (1000 * 60));
+        timeEntries.push({
+          userId: entry.userId,
+          firstName: entry.firstName,
+          lastName: entry.lastName,
+          hourlyRate: entry.hourlyRate,
+          totalWorkedMinutes: minutesWorked,
+          clockInTime: entry.clockInTime,
+          isActive: true
+        });
+      }
 
       // Group by employee and calculate costs
       const employeeMap = new Map<string, {
