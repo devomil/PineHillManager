@@ -4904,6 +4904,9 @@ function ProfitLossReport({
                     {formatCurrency(totalCOGS)}
                   </span>
                 </div>
+                <div className="text-xs text-gray-500">
+                  Materials + Labor
+                </div>
               </div>
             </div>
 
