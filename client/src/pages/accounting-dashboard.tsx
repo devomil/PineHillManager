@@ -4312,6 +4312,37 @@ function ReportsSection({
             <div className="text-center p-3 bg-red-50 rounded-lg">
               <div className="text-lg md:text-xl font-bold text-red-600">
                 {profitLossLoading ? '...' : (() => {
+                  // Get current month/year for billing frequency filtering
+                  const now = new Date();
+                  const currentMonth = now.getMonth() + 1;
+                  const currentYear = now.getFullYear();
+                  
+                  // Helper to calculate expense amount based on billing frequency
+                  const calcExpenseAmount = (acc: any): number => {
+                    const dataSource = acc.dataSource;
+                    const billingFreq = acc.billingFrequency || 'monthly';
+                    const manualBal = parseFloat(acc.manualBalance || '0');
+                    const balance = parseFloat(acc.balance || '0');
+                    const effMonth = acc.effectiveMonth;
+                    const effYear = acc.effectiveYear;
+                    
+                    if (dataSource === 'Manual' && manualBal > 0) {
+                      switch (billingFreq) {
+                        case 'weekly': return manualBal * 4.33;
+                        case 'monthly': return manualBal;
+                        case 'quarterly':
+                          if (effMonth) return currentMonth === effMonth ? manualBal : 0;
+                          return manualBal / 3;
+                        case 'annual':
+                          if (effMonth && effYear) return (currentMonth === effMonth && currentYear === effYear) ? manualBal : 0;
+                          return manualBal / 12;
+                        case 'custom': return 0;
+                        default: return manualBal;
+                      }
+                    }
+                    return balance;
+                  };
+                  
                   // Calculate operating expenses from accounts (same logic as detailed P&L report)
                   const expenseAccounts = accounts.filter(acc => 
                     acc.accountType.toLowerCase().includes('expense')
@@ -4338,11 +4369,15 @@ function ReportsSection({
                     const parentId = (account as any).parentAccountId;
                     if (parentId && topLevelExpenseIds.has(parentId)) return false;
                     
+                    // Exclude zero-amount expenses based on billing frequency
+                    const amt = calcExpenseAmount(account);
+                    if (amt === 0 && (account as any).billingFrequency && (account as any).billingFrequency !== 'monthly') return false;
+                    
                     return true;
                   });
                   
                   const total = operatingExpenses.reduce((sum, acc) => 
-                    sum + parseFloat(acc.balance || '0'), 0
+                    sum + calcExpenseAmount(acc), 0
                   );
                   return formatCurrency(total);
                 })()}
@@ -4361,6 +4396,36 @@ function ReportsSection({
                   const totalCogs = parseFloat(reportsCogsData.totalCost || '0');
                   const grossProfit = totalRevenue - totalCogs;
                   
+                  // Get current month/year for billing frequency filtering
+                  const now = new Date();
+                  const currentMonth = now.getMonth() + 1;
+                  const currentYear = now.getFullYear();
+                  
+                  const calcExpenseAmount = (acc: any): number => {
+                    const dataSource = acc.dataSource;
+                    const billingFreq = acc.billingFrequency || 'monthly';
+                    const manualBal = parseFloat(acc.manualBalance || '0');
+                    const balance = parseFloat(acc.balance || '0');
+                    const effMonth = acc.effectiveMonth;
+                    const effYear = acc.effectiveYear;
+                    
+                    if (dataSource === 'Manual' && manualBal > 0) {
+                      switch (billingFreq) {
+                        case 'weekly': return manualBal * 4.33;
+                        case 'monthly': return manualBal;
+                        case 'quarterly':
+                          if (effMonth) return currentMonth === effMonth ? manualBal : 0;
+                          return manualBal / 3;
+                        case 'annual':
+                          if (effMonth && effYear) return (currentMonth === effMonth && currentYear === effYear) ? manualBal : 0;
+                          return manualBal / 12;
+                        case 'custom': return 0;
+                        default: return manualBal;
+                      }
+                    }
+                    return balance;
+                  };
+                  
                   // Calculate operating expenses from accounts (same logic as summary card)
                   const expenseAccts = accounts.filter(acc => acc.accountType.toLowerCase().includes('expense'));
                   const topLevelIds = new Set(expenseAccts.filter(acc => !(acc as any).parentAccountId).map(acc => acc.id));
@@ -4369,8 +4434,10 @@ function ReportsSection({
                     const num = (acc as any).accountNumber || '';
                     if (name.includes('cost of goods') || name.includes('cogs') || name.includes('cost of sales') || num.startsWith('50')) return false;
                     if ((acc as any).parentAccountId && topLevelIds.has((acc as any).parentAccountId)) return false;
+                    const amt = calcExpenseAmount(acc);
+                    if (amt === 0 && (acc as any).billingFrequency && (acc as any).billingFrequency !== 'monthly') return false;
                     return true;
-                  }).reduce((sum, acc) => sum + parseFloat(acc.balance || '0'), 0);
+                  }).reduce((sum, acc) => sum + calcExpenseAmount(acc), 0);
                   
                   const netIncome = grossProfit - opExpenses;
                   return formatCurrency(netIncome);
@@ -4390,6 +4457,36 @@ function ReportsSection({
                   const totalCogs = parseFloat(reportsCogsData.totalCost || '0');
                   const grossProfit = totalRevenue - totalCogs;
                   
+                  // Get current month/year for billing frequency filtering
+                  const now = new Date();
+                  const currentMonth = now.getMonth() + 1;
+                  const currentYear = now.getFullYear();
+                  
+                  const calcExpenseAmount = (acc: any): number => {
+                    const dataSource = acc.dataSource;
+                    const billingFreq = acc.billingFrequency || 'monthly';
+                    const manualBal = parseFloat(acc.manualBalance || '0');
+                    const balance = parseFloat(acc.balance || '0');
+                    const effMonth = acc.effectiveMonth;
+                    const effYear = acc.effectiveYear;
+                    
+                    if (dataSource === 'Manual' && manualBal > 0) {
+                      switch (billingFreq) {
+                        case 'weekly': return manualBal * 4.33;
+                        case 'monthly': return manualBal;
+                        case 'quarterly':
+                          if (effMonth) return currentMonth === effMonth ? manualBal : 0;
+                          return manualBal / 3;
+                        case 'annual':
+                          if (effMonth && effYear) return (currentMonth === effMonth && currentYear === effYear) ? manualBal : 0;
+                          return manualBal / 12;
+                        case 'custom': return 0;
+                        default: return manualBal;
+                      }
+                    }
+                    return balance;
+                  };
+                  
                   // Calculate operating expenses from accounts (same logic as summary card)
                   const expenseAccts = accounts.filter(acc => acc.accountType.toLowerCase().includes('expense'));
                   const topLevelIds = new Set(expenseAccts.filter(acc => !(acc as any).parentAccountId).map(acc => acc.id));
@@ -4398,8 +4495,10 @@ function ReportsSection({
                     const num = (acc as any).accountNumber || '';
                     if (name.includes('cost of goods') || name.includes('cogs') || name.includes('cost of sales') || num.startsWith('50')) return false;
                     if ((acc as any).parentAccountId && topLevelIds.has((acc as any).parentAccountId)) return false;
+                    const amt = calcExpenseAmount(acc);
+                    if (amt === 0 && (acc as any).billingFrequency && (acc as any).billingFrequency !== 'monthly') return false;
                     return true;
-                  }).reduce((sum, acc) => sum + parseFloat(acc.balance || '0'), 0);
+                  }).reduce((sum, acc) => sum + calcExpenseAmount(acc), 0);
                   
                   const netIncome = grossProfit - opExpenses;
                   const netMargin = totalRevenue > 0 ? ((netIncome / totalRevenue) * 100) : 0;
@@ -4594,6 +4693,61 @@ function ProfitLossReport({
       .map(acc => acc.id)
   );
   
+  // Parse the report period to get month/year (period format: "December 2025" or "2025-12-01 to 2025-12-31")
+  const parseReportPeriod = (periodStr: string): { month: number; year: number } => {
+    const now = new Date();
+    const monthNames = ['january', 'february', 'march', 'april', 'may', 'june', 
+                        'july', 'august', 'september', 'october', 'november', 'december'];
+    const lowerPeriod = periodStr.toLowerCase();
+    for (let i = 0; i < monthNames.length; i++) {
+      if (lowerPeriod.includes(monthNames[i])) {
+        const yearMatch = periodStr.match(/\d{4}/);
+        return { month: i + 1, year: yearMatch ? parseInt(yearMatch[0]) : now.getFullYear() };
+      }
+    }
+    const dateMatch = periodStr.match(/(\d{4})-(\d{2})/);
+    if (dateMatch) {
+      return { month: parseInt(dateMatch[2]), year: parseInt(dateMatch[1]) };
+    }
+    return { month: now.getMonth() + 1, year: now.getFullYear() };
+  };
+  
+  const { month: reportMonth, year: reportYear } = parseReportPeriod(period);
+  
+  // Helper function to calculate expense amount based on billing frequency
+  const getExpenseAmountForPeriod = (account: any): number => {
+    const dataSource = account.dataSource;
+    const billingFrequency = account.billingFrequency || 'monthly';
+    const manualBalance = parseFloat(account.manualBalance || '0');
+    const balance = parseFloat(account.balance || '0');
+    const effectiveMonth = account.effectiveMonth;
+    const effectiveYear = account.effectiveYear;
+    
+    if (dataSource === 'Manual' && manualBalance > 0) {
+      switch (billingFrequency) {
+        case 'weekly':
+          return manualBalance * 4.33;
+        case 'monthly':
+          return manualBalance;
+        case 'quarterly':
+          if (effectiveMonth) {
+            return reportMonth === effectiveMonth ? manualBalance : 0;
+          }
+          return manualBalance / 3;
+        case 'annual':
+          if (effectiveMonth && effectiveYear) {
+            return (reportMonth === effectiveMonth && reportYear === effectiveYear) ? manualBalance : 0;
+          }
+          return manualBalance / 12;
+        case 'custom':
+          return 0;
+        default:
+          return manualBalance;
+      }
+    }
+    return balance;
+  };
+  
   const operatingExpenseAccounts = getAccountsByType('expense').filter(account => {
     const name = account.accountName.toLowerCase();
     const accountNumber = (account as any).accountNumber || '';
@@ -4612,6 +4766,12 @@ function ProfitLossReport({
       return false;
     }
     
+    // Exclude expenses with zero amount for current period (e.g., annual expenses not in this month)
+    const amountForPeriod = getExpenseAmountForPeriod(account);
+    if (amountForPeriod === 0 && (account as any).billingFrequency && (account as any).billingFrequency !== 'monthly') {
+      return false;
+    }
+    
     return true;
   });
   
@@ -4619,7 +4779,7 @@ function ProfitLossReport({
   const calculatedTotalRevenue = revenueItems.reduce((sum, item) => sum + item.amount, 0);
   const calculatedTotalCOGS = cogsItems.reduce((sum, item) => sum + item.amount, 0);
   const calculatedTotalExpenses = operatingExpenseAccounts.reduce((sum, account) => 
-    sum + parseFloat(account.balance || '0'), 0
+    sum + getExpenseAmountForPeriod(account), 0
   );
   
   // Use API data for COGS if available (more accurate from live transactions), otherwise use account balance
@@ -4736,7 +4896,7 @@ function ProfitLossReport({
                   <div key={account.id} className="flex justify-between items-center">
                     <span className="text-sm">{account.accountName}</span>
                     <span className="font-medium text-red-600">
-                      {formatCurrency(account.balance)}
+                      {formatCurrency(getExpenseAmountForPeriod(account))}
                     </span>
                   </div>
                 ))}
