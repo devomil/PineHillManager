@@ -4942,19 +4942,29 @@ function BalanceSheetReport({
     );
   };
 
+  // Inventory sub-accounts that are for REPORTING ONLY (not shown in main Assets section)
+  const inventoryReportingAccounts = ['Beginning Inventory', 'Ending Inventory', 'Inventory Purchases (Unrealized Cost)'];
+  
   const assetAccounts = getAccountsByType('Asset');
   const liabilityAccounts = getAccountsByType('Liability');
   const equityAccounts = getAccountsByType('Equity');
+  
+  // Filter out inventory reporting accounts from display in main Assets section
+  const displayAssetAccounts = assetAccounts.filter(acc => 
+    !inventoryReportingAccounts.includes(acc.accountName)
+  );
 
-  const calculateTotal = (accts: FinancialAccount[]) => {
+  const calculateTotal = (accts: FinancialAccount[], excludeReporting = false) => {
     const topLevelIds = new Set(accts.filter(acc => !acc.parentAccountId).map(acc => acc.id));
     return accts.filter(acc => {
+      // Exclude inventory reporting accounts from totals
+      if (excludeReporting && inventoryReportingAccounts.includes(acc.accountName)) return false;
       if (acc.parentAccountId && topLevelIds.has(acc.parentAccountId)) return false;
       return true;
     }).reduce((sum, acc) => sum + parseFloat(acc.balance || '0'), 0);
   };
 
-  const totalAssets = calculateTotal(assetAccounts);
+  const totalAssets = calculateTotal(assetAccounts, true); // Exclude reporting accounts
   const totalLiabilities = calculateTotal(liabilityAccounts);
   const totalEquity = calculateTotal(equityAccounts);
   const liabilitiesAndEquity = totalLiabilities + totalEquity;
@@ -5038,21 +5048,21 @@ function BalanceSheetReport({
 
             {/* Assets Section */}
             <div className="border rounded-lg p-4">
-              {renderAccountSection('Assets', assetAccounts, 'text-blue-600', totalAssets)}
+              {renderAccountSection('Assets', displayAssetAccounts, 'text-blue-600', totalAssets)}
             </div>
 
             {/* Inventory COGS Side Schedule */}
             {(() => {
               const inventoryAccount = assetAccounts.find(a => a.accountName === 'Inventory');
-              const beginningInventory = assetAccounts.find(a => a.accountName === 'Beginning Inventory');
               const purchases = assetAccounts.find(a => a.accountName === 'Inventory Purchases (Unrealized Cost)');
-              const endingInventory = assetAccounts.find(a => a.accountName === 'Ending Inventory');
               
-              if (inventoryAccount || beginningInventory || purchases || endingInventory) {
-                const beginningValue = parseFloat(beginningInventory?.balance || '0');
+              if (inventoryAccount) {
+                // Live inventory value = Ending Inventory (current on-hand value)
+                const liveInventoryValue = parseFloat(inventoryAccount?.balance || '0');
                 const purchasesValue = parseFloat(purchases?.balance || '0');
-                const endingValue = parseFloat(endingInventory?.balance || '0');
-                const calculatedCOGS = beginningValue + purchasesValue - endingValue;
+                // Beginning inventory would need monthly closing snapshot - placeholder for now
+                const beginningValue = liveInventoryValue; // Same as ending until monthly close implemented
+                const calculatedCOGS = beginningValue + purchasesValue - liveInventoryValue;
                 
                 return (
                   <div className="border rounded-lg p-4 bg-amber-50">
@@ -5062,25 +5072,25 @@ function BalanceSheetReport({
                     </h4>
                     <div className="space-y-2 ml-4">
                       <div className="flex justify-between items-center py-1 border-b border-amber-200">
-                        <span className="text-gray-700">Beginning Inventory</span>
-                        <span className="font-medium">{formatCurrency(beginningValue)}</span>
+                        <span className="text-gray-700">Beginning Inventory (Start of Period)</span>
+                        <span className="font-medium text-gray-400">TBD - Monthly Close</span>
                       </div>
                       <div className="flex justify-between items-center py-1 border-b border-amber-200">
-                        <span className="text-gray-700">+ Purchases (All Inventory Purchased)</span>
+                        <span className="text-gray-700">+ Purchases This Period</span>
                         <span className="font-medium">{formatCurrency(purchasesValue)}</span>
                       </div>
                       <div className="flex justify-between items-center py-1 border-b border-amber-200">
-                        <span className="text-gray-700">– Ending Inventory</span>
-                        <span className="font-medium text-red-600">({formatCurrency(endingValue)})</span>
+                        <span className="text-gray-700">– Ending Inventory (Live Value)</span>
+                        <span className="font-medium text-blue-600">{formatCurrency(liveInventoryValue)}</span>
                       </div>
                       <Separator className="my-2" />
                       <div className="flex justify-between items-center font-semibold bg-amber-100 p-2 rounded">
-                        <span>= COGS (flows to P&L)</span>
-                        <span className="text-amber-800">{formatCurrency(calculatedCOGS)}</span>
+                        <span>= COGS (Materials + Labor from P&L)</span>
+                        <span className="text-amber-800">See P&L Report</span>
                       </div>
                     </div>
                     <p className="text-xs text-amber-700 mt-3">
-                      Purchases feed into inventory value until items are sold
+                      COGS is calculated from actual sales data. Beginning inventory requires monthly close process.
                     </p>
                   </div>
                 );
