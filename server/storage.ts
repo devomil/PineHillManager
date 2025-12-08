@@ -6941,15 +6941,15 @@ export class DatabaseStorage implements IStorage {
     }>;
   }> {
     try {
-      // Get sales items with inventory costs
+      // Get sales items with inventory costs (using LEFT JOIN to get all sales even without inventory link)
       let query = db
         .select({
           inventoryItemId: posSaleItems.inventoryItemId,
           itemName: posSaleItems.itemName,
           quantity: posSaleItems.quantity,
-          costBasis: posSaleItems.costBasis, // Actual cost for this sale item
+          costBasis: posSaleItems.costBasis,
           unitCost: inventoryItems.unitCost,
-          standardCost: inventoryItems.standardCost, // Standard cost for COGS
+          standardCost: inventoryItems.standardCost,
           saleId: posSaleItems.saleId
         })
         .from(posSaleItems)
@@ -6965,9 +6965,38 @@ export class DatabaseStorage implements IStorage {
       }
 
       const saleItems = await query;
+      
+      // Build a cache of inventory items by name for fallback matching
+      // This handles cases where sale items don't have inventoryItemId linked
+      const allInventoryItems = await db
+        .select({
+          id: inventoryItems.id,
+          itemName: inventoryItems.itemName,
+          unitCost: inventoryItems.unitCost,
+          standardCost: inventoryItems.standardCost
+        })
+        .from(inventoryItems);
+      
+      // Create name-to-cost lookup map (case-insensitive, trimmed)
+      const inventoryCostByName = new Map<string, { unitCost: number; standardCost: number; id: number }>();
+      for (const inv of allInventoryItems) {
+        const normalizedName = (inv.itemName || '').toLowerCase().trim();
+        if (normalizedName) {
+          const unitCost = parseFloat(inv.unitCost || '0');
+          const standardCost = parseFloat(inv.standardCost || '0');
+          // Only add if it has a cost value
+          if (unitCost > 0 || standardCost > 0) {
+            inventoryCostByName.set(normalizedName, { 
+              unitCost, 
+              standardCost,
+              id: inv.id 
+            });
+          }
+        }
+      }
 
-      // Group by inventory item and calculate costs
-      const itemMap = new Map<number, {
+      // Group by item name and calculate costs
+      const itemMap = new Map<string, {
         itemId: number;
         itemName: string;
         quantitySold: number;
@@ -6980,26 +7009,40 @@ export class DatabaseStorage implements IStorage {
       let totalItemsSold = 0;
 
       for (const item of saleItems) {
-        const itemId = item.inventoryItemId || 0;
-        const itemName = item.itemName;
+        const itemName = item.itemName || 'Unknown Item';
+        const normalizedName = itemName.toLowerCase().trim();
         const quantitySold = parseFloat(item.quantity || '0');
         
-        // Use cost with priority: costBasis > standardCost > unitCost
-        const costBasis = parseFloat(item.costBasis || '0');
-        const standardCost = parseFloat(item.standardCost || '0');
-        const unitCost = parseFloat(item.unitCost || '0');
+        // Use cost with priority: costBasis > standardCost > unitCost > name-matched inventory cost
+        let costBasis = parseFloat(item.costBasis || '0');
+        let standardCost = parseFloat(item.standardCost || '0');
+        let unitCost = parseFloat(item.unitCost || '0');
+        let itemId = item.inventoryItemId || 0;
         
-        // Enhanced cost fallback logic - use coalesce approach from production
+        // If no cost found from join, try name-based lookup
+        if (costBasis === 0 && standardCost === 0 && unitCost === 0) {
+          const inventoryMatch = inventoryCostByName.get(normalizedName);
+          if (inventoryMatch) {
+            unitCost = inventoryMatch.unitCost;
+            standardCost = inventoryMatch.standardCost;
+            itemId = inventoryMatch.id;
+          }
+        }
+        
+        // Enhanced cost fallback logic
         const finalUnitCost = costBasis > 0 ? costBasis : (standardCost > 0 ? standardCost : unitCost);
         const itemCost = quantitySold * finalUnitCost;
 
-        if (itemMap.has(itemId)) {
-          const existing = itemMap.get(itemId)!;
+        // Use item name as key to aggregate (since itemId may be 0)
+        const mapKey = normalizedName || `item-${itemId}`;
+        
+        if (itemMap.has(mapKey)) {
+          const existing = itemMap.get(mapKey)!;
           existing.quantitySold += quantitySold;
           existing.totalCost += itemCost;
           existing.salesCount += 1;
         } else {
-          itemMap.set(itemId, {
+          itemMap.set(mapKey, {
             itemId,
             itemName,
             quantitySold,
