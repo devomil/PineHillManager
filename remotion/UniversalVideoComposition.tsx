@@ -207,7 +207,25 @@ const SafeAudio: React.FC<{
 };
 
 // ============================================================
-// TEXT OVERLAY COMPONENT (unchanged but with safety)
+// EASING FUNCTIONS FOR SMOOTHER MOTION
+// ============================================================
+
+function easeOutCubic(t: number): number {
+  return 1 - Math.pow(1 - t, 3);
+}
+
+function easeInCubic(t: number): number {
+  return t * t * t;
+}
+
+function easeOutBack(t: number): number {
+  const c1 = 1.70158;
+  const c3 = c1 + 1;
+  return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+}
+
+// ============================================================
+// TEXT OVERLAY COMPONENT - ENHANCED WITH TV-QUALITY ANIMATIONS
 // ============================================================
 
 const TextOverlayComponent: React.FC<{
@@ -237,44 +255,78 @@ const TextOverlayComponent: React.FC<{
   let translateY = 0;
   let translateX = 0;
   let scale = 1;
+  let blur = 0;
 
-  // Enter animation
+  // ENHANCED ENTER ANIMATIONS with smooth easing
   if (localFrame < animDuration) {
     const progress = localFrame / animDuration;
+    const eased = easeOutCubic(progress);
+    
     switch (overlay.animation?.enter || 'fade') {
       case 'fade':
-        opacity = progress;
+        opacity = eased;
+        scale = interpolate(eased, [0, 1], [0.95, 1]);
         break;
       case 'slide-up':
-        opacity = progress;
-        translateY = interpolate(progress, [0, 1], [50, 0]);
+        opacity = eased;
+        translateY = interpolate(eased, [0, 1], [60, 0]);
         break;
       case 'slide-left':
-        opacity = progress;
-        translateX = interpolate(progress, [0, 1], [100, 0]);
+        opacity = eased;
+        translateX = interpolate(eased, [0, 1], [100, 0]);
+        break;
+      case 'slide-right':
+        opacity = eased;
+        translateX = interpolate(eased, [0, 1], [-100, 0]);
         break;
       case 'scale':
-        opacity = progress;
-        scale = interpolate(progress, [0, 1], [0.5, 1]);
+        opacity = eased;
+        scale = interpolate(eased, [0, 1], [0.3, 1]);
+        blur = interpolate(eased, [0, 1], [10, 0]);
+        break;
+      case 'pop':
+        opacity = eased;
+        scale = spring({
+          frame: localFrame,
+          fps,
+          config: { damping: 10, stiffness: 200 },
+        });
+        break;
+      case 'blur-in':
+        opacity = eased;
+        blur = interpolate(eased, [0, 1], [20, 0]);
+        break;
+      case 'typewriter':
+        opacity = 1;
         break;
     }
   }
 
-  // Exit animation
+  // ENHANCED EXIT ANIMATIONS with smooth easing
   const exitStart = durationFrames - animDuration;
   if (localFrame > exitStart) {
     const exitProgress = (localFrame - exitStart) / animDuration;
+    const eased = easeInCubic(exitProgress);
+    
     switch (overlay.animation?.exit || 'fade') {
       case 'fade':
-        opacity = 1 - exitProgress;
+        opacity = 1 - eased;
         break;
       case 'slide-down':
-        opacity = 1 - exitProgress;
-        translateY = interpolate(exitProgress, [0, 1], [0, 50]);
+        opacity = 1 - eased;
+        translateY = interpolate(eased, [0, 1], [0, 40]);
+        break;
+      case 'slide-up':
+        opacity = 1 - eased;
+        translateY = interpolate(eased, [0, 1], [0, -40]);
         break;
       case 'scale':
-        opacity = 1 - exitProgress;
-        scale = interpolate(exitProgress, [0, 1], [1, 0.8]);
+        opacity = 1 - eased;
+        scale = interpolate(eased, [0, 1], [1, 0.9]);
+        break;
+      case 'blur-out':
+        opacity = 1 - eased;
+        blur = interpolate(eased, [0, 1], [0, 15]);
         break;
     }
   }
@@ -337,6 +389,8 @@ const TextOverlayComponent: React.FC<{
         ...getPosition(),
         opacity,
         transform: `translate(${translateX}px, ${translateY}px) scale(${scale})`,
+        filter: blur > 0 ? `blur(${blur}px)` : undefined,
+        willChange: 'transform, opacity, filter',
       }}
     >
       <div style={getStyleByType()}>
