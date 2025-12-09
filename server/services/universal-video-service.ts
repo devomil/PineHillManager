@@ -1015,6 +1015,10 @@ Guidelines:
       return null;
     }
 
+    // Use official Pexels client library for proper video API access
+    const { createClient } = await import('pexels');
+    const client = createClient(pexelsKey);
+
     // Try multiple search strategies
     const searchQueries = [query];
     const words = query.split(' ');
@@ -1025,38 +1029,32 @@ Guidelines:
 
     for (const searchQuery of searchQueries) {
       try {
-        const url = `https://api.pexels.com/videos/search?query=${encodeURIComponent(searchQuery)}&per_page=5&orientation=landscape`;
-        console.log(`[UniversalVideoService] Pexels video search: "${searchQuery}"`);
+        console.log(`[UniversalVideoService] Pexels video search (official client): "${searchQuery}"`);
         
-        const response = await fetch(url, { 
-          headers: { Authorization: pexelsKey } 
+        const result = await client.videos.search({ 
+          query: searchQuery, 
+          per_page: 5, 
+          orientation: 'landscape' 
         });
 
-        if (!response.ok) {
-          console.warn(`[UniversalVideoService] Pexels API error: ${response.status}`);
+        // Type guard for error response
+        if ('error' in result) {
+          console.warn(`[UniversalVideoService] Pexels API error: ${result.error}`);
           continue;
         }
 
-        const data = await response.json();
-        const responseKeys = Object.keys(data);
-        console.log(`[UniversalVideoService] Pexels response keys: ${responseKeys.join(', ')}`);
-        
-        // Check if API is returning photos instead of videos (known issue)
-        if (data.photos && !data.videos) {
-          console.warn(`[UniversalVideoService] Pexels returning photos instead of videos - API issue`);
-          break; // Don't retry, it's a systemic issue
-        }
+        const videos = result.videos;
+        console.log(`[UniversalVideoService] Pexels returned ${videos?.length || 0} videos for "${searchQuery}"`);
 
-        if (data.videos && data.videos.length > 0) {
-          console.log(`[UniversalVideoService] Pexels found ${data.videos.length} videos`);
-          for (const video of data.videos) {
+        if (videos && videos.length > 0) {
+          for (const video of videos) {
             const hdFile = video.video_files?.find((f: any) => f.quality === 'hd') || video.video_files?.[0];
             if (hdFile?.link && video.duration >= 5 && video.duration <= 60) {
               console.log(`[UniversalVideoService] Selected Pexels video: ${hdFile.link} (${video.duration}s)`);
               return { url: hdFile.link, duration: video.duration, source: 'pexels' };
             }
           }
-          const firstVideo = data.videos[0];
+          const firstVideo = videos[0];
           const hdFile = firstVideo.video_files?.find((f: any) => f.quality === 'hd') || firstVideo.video_files?.[0];
           if (hdFile?.link) {
             return { url: hdFile.link, duration: firstVideo.duration, source: 'pexels' };
