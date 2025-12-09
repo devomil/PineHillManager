@@ -997,19 +997,47 @@ Guidelines:
 
   async getStockVideo(query: string): Promise<{ url: string; duration: number; source: string } | null> {
     const pexelsKey = process.env.PEXELS_API_KEY;
-    if (pexelsKey) {
-      try {
-        const response = await fetch(
-          `https://api.pexels.com/videos/search?query=${encodeURIComponent(query)}&per_page=1&orientation=landscape`,
-          { headers: { Authorization: pexelsKey } }
-        );
+    if (!pexelsKey) {
+      console.log('[UniversalVideoService] No PEXELS_API_KEY configured');
+      return null;
+    }
 
-        if (response.ok) {
-          const data = await response.json();
-          if (data.videos && data.videos[0]) {
-            const video = data.videos[0];
+    // Try multiple search strategies
+    const searchQueries = [query];
+    
+    // Add simpler fallback queries if original is complex
+    const words = query.split(' ');
+    if (words.length > 2) {
+      searchQueries.push(words.slice(0, 2).join(' '));
+    }
+    // Add generic wellness fallbacks
+    if (query.toLowerCase().includes('woman') || query.toLowerCase().includes('wellness')) {
+      searchQueries.push('woman smiling', 'nature peaceful', 'healthy lifestyle');
+    }
+
+    for (const searchQuery of searchQueries) {
+      try {
+        const url = `https://api.pexels.com/videos/search?query=${encodeURIComponent(searchQuery)}&per_page=5&orientation=landscape`;
+        console.log(`[UniversalVideoService] Pexels video search: "${searchQuery}"`);
+        
+        const response = await fetch(url, { 
+          headers: { Authorization: pexelsKey } 
+        });
+
+        if (!response.ok) {
+          console.warn(`[UniversalVideoService] Pexels API error: ${response.status}`);
+          continue;
+        }
+
+        const data = await response.json();
+        console.log(`[UniversalVideoService] Pexels returned ${data.videos?.length || 0} videos for "${searchQuery}"`);
+
+        if (data.videos && data.videos.length > 0) {
+          // Find a suitable video (prefer HD, 5-30 seconds)
+          for (const video of data.videos) {
             const hdFile = video.video_files?.find((f: any) => f.quality === 'hd') || video.video_files?.[0];
-            if (hdFile?.link) {
+            if (hdFile?.link && video.duration >= 5 && video.duration <= 60) {
+              console.log(`[UniversalVideoService] Selected video: ${hdFile.link} (${video.duration}s)`);
               return {
                 url: hdFile.link,
                 duration: video.duration,
@@ -1017,11 +1045,24 @@ Guidelines:
               };
             }
           }
+          // Fallback to first video if no ideal match
+          const firstVideo = data.videos[0];
+          const hdFile = firstVideo.video_files?.find((f: any) => f.quality === 'hd') || firstVideo.video_files?.[0];
+          if (hdFile?.link) {
+            console.log(`[UniversalVideoService] Fallback video: ${hdFile.link} (${firstVideo.duration}s)`);
+            return {
+              url: hdFile.link,
+              duration: firstVideo.duration,
+              source: 'pexels',
+            };
+          }
         }
-      } catch (e) {
-        console.warn("[UniversalVideoService] Pexels video error:", e);
+      } catch (e: any) {
+        console.warn(`[UniversalVideoService] Pexels video error for "${searchQuery}":`, e.message);
       }
     }
+    
+    console.log(`[UniversalVideoService] No Pexels videos found for any query`);
     return null;
   }
 
