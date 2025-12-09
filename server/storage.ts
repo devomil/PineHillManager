@@ -6514,8 +6514,17 @@ export class DatabaseStorage implements IStorage {
     const accountMap = new Map(result.map(acc => [acc.id, acc]));
     
     // Find all child accounts and add their balances to parents
+    // EXCEPTION: Inventory sub-accounts (1310, 1320, 1330) do NOT roll up into parent 1300
+    // because Inventory 1300 must always show LIVE inventory value, not sum of sub-accounts
+    const inventorySubAccountCodes = ['1310', '1320', '1330'];
+    
     result.forEach(account => {
       if (account.parentAccountId) {
+        // Skip inventory sub-accounts - they are for reporting only
+        if (inventorySubAccountCodes.includes(account.accountNumber || '')) {
+          return; // Do not roll up into parent
+        }
+        
         const parent = accountMap.get(account.parentAccountId);
         if (parent) {
           // Add child balance to parent balance
