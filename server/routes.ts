@@ -9409,6 +9409,136 @@ Output the script with section markers in brackets.`;
     }
   });
 
+  // Inventory Snapshots Routes (for Beginning/Ending inventory tracking)
+  app.get('/api/accounting/inventory/snapshots', isAuthenticated, async (req, res) => {
+    try {
+      const snapshots = await storage.getAllInventorySnapshots();
+      res.json(snapshots);
+    } catch (error) {
+      console.error('Error fetching inventory snapshots:', error);
+      res.status(500).json({ message: 'Failed to fetch inventory snapshots' });
+    }
+  });
+
+  app.get('/api/accounting/inventory/snapshots/:month/:year', isAuthenticated, async (req, res) => {
+    try {
+      const { month, year } = req.params;
+      const beginning = await storage.getInventorySnapshot(parseInt(month), parseInt(year), 'BEGINNING');
+      const ending = await storage.getInventorySnapshot(parseInt(month), parseInt(year), 'ENDING');
+      
+      res.json({
+        month: parseInt(month),
+        year: parseInt(year),
+        beginning: beginning || null,
+        ending: ending || null
+      });
+    } catch (error) {
+      console.error('Error fetching inventory snapshots:', error);
+      res.status(500).json({ message: 'Failed to fetch inventory snapshots' });
+    }
+  });
+
+  app.post('/api/accounting/inventory/snapshots/capture', isAuthenticated, async (req, res) => {
+    try {
+      const { periodType, month, year } = req.body;
+      
+      if (!periodType || !['BEGINNING', 'ENDING'].includes(periodType)) {
+        return res.status(400).json({ message: 'periodType must be BEGINNING or ENDING' });
+      }
+
+      const targetDate = month && year 
+        ? new Date(year, month - 1, periodType === 'BEGINNING' ? 1 : new Date(year, month, 0).getDate())
+        : new Date();
+
+      await storage.captureCurrentInventorySnapshot(periodType, targetDate);
+      
+      const capturedMonth = targetDate.getMonth() + 1;
+      const capturedYear = targetDate.getFullYear();
+      const snapshot = await storage.getInventorySnapshot(capturedMonth, capturedYear, periodType);
+
+      res.json({
+        success: true,
+        message: `${periodType} snapshot captured for ${capturedMonth}/${capturedYear}`,
+        snapshot
+      });
+    } catch (error) {
+      console.error('Error capturing inventory snapshot:', error);
+      res.status(500).json({ message: 'Failed to capture inventory snapshot' });
+    }
+  });
+
+  app.post('/api/accounting/inventory/snapshots/backfill', isAuthenticated, async (req, res) => {
+    try {
+      const { month, year } = req.body;
+      const targetMonth = month || new Date().getMonth() + 1;
+      const targetYear = year || new Date().getFullYear();
+
+      // Get current live inventory value for backfill
+      const { totalValue, itemCount } = await storage.getLiveInventoryValue();
+
+      // Create both BEGINNING and ENDING snapshots if they don't exist
+      const results: string[] = [];
+      
+      const existingBeginning = await storage.getInventorySnapshot(targetMonth, targetYear, 'BEGINNING');
+      if (!existingBeginning) {
+        await storage.createInventorySnapshot({
+          snapshotDate: `${targetYear}-${targetMonth.toString().padStart(2, '0')}-01`,
+          month: targetMonth,
+          year: targetYear,
+          periodType: 'BEGINNING',
+          inventoryValue: totalValue.toFixed(2),
+          itemCount,
+          notes: `Backfilled on ${new Date().toISOString()}`
+        });
+        results.push(`BEGINNING snapshot created: $${totalValue.toFixed(2)}`);
+      } else {
+        results.push(`BEGINNING snapshot already exists: $${existingBeginning.inventoryValue}`);
+      }
+
+      const existingEnding = await storage.getInventorySnapshot(targetMonth, targetYear, 'ENDING');
+      if (!existingEnding) {
+        const lastDay = new Date(targetYear, targetMonth, 0).getDate();
+        await storage.createInventorySnapshot({
+          snapshotDate: `${targetYear}-${targetMonth.toString().padStart(2, '0')}-${lastDay.toString().padStart(2, '0')}`,
+          month: targetMonth,
+          year: targetYear,
+          periodType: 'ENDING',
+          inventoryValue: totalValue.toFixed(2),
+          itemCount,
+          notes: `Backfilled on ${new Date().toISOString()}`
+        });
+        results.push(`ENDING snapshot created: $${totalValue.toFixed(2)}`);
+      } else {
+        results.push(`ENDING snapshot already exists: $${existingEnding.inventoryValue}`);
+      }
+
+      res.json({
+        success: true,
+        month: targetMonth,
+        year: targetYear,
+        liveInventoryValue: totalValue.toFixed(2),
+        itemCount,
+        results
+      });
+    } catch (error) {
+      console.error('Error backfilling inventory snapshots:', error);
+      res.status(500).json({ message: 'Failed to backfill inventory snapshots' });
+    }
+  });
+
+  app.get('/api/accounting/inventory/live-value', isAuthenticated, async (req, res) => {
+    try {
+      const { totalValue, itemCount } = await storage.getLiveInventoryValue();
+      res.json({
+        totalValue: totalValue.toFixed(2),
+        itemCount
+      });
+    } catch (error) {
+      console.error('Error fetching live inventory value:', error);
+      res.status(500).json({ message: 'Failed to fetch live inventory value' });
+    }
+  });
+
   // Analytics Routes (using stub implementations for now)
   app.get('/api/accounting/analytics/trial-balance', isAuthenticated, async (req, res) => {
     try {

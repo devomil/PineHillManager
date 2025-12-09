@@ -2123,6 +2123,28 @@ export const inventoryItems = pgTable("inventory_items", {
   hasDiscrepancyIdx: index("idx_ii_has_discrepancy").on(table.hasDiscrepancy),
 }));
 
+// Inventory Snapshots (monthly snapshots for beginning/ending inventory values)
+export const inventorySnapshots = pgTable("inventory_snapshots", {
+  id: serial("id").primaryKey(),
+  snapshotDate: date("snapshot_date").notNull(),
+  month: integer("month").notNull(), // 1-12
+  year: integer("year").notNull(),
+  periodType: varchar("period_type", { length: 20 }).notNull(), // 'BEGINNING' or 'ENDING'
+  inventoryValue: decimal("inventory_value", { precision: 14, scale: 2 }).notNull(),
+  itemCount: integer("item_count"), // Number of items included in snapshot
+  capturedAt: timestamp("captured_at").defaultNow(),
+  notes: text("notes"),
+}, (table) => ({
+  monthYearIdx: index("idx_is_month_year").on(table.month, table.year),
+  periodTypeIdx: index("idx_is_period_type").on(table.periodType),
+  snapshotDateIdx: index("idx_is_snapshot_date").on(table.snapshotDate),
+  uniqueSnapshot: index("idx_is_unique").on(table.month, table.year, table.periodType),
+}));
+
+export const insertInventorySnapshotSchema = createInsertSchema(inventorySnapshots).omit({ id: true, capturedAt: true });
+export type InsertInventorySnapshot = z.infer<typeof insertInventorySnapshotSchema>;
+export type InventorySnapshot = typeof inventorySnapshots.$inferSelect;
+
 // Unmatched Thrive Items (for manual reconciliation)
 export const unmatchedThriveItems = pgTable("unmatched_thrive_items", {
   id: serial("id").primaryKey(),

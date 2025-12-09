@@ -241,6 +241,9 @@ class SyncScheduler {
         console.warn(`⚠️ Sync completed with ${totalErrors} errors - check individual merchant sync logs`);
       }
 
+      // Capture inventory snapshots on 1st and last day of month
+      await this.captureInventorySnapshotsIfNeeded();
+
       // Store sync statistics for analytics
       await this.storeSyncStats(trigger, syncType, {
         merchantCount: results.length,
@@ -262,6 +265,48 @@ class SyncScheduler {
         timestamp: new Date(),
         error: error instanceof Error ? error.message : 'Unknown error'
       });
+    }
+  }
+
+  /**
+   * Capture inventory snapshots on 1st and last day of month
+   */
+  private async captureInventorySnapshotsIfNeeded(): Promise<void> {
+    try {
+      const now = new Date();
+      const currentDay = now.getDate();
+      const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+      const currentMonth = now.getMonth() + 1;
+      const currentYear = now.getFullYear();
+      
+      // Check if BEGINNING snapshot exists for current month
+      if (currentDay === 1) {
+        const existingBeginning = await storage.getInventorySnapshot(currentMonth, currentYear, 'BEGINNING');
+        if (!existingBeginning) {
+          console.log(`📸 1st of month - capturing BEGINNING inventory snapshot`);
+          await storage.captureCurrentInventorySnapshot('BEGINNING', now);
+        }
+      }
+      
+      // Check if ENDING snapshot exists for current month (capture on last day)
+      if (currentDay === lastDayOfMonth) {
+        const existingEnding = await storage.getInventorySnapshot(currentMonth, currentYear, 'ENDING');
+        if (!existingEnding) {
+          console.log(`📸 Last day of month - capturing ENDING inventory snapshot`);
+          await storage.captureCurrentInventorySnapshot('ENDING', now);
+        }
+      }
+      
+      // Also check if we need to backfill the current month's beginning (if not on 1st)
+      if (currentDay > 1) {
+        const existingBeginning = await storage.getInventorySnapshot(currentMonth, currentYear, 'BEGINNING');
+        if (!existingBeginning) {
+          console.log(`📸 Backfilling BEGINNING inventory snapshot for ${currentMonth}/${currentYear}`);
+          await storage.captureCurrentInventorySnapshot('BEGINNING', now);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to capture inventory snapshots:', error);
     }
   }
 

@@ -48,6 +48,7 @@ import {
   financialTransactionLines,
   customersVendors,
   inventoryItems,
+  inventorySnapshots,
   unmatchedThriveItems,
   employeePurchases,
   posSales,
@@ -6299,42 +6300,78 @@ export class DatabaseStorage implements IStorage {
         const [poResult] = await poQuery;
         balance = parseFloat(poResult?.totalPurchases || '0');
       } else if (account.accountName === 'Beginning Inventory') {
-        // Beginning inventory = total inventory value at start of period
-        // Sum of all inventory items cost at the start of the period
-        const inventoryQuery = db
-          .select({ 
-            totalValue: sql<string>`COALESCE(SUM(
-              COALESCE(CAST(${inventoryItems.standardCost} AS DECIMAL), 
-                       COALESCE(CAST(${inventoryItems.unitCost} AS DECIMAL), 0)) * 
-              COALESCE(CAST(${inventoryItems.quantityOnHand} AS DECIMAL), 0)
-            ), 0)::text`
-          })
-          .from(inventoryItems)
-          .where(eq(inventoryItems.isActive, true));
-        const [inventoryResult] = await inventoryQuery;
-        balance = parseFloat(inventoryResult?.totalValue || '0');
+        // Beginning inventory = snapshot of Inventory 1300 on 1st day of month
+        // Read from inventory_snapshots table with periodType 'BEGINNING'
+        const targetMonth = startOfMonth ? new Date(startOfMonth).getMonth() + 1 : new Date().getMonth() + 1;
+        const targetYear = startOfMonth ? new Date(startOfMonth).getFullYear() : new Date().getFullYear();
+        
+        const snapshotQuery = db
+          .select({ inventoryValue: inventorySnapshots.inventoryValue })
+          .from(inventorySnapshots)
+          .where(and(
+            eq(inventorySnapshots.month, targetMonth),
+            eq(inventorySnapshots.year, targetYear),
+            eq(inventorySnapshots.periodType, 'BEGINNING')
+          ))
+          .limit(1);
+        const [snapshot] = await snapshotQuery;
+        
+        if (snapshot?.inventoryValue) {
+          balance = parseFloat(snapshot.inventoryValue);
+        } else {
+          // Fallback to current live inventory if no snapshot exists
+          const inventoryQuery = db
+            .select({ 
+              totalValue: sql<string>`COALESCE(SUM(
+                COALESCE(CAST(${inventoryItems.unitCost} AS DECIMAL), CAST(${inventoryItems.standardCost} AS DECIMAL), 0) * 
+                COALESCE(CAST(${inventoryItems.quantityOnHand} AS DECIMAL), 0)
+              ), 0)::text`
+            })
+            .from(inventoryItems)
+            .where(eq(inventoryItems.isActive, true));
+          const [inventoryResult] = await inventoryQuery;
+          balance = parseFloat(inventoryResult?.totalValue || '0');
+        }
       } else if (account.accountName === 'Ending Inventory') {
-        // Ending inventory = current inventory value (total cost of items on hand)
-        const inventoryQuery = db
-          .select({ 
-            totalValue: sql<string>`COALESCE(SUM(
-              COALESCE(CAST(${inventoryItems.standardCost} AS DECIMAL), 
-                       COALESCE(CAST(${inventoryItems.unitCost} AS DECIMAL), 0)) * 
-              COALESCE(CAST(${inventoryItems.quantityOnHand} AS DECIMAL), 0)
-            ), 0)::text`
-          })
-          .from(inventoryItems)
-          .where(eq(inventoryItems.isActive, true));
-        const [inventoryResult] = await inventoryQuery;
-        balance = parseFloat(inventoryResult?.totalValue || '0');
+        // Ending inventory = snapshot of Inventory 1300 on last day of month
+        // Read from inventory_snapshots table with periodType 'ENDING'
+        const targetMonth = endOfMonth ? new Date(endOfMonth).getMonth() + 1 : new Date().getMonth() + 1;
+        const targetYear = endOfMonth ? new Date(endOfMonth).getFullYear() : new Date().getFullYear();
+        
+        const snapshotQuery = db
+          .select({ inventoryValue: inventorySnapshots.inventoryValue })
+          .from(inventorySnapshots)
+          .where(and(
+            eq(inventorySnapshots.month, targetMonth),
+            eq(inventorySnapshots.year, targetYear),
+            eq(inventorySnapshots.periodType, 'ENDING')
+          ))
+          .limit(1);
+        const [snapshot] = await snapshotQuery;
+        
+        if (snapshot?.inventoryValue) {
+          balance = parseFloat(snapshot.inventoryValue);
+        } else {
+          // Fallback to current live inventory if no snapshot exists
+          const inventoryQuery = db
+            .select({ 
+              totalValue: sql<string>`COALESCE(SUM(
+                COALESCE(CAST(${inventoryItems.unitCost} AS DECIMAL), CAST(${inventoryItems.standardCost} AS DECIMAL), 0) * 
+                COALESCE(CAST(${inventoryItems.quantityOnHand} AS DECIMAL), 0)
+              ), 0)::text`
+            })
+            .from(inventoryItems)
+            .where(eq(inventoryItems.isActive, true));
+          const [inventoryResult] = await inventoryQuery;
+          balance = parseFloat(inventoryResult?.totalValue || '0');
+        }
       } else if (account.accountName === 'Inventory') {
-        // Total Inventory = sum of sub-accounts (Beginning + Purchases - COGS = Ending)
-        // For simplicity, show current inventory value
+        // Inventory 1300 = ALWAYS live inventory value (quantity × cost)
+        // Sub-accounts (1310, 1320, 1330) are for reporting only - DO NOT roll up
         const inventoryQuery = db
           .select({ 
             totalValue: sql<string>`COALESCE(SUM(
-              COALESCE(CAST(${inventoryItems.standardCost} AS DECIMAL), 
-                       COALESCE(CAST(${inventoryItems.unitCost} AS DECIMAL), 0)) * 
+              COALESCE(CAST(${inventoryItems.unitCost} AS DECIMAL), CAST(${inventoryItems.standardCost} AS DECIMAL), 0) * 
               COALESCE(CAST(${inventoryItems.quantityOnHand} AS DECIMAL), 0)
             ), 0)::text`
           })
@@ -6381,8 +6418,8 @@ export class DatabaseStorage implements IStorage {
         const [officeResult] = await officeQuery;
         balance = parseFloat(officeResult?.totalCost || '0');
       } else if (account.accountName === 'Inventory') {
-        // Inventory asset value (current stock at cost)
-        // Uses unit_cost or standard_cost * quantity_on_hand for all active items
+        // Inventory 1300 = ALWAYS live inventory value (quantity × cost)
+        // Sub-accounts (1310, 1320, 1330) are for reporting only - DO NOT roll up
         const inventoryQuery = db
           .select({
             totalValue: sql<string>`COALESCE(SUM(
@@ -6591,6 +6628,99 @@ export class DatabaseStorage implements IStorage {
 
   async deleteInventoryItem(id: number): Promise<void> {
     await db.update(inventoryItems).set({ isActive: false }).where(eq(inventoryItems.id, id));
+  }
+
+  // Inventory Snapshots - for Beginning/Ending inventory tracking
+  async getLiveInventoryValue(): Promise<{ totalValue: number; itemCount: number }> {
+    const result = await db
+      .select({
+        totalValue: sql<string>`COALESCE(SUM(
+          COALESCE(CAST(${inventoryItems.unitCost} AS DECIMAL), CAST(${inventoryItems.standardCost} AS DECIMAL), 0) * 
+          COALESCE(CAST(${inventoryItems.quantityOnHand} AS DECIMAL), 0)
+        ), 0)::text`,
+        itemCount: sql<number>`COUNT(*)::integer`
+      })
+      .from(inventoryItems)
+      .where(eq(inventoryItems.isActive, true));
+    
+    return {
+      totalValue: parseFloat(result[0]?.totalValue || '0'),
+      itemCount: result[0]?.itemCount || 0
+    };
+  }
+
+  async getInventorySnapshot(month: number, year: number, periodType: 'BEGINNING' | 'ENDING'): Promise<{ inventoryValue: string; itemCount: number | null; capturedAt: Date | null } | undefined> {
+    const [snapshot] = await db
+      .select()
+      .from(inventorySnapshots)
+      .where(and(
+        eq(inventorySnapshots.month, month),
+        eq(inventorySnapshots.year, year),
+        eq(inventorySnapshots.periodType, periodType)
+      ))
+      .limit(1);
+    return snapshot;
+  }
+
+  async createInventorySnapshot(data: { snapshotDate: string; month: number; year: number; periodType: string; inventoryValue: string; itemCount?: number; notes?: string }): Promise<void> {
+    // Upsert - update if exists, insert if not
+    const existing = await this.getInventorySnapshot(data.month, data.year, data.periodType as 'BEGINNING' | 'ENDING');
+    
+    if (existing) {
+      await db.update(inventorySnapshots)
+        .set({
+          snapshotDate: data.snapshotDate,
+          inventoryValue: data.inventoryValue,
+          itemCount: data.itemCount,
+          capturedAt: new Date(),
+          notes: data.notes
+        })
+        .where(and(
+          eq(inventorySnapshots.month, data.month),
+          eq(inventorySnapshots.year, data.year),
+          eq(inventorySnapshots.periodType, data.periodType)
+        ));
+    } else {
+      await db.insert(inventorySnapshots).values({
+        snapshotDate: data.snapshotDate,
+        month: data.month,
+        year: data.year,
+        periodType: data.periodType,
+        inventoryValue: data.inventoryValue,
+        itemCount: data.itemCount,
+        notes: data.notes
+      });
+    }
+  }
+
+  async getAllInventorySnapshots(): Promise<Array<{ id: number; snapshotDate: string; month: number; year: number; periodType: string; inventoryValue: string; itemCount: number | null; capturedAt: Date | null }>> {
+    return await db
+      .select()
+      .from(inventorySnapshots)
+      .orderBy(inventorySnapshots.year, inventorySnapshots.month, inventorySnapshots.periodType);
+  }
+
+  async captureCurrentInventorySnapshot(periodType: 'BEGINNING' | 'ENDING', targetDate?: Date): Promise<void> {
+    const date = targetDate || new Date();
+    const month = date.getMonth() + 1;
+    const year = date.getFullYear();
+    const { totalValue, itemCount } = await this.getLiveInventoryValue();
+    
+    const snapshotDate = periodType === 'BEGINNING' 
+      ? `${year}-${month.toString().padStart(2, '0')}-01`
+      : new Date(year, month, 0).toISOString().split('T')[0]; // Last day of month
+    
+    await this.createInventorySnapshot({
+      snapshotDate,
+      month,
+      year,
+      periodType,
+      inventoryValue: totalValue.toFixed(2),
+      itemCount,
+      notes: `Auto-captured on ${new Date().toISOString()}`
+    });
+    
+    console.log(`📸 Captured ${periodType} inventory snapshot for ${month}/${year}: $${totalValue.toFixed(2)} (${itemCount} items)`);
   }
   
   // Unmatched Thrive Items
