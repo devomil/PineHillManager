@@ -6426,6 +6426,19 @@ export class DatabaseStorage implements IStorage {
           .where(conditions.length > 0 ? and(...conditions) : undefined);
         const [cogsResult] = await cogsQuery;
         balance = parseFloat(cogsResult?.totalCogs || '0');
+      } else if (account.accountName === 'Inventory Purchases (Unrealized Cost)') {
+        // Sum of all approved purchase orders linked to this account
+        const conditions: any[] = [
+          eq(purchaseOrders.status, 'approved'),
+          eq(purchaseOrders.expenseAccountId, account.id)
+        ];
+        
+        const poQuery = db
+          .select({ totalPurchases: sum(purchaseOrders.totalAmount) })
+          .from(purchaseOrders)
+          .where(and(...conditions));
+        const [poResult] = await poQuery;
+        balance = parseFloat(poResult?.totalPurchases || '0');
       } else {
         // Fall back to financial transaction data
         const whereConditions: any[] = [eq(financialTransactionLines.accountId, account.id)];
