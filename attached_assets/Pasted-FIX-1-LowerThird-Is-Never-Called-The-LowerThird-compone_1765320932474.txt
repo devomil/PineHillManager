@@ -1,0 +1,90 @@
+FIX 1: LowerThird Is Never Called
+The LowerThird component exists but is never rendered in SceneRenderer.
+In remotion/UniversalVideoComposition.tsx, find SceneRenderer and add LowerThird:
+tsx// Inside SceneRenderer, after the text overlays section, ADD:
+
+{/* Lower Third for scene title - ADD THIS */}
+{scene.type === 'hook' || scene.type === 'benefit' || scene.type === 'feature' ? (
+  <LowerThird
+    title={scene.textOverlays?.[0]?.text || ''}
+    subtitle={scene.type === 'benefit' ? 'Key Benefit' : undefined}
+    brand={brand}
+    fps={fps}
+    durationInFrames={durationInFrames}
+  />
+) : null}
+Full SceneRenderer update - find where it returns and add before the closing </AbsoluteFill>:
+tsxreturn (
+  <AbsoluteFill style={{ opacity }}>
+    {/* ... existing background, overlay, product overlay code ... */}
+
+    {/* Text Overlays */}
+    {(scene.textOverlays || []).map((overlay) => (
+      <TextOverlayComponent
+        key={overlay.id}
+        overlay={overlay}
+        brand={brand}
+        sceneFrame={frame}
+        fps={fps}
+      />
+    ))}
+
+    {/* ADD THIS: Lower Third for hook/benefit/feature scenes */}
+    {(scene.type === 'hook' || scene.type === 'benefit' || scene.type === 'feature') && 
+     scene.textOverlays?.[0]?.text && (
+      <LowerThird
+        title={scene.textOverlays[0].text}
+        brand={brand}
+        fps={fps}
+        durationInFrames={durationInFrames}
+      />
+    )}
+
+    {/* Debug overlay */}
+    {showDebugInfo && (
+      // ... existing debug code ...
+    )}
+  </AbsoluteFill>
+);
+
+FIX 2: Scene Duration Not Being Calculated
+The calculateSceneDuration() method exists but is never called to update scene durations based on voiceover.
+In universal-video-service.ts, in generateProjectAssets(), AFTER voiceover generation:
+Find this section (around line 920):
+typescriptif (voiceoverResult.success) {
+  updatedProject.assets.voiceover.fullTrackUrl = voiceoverResult.url;
+  updatedProject.assets.voiceover.duration = voiceoverResult.duration;
+  // ... 
+}
+ADD THIS right after:
+typescriptif (voiceoverResult.success) {
+  updatedProject.assets.voiceover.fullTrackUrl = voiceoverResult.url;
+  updatedProject.assets.voiceover.duration = voiceoverResult.duration;
+  updatedProject.progress.steps.voiceover.status = 'complete';
+  updatedProject.progress.steps.voiceover.progress = 100;
+  
+  // ===== ADD THIS: Update scene durations based on actual voiceover timing =====
+  console.log('[UniversalVideoService] Calculating scene durations from narration...');
+  let totalCalculatedDuration = 0;
+  
+  for (let i = 0; i < updatedProject.scenes.length; i++) {
+    const scene = updatedProject.scenes[i];
+    const narration = scene.narration || '';
+    
+    // Calculate duration: ~2.5 words/sec + buffer for transitions
+    const wordCount = narration.trim().split(/\s+/).filter(Boolean).length;
+    const speakingDuration = wordCount / 2.5;
+    const minDuration = 4;
+    const maxDuration = 15;
+    const calculatedDuration = Math.max(minDuration, Math.min(maxDuration, Math.ceil(speakingDuration + 0.8)));
+    
+    console.log(`[UniversalVideoService] Scene ${i} (${scene.type}): ${wordCount} words → ${calculatedDuration}s`);
+    
+    updatedProject.scenes[i].duration = calculatedDuration;
+    totalCalculatedDuration += calculatedDuration;
+  }
+  
+  updatedProject.totalDuration = totalCalculatedDuration;
+  console.log(`[UniversalVideoService] Total video duration: ${totalCalculatedDuration}s`);
+  // ===== END ADD =====
+}

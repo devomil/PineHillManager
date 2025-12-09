@@ -673,6 +673,16 @@ const SceneRenderer: React.FC<{
   const videoStatus = getAssetStatus(videoUrl);
   const hasValidImage = imageStatus === 'valid';
   const hasValidVideo = videoStatus === 'valid' && scene.background?.type === 'video';
+  
+  // Debug log for each scene render (only logs once due to React strict mode handling)
+  React.useEffect(() => {
+    console.log(`[SceneRenderer] Scene ${scene.id} (${scene.type}):`);
+    console.log(`  - videoUrl: ${videoUrl?.substring(0, 60) || 'none'}`);
+    console.log(`  - videoStatus: ${videoStatus}`);
+    console.log(`  - background.type: ${scene.background?.type || 'undefined'}`);
+    console.log(`  - hasValidVideo: ${hasValidVideo}`);
+    console.log(`  - hasValidImage: ${hasValidImage}`);
+  }, [scene.id]);
 
   return (
     <AbsoluteFill style={{ opacity }}>
@@ -688,7 +698,8 @@ const SceneRenderer: React.FC<{
               objectFit: 'cover',
             }}
             volume={0}
-            playbackRate={1}
+            startFrom={0}
+            loop
           />
         ) : hasValidImage ? (
           // IMAGE BACKGROUND with Ken Burns effect
@@ -762,6 +773,17 @@ const SceneRenderer: React.FC<{
           fps={fps}
         />
       ))}
+
+      {/* Lower Third for hook/benefit/feature scenes */}
+      {(scene.type === 'hook' || scene.type === 'benefit' || scene.type === 'feature') && 
+       scene.textOverlays?.[0]?.text && (
+        <LowerThird
+          title={scene.textOverlays[0].text.substring(0, 60)}
+          brand={brand}
+          fps={fps}
+          durationInFrames={durationInFrames}
+        />
+      )}
 
       {/* Debug overlay showing scene info */}
       {showDebugInfo && (
@@ -887,14 +909,26 @@ const AssetValidationSummary: React.FC<{
     console.log(`Voiceover: ${getAssetStatus(voiceoverUrl)} - ${voiceoverUrl?.substring(0, 60)}`);
     console.log(`Music: ${getAssetStatus(musicUrl)} - ${musicUrl?.substring(0, 60)}`);
     
+    const videoScenes = scenes.filter(s => s.background?.type === 'video');
+    console.log(`Total scenes: ${scenes.length}, Scenes with video B-roll: ${videoScenes.length}`);
+    
     scenes.forEach((scene, i) => {
       const imgUrl = scene.assets?.backgroundUrl || scene.assets?.imageUrl;
+      const videoUrl = scene.assets?.videoUrl;
       const prodUrl = scene.assets?.productOverlayUrl;
+      const bgType = scene.background?.type;
+      
       console.log(`Scene ${i} (${scene.type}):`);
-      console.log(`  Background: ${getAssetStatus(imgUrl)}`);
+      console.log(`  Background type: ${bgType || 'undefined'}`);
+      console.log(`  Image: ${getAssetStatus(imgUrl)}`);
+      console.log(`  Video: ${getAssetStatus(videoUrl)} - ${videoUrl?.substring(0, 60) || 'none'}`);
       if (prodUrl) {
         console.log(`  Product: ${getAssetStatus(prodUrl)}`);
       }
+      
+      // Log whether video will render
+      const willRenderVideo = getAssetStatus(videoUrl) === 'valid' && bgType === 'video';
+      console.log(`  >>> WILL RENDER VIDEO: ${willRenderVideo}`);
     });
     
     console.log('=================================');

@@ -1,0 +1,68 @@
+FIX 3: B-Roll Video Not Rendering
+The video URL is being saved, but the Remotion composition may not be receiving it correctly.
+Problem: scene.background may be undefined
+In generateProjectAssets(), find the B-roll section (around line 1040):
+typescriptif (videoResult && videoResult.url) {
+  // ... existing code ...
+  
+  // This line may fail if background is undefined:
+  updatedProject.scenes[sceneIndex].background.type = 'video';
+REPLACE with safer version:
+typescriptif (videoResult && videoResult.url) {
+  updatedProject.assets.videos.push({
+    sceneId: scene.id,
+    url: videoResult.url,
+    source: 'pexels',
+  });
+  
+  const sceneIndex = updatedProject.scenes.findIndex(s => s.id === scene.id);
+  if (sceneIndex >= 0) {
+    // Initialize assets if needed
+    if (!updatedProject.scenes[sceneIndex].assets) {
+      updatedProject.scenes[sceneIndex].assets = {};
+    }
+    
+    // Initialize background if needed - THIS IS THE FIX
+    if (!updatedProject.scenes[sceneIndex].background) {
+      updatedProject.scenes[sceneIndex].background = {
+        type: 'video',
+        source: scene.visualDirection || '',
+      };
+    } else {
+      updatedProject.scenes[sceneIndex].background.type = 'video';
+    }
+    
+    updatedProject.scenes[sceneIndex].assets!.videoUrl = videoResult.url;
+    videosGenerated++;
+    console.log(`[UniversalVideoService] B-roll assigned to scene ${scene.id}: ${videoResult.url}`);
+  }
+}
+
+FIX 4: Check Music URL in Remotion Props
+In remotion/UniversalVideoComposition.tsx, add logging to verify music is being passed:
+tsxexport const UniversalVideoComposition: React.FC<UniversalVideoProps> = ({
+  scenes,
+  voiceoverUrl,
+  musicUrl,
+  musicVolume = 0.18,
+  brand,
+  outputFormat,
+}) => {
+  const { fps } = useVideoConfig();
+  
+  // ADD THIS: Log what we received
+  console.log('=== REMOTION COMPOSITION PROPS ===');
+  console.log('Voiceover URL:', voiceoverUrl?.substring(0, 80));
+  console.log('Music URL:', musicUrl?.substring(0, 80));
+  console.log('Music Volume:', musicVolume);
+  console.log('Scenes with video:', scenes.filter(s => s.background?.type === 'video').length);
+  console.log('==================================');
+
+FIX 5: Expand B-Roll Scene Types
+Currently only fetching B-roll for hook, benefit, story, testimonial.
+In generateProjectAssets(), expand the list:
+typescript// Change this:
+const videoSceneTypes = ['hook', 'benefit', 'story', 'testimonial'];
+
+// To this - include more scene types:
+const videoSceneTypes = ['hook', 'benefit', 'story', 'testimonial', 'intro', 'lifes
