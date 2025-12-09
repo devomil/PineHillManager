@@ -1116,9 +1116,13 @@ function AccountingContent() {
     const dailyAverage = daysElapsed > 0 ? monthlyRevenue / daysElapsed : 0;
     const projectedRevenue = dailyAverage * daysInMonth;
     
-    // Gross profit = Revenue - Total Expenses (COGS + Payroll + Operating)
-    const grossProfit = monthlyRevenue - monthlyExpenses;
-    const profitMargin = monthlyRevenue > 0 ? (grossProfit / monthlyRevenue * 100) : 0;
+    // Gross Profit = Revenue - COGS (standard accounting definition)
+    const grossProfit = monthlyRevenue - monthlyCOGS;
+    const grossMargin = monthlyRevenue > 0 ? (grossProfit / monthlyRevenue * 100) : 0;
+    
+    // Net Income = Revenue - Total Expenses (COGS + Payroll + Operating)
+    const netIncome = monthlyRevenue - monthlyExpenses;
+    const netMargin = monthlyRevenue > 0 ? (netIncome / monthlyRevenue * 100) : 0;
     
     return {
       monthlyRevenue,
@@ -1127,7 +1131,9 @@ function AccountingContent() {
       operatingExpenses,
       monthlyExpenses,
       grossProfit,
-      profitMargin,
+      grossMargin,
+      netIncome,
+      netMargin,
       dailyAverage,
       projectedRevenue,
       daysElapsed,
@@ -1753,11 +1759,15 @@ function AccountingContent() {
                         </div>
                         <div className="flex justify-between border-t pt-2">
                           <span className="text-sm font-medium">Gross Profit:</span>
-                          <span className={`font-bold ${(biMetrics?.grossProfit || 0) >= 0 ? 'text-blue-600' : 'text-red-600'}`}>${biMetrics?.grossProfit?.toFixed(2) || '0.00'}</span>
+                          <span className={`font-bold ${(biMetrics?.grossProfit || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>${biMetrics?.grossProfit?.toFixed(2) || '0.00'}</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-sm font-medium">Gross Margin:</span>
-                          <span className={`font-bold ${(biMetrics?.profitMargin || 0) >= 0 ? 'text-blue-600' : 'text-red-600'}`}>{biMetrics?.profitMargin?.toFixed(2) || '0.00'}%</span>
+                          <span className={`font-bold ${(biMetrics?.grossMargin || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>{biMetrics?.grossMargin?.toFixed(2) || '0.00'}%</span>
+                        </div>
+                        <div className="flex justify-between border-t pt-2">
+                          <span className="text-sm font-medium">Net Income:</span>
+                          <span className={`font-bold ${(biMetrics?.netIncome || 0) >= 0 ? 'text-blue-600' : 'text-red-600'}`}>${biMetrics?.netIncome?.toFixed(2) || '0.00'}</span>
                         </div>
                       </div>
                     </CardContent>
@@ -2082,7 +2092,7 @@ function AccountingContent() {
                               </div>
                               <div className="text-right">
                                 <div className="font-bold">${(biMetrics?.monthlyRevenue && biMetrics?.monthlyExpenses ? biMetrics.monthlyRevenue - biMetrics.monthlyExpenses : 0)?.toFixed(2) || '0.00'}</div>
-                                <div className="text-xs text-green-600">{biMetrics?.profitMargin?.toFixed(1)}%</div>
+                                <div className="text-xs text-green-600">{biMetrics?.netMargin?.toFixed(1)}%</div>
                               </div>
                             </div>
                             <div className="text-center pt-2 text-xs text-gray-500 border-t">
@@ -2655,7 +2665,7 @@ function AccountingContent() {
             payroll: biMetrics?.monthlyPayroll || 0,
             expenses: biMetrics?.monthlyExpenses || 0,
             profit: biMetrics?.grossProfit || 0,
-            margin: biMetrics?.profitMargin || 0
+            margin: biMetrics?.grossMargin || 0
           }}
         />
       </div>
