@@ -1025,6 +1025,220 @@ Guidelines:
     return null;
   }
 
+  /**
+   * Generate background music using ElevenLabs Music API
+   * Uses the same ELEVENLABS_API_KEY as voiceover generation
+   */
+  async generateBackgroundMusic(
+    duration: number,
+    style: string = 'professional',
+    productName?: string
+  ): Promise<{ url: string; duration: number; source: string } | null> {
+    const apiKey = process.env.ELEVENLABS_API_KEY;
+    
+    if (!apiKey) {
+      console.warn('[UniversalVideoService] No ELEVENLABS_API_KEY for music generation');
+      this.addNotification({
+        type: 'warning',
+        service: 'Music',
+        message: 'ElevenLabs API key required for music generation',
+      });
+      return null;
+    }
+
+    const musicPrompt = this.buildMusicPrompt(style, productName, duration);
+    
+    // Ensure duration is within API limits (10s - 5min)
+    const durationMs = Math.max(10000, Math.min(duration * 1000, 300000));
+    
+    console.log(`[UniversalVideoService] Generating ElevenLabs music: "${musicPrompt.substring(0, 80)}..." (${duration}s)`);
+
+    try {
+      const response = await fetch('https://api.elevenlabs.io/v1/music/compose', {
+        method: 'POST',
+        headers: {
+          'xi-api-key': apiKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          prompt: musicPrompt,
+          duration_ms: durationMs,
+          instrumental: true,
+          output_format: 'mp3_44100_128',
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[UniversalVideoService] ElevenLabs Music API error:', response.status, errorText);
+        
+        if (response.status === 401) {
+          this.addNotification({
+            type: 'error',
+            service: 'Music',
+            message: 'ElevenLabs API key invalid or expired',
+          });
+        } else if (response.status === 402) {
+          this.addNotification({
+            type: 'error',
+            service: 'Music',
+            message: 'Insufficient ElevenLabs credits for music generation',
+          });
+        }
+        return null;
+      }
+
+      const audioBuffer = await response.arrayBuffer();
+      const base64Audio = Buffer.from(audioBuffer).toString('base64');
+      
+      // Upload to S3 for Lambda access
+      const s3Url = await this.uploadToS3(
+        Buffer.from(audioBuffer),
+        `music-${Date.now()}.mp3`,
+        'audio/mpeg'
+      );
+
+      if (s3Url) {
+        console.log(`[UniversalVideoService] Music generated and uploaded to S3: ${s3Url}`);
+        return {
+          url: s3Url,
+          duration: duration,
+          source: 'elevenlabs-music',
+        };
+      }
+
+      // Fallback: return as data URL (works for local preview only)
+      console.warn('[UniversalVideoService] S3 upload failed, using data URL (local preview only)');
+      return {
+        url: `data:audio/mpeg;base64,${base64Audio}`,
+        duration: duration,
+        source: 'elevenlabs-music',
+      };
+
+    } catch (error: any) {
+      console.error('[UniversalVideoService] Music generation error:', error.message);
+      this.addNotification({
+        type: 'error',
+        service: 'Music',
+        message: `Music generation failed: ${error.message}`,
+      });
+      return null;
+    }
+  }
+
+  /**
+   * Build an effective music prompt based on video style and product context
+   */
+  private buildMusicPrompt(style: string, productName?: string, duration?: number): string {
+    const stylePrompts: Record<string, string> = {
+      professional: 
+        'Soft ambient corporate background music, gentle piano and light strings, ' +
+        'calm and reassuring, professional tone, suitable under voiceover',
+      
+      friendly: 
+        'Warm acoustic background music, gentle fingerpicked guitar and soft percussion, ' +
+        'welcoming and approachable, positive feeling',
+      
+      energetic: 
+        'Upbeat motivational background music, inspiring corporate sound, ' +
+        'building energy, positive and dynamic, confident',
+      
+      calm: 
+        'Peaceful ambient music, soft piano with nature-inspired textures, ' +
+        'meditation-like, soothing and deeply relaxing',
+      
+      documentary: 
+        'Cinematic documentary background music, emotional strings, ' +
+        'thoughtful and reflective mood, storytelling feel',
+      
+      wellness: 
+        'Gentle wellness spa music, soft piano with ambient pads, ' +
+        'calming and nurturing, natural and organic feeling, healing atmosphere',
+      
+      health: 
+        'Soothing healthcare background music, reassuring and hopeful, ' +
+        'gentle strings and piano, professional medical tone, trustworthy',
+    };
+
+    let prompt = stylePrompts[style] || stylePrompts.professional;
+
+    // Add product-specific context for health/wellness products
+    if (productName) {
+      const lowerName = productName.toLowerCase();
+      
+      if (lowerName.includes('menopause') || lowerName.includes('hormone') || lowerName.includes('women')) {
+        prompt = 
+          'Gentle nurturing background music for women\'s wellness, ' +
+          'soft piano with warm strings, calming and supportive, ' +
+          'empowering yet soothing, spa-like tranquility';
+      } else if (lowerName.includes('sleep') || lowerName.includes('relax') || lowerName.includes('rest')) {
+        prompt = 
+          'Peaceful sleep-inducing ambient music, very soft and slow tempo, ' +
+          'dreamy pads and gentle piano, lullaby-like, deeply calming';
+      } else if (lowerName.includes('energy') || lowerName.includes('vitality') || lowerName.includes('boost')) {
+        prompt = 
+          'Uplifting wellness music, gentle but energizing, ' +
+          'morning sunshine feeling, optimistic acoustic guitar and light percussion';
+      } else if (lowerName.includes('natural') || lowerName.includes('herbal') || lowerName.includes('botanical')) {
+        prompt = 
+          'Organic nature-inspired background music, soft acoustic instruments, ' +
+          'earthy and grounded, botanical garden atmosphere, gentle and pure';
+      } else if (lowerName.includes('stress') || lowerName.includes('anxiety') || lowerName.includes('calm')) {
+        prompt = 
+          'Calming anti-anxiety background music, slow tempo, ' +
+          'gentle piano and soft ambient textures, peaceful and reassuring';
+      }
+    }
+
+    // Add duration guidance for better pacing
+    if (duration && duration <= 30) {
+      prompt += ', short form, consistent energy throughout, no dramatic builds';
+    } else if (duration && duration > 60 && duration <= 120) {
+      prompt += ', subtle variations to maintain interest, gentle progression';
+    } else if (duration && duration > 120) {
+      prompt += ', gradual build with subtle variations, maintains interest over time, evolving texture';
+    }
+
+    // Always ensure it works as background under voiceover
+    prompt += ', suitable as background music under spoken voiceover, not overpowering, subtle and supportive';
+
+    return prompt;
+  }
+
+  /**
+   * Infer appropriate music style from product name and video type
+   */
+  private inferMusicStyle(title: string, videoType: string): string {
+    const lowerTitle = title.toLowerCase();
+    
+    if (lowerTitle.includes('menopause') || 
+        lowerTitle.includes('hormone') || 
+        lowerTitle.includes('women') ||
+        lowerTitle.includes('botanical') ||
+        lowerTitle.includes('herbal') ||
+        lowerTitle.includes('natural')) {
+      return 'wellness';
+    }
+    
+    if (lowerTitle.includes('sleep') || 
+        lowerTitle.includes('relax') || 
+        lowerTitle.includes('calm')) {
+      return 'calm';
+    }
+    
+    if (lowerTitle.includes('energy') || 
+        lowerTitle.includes('vitality') || 
+        lowerTitle.includes('boost')) {
+      return 'energetic';
+    }
+    
+    if (videoType === 'script-based' || videoType === 'documentary') {
+      return 'documentary';
+    }
+    
+    return 'wellness';
+  }
+
   async createProductVideoProject(input: ProductVideoInput): Promise<VideoProject> {
     const project = createEmptyVideoProject('product', input.productName, input.platform);
     project.description = input.productDescription;
