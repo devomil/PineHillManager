@@ -5055,14 +5055,13 @@ function BalanceSheetReport({
             {(() => {
               const inventoryAccount = assetAccounts.find(a => a.accountName === 'Inventory');
               const purchases = assetAccounts.find(a => a.accountName === 'Inventory Purchases (Unrealized Cost)');
+              const beginningInventoryAccount = assetAccounts.find(a => a.accountName === 'Beginning Inventory');
               
               if (inventoryAccount) {
-                // Live inventory value = Ending Inventory (current on-hand value)
-                const liveInventoryValue = parseFloat(inventoryAccount?.balance || '0');
+                // Beginning Inventory from snapshot (account 1320)
+                const beginningValue = parseFloat(beginningInventoryAccount?.balance || '0');
                 const purchasesValue = parseFloat(purchases?.balance || '0');
-                // Beginning inventory would need monthly closing snapshot - placeholder for now
-                const beginningValue = liveInventoryValue; // Same as ending until monthly close implemented
-                const calculatedCOGS = beginningValue + purchasesValue - liveInventoryValue;
+                // Ending inventory is TBD until month-end close
                 
                 return (
                   <div className="border rounded-lg p-4 bg-amber-50">
@@ -5073,7 +5072,7 @@ function BalanceSheetReport({
                     <div className="space-y-2 ml-4">
                       <div className="flex justify-between items-center py-1 border-b border-amber-200">
                         <span className="text-gray-700">Beginning Inventory (Start of Period)</span>
-                        <span className="font-medium text-gray-400">TBD - Monthly Close</span>
+                        <span className="font-medium text-blue-600">{formatCurrency(beginningValue)}</span>
                       </div>
                       <div className="flex justify-between items-center py-1 border-b border-amber-200">
                         <span className="text-gray-700">+ Purchases This Period</span>
@@ -5081,7 +5080,7 @@ function BalanceSheetReport({
                       </div>
                       <div className="flex justify-between items-center py-1 border-b border-amber-200">
                         <span className="text-gray-700">– Ending Inventory (Live Value)</span>
-                        <span className="font-medium text-blue-600">{formatCurrency(liveInventoryValue)}</span>
+                        <span className="font-medium text-gray-400">TBD - Monthly Close</span>
                       </div>
                       <Separator className="my-2" />
                       <div className="flex justify-between items-center font-semibold bg-amber-100 p-2 rounded">
@@ -5090,7 +5089,7 @@ function BalanceSheetReport({
                       </div>
                     </div>
                     <p className="text-xs text-amber-700 mt-3">
-                      COGS is calculated from actual sales data. Beginning inventory requires monthly close process.
+                      COGS is calculated from actual sales data. Ending inventory will be captured at monthly close.
                     </p>
                   </div>
                 );
