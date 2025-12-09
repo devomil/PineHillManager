@@ -1554,13 +1554,32 @@ Guidelines:
       console.log('[UniversalVideoService] Videos step skipped - no hook/benefit scenes');
     }
 
-    // MUSIC STEP - Fetch background music from Pixabay
+    // MUSIC STEP - Generate background music with ElevenLabs (with Pixabay fallback)
     updatedProject.progress.currentStep = 'music';
     updatedProject.progress.steps.music.status = 'in-progress';
+    updatedProject.progress.steps.music.message = 'Generating background music with ElevenLabs...';
     
-    // Get style from project or default to professional
-    const style = (project as any).style || 'professional';
-    const musicResult = await this.getBackgroundMusic(project.totalDuration, style);
+    // Calculate total video duration
+    const totalDuration = project.scenes.reduce((acc, s) => acc + (s.duration || 5), 0);
+    
+    // Determine music style from project settings or infer from product type
+    const musicStyle = this.inferMusicStyle(project.title, project.type);
+    
+    console.log(`[UniversalVideoService] Generating ${totalDuration}s music, style: ${musicStyle}`);
+    
+    // Try ElevenLabs music generation first
+    let musicResult = await this.generateBackgroundMusic(
+      totalDuration,
+      musicStyle,
+      project.title
+    );
+    
+    // Fallback to Pixabay if ElevenLabs fails
+    if (!musicResult) {
+      console.log('[UniversalVideoService] ElevenLabs music failed, trying Pixabay fallback...');
+      const style = (project as any).style || 'professional';
+      musicResult = await this.getBackgroundMusic(project.totalDuration, style);
+    }
     
     if (musicResult) {
       updatedProject.assets.music = {
@@ -1570,11 +1589,11 @@ Guidelines:
       };
       updatedProject.progress.steps.music.status = 'complete';
       updatedProject.progress.steps.music.progress = 100;
-      updatedProject.progress.steps.music.message = `Background music selected (${musicResult.duration}s from ${musicResult.source})`;
+      updatedProject.progress.steps.music.message = `Generated ${musicResult.duration}s background music (${musicResult.source})`;
       console.log(`[UniversalVideoService] Music URL: ${musicResult.url}`);
     } else {
       updatedProject.progress.steps.music.status = 'skipped';
-      updatedProject.progress.steps.music.message = 'No suitable music found - video will render without background music';
+      updatedProject.progress.steps.music.message = 'Music generation unavailable - video will have voiceover only';
       console.log('[UniversalVideoService] Music step skipped - no suitable music found');
     }
 
