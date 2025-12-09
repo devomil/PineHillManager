@@ -996,6 +996,19 @@ Guidelines:
   }
 
   async getStockVideo(query: string): Promise<{ url: string; duration: number; source: string } | null> {
+    // Try Pexels first
+    const pexelsResult = await this.getPexelsVideo(query);
+    if (pexelsResult) return pexelsResult;
+
+    // Fallback to Pixabay
+    const pixabayResult = await this.getPixabayVideo(query);
+    if (pixabayResult) return pixabayResult;
+
+    console.log(`[UniversalVideoService] No stock videos found for: "${query}"`);
+    return null;
+  }
+
+  private async getPexelsVideo(query: string): Promise<{ url: string; duration: number; source: string } | null> {
     const pexelsKey = process.env.PEXELS_API_KEY;
     if (!pexelsKey) {
       console.log('[UniversalVideoService] No PEXELS_API_KEY configured');
@@ -1004,16 +1017,11 @@ Guidelines:
 
     // Try multiple search strategies
     const searchQueries = [query];
-    
-    // Add simpler fallback queries if original is complex
     const words = query.split(' ');
     if (words.length > 2) {
       searchQueries.push(words.slice(0, 2).join(' '));
     }
-    // Add generic wellness fallbacks
-    if (query.toLowerCase().includes('woman') || query.toLowerCase().includes('wellness')) {
-      searchQueries.push('woman smiling', 'nature peaceful', 'healthy lifestyle');
-    }
+    searchQueries.push('nature', 'wellness', 'relaxation');
 
     for (const searchQuery of searchQueries) {
       try {
@@ -1030,39 +1038,77 @@ Guidelines:
         }
 
         const data = await response.json();
-        console.log(`[UniversalVideoService] Pexels returned ${data.videos?.length || 0} videos for "${searchQuery}"`);
+        const responseKeys = Object.keys(data);
+        console.log(`[UniversalVideoService] Pexels response keys: ${responseKeys.join(', ')}`);
+        
+        // Check if API is returning photos instead of videos (known issue)
+        if (data.photos && !data.videos) {
+          console.warn(`[UniversalVideoService] Pexels returning photos instead of videos - API issue`);
+          break; // Don't retry, it's a systemic issue
+        }
 
         if (data.videos && data.videos.length > 0) {
-          // Find a suitable video (prefer HD, 5-30 seconds)
+          console.log(`[UniversalVideoService] Pexels found ${data.videos.length} videos`);
           for (const video of data.videos) {
             const hdFile = video.video_files?.find((f: any) => f.quality === 'hd') || video.video_files?.[0];
             if (hdFile?.link && video.duration >= 5 && video.duration <= 60) {
-              console.log(`[UniversalVideoService] Selected video: ${hdFile.link} (${video.duration}s)`);
-              return {
-                url: hdFile.link,
-                duration: video.duration,
-                source: 'pexels',
-              };
+              console.log(`[UniversalVideoService] Selected Pexels video: ${hdFile.link} (${video.duration}s)`);
+              return { url: hdFile.link, duration: video.duration, source: 'pexels' };
             }
           }
-          // Fallback to first video if no ideal match
           const firstVideo = data.videos[0];
           const hdFile = firstVideo.video_files?.find((f: any) => f.quality === 'hd') || firstVideo.video_files?.[0];
           if (hdFile?.link) {
-            console.log(`[UniversalVideoService] Fallback video: ${hdFile.link} (${firstVideo.duration}s)`);
-            return {
-              url: hdFile.link,
-              duration: firstVideo.duration,
-              source: 'pexels',
-            };
+            return { url: hdFile.link, duration: firstVideo.duration, source: 'pexels' };
           }
         }
       } catch (e: any) {
-        console.warn(`[UniversalVideoService] Pexels video error for "${searchQuery}":`, e.message);
+        console.warn(`[UniversalVideoService] Pexels error: ${e.message}`);
       }
     }
+    return null;
+  }
+
+  private async getPixabayVideo(query: string): Promise<{ url: string; duration: number; source: string } | null> {
+    const pixabayKey = process.env.PIXABAY_API_KEY;
+    if (!pixabayKey) {
+      console.log('[UniversalVideoService] No PIXABAY_API_KEY configured for video fallback');
+      return null;
+    }
+
+    const searchQueries = [query, 'nature', 'wellness', 'peaceful'];
     
-    console.log(`[UniversalVideoService] No Pexels videos found for any query`);
+    for (const searchQuery of searchQueries) {
+      try {
+        const url = `https://pixabay.com/api/videos/?key=${pixabayKey}&q=${encodeURIComponent(searchQuery)}&per_page=5`;
+        console.log(`[UniversalVideoService] Pixabay video search: "${searchQuery}"`);
+        
+        const response = await fetch(url);
+        if (!response.ok) {
+          console.warn(`[UniversalVideoService] Pixabay API error: ${response.status}`);
+          continue;
+        }
+
+        const data = await response.json();
+        if (data.hits && data.hits.length > 0) {
+          console.log(`[UniversalVideoService] Pixabay found ${data.hits.length} videos`);
+          for (const video of data.hits) {
+            const videoFile = video.videos?.large || video.videos?.medium || video.videos?.small;
+            if (videoFile?.url && video.duration >= 5 && video.duration <= 60) {
+              console.log(`[UniversalVideoService] Selected Pixabay video: ${videoFile.url} (${video.duration}s)`);
+              return { url: videoFile.url, duration: video.duration, source: 'pixabay' };
+            }
+          }
+          const firstVideo = data.hits[0];
+          const videoFile = firstVideo.videos?.large || firstVideo.videos?.medium || firstVideo.videos?.small;
+          if (videoFile?.url) {
+            return { url: videoFile.url, duration: firstVideo.duration, source: 'pixabay' };
+          }
+        }
+      } catch (e: any) {
+        console.warn(`[UniversalVideoService] Pixabay error: ${e.message}`);
+      }
+    }
     return null;
   }
 
