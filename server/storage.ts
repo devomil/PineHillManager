@@ -2083,6 +2083,13 @@ export class DatabaseStorage implements IStorage {
     return request;
   }
 
+  async deleteTimeOffRequest(id: number): Promise<boolean> {
+    const result = await db
+      .delete(timeOffRequests)
+      .where(eq(timeOffRequests.id, id));
+    return true;
+  }
+
   async updateTimeOffRequestStatus(
     id: number,
     status: string,

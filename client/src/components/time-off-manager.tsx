@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { motion, AnimatePresence } from "framer-motion";
-import { Calendar, Clock, User, Plus, CheckCircle, XCircle, MessageSquare, CalendarDays, Timer } from "lucide-react";
+import { Calendar, Clock, User, Plus, CheckCircle, XCircle, MessageSquare, CalendarDays, Timer, Trash2 } from "lucide-react";
 import { format, parseISO, differenceInDays } from "date-fns";
 
 interface TimeOffRequest {
@@ -54,6 +54,7 @@ export default function TimeOffManager() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isReviewDialogOpen, setIsReviewDialogOpen] = useState(false);
   const [isCancellationDialogOpen, setIsCancellationDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<TimeOffRequest | null>(null);
   const [filter, setFilter] = useState("all");
 
@@ -152,6 +153,30 @@ export default function TimeOffManager() {
       toast({
         title: "Error",
         description: "Failed to request cancellation: " + error.message,
+        variant: "destructive",
+      });
+    }
+  });
+
+  // Delete time off request mutation (admin only)
+  const deleteRequestMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const response = await apiRequest("DELETE", `/api/time-off-requests/${id}`);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/time-off-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/time-off-requests/approved"] });
+      setSelectedRequest(null);
+      toast({
+        title: "Request Deleted",
+        description: "Time off request has been permanently deleted.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: "Failed to delete request: " + error.message,
         variant: "destructive",
       });
     }
@@ -521,6 +546,29 @@ export default function TimeOffManager() {
                       </Button>
                     </motion.div>
                   )}
+
+                  {/* Admin delete button - works on any request status */}
+                  {user?.role === 'admin' && (
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      className="flex gap-2 pt-4 mt-4 border-t"
+                    >
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="flex-1 border-red-300 text-red-600 hover:bg-red-50"
+                        onClick={() => {
+                          setSelectedRequest(request);
+                          setIsDeleteDialogOpen(true);
+                        }}
+                        data-testid={`button-delete-timeoff-${request.id}`}
+                      >
+                        <Trash2 className="h-4 w-4 mr-1" />
+                        Delete Request
+                      </Button>
+                    </motion.div>
+                  )}
                 </CardContent>
               </Card>
             </motion.div>
@@ -639,6 +687,51 @@ export default function TimeOffManager() {
               className="bg-orange-500 hover:bg-orange-600"
             >
               {requestCancellationMutation.isPending ? "Requesting..." : "Request Cancellation"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Admin Delete Confirmation Dialog */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Time Off Request</DialogTitle>
+            <DialogDescription>
+              {selectedRequest && (
+                <div className="space-y-2 pt-2">
+                  <div><strong>Employee:</strong> {selectedRequest.user?.firstName} {selectedRequest.user?.lastName}</div>
+                  <div><strong>Dates:</strong> {formatDateRange(selectedRequest.startDate, selectedRequest.endDate)}</div>
+                  <div><strong>Duration:</strong> {calculateDays(selectedRequest.startDate, selectedRequest.endDate)} day(s)</div>
+                  <div><strong>Status:</strong> {selectedRequest.status}</div>
+                  {selectedRequest.reason && <div><strong>Reason:</strong> {selectedRequest.reason}</div>}
+                  <div className="text-red-600 text-sm font-medium pt-2">
+                    ⚠️ This action is permanent and cannot be undone. The request will be completely removed from the system.
+                  </div>
+                </div>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setIsDeleteDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={() => {
+                if (selectedRequest) {
+                  deleteRequestMutation.mutate(selectedRequest.id);
+                  setIsDeleteDialogOpen(false);
+                }
+              }}
+              disabled={deleteRequestMutation.isPending}
+              className="bg-red-500 hover:bg-red-600"
+              data-testid="button-confirm-delete-timeoff"
+            >
+              {deleteRequestMutation.isPending ? "Deleting..." : "Delete Request"}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -1698,6 +1698,30 @@ Output the script with section markers in brackets.`;
     }
   });
 
+  // Admin delete time off request
+  app.delete('/api/time-off-requests/:id', isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const userRole = req.user?.role;
+
+      // Only admins can delete time off requests
+      if (userRole !== 'admin') {
+        return res.status(403).json({ error: 'Only admins can delete time off requests' });
+      }
+
+      const request = await storage.getTimeOffRequestById(parseInt(id));
+      if (!request) {
+        return res.status(404).json({ error: 'Time off request not found' });
+      }
+
+      await storage.deleteTimeOffRequest(parseInt(id));
+      res.json({ success: true, message: 'Time off request deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting time off request:', error);
+      res.status(500).json({ error: 'Failed to delete time off request' });
+    }
+  });
+
   // Shift Swap Marketplace Routes
   app.get('/api/shift-swaps', isAuthenticated, async (req, res) => {
     try {
