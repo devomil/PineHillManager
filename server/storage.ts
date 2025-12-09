@@ -6291,17 +6291,13 @@ export class DatabaseStorage implements IStorage {
         const [cogsResult] = await cogsQuery;
         balance = parseFloat(cogsResult?.totalCOGS || '0');
       } else if (account.accountName === 'Inventory Purchases (Unrealized Cost)') {
-        // Inventory purchases from purchase orders (feeds into inventory value until sold)
-        const conditions: any[] = [eq(purchaseOrders.status, 'received')];
-        if (startOfMonth) conditions.push(gte(purchaseOrders.receivedDate, startOfMonth));
-        if (endOfMonth) conditions.push(lte(purchaseOrders.receivedDate, endOfMonth));
-        
-        const pogpQuery = db
-          .select({ totalCost: sum(purchaseOrders.totalAmount) })
+        // Sum of all approved purchase orders linked to this account
+        const poQuery = db
+          .select({ totalPurchases: sum(purchaseOrders.totalAmount) })
           .from(purchaseOrders)
-          .where(and(...conditions));
-        const [pogpResult] = await pogpQuery;
-        balance = parseFloat(pogpResult?.totalCost || '0');
+          .where(eq(purchaseOrders.status, 'approved'));
+        const [poResult] = await poQuery;
+        balance = parseFloat(poResult?.totalPurchases || '0');
       } else if (account.accountName === 'Beginning Inventory') {
         // Beginning inventory = total inventory value at start of period
         // Sum of all inventory items cost at the start of the period
@@ -6426,19 +6422,6 @@ export class DatabaseStorage implements IStorage {
           .where(conditions.length > 0 ? and(...conditions) : undefined);
         const [cogsResult] = await cogsQuery;
         balance = parseFloat(cogsResult?.totalCogs || '0');
-      } else if (account.accountName === 'Inventory Purchases (Unrealized Cost)') {
-        // Sum of all approved purchase orders linked to this account
-        const conditions: any[] = [
-          eq(purchaseOrders.status, 'approved'),
-          eq(purchaseOrders.expenseAccountId, account.id)
-        ];
-        
-        const poQuery = db
-          .select({ totalPurchases: sum(purchaseOrders.totalAmount) })
-          .from(purchaseOrders)
-          .where(and(...conditions));
-        const [poResult] = await poQuery;
-        balance = parseFloat(poResult?.totalPurchases || '0');
       } else {
         // Fall back to financial transaction data
         const whereConditions: any[] = [eq(financialTransactionLines.accountId, account.id)];
