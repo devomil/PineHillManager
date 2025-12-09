@@ -6335,6 +6335,7 @@ export class DatabaseStorage implements IStorage {
       } else if (account.accountName === 'Ending Inventory') {
         // Ending inventory = snapshot of Inventory 1300 on last day of month
         // Read from inventory_snapshots table with periodType 'ENDING'
+        // If no snapshot exists, show $0 (TBD until month-end close)
         const targetMonth = endOfMonth ? new Date(endOfMonth).getMonth() + 1 : new Date().getMonth() + 1;
         const targetYear = endOfMonth ? new Date(endOfMonth).getFullYear() : new Date().getFullYear();
         
@@ -6352,18 +6353,8 @@ export class DatabaseStorage implements IStorage {
         if (snapshot?.inventoryValue) {
           balance = parseFloat(snapshot.inventoryValue);
         } else {
-          // Fallback to current live inventory if no snapshot exists
-          const inventoryQuery = db
-            .select({ 
-              totalValue: sql<string>`COALESCE(SUM(
-                COALESCE(CAST(${inventoryItems.unitCost} AS DECIMAL), CAST(${inventoryItems.standardCost} AS DECIMAL), 0) * 
-                COALESCE(CAST(${inventoryItems.quantityOnHand} AS DECIMAL), 0)
-              ), 0)::text`
-            })
-            .from(inventoryItems)
-            .where(eq(inventoryItems.isActive, true));
-          const [inventoryResult] = await inventoryQuery;
-          balance = parseFloat(inventoryResult?.totalValue || '0');
+          // No ENDING snapshot yet - show $0 until month-end close captures it
+          balance = 0;
         }
       } else if (account.accountName === 'Inventory') {
         // Inventory 1300 = ALWAYS live inventory value (quantity × cost)
