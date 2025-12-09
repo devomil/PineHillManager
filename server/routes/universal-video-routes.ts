@@ -434,12 +434,24 @@ router.post('/projects/:projectId/render', isAuthenticated, async (req: Request,
       outputFormat: preparedProject.outputFormat,
     };
     
+    // Log video B-roll details for each scene
+    const videoScenes = inputProps.scenes.filter((s: any) => s.assets?.videoUrl);
     console.log('[UniversalVideo] Prepared input props for Lambda:', {
       sceneCount: inputProps.scenes.length,
+      videoSceneCount: videoScenes.length,
       hasVoiceover: !!inputProps.voiceoverUrl,
       hasMusic: !!inputProps.musicUrl,
       voiceoverUrl: inputProps.voiceoverUrl?.substring(0, 80),
       musicUrl: inputProps.musicUrl?.substring(0, 80),
+    });
+    
+    // Debug: log each scene's video status
+    inputProps.scenes.forEach((scene: any, idx: number) => {
+      const hasVideo = !!scene.assets?.videoUrl;
+      const bgType = scene.background?.type;
+      if (hasVideo || bgType === 'video') {
+        console.log(`[UniversalVideo] Scene ${idx} (${scene.id}): videoUrl=${scene.assets?.videoUrl?.substring(0, 60) || 'none'}, background.type=${bgType}`);
+      }
     });
     
     try {

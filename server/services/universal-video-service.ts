@@ -1937,14 +1937,39 @@ Guidelines:
         preparedProject.scenes[i].assets!.productOverlayUrl = undefined;
         preparedProject.scenes[i].assets!.useProductOverlay = false;
       }
+      
+      // Log and validate videoUrl for B-roll scenes
+      if (scene.assets?.videoUrl) {
+        if (this.isValidHttpsUrl(scene.assets.videoUrl)) {
+          console.log(`[UniversalVideoService] Scene ${i} has video B-roll: ${scene.assets.videoUrl}`);
+          console.log(`[UniversalVideoService] Scene ${i} background.type: ${scene.background?.type}`);
+        } else {
+          console.warn(`[UniversalVideoService] Scene ${i} has invalid videoUrl: ${scene.assets.videoUrl} - clearing`);
+          preparedProject.scenes[i].assets!.videoUrl = undefined;
+          if (preparedProject.scenes[i].background?.type === 'video') {
+            preparedProject.scenes[i].background!.type = 'image';
+          }
+        }
+      }
     }
 
+    // Count scenes with valid video B-roll
+    const videoScenes = preparedProject.scenes.filter(
+      s => s.assets?.videoUrl && s.background?.type === 'video'
+    );
+    
     const validScenes = preparedProject.scenes.filter(
-      s => s.assets?.imageUrl || s.assets?.backgroundUrl
+      s => s.assets?.imageUrl || s.assets?.backgroundUrl || s.assets?.videoUrl
     ).length;
     
     console.log(`[UniversalVideoService] Asset preparation complete:`);
     console.log(`  - Valid scenes: ${validScenes}/${preparedProject.scenes.length}`);
+    console.log(`  - Scenes with video B-roll: ${videoScenes.length}`);
+    if (videoScenes.length > 0) {
+      videoScenes.forEach((s, idx) => {
+        console.log(`    - ${s.id}: videoUrl=${s.assets?.videoUrl?.substring(0, 60)}... background.type=${s.background?.type}`);
+      });
+    }
     console.log(`  - Voiceover: ${this.isValidHttpsUrl(preparedProject.assets.voiceover.fullTrackUrl) ? 'OK' : 'Missing/Invalid'}`);
     console.log(`  - Music: ${this.isValidHttpsUrl(preparedProject.assets.music?.url) ? 'OK' : 'None'}`);
     console.log(`  - Issues: ${issues.length}`);
