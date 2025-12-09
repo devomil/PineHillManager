@@ -403,11 +403,19 @@ function AccountingContent() {
       return await response.json();
     },
     onSuccess: (data) => {
-      // Invalidate COGS-related queries
+      // Invalidate all COGS and accounting-related queries to refresh data across all tabs
       queryClient.invalidateQueries({ queryKey: ['/api/accounting/analytics/cogs'] });
       queryClient.invalidateQueries({ queryKey: ['/api/accounting'] });
-      const today = new Date().toISOString().split('T')[0];
-      queryClient.invalidateQueries({ queryKey: ['/api/accounting/analytics/profit-loss', today] });
+      queryClient.invalidateQueries({ queryKey: ['/api/accounting/cogs/labor-costs'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/accounting/cogs/material-costs'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/accounting/cogs/by-product'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/accounting/cogs/by-employee'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/accounting/cogs/by-location'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/accounting/reports/expenses'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/accounting/reports/profit-loss'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/accounting/analytics/multi-location'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/accounting/analytics/profit-loss'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/accounting/coa'] });
       
       toast({
         title: "COGS Data Backfilled",
