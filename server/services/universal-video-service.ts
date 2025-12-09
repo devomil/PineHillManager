@@ -1632,121 +1632,121 @@ Guidelines:
   }
 
   async getBackgroundMusic(duration: number, style?: string): Promise<{ url: string; duration: number; source: string } | null> {
-    const pixabayKey = process.env.PIXABAY_API_KEY;
+    // Use Jamendo API for free Creative Commons music
+    const jamendoClientId = process.env.JAMENDO_CLIENT_ID;
     
-    if (!pixabayKey) {
-      console.log('[UniversalVideoService] No PIXABAY_API_KEY - skipping music');
+    // If no Jamendo key, inform user and skip
+    if (!jamendoClientId) {
+      console.log('[UniversalVideoService] No JAMENDO_CLIENT_ID - skipping music fallback');
+      console.log('[UniversalVideoService] To enable background music, get a free Jamendo API key at: https://developer.jamendo.com/v3.0');
       this.addNotification({
-        type: 'warning',
+        type: 'info',
         service: 'Music',
-        message: 'No Pixabay API key configured - video will render without background music',
+        message: 'Video will render with voiceover only. For background music, add a Jamendo API key.',
       });
       return null;
     }
 
-    // Search terms based on video style - using simpler terms for better Pixabay matches
-    const searchTerms: Record<string, string> = {
-      professional: 'corporate',
-      friendly: 'happy',
-      energetic: 'upbeat',
-      calm: 'relaxing',
-      documentary: 'cinematic',
+    // Search terms based on video style for Jamendo's tag system
+    const searchTerms: Record<string, string[]> = {
+      professional: ['ambient', 'corporate', 'background'],
+      friendly: ['happy', 'acoustic', 'positive'],
+      energetic: ['upbeat', 'energetic', 'motivational'],
+      calm: ['relaxing', 'meditation', 'calm'],
+      documentary: ['cinematic', 'emotional', 'documentary'],
+      wellness: ['spa', 'relaxing', 'meditation', 'peaceful'],
+      health: ['calm', 'peaceful', 'soft'],
     };
     
-    const query = searchTerms[style || 'professional'] || 'ambient';
+    const tags = searchTerms[style || 'professional'] || ['ambient'];
+    const query = tags[0]; // Use primary tag for search
 
     try {
-      console.log(`[UniversalVideoService] Searching Pixabay Audio API for music: ${query}`);
-      console.log(`[UniversalVideoService] Using API key: ${pixabayKey.substring(0, 8)}...`);
+      console.log(`[UniversalVideoService] Searching Jamendo API for music: ${query} (style: ${style})`);
       
-      // Pixabay has a SEPARATE audio API endpoint for music
-      // The main API with media_type=music has been deprecated
-      // Use the audio API endpoint instead
-      const audioApiUrl = `https://pixabay.com/api/videos/?key=${pixabayKey}&q=${encodeURIComponent(query)}&video_type=animation&per_page=3`;
+      // Jamendo API - search for instrumental tracks
+      // audiodownload_allowed=true ensures we can download the MP3
+      const jamendoUrl = `https://api.jamendo.com/v3.0/tracks/?client_id=${jamendoClientId}&format=json&limit=10&fuzzytags=${encodeURIComponent(query)}&include=musicinfo&audioformat=mp32&audiodownload_allowed=true&vocalinstrumental=instrumental`;
       
-      // Try Pixabay music API first (separate endpoint)
-      const musicApiUrl = `https://pixabay.com/api/?key=${pixabayKey}&q=${encodeURIComponent(query)}&category=music&per_page=20`;
-      console.log(`[UniversalVideoService] Trying Pixabay API: ${musicApiUrl.replace(pixabayKey, 'KEY')}`);
+      console.log(`[UniversalVideoService] Jamendo API URL: ${jamendoUrl.replace(jamendoClientId, 'CLIENT_ID')}`);
       
-      const response = await fetch(musicApiUrl);
-      const responseText = await response.text();
-      console.log(`[UniversalVideoService] Pixabay response status: ${response.status}`);
-      console.log(`[UniversalVideoService] Pixabay response: ${responseText.substring(0, 500)}`);
+      const response = await fetch(jamendoUrl);
       
       if (!response.ok) {
-        console.warn('[UniversalVideoService] Pixabay API error:', response.status, responseText);
+        console.warn('[UniversalVideoService] Jamendo API error:', response.status);
         return null;
       }
       
-      let data;
-      try {
-        data = JSON.parse(responseText);
-      } catch (parseError) {
-        console.error('[UniversalVideoService] Failed to parse Pixabay response:', responseText);
-        return null;
-      }
+      const data = await response.json();
+      console.log(`[UniversalVideoService] Jamendo returned ${data.results?.length || 0} tracks`);
       
-      console.log(`[UniversalVideoService] Pixabay API returned ${data.hits?.length || 0} results, total: ${data.total || 0}`);
-      
-      // Check if we got any results with audio
-      if (data.hits && data.hits.length > 0) {
-        // Look for audio field in results
-        const audioHits = data.hits.filter((hit: any) => hit.audio || hit.music_url || hit.url_download);
-        console.log(`[UniversalVideoService] Found ${audioHits.length} hits with audio URLs`);
+      // Check if we got any results with audio download
+      if (data.results && data.results.length > 0) {
+        // Filter for tracks that allow audio download
+        const downloadableTracks = data.results.filter((track: any) => track.audiodownload_allowed && track.audio);
+        console.log(`[UniversalVideoService] Found ${downloadableTracks.length} downloadable tracks`);
         
-        if (audioHits.length > 0) {
-          return this.selectBestMusicTrack(audioHits, duration);
+        if (downloadableTracks.length > 0) {
+          // Select best track based on duration
+          const selectedTrack = this.selectBestJamendoTrack(downloadableTracks, duration);
+          if (selectedTrack) {
+            return selectedTrack;
+          }
         }
       }
       
-      // If no audio results, try the direct search without category filter
-      console.log('[UniversalVideoService] No audio in results, trying broader search...');
-      const fallbackQueries = ['background music', 'ambient music', 'instrumental', 'corporate music'];
+      // If no results with current query, try fallback tags
+      console.log('[UniversalVideoService] No suitable tracks, trying broader search...');
+      const fallbackTags = ['ambient', 'background', 'soft', 'calm'];
       
-      for (const fallbackQuery of fallbackQueries) {
-        console.log(`[UniversalVideoService] Trying fallback music query: ${fallbackQuery}`);
-        const fallbackUrl = `https://pixabay.com/api/?key=${pixabayKey}&q=${encodeURIComponent(fallbackQuery)}&per_page=20`;
+      for (const fallbackTag of fallbackTags) {
+        if (fallbackTag === query) continue; // Skip if same as original
+        
+        console.log(`[UniversalVideoService] Trying Jamendo fallback tag: ${fallbackTag}`);
+        const fallbackUrl = `https://api.jamendo.com/v3.0/tracks/?client_id=${jamendoClientId}&format=json&limit=10&fuzzytags=${encodeURIComponent(fallbackTag)}&include=musicinfo&audioformat=mp32&audiodownload_allowed=true&vocalinstrumental=instrumental`;
         
         const fallbackResponse = await fetch(fallbackUrl);
         if (fallbackResponse.ok) {
           const fallbackData = await fallbackResponse.json();
-          console.log(`[UniversalVideoService] Fallback '${fallbackQuery}' returned ${fallbackData.hits?.length || 0} results`);
+          console.log(`[UniversalVideoService] Fallback '${fallbackTag}' returned ${fallbackData.results?.length || 0} tracks`);
           
-          if (fallbackData.hits?.length > 0) {
-            const audioHits = fallbackData.hits.filter((hit: any) => hit.audio || hit.music_url);
-            if (audioHits.length > 0) {
-              console.log(`[UniversalVideoService] Found ${audioHits.length} tracks with audio`);
-              return this.selectBestMusicTrack(audioHits, duration);
+          if (fallbackData.results?.length > 0) {
+            const downloadable = fallbackData.results.filter((t: any) => t.audiodownload_allowed && t.audio);
+            if (downloadable.length > 0) {
+              const track = this.selectBestJamendoTrack(downloadable, duration);
+              if (track) return track;
             }
           }
         }
       }
       
-      console.log('[UniversalVideoService] No music found after all attempts');
+      console.log('[UniversalVideoService] No music found after all Jamendo attempts');
       return null;
     } catch (e: any) {
-      console.error('[UniversalVideoService] Pixabay music search error:', e.message);
+      console.error('[UniversalVideoService] Jamendo music search error:', e.message);
       return null;
     }
   }
 
-  private selectBestMusicTrack(hits: any[], duration: number): { url: string; duration: number; source: string } | null {
+  private selectBestJamendoTrack(tracks: any[], targetDuration: number): { url: string; duration: number; source: string } | null {
     // Find a track with suitable duration (at least 80% of video length)
-    const minDuration = duration * 0.8;
-    let selectedTrack = hits.find((hit: any) => hit.duration >= minDuration);
+    const minDuration = targetDuration * 0.8;
+    let selectedTrack = tracks.find((track: any) => track.duration >= minDuration);
     
     // If no long enough track, just use the longest one
     if (!selectedTrack) {
-      selectedTrack = hits.sort((a: any, b: any) => b.duration - a.duration)[0];
+      selectedTrack = tracks.sort((a: any, b: any) => b.duration - a.duration)[0];
     }
     
-    // Pixabay audio API returns 'audio' field for the audio URL
+    // Jamendo API returns 'audio' field for streaming URL and 'audiodownload' for download
     if (selectedTrack?.audio) {
-      console.log(`[UniversalVideoService] Selected music track: ${selectedTrack.audio} (${selectedTrack.duration}s)`);
+      const audioUrl = selectedTrack.audiodownload || selectedTrack.audio;
+      console.log(`[UniversalVideoService] Selected Jamendo track: "${selectedTrack.name}" by ${selectedTrack.artist_name} (${selectedTrack.duration}s)`);
+      console.log(`[UniversalVideoService] Audio URL: ${audioUrl}`);
       return {
-        url: selectedTrack.audio,  // This is already a valid HTTPS URL
+        url: audioUrl,
         duration: selectedTrack.duration,
-        source: 'pixabay',
+        source: 'jamendo',
       };
     }
     
