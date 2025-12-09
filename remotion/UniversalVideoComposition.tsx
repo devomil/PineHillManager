@@ -401,6 +401,114 @@ const TextOverlayComponent: React.FC<{
 };
 
 // ============================================================
+// LOWER THIRD COMPONENT - PROFESSIONAL TV-STYLE SCENE TITLES
+// ============================================================
+
+interface LowerThirdProps {
+  title: string;
+  subtitle?: string;
+  brand: BrandSettings;
+  fps: number;
+  durationInFrames: number;
+}
+
+const LowerThird: React.FC<LowerThirdProps> = ({ 
+  title, 
+  subtitle, 
+  brand, 
+  fps, 
+  durationInFrames 
+}) => {
+  const frame = useCurrentFrame();
+  const enterDuration = fps * 0.6;
+  const exitStart = durationInFrames - fps * 0.4;
+  
+  let lineWidth = 0;
+  let textOpacity = 0;
+  let translateX = -20;
+  let barScale = 0;
+  
+  if (frame < enterDuration) {
+    const progress = frame / enterDuration;
+    const eased = easeOutCubic(progress);
+    lineWidth = interpolate(eased, [0, 1], [0, 100]);
+    textOpacity = interpolate(progress, [0.3, 1], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+    translateX = interpolate(eased, [0, 1], [-20, 0]);
+    barScale = spring({ frame, fps, config: { damping: 15, stiffness: 180 } });
+  } else if (frame > exitStart) {
+    const exitProgress = (frame - exitStart) / (durationInFrames - exitStart);
+    const eased = easeInCubic(exitProgress);
+    lineWidth = 100;
+    textOpacity = 1 - eased;
+    translateX = interpolate(eased, [0, 1], [0, 20]);
+    barScale = 1;
+  } else {
+    lineWidth = 100;
+    textOpacity = 1;
+    translateX = 0;
+    barScale = 1;
+  }
+  
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        left: 60,
+        bottom: 120,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 8,
+      }}
+    >
+      <div
+        style={{
+          width: `${lineWidth}%`,
+          height: 4,
+          backgroundColor: brand.colors.accent,
+          transform: `scaleX(${barScale})`,
+          transformOrigin: 'left',
+          borderRadius: 2,
+        }}
+      />
+      <div
+        style={{
+          opacity: textOpacity,
+          transform: `translateX(${translateX}px)`,
+        }}
+      >
+        <div
+          style={{
+            fontSize: 36,
+            fontWeight: brand.fonts.weight.heading,
+            fontFamily: brand.fonts.heading,
+            color: brand.colors.textLight,
+            textShadow: '2px 2px 8px rgba(0,0,0,0.9)',
+            letterSpacing: '-0.01em',
+          }}
+        >
+          {title}
+        </div>
+        {subtitle && (
+          <div
+            style={{
+              fontSize: 22,
+              fontWeight: 400,
+              fontFamily: brand.fonts.body,
+              color: brand.colors.textLight,
+              opacity: 0.8,
+              textShadow: '1px 1px 4px rgba(0,0,0,0.8)',
+              marginTop: 4,
+            }}
+          >
+            {subtitle}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ============================================================
 // PRODUCT OVERLAY COMPONENT
 // ============================================================
 

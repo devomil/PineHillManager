@@ -1239,6 +1239,29 @@ Guidelines:
     return 'wellness';
   }
 
+  /**
+   * Calculate scene duration based on voiceover text word count
+   * Uses speaking rate of approximately 150 words per minute (2.5 words/second)
+   * Adds buffer time for transitions and visual comprehension
+   */
+  calculateSceneDuration(voiceoverText: string, minDuration: number = 4, maxDuration: number = 15): number {
+    if (!voiceoverText || voiceoverText.trim().length === 0) {
+      return minDuration;
+    }
+    
+    const words = voiceoverText.trim().split(/\s+/).length;
+    const speakingRate = 2.5; // words per second (150 WPM)
+    const bufferTime = 0.8; // extra time for transitions
+    
+    const baseDuration = (words / speakingRate) + bufferTime;
+    
+    // Clamp to min/max
+    const duration = Math.max(minDuration, Math.min(maxDuration, Math.ceil(baseDuration)));
+    
+    console.log(`[UniversalVideoService] Scene duration: ${words} words → ${duration}s`);
+    return duration;
+  }
+
   async createProductVideoProject(input: ProductVideoInput): Promise<VideoProject> {
     const project = createEmptyVideoProject('product', input.productName, input.platform);
     project.description = input.productDescription;
