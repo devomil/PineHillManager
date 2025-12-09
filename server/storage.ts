@@ -14909,7 +14909,7 @@ export class DatabaseStorage implements IStorage {
       .where(conditions.length > 0 ? and(...conditions) : undefined)
       .orderBy(desc(purchaseOrders.createdAt));
     
-    // For each PO, get the approver name if it's approved
+    // For each PO, get the approver name if it's approved and line items
     const enrichedPOs = await Promise.all(
       pos.map(async (row) => {
         let approverName = null;
@@ -14936,10 +14936,14 @@ export class DatabaseStorage implements IStorage {
           }
         }
         
+        // Fetch line items for this PO
+        const lineItems = await this.getPurchaseOrderLineItems(row.po.id);
+        
         return {
           ...row.po,
           creatorName: row.creatorFirstName ? `${row.creatorFirstName} ${row.creatorLastName}` : null,
           approverName,
+          lineItems,
         };
       })
     );

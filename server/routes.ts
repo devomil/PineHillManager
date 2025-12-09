@@ -7790,10 +7790,19 @@ Output the script with section markers in brackets.`;
   });
 
   // Get expense accounts from Chart of Accounts (for Purchase Orders)
+  // Includes both Expense accounts AND the Inventory Purchases asset account
   app.get('/api/accounting/expense-accounts', isAuthenticated, async (req, res) => {
     try {
       const expenseAccounts = await storage.getAccountsByType('Expense');
-      res.json(expenseAccounts);
+      // Also include the Inventory Purchases account (Asset type but used for PO tracking)
+      const allAccounts = await storage.getAccountsByType('Asset');
+      const inventoryPurchasesAccount = allAccounts.find(acc => 
+        acc.accountName === 'Inventory Purchases (Unrealized Cost)'
+      );
+      const accounts = inventoryPurchasesAccount 
+        ? [inventoryPurchasesAccount, ...expenseAccounts]
+        : expenseAccounts;
+      res.json(accounts);
     } catch (error) {
       console.error('Error fetching expense accounts:', error);
       res.status(500).json({ message: 'Failed to fetch expense accounts' });
