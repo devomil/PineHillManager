@@ -104,6 +104,7 @@ export interface TextPosition {
 export interface BackgroundConfig {
   type: 'image' | 'video' | 'gradient' | 'solid';
   source: string;
+  videoUrl?: string;
   effect?: {
     type: 'ken-burns' | 'parallax' | 'zoom' | 'pan' | 'none';
     intensity: 'subtle' | 'medium' | 'dramatic';
