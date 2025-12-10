@@ -250,21 +250,28 @@ export interface ScriptVideoInput {
   targetDuration?: number;
 }
 
+// Pine Hill Farm Official Brand Colors
+// Primary: Forest Green #2d5a27 (main brand color)
+// Secondary: Sage Green #607e66 (softer green)
+// Accent: Gold #c9a227 (CTAs, highlights)
+// Blues: Slate #5e637a, Steel #5b7c99, Periwinkle #8c93ad, Teal #6c97ab
+// Neutrals: Gray #a9a9a9, White #ffffff, Dark text #5e637a
+// Backgrounds: Cream #f5f0e8, Off-white #f8f8f3
 export const PINE_HILL_FARM_BRAND: BrandSettings = {
   name: 'Pine Hill Farm',
   logoUrl: '/assets/pine-hill-farm-logo.png',
   watermarkPosition: 'bottom-right',
   watermarkOpacity: 0.3,
   colors: {
-    primary: '#1a4480',
-    secondary: '#f5f0e6',
-    accent: '#c9a227',
-    text: '#1a1a1a',
-    textLight: '#ffffff',
+    primary: '#2d5a27',      // Forest green (main brand color)
+    secondary: '#607e66',    // Sage green (softer green)
+    accent: '#c9a227',       // Gold (CTAs, highlights)
+    text: '#5e637a',         // Slate blue (dark text on light backgrounds)
+    textLight: '#ffffff',    // White text on dark backgrounds
   },
   fonts: {
-    heading: 'Inter',
-    body: 'Inter',
+    heading: 'Playfair Display, Georgia, serif',
+    body: 'Open Sans, Helvetica, sans-serif',
     weight: {
       heading: 700,
       body: 400,

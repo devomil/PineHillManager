@@ -132,14 +132,27 @@ const AssetErrorPlaceholder: React.FC<{
 };
 
 // Gradient fallback when image is missing but we want to continue
+// Uses Pine Hill Farm brand colors for professional branded look
 const GradientFallback: React.FC<{ brand: BrandSettings; sceneType: string }> = ({ brand, sceneType }) => {
+  // Pine Hill Farm official colors
+  const forestGreen = '#2d5a27';
+  const sageGreen = '#607e66';
+  const gold = '#c9a227';
+  const slateBlue = '#5e637a';
+  const steelBlue = '#5b7c99';
+  const tealBlue = '#6c97ab';
+  const cream = '#f5f0e8';
+  
   const gradients: Record<string, string> = {
-    hook: `linear-gradient(135deg, ${brand.colors.primary} 0%, #2d1b4e 100%)`,
-    intro: `linear-gradient(180deg, ${brand.colors.primary} 0%, ${brand.colors.secondary} 100%)`,
-    benefit: `linear-gradient(135deg, #1a4480 0%, #2d5a27 100%)`,
-    feature: `linear-gradient(135deg, ${brand.colors.accent} 0%, ${brand.colors.primary} 100%)`,
-    cta: `linear-gradient(135deg, ${brand.colors.accent} 0%, #c9a227 50%, ${brand.colors.primary} 100%)`,
-    default: `linear-gradient(135deg, ${brand.colors.primary} 0%, ${brand.colors.secondary} 100%)`,
+    hook: `linear-gradient(135deg, ${slateBlue} 0%, ${forestGreen} 50%, ${sageGreen} 100%)`,
+    intro: `linear-gradient(180deg, ${forestGreen} 0%, ${gold} 30%, ${cream} 100%)`,
+    benefit: `linear-gradient(135deg, ${tealBlue} 0%, ${forestGreen} 50%, ${sageGreen} 100%)`,
+    feature: `linear-gradient(135deg, ${gold} 0%, ${forestGreen} 50%, ${slateBlue} 100%)`,
+    cta: `linear-gradient(135deg, ${forestGreen} 0%, ${gold} 40%, ${forestGreen} 100%)`,
+    testimonial: `linear-gradient(135deg, ${steelBlue} 0%, ${sageGreen} 100%)`,
+    brand: `linear-gradient(180deg, ${forestGreen} 0%, ${sageGreen} 50%, ${cream} 100%)`,
+    outro: `linear-gradient(135deg, ${forestGreen} 0%, ${gold} 100%)`,
+    default: `linear-gradient(135deg, ${brand.colors.primary || forestGreen} 0%, ${brand.colors.secondary || sageGreen} 100%)`,
   };
   
   return (
@@ -596,6 +609,83 @@ const ProductOverlay: React.FC<{
 };
 
 // ============================================================
+// PRODUCT REVEAL COMPONENT - TV-QUALITY DRAMATIC ANIMATION
+// ============================================================
+
+const ProductReveal: React.FC<{
+  productUrl: string;
+  brand: BrandSettings;
+  fps: number;
+  width: number;
+  height: number;
+  durationInFrames: number;
+}> = ({ productUrl, brand, fps, width, height, durationInFrames }) => {
+  const frame = useCurrentFrame();
+  
+  if (!isValidHttpUrl(productUrl)) {
+    return null;
+  }
+  
+  const revealDuration = fps * 1.5; // 1.5 seconds for dramatic reveal
+  const productSize = Math.min(width, height) * 0.5;
+  
+  let scale = 0.3;
+  let opacity = 0;
+  let glowIntensity = 0;
+  let blur = 20;
+  let floatY = 0;
+  
+  if (frame < revealDuration) {
+    // Dramatic entrance with easeOutBack for overshoot effect
+    const progress = frame / revealDuration;
+    const eased = progress < 1 
+      ? 1 - Math.pow(1 - progress, 3) * (1 - progress * 0.3 * Math.sin(progress * Math.PI))
+      : 1;
+    
+    scale = interpolate(eased, [0, 1], [0.3, 1]);
+    opacity = interpolate(progress, [0, 0.3, 1], [0, 1, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+    glowIntensity = interpolate(progress, [0, 0.5, 1], [0, 30, 15]);
+    blur = interpolate(progress, [0, 0.5, 1], [20, 0, 0]);
+  } else {
+    scale = 1;
+    opacity = 1;
+    glowIntensity = 15;
+    blur = 0;
+    
+    // Subtle floating animation after reveal
+    const floatFrame = frame - revealDuration;
+    floatY = Math.sin(floatFrame / 30) * 5;
+  }
+  
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        left: '50%',
+        top: '50%',
+        transform: `translate(-50%, calc(-50% + ${floatY}px)) scale(${scale})`,
+        opacity,
+        filter: `blur(${blur}px) drop-shadow(0 0 ${glowIntensity}px ${brand.colors.accent})`,
+        width: productSize,
+        height: productSize,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <Img
+        src={productUrl}
+        style={{
+          maxWidth: '100%',
+          maxHeight: '100%',
+          objectFit: 'contain',
+        }}
+      />
+    </div>
+  );
+};
+
+// ============================================================
 // SCENE RENDERER - WITH FULL ERROR HANDLING
 // ============================================================
 
@@ -610,25 +700,80 @@ const SceneRenderer: React.FC<{
   const { fps, width, height } = useVideoConfig();
   const durationInFrames = (scene.duration || 5) * fps;
 
-  // Transition calculations
+  // Transition calculations - Enhanced with multiple types
   const transitionInFrames = (scene.transitionIn?.duration || 0.5) * fps;
   const transitionOutFrames = (scene.transitionOut?.duration || 0.5) * fps;
+  const transitionInType = scene.transitionIn?.type || 'fade';
+  const transitionOutType = scene.transitionOut?.type || 'fade';
 
-  let opacity = 1;
+  // Calculate transition progress
+  const getTransitionStyle = (
+    transitionType: string,
+    progress: number,
+    direction: 'in' | 'out'
+  ): { opacity: number; transform?: string; filter?: string } => {
+    const eased = direction === 'in' 
+      ? 1 - Math.pow(1 - progress, 3) // easeOutCubic
+      : Math.pow(progress, 3); // easeInCubic
+
+    switch (transitionType) {
+      case 'fade':
+        return { opacity: direction === 'in' ? eased : 1 - eased };
+        
+      case 'slide-left':
+        const slideX = direction === 'in' 
+          ? interpolate(eased, [0, 1], [100, 0])
+          : interpolate(eased, [0, 1], [0, -100]);
+        return { 
+          opacity: direction === 'in' ? eased : 1 - eased,
+          transform: `translateX(${slideX}%)` 
+        };
+        
+      case 'slide-right':
+        const slideXR = direction === 'in' 
+          ? interpolate(eased, [0, 1], [-100, 0])
+          : interpolate(eased, [0, 1], [0, 100]);
+        return { 
+          opacity: direction === 'in' ? eased : 1 - eased,
+          transform: `translateX(${slideXR}%)` 
+        };
+        
+      case 'zoom':
+        const zoomScale = direction === 'in'
+          ? interpolate(eased, [0, 1], [1.2, 1])
+          : interpolate(eased, [0, 1], [1, 0.9]);
+        return {
+          opacity: direction === 'in' ? eased : 1 - eased,
+          transform: `scale(${zoomScale})`,
+        };
+        
+      case 'blur':
+        const blurAmount = direction === 'in'
+          ? interpolate(eased, [0, 1], [20, 0])
+          : interpolate(eased, [0, 1], [0, 15]);
+        return {
+          opacity: direction === 'in' ? eased : 1 - eased,
+          filter: `blur(${blurAmount}px)`,
+        };
+        
+      case 'crossfade':
+      default:
+        return { opacity: direction === 'in' ? eased : 1 - eased };
+    }
+  };
+
+  // Calculate combined transition styles
+  let transitionStyle: { opacity: number; transform?: string; filter?: string } = { opacity: 1 };
+  
   if (!isFirst && frame < transitionInFrames) {
-    opacity = interpolate(frame, [0, transitionInFrames], [0, 1], {
-      extrapolateLeft: 'clamp',
-      extrapolateRight: 'clamp',
-    });
+    const progress = frame / transitionInFrames;
+    transitionStyle = getTransitionStyle(transitionInType, progress, 'in');
+  } else if (!isLast && frame > durationInFrames - transitionOutFrames) {
+    const progress = (frame - (durationInFrames - transitionOutFrames)) / transitionOutFrames;
+    transitionStyle = getTransitionStyle(transitionOutType, progress, 'out');
   }
-  if (!isLast && frame > durationInFrames - transitionOutFrames) {
-    opacity = interpolate(
-      frame,
-      [durationInFrames - transitionOutFrames, durationInFrames],
-      [1, 0],
-      { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
-    );
-  }
+  
+  const opacity = transitionStyle.opacity;
 
   // Ken Burns / background effect
   let scale = 1;
@@ -685,7 +830,11 @@ const SceneRenderer: React.FC<{
   }, [scene.id]);
 
   return (
-    <AbsoluteFill style={{ opacity }}>
+    <AbsoluteFill style={{ 
+      opacity: transitionStyle.opacity,
+      transform: transitionStyle.transform,
+      filter: transitionStyle.filter,
+    }}>
       {/* Background Layer - Video or Image */}
       <AbsoluteFill>
         {hasValidVideo ? (
@@ -752,38 +901,58 @@ const SceneRenderer: React.FC<{
         />
       )}
 
-      {/* Product Overlay */}
+      {/* Product Overlay - Use ProductReveal for intro/cta scenes, regular overlay for others */}
       {productOverlayUrl && useProductOverlay && isValidHttpUrl(productOverlayUrl) && (
-        <ProductOverlay
-          productUrl={productOverlayUrl}
-          position={productPosition}
-          fps={fps}
-          width={width}
-          height={height}
-        />
+        scene.type === 'intro' || scene.type === 'cta' ? (
+          <ProductReveal
+            productUrl={productOverlayUrl}
+            brand={brand}
+            fps={fps}
+            width={width}
+            height={height}
+            durationInFrames={durationInFrames}
+          />
+        ) : (
+          <ProductOverlay
+            productUrl={productOverlayUrl}
+            position={productPosition}
+            fps={fps}
+            width={width}
+            height={height}
+          />
+        )
       )}
 
-      {/* Text Overlays */}
-      {(scene.textOverlays || []).map((overlay) => (
-        <TextOverlayComponent
-          key={overlay.id}
-          overlay={overlay}
-          brand={brand}
-          sceneFrame={frame}
-          fps={fps}
-        />
-      ))}
-
-      {/* Lower Third for hook/benefit/feature scenes */}
-      {(scene.type === 'hook' || scene.type === 'benefit' || scene.type === 'feature') && 
-       scene.textOverlays?.[0]?.text && (
-        <LowerThird
-          title={scene.textOverlays[0].text.substring(0, 60)}
-          brand={brand}
-          fps={fps}
-          durationInFrames={durationInFrames}
-        />
-      )}
+      {/* Text Overlays - Choose style based on scene type */}
+      {/* For hook/benefit/intro/feature: Use ONLY LowerThird (professional TV style) */}
+      {/* For cta/outro/other: Use centered TextOverlayComponent */}
+      {(() => {
+        const useLowerThirdStyle = ['hook', 'benefit', 'feature', 'intro'].includes(scene.type);
+        
+        if (useLowerThirdStyle && scene.textOverlays?.[0]?.text) {
+          // Professional Lower Third style for content scenes
+          return (
+            <LowerThird
+              title={scene.textOverlays[0].text.substring(0, 60)}
+              subtitle={scene.textOverlays[1]?.text}
+              brand={brand}
+              fps={fps}
+              durationInFrames={durationInFrames}
+            />
+          );
+        } else {
+          // Standard centered text for CTA, outro, and other scenes
+          return (scene.textOverlays || []).map((overlay) => (
+            <TextOverlayComponent
+              key={overlay.id}
+              overlay={overlay}
+              brand={brand}
+              sceneFrame={frame}
+              fps={fps}
+            />
+          ));
+        }
+      })()}
 
       {/* Debug overlay showing scene info */}
       {showDebugInfo && (

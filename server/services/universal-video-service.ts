@@ -259,6 +259,34 @@ Guidelines:
     }
   }
 
+  private getTransitionTypeForScene(sceneType: string, index: number, direction: 'in' | 'out'): string {
+    // First scene always fades in
+    if (index === 0 && direction === 'in') return 'fade';
+    
+    // Choose transitions based on scene type for visual variety
+    switch (sceneType) {
+      case 'hook':
+        return direction === 'in' ? 'zoom' : 'fade';
+      case 'intro':
+        return direction === 'in' ? 'fade' : 'slide-left';
+      case 'benefit':
+      case 'feature':
+        // Alternate between slide directions for feature scenes
+        return direction === 'in' 
+          ? (index % 2 === 0 ? 'slide-left' : 'slide-right')
+          : 'fade';
+      case 'cta':
+        return direction === 'in' ? 'zoom' : 'blur';
+      case 'outro':
+        return 'fade';
+      case 'testimonial':
+        return direction === 'in' ? 'blur' : 'fade';
+      default:
+        // Default to crossfade for smooth transitions
+        return 'crossfade';
+    }
+  }
+
   private createSceneFromRaw(raw: any, index: number): Scene {
     const id = `scene_${String(index + 1).padStart(3, '0')}_${raw.type || 'content'}`;
     const duration = raw.duration || 10;
@@ -305,12 +333,12 @@ Guidelines:
         },
       },
       transitionIn: {
-        type: index === 0 ? 'fade' : 'crossfade',
-        duration: 0.5,
+        type: this.getTransitionTypeForScene(raw.type || 'content', index, 'in'),
+        duration: 0.6,
         easing: 'ease-in-out',
       },
       transitionOut: {
-        type: 'crossfade',
+        type: this.getTransitionTypeForScene(raw.type || 'content', index, 'out'),
         duration: 0.5,
         easing: 'ease-in-out',
       },
@@ -1402,6 +1430,55 @@ Guidelines:
       updatedProject.assets.voiceover.duration = voiceoverResult.duration;
       updatedProject.progress.steps.voiceover.status = 'complete';
       updatedProject.progress.steps.voiceover.progress = 100;
+      
+      // ===== SYNC SCENE DURATIONS WITH VOICEOVER =====
+      // Calculate scene durations based on narration word count for proper audio sync
+      console.log('[UniversalVideoService] Syncing scene durations with voiceover...');
+      
+      // Scene pacing multipliers by type
+      const SCENE_PACING: Record<string, number> = {
+        hook: 1.0,        // Standard - grab attention quickly
+        intro: 1.2,       // Slightly longer - establish context
+        benefit: 1.1,     // Key selling points - give time to absorb
+        feature: 1.0,     // Technical details - keep moving
+        testimonial: 1.3, // Social proof - let it breathe
+        cta: 1.4,         // Call to action - give time to act
+        explanation: 1.1,
+        process: 1.1,
+        brand: 1.2,
+        outro: 1.3,
+      };
+      
+      let totalCalculatedDuration = 0;
+      
+      for (let i = 0; i < updatedProject.scenes.length; i++) {
+        const scene = updatedProject.scenes[i];
+        const narration = scene.narration || '';
+        const wordCount = narration.trim().split(/\s+/).filter(Boolean).length;
+        
+        // Speaking rate: ~2.5 words/second (150 WPM)
+        // Add 1.5 second buffer for transitions and breathing room
+        const baseDuration = (wordCount / 2.5) + 1.5;
+        const pacingMultiplier = SCENE_PACING[scene.type] || 1.0;
+        const sceneDuration = Math.max(5, Math.ceil(baseDuration * pacingMultiplier));
+        
+        updatedProject.scenes[i].duration = sceneDuration;
+        totalCalculatedDuration += sceneDuration;
+        
+        console.log(`  Scene ${i} (${scene.type}): ${wordCount} words → ${sceneDuration}s (x${pacingMultiplier})`);
+      }
+      
+      // Add 2 seconds to final scene for clean ending
+      const lastIndex = updatedProject.scenes.length - 1;
+      if (lastIndex >= 0) {
+        updatedProject.scenes[lastIndex].duration += 2;
+        totalCalculatedDuration += 2;
+        console.log(`  Added 2s buffer to final scene`);
+      }
+      
+      updatedProject.totalDuration = totalCalculatedDuration;
+      console.log(`[UniversalVideoService] Total video duration: ${totalCalculatedDuration}s`);
+      // ===== END VOICEOVER SYNC =====
     } else {
       updatedProject.progress.steps.voiceover.status = 'error';
       updatedProject.progress.steps.voiceover.message = voiceoverResult.error;
@@ -1933,10 +2010,71 @@ Guidelines:
         preparedProject.scenes[i].assets!.backgroundUrl = undefined;
       }
       
+      // ===== PRODUCT OVERLAY S3 UPLOAD =====
+      // Upload local product overlay images to S3 for Lambda access
       if (scene.assets?.productOverlayUrl && !this.isValidHttpsUrl(scene.assets.productOverlayUrl)) {
-        preparedProject.scenes[i].assets!.productOverlayUrl = undefined;
-        preparedProject.scenes[i].assets!.useProductOverlay = false;
+        const originalProductUrl = scene.assets.productOverlayUrl;
+        console.log(`[UniversalVideoService] Scene ${i} product overlay needs S3 upload: ${originalProductUrl}`);
+        
+        try {
+          let buffer: Buffer | null = null;
+          let contentType = 'image/png';
+          
+          // Handle different URL formats
+          if (originalProductUrl.startsWith('/objects/')) {
+            // Replit Object Storage path - fetch via local server
+            const localUrl = `http://localhost:5000${originalProductUrl}`;
+            console.log(`[UniversalVideoService] Fetching product image from: ${localUrl}`);
+            const response = await fetch(localUrl);
+            if (response.ok) {
+              buffer = Buffer.from(await response.arrayBuffer());
+              contentType = response.headers.get('content-type') || 'image/png';
+            }
+          } else if (originalProductUrl.startsWith('/uploads/') || originalProductUrl.startsWith('/')) {
+            // Local uploads path
+            const localUrl = `http://localhost:5000${originalProductUrl}`;
+            console.log(`[UniversalVideoService] Fetching product image from: ${localUrl}`);
+            const response = await fetch(localUrl);
+            if (response.ok) {
+              buffer = Buffer.from(await response.arrayBuffer());
+              contentType = response.headers.get('content-type') || 'image/png';
+            }
+          } else if (originalProductUrl.startsWith('data:')) {
+            // Base64 data URL
+            const match = originalProductUrl.match(/^data:([^;]+);base64,(.+)$/);
+            if (match) {
+              contentType = match[1];
+              buffer = Buffer.from(match[2], 'base64');
+            }
+          }
+          
+          if (buffer) {
+            const ext = contentType.includes('png') ? 'png' : 'jpg';
+            const fileName = `product_scene_${i}_${Date.now()}.${ext}`;
+            const s3Url = await this.uploadToS3(buffer, fileName, contentType);
+            
+            if (s3Url) {
+              preparedProject.scenes[i].assets!.productOverlayUrl = s3Url;
+              console.log(`[UniversalVideoService] Scene ${i} product uploaded to S3: ${s3Url}`);
+            } else {
+              console.warn(`[UniversalVideoService] Scene ${i} product S3 upload failed - disabling overlay`);
+              preparedProject.scenes[i].assets!.productOverlayUrl = undefined;
+              preparedProject.scenes[i].assets!.useProductOverlay = false;
+              issues.push(`Failed to upload product image for scene ${i}`);
+            }
+          } else {
+            console.warn(`[UniversalVideoService] Scene ${i} product image fetch failed - disabling overlay`);
+            preparedProject.scenes[i].assets!.productOverlayUrl = undefined;
+            preparedProject.scenes[i].assets!.useProductOverlay = false;
+          }
+        } catch (e: any) {
+          console.error(`[UniversalVideoService] Scene ${i} product upload error:`, e.message);
+          preparedProject.scenes[i].assets!.productOverlayUrl = undefined;
+          preparedProject.scenes[i].assets!.useProductOverlay = false;
+          issues.push(`Product image upload error for scene ${i}: ${e.message}`);
+        }
       }
+      // ===== END PRODUCT OVERLAY S3 UPLOAD =====
       
       // Log and validate videoUrl for B-roll scenes
       if (scene.assets?.videoUrl) {
