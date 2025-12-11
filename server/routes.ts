@@ -23350,9 +23350,10 @@ Respond in JSON format:
 
       // Read and parse PDF
       const pdfBuffer = fs.readFileSync(req.file.path);
-      const parser = new pdfParse(pdfBuffer);
-      const pdfData = await parser.parse();
+      const parser = new pdfParse({ data: pdfBuffer });
+      const pdfData = await parser.getText();
       const pdfText = pdfData.text;
+      await parser.destroy();
 
       // Clean up uploaded file
       fs.unlinkSync(req.file.path);
