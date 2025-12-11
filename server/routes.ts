@@ -24,7 +24,7 @@ import PDFDocument from 'pdfkit';
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const pdfParseModule = require('pdf-parse');
-const pdfParse = pdfParseModule.default || pdfParseModule;
+const pdfParse = pdfParseModule.PDFParse || pdfParseModule.default || pdfParseModule;
 // Phase 6: Advanced Features Schema Imports
 import {
   insertScheduledMessageSchema,
