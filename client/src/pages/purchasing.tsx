@@ -2325,6 +2325,18 @@ function ReportsTab() {
   const totalOutstanding = filteredPayables.reduce((sum, item) => sum + parseFloat(item.totalAmount), 0);
   const overdueAmount = filteredPayables.filter(item => item.isOverdue).reduce((sum, item) => sum + parseFloat(item.totalAmount), 0);
   
+  // Calculate "Due Soon" amounts (within 7 days and within 14 days)
+  const dueThisWeek = filteredPayables.filter(item => {
+    const daysUntilDue = parseFloat(item.daysUntilDue);
+    return !item.isOverdue && daysUntilDue >= 0 && daysUntilDue <= 7;
+  });
+  const dueNextWeek = filteredPayables.filter(item => {
+    const daysUntilDue = parseFloat(item.daysUntilDue);
+    return !item.isOverdue && daysUntilDue > 7 && daysUntilDue <= 14;
+  });
+  const dueThisWeekAmount = dueThisWeek.reduce((sum, item) => sum + parseFloat(item.totalAmount), 0);
+  const dueNextWeekAmount = dueNextWeek.reduce((sum, item) => sum + parseFloat(item.totalAmount), 0);
+  
   // Calculate location spend totals
   const totalLocationSpend = filteredLocationSpend.reduce((sum, item) => sum + parseFloat(item.totalSpend), 0);
   const totalLocationOrders = filteredLocationSpend.reduce((sum, item) => sum + item.orderCount, 0);
@@ -2343,22 +2355,37 @@ function ReportsTab() {
             <div className="text-center py-4">Loading payables...</div>
           ) : (
             <>
-              <div className="grid gap-4 md:grid-cols-3 mb-6">
+              <div className="grid gap-4 md:grid-cols-5 mb-6">
                 <Card>
                   <CardHeader className="pb-2">
                     <CardDescription>Total Outstanding</CardDescription>
                     <CardTitle className="text-2xl">${totalOutstanding.toFixed(2)}</CardTitle>
                   </CardHeader>
                 </Card>
-                <Card>
+                <Card className={overdueAmount > 0 ? "border-destructive" : ""}>
                   <CardHeader className="pb-2">
-                    <CardDescription>Overdue Amount</CardDescription>
+                    <CardDescription>Overdue</CardDescription>
                     <CardTitle className="text-2xl text-destructive">${overdueAmount.toFixed(2)}</CardTitle>
+                    <p className="text-xs text-muted-foreground">{filteredPayables.filter(p => p.isOverdue).length} bills</p>
+                  </CardHeader>
+                </Card>
+                <Card className={dueThisWeekAmount > 0 ? "border-orange-500" : ""}>
+                  <CardHeader className="pb-2">
+                    <CardDescription>Due This Week</CardDescription>
+                    <CardTitle className="text-2xl text-orange-600">${dueThisWeekAmount.toFixed(2)}</CardTitle>
+                    <p className="text-xs text-muted-foreground">{dueThisWeek.length} bills</p>
+                  </CardHeader>
+                </Card>
+                <Card className={dueNextWeekAmount > 0 ? "border-yellow-500" : ""}>
+                  <CardHeader className="pb-2">
+                    <CardDescription>Due Next Week</CardDescription>
+                    <CardTitle className="text-2xl text-yellow-600">${dueNextWeekAmount.toFixed(2)}</CardTitle>
+                    <p className="text-xs text-muted-foreground">{dueNextWeek.length} bills</p>
                   </CardHeader>
                 </Card>
                 <Card>
                   <CardHeader className="pb-2">
-                    <CardDescription>Bills Count</CardDescription>
+                    <CardDescription>Total Bills</CardDescription>
                     <CardTitle className="text-2xl">{filteredPayables.length}</CardTitle>
                   </CardHeader>
                 </Card>
