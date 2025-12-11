@@ -940,7 +940,10 @@ function PurchaseOrdersTab() {
         <div className="flex gap-2">
           <Button 
             variant="outline" 
-            onClick={() => setIsInvoiceScannerOpen(true)}
+            onClick={() => {
+              console.log('Import Invoice button clicked, setting isInvoiceScannerOpen to true');
+              setIsInvoiceScannerOpen(true);
+            }}
             data-testid="button-import-invoice"
           >
             <FileText className="h-4 w-4 mr-2" />
@@ -1840,6 +1843,7 @@ function InvoiceScannerDialog({
   vendors: Vendor[];
   onCreatePO: (invoiceData: any) => void;
 }) {
+  console.log('InvoiceScannerDialog render, open:', open);
   const { toast } = useToast();
   const [step, setStep] = useState<'upload' | 'review'>('upload');
   const [selectedVendorId, setSelectedVendorId] = useState<string>('');
