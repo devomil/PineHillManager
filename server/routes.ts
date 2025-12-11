@@ -21,7 +21,9 @@ import fs from 'fs';
 import express from 'express';
 import twilio from 'twilio';
 import PDFDocument from 'pdfkit';
-import * as pdfParse from 'pdf-parse';
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+const pdfParse = require('pdf-parse');
 // Phase 6: Advanced Features Schema Imports
 import {
   insertScheduledMessageSchema,
