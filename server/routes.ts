@@ -22935,6 +22935,7 @@ Respond in JSON format:
 
       const purchaseOrder = await storage.updatePurchaseOrder(poId, {
         status: 'approved',
+        orderDate: new Date().toISOString().split('T')[0],
       });
 
       await storage.createPurchaseOrderApproval({
