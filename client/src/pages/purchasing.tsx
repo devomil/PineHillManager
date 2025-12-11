@@ -1691,6 +1691,43 @@ function PurchaseOrdersTab() {
           </Form>
         </DialogContent>
       </Dialog>
+
+      {/* Invoice Scanner Dialog */}
+      <InvoiceScannerDialog
+        open={isInvoiceScannerOpen}
+        onOpenChange={setIsInvoiceScannerOpen}
+        vendors={vendors || []}
+        onCreatePO={(invoiceData) => {
+          const parsedVendorName = invoiceData.vendor?.name?.trim();
+          const selectedVendor = parsedVendorName && parsedVendorName.length > 2 
+            ? vendors?.find((v: Vendor) => 
+                v.name.toLowerCase().includes(parsedVendorName.toLowerCase()) ||
+                parsedVendorName.toLowerCase().includes(v.name.toLowerCase())
+              )
+            : undefined;
+          
+          poForm.reset({
+            poNumber: invoiceData.invoice.invoiceNumber || invoiceData.invoice.orderNumber || '',
+            vendorId: selectedVendor?.id.toString() || '',
+            paymentTerms: invoiceData.paymentTerms || selectedVendor?.profile?.paymentTerms || 'Net 30',
+            requestedDeliveryDate: invoiceData.invoice.dueDate || '',
+            notes: invoiceData.notes || '',
+            lineItems: invoiceData.lineItems.map((item: any) => ({
+              description: item.description,
+              quantity: String(item.quantity || 1),
+              unitPrice: String(item.unitPrice || 0),
+              productUrl: '',
+            })),
+          });
+          
+          setIsInvoiceScannerOpen(false);
+          setIsPODialogOpen(true);
+          toast({
+            title: 'Invoice Imported',
+            description: `${invoiceData.lineItems.length} line items extracted. Review and save the purchase order.`,
+          });
+        }}
+      />
     </div>
   );
 }
@@ -1788,45 +1825,6 @@ function ApprovalsTab() {
           ))}
         </div>
       )}
-
-      {/* Invoice Scanner Dialog */}
-      <InvoiceScannerDialog
-        open={isInvoiceScannerOpen}
-        onOpenChange={setIsInvoiceScannerOpen}
-        vendors={vendors || []}
-        onCreatePO={(invoiceData) => {
-          // Pre-fill the PO form with parsed invoice data
-          // Only match vendor if we have a non-empty parsed vendor name
-          const parsedVendorName = invoiceData.vendor?.name?.trim();
-          const selectedVendor = parsedVendorName && parsedVendorName.length > 2 
-            ? vendors?.find(v => 
-                v.name.toLowerCase().includes(parsedVendorName.toLowerCase()) ||
-                parsedVendorName.toLowerCase().includes(v.name.toLowerCase())
-              )
-            : undefined;
-          
-          poForm.reset({
-            poNumber: invoiceData.invoice.invoiceNumber || invoiceData.invoice.orderNumber || '',
-            vendorId: selectedVendor?.id.toString() || '',
-            paymentTerms: invoiceData.paymentTerms || selectedVendor?.profile?.paymentTerms || 'Net 30',
-            requestedDeliveryDate: invoiceData.invoice.dueDate || '',
-            notes: invoiceData.notes || '',
-            lineItems: invoiceData.lineItems.map((item: any) => ({
-              description: item.description,
-              quantity: String(item.quantity || 1),
-              unitPrice: String(item.unitPrice || 0),
-              productUrl: '',
-            })),
-          });
-          
-          setIsInvoiceScannerOpen(false);
-          setIsPODialogOpen(true);
-          toast({
-            title: 'Invoice Imported',
-            description: `${invoiceData.lineItems.length} line items extracted. Review and save the purchase order.`,
-          });
-        }}
-      />
     </div>
   );
 }
