@@ -931,23 +931,34 @@ function PurchaseOrdersTab() {
     }
   };
 
+  const [isInvoiceScannerOpen, setIsInvoiceScannerOpen] = useState(false);
+
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-2xl font-bold">Purchase Orders</h2>
-        <Dialog open={isPODialogOpen} onOpenChange={(open) => {
-            setIsPODialogOpen(open);
-            if (!open) {
-              setEditingPO(null);
-              poForm.reset();
-            }
-          }}>
-            <DialogTrigger asChild>
-              <Button data-testid="button-create-po">
-                <Plus className="h-4 w-4 mr-2" />
-                Create PO
-              </Button>
-            </DialogTrigger>
+        <div className="flex gap-2">
+          <Button 
+            variant="outline" 
+            onClick={() => setIsInvoiceScannerOpen(true)}
+            data-testid="button-import-invoice"
+          >
+            <FileText className="h-4 w-4 mr-2" />
+            Import Invoice
+          </Button>
+          <Dialog open={isPODialogOpen} onOpenChange={(open) => {
+              setIsPODialogOpen(open);
+              if (!open) {
+                setEditingPO(null);
+                poForm.reset();
+              }
+            }}>
+              <DialogTrigger asChild>
+                <Button data-testid="button-create-po">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create PO
+                </Button>
+              </DialogTrigger>
             <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>{editingPO ? 'Edit Purchase Order' : 'Create Purchase Order'}</DialogTitle>
@@ -1236,6 +1247,7 @@ function PurchaseOrdersTab() {
               </Form>
             </DialogContent>
           </Dialog>
+        </div>
       </div>
 
       {/* Status Filter Tabs */}
@@ -1773,7 +1785,378 @@ function ApprovalsTab() {
           ))}
         </div>
       )}
+
+      {/* Invoice Scanner Dialog */}
+      <InvoiceScannerDialog
+        open={isInvoiceScannerOpen}
+        onOpenChange={setIsInvoiceScannerOpen}
+        vendors={vendors || []}
+        onCreatePO={(invoiceData) => {
+          // Pre-fill the PO form with parsed invoice data
+          // Only match vendor if we have a non-empty parsed vendor name
+          const parsedVendorName = invoiceData.vendor?.name?.trim();
+          const selectedVendor = parsedVendorName && parsedVendorName.length > 2 
+            ? vendors?.find(v => 
+                v.name.toLowerCase().includes(parsedVendorName.toLowerCase()) ||
+                parsedVendorName.toLowerCase().includes(v.name.toLowerCase())
+              )
+            : undefined;
+          
+          poForm.reset({
+            poNumber: invoiceData.invoice.invoiceNumber || invoiceData.invoice.orderNumber || '',
+            vendorId: selectedVendor?.id.toString() || '',
+            paymentTerms: invoiceData.paymentTerms || selectedVendor?.profile?.paymentTerms || 'Net 30',
+            requestedDeliveryDate: invoiceData.invoice.dueDate || '',
+            notes: invoiceData.notes || '',
+            lineItems: invoiceData.lineItems.map((item: any) => ({
+              description: item.description,
+              quantity: String(item.quantity || 1),
+              unitPrice: String(item.unitPrice || 0),
+              productUrl: '',
+            })),
+          });
+          
+          setIsInvoiceScannerOpen(false);
+          setIsPODialogOpen(true);
+          toast({
+            title: 'Invoice Imported',
+            description: `${invoiceData.lineItems.length} line items extracted. Review and save the purchase order.`,
+          });
+        }}
+      />
     </div>
+  );
+}
+
+// Invoice Scanner Dialog Component
+function InvoiceScannerDialog({
+  open,
+  onOpenChange,
+  vendors,
+  onCreatePO,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  vendors: Vendor[];
+  onCreatePO: (invoiceData: any) => void;
+}) {
+  const { toast } = useToast();
+  const [step, setStep] = useState<'upload' | 'review'>('upload');
+  const [selectedVendorId, setSelectedVendorId] = useState<string>('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isScanning, setIsScanning] = useState(false);
+  const [parsedData, setParsedData] = useState<any>(null);
+  const [paymentTerms, setPaymentTerms] = useState('Net 30');
+  const [dueDate, setDueDate] = useState('');
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && file.type === 'application/pdf') {
+      setSelectedFile(file);
+    } else if (file) {
+      toast({
+        title: 'Invalid File',
+        description: 'Please upload a PDF file',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleScanInvoice = async () => {
+    if (!selectedFile) {
+      toast({ title: 'Please select a PDF file', variant: 'destructive' });
+      return;
+    }
+
+    setIsScanning(true);
+    try {
+      const formData = new FormData();
+      formData.append('invoice', selectedFile);
+      if (selectedVendorId) {
+        formData.append('vendorId', selectedVendorId);
+      }
+
+      const response = await fetch('/api/purchasing/scan-invoice', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to scan invoice');
+      }
+
+      const data = await response.json();
+      setParsedData(data.parsedInvoice);
+      
+      // Set default payment terms and due date
+      if (data.parsedInvoice.invoice?.dueDate) {
+        setDueDate(data.parsedInvoice.invoice.dueDate);
+      }
+      if (data.vendorMatch?.paymentTerms) {
+        setPaymentTerms(data.vendorMatch.paymentTerms);
+      }
+      
+      setStep('review');
+      toast({
+        title: 'Invoice Scanned Successfully',
+        description: `Found ${data.parsedInvoice.lineItems?.length || 0} line items`,
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Scan Failed',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsScanning(false);
+    }
+  };
+
+  const handleCreatePO = () => {
+    onCreatePO({
+      ...parsedData,
+      paymentTerms,
+      invoice: {
+        ...parsedData.invoice,
+        dueDate,
+      },
+    });
+    resetDialog();
+  };
+
+  const resetDialog = () => {
+    setStep('upload');
+    setSelectedFile(null);
+    setSelectedVendorId('');
+    setParsedData(null);
+    setPaymentTerms('Net 30');
+    setDueDate('');
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(open) => {
+      onOpenChange(open);
+      if (!open) resetDialog();
+    }}>
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>
+            {step === 'upload' ? 'Import Invoice PDF' : 'Review Extracted Data'}
+          </DialogTitle>
+          <DialogDescription>
+            {step === 'upload' 
+              ? 'Upload a PDF invoice to automatically extract vendor, items, and totals'
+              : 'Review and adjust the extracted data before creating the purchase order'}
+          </DialogDescription>
+        </DialogHeader>
+
+        {step === 'upload' && (
+          <div className="space-y-4">
+            <div>
+              <Label>Vendor (Optional)</Label>
+              <Select value={selectedVendorId} onValueChange={setSelectedVendorId}>
+                <SelectTrigger data-testid="select-invoice-vendor">
+                  <SelectValue placeholder="Auto-detect from invoice" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Auto-detect from invoice</SelectItem>
+                  {vendors.filter(v => v.isActive).map((vendor) => (
+                    <SelectItem key={vendor.id} value={vendor.id.toString()}>
+                      {vendor.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1">
+                Select a vendor to improve parsing accuracy, or leave blank to auto-detect
+              </p>
+            </div>
+
+            <div className="border-2 border-dashed rounded-lg p-8 text-center">
+              <input
+                type="file"
+                accept=".pdf"
+                onChange={handleFileChange}
+                className="hidden"
+                id="invoice-upload"
+                data-testid="input-invoice-file"
+              />
+              <label
+                htmlFor="invoice-upload"
+                className="cursor-pointer flex flex-col items-center gap-2"
+              >
+                <Upload className="h-12 w-12 text-muted-foreground" />
+                <span className="text-sm font-medium">
+                  {selectedFile ? selectedFile.name : 'Click to upload PDF invoice'}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  PDF files only, max 10MB
+                </span>
+              </label>
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => onOpenChange(false)}>
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleScanInvoice} 
+                disabled={!selectedFile || isScanning}
+                data-testid="button-scan-invoice"
+              >
+                {isScanning ? (
+                  <>Scanning...</>
+                ) : (
+                  <>
+                    <Scan className="h-4 w-4 mr-2" />
+                    Scan Invoice
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </div>
+        )}
+
+        {step === 'review' && parsedData && (
+          <div className="space-y-4">
+            {/* Vendor Info */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">Vendor Information</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <strong>Name:</strong> {parsedData.vendor?.name || 'N/A'}
+                  </div>
+                  <div>
+                    <strong>Invoice #:</strong> {parsedData.invoice?.invoiceNumber || 'N/A'}
+                  </div>
+                  <div>
+                    <strong>Invoice Date:</strong> {parsedData.invoice?.invoiceDate || 'N/A'}
+                  </div>
+                  <div>
+                    <strong>Payment Method:</strong> {parsedData.paymentMethod || 'N/A'}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Payment Terms & Due Date */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Payment Terms</Label>
+                <Select value={paymentTerms} onValueChange={setPaymentTerms}>
+                  <SelectTrigger data-testid="select-payment-terms">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Due on Receipt">Due on Receipt</SelectItem>
+                    <SelectItem value="Net 15">Net 15</SelectItem>
+                    <SelectItem value="Net 30">Net 30</SelectItem>
+                    <SelectItem value="Net 45">Net 45</SelectItem>
+                    <SelectItem value="Net 60">Net 60</SelectItem>
+                    <SelectItem value="Credit Card">Credit Card</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Due Date</Label>
+                <Input
+                  type="date"
+                  value={dueDate}
+                  onChange={(e) => setDueDate(e.target.value)}
+                  data-testid="input-due-date"
+                />
+              </div>
+            </div>
+
+            {/* Line Items */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">Line Items ({parsedData.lineItems?.length || 0})</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Description</TableHead>
+                      <TableHead>SKU</TableHead>
+                      <TableHead className="text-right">Qty</TableHead>
+                      <TableHead className="text-right">Price</TableHead>
+                      <TableHead className="text-right">Total</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {parsedData.lineItems?.map((item: any, index: number) => (
+                      <TableRow key={index}>
+                        <TableCell className="max-w-[200px]">
+                          <div className="truncate">{item.description}</div>
+                          {item.notes && (
+                            <div className="text-xs text-muted-foreground truncate">{item.notes}</div>
+                          )}
+                        </TableCell>
+                        <TableCell>{item.sku || '-'}</TableCell>
+                        <TableCell className="text-right">{item.quantity}</TableCell>
+                        <TableCell className="text-right">${(item.unitPrice || 0).toFixed(2)}</TableCell>
+                        <TableCell className="text-right">${(item.lineTotal || 0).toFixed(2)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+
+            {/* Totals */}
+            <Card>
+              <CardContent className="pt-4">
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span>Subtotal:</span>
+                    <span>${(parsedData.totals?.subtotal || 0).toFixed(2)}</span>
+                  </div>
+                  {parsedData.totals?.shipping > 0 && (
+                    <div className="flex justify-between">
+                      <span>Shipping:</span>
+                      <span>${parsedData.totals.shipping.toFixed(2)}</span>
+                    </div>
+                  )}
+                  {parsedData.totals?.tax > 0 && (
+                    <div className="flex justify-between">
+                      <span>Tax:</span>
+                      <span>${parsedData.totals.tax.toFixed(2)}</span>
+                    </div>
+                  )}
+                  <Separator />
+                  <div className="flex justify-between font-bold">
+                    <span>Total:</span>
+                    <span>${(parsedData.totals?.total || 0).toFixed(2)}</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {parsedData.notes && (
+              <div className="text-sm">
+                <strong>Notes:</strong> {parsedData.notes}
+              </div>
+            )}
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setStep('upload')}>
+                Back
+              </Button>
+              <Button onClick={handleCreatePO} data-testid="button-create-po-from-invoice">
+                <Plus className="h-4 w-4 mr-2" />
+                Create Purchase Order
+              </Button>
+            </DialogFooter>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
 

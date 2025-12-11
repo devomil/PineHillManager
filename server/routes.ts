@@ -21,6 +21,7 @@ import fs from 'fs';
 import express from 'express';
 import twilio from 'twilio';
 import PDFDocument from 'pdfkit';
+import * as pdfParse from 'pdf-parse';
 // Phase 6: Advanced Features Schema Imports
 import {
   insertScheduledMessageSchema,
@@ -23328,6 +23329,138 @@ Respond in JSON format:
     } catch (error) {
       console.error('Error importing vendors from inventory:', error);
       res.status(500).json({ message: 'Failed to import vendors from inventory' });
+    }
+  });
+
+  // PDF Invoice Scanner - Parse vendor invoices and extract structured data
+  app.post('/api/purchasing/scan-invoice', isAuthenticated, upload.single('invoice'), async (req, res) => {
+    try {
+      if (!req.user || !['admin', 'manager'].includes(req.user.role)) {
+        return res.status(403).json({ error: 'Admin or Manager access required' });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({ error: 'No PDF file uploaded' });
+      }
+
+      const vendorId = req.body.vendorId ? parseInt(req.body.vendorId) : null;
+
+      // Read and parse PDF
+      const pdfBuffer = fs.readFileSync(req.file.path);
+      const pdfData = await pdfParse(pdfBuffer);
+      const pdfText = pdfData.text;
+
+      // Clean up uploaded file
+      fs.unlinkSync(req.file.path);
+
+      // Get vendor info if provided
+      let vendorInfo = null;
+      if (vendorId) {
+        vendorInfo = await storage.getVendorWithProfile(vendorId);
+      }
+
+      // Use Claude to parse the invoice
+      const Anthropic = (await import('@anthropic-ai/sdk')).default;
+      const anthropic = new Anthropic();
+
+      const prompt = `Parse this vendor invoice and extract structured data. Return ONLY valid JSON, no markdown.
+
+INVOICE TEXT:
+"""
+${pdfText}
+"""
+
+${vendorInfo ? `KNOWN VENDOR INFO:
+- Name: ${vendorInfo.name}
+- Payment Terms: ${vendorInfo.profile?.paymentTerms || 'Not set'}
+` : ''}
+
+Extract and return this JSON structure:
+{
+  "vendor": {
+    "name": "vendor company name",
+    "address": "full vendor address",
+    "phone": "phone if available",
+    "email": "email if available"
+  },
+  "invoice": {
+    "invoiceNumber": "invoice or order number",
+    "invoiceDate": "YYYY-MM-DD format",
+    "dueDate": "YYYY-MM-DD format if specified, otherwise null",
+    "orderNumber": "order/PO number if different from invoice number"
+  },
+  "billTo": {
+    "name": "billing company name",
+    "address": "billing address"
+  },
+  "shipTo": {
+    "name": "shipping recipient name",
+    "address": "shipping address"
+  },
+  "lineItems": [
+    {
+      "description": "item description/name",
+      "sku": "SKU or item code if available",
+      "gtin": "GTIN/UPC if available",
+      "quantity": number,
+      "unitPrice": number (decimal),
+      "lineTotal": number (decimal),
+      "notes": "any additional notes for this line item"
+    }
+  ],
+  "totals": {
+    "subtotal": number,
+    "shipping": number or 0,
+    "tax": number or 0,
+    "total": number
+  },
+  "notes": "any invoice notes or payment instructions",
+  "paymentMethod": "payment method mentioned (e.g., 'Visa ending 9964', 'Net 30', etc.)"
+}
+
+Important:
+- Extract ALL line items, even if they have sub-items listed
+- For items with variants (like "3 Beef, 6 Bison"), keep as single line item with total quantity and note the breakdown in notes
+- Convert all prices to decimal numbers (no $ signs)
+- Use null for missing optional fields
+- Parse dates to YYYY-MM-DD format`;
+
+      const response = await anthropic.messages.create({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 4000,
+        messages: [{ role: 'user', content: prompt }],
+      });
+
+      const content = response.content[0];
+      if (content.type !== 'text') {
+        throw new Error('Unexpected response type from AI');
+      }
+
+      // Extract JSON from response
+      const jsonMatch = content.text.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        throw new Error('Could not parse invoice data from AI response');
+      }
+
+      const parsedInvoice = JSON.parse(jsonMatch[0]);
+
+      // Return parsed data with vendor match info
+      res.json({
+        success: true,
+        parsedInvoice,
+        vendorMatch: vendorInfo ? {
+          id: vendorInfo.id,
+          name: vendorInfo.name,
+          paymentTerms: vendorInfo.profile?.paymentTerms,
+        } : null,
+        rawText: pdfText.substring(0, 500) + '...', // Preview of extracted text
+      });
+    } catch (error: any) {
+      console.error('Error scanning invoice:', error);
+      res.status(500).json({ 
+        error: 'Failed to scan invoice', 
+        details: error.message 
+      });
     }
   });
 
