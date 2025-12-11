@@ -1442,6 +1442,17 @@ function PurchaseOrdersTab() {
                             </Button>
                           </>
                         )}
+                        {po.status === 'approved' && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleEditPO(po)}
+                            data-testid={`button-edit-approved-po-${po.id}`}
+                          >
+                            <Edit className="h-4 w-4 mr-1" />
+                            Edit
+                          </Button>
+                        )}
                         {(po.status === 'draft' || po.status === 'pending_approval') && (
                           <Button
                             variant="destructive"

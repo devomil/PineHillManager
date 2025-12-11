@@ -15030,15 +15030,17 @@ export class DatabaseStorage implements IStorage {
       conditions.push(sql`${purchaseOrders.orderDate} <= ${filters.endDate}`);
     }
     
-    // Fetch purchase orders with creator names
+    // Fetch purchase orders with creator names and vendor info
     const pos = await db
       .select({
         po: purchaseOrders,
         creatorFirstName: users.firstName,
         creatorLastName: users.lastName,
+        vendorName: customersVendors.name,
       })
       .from(purchaseOrders)
       .leftJoin(users, eq(purchaseOrders.createdById, users.id))
+      .leftJoin(customersVendors, eq(purchaseOrders.vendorId, customersVendors.id))
       .where(conditions.length > 0 ? and(...conditions) : undefined)
       .orderBy(desc(purchaseOrders.createdAt));
     
@@ -15077,6 +15079,7 @@ export class DatabaseStorage implements IStorage {
           creatorName: row.creatorFirstName ? `${row.creatorFirstName} ${row.creatorLastName}` : null,
           approverName,
           lineItems,
+          vendor: row.vendorName ? { name: row.vendorName } : null,
         };
       })
     );
