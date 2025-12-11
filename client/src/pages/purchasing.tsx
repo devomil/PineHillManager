@@ -940,10 +940,7 @@ function PurchaseOrdersTab() {
         <div className="flex gap-2">
           <Button 
             variant="outline" 
-            onClick={() => {
-              console.log('Import Invoice button clicked, setting isInvoiceScannerOpen to true');
-              setIsInvoiceScannerOpen(true);
-            }}
+            onClick={() => setIsInvoiceScannerOpen(true)}
             data-testid="button-import-invoice"
           >
             <FileText className="h-4 w-4 mr-2" />
@@ -1841,7 +1838,6 @@ function InvoiceScannerDialog({
   vendors: Vendor[];
   onCreatePO: (invoiceData: any) => void;
 }) {
-  console.log('InvoiceScannerDialog render, open:', open);
   const { toast } = useToast();
   const [step, setStep] = useState<'upload' | 'review'>('upload');
   const [selectedVendorId, setSelectedVendorId] = useState<string>('');
@@ -1874,7 +1870,7 @@ function InvoiceScannerDialog({
     try {
       const formData = new FormData();
       formData.append('invoice', selectedFile);
-      if (selectedVendorId) {
+      if (selectedVendorId && selectedVendorId !== 'auto') {
         formData.append('vendorId', selectedVendorId);
       }
 
@@ -1963,7 +1959,7 @@ function InvoiceScannerDialog({
                   <SelectValue placeholder="Auto-detect from invoice" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Auto-detect from invoice</SelectItem>
+                  <SelectItem value="auto">Auto-detect from invoice</SelectItem>
                   {vendors.filter(v => v.isActive).map((vendor) => (
                     <SelectItem key={vendor.id} value={vendor.id.toString()}>
                       {vendor.name}
