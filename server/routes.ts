@@ -23,7 +23,8 @@ import twilio from 'twilio';
 import PDFDocument from 'pdfkit';
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
-const pdfParse = require('pdf-parse');
+const pdfParseModule = require('pdf-parse');
+const pdfParse = pdfParseModule.default || pdfParseModule;
 // Phase 6: Advanced Features Schema Imports
 import {
   insertScheduledMessageSchema,
