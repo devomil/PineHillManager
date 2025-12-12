@@ -418,6 +418,45 @@ router.post('/projects/:projectId/generate-assets', isAuthenticated, async (req:
   }
 });
 
+router.post('/projects/:projectId/reset-status', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = (req.user as any)?.id;
+    const { projectId } = req.params;
+    
+    const projectData = await getProjectFromDb(projectId);
+    if (!projectData) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+    
+    if (projectData.ownerId !== userId) {
+      return res.status(403).json({ success: false, error: 'Access denied' });
+    }
+    
+    // Reset project status to ready for retry
+    projectData.status = 'ready';
+    projectData.progress.steps.rendering.status = 'pending';
+    projectData.progress.steps.rendering.progress = 0;
+    projectData.progress.steps.rendering.message = '';
+    delete (projectData.progress as any).renderStartedAt;
+    projectData.progress.errors = [];
+    projectData.progress.overallPercent = 85;
+    projectData.updatedAt = new Date().toISOString();
+    
+    await saveProjectToDb(projectData, projectData.ownerId);
+    
+    console.log(`[UniversalVideo] Reset project ${projectId} status to ready for retry`);
+    
+    res.json({ 
+      success: true, 
+      project: projectData,
+      message: 'Project reset. You can now retry rendering.'
+    });
+  } catch (error: any) {
+    console.error('[UniversalVideo] Error resetting project:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 const renderBuckets: Map<string, string> = new Map();
 
 router.post('/projects/:projectId/render', isAuthenticated, async (req: Request, res: Response) => {
