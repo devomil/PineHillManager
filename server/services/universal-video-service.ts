@@ -2388,6 +2388,143 @@ Guidelines:
       preparedProject,
     };
   }
+
+  /**
+   * Regenerate the background image for a specific scene
+   */
+  async regenerateSceneImage(
+    project: VideoProject,
+    sceneId: string,
+    customPrompt?: string
+  ): Promise<{ success: boolean; newImageUrl?: string; source?: string; error?: string }> {
+    const sceneIndex = project.scenes.findIndex(s => s.id === sceneId);
+    if (sceneIndex < 0) {
+      return { success: false, error: 'Scene not found' };
+    }
+    
+    const scene = project.scenes[sceneIndex];
+    const prompt = customPrompt || scene.visualDirection || scene.background?.source || 'wellness lifestyle';
+    
+    console.log(`[Regenerate] Image for scene ${sceneId} with prompt: ${prompt.substring(0, 60)}...`);
+    
+    // Try content image generation first
+    if (this.isContentScene(scene.type)) {
+      const result = await this.generateContentImage(scene, project.title);
+      if (result.imageUrl) {
+        return { success: true, newImageUrl: result.imageUrl, source: result.source };
+      }
+    }
+    
+    // Try AI background generation
+    const bgResult = await this.generateAIBackground(prompt, scene.type);
+    if (bgResult.backgroundUrl) {
+      return { success: true, newImageUrl: bgResult.backgroundUrl, source: bgResult.source };
+    }
+    
+    // Fallback to stock image
+    const stockResult = await this.getStockImage(prompt);
+    if (stockResult.success) {
+      return { success: true, newImageUrl: stockResult.url, source: stockResult.source };
+    }
+    
+    return { success: false, error: 'All image generation methods failed' };
+  }
+
+  /**
+   * Regenerate the B-roll video for a specific scene
+   */
+  async regenerateSceneVideo(
+    project: VideoProject,
+    sceneId: string,
+    customQuery?: string
+  ): Promise<{ success: boolean; newVideoUrl?: string; duration?: number; source?: string; error?: string }> {
+    const sceneIndex = project.scenes.findIndex(s => s.id === sceneId);
+    if (sceneIndex < 0) {
+      return { success: false, error: 'Scene not found' };
+    }
+    
+    const scene = project.scenes[sceneIndex];
+    const query = customQuery || this.buildVideoSearchQuery(scene, project.targetAudience);
+    
+    console.log(`[Regenerate] Video for scene ${sceneId} with query: ${query}`);
+    
+    // Don't use the duplicate tracking for regeneration - user wants a NEW video
+    const pexelsResult = await this.getPexelsVideo(query + ' ' + Date.now()); // Add timestamp to vary results
+    if (pexelsResult) {
+      if (!project.targetAudience || this.validateVideoForAudience(pexelsResult, project.targetAudience)) {
+        return { 
+          success: true, 
+          newVideoUrl: pexelsResult.url, 
+          duration: pexelsResult.duration,
+          source: pexelsResult.source 
+        };
+      }
+    }
+    
+    // Try Pixabay
+    const pixabayResult = await this.getPixabayVideo(query);
+    if (pixabayResult) {
+      return { 
+        success: true, 
+        newVideoUrl: pixabayResult.url, 
+        duration: pixabayResult.duration,
+        source: pixabayResult.source 
+      };
+    }
+    
+    return { success: false, error: 'No suitable video found' };
+  }
+
+  /**
+   * Switch a scene between using video background and image background
+   */
+  async switchSceneBackgroundType(
+    project: VideoProject,
+    sceneId: string,
+    preferVideo: boolean
+  ): Promise<{ success: boolean; error?: string }> {
+    const sceneIndex = project.scenes.findIndex(s => s.id === sceneId);
+    if (sceneIndex < 0) {
+      return { success: false, error: 'Scene not found' };
+    }
+    
+    const scene = project.scenes[sceneIndex];
+    
+    if (preferVideo) {
+      // Switch to video - need a video URL
+      if (!scene.assets?.videoUrl) {
+        // Generate one
+        const videoResult = await this.regenerateSceneVideo(project, sceneId);
+        if (!videoResult.success) {
+          return { success: false, error: 'Could not find suitable video' };
+        }
+        scene.assets = scene.assets || {};
+        scene.assets.videoUrl = videoResult.newVideoUrl;
+      }
+      scene.background = scene.background || { type: 'video', source: '' };
+      scene.background.type = 'video';
+      scene.assets!.preferVideo = true;
+      scene.assets!.preferImage = false;
+    } else {
+      // Switch to image
+      if (!scene.assets?.imageUrl && !scene.assets?.backgroundUrl) {
+        // Generate one
+        const imageResult = await this.regenerateSceneImage(project, sceneId);
+        if (!imageResult.success) {
+          return { success: false, error: 'Could not generate image' };
+        }
+        scene.assets = scene.assets || {};
+        scene.assets.imageUrl = imageResult.newImageUrl;
+        scene.assets.backgroundUrl = imageResult.newImageUrl;
+      }
+      scene.background = scene.background || { type: 'image', source: '' };
+      scene.background.type = 'image';
+      scene.assets!.preferVideo = false;
+      scene.assets!.preferImage = true;
+    }
+    
+    return { success: true };
+  }
 }
 
 export const universalVideoService = new UniversalVideoService();
