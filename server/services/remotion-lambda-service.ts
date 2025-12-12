@@ -162,7 +162,7 @@ class RemotionLambdaService {
           imageFormat: params.imageFormat || "jpeg",
           maxRetries: 1,
           privacy: "public",
-          framesPerLambda: 300,
+          framesPerLambda: 1500,
           concurrencyPerLambda: 1,
           downloadBehavior: {
             type: "download",
@@ -188,7 +188,7 @@ class RemotionLambdaService {
           errorMessage.includes('rate limit');
 
         if (isConcurrencyError && attempt < maxRetries) {
-          const delay = Math.min(5000 * Math.pow(2, attempt - 1), 30000); // 5s, 10s, 20s, max 30s
+          const delay = Math.min(15000 * Math.pow(2, attempt - 1), 60000); // 15s, 30s, 60s max
           console.log(`[Remotion Lambda] Concurrency limit hit, waiting ${delay/1000}s before retry ${attempt + 1}/${maxRetries}...`);
           await new Promise(resolve => setTimeout(resolve, delay));
           continue;
