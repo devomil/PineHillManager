@@ -146,6 +146,15 @@ class RemotionLambdaService {
     console.log(`[Remotion Lambda] Function: ${this.functionName}`);
     console.log(`[Remotion Lambda] ServeUrl: ${this.serveUrl}`);
     console.log(`[Remotion Lambda] Input props:`, JSON.stringify(params.inputProps).substring(0, 500));
+    
+    // Debug logging for scene details
+    console.log('[DEBUG] Scenes being rendered:', JSON.stringify(params.inputProps.scenes?.map((s: any) => ({
+      id: s.id,
+      type: s.type,
+      bgType: s.background?.type,
+      hasVideo: !!s.assets?.videoUrl,
+      hasImage: !!s.assets?.imageUrl
+    })), null, 2));
 
     const maxRetries = 3;
     let lastError: Error | null = null;
