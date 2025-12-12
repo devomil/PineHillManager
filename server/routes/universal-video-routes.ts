@@ -338,6 +338,48 @@ router.put('/projects/:projectId/scenes', isAuthenticated, async (req: Request, 
   }
 });
 
+router.patch('/projects/:projectId/scenes/:sceneId/narration', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = (req.user as any)?.id;
+    const { projectId, sceneId } = req.params;
+    const { narration } = req.body;
+    
+    if (!narration || typeof narration !== 'string') {
+      return res.status(400).json({ success: false, error: 'Narration text is required' });
+    }
+    
+    const projectData = await getProjectFromDb(projectId);
+    if (!projectData) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+    
+    if (projectData.ownerId !== userId) {
+      return res.status(403).json({ success: false, error: 'Access denied' });
+    }
+    
+    const sceneIndex = projectData.scenes.findIndex(s => s.id === sceneId);
+    if (sceneIndex === -1) {
+      return res.status(404).json({ success: false, error: 'Scene not found' });
+    }
+    
+    projectData.scenes[sceneIndex].narration = narration.trim();
+    projectData.updatedAt = new Date().toISOString();
+    
+    await saveProjectToDb(projectData, projectData.ownerId);
+    
+    console.log(`[UniversalVideo] Updated narration for scene ${sceneId} in project ${projectId}`);
+    
+    res.json({ 
+      success: true, 
+      project: projectData,
+      message: 'Narration updated. Regenerate voiceover to apply changes to audio.'
+    });
+  } catch (error: any) {
+    console.error('[UniversalVideo] Error updating narration:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 router.post('/projects/:projectId/generate-assets', isAuthenticated, async (req: Request, res: Response) => {
   try {
     const userId = (req.user as any)?.id;

@@ -17,7 +17,7 @@ import {
   Video, Package, FileText, Play, Sparkles, AlertTriangle,
   CheckCircle, Clock, Loader2, ImageIcon, Volume2, Clapperboard,
   Download, RefreshCw, Settings, ChevronDown, ChevronUp, Upload, X, Star,
-  FolderOpen, Plus, Eye, Layers
+  FolderOpen, Plus, Eye, Layers, Pencil, Save
 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -720,7 +720,40 @@ function ScenePreview({
   const [expandedScene, setExpandedScene] = useState<string | null>(null);
   const [regenerating, setRegenerating] = useState<string | null>(null);
   const [customPrompt, setCustomPrompt] = useState<Record<string, string>>({});
+  const [editingNarration, setEditingNarration] = useState<string | null>(null);
+  const [editedNarration, setEditedNarration] = useState<Record<string, string>>({});
+  const [savingNarration, setSavingNarration] = useState<string | null>(null);
   const { toast } = useToast();
+
+  const saveNarration = async (sceneId: string) => {
+    if (!projectId) return;
+    const newNarration = editedNarration[sceneId];
+    if (!newNarration?.trim()) {
+      toast({ title: 'Error', description: 'Narration cannot be empty', variant: 'destructive' });
+      return;
+    }
+    setSavingNarration(sceneId);
+    try {
+      const res = await fetch(`/api/universal-video/${projectId}/scenes/${sceneId}/narration`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ narration: newNarration })
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast({ title: 'Narration saved', description: 'Regenerate voiceover to update audio.' });
+        setEditingNarration(null);
+        onSceneUpdate?.();
+      } else {
+        toast({ title: 'Failed', description: data.error, variant: 'destructive' });
+      }
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    } finally {
+      setSavingNarration(null);
+    }
+  };
 
   const regenerateImage = async (sceneId: string) => {
     if (!projectId) return;
@@ -883,8 +916,64 @@ function ScenePreview({
                 <Separator className="mb-3" />
                 <div className="space-y-4">
                   <div>
-                    <Label className="text-xs text-muted-foreground">Narration</Label>
-                    <p className="text-sm">{scene.narration}</p>
+                    <div className="flex items-center justify-between mb-1">
+                      <Label className="text-xs text-muted-foreground">Narration</Label>
+                      {projectId && editingNarration !== scene.id && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-6 px-2 text-xs"
+                          onClick={() => {
+                            setEditingNarration(scene.id);
+                            setEditedNarration(prev => ({ ...prev, [scene.id]: scene.narration }));
+                          }}
+                          data-testid={`button-edit-narration-${scene.id}`}
+                        >
+                          <Pencil className="w-3 h-3 mr-1" />
+                          Edit
+                        </Button>
+                      )}
+                    </div>
+                    {editingNarration === scene.id ? (
+                      <div className="space-y-2">
+                        <Textarea
+                          value={editedNarration[scene.id] || ''}
+                          onChange={(e) => setEditedNarration(prev => ({ ...prev, [scene.id]: e.target.value }))}
+                          className="text-sm min-h-[100px]"
+                          placeholder="Enter narration text..."
+                          data-testid={`textarea-narration-${scene.id}`}
+                        />
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            onClick={() => saveNarration(scene.id)}
+                            disabled={savingNarration === scene.id}
+                            data-testid={`button-save-narration-${scene.id}`}
+                          >
+                            {savingNarration === scene.id ? (
+                              <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                            ) : (
+                              <Save className="w-3 h-3 mr-1" />
+                            )}
+                            Save
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setEditingNarration(null)}
+                            disabled={savingNarration === scene.id}
+                            data-testid={`button-cancel-narration-${scene.id}`}
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          After saving, regenerate voiceover to update the audio.
+                        </p>
+                      </div>
+                    ) : (
+                      <p className="text-sm">{scene.narration}</p>
+                    )}
                   </div>
                   <div>
                     <Label className="text-xs text-muted-foreground">Visual Direction</Label>
