@@ -1465,6 +1465,34 @@ export default function UniversalVideoProducer() {
     },
   });
 
+  const resetStatusMutation = useMutation({
+    mutationFn: async () => {
+      if (!project) throw new Error("No project");
+      const response = await apiRequest("POST", `/api/universal-video/projects/${project.id}/reset-status`);
+      return response.json();
+    },
+    onSuccess: (data) => {
+      if (data.success) {
+        setProject(data.project);
+        setRenderId(null);
+        setBucketName(null);
+        setOutputUrl(null);
+        queryClient.invalidateQueries({ queryKey: ['/api/universal-video/projects'] });
+        toast({
+          title: "Project Reset",
+          description: "You can now retry rendering.",
+        });
+      }
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Reset Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const toggleProductOverlayMutation = useMutation({
     mutationFn: async ({ sceneId, useOverlay }: { sceneId: string; useOverlay: boolean }) => {
       if (!project) throw new Error("No project selected");
@@ -1647,6 +1675,22 @@ export default function UniversalVideoProducer() {
                     </Button>
                   )}
                   
+                  {project.status === 'rendering' && (
+                    <Button
+                      variant="outline"
+                      onClick={() => resetStatusMutation.mutate()}
+                      disabled={resetStatusMutation.isPending}
+                      data-testid="button-reset-render"
+                    >
+                      {resetStatusMutation.isPending ? (
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      ) : (
+                        <RefreshCw className="w-4 h-4 mr-2" />
+                      )}
+                      Reset & Retry
+                    </Button>
+                  )}
+                  
                   {project.status === 'complete' && outputUrl && (
                     <Button asChild data-testid="button-download-video">
                       <a href={outputUrl} target="_blank" rel="noopener noreferrer">
@@ -1659,6 +1703,22 @@ export default function UniversalVideoProducer() {
               </div>
               
               <ProgressTracker project={project} />
+              
+              {project.status === 'rendering' && (
+                <Alert className="border-blue-200 bg-blue-50 dark:bg-blue-950 dark:border-blue-800">
+                  <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                  <AlertTitle className="text-blue-800 dark:text-blue-200">Video is rendering</AlertTitle>
+                  <AlertDescription className="text-blue-700 dark:text-blue-300">
+                    You can navigate away from this page - your video will continue rendering in the background. 
+                    Come back anytime to check progress or download when complete.
+                    {project.progress.steps.rendering?.progress > 0 && (
+                      <span className="block mt-1 font-medium">
+                        Progress: {Math.round(project.progress.steps.rendering.progress)}%
+                      </span>
+                    )}
+                  </AlertDescription>
+                </Alert>
+              )}
               
               <Separator />
               

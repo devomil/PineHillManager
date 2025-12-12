@@ -442,7 +442,22 @@ router.post('/projects/:projectId/reset-status', isAuthenticated, async (req: Re
     projectData.progress.overallPercent = 85;
     projectData.updatedAt = new Date().toISOString();
     
-    await saveProjectToDb(projectData, projectData.ownerId);
+    // Save project state and clear render metadata
+    await db.update(universalVideoProjects)
+      .set({
+        status: projectData.status,
+        progress: projectData.progress,
+        updatedAt: new Date(),
+        renderId: null,
+        bucketName: null,
+        outputUrl: null,
+      })
+      .where(eq(universalVideoProjects.projectId, projectId));
+    
+    // Clear local render metadata from response
+    delete (projectData as any).renderId;
+    delete (projectData as any).bucketName;
+    delete (projectData as any).outputUrl;
     
     console.log(`[UniversalVideo] Reset project ${projectId} status to ready for retry`);
     
