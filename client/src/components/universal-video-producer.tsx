@@ -734,7 +734,7 @@ function ScenePreview({
     }
     setSavingNarration(sceneId);
     try {
-      const res = await fetch(`/api/universal-video/${projectId}/scenes/${sceneId}/narration`, {
+      const res = await fetch(`/api/universal-video/projects/${projectId}/scenes/${sceneId}/narration`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
