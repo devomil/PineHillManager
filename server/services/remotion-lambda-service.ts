@@ -160,10 +160,11 @@ class RemotionLambdaService {
           inputProps: params.inputProps,
           codec: params.codec || "h264",
           imageFormat: params.imageFormat || "jpeg",
-          maxRetries: 1,
+          maxRetries: 2,
           privacy: "public",
-          framesPerLambda: 1500,
+          framesPerLambda: 600,
           concurrencyPerLambda: 1,
+          timeoutInMilliseconds: 1800000,
           downloadBehavior: {
             type: "download",
             fileName: `${params.compositionId}-${Date.now()}.mp4`,
