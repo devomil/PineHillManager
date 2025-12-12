@@ -46,6 +46,7 @@ class UniversalVideoService {
   private notifications: ServiceNotification[] = [];
   private projectCallbacks: Map<string, (progress: ProductionProgress) => void> = new Map();
   private s3Client: S3Client | null = null;
+  private usedVideoUrls: Set<string> = new Set();
 
   constructor() {
     if (process.env.ANTHROPIC_API_KEY) {
@@ -890,42 +891,43 @@ Guidelines:
   private preprocessNarrationForTTS(text: string): string {
     // Pronunciation dictionary for health/wellness terms
     // Format: exact word -> phonetic pronunciation
+    // FIXED: Use spaces instead of hyphens - ElevenLabs reads hyphens as pauses
     const pronunciationMap: Record<string, string> = {
-      // Herbs and supplements (case-sensitive entries)
-      'cohosh': 'koh-hosh',
-      'Cohosh': 'Koh-hosh',
-      'ashwagandha': 'ahsh-wah-gahn-dah',
-      'Ashwagandha': 'Ahsh-wah-gahn-dah',
-      'chasteberry': 'chayst-berry',
-      'Chasteberry': 'Chayst-berry',
-      'dong quai': 'dong kway',
-      'Dong Quai': 'Dong Kway',
+      // Herbs - smooth phonetic spelling with spaces
+      'cohosh': 'KOH hosh',
+      'Cohosh': 'KOH hosh',
+      'ashwagandha': 'ahsh wah GAHN dah',
+      'Ashwagandha': 'Ahsh wah GAHN dah',
+      'chasteberry': 'CHAYST berry',
+      'Chasteberry': 'CHAYST berry',
+      'dong quai': 'dong KWAY',
+      'Dong Quai': 'Dong KWAY',
       'Dong quai': 'Dong kway',
       
       // Scientific terms
-      'isoflavone': 'eye-so-flay-vone',
-      'isoflavones': 'eye-so-flay-vones',
-      'Isoflavone': 'Eye-so-flay-vone',
-      'Isoflavones': 'Eye-so-flay-vones',
-      'phytoestrogen': 'fy-toe-ess-tro-jen',
-      'phytoestrogens': 'fy-toe-ess-tro-jens',
-      'Phytoestrogen': 'Fy-toe-ess-tro-jen',
-      'formononetin': 'for-mon-oh-neh-tin',
-      'Formononetin': 'For-mon-oh-neh-tin',
+      'isoflavone': 'EYE so flay vone',
+      'isoflavones': 'EYE so flay vones',
+      'Isoflavone': 'EYE so flay vone',
+      'Isoflavones': 'EYE so flay vones',
+      'phytoestrogen': 'FY toe ESS tro jen',
+      'phytoestrogens': 'FY toe ESS tro jens',
+      'Phytoestrogen': 'FY toe ESS tro jen',
+      'formononetin': 'for MON oh neh tin',
+      'Formononetin': 'For MON oh neh tin',
       
       // Medical terms
-      'luteinizing': 'loo-tee-nize-ing',
-      'Luteinizing': 'Loo-tee-nize-ing',
-      'hypothalamus': 'hy-poh-thal-ah-mus',
-      'Hypothalamus': 'Hy-poh-thal-ah-mus',
-      'endocrine': 'en-doh-krin',
-      'Endocrine': 'En-doh-krin',
-      'bioavailable': 'by-oh-ah-vay-lah-bul',
-      'Bioavailable': 'By-oh-ah-vay-lah-bul',
-      'adaptogen': 'ah-dap-toh-jen',
-      'Adaptogen': 'Ah-dap-toh-jen',
-      'adaptogens': 'ah-dap-toh-jens',
-      'Adaptogens': 'Ah-dap-toh-jens',
+      'luteinizing': 'LOO tin eye zing',
+      'Luteinizing': 'LOO tin eye zing',
+      'hypothalamus': 'HY poe THAL uh mus',
+      'Hypothalamus': 'HY poe THAL uh mus',
+      'endocrine': 'EN doe krin',
+      'Endocrine': 'EN doe krin',
+      'bioavailable': 'BY oh uh VALE uh bul',
+      'Bioavailable': 'BY oh uh VALE uh bul',
+      'adaptogen': 'uh DAP toh jen',
+      'Adaptogen': 'uh DAP toh jen',
+      'adaptogens': 'uh DAP toh jens',
+      'Adaptogens': 'uh DAP toh jens',
       
       // Brand/product names
       'PineHillFarm': 'Pine Hill Farm',
@@ -975,9 +977,9 @@ Guidelines:
     console.log('[TTS] Original (first 150 chars):', text.substring(0, 150));
     console.log('[TTS] Processed (first 150 chars):', processedText.substring(0, 150));
     console.log('[TTS] Contains "cohosh"?:', text.toLowerCase().includes('cohosh'));
-    console.log('[TTS] After processing contains "koh-hosh"?:', processedText.includes('koh-hosh'));
+    console.log('[TTS] After processing contains "KOH hosh"?:', processedText.includes('KOH hosh'));
     console.log('[TTS] Contains "ashwagandha"?:', text.toLowerCase().includes('ashwagandha'));
-    console.log('[TTS] After processing contains "ash-wah-GAHN-dah"?:', processedText.includes('ash-wah-GAHN-dah'));
+    console.log('[TTS] After processing contains "ahsh wah GAHN dah"?:', processedText.includes('ahsh wah GAHN dah'));
     console.log('[TTS] Text changed?:', text !== processedText);
     console.log('='.repeat(60));
 
@@ -1234,41 +1236,50 @@ Guidelines:
     return true;
   }
 
+  private resetUsedVideos(): void {
+    this.usedVideoUrls.clear();
+    console.log('[UniversalVideoService] Reset used videos tracker');
+  }
+
   async getStockVideo(
     query: string,
     targetAudience?: string
   ): Promise<{ url: string; duration: number; source: string; tags?: string } | null> {
-    console.log(`[StockVideo] Searching for: "${query}" (audience: ${targetAudience || 'not specified'})`);
+    console.log(`[StockVideo] Searching: "${query}" (${this.usedVideoUrls.size} already used)`);
     
-    // Try Pexels first
+    // Try Pexels - get multiple results
     const pexelsResult = await this.getPexelsVideo(query);
     if (pexelsResult) {
-      if (targetAudience) {
-        const isValid = this.validateVideoForAudience(pexelsResult, targetAudience);
-        if (!isValid) {
-          console.log(`[StockVideo] Pexels result rejected for audience mismatch, trying Pixabay...`);
-        } else {
-          return pexelsResult;
+      // Check if already used
+      if (this.usedVideoUrls.has(pexelsResult.url)) {
+        console.log(`[StockVideo] Pexels result already used, trying different query...`);
+        // Try with modified query
+        const altResult = await this.getPexelsVideo(query + ' lifestyle');
+        if (altResult && !this.usedVideoUrls.has(altResult.url)) {
+          if (!targetAudience || this.validateVideoForAudience(altResult, targetAudience)) {
+            this.usedVideoUrls.add(altResult.url);
+            return altResult;
+          }
         }
       } else {
-        return pexelsResult;
-      }
-    }
-
-    // Fallback to Pixabay
-    const pixabayResult = await this.getPixabayVideo(query);
-    if (pixabayResult) {
-      if (targetAudience) {
-        const isValid = this.validateVideoForAudience(pixabayResult, targetAudience);
-        if (!isValid) {
-          console.log(`[StockVideo] Pixabay result also rejected - using AI image instead`);
-          return null;
+        // Validate and use
+        if (!targetAudience || this.validateVideoForAudience(pexelsResult, targetAudience)) {
+          this.usedVideoUrls.add(pexelsResult.url);
+          return pexelsResult;
         }
       }
-      return pixabayResult;
     }
 
-    console.log(`[UniversalVideoService] No stock videos found for: "${query}"`);
+    // Try Pixabay as fallback
+    const pixabayResult = await this.getPixabayVideo(query);
+    if (pixabayResult && !this.usedVideoUrls.has(pixabayResult.url)) {
+      if (!targetAudience || this.validateVideoForAudience(pixabayResult, targetAudience)) {
+        this.usedVideoUrls.add(pixabayResult.url);
+        return pixabayResult;
+      }
+    }
+
+    console.log(`[StockVideo] No unused valid videos found for: "${query}"`);
     return null;
   }
 
@@ -1656,6 +1667,9 @@ Guidelines:
 
   async generateProjectAssets(project: VideoProject): Promise<VideoProject> {
     const updatedProject = { ...project };
+    
+    // Reset video tracking for new project
+    this.resetUsedVideos();
     
     updatedProject.progress.currentStep = 'voiceover';
     updatedProject.progress.steps.voiceover.status = 'in-progress';
