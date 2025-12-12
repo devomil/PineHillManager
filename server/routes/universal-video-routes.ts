@@ -17,6 +17,7 @@ import type {
   ProductionProgress,
   OutputFormat,
   BrandSettings,
+  RegenerationRecord,
 } from '../../shared/video-types';
 import { 
   OUTPUT_FORMATS, 
@@ -1077,6 +1078,172 @@ router.patch('/:projectId/scene/:sceneId/overlay', isAuthenticated, async (req: 
   } catch (error: any) {
     console.error('[UniversalVideo] Error updating scene overlay:', error);
     res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.post('/:projectId/scenes/:sceneId/regenerate-image', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = (req.user as any)?.id;
+    const { projectId, sceneId } = req.params;
+    const { prompt } = req.body;
+    
+    const projectData = await getProjectFromDb(projectId);
+    if (!projectData) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+    
+    if (projectData.ownerId !== userId) {
+      return res.status(403).json({ success: false, error: 'Access denied' });
+    }
+    
+    const result = await universalVideoService.regenerateSceneImage(projectData, sceneId, prompt);
+    
+    if (result.success && result.newImageUrl) {
+      const sceneIndex = projectData.scenes.findIndex((s: Scene) => s.id === sceneId);
+      if (sceneIndex >= 0) {
+        const oldUrl = projectData.scenes[sceneIndex].assets?.imageUrl;
+        if (oldUrl) {
+          if (!projectData.scenes[sceneIndex].assets!.alternativeImages) {
+            projectData.scenes[sceneIndex].assets!.alternativeImages = [];
+          }
+          projectData.scenes[sceneIndex].assets!.alternativeImages!.push({
+            url: oldUrl,
+            prompt: 'previous',
+            source: 'previous'
+          });
+        }
+        
+        projectData.scenes[sceneIndex].assets = projectData.scenes[sceneIndex].assets || {};
+        projectData.scenes[sceneIndex].assets!.imageUrl = result.newImageUrl;
+        projectData.scenes[sceneIndex].assets!.backgroundUrl = result.newImageUrl;
+        projectData.scenes[sceneIndex].background!.type = 'image';
+        
+        if (!projectData.regenerationHistory) projectData.regenerationHistory = [];
+        projectData.regenerationHistory.push({
+          id: `regen_${Date.now()}`,
+          sceneId,
+          assetType: 'image',
+          previousUrl: oldUrl,
+          newUrl: result.newImageUrl,
+          prompt,
+          timestamp: new Date().toISOString(),
+          success: true
+        });
+        
+        await saveProjectToDb(projectData, projectData.ownerId);
+      }
+      
+      return res.json({ 
+        success: true, 
+        newImageUrl: result.newImageUrl,
+        source: result.source
+      });
+    }
+    
+    return res.status(400).json({ success: false, error: result.error });
+  } catch (error: any) {
+    console.error('[UniversalVideo] Regenerate image error:', error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.post('/:projectId/scenes/:sceneId/regenerate-video', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = (req.user as any)?.id;
+    const { projectId, sceneId } = req.params;
+    const { query } = req.body;
+    
+    const projectData = await getProjectFromDb(projectId);
+    if (!projectData) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+    
+    if (projectData.ownerId !== userId) {
+      return res.status(403).json({ success: false, error: 'Access denied' });
+    }
+    
+    const result = await universalVideoService.regenerateSceneVideo(projectData, sceneId, query);
+    
+    if (result.success && result.newVideoUrl) {
+      const sceneIndex = projectData.scenes.findIndex((s: Scene) => s.id === sceneId);
+      if (sceneIndex >= 0) {
+        const oldUrl = projectData.scenes[sceneIndex].assets?.videoUrl;
+        if (oldUrl) {
+          if (!projectData.scenes[sceneIndex].assets!.alternativeVideos) {
+            projectData.scenes[sceneIndex].assets!.alternativeVideos = [];
+          }
+          projectData.scenes[sceneIndex].assets!.alternativeVideos!.push({
+            url: oldUrl,
+            query: 'previous',
+            source: 'previous'
+          });
+        }
+        
+        projectData.scenes[sceneIndex].assets = projectData.scenes[sceneIndex].assets || {};
+        projectData.scenes[sceneIndex].assets!.videoUrl = result.newVideoUrl;
+        projectData.scenes[sceneIndex].background!.type = 'video';
+        
+        if (!projectData.regenerationHistory) projectData.regenerationHistory = [];
+        projectData.regenerationHistory.push({
+          id: `regen_${Date.now()}`,
+          sceneId,
+          assetType: 'video',
+          previousUrl: oldUrl,
+          newUrl: result.newVideoUrl,
+          prompt: query,
+          timestamp: new Date().toISOString(),
+          success: true
+        });
+        
+        await saveProjectToDb(projectData, projectData.ownerId);
+      }
+      
+      return res.json({ 
+        success: true, 
+        newVideoUrl: result.newVideoUrl,
+        duration: result.duration,
+        source: result.source
+      });
+    }
+    
+    return res.status(400).json({ success: false, error: result.error });
+  } catch (error: any) {
+    console.error('[UniversalVideo] Regenerate video error:', error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.post('/:projectId/scenes/:sceneId/switch-background', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = (req.user as any)?.id;
+    const { projectId, sceneId } = req.params;
+    const { preferVideo } = req.body;
+    
+    const projectData = await getProjectFromDb(projectId);
+    if (!projectData) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+    
+    if (projectData.ownerId !== userId) {
+      return res.status(403).json({ success: false, error: 'Access denied' });
+    }
+    
+    const result = await universalVideoService.switchSceneBackgroundType(
+      projectData, 
+      sceneId, 
+      preferVideo === true
+    );
+    
+    if (result.success) {
+      await saveProjectToDb(projectData, projectData.ownerId);
+      const scene = projectData.scenes.find((s: Scene) => s.id === sceneId);
+      return res.json({ success: true, scene });
+    }
+    
+    return res.status(400).json({ success: false, error: result.error });
+  } catch (error: any) {
+    console.error('[UniversalVideo] Switch background error:', error);
+    return res.status(500).json({ success: false, error: error.message });
   }
 });
 
