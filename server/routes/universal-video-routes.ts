@@ -596,8 +596,8 @@ router.post('/projects/:projectId/render', isAuthenticated, async (req: Request,
   }
 });
 
-const LAMBDA_TIMEOUT_MS = 240000; // 4 minutes - matches Lambda function timeout
-const RENDER_TIMEOUT_MS = 600000; // 10 minutes - max time we wait for any render
+const LAMBDA_TIMEOUT_MS = 300000; // 5 minutes - increased for complex videos
+const RENDER_TIMEOUT_MS = 900000; // 15 minutes - matches new Lambda timeout (900 seconds)
 
 router.get('/projects/:projectId/render-status', isAuthenticated, async (req: Request, res: Response) => {
   try {
