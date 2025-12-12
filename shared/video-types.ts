@@ -16,6 +16,7 @@ export interface VideoProject {
   updatedAt: string;
   voiceId?: string;
   voiceName?: string;
+  regenerationHistory?: RegenerationRecord[];
 }
 
 export type VideoProjectStatus = 'draft' | 'generating' | 'ready' | 'rendering' | 'complete' | 'error';
@@ -134,6 +135,21 @@ export interface SceneAssets {
   productOverlayUrl?: string;
   productOverlayPosition?: ProductOverlayPosition;
   useProductOverlay?: boolean;
+  alternativeImages?: { url: string; prompt: string; source: string }[];
+  alternativeVideos?: { url: string; query: string; source: string }[];
+  preferVideo?: boolean;
+  preferImage?: boolean;
+}
+
+export interface RegenerationRecord {
+  id: string;
+  sceneId: string;
+  assetType: 'image' | 'video' | 'voiceover';
+  previousUrl?: string;
+  newUrl?: string;
+  prompt?: string;
+  timestamp: string;
+  success: boolean;
 }
 
 export const SCENE_OVERLAY_DEFAULTS: Record<string, boolean> = {
