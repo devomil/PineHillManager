@@ -923,35 +923,45 @@ const SceneRenderer: React.FC<{
         )
       )}
 
-      {/* Text Overlays - Choose style based on scene type */}
-      {/* For hook/benefit/intro/feature: Use ONLY LowerThird (professional TV style) */}
-      {/* For cta/outro/other: Use centered TextOverlayComponent */}
+      {/* Text Overlays - ONLY ONE STYLE per scene to prevent duplicates */}
       {(() => {
+        // Determine which style to use based on scene type
         const useLowerThirdStyle = ['hook', 'benefit', 'feature', 'intro'].includes(scene.type);
+        const primaryText = scene.textOverlays?.[0];
         
-        if (useLowerThirdStyle && scene.textOverlays?.[0]?.text) {
-          // Professional Lower Third style for content scenes
+        // No text to display
+        if (!primaryText?.text) {
+          return null;
+        }
+        
+        if (useLowerThirdStyle) {
+          // Use ONLY LowerThird component for content scenes
+          // DO NOT also render TextOverlayComponent - that causes duplicates
           return (
             <LowerThird
-              title={scene.textOverlays[0].text.substring(0, 60)}
-              subtitle={scene.textOverlays[1]?.text}
+              title={primaryText.text.length > 50 ? primaryText.text.substring(0, 47) + '...' : primaryText.text}
+              subtitle={scene.textOverlays?.[1]?.text}
               brand={brand}
               fps={fps}
               durationInFrames={durationInFrames}
             />
           );
-        } else {
-          // Standard centered text for CTA, outro, and other scenes
-          return (scene.textOverlays || []).map((overlay) => (
-            <TextOverlayComponent
-              key={overlay.id}
-              overlay={overlay}
-              brand={brand}
-              sceneFrame={frame}
-              fps={fps}
-            />
-          ));
         }
+        
+        // Use centered TextOverlayComponent ONLY for CTA, outro, and other scene types
+        return (
+          <>
+            {(scene.textOverlays || []).map((overlay) => (
+              <TextOverlayComponent
+                key={overlay.id}
+                overlay={overlay}
+                brand={brand}
+                sceneFrame={frame}
+                fps={fps}
+              />
+            ))}
+          </>
+        );
       })()}
 
       {/* Debug overlay showing scene info */}

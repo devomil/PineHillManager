@@ -688,36 +688,51 @@ Guidelines:
     const visualDirection = scene.visualDirection || '';
     const narration = scene.narration || '';
     
+    // Get demographic context from scene or infer from product
+    let demographicContext = '';
+    const lowerNarration = narration.toLowerCase();
+    const lowerProduct = productName.toLowerCase();
+    
+    // Infer demographics from product/narration content
+    if (lowerProduct.includes('menopause') || lowerNarration.includes('menopause') ||
+        lowerProduct.includes('hormone') || lowerNarration.includes('hot flash')) {
+      demographicContext = 'mature woman in her 40s-60s, graceful confident, healthy glowing, ';
+    } else if (lowerProduct.includes('senior') || lowerNarration.includes('elderly')) {
+      demographicContext = 'senior woman, dignified healthy, active lifestyle, ';
+    } else if (lowerNarration.includes('woman') || lowerNarration.includes('female') || lowerNarration.includes('women')) {
+      demographicContext = 'adult woman, healthy natural, ';
+    }
+    
     let baseContext = '';
     
     switch (sceneType) {
       case 'hook':
-        baseContext = `Emotional cinematic scene showing the problem or challenge. Person experiencing discomfort or frustration. Realistic lifestyle photography, dramatic lighting, evocative mood.`;
+        baseContext = `${demographicContext}Emotional cinematic scene showing the problem or challenge. Person experiencing discomfort or frustration. Realistic lifestyle photography, dramatic lighting, evocative mood.`;
         break;
       case 'benefit':
-        baseContext = `Positive transformation scene showing wellness and relief. Person feeling happy, healthy, and vibrant. Bright natural lighting, optimistic mood, lifestyle photography.`;
+        baseContext = `${demographicContext}Positive transformation scene showing wellness and relief. Person feeling happy, healthy, and vibrant. Bright natural lighting, optimistic mood, lifestyle photography.`;
         break;
       case 'story':
-        baseContext = `Authentic storytelling scene with emotional depth. Real-life moment captured naturally. Documentary style, warm tones, genuine expression.`;
+        baseContext = `${demographicContext}Authentic storytelling scene with emotional depth. Real-life moment captured naturally. Documentary style, warm tones, genuine expression.`;
         break;
       case 'explanation':
       case 'process':
-        baseContext = `Educational visual showing scientific or natural process. Clean informational style, subtle medical/botanical elements, professional presentation.`;
+        baseContext = `${demographicContext}Educational visual showing scientific or natural process. Clean informational style, subtle medical/botanical elements, professional presentation.`;
         break;
       case 'testimonial':
       case 'social_proof':
-        baseContext = `Happy satisfied person in natural home or lifestyle setting. Genuine smile, warm inviting atmosphere, trustworthy and relatable.`;
+        baseContext = `${demographicContext}Happy satisfied person in natural home or lifestyle setting. Genuine smile, warm inviting atmosphere, trustworthy and relatable.`;
         break;
       case 'problem':
-        baseContext = `Person dealing with challenge or discomfort. Empathetic perspective, muted colors, realistic portrayal of struggle before solution.`;
+        baseContext = `${demographicContext}Person dealing with challenge or discomfort. Empathetic perspective, muted colors, realistic portrayal of struggle before solution.`;
         break;
       default:
-        baseContext = `Professional lifestyle photography with natural lighting.`;
+        baseContext = `${demographicContext}Professional lifestyle photography with natural lighting.`;
     }
     
     const extractedConcepts = this.extractVisualConcepts(visualDirection, narration);
     
-    const fullPrompt = `${baseContext} ${extractedConcepts}. High quality, 4K, photorealistic, professional commercial photography. NO text, NO logos, NO product shots, NO bottles, NO packaging.`;
+    const fullPrompt = `${baseContext} ${extractedConcepts}. High quality, 4K, photorealistic, professional commercial photography. NO text, NO logos, NO product shots, NO bottles, NO packaging. IMPORTANT: Show ADULTS only, no children or teenagers.`;
     
     return fullPrompt;
   }
@@ -727,30 +742,33 @@ Guidelines:
     
     const concepts: string[] = [];
     
+    // Specify adult/mature for menopause content
     if (combined.includes('menopause') || combined.includes('hot flash') || combined.includes('hormonal')) {
-      concepts.push('middle-aged woman, wellness journey, natural health, serene expression');
+      concepts.push('mature woman in her 50s, wellness journey, natural health, serene confident expression');
     }
+    // Specify adult for sleep content
     if (combined.includes('sleep') || combined.includes('restful') || combined.includes('night')) {
-      concepts.push('peaceful sleep, comfortable bedroom, restful atmosphere');
+      concepts.push('adult peaceful sleep, comfortable bedroom, restful atmosphere');
     }
     if (combined.includes('energy') || combined.includes('vitality') || combined.includes('active')) {
-      concepts.push('energetic person, active lifestyle, vibrant health');
+      concepts.push('energetic adult, active lifestyle, vibrant health');
     }
     if (combined.includes('stress') || combined.includes('anxiety') || combined.includes('mood')) {
-      concepts.push('calm relaxed person, peaceful moment, stress relief');
+      concepts.push('calm relaxed adult, peaceful moment, stress relief');
     }
     if (combined.includes('natural') || combined.includes('herb') || combined.includes('botanical')) {
       concepts.push('natural herbs, botanical elements, organic wellness');
     }
+    // Ensure woman means adult woman
     if (combined.includes('woman') || combined.includes('female') || combined.includes('her')) {
-      concepts.push('woman in natural setting, feminine wellness');
+      concepts.push('adult woman in natural setting, feminine wellness');
     }
     if (combined.includes('science') || combined.includes('study') || combined.includes('research') || combined.includes('clinical')) {
       concepts.push('scientific visualization, research imagery, medical illustration style');
     }
     
     if (concepts.length === 0) {
-      concepts.push('wellness lifestyle, healthy living, natural setting');
+      concepts.push('adult wellness lifestyle, healthy living, natural setting');
     }
     
     return concepts.join(', ');
@@ -800,19 +818,29 @@ Guidelines:
   }
 
   private getProductOverlayPosition(sceneType: string): { x: 'left' | 'center' | 'right'; y: 'top' | 'center' | 'bottom'; scale: number; animation: 'fade' | 'zoom' | 'slide' | 'none' } {
+    // Position products in corners/edges to avoid blocking faces
     switch (sceneType) {
       case 'hook':
-        return { x: 'right', y: 'center', scale: 0.4, animation: 'slide' };
+        // Bottom-right corner, smaller, unobtrusive
+        return { x: 'right', y: 'bottom', scale: 0.28, animation: 'fade' };
       case 'intro':
-        return { x: 'center', y: 'center', scale: 0.5, animation: 'zoom' };
+        // Center but with empty background (AI generates product-free bg)
+        return { x: 'center', y: 'center', scale: 0.45, animation: 'zoom' };
       case 'feature':
-        return { x: 'left', y: 'center', scale: 0.45, animation: 'slide' };
+        // Left side, medium size, away from typical subject position
+        return { x: 'left', y: 'bottom', scale: 0.35, animation: 'slide' };
       case 'benefit':
-        return { x: 'right', y: 'bottom', scale: 0.35, animation: 'fade' };
+        // Bottom-right corner, subtle presence
+        return { x: 'right', y: 'bottom', scale: 0.25, animation: 'fade' };
       case 'cta':
-        return { x: 'center', y: 'center', scale: 0.55, animation: 'zoom' };
+        // Center for call-to-action (background should be product-focused anyway)
+        return { x: 'center', y: 'center', scale: 0.5, animation: 'zoom' };
+      case 'testimonial':
+        // Bottom-left, very small, doesn't distract from person
+        return { x: 'left', y: 'bottom', scale: 0.22, animation: 'fade' };
       default:
-        return { x: 'center', y: 'center', scale: 0.4, animation: 'fade' };
+        // Default to bottom-right corner
+        return { x: 'right', y: 'bottom', scale: 0.28, animation: 'fade' };
     }
   }
 
@@ -882,6 +910,72 @@ Guidelines:
     return { url: '', source: 'stock', success: false, error: 'No stock images found' };
   }
 
+  /**
+   * Pre-process narration text to help TTS pronounce specialty words correctly
+   * Uses phonetic hints that ElevenLabs can interpret better
+   */
+  private preprocessNarrationForTTS(text: string): string {
+    // Pronunciation dictionary for health/wellness terms
+    // Format: exact word -> phonetic pronunciation
+    const pronunciationMap: Record<string, string> = {
+      // Herbs and supplements (case-sensitive entries)
+      'cohosh': 'koh-hosh',
+      'Cohosh': 'Koh-hosh',
+      'ashwagandha': 'ahsh-wah-gahn-dah',
+      'Ashwagandha': 'Ahsh-wah-gahn-dah',
+      'chasteberry': 'chayst-berry',
+      'Chasteberry': 'Chayst-berry',
+      'dong quai': 'dong kway',
+      'Dong Quai': 'Dong Kway',
+      'Dong quai': 'Dong kway',
+      
+      // Scientific terms
+      'isoflavone': 'eye-so-flay-vone',
+      'isoflavones': 'eye-so-flay-vones',
+      'Isoflavone': 'Eye-so-flay-vone',
+      'Isoflavones': 'Eye-so-flay-vones',
+      'phytoestrogen': 'fy-toe-ess-tro-jen',
+      'phytoestrogens': 'fy-toe-ess-tro-jens',
+      'Phytoestrogen': 'Fy-toe-ess-tro-jen',
+      'formononetin': 'for-mon-oh-neh-tin',
+      'Formononetin': 'For-mon-oh-neh-tin',
+      
+      // Medical terms
+      'luteinizing': 'loo-tee-nize-ing',
+      'Luteinizing': 'Loo-tee-nize-ing',
+      'hypothalamus': 'hy-poh-thal-ah-mus',
+      'Hypothalamus': 'Hy-poh-thal-ah-mus',
+      'endocrine': 'en-doh-krin',
+      'Endocrine': 'En-doh-krin',
+      'bioavailable': 'by-oh-ah-vay-lah-bul',
+      'Bioavailable': 'By-oh-ah-vay-lah-bul',
+      'adaptogen': 'ah-dap-toh-jen',
+      'Adaptogen': 'Ah-dap-toh-jen',
+      'adaptogens': 'ah-dap-toh-jens',
+      'Adaptogens': 'Ah-dap-toh-jens',
+      
+      // Brand/product names
+      'PineHillFarm': 'Pine Hill Farm',
+      'pinehillfarm': 'Pine Hill Farm',
+      'Pinehillfarm': 'Pine Hill Farm',
+    };
+    
+    let processedText = text;
+    
+    // Replace each word with its phonetic version
+    // Process longer phrases first to avoid partial replacements
+    const sortedKeys = Object.keys(pronunciationMap).sort((a, b) => b.length - a.length);
+    
+    for (const word of sortedKeys) {
+      const phonetic = pronunciationMap[word];
+      // Use word boundary matching to avoid partial replacements
+      const regex = new RegExp(`\\b${word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'g');
+      processedText = processedText.replace(regex, phonetic);
+    }
+    
+    return processedText;
+  }
+
   async generateVoiceover(
     text: string, 
     voiceId?: string,
@@ -900,6 +994,11 @@ Guidelines:
       });
       return { url: '', duration: 0, success: false, error: 'API key not configured' };
     }
+
+    // Preprocess text for better pronunciation of specialty health terms
+    const processedText = this.preprocessNarrationForTTS(text);
+    console.log(`[UniversalVideoService] Original text length: ${text.length}`);
+    console.log(`[UniversalVideoService] Processed text sample: ${processedText.substring(0, 150)}...`);
 
     // RECOMMENDED VOICES FOR HEALTH/WELLNESS:
     // - Rachel (21m00Tcm4TlvDq8ikWAM) - Warm, calm, American female - BEST for wellness
@@ -931,7 +1030,7 @@ Guidelines:
             Accept: "audio/mpeg",
           },
           body: JSON.stringify({
-            text,
+            text: processedText,
             // USE THE BEST MODEL - eleven_multilingual_v2 is highest quality
             model_id: "eleven_multilingual_v2",
             voice_settings: voiceSettings,
@@ -996,31 +1095,59 @@ Guidelines:
     }
   }
 
-  private buildVideoSearchQuery(scene: Scene): string {
+  private buildVideoSearchQuery(scene: Scene, targetAudience?: string): string {
     const narration = (scene.narration || '').toLowerCase();
     
-    // Health/wellness specific keywords
-    if (narration.includes('menopause')) return 'mature woman wellness relaxation';
-    if (narration.includes('hot flash')) return 'woman cooling relief comfort';
-    if (narration.includes('sleep')) return 'peaceful sleep relaxation bedroom';
-    if (narration.includes('energy') || narration.includes('vitality')) return 'active woman healthy lifestyle';
-    if (narration.includes('hormone')) return 'woman wellness nature botanical';
-    if (narration.includes('natural') || narration.includes('herbal')) return 'herbs botanical plants nature';
-    if (narration.includes('relief') || narration.includes('comfort')) return 'woman relaxed peaceful happy';
-    if (narration.includes('weight') || narration.includes('metabolism')) return 'woman fitness healthy active';
-    if (narration.includes('stress') || narration.includes('anxiety')) return 'calm woman meditation relaxation';
+    // Get demographic prefix based on target audience
+    let demographicTerms = '';
+    if (targetAudience) {
+      const audience = targetAudience.toLowerCase();
+      
+      // Age-based keywords - CRITICAL for correct visuals
+      if (audience.includes('40') || audience.includes('50') || audience.includes('60') || 
+          audience.includes('mature') || audience.includes('middle') || audience.includes('menopause')) {
+        demographicTerms = 'mature middle-aged adult ';
+      } else if (audience.includes('senior') || audience.includes('elderly') || audience.includes('65+') || audience.includes('70')) {
+        demographicTerms = 'senior elderly older adult ';
+      } else if (audience.includes('young') || audience.includes('20') || audience.includes('millennial')) {
+        demographicTerms = 'young adult ';
+      }
+      // Default to adult if no age specified (never show children for health products)
+      if (!demographicTerms && (audience.includes('women') || audience.includes('men'))) {
+        demographicTerms = 'adult ';
+      }
+      
+      // Gender-based keywords
+      if (audience.includes('women') || audience.includes('female') || audience.includes('woman')) {
+        demographicTerms += 'woman female ';
+      } else if (audience.includes('men') || audience.includes('male') || audience.includes('man')) {
+        demographicTerms += 'man male ';
+      }
+    }
     
-    // Scene type defaults
+    // Health/wellness specific keywords WITH demographics
+    if (narration.includes('menopause')) return `${demographicTerms}wellness relaxation health`;
+    if (narration.includes('hot flash')) return `${demographicTerms}cooling relief comfort relaxed`;
+    if (narration.includes('sleep') || narration.includes('restful')) return `${demographicTerms}peaceful sleep relaxation bedroom`;
+    if (narration.includes('energy') || narration.includes('vitality')) return `${demographicTerms}active healthy lifestyle energetic`;
+    if (narration.includes('hormone')) return `${demographicTerms}wellness nature botanical healthy`;
+    if (narration.includes('natural') || narration.includes('herbal')) return `${demographicTerms}herbs botanical plants nature`;
+    if (narration.includes('relief') || narration.includes('comfort')) return `${demographicTerms}relaxed peaceful happy comfortable`;
+    if (narration.includes('stress') || narration.includes('anxiety')) return `${demographicTerms}calm meditation relaxation peaceful`;
+    
+    // Scene type defaults WITH demographics
     const defaults: Record<string, string> = {
-      hook: 'woman concerned thinking wellness',
-      benefit: 'happy woman smiling healthy lifestyle',
-      testimonial: 'satisfied customer woman smiling',
-      story: 'woman transformation journey wellness',
-      intro: 'woman wellness morning routine',
-      cta: 'confident woman smiling action',
+      hook: `${demographicTerms}concerned thinking wellness health`,
+      benefit: `${demographicTerms}happy smiling healthy lifestyle`,
+      testimonial: `${demographicTerms}satisfied happy smiling portrait`,
+      story: `${demographicTerms}transformation journey wellness`,
+      intro: `${demographicTerms}wellness morning routine healthy`,
+      cta: `${demographicTerms}confident smiling action positive`,
+      feature: `${demographicTerms}healthy lifestyle wellness`,
+      explanation: `${demographicTerms}learning understanding wellness`,
     };
     
-    return defaults[scene.type] || 'woman wellness healthy lifestyle';
+    return defaults[scene.type] || `${demographicTerms}wellness healthy lifestyle`;
   }
 
   async getStockVideo(query: string): Promise<{ url: string; duration: number; source: string } | null> {
