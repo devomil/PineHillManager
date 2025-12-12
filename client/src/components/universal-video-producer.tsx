@@ -707,13 +707,92 @@ function ServiceFailureAlert({ failures }: { failures: ServiceFailure[] }) {
 function ScenePreview({ 
   scenes, 
   assets,
-  onToggleProductOverlay 
+  projectId,
+  onToggleProductOverlay,
+  onSceneUpdate 
 }: { 
   scenes: Scene[]; 
   assets: VideoProject['assets'];
+  projectId?: string;
   onToggleProductOverlay?: (sceneId: string, useOverlay: boolean) => void;
+  onSceneUpdate?: () => void;
 }) {
   const [expandedScene, setExpandedScene] = useState<string | null>(null);
+  const [regenerating, setRegenerating] = useState<string | null>(null);
+  const [customPrompt, setCustomPrompt] = useState<Record<string, string>>({});
+  const { toast } = useToast();
+
+  const regenerateImage = async (sceneId: string) => {
+    if (!projectId) return;
+    setRegenerating(`image-${sceneId}`);
+    try {
+      const res = await fetch(`/api/universal-video/${projectId}/scenes/${sceneId}/regenerate-image`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ prompt: customPrompt[sceneId] || undefined })
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast({ title: 'Image regenerated', description: `New image from ${data.source}` });
+        onSceneUpdate?.();
+      } else {
+        toast({ title: 'Failed', description: data.error, variant: 'destructive' });
+      }
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    } finally {
+      setRegenerating(null);
+    }
+  };
+
+  const regenerateVideo = async (sceneId: string) => {
+    if (!projectId) return;
+    setRegenerating(`video-${sceneId}`);
+    try {
+      const res = await fetch(`/api/universal-video/${projectId}/scenes/${sceneId}/regenerate-video`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ query: customPrompt[sceneId] || undefined })
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast({ title: 'Video regenerated', description: `New video from ${data.source}` });
+        onSceneUpdate?.();
+      } else {
+        toast({ title: 'Failed', description: data.error, variant: 'destructive' });
+      }
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    } finally {
+      setRegenerating(null);
+    }
+  };
+
+  const switchBackground = async (sceneId: string, preferVideo: boolean) => {
+    if (!projectId) return;
+    setRegenerating(`switch-${sceneId}`);
+    try {
+      const res = await fetch(`/api/universal-video/${projectId}/scenes/${sceneId}/switch-background`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ preferVideo })
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast({ title: preferVideo ? 'Switched to video' : 'Switched to image' });
+        onSceneUpdate?.();
+      } else {
+        toast({ title: 'Failed', description: data.error, variant: 'destructive' });
+      }
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    } finally {
+      setRegenerating(null);
+    }
+  };
   
   return (
     <div className="space-y-3">
@@ -826,6 +905,70 @@ function ScenePreview({
                           playsInline
                           data-testid={`video-broll-${scene.id}`}
                         />
+                      </div>
+                    </div>
+                  )}
+                  
+                  {projectId && (
+                    <div className="p-3 bg-muted/30 rounded-lg border space-y-3">
+                      <Label className="text-xs text-muted-foreground flex items-center gap-1">
+                        <RefreshCw className="w-3 h-3" /> Regenerate Assets
+                      </Label>
+                      <Input
+                        placeholder="Custom prompt/query (optional)"
+                        value={customPrompt[scene.id] || ''}
+                        onChange={(e) => setCustomPrompt(prev => ({ ...prev, [scene.id]: e.target.value }))}
+                        className="text-sm h-8"
+                        data-testid={`input-custom-prompt-${scene.id}`}
+                      />
+                      <div className="flex gap-2 flex-wrap">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => regenerateImage(scene.id)}
+                          disabled={!!regenerating}
+                          data-testid={`button-regenerate-image-${scene.id}`}
+                        >
+                          {regenerating === `image-${scene.id}` ? (
+                            <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                          ) : (
+                            <ImageIcon className="w-3 h-3 mr-1" />
+                          )}
+                          New Image
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => regenerateVideo(scene.id)}
+                          disabled={!!regenerating}
+                          data-testid={`button-regenerate-video-${scene.id}`}
+                        >
+                          {regenerating === `video-${scene.id}` ? (
+                            <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                          ) : (
+                            <Video className="w-3 h-3 mr-1" />
+                          )}
+                          New Video
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => switchBackground(scene.id, !(scene.background?.type === 'video'))}
+                          disabled={!!regenerating}
+                          data-testid={`button-switch-background-${scene.id}`}
+                        >
+                          {regenerating === `switch-${scene.id}` ? (
+                            <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                          ) : scene.background?.type === 'video' ? (
+                            <ImageIcon className="w-3 h-3 mr-1" />
+                          ) : (
+                            <Video className="w-3 h-3 mr-1" />
+                          )}
+                          {scene.background?.type === 'video' ? 'Use Image' : 'Use Video'}
+                        </Button>
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        Current: {scene.background?.type === 'video' ? '🎬 Video' : '🖼️ Image'}
                       </div>
                     </div>
                   )}
@@ -1436,7 +1579,9 @@ export default function UniversalVideoProducer() {
                   <ScenePreview 
                     scenes={project.scenes} 
                     assets={project.assets}
+                    projectId={project.id}
                     onToggleProductOverlay={handleToggleProductOverlay}
+                    onSceneUpdate={() => queryClient.invalidateQueries({ queryKey: ['/api/universal-video/projects', project.id] })}
                   />
                 </ScrollArea>
               </div>
