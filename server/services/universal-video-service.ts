@@ -817,33 +817,6 @@ Guidelines:
     return stockQueries[sceneType] || 'wellness lifestyle health';
   }
 
-  private getProductOverlayPosition(sceneType: string): { x: 'left' | 'center' | 'right'; y: 'top' | 'center' | 'bottom'; scale: number; animation: 'fade' | 'zoom' | 'slide' | 'none' } {
-    // Position products in corners/edges to avoid blocking faces
-    switch (sceneType) {
-      case 'hook':
-        // Bottom-right corner, smaller, unobtrusive
-        return { x: 'right', y: 'bottom', scale: 0.28, animation: 'fade' };
-      case 'intro':
-        // Center but with empty background (AI generates product-free bg)
-        return { x: 'center', y: 'center', scale: 0.45, animation: 'zoom' };
-      case 'feature':
-        // Left side, medium size, away from typical subject position
-        return { x: 'left', y: 'bottom', scale: 0.35, animation: 'slide' };
-      case 'benefit':
-        // Bottom-right corner, subtle presence
-        return { x: 'right', y: 'bottom', scale: 0.25, animation: 'fade' };
-      case 'cta':
-        // Center for call-to-action (background should be product-focused anyway)
-        return { x: 'center', y: 'center', scale: 0.5, animation: 'zoom' };
-      case 'testimonial':
-        // Bottom-left, very small, doesn't distract from person
-        return { x: 'left', y: 'bottom', scale: 0.22, animation: 'fade' };
-      default:
-        // Default to bottom-right corner
-        return { x: 'right', y: 'bottom', scale: 0.28, animation: 'fade' };
-    }
-  }
-
   private resolveProductImageUrl(url: string): string {
     if (!url) return '';
     
@@ -995,10 +968,18 @@ Guidelines:
       return { url: '', duration: 0, success: false, error: 'API key not configured' };
     }
 
-    // Preprocess text for better pronunciation of specialty health terms
+    // FIX 6: Preprocess text for better pronunciation with VERBOSE logging
     const processedText = this.preprocessNarrationForTTS(text);
-    console.log(`[UniversalVideoService] Original text length: ${text.length}`);
-    console.log(`[UniversalVideoService] Processed text sample: ${processedText.substring(0, 150)}...`);
+    console.log('='.repeat(60));
+    console.log('[TTS] PRONUNCIATION PREPROCESSING');
+    console.log('[TTS] Original (first 150 chars):', text.substring(0, 150));
+    console.log('[TTS] Processed (first 150 chars):', processedText.substring(0, 150));
+    console.log('[TTS] Contains "cohosh"?:', text.toLowerCase().includes('cohosh'));
+    console.log('[TTS] After processing contains "koh-hosh"?:', processedText.includes('koh-hosh'));
+    console.log('[TTS] Contains "ashwagandha"?:', text.toLowerCase().includes('ashwagandha'));
+    console.log('[TTS] After processing contains "ash-wah-GAHN-dah"?:', processedText.includes('ash-wah-GAHN-dah'));
+    console.log('[TTS] Text changed?:', text !== processedText);
+    console.log('='.repeat(60));
 
     // RECOMMENDED VOICES FOR HEALTH/WELLNESS:
     // - Rachel (21m00Tcm4TlvDq8ikWAM) - Warm, calm, American female - BEST for wellness
@@ -1150,14 +1131,142 @@ Guidelines:
     return defaults[scene.type] || `${demographicTerms}wellness healthy lifestyle`;
   }
 
-  async getStockVideo(query: string): Promise<{ url: string; duration: number; source: string } | null> {
+  /**
+   * FIX 1: Get product overlay position based on scene type
+   * Places products in corners to avoid blocking faces in B-roll
+   */
+  private getProductOverlayPosition(sceneType: string): {
+    x: 'left' | 'center' | 'right';
+    y: 'top' | 'center' | 'bottom';
+    scale: number;
+    animation: 'fade' | 'zoom' | 'slide' | 'none';
+  } {
+    console.log(`[ProductPosition] Getting position for scene type: ${sceneType}`);
+    switch (sceneType) {
+      case 'hook':
+        return { x: 'right', y: 'bottom', scale: 0.25, animation: 'fade' };
+      case 'intro':
+        return { x: 'center', y: 'center', scale: 0.45, animation: 'zoom' };
+      case 'feature':
+        return { x: 'left', y: 'bottom', scale: 0.30, animation: 'slide' };
+      case 'benefit':
+        return { x: 'right', y: 'bottom', scale: 0.25, animation: 'fade' };
+      case 'cta':
+        return { x: 'center', y: 'center', scale: 0.50, animation: 'zoom' };
+      case 'testimonial':
+        return { x: 'left', y: 'bottom', scale: 0.20, animation: 'fade' };
+      default:
+        return { x: 'right', y: 'bottom', scale: 0.25, animation: 'fade' };
+    }
+  }
+
+  /**
+   * FIX 2: Determine whether to use video or image for a scene
+   * Returns false (use image) for scenes where AI image quality is better than random B-roll
+   */
+  private shouldUseVideoBackground(
+    scene: Scene,
+    videoResult: { url: string; tags?: string; description?: string } | null,
+    targetAudience?: string
+  ): boolean {
+    if (!videoResult || !videoResult.url) {
+      console.log(`[Background] Scene ${scene.id}: No video available, using image`);
+      return false;
+    }
+    
+    if (targetAudience) {
+      const isWomensProduct = targetAudience.toLowerCase().includes('women') || 
+                              targetAudience.toLowerCase().includes('female');
+      
+      if (isWomensProduct && videoResult.tags) {
+        const tags = videoResult.tags.toLowerCase();
+        if (tags.includes('man') || tags.includes('male') || tags.includes('boy')) {
+          console.log(`[Background] Scene ${scene.id}: Rejected video - wrong gender for women's product`);
+          return false;
+        }
+      }
+    }
+    
+    const preferImageSceneTypes = ['intro', 'cta'];
+    if (preferImageSceneTypes.includes(scene.type)) {
+      console.log(`[Background] Scene ${scene.id}: Prefer image for ${scene.type} scene`);
+      return false;
+    }
+    
+    console.log(`[Background] Scene ${scene.id}: Using validated video`);
+    return true;
+  }
+
+  /**
+   * FIX 3: Validate that video content matches target audience
+   */
+  private validateVideoForAudience(
+    video: { tags?: string; description?: string; url: string },
+    targetAudience: string
+  ): boolean {
+    const audience = targetAudience.toLowerCase();
+    const tags = (video.tags || '').toLowerCase();
+    const desc = (video.description || '').toLowerCase();
+    const combined = `${tags} ${desc}`;
+    
+    if (audience.includes('women') || audience.includes('female')) {
+      if (combined.includes(' man ') || combined.includes(' male ') || 
+          combined.includes(' boy ') || combined.includes('businessman')) {
+        console.log(`[Validation] Rejected: Male content for women's product`);
+        return false;
+      }
+      
+      if (!combined.includes('woman') && !combined.includes('female') && 
+          !combined.includes('girl') && !combined.includes('lady')) {
+        console.log(`[Validation] Warning: No female indicators, but allowing abstract/nature content`);
+      }
+    }
+    
+    if (audience.includes('40') || audience.includes('50') || audience.includes('mature') ||
+        audience.includes('menopause')) {
+      if (combined.includes('child') || combined.includes('kid') || 
+          combined.includes('teen') || combined.includes('baby')) {
+        console.log(`[Validation] Rejected: Youth content for mature audience`);
+        return false;
+      }
+    }
+    
+    return true;
+  }
+
+  async getStockVideo(
+    query: string,
+    targetAudience?: string
+  ): Promise<{ url: string; duration: number; source: string; tags?: string } | null> {
+    console.log(`[StockVideo] Searching for: "${query}" (audience: ${targetAudience || 'not specified'})`);
+    
     // Try Pexels first
     const pexelsResult = await this.getPexelsVideo(query);
-    if (pexelsResult) return pexelsResult;
+    if (pexelsResult) {
+      if (targetAudience) {
+        const isValid = this.validateVideoForAudience(pexelsResult, targetAudience);
+        if (!isValid) {
+          console.log(`[StockVideo] Pexels result rejected for audience mismatch, trying Pixabay...`);
+        } else {
+          return pexelsResult;
+        }
+      } else {
+        return pexelsResult;
+      }
+    }
 
     // Fallback to Pixabay
     const pixabayResult = await this.getPixabayVideo(query);
-    if (pixabayResult) return pixabayResult;
+    if (pixabayResult) {
+      if (targetAudience) {
+        const isValid = this.validateVideoForAudience(pixabayResult, targetAudience);
+        if (!isValid) {
+          console.log(`[StockVideo] Pixabay result also rejected - using AI image instead`);
+          return null;
+        }
+      }
+      return pixabayResult;
+    }
 
     console.log(`[UniversalVideoService] No stock videos found for: "${query}"`);
     return null;
@@ -1367,67 +1476,70 @@ Guidelines:
   }
 
   /**
-   * Build an effective music prompt based on video style and product context
+   * FIX 5: Build an effective music prompt - ALWAYS UPLIFTING for health products
    */
   private buildMusicPrompt(style: string, productName?: string, duration?: number): string {
+    // FIX 5: All health products MUST have uplifting, hopeful music
     const stylePrompts: Record<string, string> = {
       professional: 
-        'Soft ambient corporate background music, gentle piano and light strings, ' +
-        'calm and reassuring, professional tone, suitable under voiceover',
+        'Uplifting inspiring corporate background music, positive hopeful energy, ' +
+        'gentle piano and warm strings, encouraging and optimistic tone',
       
       friendly: 
-        'Warm acoustic background music, gentle fingerpicked guitar and soft percussion, ' +
-        'welcoming and approachable, positive feeling',
+        'Warm uplifting acoustic background music, hopeful fingerpicked guitar, ' +
+        'welcoming and positive, joyful gentle feeling',
       
       energetic: 
-        'Upbeat motivational background music, inspiring corporate sound, ' +
-        'building energy, positive and dynamic, confident',
+        'Upbeat motivational background music, inspiring positive sound, ' +
+        'building hopeful energy, optimistic and dynamic, confident',
       
       calm: 
-        'Peaceful ambient music, soft piano with nature-inspired textures, ' +
-        'meditation-like, soothing and deeply relaxing',
+        'Peaceful uplifting ambient music, soft hopeful piano, ' +
+        'serene and positive, calming but optimistic',
       
       documentary: 
-        'Cinematic documentary background music, emotional strings, ' +
-        'thoughtful and reflective mood, storytelling feel',
+        'Inspiring documentary background music, hopeful emotional strings, ' +
+        'uplifting storytelling feel, positive journey',
       
       wellness: 
-        'Gentle wellness spa music, soft piano with ambient pads, ' +
-        'calming and nurturing, natural and organic feeling, healing atmosphere',
+        'Uplifting wellness music, hopeful piano with warm ambient pads, ' +
+        'nurturing and positive, healing optimistic atmosphere',
       
       health: 
-        'Soothing healthcare background music, reassuring and hopeful, ' +
-        'gentle strings and piano, professional medical tone, trustworthy',
+        'Hopeful healthcare background music, uplifting and reassuring, ' +
+        'positive gentle strings and piano, trustworthy optimistic tone',
     };
 
+    console.log(`[Music] Building prompt for style: ${style}, product: ${productName}`);
     let prompt = stylePrompts[style] || stylePrompts.professional;
 
-    // Add product-specific context for health/wellness products
+    // FIX 5: Product-specific prompts - ALL MUST BE UPLIFTING AND HOPEFUL
     if (productName) {
       const lowerName = productName.toLowerCase();
       
-      if (lowerName.includes('menopause') || lowerName.includes('hormone') || lowerName.includes('women')) {
+      if (lowerName.includes('menopause') || lowerName.includes('hormone') || lowerName.includes('women') || lowerName.includes('cohosh')) {
         prompt = 
-          'Gentle nurturing background music for women\'s wellness, ' +
-          'soft piano with warm strings, calming and supportive, ' +
-          'empowering yet soothing, spa-like tranquility';
+          'Uplifting empowering women\'s wellness music, hopeful piano with warm positive strings, ' +
+          'nurturing and inspiring, spa-like serenity with optimistic energy, ' +
+          'celebrating strength and vitality, NOT sad or melancholic';
       } else if (lowerName.includes('sleep') || lowerName.includes('relax') || lowerName.includes('rest')) {
         prompt = 
-          'Peaceful sleep-inducing ambient music, very soft and slow tempo, ' +
-          'dreamy pads and gentle piano, lullaby-like, deeply calming';
+          'Peaceful serene ambient music, soft gentle tempo with hopeful undertones, ' +
+          'dreamy but positive, calming optimism, restful contentment';
       } else if (lowerName.includes('energy') || lowerName.includes('vitality') || lowerName.includes('boost')) {
         prompt = 
-          'Uplifting wellness music, gentle but energizing, ' +
-          'morning sunshine feeling, optimistic acoustic guitar and light percussion';
+          'Uplifting energizing wellness music, bright and motivating, ' +
+          'morning sunshine optimism, joyful acoustic guitar and light percussion';
       } else if (lowerName.includes('natural') || lowerName.includes('herbal') || lowerName.includes('botanical')) {
         prompt = 
-          'Organic nature-inspired background music, soft acoustic instruments, ' +
-          'earthy and grounded, botanical garden atmosphere, gentle and pure';
+          'Uplifting nature-inspired background music, hopeful acoustic instruments, ' +
+          'fresh and positive, botanical garden joy, pure and optimistic';
       } else if (lowerName.includes('stress') || lowerName.includes('anxiety') || lowerName.includes('calm')) {
         prompt = 
-          'Calming anti-anxiety background music, slow tempo, ' +
-          'gentle piano and soft ambient textures, peaceful and reassuring';
+          'Calming hopeful background music, steady positive tempo, ' +
+          'gentle reassuring piano, peaceful optimism, NOT melancholic';
       }
+      console.log(`[Music] Product-specific prompt applied for: ${productName}`);
     }
 
     // Add duration guidance for better pacing
@@ -1815,29 +1927,38 @@ Guidelines:
     
     if (scenesNeedingVideo.length > 0) {
       console.log(`[UniversalVideoService] Fetching B-roll for ${scenesNeedingVideo.length} scenes (types: ${videoSceneTypes.join(', ')})...`);
+      console.log(`[UniversalVideoService] Target audience for video search: ${project.targetAudience || 'not specified'}`);
       let videosGenerated = 0;
       
       for (const scene of scenesNeedingVideo) {
-        const searchQuery = this.buildVideoSearchQuery(scene);
+        const searchQuery = this.buildVideoSearchQuery(scene, project.targetAudience);
         console.log(`[UniversalVideoService] Searching B-roll for scene ${scene.id} (${scene.type}): ${searchQuery}`);
         
-        const videoResult = await this.getStockVideo(searchQuery);
+        // FIX 4: Pass targetAudience to getStockVideo for validation
+        const videoResult = await this.getStockVideo(searchQuery, project.targetAudience);
         
-        if (videoResult && videoResult.url) {
-          updatedProject.assets.videos.push({
-            sceneId: scene.id,
-            url: videoResult.url,
-            source: 'pexels',
-          });
+        // FIX 2: Use smart video vs image decision
+        const useVideo = this.shouldUseVideoBackground(scene, videoResult, project.targetAudience);
+        
+        // Update scene index and initialize assets
+        const sceneIndex = updatedProject.scenes.findIndex(s => s.id === scene.id);
+        if (sceneIndex >= 0) {
+          if (!updatedProject.scenes[sceneIndex].assets) {
+            updatedProject.scenes[sceneIndex].assets = {};
+          }
           
-          // Update scene to use video instead of image
-          const sceneIndex = updatedProject.scenes.findIndex(s => s.id === scene.id);
-          if (sceneIndex >= 0) {
-            // Initialize assets if needed
-            if (!updatedProject.scenes[sceneIndex].assets) {
-              updatedProject.scenes[sceneIndex].assets = {};
-            }
-            // Initialize background if needed
+          // FIX 1: Always set product overlay position
+          const productPosition = this.getProductOverlayPosition(scene.type);
+          updatedProject.scenes[sceneIndex].assets!.productOverlayPosition = productPosition;
+          console.log(`[UniversalVideoService] Scene ${scene.id} product position: ${JSON.stringify(productPosition)}`);
+          
+          if (useVideo && videoResult && videoResult.url) {
+            updatedProject.assets.videos.push({
+              sceneId: scene.id,
+              url: videoResult.url,
+              source: videoResult.source as 'pexels' | 'pixabay' | 'generated',
+            });
+            
             if (!updatedProject.scenes[sceneIndex].background) {
               updatedProject.scenes[sceneIndex].background = {
                 type: 'video',
@@ -1848,10 +1969,14 @@ Guidelines:
             }
             updatedProject.scenes[sceneIndex].assets!.videoUrl = videoResult.url;
             videosGenerated++;
-            console.log(`[UniversalVideoService] B-roll found for scene ${scene.id}: ${videoResult.url}`);
+            console.log(`[UniversalVideoService] B-roll APPROVED for scene ${scene.id}: ${videoResult.url}`);
+          } else {
+            // Keep using AI image - ensure background type is 'image'
+            if (updatedProject.scenes[sceneIndex].background) {
+              updatedProject.scenes[sceneIndex].background.type = 'image';
+            }
+            console.log(`[UniversalVideoService] Using AI image for scene ${scene.id} - B-roll rejected or not found`);
           }
-        } else {
-          console.log(`[UniversalVideoService] No B-roll found for scene ${scene.id} - will use AI image`);
         }
       }
       
