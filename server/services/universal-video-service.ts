@@ -260,7 +260,7 @@ Guidelines:
     }
   }
 
-  private getTransitionTypeForScene(sceneType: string, index: number, direction: 'in' | 'out'): string {
+  private getTransitionTypeForScene(sceneType: string, index: number, direction: 'in' | 'out'): 'fade' | 'zoom' | 'crossfade' | 'none' | 'slide' | 'wipe' {
     // First scene always fades in
     if (index === 0 && direction === 'in') return 'fade';
     
@@ -269,19 +269,17 @@ Guidelines:
       case 'hook':
         return direction === 'in' ? 'zoom' : 'fade';
       case 'intro':
-        return direction === 'in' ? 'fade' : 'slide-left';
+        return direction === 'in' ? 'fade' : 'slide';
       case 'benefit':
       case 'feature':
-        // Alternate between slide directions for feature scenes
-        return direction === 'in' 
-          ? (index % 2 === 0 ? 'slide-left' : 'slide-right')
-          : 'fade';
+        // Alternate between slide for feature scenes
+        return direction === 'in' ? 'slide' : 'fade';
       case 'cta':
-        return direction === 'in' ? 'zoom' : 'blur';
+        return direction === 'in' ? 'zoom' : 'fade';
       case 'outro':
         return 'fade';
       case 'testimonial':
-        return direction === 'in' ? 'blur' : 'fade';
+        return direction === 'in' ? 'fade' : 'fade';
       default:
         // Default to crossfade for smooth transitions
         return 'crossfade';
