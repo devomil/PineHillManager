@@ -16899,6 +16899,132 @@ Respond in JSON format:
     }
   });
 
+  // Helper function to cache external URLs to S3 before Lambda render
+  async function cacheSceneAssetsToS3(scenes: any[], voiceoverUrl: string | null, musicUrl: string | null): Promise<{
+    cachedScenes: any[];
+    cachedVoiceoverUrl: string | null;
+    cachedMusicUrl: string | null;
+  }> {
+    const { S3Client, PutObjectCommand } = await import('@aws-sdk/client-s3');
+    
+    const s3Client = new S3Client({
+      region: 'us-east-1',
+      credentials: {
+        accessKeyId: process.env.REMOTION_AWS_ACCESS_KEY_ID || '',
+        secretAccessKey: process.env.REMOTION_AWS_SECRET_ACCESS_KEY || '',
+      },
+    });
+    
+    const bucketName = 'remotionlambda-useast1-refjo5giq5';
+    
+    const isExternalUrl = (url: string) => {
+      if (!url) return false;
+      if (url.startsWith('data:')) return false;
+      if (url.includes('s3.') && url.includes('amazonaws.com')) return false;
+      return url.startsWith('http');
+    };
+    
+    const uploadToS3 = async (buffer: Buffer, fileName: string, contentType: string): Promise<string | null> => {
+      try {
+        await s3Client.send(new PutObjectCommand({
+          Bucket: bucketName,
+          Key: `cached-assets/${fileName}`,
+          Body: buffer,
+          ContentType: contentType,
+          ACL: 'public-read',
+        }));
+        return `https://${bucketName}.s3.us-east-1.amazonaws.com/cached-assets/${fileName}`;
+      } catch (error) {
+        console.error('[S3Cache] Upload error:', error);
+        return null;
+      }
+    };
+    
+    const downloadAndCache = async (url: string, prefix: string, extension: string): Promise<string | null> => {
+      try {
+        console.log(`[S3Cache] Downloading: ${url.substring(0, 80)}...`);
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 60000);
+        
+        const response = await fetch(url, { signal: controller.signal });
+        clearTimeout(timeout);
+        
+        if (!response.ok) return null;
+        
+        const buffer = Buffer.from(await response.arrayBuffer());
+        const contentType = response.headers.get('content-type') || 'application/octet-stream';
+        const fileName = `${prefix}_${Date.now()}.${extension}`;
+        
+        const s3Url = await uploadToS3(buffer, fileName, contentType);
+        if (s3Url) {
+          console.log(`[S3Cache] Cached: ${s3Url}`);
+        }
+        return s3Url;
+      } catch (error) {
+        console.error(`[S3Cache] Failed to cache ${url.substring(0, 60)}:`, error);
+        return null;
+      }
+    };
+    
+    console.log('[S3Cache] Starting asset caching before Lambda render...');
+    const startTime = Date.now();
+    
+    // Cache voiceover
+    let cachedVoiceoverUrl = voiceoverUrl;
+    if (voiceoverUrl && isExternalUrl(voiceoverUrl)) {
+      const cached = await downloadAndCache(voiceoverUrl, 'voiceover', 'mp3');
+      if (cached) cachedVoiceoverUrl = cached;
+    }
+    
+    // Cache music
+    let cachedMusicUrl = musicUrl;
+    if (musicUrl && isExternalUrl(musicUrl)) {
+      const cached = await downloadAndCache(musicUrl, 'music', 'mp3');
+      if (cached) cachedMusicUrl = cached;
+    }
+    
+    // Cache scene assets
+    const cachedScenes = await Promise.all(scenes.map(async (scene: any, index: number) => {
+      const updatedScene = { ...scene };
+      const sceneId = scene.id || `scene_${index}`;
+      
+      // Cache video
+      if (scene.assets?.videoUrl && isExternalUrl(scene.assets.videoUrl)) {
+        const cached = await downloadAndCache(scene.assets.videoUrl, `video_${sceneId}`, 'mp4');
+        if (cached) {
+          updatedScene.assets = { ...updatedScene.assets, videoUrl: cached };
+        } else {
+          // Video failed - fall back to image
+          console.warn(`[S3Cache] Video cache failed for scene ${index}, switching to image`);
+          updatedScene.assets = { ...updatedScene.assets, videoUrl: undefined };
+          if (updatedScene.background?.type === 'video') {
+            updatedScene.background = { ...updatedScene.background, type: 'image' };
+          }
+        }
+      }
+      
+      // Cache background/image
+      if (scene.assets?.backgroundUrl && isExternalUrl(scene.assets.backgroundUrl)) {
+        const cached = await downloadAndCache(scene.assets.backgroundUrl, `bg_${sceneId}`, 'jpg');
+        if (cached) {
+          updatedScene.assets = { ...updatedScene.assets, backgroundUrl: cached, imageUrl: cached };
+        }
+      } else if (scene.assets?.imageUrl && isExternalUrl(scene.assets.imageUrl)) {
+        const cached = await downloadAndCache(scene.assets.imageUrl, `img_${sceneId}`, 'jpg');
+        if (cached) {
+          updatedScene.assets = { ...updatedScene.assets, imageUrl: cached };
+        }
+      }
+      
+      return updatedScene;
+    }));
+    
+    const totalTime = ((Date.now() - startTime) / 1000).toFixed(1);
+    console.log(`[S3Cache] Asset caching complete in ${totalTime}s`);
+    
+    return { cachedScenes, cachedVoiceoverUrl, cachedMusicUrl };
+  }
+
   // Start a render on Remotion Lambda
   app.post('/api/remotion/render', isAuthenticated, requireRole(['admin', 'manager']), async (req, res) => {
     try {
@@ -16920,13 +17046,20 @@ Respond in JSON format:
       }
 
       console.log(`[Remotion Lambda] Starting render for ${compositionId} with ${scenes.length} scenes`);
+      
+      // Cache all external assets to S3 before sending to Lambda
+      const { cachedScenes, cachedVoiceoverUrl, cachedMusicUrl } = await cacheSceneAssetsToS3(
+        scenes,
+        voiceoverUrl || null,
+        musicUrl || null
+      );
 
       const result = await remotionLambdaService.startRender({
         compositionId,
         inputProps: {
-          scenes,
-          voiceoverUrl: voiceoverUrl || null,
-          musicUrl: musicUrl || null,
+          scenes: cachedScenes,
+          voiceoverUrl: cachedVoiceoverUrl,
+          musicUrl: cachedMusicUrl,
           watermark: watermark || null,
           productName: productName || 'Product',
           style: style || 'professional'
@@ -16999,13 +17132,20 @@ Respond in JSON format:
       }
 
       console.log(`[Remotion Lambda] Starting sync render for ${compositionId}...`);
+      
+      // Cache all external assets to S3 before sending to Lambda
+      const { cachedScenes, cachedVoiceoverUrl, cachedMusicUrl } = await cacheSceneAssetsToS3(
+        scenes,
+        voiceoverUrl || null,
+        musicUrl || null
+      );
 
       const outputUrl = await remotionLambdaService.renderVideo({
         compositionId,
         inputProps: {
-          scenes,
-          voiceoverUrl: voiceoverUrl || null,
-          musicUrl: musicUrl || null,
+          scenes: cachedScenes,
+          voiceoverUrl: cachedVoiceoverUrl,
+          musicUrl: cachedMusicUrl,
           watermark: watermark || null,
           productName: productName || 'Product',
           style: style || 'professional'
