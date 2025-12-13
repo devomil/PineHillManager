@@ -1316,7 +1316,9 @@ router.post('/:projectId/scenes/:sceneId/regenerate-video', isAuthenticated, asy
         
         projectData.scenes[sceneIndex].assets = projectData.scenes[sceneIndex].assets || {};
         projectData.scenes[sceneIndex].assets!.videoUrl = result.newVideoUrl;
+        projectData.scenes[sceneIndex].background = projectData.scenes[sceneIndex].background || { type: 'video', source: '' };
         projectData.scenes[sceneIndex].background!.type = 'video';
+        projectData.scenes[sceneIndex].background!.videoUrl = result.newVideoUrl;
         
         if (!projectData.regenerationHistory) projectData.regenerationHistory = [];
         projectData.regenerationHistory.push({

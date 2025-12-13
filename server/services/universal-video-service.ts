@@ -1389,6 +1389,7 @@ Guidelines:
 
   private buildVideoSearchQuery(scene: Scene, targetAudience?: string): string {
     const narration = (scene.narration || '').toLowerCase();
+    const visualDirection = (scene.visualDirection || scene.background?.source || '').toLowerCase();
     
     // Get demographic prefix based on target audience
     let demographicTerms = '';
@@ -1417,29 +1418,47 @@ Guidelines:
       }
     }
     
-    // Health/wellness specific keywords WITH demographics
-    if (narration.includes('menopause')) return `${demographicTerms}wellness relaxation health`;
-    if (narration.includes('hot flash')) return `${demographicTerms}cooling relief comfort relaxed`;
-    if (narration.includes('sleep') || narration.includes('restful')) return `${demographicTerms}peaceful sleep relaxation bedroom`;
-    if (narration.includes('energy') || narration.includes('vitality')) return `${demographicTerms}active healthy lifestyle energetic`;
-    if (narration.includes('hormone')) return `${demographicTerms}wellness nature botanical healthy`;
-    if (narration.includes('natural') || narration.includes('herbal')) return `${demographicTerms}herbs botanical plants nature`;
-    if (narration.includes('relief') || narration.includes('comfort')) return `${demographicTerms}relaxed peaceful happy comfortable`;
-    if (narration.includes('stress') || narration.includes('anxiety')) return `${demographicTerms}calm meditation relaxation peaceful`;
+    // Also check visual direction for gender hints
+    if (!demographicTerms.includes('woman') && !demographicTerms.includes('man')) {
+      if (visualDirection.includes('woman') || visualDirection.includes('female')) {
+        demographicTerms += 'woman female ';
+      } else if (visualDirection.includes('man') || visualDirection.includes('male')) {
+        demographicTerms += 'man male ';
+      }
+    }
     
-    // Scene type defaults WITH demographics
+    // Extract activity keywords from visual direction
+    let activityKeywords = '';
+    if (visualDirection.includes('yoga')) activityKeywords = 'yoga meditation ';
+    else if (visualDirection.includes('meditation')) activityKeywords = 'meditation mindfulness ';
+    else if (visualDirection.includes('exercise') || visualDirection.includes('workout')) activityKeywords = 'exercise fitness workout ';
+    else if (visualDirection.includes('nature') || visualDirection.includes('outdoor')) activityKeywords = 'nature outdoor peaceful ';
+    else if (visualDirection.includes('kitchen') || visualDirection.includes('cooking')) activityKeywords = 'kitchen cooking healthy ';
+    else if (visualDirection.includes('sleep') || visualDirection.includes('bed')) activityKeywords = 'sleep bedroom peaceful ';
+    
+    // Health/wellness specific keywords WITH demographics
+    if (narration.includes('menopause')) return `${demographicTerms}${activityKeywords}wellness relaxation health`;
+    if (narration.includes('hot flash')) return `${demographicTerms}${activityKeywords}cooling relief comfort relaxed`;
+    if (narration.includes('sleep') || narration.includes('restful')) return `${demographicTerms}${activityKeywords || 'peaceful sleep relaxation bedroom'}`;
+    if (narration.includes('energy') || narration.includes('vitality')) return `${demographicTerms}${activityKeywords || 'active healthy lifestyle energetic'}`;
+    if (narration.includes('hormone')) return `${demographicTerms}${activityKeywords}wellness nature botanical healthy`;
+    if (narration.includes('natural') || narration.includes('herbal')) return `${demographicTerms}${activityKeywords}herbs botanical plants nature`;
+    if (narration.includes('relief') || narration.includes('comfort')) return `${demographicTerms}${activityKeywords}relaxed peaceful happy comfortable`;
+    if (narration.includes('stress') || narration.includes('anxiety')) return `${demographicTerms}${activityKeywords || 'calm meditation relaxation peaceful'}`;
+    
+    // Scene type defaults WITH demographics and activity
     const defaults: Record<string, string> = {
-      hook: `${demographicTerms}concerned thinking wellness health`,
-      benefit: `${demographicTerms}happy smiling healthy lifestyle`,
-      testimonial: `${demographicTerms}satisfied happy smiling portrait`,
-      story: `${demographicTerms}transformation journey wellness`,
-      intro: `${demographicTerms}wellness morning routine healthy`,
-      cta: `${demographicTerms}confident smiling action positive`,
-      feature: `${demographicTerms}healthy lifestyle wellness`,
-      explanation: `${demographicTerms}learning understanding wellness`,
+      hook: `${demographicTerms}${activityKeywords}concerned thinking wellness health`,
+      benefit: `${demographicTerms}${activityKeywords}happy smiling healthy lifestyle`,
+      testimonial: `${demographicTerms}${activityKeywords}satisfied happy smiling portrait`,
+      story: `${demographicTerms}${activityKeywords}transformation journey wellness`,
+      intro: `${demographicTerms}${activityKeywords}wellness morning routine healthy`,
+      cta: `${demographicTerms}${activityKeywords}confident smiling action positive`,
+      feature: `${demographicTerms}${activityKeywords}healthy lifestyle wellness`,
+      explanation: `${demographicTerms}${activityKeywords}learning understanding wellness`,
     };
     
-    return defaults[scene.type] || `${demographicTerms}wellness healthy lifestyle`;
+    return defaults[scene.type] || `${demographicTerms}${activityKeywords}wellness healthy lifestyle`;
   }
 
   /**
