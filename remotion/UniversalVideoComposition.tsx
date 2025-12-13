@@ -849,8 +849,8 @@ const SceneRenderer: React.FC<{
             volume={0}
             startFrom={0}
             loop
-            delayRenderTimeoutInMilliseconds={120000}
-            delayRenderRetries={3}
+            delayRenderTimeoutInMilliseconds={15000}
+            delayRenderRetries={1}
           />
         ) : hasValidImage ? (
           // IMAGE BACKGROUND with Ken Burns effect

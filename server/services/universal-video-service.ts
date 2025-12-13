@@ -89,6 +89,294 @@ class UniversalVideoService {
     }
   }
 
+  /**
+   * Download a file from external URL and return as Buffer
+   */
+  private async downloadExternalFile(
+    url: string, 
+    timeoutMs: number = 60000
+  ): Promise<{ buffer: Buffer; contentType: string } | null> {
+    if (!url || !url.startsWith('http')) {
+      console.warn(`[AssetDownload] Invalid URL: ${url}`);
+      return null;
+    }
+
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+      console.log(`[AssetDownload] Downloading: ${url.substring(0, 80)}...`);
+      const startTime = Date.now();
+
+      const response = await fetch(url, {
+        signal: controller.signal,
+        headers: {
+          'User-Agent': 'PineHillFarm-VideoProducer/1.0',
+        },
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        console.warn(`[AssetDownload] Failed (${response.status}): ${url}`);
+        return null;
+      }
+
+      const arrayBuffer = await response.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      const contentType = response.headers.get('content-type') || 'application/octet-stream';
+      
+      const downloadTime = Date.now() - startTime;
+      const sizeMB = (buffer.length / 1024 / 1024).toFixed(2);
+      console.log(`[AssetDownload] Complete: ${sizeMB}MB in ${downloadTime}ms`);
+
+      return { buffer, contentType };
+    } catch (error: any) {
+      if (error.name === 'AbortError') {
+        console.warn(`[AssetDownload] Timeout after ${timeoutMs}ms: ${url}`);
+      } else {
+        console.warn(`[AssetDownload] Error: ${error.message}`);
+      }
+      return null;
+    }
+  }
+
+  /**
+   * Download external video and upload to S3
+   * Returns S3 URL or null if failed
+   */
+  private async cacheVideoToS3(
+    externalUrl: string,
+    sceneId: string
+  ): Promise<string | null> {
+    if (!externalUrl || !this.s3Client) {
+      return null;
+    }
+
+    // Skip if already an S3 URL
+    if (externalUrl.includes('s3.') && externalUrl.includes('amazonaws.com')) {
+      console.log(`[CacheVideo] Already S3 URL: ${externalUrl.substring(0, 60)}`);
+      return externalUrl;
+    }
+
+    try {
+      console.log(`[CacheVideo] Caching video for scene ${sceneId}...`);
+      const downloadResult = await this.downloadExternalFile(externalUrl, 90000); // 90s timeout for videos
+
+      if (!downloadResult) {
+        console.warn(`[CacheVideo] Download failed for scene ${sceneId}`);
+        return null;
+      }
+
+      // Determine file extension from content type
+      let extension = 'mp4';
+      if (downloadResult.contentType.includes('webm')) {
+        extension = 'webm';
+      } else if (downloadResult.contentType.includes('quicktime') || downloadResult.contentType.includes('mov')) {
+        extension = 'mov';
+      }
+
+      const fileName = `broll/${sceneId}_${Date.now()}.${extension}`;
+      const s3Url = await this.uploadToS3(
+        downloadResult.buffer,
+        fileName,
+        downloadResult.contentType
+      );
+
+      if (s3Url) {
+        console.log(`[CacheVideo] Cached to S3: ${s3Url}`);
+        return s3Url;
+      }
+
+      return null;
+    } catch (error: any) {
+      console.error(`[CacheVideo] Error caching video for ${sceneId}:`, error.message);
+      return null;
+    }
+  }
+
+  /**
+   * Download external image and upload to S3
+   * Returns S3 URL or null if failed
+   */
+  private async cacheImageToS3(
+    externalUrl: string,
+    sceneId: string,
+    imageType: 'background' | 'content' | 'stock' = 'background'
+  ): Promise<string | null> {
+    if (!externalUrl || !this.s3Client) {
+      return null;
+    }
+
+    // Skip if already an S3 URL
+    if (externalUrl.includes('s3.') && externalUrl.includes('amazonaws.com')) {
+      console.log(`[CacheImage] Already S3 URL: ${externalUrl.substring(0, 60)}`);
+      return externalUrl;
+    }
+
+    // Skip data URLs (need different handling)
+    if (externalUrl.startsWith('data:')) {
+      return null; // Will be handled by existing base64 upload logic
+    }
+
+    try {
+      console.log(`[CacheImage] Caching ${imageType} image for scene ${sceneId}...`);
+      const downloadResult = await this.downloadExternalFile(externalUrl, 30000); // 30s timeout for images
+
+      if (!downloadResult) {
+        console.warn(`[CacheImage] Download failed for scene ${sceneId}`);
+        return null;
+      }
+
+      // Determine file extension
+      let extension = 'jpg';
+      if (downloadResult.contentType.includes('png')) {
+        extension = 'png';
+      } else if (downloadResult.contentType.includes('webp')) {
+        extension = 'webp';
+      }
+
+      const fileName = `images/${imageType}_${sceneId}_${Date.now()}.${extension}`;
+      const s3Url = await this.uploadToS3(
+        downloadResult.buffer,
+        fileName,
+        downloadResult.contentType
+      );
+
+      if (s3Url) {
+        console.log(`[CacheImage] Cached to S3: ${s3Url}`);
+        return s3Url;
+      }
+
+      return null;
+    } catch (error: any) {
+      console.error(`[CacheImage] Error caching image for ${sceneId}:`, error.message);
+      return null;
+    }
+  }
+
+  /**
+   * Cache all external assets to S3 for a project
+   * Call this AFTER asset generation but BEFORE rendering
+   */
+  async cacheAllAssetsToS3(project: VideoProject): Promise<{
+    success: boolean;
+    cachedCount: number;
+    failedCount: number;
+    details: string[];
+  }> {
+    const details: string[] = [];
+    let cachedCount = 0;
+    let failedCount = 0;
+
+    console.log('[CacheAssets] Starting S3 asset caching...');
+    const startTime = Date.now();
+
+    // Cache voiceover (usually already S3, but verify)
+    if (project.assets.voiceover.fullTrackUrl) {
+      const url = project.assets.voiceover.fullTrackUrl;
+      if (!url.includes('s3.amazonaws.com') && !url.startsWith('data:') && url.startsWith('http')) {
+        const downloadResult = await this.downloadExternalFile(url, 30000);
+        if (downloadResult) {
+          const s3Url = await this.uploadToS3(
+            downloadResult.buffer,
+            `voiceover/${project.id}_${Date.now()}.mp3`,
+            'audio/mpeg'
+          );
+          if (s3Url) {
+            project.assets.voiceover.fullTrackUrl = s3Url;
+            cachedCount++;
+            details.push(`✓ Voiceover cached to S3`);
+          }
+        }
+      }
+    }
+
+    // Cache music
+    if (project.assets.music?.url) {
+      const url = project.assets.music.url;
+      if (!url.includes('s3.amazonaws.com') && !url.startsWith('data:') && url.startsWith('http')) {
+        const downloadResult = await this.downloadExternalFile(url, 60000);
+        if (downloadResult) {
+          const s3Url = await this.uploadToS3(
+            downloadResult.buffer,
+            `music/${project.id}_${Date.now()}.mp3`,
+            'audio/mpeg'
+          );
+          if (s3Url) {
+            project.assets.music.url = s3Url;
+            cachedCount++;
+            details.push(`✓ Music cached to S3`);
+          }
+        }
+      }
+    }
+
+    // Cache scene assets (images and videos)
+    for (let i = 0; i < project.scenes.length; i++) {
+      const scene = project.scenes[i];
+      
+      // Cache B-roll video
+      if (scene.assets?.videoUrl && scene.background?.type === 'video') {
+        const s3VideoUrl = await this.cacheVideoToS3(scene.assets.videoUrl, scene.id);
+        if (s3VideoUrl) {
+          project.scenes[i].assets!.videoUrl = s3VideoUrl;
+          cachedCount++;
+          details.push(`✓ Scene ${i} video cached`);
+        } else {
+          // Video cache failed - fall back to image
+          console.warn(`[CacheAssets] Scene ${i} video cache failed, switching to image`);
+          project.scenes[i].background!.type = 'image';
+          project.scenes[i].assets!.videoUrl = undefined;
+          failedCount++;
+          details.push(`✗ Scene ${i} video failed - using image`);
+        }
+      }
+
+      // Cache background image
+      if (scene.assets?.backgroundUrl) {
+        const s3ImageUrl = await this.cacheImageToS3(
+          scene.assets.backgroundUrl,
+          scene.id,
+          'background'
+        );
+        if (s3ImageUrl) {
+          project.scenes[i].assets!.backgroundUrl = s3ImageUrl;
+          project.scenes[i].assets!.imageUrl = s3ImageUrl;
+          cachedCount++;
+          details.push(`✓ Scene ${i} background cached`);
+        } else if (!scene.assets.backgroundUrl.startsWith('data:') && !scene.assets.backgroundUrl.includes('s3.amazonaws.com')) {
+          failedCount++;
+          details.push(`✗ Scene ${i} background cache failed`);
+        }
+      }
+
+      // Cache standalone image (if different from background)
+      if (scene.assets?.imageUrl && scene.assets.imageUrl !== scene.assets.backgroundUrl) {
+        const s3ImageUrl = await this.cacheImageToS3(
+          scene.assets.imageUrl,
+          scene.id,
+          'content'
+        );
+        if (s3ImageUrl) {
+          project.scenes[i].assets!.imageUrl = s3ImageUrl;
+          cachedCount++;
+          details.push(`✓ Scene ${i} image cached`);
+        }
+      }
+    }
+
+    const totalTime = ((Date.now() - startTime) / 1000).toFixed(1);
+    console.log(`[CacheAssets] Complete: ${cachedCount} cached, ${failedCount} failed in ${totalTime}s`);
+
+    return {
+      success: failedCount === 0,
+      cachedCount,
+      failedCount,
+      details,
+    };
+  }
+
   private addNotification(notification: Omit<ServiceNotification, 'timestamp'>) {
     const fullNotification = {
       ...notification,
@@ -2046,9 +2334,31 @@ Guidelines:
       console.log('[UniversalVideoService] Music step skipped - no suitable music found');
     }
 
+    // ========== S3 ASSET CACHING ==========
+    // Cache all external assets to S3 for fast Lambda access
     updatedProject.progress.currentStep = 'assembly';
+    updatedProject.progress.steps.assembly.status = 'in-progress';
+    updatedProject.progress.steps.assembly.message = 'Caching assets to cloud storage...';
+    
+    console.log('[UniversalVideoService] Caching all external assets to S3...');
+    const cacheResult = await this.cacheAllAssetsToS3(updatedProject);
+    
+    if (cacheResult.cachedCount > 0) {
+      console.log(`[UniversalVideoService] Cached ${cacheResult.cachedCount} assets to S3`);
+    }
+    
+    if (cacheResult.failedCount > 0) {
+      console.warn(`[UniversalVideoService] ${cacheResult.failedCount} assets failed to cache`);
+      updatedProject.progress.errors.push(
+        `${cacheResult.failedCount} assets couldn't be cached - render may be slower`
+      );
+    }
+    
     updatedProject.progress.steps.assembly.status = 'complete';
     updatedProject.progress.steps.assembly.progress = 100;
+    updatedProject.progress.steps.assembly.message = 
+      `Cached ${cacheResult.cachedCount} assets to S3`;
+    // ========== END S3 CACHING ==========
 
     updatedProject.status = 'ready';
     updatedProject.progress.overallPercent = 85;
