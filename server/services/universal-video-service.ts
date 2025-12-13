@@ -728,6 +728,29 @@ Guidelines:
       console.log('[EnhancePrompt] Enforcing male subject in AI image generation');
     }
     
+    // Detect and enforce age from prompt - CRITICAL for matching target demographics
+    let ageEnforcement = '';
+    const ageMatch = promptLower.match(/(\d{2})[- ]?(year[- ]?old|years old|yo)/);
+    if (ageMatch) {
+      const age = parseInt(ageMatch[1]);
+      if (age >= 40 && age < 55) {
+        ageEnforcement = 'MUST be a MATURE MIDDLE-AGED person in their 40s-50s with visible signs of maturity, NOT YOUNG, NOT in 20s or 30s, mature face with subtle age lines, ';
+        console.log(`[EnhancePrompt] Enforcing middle-aged (${age}) - NOT YOUNG`);
+      } else if (age >= 55 && age < 70) {
+        ageEnforcement = 'MUST be a MATURE SENIOR person in their 50s-60s with visible signs of maturity, grey or greying hair acceptable, mature refined appearance, NOT YOUNG, NOT in 20s 30s or 40s, ';
+        console.log(`[EnhancePrompt] Enforcing senior (${age}) - NOT YOUNG`);
+      } else if (age >= 70) {
+        ageEnforcement = 'MUST be an ELDERLY person in their 70s or older, silver/white hair, dignified mature appearance, ';
+        console.log(`[EnhancePrompt] Enforcing elderly (${age})`);
+      }
+    } else if (promptLower.includes('mature') || promptLower.includes('middle-aged') || promptLower.includes('middle aged')) {
+      ageEnforcement = 'MUST be a MATURE MIDDLE-AGED person in their 40s-50s, NOT YOUNG, NOT in 20s or 30s, ';
+      console.log('[EnhancePrompt] Enforcing mature/middle-aged from keywords');
+    } else if (promptLower.includes('senior') || promptLower.includes('elderly') || promptLower.includes('older')) {
+      ageEnforcement = 'MUST be a SENIOR/ELDERLY person in their 60s-70s, grey hair, mature appearance, NOT YOUNG, ';
+      console.log('[EnhancePrompt] Enforcing senior/elderly from keywords');
+    }
+    
     const styleModifiers = [
       'professional photography',
       'warm natural lighting',
@@ -736,7 +759,7 @@ Guidelines:
       '4K ultra detailed',
       'soft color palette',
     ];
-    return `${genderEnforcement}${prompt}, ${styleModifiers.join(', ')}`;
+    return `${ageEnforcement}${genderEnforcement}${prompt}, ${styleModifiers.join(', ')}`;
   }
 
   private async generateImageWithFalPrimary(prompt: string, falKey: string): Promise<ImageGenerationResult> {
@@ -1433,6 +1456,19 @@ Guidelines:
         demographicTerms += 'woman female ';
       } else if (audience.includes('men') || audience.includes('male') || audience.includes('man')) {
         demographicTerms += 'man male ';
+      }
+    }
+    
+    // Also check visual direction for age hints
+    const ageMatch = visualDirection.match(/(\d{2})[- ]?(year[- ]?old|years old|yo)/);
+    if (ageMatch && !demographicTerms.includes('mature') && !demographicTerms.includes('senior')) {
+      const age = parseInt(ageMatch[1]);
+      if (age >= 40 && age < 60) {
+        demographicTerms = 'mature middle-aged ' + demographicTerms;
+        console.log(`[VideoSearch] Adding age terms for ${age}-year-old: mature middle-aged`);
+      } else if (age >= 60) {
+        demographicTerms = 'senior mature ' + demographicTerms;
+        console.log(`[VideoSearch] Adding age terms for ${age}-year-old: senior mature`);
       }
     }
     
