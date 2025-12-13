@@ -1474,19 +1474,31 @@ Guidelines:
     let demographicTerms = '';
     
     // First, check visual direction for explicit demographics (user's custom prompt takes priority)
+    // Support multiple age formats: "50-year-old", "late 40s", "early 50s", "in her 40s", etc.
     const ageMatch = visualDirection.match(/(\d{2})[- ]?(year[- ]?old|years old|yo)/);
+    const ageRangeMatch = visualDirection.match(/(late|early|mid)?\s*(\d{2})s/);
+    
+    let detectedAge = 0;
     if (ageMatch) {
-      const age = parseInt(ageMatch[1]);
-      if (age >= 40 && age < 60) {
-        demographicTerms = 'mature middle-aged ';
-        console.log(`[VideoSearch] Age ${age} from prompt: mature middle-aged`);
-      } else if (age >= 60) {
-        demographicTerms = 'senior mature elderly ';
-        console.log(`[VideoSearch] Age ${age} from prompt: senior`);
-      } else if (age >= 20 && age < 40) {
-        demographicTerms = 'young adult ';
-        console.log(`[VideoSearch] Age ${age} from prompt: young adult`);
-      }
+      detectedAge = parseInt(ageMatch[1]);
+    } else if (ageRangeMatch) {
+      const decade = parseInt(ageRangeMatch[2]);
+      const modifier = ageRangeMatch[1];
+      if (modifier === 'late') detectedAge = decade + 7;
+      else if (modifier === 'early') detectedAge = decade + 2;
+      else detectedAge = decade + 5;
+      console.log(`[VideoSearch] Detected age range "${ageRangeMatch[0]}" → age ${detectedAge}`);
+    }
+    
+    if (detectedAge >= 40 && detectedAge < 60) {
+      demographicTerms = 'mature middle-aged ';
+      console.log(`[VideoSearch] Age ${detectedAge} from prompt: mature middle-aged`);
+    } else if (detectedAge >= 60) {
+      demographicTerms = 'senior mature elderly ';
+      console.log(`[VideoSearch] Age ${detectedAge} from prompt: senior`);
+    } else if (detectedAge >= 20 && detectedAge < 40) {
+      demographicTerms = 'young adult ';
+      console.log(`[VideoSearch] Age ${detectedAge} from prompt: young adult`);
     }
     
     // Check visual direction for gender (user's custom prompt takes priority)
@@ -1636,6 +1648,19 @@ Guidelines:
     const title = ((video as any).title || '').toLowerCase();
     const user = ((video as any).user || '').toLowerCase();
     const combined = ` ${tags} ${desc} ${title} ${user} `;
+    
+    // ALWAYS reject children/teens for adult products (40s/50s/mature/senior)
+    const isAdultProduct = audience.includes('40') || audience.includes('50') || audience.includes('60') ||
+                           audience.includes('mature') || audience.includes('senior') || audience.includes('menopause');
+    if (isAdultProduct) {
+      const childPatterns = ['child', 'kid', 'teen', 'teenager', 'baby', 'infant', 'toddler', 'young girl', 'young boy', 'little'];
+      for (const pattern of childPatterns) {
+        if (combined.includes(pattern)) {
+          console.log(`[Validation] REJECTED: Child indicator "${pattern}" found for adult product`);
+          return false;
+        }
+      }
+    }
     
     // Check if targeting women/female audience
     const isWomensProduct = audience.includes('women') || audience.includes('female') || 

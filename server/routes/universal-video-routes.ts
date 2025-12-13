@@ -1320,6 +1320,13 @@ router.post('/:projectId/scenes/:sceneId/regenerate-video', isAuthenticated, asy
         projectData.scenes[sceneIndex].background!.type = 'video';
         projectData.scenes[sceneIndex].background!.videoUrl = result.newVideoUrl;
         
+        // IMPORTANT: Save custom query to visual direction so it persists
+        if (query) {
+          projectData.scenes[sceneIndex].visualDirection = query;
+          projectData.scenes[sceneIndex].background!.source = query;
+          console.log(`[UniversalVideo] Updated visual direction for scene ${sceneId}: ${query.substring(0, 60)}...`);
+        }
+        
         if (!projectData.regenerationHistory) projectData.regenerationHistory = [];
         projectData.regenerationHistory.push({
           id: `regen_${Date.now()}`,
