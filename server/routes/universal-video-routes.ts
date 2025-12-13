@@ -598,6 +598,7 @@ router.post('/projects/:projectId/render', isAuthenticated, async (req: Request,
 
 const LAMBDA_TIMEOUT_MS = 300000; // 5 minutes - increased for complex videos
 const RENDER_TIMEOUT_MS = 900000; // 15 minutes - matches new Lambda timeout (900 seconds)
+const STALL_DETECTION_MS = 180000; // 3 minutes - if no progress change, consider stalled
 
 router.get('/projects/:projectId/render-status', isAuthenticated, async (req: Request, res: Response) => {
   try {
@@ -710,7 +711,45 @@ router.get('/projects/:projectId/render-status', isAuthenticated, async (req: Re
           statusResult.outputFile || undefined
         );
       } else {
-        projectData.progress.steps.rendering.progress = Math.round(statusResult.overallProgress * 100);
+        const currentProgress = Math.round(statusResult.overallProgress * 100);
+        const lastProgress = (projectData.progress as any).lastProgressValue || 0;
+        const lastUpdateAt = (projectData.progress as any).lastProgressUpdateAt || renderStartTime;
+        
+        if (currentProgress === lastProgress && currentProgress > 0) {
+          const stallTime = Date.now() - lastUpdateAt;
+          console.log(`[UniversalVideo] Progress unchanged at ${currentProgress}% for ${Math.round(stallTime/1000)}s`);
+          
+          if (stallTime > STALL_DETECTION_MS) {
+            console.log(`[UniversalVideo] Render stalled for ${projectId} - no progress for ${Math.round(stallTime/60000)} minutes`);
+            
+            projectData.status = 'error';
+            projectData.progress.steps.rendering.status = 'error';
+            projectData.progress.steps.rendering.message = `Render stalled at ${currentProgress}% - Lambda may have stopped unexpectedly`;
+            projectData.progress.errors.push('Render stalled - AWS Lambda may have terminated. Please retry.');
+            projectData.progress.serviceFailures.push({
+              service: 'remotion-lambda',
+              timestamp: new Date().toISOString(),
+              error: 'Render stalled - no progress for 3+ minutes',
+            });
+            
+            await saveProjectToDb(projectData, projectData.ownerId);
+            
+            return res.json({
+              success: false,
+              done: false,
+              progress: currentProgress / 100,
+              outputUrl: null,
+              errors: ['Render stalled - Lambda stopped unexpectedly. Please click Retry Render.'],
+              project: projectData,
+              stalled: true,
+            });
+          }
+        } else if (currentProgress !== lastProgress) {
+          (projectData.progress as any).lastProgressValue = currentProgress;
+          (projectData.progress as any).lastProgressUpdateAt = Date.now();
+        }
+        
+        projectData.progress.steps.rendering.progress = currentProgress;
         projectData.progress.overallPercent = 85 + Math.round(statusResult.overallProgress * 15);
         await saveProjectToDb(projectData, projectData.ownerId);
       }
