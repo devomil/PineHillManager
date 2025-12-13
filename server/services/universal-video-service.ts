@@ -710,6 +710,24 @@ Guidelines:
   }
 
   private enhanceImagePrompt(prompt: string): string {
+    const promptLower = prompt.toLowerCase();
+    
+    // Detect and enforce gender from prompt
+    let genderEnforcement = '';
+    const femaleIndicators = [' she ', ' her ', 'woman', 'female', 'lady', 'mother', 'wife', 'grandmother'];
+    const maleIndicators = [' he ', ' his ', ' man ', 'male', 'father', 'husband', 'grandfather'];
+    
+    const hasFemaleIndicator = femaleIndicators.some(ind => promptLower.includes(ind));
+    const hasMaleIndicator = maleIndicators.some(ind => promptLower.includes(ind));
+    
+    if (hasFemaleIndicator && !hasMaleIndicator) {
+      genderEnforcement = 'MUST be a woman, female subject only, NO MEN, NO MALE SUBJECTS, ';
+      console.log('[EnhancePrompt] Enforcing female subject in AI image generation');
+    } else if (hasMaleIndicator && !hasFemaleIndicator) {
+      genderEnforcement = 'MUST be a man, male subject only, NO WOMEN, NO FEMALE SUBJECTS, ';
+      console.log('[EnhancePrompt] Enforcing male subject in AI image generation');
+    }
+    
     const styleModifiers = [
       'professional photography',
       'warm natural lighting',
@@ -718,7 +736,7 @@ Guidelines:
       '4K ultra detailed',
       'soft color palette',
     ];
-    return `${prompt}, ${styleModifiers.join(', ')}`;
+    return `${genderEnforcement}${prompt}, ${styleModifiers.join(', ')}`;
   }
 
   private async generateImageWithFalPrimary(prompt: string, falKey: string): Promise<ImageGenerationResult> {
@@ -1418,11 +1436,17 @@ Guidelines:
       }
     }
     
-    // Also check visual direction for gender hints
+    // Also check visual direction for gender hints - including pronouns
     if (!demographicTerms.includes('woman') && !demographicTerms.includes('man')) {
-      if (visualDirection.includes('woman') || visualDirection.includes('female')) {
+      // Female indicators including pronouns
+      if (visualDirection.includes('woman') || visualDirection.includes('female') || 
+          visualDirection.includes(' she ') || visualDirection.includes(' her ') ||
+          visualDirection.includes('lady') || visualDirection.includes('mother') ||
+          visualDirection.includes('wife') || visualDirection.includes('grandmother')) {
         demographicTerms += 'woman female ';
-      } else if (visualDirection.includes('man') || visualDirection.includes('male')) {
+      } else if (visualDirection.includes('man') || visualDirection.includes('male') ||
+                 visualDirection.includes(' he ') || visualDirection.includes(' his ') ||
+                 visualDirection.includes('father') || visualDirection.includes('husband')) {
         demographicTerms += 'man male ';
       }
     }
@@ -2844,7 +2868,23 @@ Guidelines:
     
     console.log(`[Regenerate] Image for scene ${sceneId} with prompt: ${prompt.substring(0, 60)}...`);
     
-    // Try content image generation first
+    // Check if prompt requests people/persons - if so, use generateImage which allows people
+    const promptLower = prompt.toLowerCase();
+    const personIndicators = [' she ', ' her ', ' he ', ' his ', 'woman', 'man', 'person', 'people', 
+                              'lady', 'gentleman', 'mother', 'father', 'wife', 'husband', 
+                              'grandmother', 'grandfather', 'sitting', 'standing', 'walking'];
+    const wantsPerson = personIndicators.some(ind => promptLower.includes(ind));
+    
+    if (wantsPerson) {
+      console.log(`[Regenerate] Prompt requests person - using generateImage (not background-only)`);
+      // Use generateImage which allows people and enforces gender via enhanceImagePrompt
+      const imageResult = await this.generateImage(prompt, sceneId);
+      if (imageResult.success && imageResult.url) {
+        return { success: true, newImageUrl: imageResult.url, source: imageResult.source };
+      }
+    }
+    
+    // Try content image generation first (for non-person prompts)
     if (this.isContentScene(scene.type)) {
       const result = await this.generateContentImage(scene, project.title);
       if (result.imageUrl) {
@@ -2852,7 +2892,7 @@ Guidelines:
       }
     }
     
-    // Try AI background generation
+    // Try AI background generation (NO PEOPLE - for product overlays)
     const bgResult = await this.generateAIBackground(prompt, scene.type);
     if (bgResult.backgroundUrl) {
       return { success: true, newImageUrl: bgResult.backgroundUrl, source: bgResult.source };
