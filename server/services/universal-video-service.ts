@@ -1531,32 +1531,77 @@ Guidelines:
    * FIX 3: Validate that video content matches target audience
    */
   private validateVideoForAudience(
-    video: { tags?: string; description?: string; url: string },
+    video: { tags?: string; description?: string; url: string; title?: string; user?: string },
     targetAudience: string
   ): boolean {
     const audience = targetAudience.toLowerCase();
     const tags = (video.tags || '').toLowerCase();
     const desc = (video.description || '').toLowerCase();
-    const combined = `${tags} ${desc}`;
+    const title = ((video as any).title || '').toLowerCase();
+    const user = ((video as any).user || '').toLowerCase();
+    const combined = ` ${tags} ${desc} ${title} ${user} `;
     
-    if (audience.includes('women') || audience.includes('female')) {
-      if (combined.includes(' man ') || combined.includes(' male ') || 
-          combined.includes(' boy ') || combined.includes('businessman')) {
-        console.log(`[Validation] Rejected: Male content for women's product`);
+    // Check if targeting women/female audience
+    const isWomensProduct = audience.includes('women') || audience.includes('female') || 
+                            audience.includes('woman') || audience.includes('menopause');
+    
+    if (isWomensProduct) {
+      // STRICT: Reject any male indicators
+      const malePatterns = [
+        ' man ', ' men ', ' male ', ' boy ', ' boys ', ' guy ', ' guys ',
+        'businessman', 'father', 'husband', 'grandfather', 'brother',
+        ' his ', ' him ', ' he '
+      ];
+      
+      for (const pattern of malePatterns) {
+        if (combined.includes(pattern)) {
+          console.log(`[Validation] REJECTED: Male indicator "${pattern.trim()}" found for women's product`);
+          return false;
+        }
+      }
+      
+      // Check for positive female indicators
+      const femaleIndicators = ['woman', 'women', 'female', 'lady', 'ladies', 'girl', 'mother', 'wife', 'grandmother', ' she ', ' her '];
+      const hasFemaleIndicator = femaleIndicators.some(ind => combined.includes(ind));
+      
+      // Check for neutral/abstract content that's acceptable
+      const neutralPatterns = ['nature', 'botanical', 'herb', 'plant', 'flower', 'sunset', 'sunrise', 
+                               'ocean', 'water', 'sky', 'landscape', 'abstract', 'meditation', 'yoga',
+                               'wellness', 'health', 'peaceful', 'calm', 'relax', 'sleep', 'bedroom',
+                               'kitchen', 'food', 'cooking', 'tea', 'supplement', 'vitamin'];
+      const isNeutralContent = neutralPatterns.some(p => combined.includes(p));
+      
+      // Only allow if has female indicator OR is clearly neutral/abstract content
+      if (!hasFemaleIndicator && !isNeutralContent) {
+        console.log(`[Validation] REJECTED: No female indicators and not neutral content for women's product`);
         return false;
       }
       
-      if (!combined.includes('woman') && !combined.includes('female') && 
-          !combined.includes('girl') && !combined.includes('lady')) {
-        console.log(`[Validation] Warning: No female indicators, but allowing abstract/nature content`);
+      if (hasFemaleIndicator) {
+        console.log(`[Validation] APPROVED: Female indicator found`);
+      } else if (isNeutralContent) {
+        console.log(`[Validation] APPROVED: Neutral/abstract content acceptable`);
       }
     }
     
+    // Check if targeting men/male audience
+    const isMensProduct = audience.includes('men') || audience.includes('male') || audience.includes('man');
+    if (isMensProduct && !isWomensProduct) {
+      const femalePatterns = [' woman ', ' women ', ' female ', ' girl ', ' lady ', ' ladies '];
+      for (const pattern of femalePatterns) {
+        if (combined.includes(pattern)) {
+          console.log(`[Validation] REJECTED: Female indicator for men's product`);
+          return false;
+        }
+      }
+    }
+    
+    // Age validation for mature audiences
     if (audience.includes('40') || audience.includes('50') || audience.includes('mature') ||
-        audience.includes('menopause')) {
+        audience.includes('menopause') || audience.includes('senior')) {
       if (combined.includes('child') || combined.includes('kid') || 
-          combined.includes('teen') || combined.includes('baby')) {
-        console.log(`[Validation] Rejected: Youth content for mature audience`);
+          combined.includes('teen') || combined.includes('baby') || combined.includes('young adult')) {
+        console.log(`[Validation] REJECTED: Youth content for mature audience`);
         return false;
       }
     }
@@ -1611,7 +1656,7 @@ Guidelines:
     return null;
   }
 
-  private async getPexelsVideo(query: string): Promise<{ url: string; duration: number; source: string } | null> {
+  private async getPexelsVideo(query: string): Promise<{ url: string; duration: number; source: string; tags?: string; description?: string; title?: string; user?: string } | null> {
     const pexelsKey = process.env.PEXELS_API_KEY;
     if (!pexelsKey) {
       console.log('[UniversalVideoService] No PEXELS_API_KEY configured');
@@ -1654,13 +1699,27 @@ Guidelines:
             const hdFile = video.video_files?.find((f: any) => f.quality === 'hd') || video.video_files?.[0];
             if (hdFile?.link && video.duration >= 5 && video.duration <= 60) {
               console.log(`[UniversalVideoService] Selected Pexels video: ${hdFile.link} (${video.duration}s)`);
-              return { url: hdFile.link, duration: video.duration, source: 'pexels' };
+              return { 
+                url: hdFile.link, 
+                duration: video.duration, 
+                source: 'pexels',
+                tags: searchQuery,
+                description: searchQuery,
+                user: (video as any).user?.name || ''
+              };
             }
           }
           const firstVideo = videos[0];
           const hdFile = firstVideo.video_files?.find((f: any) => f.quality === 'hd') || firstVideo.video_files?.[0];
           if (hdFile?.link) {
-            return { url: hdFile.link, duration: firstVideo.duration, source: 'pexels' };
+            return { 
+              url: hdFile.link, 
+              duration: firstVideo.duration, 
+              source: 'pexels',
+              tags: searchQuery,
+              description: searchQuery,
+              user: (firstVideo as any).user?.name || ''
+            };
           }
         }
       } catch (e: any) {
@@ -1670,7 +1729,7 @@ Guidelines:
     return null;
   }
 
-  private async getPixabayVideo(query: string): Promise<{ url: string; duration: number; source: string } | null> {
+  private async getPixabayVideo(query: string): Promise<{ url: string; duration: number; source: string; tags?: string; description?: string; title?: string; user?: string } | null> {
     const pixabayKey = process.env.PIXABAY_API_KEY;
     if (!pixabayKey) {
       console.log('[UniversalVideoService] No PIXABAY_API_KEY configured for video fallback');
@@ -1697,13 +1756,27 @@ Guidelines:
             const videoFile = video.videos?.large || video.videos?.medium || video.videos?.small;
             if (videoFile?.url && video.duration >= 5 && video.duration <= 60) {
               console.log(`[UniversalVideoService] Selected Pixabay video: ${videoFile.url} (${video.duration}s)`);
-              return { url: videoFile.url, duration: video.duration, source: 'pixabay' };
+              return { 
+                url: videoFile.url, 
+                duration: video.duration, 
+                source: 'pixabay',
+                tags: video.tags || searchQuery,
+                description: video.tags || searchQuery,
+                user: video.user || ''
+              };
             }
           }
           const firstVideo = data.hits[0];
           const videoFile = firstVideo.videos?.large || firstVideo.videos?.medium || firstVideo.videos?.small;
           if (videoFile?.url) {
-            return { url: videoFile.url, duration: firstVideo.duration, source: 'pixabay' };
+            return { 
+              url: videoFile.url, 
+              duration: firstVideo.duration, 
+              source: 'pixabay',
+              tags: firstVideo.tags || searchQuery,
+              description: firstVideo.tags || searchQuery,
+              user: firstVideo.user || ''
+            };
           }
         }
       } catch (e: any) {
