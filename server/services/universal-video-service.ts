@@ -712,54 +712,76 @@ Guidelines:
   private enhanceImagePrompt(prompt: string): string {
     const promptLower = prompt.toLowerCase();
     
-    // Detect and enforce gender from prompt
-    let genderEnforcement = '';
-    const femaleIndicators = [' she ', ' her ', 'woman', 'female', 'lady', 'mother', 'wife', 'grandmother'];
-    const maleIndicators = [' he ', ' his ', ' man ', 'male', 'father', 'husband', 'grandfather'];
+    // Detect subject type from prompt - supports ANY subject (humans, pets, products, etc.)
+    let subjectEnforcement = '';
     
-    const hasFemaleIndicator = femaleIndicators.some(ind => promptLower.includes(ind));
-    const hasMaleIndicator = maleIndicators.some(ind => promptLower.includes(ind));
+    // Pet/Animal detection
+    const petIndicators = ['dog', 'cat', 'pet', 'puppy', 'kitten', 'animal', 'golden retriever', 'labrador', 'poodle', 'horse', 'bird'];
+    const hasPetIndicator = petIndicators.some(ind => promptLower.includes(ind));
     
-    if (hasFemaleIndicator && !hasMaleIndicator) {
-      genderEnforcement = 'MUST be a woman, female subject only, NO MEN, NO MALE SUBJECTS, ';
-      console.log('[EnhancePrompt] Enforcing female subject in AI image generation');
-    } else if (hasMaleIndicator && !hasFemaleIndicator) {
-      genderEnforcement = 'MUST be a man, male subject only, NO WOMEN, NO FEMALE SUBJECTS, ';
-      console.log('[EnhancePrompt] Enforcing male subject in AI image generation');
-    }
-    
-    // Detect and enforce age from prompt - CRITICAL for matching target demographics
-    let ageEnforcement = '';
-    const ageMatch = promptLower.match(/(\d{2})[- ]?(year[- ]?old|years old|yo)/);
-    if (ageMatch) {
-      const age = parseInt(ageMatch[1]);
-      if (age >= 40 && age < 55) {
-        ageEnforcement = 'MUST be a MATURE MIDDLE-AGED person in their 40s-50s with visible signs of maturity, NOT YOUNG, NOT in 20s or 30s, mature face with subtle age lines, ';
-        console.log(`[EnhancePrompt] Enforcing middle-aged (${age}) - NOT YOUNG`);
-      } else if (age >= 55 && age < 70) {
-        ageEnforcement = 'MUST be a MATURE SENIOR person in their 50s-60s with visible signs of maturity, grey or greying hair acceptable, mature refined appearance, NOT YOUNG, NOT in 20s 30s or 40s, ';
-        console.log(`[EnhancePrompt] Enforcing senior (${age}) - NOT YOUNG`);
-      } else if (age >= 70) {
-        ageEnforcement = 'MUST be an ELDERLY person in their 70s or older, silver/white hair, dignified mature appearance, ';
-        console.log(`[EnhancePrompt] Enforcing elderly (${age})`);
+    if (hasPetIndicator) {
+      // For pets - no human-related enforcement needed
+      console.log('[EnhancePrompt] Pet/animal subject detected - no gender enforcement');
+    } else {
+      // Human subject detection - enforce gender only when specified
+      const femaleIndicators = [' she ', ' her ', 'woman', 'female', 'lady', 'mother', 'wife', 'grandmother', 'girl'];
+      const maleIndicators = [' he ', ' his ', ' man ', 'male', 'father', 'husband', 'grandfather', 'boy', 'guy'];
+      const childIndicators = ['child', 'kid', 'baby', 'infant', 'toddler', 'teen', 'teenager'];
+      const coupleIndicators = ['couple', 'pair', 'together', 'family'];
+      
+      const hasFemaleIndicator = femaleIndicators.some(ind => promptLower.includes(ind));
+      const hasMaleIndicator = maleIndicators.some(ind => promptLower.includes(ind));
+      const hasChildIndicator = childIndicators.some(ind => promptLower.includes(ind));
+      const hasCoupleIndicator = coupleIndicators.some(ind => promptLower.includes(ind));
+      
+      // Only enforce when clear single-gender is specified
+      if (hasFemaleIndicator && !hasMaleIndicator && !hasCoupleIndicator) {
+        subjectEnforcement += 'MUST be a woman/female subject only, NO MEN, ';
+        console.log('[EnhancePrompt] Enforcing female subject');
+      } else if (hasMaleIndicator && !hasFemaleIndicator && !hasCoupleIndicator) {
+        subjectEnforcement += 'MUST be a man/male subject only, NO WOMEN, ';
+        console.log('[EnhancePrompt] Enforcing male subject');
+      } else if (hasCoupleIndicator) {
+        console.log('[EnhancePrompt] Couple/family detected - allowing mixed genders');
       }
-    } else if (promptLower.includes('mature') || promptLower.includes('middle-aged') || promptLower.includes('middle aged')) {
-      ageEnforcement = 'MUST be a MATURE MIDDLE-AGED person in their 40s-50s, NOT YOUNG, NOT in 20s or 30s, ';
-      console.log('[EnhancePrompt] Enforcing mature/middle-aged from keywords');
-    } else if (promptLower.includes('senior') || promptLower.includes('elderly') || promptLower.includes('older')) {
-      ageEnforcement = 'MUST be a SENIOR/ELDERLY person in their 60s-70s, grey hair, mature appearance, NOT YOUNG, ';
-      console.log('[EnhancePrompt] Enforcing senior/elderly from keywords');
+      
+      // Age enforcement - only when age is specified in prompt
+      const ageMatch = promptLower.match(/(\d{2})[- ]?(year[- ]?old|years old|yo)/);
+      if (ageMatch && !hasChildIndicator) {
+        const age = parseInt(ageMatch[1]);
+        if (age >= 40 && age < 55) {
+          subjectEnforcement += `MUST appear to be in their ${age}s with visible signs of maturity, NOT YOUNG, NOT in 20s or 30s, mature face with subtle age lines, `;
+          console.log(`[EnhancePrompt] Enforcing age ${age} - mature middle-aged`);
+        } else if (age >= 55 && age < 70) {
+          subjectEnforcement += `MUST appear to be in their ${age}s with visible maturity, grey or greying hair acceptable, NOT YOUNG, `;
+          console.log(`[EnhancePrompt] Enforcing age ${age} - senior`);
+        } else if (age >= 70) {
+          subjectEnforcement += 'MUST be an ELDERLY person with silver/white hair, dignified mature appearance, ';
+          console.log(`[EnhancePrompt] Enforcing age ${age} - elderly`);
+        } else if (age >= 20 && age < 40) {
+          subjectEnforcement += `MUST appear to be a young adult in their ${age}s, youthful appearance, `;
+          console.log(`[EnhancePrompt] Enforcing age ${age} - young adult`);
+        }
+      } else if (promptLower.includes('mature') || promptLower.includes('middle-aged') || promptLower.includes('middle aged')) {
+        subjectEnforcement += 'MUST be MATURE MIDDLE-AGED in their 40s-50s, NOT YOUNG, ';
+        console.log('[EnhancePrompt] Enforcing mature/middle-aged from keywords');
+      } else if (promptLower.includes('senior') || promptLower.includes('elderly') || promptLower.includes('older adult')) {
+        subjectEnforcement += 'MUST be SENIOR/ELDERLY in their 60s-70s, grey hair, NOT YOUNG, ';
+        console.log('[EnhancePrompt] Enforcing senior/elderly from keywords');
+      } else if (promptLower.includes('young') && !hasChildIndicator) {
+        subjectEnforcement += 'MUST be a YOUNG ADULT in their 20s-30s, youthful appearance, ';
+        console.log('[EnhancePrompt] Enforcing young adult from keywords');
+      }
     }
     
     const styleModifiers = [
       'professional photography',
       'warm natural lighting',
-      'health and wellness aesthetic',
       'clean composition',
       '4K ultra detailed',
       'soft color palette',
     ];
-    return `${ageEnforcement}${genderEnforcement}${prompt}, ${styleModifiers.join(', ')}`;
+    return `${subjectEnforcement}${prompt}, ${styleModifiers.join(', ')}`;
   }
 
   private async generateImageWithFalPrimary(prompt: string, falKey: string): Promise<ImageGenerationResult> {
@@ -1432,12 +1454,58 @@ Guidelines:
     const narration = (scene.narration || '').toLowerCase();
     const visualDirection = (scene.visualDirection || scene.background?.source || '').toLowerCase();
     
-    // Get demographic prefix based on target audience
+    // Detect subject type from visual direction - supports pets, humans, products
+    const petIndicators = ['dog', 'cat', 'pet', 'puppy', 'kitten', 'animal', 'golden retriever', 'horse'];
+    const hasPetSubject = petIndicators.some(ind => visualDirection.includes(ind));
+    
+    // For pets - use pet-specific search terms
+    if (hasPetSubject) {
+      console.log('[VideoSearch] Pet/animal subject detected');
+      // Extract the specific pet type for better search results
+      for (const pet of petIndicators) {
+        if (visualDirection.includes(pet)) {
+          return `${pet} happy healthy pet animal`;
+        }
+      }
+      return 'happy pet animal wellness';
+    }
+    
+    // Get demographic prefix based on target audience OR visual direction
     let demographicTerms = '';
-    if (targetAudience) {
+    
+    // First, check visual direction for explicit demographics (user's custom prompt takes priority)
+    const ageMatch = visualDirection.match(/(\d{2})[- ]?(year[- ]?old|years old|yo)/);
+    if (ageMatch) {
+      const age = parseInt(ageMatch[1]);
+      if (age >= 40 && age < 60) {
+        demographicTerms = 'mature middle-aged ';
+        console.log(`[VideoSearch] Age ${age} from prompt: mature middle-aged`);
+      } else if (age >= 60) {
+        demographicTerms = 'senior mature elderly ';
+        console.log(`[VideoSearch] Age ${age} from prompt: senior`);
+      } else if (age >= 20 && age < 40) {
+        demographicTerms = 'young adult ';
+        console.log(`[VideoSearch] Age ${age} from prompt: young adult`);
+      }
+    }
+    
+    // Check visual direction for gender (user's custom prompt takes priority)
+    const femaleIndicators = [' she ', ' her ', 'woman', 'female', 'lady', 'mother', 'wife', 'grandmother'];
+    const maleIndicators = [' he ', ' his ', ' man ', 'male', 'father', 'husband', 'grandfather', 'guy'];
+    
+    if (femaleIndicators.some(ind => visualDirection.includes(ind))) {
+      demographicTerms += 'woman female ';
+      console.log('[VideoSearch] Female subject from prompt');
+    } else if (maleIndicators.some(ind => visualDirection.includes(ind))) {
+      demographicTerms += 'man male ';
+      console.log('[VideoSearch] Male subject from prompt');
+    }
+    
+    // Fall back to target audience only if visual direction didn't specify
+    if (!demographicTerms && targetAudience) {
       const audience = targetAudience.toLowerCase();
       
-      // Age-based keywords - CRITICAL for correct visuals
+      // Age-based keywords
       if (audience.includes('40') || audience.includes('50') || audience.includes('60') || 
           audience.includes('mature') || audience.includes('middle') || audience.includes('menopause')) {
         demographicTerms = 'mature middle-aged adult ';
@@ -1446,43 +1514,11 @@ Guidelines:
       } else if (audience.includes('young') || audience.includes('20') || audience.includes('millennial')) {
         demographicTerms = 'young adult ';
       }
-      // Default to adult if no age specified (never show children for health products)
-      if (!demographicTerms && (audience.includes('women') || audience.includes('men'))) {
-        demographicTerms = 'adult ';
-      }
       
       // Gender-based keywords
       if (audience.includes('women') || audience.includes('female') || audience.includes('woman')) {
         demographicTerms += 'woman female ';
       } else if (audience.includes('men') || audience.includes('male') || audience.includes('man')) {
-        demographicTerms += 'man male ';
-      }
-    }
-    
-    // Also check visual direction for age hints
-    const ageMatch = visualDirection.match(/(\d{2})[- ]?(year[- ]?old|years old|yo)/);
-    if (ageMatch && !demographicTerms.includes('mature') && !demographicTerms.includes('senior')) {
-      const age = parseInt(ageMatch[1]);
-      if (age >= 40 && age < 60) {
-        demographicTerms = 'mature middle-aged ' + demographicTerms;
-        console.log(`[VideoSearch] Adding age terms for ${age}-year-old: mature middle-aged`);
-      } else if (age >= 60) {
-        demographicTerms = 'senior mature ' + demographicTerms;
-        console.log(`[VideoSearch] Adding age terms for ${age}-year-old: senior mature`);
-      }
-    }
-    
-    // Also check visual direction for gender hints - including pronouns
-    if (!demographicTerms.includes('woman') && !demographicTerms.includes('man')) {
-      // Female indicators including pronouns
-      if (visualDirection.includes('woman') || visualDirection.includes('female') || 
-          visualDirection.includes(' she ') || visualDirection.includes(' her ') ||
-          visualDirection.includes('lady') || visualDirection.includes('mother') ||
-          visualDirection.includes('wife') || visualDirection.includes('grandmother')) {
-        demographicTerms += 'woman female ';
-      } else if (visualDirection.includes('man') || visualDirection.includes('male') ||
-                 visualDirection.includes(' he ') || visualDirection.includes(' his ') ||
-                 visualDirection.includes('father') || visualDirection.includes('husband')) {
         demographicTerms += 'man male ';
       }
     }
