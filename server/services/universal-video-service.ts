@@ -2514,6 +2514,18 @@ Guidelines:
 
     console.log('[UniversalVideoService] Preparing assets for Lambda render...');
 
+    // ========== S3 ASSET CACHING (CRITICAL FOR FAST RENDERS) ==========
+    // Cache all external assets to S3 BEFORE sending to Lambda
+    // This ensures every render (including retries) uses fast S3 URLs
+    console.log('[UniversalVideoService] Caching external assets to S3 for fast Lambda access...');
+    const cacheResult = await this.cacheAllAssetsToS3(preparedProject);
+    console.log(`[UniversalVideoService] S3 caching complete: ${cacheResult.cachedCount} cached, ${cacheResult.failedCount} failed`);
+    
+    if (cacheResult.failedCount > 0) {
+      issues.push(`${cacheResult.failedCount} assets couldn't be cached to S3 - render may be slower`);
+    }
+    // ========== END S3 CACHING ==========
+
     // Validate brand logo - must be valid HTTPS URL for Lambda
     if (preparedProject.brand?.logoUrl && !this.isValidHttpsUrl(preparedProject.brand.logoUrl)) {
       console.log(`[UniversalVideoService] Invalid logo URL (not HTTPS): ${preparedProject.brand.logoUrl} - disabling watermark`);
