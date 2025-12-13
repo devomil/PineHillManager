@@ -342,12 +342,14 @@ class UniversalVideoService {
         const s3VideoUrl = await this.cacheVideoToS3(scene.assets.videoUrl, scene.id);
         if (s3VideoUrl) {
           project.scenes[i].assets!.videoUrl = s3VideoUrl;
+          project.scenes[i].background!.videoUrl = s3VideoUrl;
           cachedCount++;
           details.push(`✓ Scene ${i} video cached`);
         } else {
           // Video cache failed - fall back to image
           console.warn(`[CacheAssets] Scene ${i} video cache failed, switching to image`);
           project.scenes[i].background!.type = 'image';
+          project.scenes[i].background!.videoUrl = undefined;
           project.scenes[i].assets!.videoUrl = undefined;
           failedCount++;
           details.push(`✗ Scene ${i} video failed - using image`);
@@ -906,7 +908,7 @@ Guidelines:
         .replace(/(Black Cohosh|Extract|Plus)/gi, '')
         .trim();
 
-      const environmentOnlyPrompt = `Empty background scene for product photography: ${environmentContext}. ${cleanedPrompt}. IMPORTANT: No products, no bottles, no packaging, no text, no labels, no logos - ONLY the background environment and setting. Empty clean surface ready for product placement. Professional studio lighting, high quality, 4K, photorealistic background plate.`;
+      const environmentOnlyPrompt = `Empty background scene for product photography: ${environmentContext}. ${cleanedPrompt}. IMPORTANT: No products, no bottles, no packaging, no text, no labels, no logos, NO PEOPLE, NO FACES, NO HUMANS - ONLY the background environment and setting. Empty clean surface ready for product placement. Professional studio lighting, high quality, 4K, photorealistic background plate.`;
       
       console.log(`[UniversalVideoService] Environment-only prompt: ${environmentOnlyPrompt}`);
 
@@ -2284,9 +2286,11 @@ Guidelines:
               updatedProject.scenes[sceneIndex].background = {
                 type: 'video',
                 source: scene.background?.source || '',
+                videoUrl: videoResult.url,
               };
             } else {
               updatedProject.scenes[sceneIndex].background.type = 'video';
+              updatedProject.scenes[sceneIndex].background.videoUrl = videoResult.url;
             }
             updatedProject.scenes[sceneIndex].assets!.videoUrl = videoResult.url;
             videosGenerated++;
@@ -2844,6 +2848,7 @@ Guidelines:
       }
       scene.background = scene.background || { type: 'video', source: '' };
       scene.background.type = 'video';
+      scene.background.videoUrl = scene.assets!.videoUrl;
       scene.assets!.preferVideo = true;
       scene.assets!.preferImage = false;
     } else {
