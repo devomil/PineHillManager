@@ -49,17 +49,25 @@ class UniversalVideoService {
   private usedVideoUrls: Set<string> = new Set();
 
   constructor() {
+    console.log('[UniversalVideoService] Initializing service...');
+    
     if (process.env.ANTHROPIC_API_KEY) {
       this.anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+      console.log('[UniversalVideoService] Anthropic client configured');
     }
     
     const accessKeyId = process.env.REMOTION_AWS_ACCESS_KEY_ID;
     const secretAccessKey = process.env.REMOTION_AWS_SECRET_ACCESS_KEY;
+    console.log(`[UniversalVideoService] AWS credentials check: accessKeyId=${accessKeyId ? 'SET' : 'MISSING'}, secretAccessKey=${secretAccessKey ? 'SET' : 'MISSING'}`);
+    
     if (accessKeyId && secretAccessKey) {
       this.s3Client = new S3Client({
         region: AWS_REGION,
         credentials: { accessKeyId, secretAccessKey },
       });
+      console.log(`[UniversalVideoService] S3 client configured for bucket: ${REMOTION_BUCKET}`);
+    } else {
+      console.warn('[UniversalVideoService] S3 client NOT configured - asset caching will be DISABLED');
     }
   }
 
@@ -265,6 +273,19 @@ class UniversalVideoService {
     failedCount: number;
     details: string[];
   }> {
+    console.log(`[CacheAssets] Called for project ${project.id}, S3 client status: ${this.s3Client ? 'CONFIGURED' : 'NULL'}`);
+    
+    // Early return if S3 client is not available
+    if (!this.s3Client) {
+      console.warn('[CacheAssets] S3 client not configured - skipping asset caching (will use original URLs)');
+      return {
+        success: true,
+        cachedCount: 0,
+        failedCount: 0,
+        details: ['S3 caching skipped - credentials not configured'],
+      };
+    }
+    
     const details: string[] = [];
     let cachedCount = 0;
     let failedCount = 0;
