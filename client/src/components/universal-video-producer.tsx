@@ -939,13 +939,15 @@ function ScenePreview({
   assets,
   projectId,
   onToggleProductOverlay,
-  onSceneUpdate 
+  onSceneUpdate,
+  onProjectUpdate
 }: { 
   scenes: Scene[]; 
   assets: VideoProject['assets'];
   projectId?: string;
   onToggleProductOverlay?: (sceneId: string, useOverlay: boolean) => void;
   onSceneUpdate?: () => void;
+  onProjectUpdate?: (project: VideoProject) => void;
 }) {
   const [expandedScene, setExpandedScene] = useState<string | null>(null);
   const [regenerating, setRegenerating] = useState<string | null>(null);
@@ -977,6 +979,9 @@ function ScenePreview({
       const data = await res.json();
       if (data.success) {
         toast({ title: 'Overlay updated' });
+        if (data.project) {
+          onProjectUpdate?.(data.project);
+        }
         onSceneUpdate?.();
       } else {
         toast({ title: 'Failed', description: data.error, variant: 'destructive' });
@@ -2103,6 +2108,7 @@ export default function UniversalVideoProducer() {
                     projectId={project.id}
                     onToggleProductOverlay={handleToggleProductOverlay}
                     onSceneUpdate={() => queryClient.invalidateQueries({ queryKey: ['/api/universal-video/projects', project.id] })}
+                    onProjectUpdate={(updatedProject) => setProject(updatedProject)}
                   />
                 </ScrollArea>
               </div>
