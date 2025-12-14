@@ -3100,6 +3100,194 @@ Guidelines:
     
     return { success: true };
   }
+
+  /**
+   * Update product overlay settings for a scene
+   * Phase 2: Enhanced User Controls
+   */
+  updateProductOverlay(
+    project: VideoProject,
+    sceneId: string,
+    settings: {
+      enabled?: boolean;
+      position?: { x: 'left' | 'center' | 'right'; y: 'top' | 'center' | 'bottom' };
+      scale?: number;
+      animation?: 'fade' | 'zoom' | 'slide' | 'none';
+    }
+  ): { success: boolean; error?: string } {
+    const sceneIndex = project.scenes.findIndex(s => s.id === sceneId);
+    if (sceneIndex < 0) {
+      return { success: false, error: 'Scene not found' };
+    }
+
+    const scene = project.scenes[sceneIndex];
+    scene.assets = scene.assets || {};
+
+    // Update enabled state
+    if (settings.enabled !== undefined) {
+      scene.assets.useProductOverlay = settings.enabled;
+    }
+
+    // Update position and scale
+    if (settings.position || settings.scale !== undefined || settings.animation) {
+      const currentPos = scene.assets.productOverlayPosition || {
+        x: 'right' as const,
+        y: 'bottom' as const,
+        scale: 0.25,
+        animation: 'fade' as const,
+      };
+
+      scene.assets.productOverlayPosition = {
+        x: settings.position?.x || currentPos.x,
+        y: settings.position?.y || currentPos.y,
+        scale: settings.scale !== undefined ? Math.max(0.1, Math.min(0.8, settings.scale)) : currentPos.scale,
+        animation: settings.animation || currentPos.animation,
+      };
+    }
+
+    console.log(`[UniversalVideoService] Updated product overlay for scene ${sceneId}:`, {
+      enabled: scene.assets.useProductOverlay,
+      position: scene.assets.productOverlayPosition,
+    });
+
+    return { success: true };
+  }
+
+  /**
+   * Regenerate voiceover for the entire project or specific scenes
+   * Phase 2: Enhanced User Controls
+   */
+  async regenerateVoiceover(
+    project: VideoProject,
+    options?: {
+      voiceId?: string;
+      sceneIds?: string[];
+    }
+  ): Promise<{ success: boolean; voiceoverUrl?: string; duration?: number; error?: string }> {
+    const voiceId = options?.voiceId || project.voiceId;
+    const sceneIds = options?.sceneIds;
+
+    // Collect narration from selected scenes or all scenes
+    let scenesToProcess = project.scenes;
+    if (sceneIds && sceneIds.length > 0) {
+      scenesToProcess = project.scenes.filter(s => sceneIds.includes(s.id));
+    }
+
+    if (scenesToProcess.length === 0) {
+      return { success: false, error: 'No scenes to process' };
+    }
+
+    // Combine all narration text
+    const fullNarration = scenesToProcess
+      .map(s => s.narration)
+      .filter(n => n && n.trim())
+      .join('\n\n');
+
+    if (!fullNarration.trim()) {
+      return { success: false, error: 'No narration text found' };
+    }
+
+    console.log(`[UniversalVideoService] Regenerating voiceover for ${scenesToProcess.length} scenes with voice: ${voiceId || 'default'}`);
+
+    try {
+      const result = await this.generateVoiceover(fullNarration, voiceId);
+
+      if (result.success && result.url) {
+        // Update project assets
+        project.assets.voiceover.fullTrackUrl = result.url;
+        project.assets.voiceover.duration = result.duration;
+
+        // Update project voice info if changed
+        if (options?.voiceId) {
+          project.voiceId = options.voiceId;
+        }
+
+        return {
+          success: true,
+          voiceoverUrl: result.url,
+          duration: result.duration,
+        };
+      }
+
+      return { success: false, error: result.error || 'Voiceover generation failed' };
+    } catch (error: any) {
+      console.error('[UniversalVideoService] Voiceover regeneration error:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Regenerate background music with a different style
+   * Phase 2: Enhanced User Controls
+   */
+  async regenerateMusic(
+    project: VideoProject,
+    style?: string
+  ): Promise<{ success: boolean; musicUrl?: string; duration?: number; error?: string }> {
+    const musicStyle = style || 'professional';
+    const duration = project.totalDuration || 60;
+
+    console.log(`[UniversalVideoService] Regenerating music: style=${musicStyle}, duration=${duration}s`);
+
+    try {
+      const result = await this.generateBackgroundMusic(duration, musicStyle, project.title);
+
+      if (result && result.url) {
+        project.assets.music = {
+          url: result.url,
+          duration: result.duration,
+          volume: project.assets.music?.volume || 0.18,
+        };
+
+        return {
+          success: true,
+          musicUrl: result.url,
+          duration: result.duration,
+        };
+      }
+
+      return { success: false, error: 'Music generation failed' };
+    } catch (error: any) {
+      console.error('[UniversalVideoService] Music regeneration error:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Update music volume
+   * Phase 2: Enhanced User Controls
+   */
+  updateMusicVolume(
+    project: VideoProject,
+    volume: number
+  ): { success: boolean; error?: string } {
+    if (volume < 0 || volume > 1) {
+      return { success: false, error: 'Volume must be between 0 and 1' };
+    }
+
+    if (!project.assets.music) {
+      return { success: false, error: 'No music configured for this project' };
+    }
+
+    project.assets.music.volume = volume;
+    console.log(`[UniversalVideoService] Updated music volume to ${volume}`);
+
+    return { success: true };
+  }
+
+  /**
+   * Disable/remove music from project
+   * Phase 2: Enhanced User Controls
+   */
+  disableMusic(project: VideoProject): { success: boolean } {
+    project.assets.music = {
+      url: '',
+      duration: 0,
+      volume: 0,
+    };
+    console.log('[UniversalVideoService] Music disabled for project');
+    return { success: true };
+  }
 }
 
 export const universalVideoService = new UniversalVideoService();

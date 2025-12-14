@@ -1484,4 +1484,184 @@ router.post('/:projectId/scenes/:sceneId/switch-background', isAuthenticated, as
   }
 });
 
+// Phase 2: Product Overlay Editor
+router.patch('/:projectId/scenes/:sceneId/product-overlay', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = (req.user as any)?.id;
+    const { projectId, sceneId } = req.params;
+    const { enabled, position, scale, animation } = req.body;
+    
+    const projectData = await getProjectFromDb(projectId);
+    if (!projectData) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+    
+    if (projectData.ownerId !== userId) {
+      return res.status(403).json({ success: false, error: 'Access denied' });
+    }
+    
+    const result = universalVideoService.updateProductOverlay(projectData, sceneId, {
+      enabled,
+      position,
+      scale,
+      animation,
+    });
+    
+    if (result.success) {
+      await saveProjectToDb(projectData, projectData.ownerId);
+      const scene = projectData.scenes.find((s: Scene) => s.id === sceneId);
+      return res.json({ success: true, scene, project: projectData });
+    }
+    
+    return res.status(400).json({ success: false, error: result.error });
+  } catch (error: any) {
+    console.error('[UniversalVideo] Product overlay update error:', error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Phase 2: Voiceover Regeneration
+router.post('/:projectId/regenerate-voiceover', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = (req.user as any)?.id;
+    const { projectId } = req.params;
+    const { voiceId, sceneIds } = req.body;
+    
+    const projectData = await getProjectFromDb(projectId);
+    if (!projectData) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+    
+    if (projectData.ownerId !== userId) {
+      return res.status(403).json({ success: false, error: 'Access denied' });
+    }
+    
+    console.log(`[UniversalVideo] Regenerating voiceover for project ${projectId}, voice: ${voiceId || 'default'}`);
+    
+    const result = await universalVideoService.regenerateVoiceover(projectData, {
+      voiceId,
+      sceneIds,
+    });
+    
+    if (result.success) {
+      await saveProjectToDb(projectData, projectData.ownerId);
+      return res.json({ 
+        success: true, 
+        voiceoverUrl: result.voiceoverUrl,
+        duration: result.duration,
+        project: projectData,
+      });
+    }
+    
+    return res.status(400).json({ success: false, error: result.error });
+  } catch (error: any) {
+    console.error('[UniversalVideo] Voiceover regeneration error:', error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Phase 2: Regenerate Music
+router.post('/:projectId/regenerate-music', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = (req.user as any)?.id;
+    const { projectId } = req.params;
+    const { style } = req.body;
+    
+    const projectData = await getProjectFromDb(projectId);
+    if (!projectData) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+    
+    if (projectData.ownerId !== userId) {
+      return res.status(403).json({ success: false, error: 'Access denied' });
+    }
+    
+    console.log(`[UniversalVideo] Regenerating music for project ${projectId}, style: ${style || 'professional'}`);
+    
+    const result = await universalVideoService.regenerateMusic(projectData, style);
+    
+    if (result.success) {
+      await saveProjectToDb(projectData, projectData.ownerId);
+      return res.json({ 
+        success: true, 
+        musicUrl: result.musicUrl,
+        duration: result.duration,
+        project: projectData,
+      });
+    }
+    
+    return res.status(400).json({ success: false, error: result.error });
+  } catch (error: any) {
+    console.error('[UniversalVideo] Music regeneration error:', error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Phase 2: Update Music Volume
+router.patch('/:projectId/music-volume', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = (req.user as any)?.id;
+    const { projectId } = req.params;
+    const { volume } = req.body;
+    
+    if (typeof volume !== 'number') {
+      return res.status(400).json({ success: false, error: 'Volume must be a number' });
+    }
+    
+    const projectData = await getProjectFromDb(projectId);
+    if (!projectData) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+    
+    if (projectData.ownerId !== userId) {
+      return res.status(403).json({ success: false, error: 'Access denied' });
+    }
+    
+    const result = universalVideoService.updateMusicVolume(projectData, volume);
+    
+    if (result.success) {
+      await saveProjectToDb(projectData, projectData.ownerId);
+      return res.json({ 
+        success: true, 
+        volume: projectData.assets.music?.volume,
+        project: projectData,
+      });
+    }
+    
+    return res.status(400).json({ success: false, error: result.error });
+  } catch (error: any) {
+    console.error('[UniversalVideo] Music volume update error:', error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Phase 2: Disable Music
+router.delete('/:projectId/music', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = (req.user as any)?.id;
+    const { projectId } = req.params;
+    
+    const projectData = await getProjectFromDb(projectId);
+    if (!projectData) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+    
+    if (projectData.ownerId !== userId) {
+      return res.status(403).json({ success: false, error: 'Access denied' });
+    }
+    
+    universalVideoService.disableMusic(projectData);
+    await saveProjectToDb(projectData, projectData.ownerId);
+    
+    return res.json({ 
+      success: true, 
+      message: 'Music disabled',
+      project: projectData,
+    });
+  } catch (error: any) {
+    console.error('[UniversalVideo] Music disable error:', error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 export default router;

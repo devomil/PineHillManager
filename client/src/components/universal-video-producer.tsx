@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
+import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -17,7 +18,7 @@ import {
   Video, Package, FileText, Play, Sparkles, AlertTriangle,
   CheckCircle, Clock, Loader2, ImageIcon, Volume2, Clapperboard,
   Download, RefreshCw, Settings, ChevronDown, ChevronUp, Upload, X, Star,
-  FolderOpen, Plus, Eye, Layers, Pencil, Save
+  FolderOpen, Plus, Eye, Layers, Pencil, Save, Music, Mic, VolumeX
 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -677,6 +678,232 @@ function ProgressTracker({ project }: { project: VideoProject }) {
   );
 }
 
+const MUSIC_STYLES = [
+  { value: 'professional', label: 'Professional' },
+  { value: 'friendly', label: 'Friendly' },
+  { value: 'energetic', label: 'Energetic' },
+  { value: 'calm', label: 'Calm' },
+  { value: 'wellness', label: 'Wellness' },
+  { value: 'health', label: 'Health' },
+];
+
+function MusicControlsPanel({ 
+  projectId, 
+  musicVolume, 
+  onUpdate 
+}: { 
+  projectId: string; 
+  musicVolume: number; 
+  onUpdate: () => void;
+}) {
+  const { toast } = useToast();
+  const [volume, setVolume] = useState(Math.round(musicVolume * 100));
+  const [selectedStyle, setSelectedStyle] = useState('professional');
+  const [isRegenerating, setIsRegenerating] = useState(false);
+  const [isUpdatingVolume, setIsUpdatingVolume] = useState(false);
+
+  const handleVolumeChange = async (newValue: number[]) => {
+    const volumePercent = newValue[0];
+    setVolume(volumePercent);
+  };
+
+  const handleVolumeCommit = async () => {
+    setIsUpdatingVolume(true);
+    try {
+      const res = await fetch(`/api/universal-video/${projectId}/music-volume`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ volume: volume / 100 })
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast({ title: 'Volume updated' });
+        onUpdate();
+      } else {
+        toast({ title: 'Failed', description: data.error, variant: 'destructive' });
+      }
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    } finally {
+      setIsUpdatingVolume(false);
+    }
+  };
+
+  const handleRegenerateMusic = async () => {
+    setIsRegenerating(true);
+    try {
+      const res = await fetch(`/api/universal-video/${projectId}/regenerate-music`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ style: selectedStyle })
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast({ title: 'Music regenerated', description: 'New background music has been generated.' });
+        onUpdate();
+      } else {
+        toast({ title: 'Failed', description: data.error, variant: 'destructive' });
+      }
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    } finally {
+      setIsRegenerating(false);
+    }
+  };
+
+  return (
+    <Card className="p-4">
+      <div className="flex items-center gap-2 mb-4">
+        <Music className="w-5 h-5" />
+        <h4 className="font-medium">Music Controls</h4>
+      </div>
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <Label className="text-sm">Volume</Label>
+            <span className="text-sm text-muted-foreground">{volume}%</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <VolumeX className="w-4 h-4 text-muted-foreground" />
+            <Slider
+              value={[volume]}
+              onValueChange={handleVolumeChange}
+              onValueCommit={handleVolumeCommit}
+              min={0}
+              max={100}
+              step={5}
+              className="flex-1"
+              data-testid="slider-music-volume"
+            />
+            <Volume2 className="w-4 h-4 text-muted-foreground" />
+          </div>
+          {isUpdatingVolume && (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Loader2 className="w-3 h-3 animate-spin" />
+              Updating...
+            </div>
+          )}
+        </div>
+        
+        <div className="space-y-3">
+          <Label className="text-sm">Music Style</Label>
+          <div className="flex gap-2">
+            <Select value={selectedStyle} onValueChange={setSelectedStyle}>
+              <SelectTrigger className="flex-1" data-testid="select-music-style">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {MUSIC_STYLES.map(style => (
+                  <SelectItem key={style.value} value={style.value}>
+                    {style.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              variant="outline"
+              onClick={handleRegenerateMusic}
+              disabled={isRegenerating}
+              data-testid="button-regenerate-music"
+            >
+              {isRegenerating ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <RefreshCw className="w-4 h-4" />
+              )}
+            </Button>
+          </div>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function VoiceoverControlsPanel({ 
+  projectId, 
+  currentVoiceId,
+  currentVoiceName,
+  onUpdate 
+}: { 
+  projectId: string; 
+  currentVoiceId?: string;
+  currentVoiceName?: string;
+  onUpdate: () => void;
+}) {
+  const { toast } = useToast();
+  const [selectedVoiceId, setSelectedVoiceId] = useState(currentVoiceId || '21m00Tcm4TlvDq8ikWAM');
+  const [selectedVoiceName, setSelectedVoiceName] = useState(currentVoiceName || 'Rachel');
+  const [isRegenerating, setIsRegenerating] = useState(false);
+
+  const handleRegenerateVoiceover = async () => {
+    setIsRegenerating(true);
+    try {
+      const res = await fetch(`/api/universal-video/${projectId}/regenerate-voiceover`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ voiceId: selectedVoiceId })
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast({ title: 'Voiceover regenerated', description: 'New voiceover has been generated with the selected voice.' });
+        onUpdate();
+      } else {
+        toast({ title: 'Failed', description: data.error, variant: 'destructive' });
+      }
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    } finally {
+      setIsRegenerating(false);
+    }
+  };
+
+  return (
+    <Card className="p-4">
+      <div className="flex items-center gap-2 mb-4">
+        <Mic className="w-5 h-5" />
+        <h4 className="font-medium">Voiceover Controls</h4>
+      </div>
+      
+      <div className="space-y-3">
+        <VoiceSelector
+          selectedVoiceId={selectedVoiceId}
+          onSelect={(voiceId, voiceName) => {
+            setSelectedVoiceId(voiceId);
+            setSelectedVoiceName(voiceName);
+          }}
+        />
+        
+        <Button
+          onClick={handleRegenerateVoiceover}
+          disabled={isRegenerating}
+          className="w-full"
+          data-testid="button-regenerate-voiceover"
+        >
+          {isRegenerating ? (
+            <>
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              Regenerating Voiceover...
+            </>
+          ) : (
+            <>
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Regenerate All Voiceover
+            </>
+          )}
+        </Button>
+        
+        <p className="text-xs text-muted-foreground">
+          This will regenerate voiceover for all scenes using the selected voice.
+        </p>
+      </div>
+    </Card>
+  );
+}
+
 function ServiceFailureAlert({ failures }: { failures: ServiceFailure[] }) {
   if (failures.length === 0) return null;
   
@@ -704,6 +931,9 @@ function ServiceFailureAlert({ failures }: { failures: ServiceFailure[] }) {
   );
 }
 
+type OverlayPosition = { x: 'left' | 'center' | 'right'; y: 'top' | 'center' | 'bottom' };
+type OverlayAnimation = 'fade' | 'zoom' | 'slide' | 'none';
+
 function ScenePreview({ 
   scenes, 
   assets,
@@ -723,7 +953,40 @@ function ScenePreview({
   const [editingNarration, setEditingNarration] = useState<string | null>(null);
   const [editedNarration, setEditedNarration] = useState<Record<string, string>>({});
   const [savingNarration, setSavingNarration] = useState<string | null>(null);
+  const [savingOverlay, setSavingOverlay] = useState<string | null>(null);
   const { toast } = useToast();
+
+  const updateProductOverlay = async (
+    sceneId: string, 
+    settings: { 
+      position?: OverlayPosition; 
+      scale?: number; 
+      animation?: OverlayAnimation;
+      enabled?: boolean;
+    }
+  ) => {
+    if (!projectId) return;
+    setSavingOverlay(sceneId);
+    try {
+      const res = await fetch(`/api/universal-video/${projectId}/scenes/${sceneId}/product-overlay`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(settings)
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast({ title: 'Overlay updated' });
+        onSceneUpdate?.();
+      } else {
+        toast({ title: 'Failed', description: data.error, variant: 'destructive' });
+      }
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    } finally {
+      setSavingOverlay(null);
+    }
+  };
 
   const saveNarration = async (sceneId: string) => {
     if (!projectId) return;
@@ -1084,6 +1347,99 @@ function ScenePreview({
                           />
                         </div>
                       </div>
+                      
+                      {showsProductOverlay && projectId && scene.assets?.productOverlayUrl && (
+                        <div className="p-3 bg-muted/30 rounded-lg border space-y-3">
+                          <Label className="text-xs text-muted-foreground flex items-center gap-1">
+                            <Settings className="w-3 h-3" /> Overlay Settings
+                            {savingOverlay === scene.id && <Loader2 className="w-3 h-3 animate-spin ml-2" />}
+                          </Label>
+                          
+                          <div className="grid grid-cols-3 gap-3">
+                            <div className="space-y-1">
+                              <Label className="text-xs">Horizontal</Label>
+                              <Select 
+                                value={scene.assets?.productOverlayPosition?.x || 'center'}
+                                onValueChange={(val) => updateProductOverlay(scene.id, { 
+                                  position: { 
+                                    x: val as 'left' | 'center' | 'right', 
+                                    y: scene.assets?.productOverlayPosition?.y || 'center' 
+                                  }
+                                })}
+                              >
+                                <SelectTrigger className="h-8 text-xs" data-testid={`select-overlay-x-${scene.id}`}>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="left">Left</SelectItem>
+                                  <SelectItem value="center">Center</SelectItem>
+                                  <SelectItem value="right">Right</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            
+                            <div className="space-y-1">
+                              <Label className="text-xs">Vertical</Label>
+                              <Select 
+                                value={scene.assets?.productOverlayPosition?.y || 'center'}
+                                onValueChange={(val) => updateProductOverlay(scene.id, { 
+                                  position: { 
+                                    x: scene.assets?.productOverlayPosition?.x || 'center', 
+                                    y: val as 'top' | 'center' | 'bottom' 
+                                  }
+                                })}
+                              >
+                                <SelectTrigger className="h-8 text-xs" data-testid={`select-overlay-y-${scene.id}`}>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="top">Top</SelectItem>
+                                  <SelectItem value="center">Center</SelectItem>
+                                  <SelectItem value="bottom">Bottom</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            
+                            <div className="space-y-1">
+                              <Label className="text-xs">Animation</Label>
+                              <Select 
+                                value={scene.assets?.productOverlayPosition?.animation || 'fade'}
+                                onValueChange={(val) => updateProductOverlay(scene.id, { 
+                                  animation: val as OverlayAnimation 
+                                })}
+                              >
+                                <SelectTrigger className="h-8 text-xs" data-testid={`select-overlay-animation-${scene.id}`}>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="fade">Fade</SelectItem>
+                                  <SelectItem value="zoom">Zoom</SelectItem>
+                                  <SelectItem value="slide">Slide</SelectItem>
+                                  <SelectItem value="none">None</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                          
+                          <div className="space-y-1">
+                            <div className="flex items-center justify-between">
+                              <Label className="text-xs">Scale</Label>
+                              <span className="text-xs text-muted-foreground">
+                                {Math.round((scene.assets?.productOverlayPosition?.scale || 0.4) * 100)}%
+                              </span>
+                            </div>
+                            <Slider
+                              value={[(scene.assets?.productOverlayPosition?.scale || 0.4) * 100]}
+                              onValueCommit={(val) => updateProductOverlay(scene.id, { scale: val[0] / 100 })}
+                              min={10}
+                              max={80}
+                              step={5}
+                              className="w-full"
+                              data-testid={`slider-overlay-scale-${scene.id}`}
+                            />
+                          </div>
+                        </div>
+                      )}
                       
                       <div className="grid grid-cols-2 gap-3">
                         <div>
@@ -1496,8 +1852,8 @@ export default function UniversalVideoProducer() {
   const toggleProductOverlayMutation = useMutation({
     mutationFn: async ({ sceneId, useOverlay }: { sceneId: string; useOverlay: boolean }) => {
       if (!project) throw new Error("No project selected");
-      const response = await apiRequest("PATCH", `/api/universal-video/${project.id}/scene/${sceneId}/overlay`, {
-        useProductOverlay: useOverlay
+      const response = await apiRequest("PATCH", `/api/universal-video/${project.id}/scenes/${sceneId}/product-overlay`, {
+        enabled: useOverlay
       });
       return response.json();
     },
@@ -1703,6 +2059,22 @@ export default function UniversalVideoProducer() {
               </div>
               
               <ProgressTracker project={project} />
+              
+              {project.status !== 'draft' && project.assets?.music && (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  <MusicControlsPanel 
+                    projectId={project.id}
+                    musicVolume={project.assets.music.volume || 0.3}
+                    onUpdate={() => queryClient.invalidateQueries({ queryKey: ['/api/universal-video/projects', project.id] })}
+                  />
+                  <VoiceoverControlsPanel
+                    projectId={project.id}
+                    currentVoiceId={project.voiceId}
+                    currentVoiceName={project.voiceName}
+                    onUpdate={() => queryClient.invalidateQueries({ queryKey: ['/api/universal-video/projects', project.id] })}
+                  />
+                </div>
+              )}
               
               {project.status === 'rendering' && (
                 <Alert className="border-blue-200 bg-blue-50 dark:bg-blue-950 dark:border-blue-800">
