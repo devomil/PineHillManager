@@ -7,19 +7,16 @@ import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { QrCode, Download, Copy, ExternalLink, Zap, History, Plus, ArrowLeft, Video, Image } from 'lucide-react';
+import { QrCode, Download, Copy, ExternalLink, Zap, History, Plus, ArrowLeft, Image } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import AdminLayout from '@/components/admin-layout';
 import QrCodeHistory from '@/components/qr-code-history';
-import VideoCreator from '@/components/video-creator';
-import VideoHistory from '@/components/video-history';
-import AIVideoProducer from '@/components/ai-video-producer';
 import UniversalVideoProducer from '@/components/universal-video-producer';
 import AssetLibrary from '@/components/asset-library';
 import { useLocation } from 'wouter';
-import { Brain, Wand2 } from 'lucide-react';
+import { Wand2 } from 'lucide-react';
 
 export default function MarketingPage() {
   const { toast } = useToast();
@@ -194,14 +191,10 @@ export default function MarketingPage() {
         </div>
 
         <Tabs defaultValue="universal-producer" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-7">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="universal-producer" className="flex items-center gap-2" data-testid="tab-universal-producer">
               <Wand2 className="h-4 w-4" />
               Video Studio
-            </TabsTrigger>
-            <TabsTrigger value="ai-producer" className="flex items-center gap-2" data-testid="tab-ai-producer">
-              <Brain className="h-4 w-4" />
-              AI Producer
             </TabsTrigger>
             <TabsTrigger value="asset-library" className="flex items-center gap-2" data-testid="tab-asset-library">
               <Image className="h-4 w-4" />
@@ -215,22 +208,10 @@ export default function MarketingPage() {
               <History className="h-4 w-4" />
               QR History
             </TabsTrigger>
-            <TabsTrigger value="video-creator" className="flex items-center gap-2" data-testid="tab-video-creator">
-              <Video className="h-4 w-4" />
-              Video Creator
-            </TabsTrigger>
-            <TabsTrigger value="video-history" className="flex items-center gap-2" data-testid="tab-video-history">
-              <Video className="h-4 w-4" />
-              Video History
-            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="universal-producer" className="space-y-6">
             <UniversalVideoProducer />
-          </TabsContent>
-
-          <TabsContent value="ai-producer" className="space-y-6">
-            <AIVideoProducer />
           </TabsContent>
 
           <TabsContent value="asset-library" className="space-y-6">
@@ -433,14 +414,6 @@ export default function MarketingPage() {
 
           <TabsContent value="history" className="space-y-6">
             <QrCodeHistory onSelectQrCode={handleSelectQrCode} />
-          </TabsContent>
-
-          <TabsContent value="video-creator" className="space-y-6">
-            <VideoCreator />
-          </TabsContent>
-
-          <TabsContent value="video-history" className="space-y-6">
-            <VideoHistory />
           </TabsContent>
         </Tabs>
       </div>
