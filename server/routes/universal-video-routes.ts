@@ -4,6 +4,7 @@ import { eq, desc } from 'drizzle-orm';
 import { isAuthenticated, requireRole } from '../auth';
 import { universalVideoService } from '../services/universal-video-service';
 import { remotionLambdaService } from '../services/remotion-lambda-service';
+import { chunkedRenderService, ChunkedRenderProgress } from '../services/chunked-render-service';
 import { ObjectStorageService } from '../objectStorage';
 import { db } from '../db';
 import { universalVideoProjects } from '../../shared/schema';
@@ -551,44 +552,136 @@ router.post('/projects/:projectId/render', isAuthenticated, async (req: Request,
       }
     });
     
-    try {
-      const renderResult = await remotionLambdaService.startRender({
-        compositionId,
-        inputProps,
-      });
-      
-      renderBuckets.set(renderResult.renderId, renderResult.bucketName);
-      
-      // Store render start time in progress object (persists to DB for timeout detection)
-      (preparedProject.progress as any).renderStartedAt = Date.now();
-      preparedProject.progress.steps.rendering.message = `Render started: ${renderResult.renderId}`;
-      
-      await saveProjectToDb(preparedProject, projectData.ownerId, renderResult.renderId, renderResult.bucketName);
-      
-      res.json({
-        success: true,
-        renderId: renderResult.renderId,
-        bucketName: renderResult.bucketName,
-        message: 'Render started on AWS Lambda',
-      });
-    } catch (renderError: any) {
-      preparedProject.status = 'error';
-      preparedProject.progress.steps.rendering.status = 'error';
-      preparedProject.progress.steps.rendering.message = renderError.message || 'Render failed';
-      preparedProject.progress.errors.push(`Render failed: ${renderError.message}`);
-      
-      preparedProject.progress.serviceFailures.push({
-        service: 'remotion-lambda',
-        timestamp: new Date().toISOString(),
-        error: renderError.message || 'Unknown error',
-      });
-      
-      await saveProjectToDb(preparedProject, projectData.ownerId);
-      
-      res.status(500).json({
-        success: false,
-        error: renderError.message || 'Failed to start render',
-      });
+    // Calculate total duration to determine render method
+    const totalDuration = preparedProject.scenes.reduce((acc: number, s: any) => acc + (s.duration || 0), 0);
+    const useChunkedRendering = chunkedRenderService.shouldUseChunkedRendering(preparedProject.scenes, 90);
+    
+    console.log(`[UniversalVideo] Total video duration: ${totalDuration}s, using ${useChunkedRendering ? 'chunked' : 'standard'} rendering`);
+    
+    if (useChunkedRendering) {
+      // Use chunked rendering for long videos (>90 seconds)
+      try {
+        (preparedProject.progress as any).renderStartedAt = Date.now();
+        (preparedProject.progress as any).renderMethod = 'chunked';
+        preparedProject.progress.steps.rendering.message = 'Starting chunked render...';
+        
+        await saveProjectToDb(preparedProject, projectData.ownerId);
+        
+        // Start chunked rendering in background
+        const progressCallback = async (progress: ChunkedRenderProgress) => {
+          preparedProject.progress.steps.rendering.progress = progress.overallPercent;
+          preparedProject.progress.steps.rendering.message = progress.message;
+          preparedProject.progress.overallPercent = 85 + Math.round(progress.overallPercent * 0.15);
+          try {
+            await saveProjectToDb(preparedProject, projectData.ownerId);
+          } catch (e) {
+            console.warn('[UniversalVideo] Failed to save progress update:', e);
+          }
+        };
+        
+        // Respond immediately that chunked render has started
+        res.json({
+          success: true,
+          renderMethod: 'chunked',
+          totalDuration,
+          message: `Chunked rendering started for ${totalDuration.toFixed(0)}s video`,
+        });
+        
+        // Continue rendering in background (fire-and-forget)
+        (async () => {
+          try {
+            const outputUrl = await chunkedRenderService.renderLongVideo(
+              projectId,
+              inputProps,
+              compositionId,
+              progressCallback
+            );
+            
+            preparedProject.status = 'complete';
+            preparedProject.progress.steps.rendering.status = 'complete';
+            preparedProject.progress.steps.rendering.progress = 100;
+            preparedProject.progress.steps.rendering.message = 'Video rendering complete!';
+            preparedProject.progress.overallPercent = 100;
+            
+            await saveProjectToDb(preparedProject, projectData.ownerId, 'chunked', 'chunked', outputUrl);
+            console.log(`[UniversalVideo] Chunked render complete: ${outputUrl}`);
+          } catch (error: any) {
+            console.error('[UniversalVideo] Chunked render failed:', error);
+            preparedProject.status = 'error';
+            preparedProject.progress.steps.rendering.status = 'error';
+            preparedProject.progress.steps.rendering.message = error.message || 'Chunked render failed';
+            preparedProject.progress.errors.push(`Chunked render failed: ${error.message}`);
+            preparedProject.progress.serviceFailures.push({
+              service: 'chunked-render',
+              timestamp: new Date().toISOString(),
+              error: error.message || 'Unknown error',
+            });
+            try {
+              await saveProjectToDb(preparedProject, projectData.ownerId);
+            } catch (dbError) {
+              console.error('[UniversalVideo] Failed to persist error status:', dbError);
+            }
+          }
+        })();
+        
+        // Return immediately - background work continues in IIFE above
+        return;
+      } catch (renderError: any) {
+        preparedProject.status = 'error';
+        preparedProject.progress.steps.rendering.status = 'error';
+        preparedProject.progress.steps.rendering.message = renderError.message || 'Render failed';
+        preparedProject.progress.errors.push(`Render failed: ${renderError.message}`);
+        
+        await saveProjectToDb(preparedProject, projectData.ownerId);
+        
+        res.status(500).json({
+          success: false,
+          error: renderError.message || 'Failed to start chunked render',
+        });
+      }
+    } else {
+      // Use standard Lambda rendering for short videos
+      try {
+        const renderResult = await remotionLambdaService.startRender({
+          compositionId,
+          inputProps,
+        });
+        
+        renderBuckets.set(renderResult.renderId, renderResult.bucketName);
+        
+        // Store render start time in progress object (persists to DB for timeout detection)
+        (preparedProject.progress as any).renderStartedAt = Date.now();
+        (preparedProject.progress as any).renderMethod = 'standard';
+        preparedProject.progress.steps.rendering.message = `Render started: ${renderResult.renderId}`;
+        
+        await saveProjectToDb(preparedProject, projectData.ownerId, renderResult.renderId, renderResult.bucketName);
+        
+        res.json({
+          success: true,
+          renderId: renderResult.renderId,
+          bucketName: renderResult.bucketName,
+          renderMethod: 'standard',
+          message: 'Render started on AWS Lambda',
+        });
+      } catch (renderError: any) {
+        preparedProject.status = 'error';
+        preparedProject.progress.steps.rendering.status = 'error';
+        preparedProject.progress.steps.rendering.message = renderError.message || 'Render failed';
+        preparedProject.progress.errors.push(`Render failed: ${renderError.message}`);
+        
+        preparedProject.progress.serviceFailures.push({
+          service: 'remotion-lambda',
+          timestamp: new Date().toISOString(),
+          error: renderError.message || 'Unknown error',
+        });
+        
+        await saveProjectToDb(preparedProject, projectData.ownerId);
+        
+        res.status(500).json({
+          success: false,
+          error: renderError.message || 'Failed to start render',
+        });
+      }
     }
   } catch (error: any) {
     console.error('[UniversalVideo] Error starting render:', error);
