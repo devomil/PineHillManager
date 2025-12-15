@@ -3288,6 +3288,239 @@ Guidelines:
     console.log('[UniversalVideoService] Music disabled for project');
     return { success: true };
   }
+
+  // =============================================
+  // PHASE 4: UNDO/REDO SYSTEM
+  // =============================================
+
+  private readonly MAX_HISTORY_ENTRIES = 50;
+
+  /**
+   * Initialize history for a project if not already present
+   */
+  initializeHistory(project: VideoProject): void {
+    if (!project.history) {
+      project.history = {
+        entries: [],
+        currentIndex: -1,
+        maxEntries: this.MAX_HISTORY_ENTRIES,
+      };
+    }
+  }
+
+  /**
+   * Push a new state to history before making changes
+   * Call this BEFORE modifying the project
+   */
+  pushToHistory(
+    project: VideoProject,
+    action: string,
+    fieldsToSave: (keyof VideoProject)[] = ['scenes', 'assets']
+  ): void {
+    this.initializeHistory(project);
+    const history = project.history!;
+
+    // Create a snapshot of specified fields
+    const previousState: Partial<VideoProject> = {};
+    for (const field of fieldsToSave) {
+      if (project[field] !== undefined) {
+        previousState[field] = JSON.parse(JSON.stringify(project[field]));
+      }
+    }
+
+    // Remove any entries after current index (discard redo stack)
+    if (history.currentIndex < history.entries.length - 1) {
+      history.entries = history.entries.slice(0, history.currentIndex + 1);
+    }
+
+    // Add new entry
+    const entry = {
+      id: `hist_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+      timestamp: new Date().toISOString(),
+      action,
+      previousState,
+    };
+    history.entries.push(entry);
+
+    // Trim if exceeds max
+    if (history.entries.length > history.maxEntries) {
+      history.entries.shift();
+    } else {
+      history.currentIndex++;
+    }
+
+    console.log(`[History] Pushed: ${action} (index: ${history.currentIndex}, total: ${history.entries.length})`);
+  }
+
+  /**
+   * Undo the last action
+   */
+  undo(project: VideoProject): { success: boolean; action?: string; error?: string } {
+    this.initializeHistory(project);
+    const history = project.history!;
+
+    if (history.currentIndex < 0 || history.entries.length === 0) {
+      return { success: false, error: 'Nothing to undo' };
+    }
+
+    const entry = history.entries[history.currentIndex];
+    
+    // Save current state for redo before applying previous state
+    const currentState: Partial<VideoProject> = {};
+    for (const field of Object.keys(entry.previousState) as (keyof VideoProject)[]) {
+      if (project[field] !== undefined) {
+        currentState[field] = JSON.parse(JSON.stringify(project[field]));
+      }
+    }
+
+    // Apply previous state
+    for (const [key, value] of Object.entries(entry.previousState)) {
+      (project as any)[key] = JSON.parse(JSON.stringify(value));
+    }
+
+    // Update the entry to store what was undone (for redo)
+    entry.previousState = currentState;
+
+    history.currentIndex--;
+    console.log(`[History] Undo: ${entry.action} (new index: ${history.currentIndex})`);
+
+    return { success: true, action: entry.action };
+  }
+
+  /**
+   * Redo the last undone action
+   */
+  redo(project: VideoProject): { success: boolean; action?: string; error?: string } {
+    this.initializeHistory(project);
+    const history = project.history!;
+
+    if (history.currentIndex >= history.entries.length - 1) {
+      return { success: false, error: 'Nothing to redo' };
+    }
+
+    history.currentIndex++;
+    const entry = history.entries[history.currentIndex];
+
+    // Save current state before applying redo
+    const currentState: Partial<VideoProject> = {};
+    for (const field of Object.keys(entry.previousState) as (keyof VideoProject)[]) {
+      if (project[field] !== undefined) {
+        currentState[field] = JSON.parse(JSON.stringify(project[field]));
+      }
+    }
+
+    // Apply the stored state (which is what was undone)
+    for (const [key, value] of Object.entries(entry.previousState)) {
+      (project as any)[key] = JSON.parse(JSON.stringify(value));
+    }
+
+    // Update entry for potential future undo
+    entry.previousState = currentState;
+
+    console.log(`[History] Redo: ${entry.action} (new index: ${history.currentIndex})`);
+
+    return { success: true, action: entry.action };
+  }
+
+  /**
+   * Get history status for UI
+   */
+  getHistoryStatus(project: VideoProject): {
+    canUndo: boolean;
+    canRedo: boolean;
+    undoAction?: string;
+    redoAction?: string;
+    historyLength: number;
+    currentIndex: number;
+  } {
+    this.initializeHistory(project);
+    const history = project.history!;
+
+    return {
+      canUndo: history.currentIndex >= 0 && history.entries.length > 0,
+      canRedo: history.currentIndex < history.entries.length - 1,
+      undoAction: history.currentIndex >= 0 ? history.entries[history.currentIndex]?.action : undefined,
+      redoAction: history.currentIndex < history.entries.length - 1 
+        ? history.entries[history.currentIndex + 1]?.action 
+        : undefined,
+      historyLength: history.entries.length,
+      currentIndex: history.currentIndex,
+    };
+  }
+
+  /**
+   * Reorder scenes in the project
+   * Phase 4: Scene Reordering
+   */
+  reorderScenes(
+    project: VideoProject,
+    sceneOrder: string[]
+  ): { success: boolean; error?: string } {
+    // Validate that all scene IDs are present
+    const existingIds = new Set(project.scenes.map(s => s.id));
+    const newOrderIds = new Set(sceneOrder);
+
+    if (existingIds.size !== newOrderIds.size) {
+      return { success: false, error: 'Scene order must contain all scene IDs' };
+    }
+
+    for (const id of sceneOrder) {
+      if (!existingIds.has(id)) {
+        return { success: false, error: `Scene ID ${id} not found` };
+      }
+    }
+
+    // Reorder scenes based on provided order
+    const sceneMap = new Map(project.scenes.map(s => [s.id, s]));
+    project.scenes = sceneOrder.map((id, index) => {
+      const scene = sceneMap.get(id)!;
+      scene.order = index;
+      return scene;
+    });
+
+    console.log(`[UniversalVideoService] Reordered scenes: ${sceneOrder.join(', ')}`);
+    return { success: true };
+  }
+
+  /**
+   * Generate a quick preview at lower quality
+   * Phase 4: Preview Generation
+   */
+  getPreviewRenderProps(project: VideoProject): {
+    inputProps: any;
+    compositionId: string;
+    previewConfig: { fps: number; quality: string; scale: number };
+  } {
+    const aspectRatio = project.outputFormat.aspectRatio;
+    let compositionId = 'UniversalVideo';
+    if (aspectRatio === '9:16') compositionId = 'UniversalVideoVertical';
+    else if (aspectRatio === '1:1') compositionId = 'UniversalVideoSquare';
+
+    // Lower quality settings for preview
+    const previewConfig = {
+      fps: 15, // Lower FPS for faster rendering
+      quality: 'fast',
+      scale: 0.5, // 50% resolution (480p for 1080p source)
+    };
+
+    const inputProps = {
+      scenes: project.scenes.map(scene => ({
+        ...scene,
+        previewMode: true,
+      })),
+      voiceoverUrl: project.assets.voiceover?.fullTrackUrl || '',
+      musicUrl: project.assets.music?.url || '',
+      musicVolume: project.assets.music?.volume || 0.2,
+      brand: project.brand,
+      aspectRatio,
+      totalDuration: project.totalDuration,
+      previewMode: true,
+    };
+
+    console.log(`[UniversalVideoService] Preview props for ${project.id}: ${previewConfig.fps}fps, scale ${previewConfig.scale}`);
+
+    return { inputProps, compositionId, previewConfig };
+  }
 }
 
 export const universalVideoService = new UniversalVideoService();

@@ -1,4 +1,7 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from "@dnd-kit/core";
+import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,7 +21,8 @@ import {
   Video, Package, FileText, Play, Sparkles, AlertTriangle,
   CheckCircle, Clock, Loader2, ImageIcon, Volume2, Clapperboard,
   Download, RefreshCw, Settings, ChevronDown, ChevronUp, Upload, X, Star,
-  FolderOpen, Plus, Eye, Layers, Pencil, Save, Music, Mic, VolumeX
+  FolderOpen, Plus, Eye, Layers, Pencil, Save, Music, Mic, VolumeX,
+  Undo2, Redo2, GripVertical
 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -687,6 +691,155 @@ const MUSIC_STYLES = [
   { value: 'health', label: 'Health' },
 ];
 
+// Phase 4: Undo/Redo Controls Component
+function UndoRedoControls({ 
+  projectId,
+  onProjectUpdate,
+  refreshKey
+}: { 
+  projectId: string;
+  onProjectUpdate: (project: VideoProject) => void;
+  refreshKey?: number;
+}) {
+  const { toast } = useToast();
+  const [historyStatus, setHistoryStatus] = useState<{
+    canUndo: boolean;
+    canRedo: boolean;
+    undoAction?: string;
+    redoAction?: string;
+  }>({ canUndo: false, canRedo: false });
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Fetch history status
+  const fetchHistoryStatus = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/universal-video/${projectId}/history`, {
+        credentials: 'include'
+      });
+      const data = await res.json();
+      if (data.success) {
+        setHistoryStatus({
+          canUndo: data.canUndo,
+          canRedo: data.canRedo,
+          undoAction: data.undoAction,
+          redoAction: data.redoAction,
+        });
+      }
+    } catch (err) {
+      console.error('Failed to fetch history status:', err);
+    }
+  }, [projectId]);
+
+  // Refresh on mount and when refreshKey changes
+  useEffect(() => {
+    fetchHistoryStatus();
+  }, [fetchHistoryStatus, refreshKey]);
+
+  const handleUndo = async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch(`/api/universal-video/${projectId}/undo`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include'
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast({ title: `Undone: ${data.undoneAction}` });
+        if (data.project) onProjectUpdate(data.project);
+        if (data.historyStatus) {
+          setHistoryStatus({
+            canUndo: data.historyStatus.canUndo,
+            canRedo: data.historyStatus.canRedo,
+            undoAction: data.historyStatus.undoAction,
+            redoAction: data.historyStatus.redoAction,
+          });
+        }
+      } else {
+        toast({ title: 'Cannot undo', description: data.error, variant: 'destructive' });
+      }
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleRedo = async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch(`/api/universal-video/${projectId}/redo`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include'
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast({ title: `Redone: ${data.redoneAction}` });
+        if (data.project) onProjectUpdate(data.project);
+        if (data.historyStatus) {
+          setHistoryStatus({
+            canUndo: data.historyStatus.canUndo,
+            canRedo: data.historyStatus.canRedo,
+            undoAction: data.historyStatus.undoAction,
+            redoAction: data.historyStatus.redoAction,
+          });
+        }
+      } else {
+        toast({ title: 'Cannot redo', description: data.error, variant: 'destructive' });
+      }
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+        if (e.shiftKey) {
+          e.preventDefault();
+          if (historyStatus.canRedo) handleRedo();
+        } else {
+          e.preventDefault();
+          if (historyStatus.canUndo) handleUndo();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [historyStatus.canUndo, historyStatus.canRedo]);
+
+  return (
+    <div className="flex items-center gap-2">
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={handleUndo}
+        disabled={!historyStatus.canUndo || isLoading}
+        title={historyStatus.undoAction ? `Undo: ${historyStatus.undoAction} (Ctrl+Z)` : 'Nothing to undo'}
+        data-testid="button-undo"
+      >
+        <Undo2 className="h-4 w-4" />
+        <span className="sr-only">Undo</span>
+      </Button>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={handleRedo}
+        disabled={!historyStatus.canRedo || isLoading}
+        title={historyStatus.redoAction ? `Redo: ${historyStatus.redoAction} (Ctrl+Shift+Z)` : 'Nothing to redo'}
+        data-testid="button-redo"
+      >
+        <Redo2 className="h-4 w-4" />
+        <span className="sr-only">Redo</span>
+      </Button>
+    </div>
+  );
+}
+
 function MusicControlsPanel({ 
   projectId, 
   musicVolume, 
@@ -962,7 +1115,50 @@ function ScenePreview({
     scale: number;
     animation: OverlayAnimation;
   }>>({});
+  const [isReordering, setIsReordering] = useState(false);
   const { toast } = useToast();
+  
+  // Drag-and-drop sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+  
+  // Handle drag end for scene reordering
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id || !projectId) return;
+    
+    const oldIndex = scenes.findIndex(s => s.id === active.id);
+    const newIndex = scenes.findIndex(s => s.id === over.id);
+    
+    if (oldIndex === -1 || newIndex === -1) return;
+    
+    // Calculate new order
+    const newSceneOrder = arrayMove(scenes.map(s => s.id), oldIndex, newIndex);
+    
+    setIsReordering(true);
+    try {
+      const res = await fetch(`/api/universal-video/${projectId}/reorder-scenes`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ sceneOrder: newSceneOrder })
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast({ title: 'Scenes reordered' });
+        if (data.project) onProjectUpdate?.(data.project);
+        onSceneUpdate?.();
+      } else {
+        toast({ title: 'Failed', description: data.error, variant: 'destructive' });
+      }
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    } finally {
+      setIsReordering(false);
+    }
+  };
   
   const getOverlaySettings = (scene: Scene) => {
     if (overlaySettings[scene.id]) {
@@ -1120,23 +1316,63 @@ function ScenePreview({
     }
   };
   
+  // Sortable scene item wrapper
+  const SortableSceneItem = ({ scene, index, children }: { scene: Scene; index: number; children: (dragHandle: JSX.Element) => JSX.Element }) => {
+    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: scene.id });
+    const style = {
+      transform: CSS.Transform.toString(transform),
+      transition,
+      opacity: isDragging ? 0.5 : 1,
+      zIndex: isDragging ? 100 : 'auto',
+    };
+    
+    const dragHandle = (
+      <div
+        {...attributes}
+        {...listeners}
+        className="cursor-grab active:cursor-grabbing p-1 hover:bg-muted rounded"
+        onClick={(e) => e.stopPropagation()}
+        data-testid={`drag-handle-scene-${scene.id}`}
+      >
+        <GripVertical className="w-4 h-4 text-muted-foreground" />
+      </div>
+    );
+    
+    return (
+      <div ref={setNodeRef} style={style as any}>
+        {children(dragHandle)}
+      </div>
+    );
+  };
+
   return (
-    <div className="space-y-3">
-      {scenes.map((scene, index) => {
-        const imageAsset = assets.images.find(img => img.sceneId === scene.id);
-        const isExpanded = expandedScene === scene.id;
-        const hasAIBackground = scene.assets?.backgroundUrl;
-        const hasProductOverlay = scene.assets?.productOverlayUrl && scene.assets?.useProductOverlay !== false;
-        const hasBrollVideo = scene.background?.type === 'video' && scene.background?.videoUrl;
-        const defaultOverlay = SCENE_OVERLAY_DEFAULTS[scene.type] ?? false;
-        const showsProductOverlay = scene.assets?.useProductOverlay ?? defaultOverlay;
-        
-        return (
-          <Card key={scene.id} className="overflow-hidden">
-            <div 
-              className="flex items-center gap-3 p-3 cursor-pointer hover:bg-muted/50"
-              onClick={() => setExpandedScene(isExpanded ? null : scene.id)}
-            >
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+      <SortableContext items={scenes.map(s => s.id)} strategy={verticalListSortingStrategy}>
+        <div className="space-y-3">
+          {isReordering && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground p-2 bg-muted/50 rounded">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Saving new order...
+            </div>
+          )}
+          {scenes.map((scene, index) => {
+            const imageAsset = assets.images.find(img => img.sceneId === scene.id);
+            const isExpanded = expandedScene === scene.id;
+            const hasAIBackground = scene.assets?.backgroundUrl;
+            const hasProductOverlay = scene.assets?.productOverlayUrl && scene.assets?.useProductOverlay !== false;
+            const hasBrollVideo = scene.background?.type === 'video' && scene.background?.videoUrl;
+            const defaultOverlay = SCENE_OVERLAY_DEFAULTS[scene.type] ?? false;
+            const showsProductOverlay = scene.assets?.useProductOverlay ?? defaultOverlay;
+            
+            return (
+              <SortableSceneItem key={scene.id} scene={scene} index={index}>
+                {(dragHandle) => (
+                  <Card className="overflow-hidden">
+                    <div 
+                      className="flex items-center gap-3 p-3 cursor-pointer hover:bg-muted/50"
+                      onClick={() => setExpandedScene(isExpanded ? null : scene.id)}
+                    >
+                      {dragHandle}
               <div className="w-28 h-16 bg-muted rounded overflow-hidden flex-shrink-0 relative">
                 {hasBrollVideo ? (
                   <div className="relative w-full h-full">
@@ -1510,10 +1746,14 @@ function ScenePreview({
                 </div>
               </CardContent>
             )}
-          </Card>
-        );
-      })}
-    </div>
+                  </Card>
+                )}
+              </SortableSceneItem>
+            );
+          })}
+        </div>
+      </SortableContext>
+    </DndContext>
   );
 }
 
@@ -1764,6 +2004,32 @@ export default function UniversalVideoProducer() {
     onError: (error: Error) => {
       toast({
         title: "Render Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Phase 4: Preview mutation
+  const previewMutation = useMutation({
+    mutationFn: async () => {
+      if (!project) throw new Error("No project");
+      const response = await apiRequest("POST", `/api/universal-video/projects/${project.id}/preview`);
+      return response.json();
+    },
+    onSuccess: (data) => {
+      if (data.success) {
+        toast({
+          title: "Preview Ready",
+          description: `Preview configured: ${data.preview.config.fps}fps @ ${Math.round(data.preview.config.scale * 100)}% resolution. Duration: ${data.preview.duration}s`,
+        });
+        // In a full implementation, this would open a Remotion Player component
+        console.log('[Preview] Config:', data.preview);
+      }
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Preview Failed",
         description: error.message,
         variant: "destructive",
       });
@@ -2051,6 +2317,22 @@ export default function UniversalVideoProducer() {
                     </Button>
                   )}
                   
+                  {(project.status === 'ready' || project.status === 'error' || project.status === 'complete') && (
+                    <Button
+                      variant="outline"
+                      onClick={() => previewMutation.mutate()}
+                      disabled={previewMutation.isPending}
+                      data-testid="button-preview-video"
+                    >
+                      {previewMutation.isPending ? (
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      ) : (
+                        <Eye className="w-4 h-4 mr-2" />
+                      )}
+                      Quick Preview
+                    </Button>
+                  )}
+                  
                   {(project.status === 'ready' || project.status === 'error') && (
                     <Button
                       onClick={() => renderMutation.mutate()}
@@ -2130,7 +2412,14 @@ export default function UniversalVideoProducer() {
               <Separator />
               
               <div>
-                <h4 className="font-medium mb-3">Scenes Preview</h4>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="font-medium">Scenes Preview</h4>
+                  <UndoRedoControls 
+                    projectId={project.id}
+                    onProjectUpdate={(updatedProject) => setProject(updatedProject)}
+                    refreshKey={Date.parse(project.updatedAt)}
+                  />
+                </div>
                 <ScrollArea className="h-[400px] pr-4">
                   <ScenePreview 
                     scenes={project.scenes} 

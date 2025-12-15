@@ -80,6 +80,7 @@ function dbRowToVideoProject(row: any): VideoProject & { renderId?: string; buck
     renderId: row.renderId || undefined,
     bucketName: row.bucketName || undefined,
     outputUrl: row.outputUrl || undefined,
+    history: row.history || undefined,
   };
 }
 
@@ -103,6 +104,7 @@ async function saveProjectToDb(project: VideoProject, ownerId: string, renderId?
         assets: project.assets,
         progress: project.progress,
         status: project.status,
+        history: project.history || null,
         renderId: renderId ?? existingProject[0].renderId,
         bucketName: bucketName ?? existingProject[0].bucketName,
         outputUrl: outputUrl ?? existingProject[0].outputUrl,
@@ -125,6 +127,7 @@ async function saveProjectToDb(project: VideoProject, ownerId: string, renderId?
       assets: project.assets,
       progress: project.progress,
       status: project.status,
+      history: project.history || null,
       renderId,
       bucketName,
       outputUrl,
@@ -1500,6 +1503,9 @@ router.patch('/:projectId/scenes/:sceneId/product-overlay', isAuthenticated, asy
       return res.status(403).json({ success: false, error: 'Access denied' });
     }
     
+    // Push to history before making changes
+    universalVideoService.pushToHistory(projectData, 'Update overlay settings', ['scenes']);
+    
     const result = universalVideoService.updateProductOverlay(projectData, sceneId, {
       enabled,
       position,
@@ -1510,7 +1516,8 @@ router.patch('/:projectId/scenes/:sceneId/product-overlay', isAuthenticated, asy
     if (result.success) {
       await saveProjectToDb(projectData, projectData.ownerId);
       const scene = projectData.scenes.find((s: Scene) => s.id === sceneId);
-      return res.json({ success: true, scene, project: projectData });
+      const historyStatus = universalVideoService.getHistoryStatus(projectData);
+      return res.json({ success: true, scene, project: projectData, historyStatus });
     }
     
     return res.status(400).json({ success: false, error: result.error });
@@ -1660,6 +1667,188 @@ router.delete('/:projectId/music', isAuthenticated, async (req: Request, res: Re
     });
   } catch (error: any) {
     console.error('[UniversalVideo] Music disable error:', error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// =============================================
+// PHASE 4: UNDO/REDO & SCENE REORDERING
+// =============================================
+
+// Phase 4: Undo action
+router.post('/:projectId/undo', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = (req.user as any)?.id;
+    const { projectId } = req.params;
+    
+    const projectData = await getProjectFromDb(projectId);
+    if (!projectData) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+    
+    if (projectData.ownerId !== userId) {
+      return res.status(403).json({ success: false, error: 'Access denied' });
+    }
+    
+    const result = universalVideoService.undo(projectData);
+    
+    if (result.success) {
+      await saveProjectToDb(projectData, projectData.ownerId);
+      const status = universalVideoService.getHistoryStatus(projectData);
+      return res.json({ 
+        success: true, 
+        undoneAction: result.action,
+        historyStatus: status,
+        project: projectData,
+      });
+    }
+    
+    return res.status(400).json({ success: false, error: result.error });
+  } catch (error: any) {
+    console.error('[UniversalVideo] Undo error:', error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Phase 4: Redo action
+router.post('/:projectId/redo', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = (req.user as any)?.id;
+    const { projectId } = req.params;
+    
+    const projectData = await getProjectFromDb(projectId);
+    if (!projectData) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+    
+    if (projectData.ownerId !== userId) {
+      return res.status(403).json({ success: false, error: 'Access denied' });
+    }
+    
+    const result = universalVideoService.redo(projectData);
+    
+    if (result.success) {
+      await saveProjectToDb(projectData, projectData.ownerId);
+      const status = universalVideoService.getHistoryStatus(projectData);
+      return res.json({ 
+        success: true, 
+        redoneAction: result.action,
+        historyStatus: status,
+        project: projectData,
+      });
+    }
+    
+    return res.status(400).json({ success: false, error: result.error });
+  } catch (error: any) {
+    console.error('[UniversalVideo] Redo error:', error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Phase 4: Get history status
+router.get('/:projectId/history', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = (req.user as any)?.id;
+    const { projectId } = req.params;
+    
+    const projectData = await getProjectFromDb(projectId);
+    if (!projectData) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+    
+    if (projectData.ownerId !== userId) {
+      return res.status(403).json({ success: false, error: 'Access denied' });
+    }
+    
+    const status = universalVideoService.getHistoryStatus(projectData);
+    return res.json({ success: true, ...status });
+  } catch (error: any) {
+    console.error('[UniversalVideo] History status error:', error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Phase 4: Reorder scenes
+router.patch('/:projectId/reorder-scenes', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = (req.user as any)?.id;
+    const { projectId } = req.params;
+    const { sceneOrder } = req.body;
+    
+    if (!Array.isArray(sceneOrder)) {
+      return res.status(400).json({ success: false, error: 'sceneOrder must be an array of scene IDs' });
+    }
+    
+    const projectData = await getProjectFromDb(projectId);
+    if (!projectData) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+    
+    if (projectData.ownerId !== userId) {
+      return res.status(403).json({ success: false, error: 'Access denied' });
+    }
+    
+    // Push current state to history before reordering
+    universalVideoService.pushToHistory(projectData, 'Reorder scenes', ['scenes']);
+    
+    const result = universalVideoService.reorderScenes(projectData, sceneOrder);
+    
+    if (result.success) {
+      await saveProjectToDb(projectData, projectData.ownerId);
+      const historyStatus = universalVideoService.getHistoryStatus(projectData);
+      return res.json({ 
+        success: true, 
+        message: 'Scenes reordered',
+        historyStatus,
+        project: projectData,
+      });
+    }
+    
+    return res.status(400).json({ success: false, error: result.error });
+  } catch (error: any) {
+    console.error('[UniversalVideo] Scene reorder error:', error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Phase 4: Generate Preview
+router.post('/:projectId/preview', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = (req.user as any)?.id;
+    const { projectId } = req.params;
+    
+    const projectData = await getProjectFromDb(projectId);
+    if (!projectData) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+    
+    if (projectData.ownerId !== userId) {
+      return res.status(403).json({ success: false, error: 'Access denied' });
+    }
+    
+    if (projectData.status !== 'ready' && projectData.status !== 'complete') {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Project must be ready or complete to generate preview' 
+      });
+    }
+    
+    const { inputProps, compositionId, previewConfig } = universalVideoService.getPreviewRenderProps(projectData);
+    
+    // Return preview configuration - actual rendering would happen on frontend or via Lambda
+    return res.json({
+      success: true,
+      preview: {
+        inputProps,
+        compositionId,
+        config: previewConfig,
+        projectId: projectData.id,
+        duration: projectData.totalDuration,
+        message: 'Preview configuration ready. Use Remotion Player for client-side preview.',
+      },
+    });
+  } catch (error: any) {
+    console.error('[UniversalVideo] Preview generation error:', error);
     return res.status(500).json({ success: false, error: error.message });
   }
 });

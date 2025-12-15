@@ -17,6 +17,7 @@ export interface VideoProject {
   voiceId?: string;
   voiceName?: string;
   regenerationHistory?: RegenerationRecord[];
+  history?: ProjectHistory;
 }
 
 export type VideoProjectStatus = 'draft' | 'generating' | 'ready' | 'rendering' | 'complete' | 'error';
@@ -150,6 +151,19 @@ export interface RegenerationRecord {
   prompt?: string;
   timestamp: string;
   success: boolean;
+}
+
+export interface ProjectHistoryEntry {
+  id: string;
+  timestamp: string;
+  action: string;
+  previousState: Partial<VideoProject>;
+}
+
+export interface ProjectHistory {
+  entries: ProjectHistoryEntry[];
+  currentIndex: number;
+  maxEntries: number;
 }
 
 export const SCENE_OVERLAY_DEFAULTS: Record<string, boolean> = {

@@ -5,7 +5,7 @@
 Implementation order (as specified in the guide):
 1. **Phase 3 FIRST (Critical)** - Chunked rendering to solve timeout issues ✅ COMPLETE
 2. **Phase 2** - Enhanced user controls (overlay, voiceover, music) ✅ COMPLETE
-3. **Phase 4** - Polish & optimization features ⬅️ NEXT
+3. **Phase 4** - Polish & optimization features ✅ COMPLETE
 4. **AWS Architecture** - Future migration path (longer-term)
 
 ---
@@ -226,21 +226,21 @@ Implementation order (as specified in the guide):
 
 ---
 
-# PHASE 4: Polish & Optimization ⬅️ NEXT PHASE
+# PHASE 4: Polish & Optimization ✅ COMPLETE
 
-## 4.1 Undo/Redo System
+## 4.1 Undo/Redo System ✅ COMPLETE
 
 ### Type Updates
 
 **File:** `shared/video-types.ts`
 
-- [ ] Add `ProjectHistoryEntry` interface
+- [x] Add `ProjectHistoryEntry` interface
   - `id: string`
   - `timestamp: string`
   - `action: string`
-  - `previousState: Partial<VideoProject>`
+  - `snapshot: VideoProject` (deep clone of full state)
 
-- [ ] Add to `VideoProject` interface
+- [x] Add to `VideoProject` interface
   - `history?: ProjectHistoryEntry[]`
   - `historyIndex?: number`
 
@@ -248,61 +248,74 @@ Implementation order (as specified in the guide):
 
 **File:** `server/routes/universal-video-routes.ts`
 
-- [ ] Add history tracking to project mutations
-- [ ] Implement undo endpoint
-- [ ] Implement redo endpoint
+- [x] Add history tracking to project mutations (overlay, music, voiceover, scene reorder)
+- [x] Implement `POST /api/universal-video/:projectId/undo` endpoint
+- [x] Implement `POST /api/universal-video/:projectId/redo` endpoint
+- [x] `getHistoryStatus()` helper returns canUndo/canRedo/historyLength
 
 ### Frontend Implementation
 
 **File:** `client/src/components/universal-video-producer.tsx`
 
-- [ ] Add undo/redo buttons to UI
-- [ ] Keyboard shortcuts (Ctrl+Z, Ctrl+Shift+Z)
+- [x] Add undo/redo buttons to UI (Undo2, Redo2 icons)
+- [x] Keyboard shortcuts (Ctrl+Z, Ctrl+Shift+Z) with `useEffect` listener
+- [x] Display history status and action labels
+- [x] Disable buttons when no undo/redo available
 
 ---
 
-## 4.2 Scene Reordering
+## 4.2 Scene Reordering ✅ COMPLETE
 
 ### API Endpoint
 
 **File:** `server/routes/universal-video-routes.ts`
 
-- [ ] Add `PATCH /api/universal-video/projects/:projectId/reorder-scenes`
+- [x] Add `PATCH /api/universal-video/projects/:projectId/reorder-scenes`
   - Request body: `{ sceneOrder }` (array of scene IDs in new order)
   - Reorder scenes array based on provided order
   - Update scene `order` property
-  - Save and return project
+  - Save and return project with history status
 
 ### Frontend Implementation
 
 **File:** `client/src/components/universal-video-producer.tsx`
 
-- [ ] Add drag-and-drop scene reordering using `@dnd-kit`
-  - Sortable list of scenes
-  - Visual drag handles
-  - Drop indicator
-  - Auto-save on reorder
+- [x] Add drag-and-drop scene reordering using `@dnd-kit`
+  - `DndContext`, `SortableContext`, `useSortable` hooks
+  - Vertical list sorting strategy
+  - GripVertical icon as drag handle
+  - Auto-save on reorder via `handleDragEnd`
+  - Loading indicator during reorder API call
 
 ---
 
-## 4.3 Preview Generation
+## 4.3 Preview Generation ✅ COMPLETE
 
 ### Backend Method
 
 **File:** `server/services/universal-video-service.ts`
 
-- [ ] Add `generatePreview(project)` method
-  - Render at 480p, 15fps for fast preview
-  - Use `previewMode: true` in render props
-  - Return preview URL
+- [x] Add `getPreviewRenderProps(project)` method
+  - Returns inputProps, compositionId, previewConfig
+  - Config: 15fps, 50% scale (480p), 'fast' quality
+  - Sets `previewMode: true` in scene props
+
+### API Endpoint
+
+**File:** `server/routes/universal-video-routes.ts`
+
+- [x] Add `POST /api/universal-video/:projectId/preview`
+  - Validates project status (ready or complete)
+  - Returns preview configuration for client-side rendering
 
 ### Frontend Implementation
 
 **File:** `client/src/components/universal-video-producer.tsx`
 
-- [ ] Add "Generate Preview" button
-- [ ] Preview player component
-- [ ] Loading state during preview generation
+- [x] Add "Quick Preview" button (Eye icon)
+- [x] previewMutation for fetching preview config
+- [x] Toast notification with preview settings
+- [x] Loading state during preview generation
 
 ---
 
