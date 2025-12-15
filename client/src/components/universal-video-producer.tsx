@@ -907,73 +907,85 @@ function MusicControlsPanel({
   };
 
   return (
-    <Card className="p-4">
-      <div className="flex items-center gap-2 mb-4">
-        <Music className="w-5 h-5" />
-        <h4 className="font-medium">Music Controls</h4>
-      </div>
-      
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <Label className="text-sm">Volume</Label>
-            <span className="text-sm text-muted-foreground">{volume}%</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <VolumeX className="w-4 h-4 text-muted-foreground" />
-            <Slider
-              value={[volume]}
-              onValueChange={handleVolumeChange}
-              onValueCommit={handleVolumeCommit}
-              min={0}
-              max={100}
-              step={5}
-              className="flex-1"
-              data-testid="slider-music-volume"
-            />
-            <Volume2 className="w-4 h-4 text-muted-foreground" />
-          </div>
-          {isUpdatingVolume && (
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Loader2 className="w-3 h-3 animate-spin" />
-              Updating...
-            </div>
-          )}
+    <Card className="p-3">
+      <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2">
+          <Music className="w-4 h-4 text-muted-foreground" />
+          <span className="text-sm font-medium whitespace-nowrap">Music Controls</span>
         </div>
         
-        <div className="space-y-3">
-          <Label className="text-sm">Music Style</Label>
-          <div className="flex gap-2">
-            <Select value={selectedStyle} onValueChange={setSelectedStyle}>
-              <SelectTrigger className="flex-1" data-testid="select-music-style">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {MUSIC_STYLES.map(style => (
-                  <SelectItem key={style.value} value={style.value}>
-                    {style.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button
-              variant="outline"
-              onClick={handleRegenerateMusic}
-              disabled={isRegenerating}
-              data-testid="button-regenerate-music"
-            >
-              {isRegenerating ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <RefreshCw className="w-4 h-4" />
-              )}
-            </Button>
-          </div>
+        <div className="flex items-center gap-2 flex-1">
+          <VolumeX className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+          <Slider
+            value={[volume]}
+            onValueChange={handleVolumeChange}
+            onValueCommit={handleVolumeCommit}
+            min={0}
+            max={100}
+            step={5}
+            className="w-24"
+            data-testid="slider-music-volume"
+          />
+          <span className="text-xs text-muted-foreground w-8">{volume}%</span>
         </div>
+        
+        <Select value={selectedStyle} onValueChange={setSelectedStyle}>
+          <SelectTrigger className="w-32 h-8 text-xs" data-testid="select-music-style">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {MUSIC_STYLES.map(style => (
+              <SelectItem key={style.value} value={style.value}>
+                {style.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleRegenerateMusic}
+          disabled={isRegenerating}
+          data-testid="button-regenerate-music"
+        >
+          {isRegenerating ? (
+            <Loader2 className="w-3 h-3 animate-spin" />
+          ) : (
+            <RefreshCw className="w-3 h-3" />
+          )}
+        </Button>
+        
+        {isUpdatingVolume && (
+          <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />
+        )}
       </div>
     </Card>
   );
 }
+
+const VOICE_OPTIONS = [
+  { id: '21m00Tcm4TlvDq8ikWAM', name: 'Rachel', description: 'Warm & calm - ideal for wellness' },
+  { id: 'EXAVITQu4vr4xnSDxMaL', name: 'Sarah', description: 'Soft & friendly' },
+  { id: 'XB0fDUnXU5powFXDhCwa', name: 'Charlotte', description: 'Warm British accent' },
+  { id: 'pNInz6obpgDQGcFmaJgB', name: 'Adam', description: 'Deep & trustworthy male' },
+  { id: 'GBv7mTt0atIp3Br8iCZE', name: 'Thomas', description: 'Calm & professional male' },
+  { id: 'Yko7PKHZNXotIFUBG7I9', name: 'Aria', description: 'Expressive female' },
+  { id: 'jsCqWAovK2LkecY7zXl4', name: 'Freya', description: 'Young & warm' },
+  { id: 'oWAxZDx7w5VEj9dCyTzz', name: 'Grace', description: 'Mature & comforting' },
+  { id: 'onwK4e9ZLuTAKqWW03F9', name: 'Daniel', description: 'British authoritative' },
+  { id: 'N2lVS1w4EtoT3dr4eOWO', name: 'Callum', description: 'Hoarse & mature' },
+  { id: 'IKne3meq5aSn9XLyUdCD', name: 'Charlie', description: 'Casual Australian' },
+  { id: 'TX3LPaxmHKxFdv7VOQHJ', name: 'Liam', description: 'Young American male' },
+  { id: 'bIHbv24MWmeRgasZH58o', name: 'Will', description: 'Young & friendly' },
+  { id: 'cgSgspJ2msm6clMCkdW9', name: 'Jessica', description: 'Expressive American' },
+  { id: 'FGY2WhTYpPnrIDTdsKH5', name: 'Laura', description: 'Upbeat American' },
+  { id: 'XrExE9yKIg1WjnnlVkGX', name: 'Matilda', description: 'Warm Australian' },
+  { id: 'pFZP5JQG7iQjIQuC4Bku', name: 'Lily', description: 'Warm British' },
+  { id: 'SAz9YHcvj6GT2YYXdXww', name: 'River', description: 'Non-binary American' },
+  { id: 'CwhRBWXzGAHq8TQ4Fs17', name: 'Roger', description: 'Confident American male' },
+  { id: 'nPczCjzI2devNBz1zQrb', name: 'Brian', description: 'Deep American male' },
+];
 
 function VoiceoverControlsPanel({ 
   projectId, 
@@ -988,8 +1000,9 @@ function VoiceoverControlsPanel({
 }) {
   const { toast } = useToast();
   const [selectedVoiceId, setSelectedVoiceId] = useState(currentVoiceId || '21m00Tcm4TlvDq8ikWAM');
-  const [selectedVoiceName, setSelectedVoiceName] = useState(currentVoiceName || 'Rachel');
   const [isRegenerating, setIsRegenerating] = useState(false);
+
+  const selectedVoice = VOICE_OPTIONS.find(v => v.id === selectedVoiceId) || VOICE_OPTIONS[0];
 
   const handleRegenerateVoiceover = async () => {
     setIsRegenerating(true);
@@ -1015,43 +1028,47 @@ function VoiceoverControlsPanel({
   };
 
   return (
-    <Card className="p-4">
-      <div className="flex items-center gap-2 mb-4">
-        <Mic className="w-5 h-5" />
-        <h4 className="font-medium">Voiceover Controls</h4>
-      </div>
-      
-      <div className="space-y-3">
-        <VoiceSelector
-          selectedVoiceId={selectedVoiceId}
-          onSelect={(voiceId, voiceName) => {
-            setSelectedVoiceId(voiceId);
-            setSelectedVoiceName(voiceName);
-          }}
-        />
+    <Card className="p-3">
+      <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2">
+          <Mic className="w-4 h-4 text-muted-foreground" />
+          <span className="text-sm font-medium whitespace-nowrap">Voiceover</span>
+        </div>
+        
+        <Select value={selectedVoiceId} onValueChange={setSelectedVoiceId}>
+          <SelectTrigger className="flex-1 h-8 text-xs" data-testid="select-voice">
+            <SelectValue>
+              {selectedVoice.name} - {selectedVoice.description}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent className="max-h-64">
+            {VOICE_OPTIONS.map(voice => (
+              <SelectItem key={voice.id} value={voice.id}>
+                <span className="font-medium">{voice.name}</span>
+                <span className="text-muted-foreground ml-2">- {voice.description}</span>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         
         <Button
+          size="sm"
           onClick={handleRegenerateVoiceover}
           disabled={isRegenerating}
-          className="w-full"
           data-testid="button-regenerate-voiceover"
         >
           {isRegenerating ? (
             <>
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              Regenerating Voiceover...
+              <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+              Regenerating...
             </>
           ) : (
             <>
-              <RefreshCw className="w-4 h-4 mr-2" />
-              Regenerate All Voiceover
+              <RefreshCw className="w-3 h-3 mr-1" />
+              Regenerate All
             </>
           )}
         </Button>
-        
-        <p className="text-xs text-muted-foreground">
-          This will regenerate voiceover for all scenes using the selected voice.
-        </p>
       </div>
     </Card>
   );
@@ -2420,7 +2437,7 @@ export default function UniversalVideoProducer() {
                     refreshKey={Date.parse(project.updatedAt)}
                   />
                 </div>
-                <ScrollArea className="h-[400px] pr-4">
+                <ScrollArea className="h-[550px] pr-4">
                   <ScenePreview 
                     scenes={project.scenes} 
                     assets={project.assets}
