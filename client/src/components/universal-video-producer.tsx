@@ -956,7 +956,32 @@ function ScenePreview({
   const [editedNarration, setEditedNarration] = useState<Record<string, string>>({});
   const [savingNarration, setSavingNarration] = useState<string | null>(null);
   const [savingOverlay, setSavingOverlay] = useState<string | null>(null);
+  const [overlaySettings, setOverlaySettings] = useState<Record<string, {
+    x: 'left' | 'center' | 'right';
+    y: 'top' | 'center' | 'bottom';
+    scale: number;
+    animation: OverlayAnimation;
+  }>>({});
   const { toast } = useToast();
+  
+  const getOverlaySettings = (scene: Scene) => {
+    if (overlaySettings[scene.id]) {
+      return overlaySettings[scene.id];
+    }
+    return {
+      x: scene.assets?.productOverlayPosition?.x || 'center',
+      y: scene.assets?.productOverlayPosition?.y || 'center',
+      scale: scene.assets?.productOverlayPosition?.scale || 0.4,
+      animation: scene.assets?.productOverlayPosition?.animation || 'fade'
+    };
+  };
+  
+  const updateLocalOverlay = (sceneId: string, updates: Partial<typeof overlaySettings[string]>) => {
+    setOverlaySettings(prev => ({
+      ...prev,
+      [sceneId]: { ...getOverlaySettings(scenes.find(s => s.id === sceneId)!), ...updates }
+    }));
+  };
 
   const updateProductOverlay = async (
     sceneId: string, 
@@ -1364,13 +1389,14 @@ function ScenePreview({
                             <div className="space-y-1">
                               <Label className="text-xs">Horizontal</Label>
                               <Select 
-                                value={scene.assets?.productOverlayPosition?.x || 'center'}
-                                onValueChange={(val) => updateProductOverlay(scene.id, { 
-                                  position: { 
-                                    x: val as 'left' | 'center' | 'right', 
-                                    y: scene.assets?.productOverlayPosition?.y || 'center' 
-                                  }
-                                })}
+                                value={getOverlaySettings(scene).x}
+                                onValueChange={(val) => {
+                                  const newX = val as 'left' | 'center' | 'right';
+                                  updateLocalOverlay(scene.id, { x: newX });
+                                  updateProductOverlay(scene.id, { 
+                                    position: { x: newX, y: getOverlaySettings(scene).y }
+                                  });
+                                }}
                               >
                                 <SelectTrigger className="h-8 text-xs" data-testid={`select-overlay-x-${scene.id}`}>
                                   <SelectValue />
@@ -1386,13 +1412,14 @@ function ScenePreview({
                             <div className="space-y-1">
                               <Label className="text-xs">Vertical</Label>
                               <Select 
-                                value={scene.assets?.productOverlayPosition?.y || 'center'}
-                                onValueChange={(val) => updateProductOverlay(scene.id, { 
-                                  position: { 
-                                    x: scene.assets?.productOverlayPosition?.x || 'center', 
-                                    y: val as 'top' | 'center' | 'bottom' 
-                                  }
-                                })}
+                                value={getOverlaySettings(scene).y}
+                                onValueChange={(val) => {
+                                  const newY = val as 'top' | 'center' | 'bottom';
+                                  updateLocalOverlay(scene.id, { y: newY });
+                                  updateProductOverlay(scene.id, { 
+                                    position: { x: getOverlaySettings(scene).x, y: newY }
+                                  });
+                                }}
                               >
                                 <SelectTrigger className="h-8 text-xs" data-testid={`select-overlay-y-${scene.id}`}>
                                   <SelectValue />
@@ -1408,10 +1435,12 @@ function ScenePreview({
                             <div className="space-y-1">
                               <Label className="text-xs">Animation</Label>
                               <Select 
-                                value={scene.assets?.productOverlayPosition?.animation || 'fade'}
-                                onValueChange={(val) => updateProductOverlay(scene.id, { 
-                                  animation: val as OverlayAnimation 
-                                })}
+                                value={getOverlaySettings(scene).animation}
+                                onValueChange={(val) => {
+                                  const newAnim = val as OverlayAnimation;
+                                  updateLocalOverlay(scene.id, { animation: newAnim });
+                                  updateProductOverlay(scene.id, { animation: newAnim });
+                                }}
                               >
                                 <SelectTrigger className="h-8 text-xs" data-testid={`select-overlay-animation-${scene.id}`}>
                                   <SelectValue />
@@ -1430,11 +1459,12 @@ function ScenePreview({
                             <div className="flex items-center justify-between">
                               <Label className="text-xs">Scale</Label>
                               <span className="text-xs text-muted-foreground">
-                                {Math.round((scene.assets?.productOverlayPosition?.scale || 0.4) * 100)}%
+                                {Math.round(getOverlaySettings(scene).scale * 100)}%
                               </span>
                             </div>
                             <Slider
-                              value={[(scene.assets?.productOverlayPosition?.scale || 0.4) * 100]}
+                              value={[getOverlaySettings(scene).scale * 100]}
+                              onValueChange={(val) => updateLocalOverlay(scene.id, { scale: val[0] / 100 })}
                               onValueCommit={(val) => updateProductOverlay(scene.id, { scale: val[0] / 100 })}
                               min={10}
                               max={80}
