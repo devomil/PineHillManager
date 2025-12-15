@@ -1460,155 +1460,192 @@ function ScenePreview({
             {isExpanded && (
               <CardContent className="pt-0 pb-3">
                 <Separator className="mb-3" />
-                <div className="space-y-4">
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <Label className="text-xs text-muted-foreground">Narration</Label>
-                      {projectId && editingNarration !== scene.id && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-6 px-2 text-xs"
-                          onClick={() => {
-                            setEditingNarration(scene.id);
-                            setEditedNarration(prev => ({ ...prev, [scene.id]: scene.narration }));
-                          }}
-                          data-testid={`button-edit-narration-${scene.id}`}
-                        >
-                          <Pencil className="w-3 h-3 mr-1" />
-                          Edit
-                        </Button>
-                      )}
-                    </div>
-                    {editingNarration === scene.id ? (
-                      <div className="space-y-2">
-                        <Textarea
-                          value={editedNarration[scene.id] || ''}
-                          onChange={(e) => setEditedNarration(prev => ({ ...prev, [scene.id]: e.target.value }))}
-                          className="text-sm min-h-[100px]"
-                          placeholder="Enter narration text..."
-                          data-testid={`textarea-narration-${scene.id}`}
-                        />
-                        <div className="flex gap-2">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  {/* Left Column: Large Media Preview */}
+                  <div className="space-y-3">
+                    {hasBrollVideo ? (
+                      <div>
+                        <Label className="text-xs text-muted-foreground flex items-center gap-1 mb-2">
+                          <Video className="w-3 h-3" /> B-Roll Video
+                        </Label>
+                        <div className="w-full rounded-lg overflow-hidden border bg-black" style={{ aspectRatio: '16/9' }}>
+                          <video 
+                            src={convertToDisplayUrl(scene.background!.videoUrl!)}
+                            className="w-full h-full object-contain"
+                            controls
+                            muted
+                            playsInline
+                            data-testid={`video-broll-${scene.id}`}
+                          />
+                        </div>
+                      </div>
+                    ) : hasAIBackground ? (
+                      <div>
+                        <Label className="text-xs text-muted-foreground mb-2">AI Background</Label>
+                        <div className="w-full rounded-lg overflow-hidden border relative bg-black" style={{ aspectRatio: '16/9' }}>
+                          <img 
+                            src={convertToDisplayUrl(scene.assets!.backgroundUrl!)} 
+                            alt="AI background"
+                            className="w-full h-full object-contain"
+                          />
+                          {showsProductOverlay && scene.assets?.productOverlayUrl && (
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <img 
+                                src={convertToDisplayUrl(scene.assets!.productOverlayUrl!)} 
+                                alt="Product overlay"
+                                className="max-w-[50%] max-h-[70%] object-contain drop-shadow-lg"
+                                style={{ transform: `scale(${getOverlaySettings(scene).scale})` }}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ) : imageAsset?.url ? (
+                      <div>
+                        <Label className="text-xs text-muted-foreground mb-2">Scene Image</Label>
+                        <div className="w-full rounded-lg overflow-hidden border bg-black" style={{ aspectRatio: '16/9' }}>
+                          <img 
+                            src={convertToDisplayUrl(imageAsset.url)} 
+                            alt={`Scene ${index + 1}`}
+                            className="w-full h-full object-contain"
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="w-full rounded-lg border bg-muted flex items-center justify-center" style={{ aspectRatio: '16/9' }}>
+                        <ImageIcon className="w-12 h-12 text-muted-foreground" />
+                      </div>
+                    )}
+                    
+                    {/* Compact Regenerate Controls */}
+                    {projectId && (
+                      <div className="p-2 bg-muted/30 rounded-lg border">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Input
+                            placeholder="Custom prompt (optional)"
+                            value={customPrompt[scene.id] || ''}
+                            onChange={(e) => setCustomPrompt(prev => ({ ...prev, [scene.id]: e.target.value }))}
+                            className="text-xs h-7 flex-1 min-w-[120px]"
+                            data-testid={`input-custom-prompt-${scene.id}`}
+                          />
                           <Button
                             size="sm"
-                            onClick={() => saveNarration(scene.id)}
-                            disabled={savingNarration === scene.id}
-                            data-testid={`button-save-narration-${scene.id}`}
+                            variant="outline"
+                            className="h-7 text-xs"
+                            onClick={() => regenerateImage(scene.id)}
+                            disabled={!!regenerating}
+                            data-testid={`button-regenerate-image-${scene.id}`}
                           >
-                            {savingNarration === scene.id ? (
-                              <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                            {regenerating === `image-${scene.id}` ? (
+                              <Loader2 className="w-3 h-3 animate-spin" />
                             ) : (
-                              <Save className="w-3 h-3 mr-1" />
+                              <><ImageIcon className="w-3 h-3 mr-1" /> Image</>
                             )}
-                            Save
                           </Button>
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => setEditingNarration(null)}
-                            disabled={savingNarration === scene.id}
-                            data-testid={`button-cancel-narration-${scene.id}`}
+                            className="h-7 text-xs"
+                            onClick={() => regenerateVideo(scene.id)}
+                            disabled={!!regenerating}
+                            data-testid={`button-regenerate-video-${scene.id}`}
                           >
-                            Cancel
+                            {regenerating === `video-${scene.id}` ? (
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            ) : (
+                              <><Video className="w-3 h-3 mr-1" /> Video</>
+                            )}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs"
+                            onClick={() => switchBackground(scene.id, !(scene.background?.type === 'video'))}
+                            disabled={!!regenerating}
+                            data-testid={`button-switch-background-${scene.id}`}
+                          >
+                            {regenerating === `switch-${scene.id}` ? (
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            ) : (
+                              <>{scene.background?.type === 'video' ? 'Use Image' : 'Use Video'}</>
+                            )}
                           </Button>
                         </div>
-                        <p className="text-xs text-muted-foreground">
-                          After saving, regenerate voiceover to update the audio.
-                        </p>
                       </div>
-                    ) : (
-                      <p className="text-sm">{scene.narration}</p>
                     )}
                   </div>
-                  <div>
-                    <Label className="text-xs text-muted-foreground">Visual Direction</Label>
-                    <p className="text-sm">{scene.background.source}</p>
-                  </div>
                   
-                  {hasBrollVideo && (
+                  {/* Right Column: Text Content */}
+                  <div className="space-y-3">
                     <div>
-                      <Label className="text-xs text-muted-foreground flex items-center gap-1">
-                        <Video className="w-3 h-3" /> B-Roll Video
-                      </Label>
-                      <div className="w-full aspect-video rounded-lg overflow-hidden mt-2 border bg-black">
-                        <video 
-                          src={convertToDisplayUrl(scene.background!.videoUrl!)}
-                          className="w-full h-full object-contain"
-                          controls
-                          muted
-                          playsInline
-                          data-testid={`video-broll-${scene.id}`}
-                        />
+                      <div className="flex items-center justify-between mb-1">
+                        <Label className="text-xs text-muted-foreground">Narration</Label>
+                        {projectId && editingNarration !== scene.id && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-6 px-2 text-xs"
+                            onClick={() => {
+                              setEditingNarration(scene.id);
+                              setEditedNarration(prev => ({ ...prev, [scene.id]: scene.narration }));
+                            }}
+                            data-testid={`button-edit-narration-${scene.id}`}
+                          >
+                            <Pencil className="w-3 h-3 mr-1" />
+                            Edit
+                          </Button>
+                        )}
                       </div>
+                      {editingNarration === scene.id ? (
+                        <div className="space-y-2">
+                          <Textarea
+                            value={editedNarration[scene.id] || ''}
+                            onChange={(e) => setEditedNarration(prev => ({ ...prev, [scene.id]: e.target.value }))}
+                            className="text-sm min-h-[80px]"
+                            placeholder="Enter narration text..."
+                            data-testid={`textarea-narration-${scene.id}`}
+                          />
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              onClick={() => saveNarration(scene.id)}
+                              disabled={savingNarration === scene.id}
+                              data-testid={`button-save-narration-${scene.id}`}
+                            >
+                              {savingNarration === scene.id ? (
+                                <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                              ) : (
+                                <Save className="w-3 h-3 mr-1" />
+                              )}
+                              Save
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setEditingNarration(null)}
+                              disabled={savingNarration === scene.id}
+                              data-testid={`button-cancel-narration-${scene.id}`}
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            After saving, regenerate voiceover to update audio.
+                          </p>
+                        </div>
+                      ) : (
+                        <p className="text-sm bg-muted/50 p-2 rounded">{scene.narration}</p>
+                      )}
                     </div>
-                  )}
-                  
-                  {projectId && (
-                    <div className="p-3 bg-muted/30 rounded-lg border space-y-3">
-                      <Label className="text-xs text-muted-foreground flex items-center gap-1">
-                        <RefreshCw className="w-3 h-3" /> Regenerate Assets
-                      </Label>
-                      <Input
-                        placeholder="Custom prompt/query (optional)"
-                        value={customPrompt[scene.id] || ''}
-                        onChange={(e) => setCustomPrompt(prev => ({ ...prev, [scene.id]: e.target.value }))}
-                        className="text-sm h-8"
-                        data-testid={`input-custom-prompt-${scene.id}`}
-                      />
-                      <div className="flex gap-2 flex-wrap">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => regenerateImage(scene.id)}
-                          disabled={!!regenerating}
-                          data-testid={`button-regenerate-image-${scene.id}`}
-                        >
-                          {regenerating === `image-${scene.id}` ? (
-                            <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                          ) : (
-                            <ImageIcon className="w-3 h-3 mr-1" />
-                          )}
-                          New Image
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => regenerateVideo(scene.id)}
-                          disabled={!!regenerating}
-                          data-testid={`button-regenerate-video-${scene.id}`}
-                        >
-                          {regenerating === `video-${scene.id}` ? (
-                            <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                          ) : (
-                            <Video className="w-3 h-3 mr-1" />
-                          )}
-                          New Video
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => switchBackground(scene.id, !(scene.background?.type === 'video'))}
-                          disabled={!!regenerating}
-                          data-testid={`button-switch-background-${scene.id}`}
-                        >
-                          {regenerating === `switch-${scene.id}` ? (
-                            <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                          ) : scene.background?.type === 'video' ? (
-                            <ImageIcon className="w-3 h-3 mr-1" />
-                          ) : (
-                            <Video className="w-3 h-3 mr-1" />
-                          )}
-                          {scene.background?.type === 'video' ? 'Use Image' : 'Use Video'}
-                        </Button>
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        Current: {scene.background?.type === 'video' ? '🎬 Video' : '🖼️ Image'}
-                      </div>
+                    
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Visual Direction</Label>
+                      <p className="text-sm bg-muted/50 p-2 rounded mt-1">{scene.background.source}</p>
                     </div>
-                  )}
-                  
-                  {hasAIBackground && (
+                  </div>
+                </div>
+                
+                {hasAIBackground && (
                     <>
                       <div className="flex items-center justify-between p-2 bg-muted/50 rounded-lg">
                         <div className="flex items-center gap-2">
@@ -1760,7 +1797,6 @@ function ScenePreview({
                       </div>
                     </>
                   )}
-                </div>
               </CardContent>
             )}
                   </Card>
