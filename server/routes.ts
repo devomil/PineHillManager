@@ -10464,36 +10464,66 @@ Output the script with section markers in brackets.`;
               merchantName: amazonConfig.merchantName
             });
             
-            // Fetch ALL orders for 6-month period in ONE call
-            const twoMinutesAgo = new Date(now.getTime() - 2 * 60 * 1000);
-            const endDateISO = endOfCurrentMonth > twoMinutesAgo ? twoMinutesAgo.toISOString() : endOfCurrentMonth.toISOString();
-            
-            const amazonOrders = await amazonIntegration.getOrders(sixMonthsAgo.toISOString(), endDateISO);
-            const allOrders = amazonOrders?.payload?.Orders || [];
-            
-            // Aggregate by month
+            // Use Sales API for each month (same as multi-location endpoint for accuracy)
             for (const monthInfo of monthsToShow) {
               const monthStart = new Date(monthInfo.year, monthInfo.month, 1);
               const monthEnd = new Date(monthInfo.year, monthInfo.month + 1, 0, 23, 59, 59, 999);
               
-              const monthOrders = allOrders.filter((order: any) => {
-                const orderDate = new Date(order.PurchaseDate);
-                return orderDate >= monthStart && orderDate <= monthEnd &&
-                  (order.OrderStatus === 'Shipped' || order.OrderStatus === 'Delivered');
-              });
+              let revenue = 0;
+              let transactions = 0;
               
-              const revenue = monthOrders.reduce((sum: number, order: any) => {
-                return sum + parseFloat(order.OrderTotal?.Amount || '0');
-              }, 0);
+              try {
+                // Ensure end date is at least 2 minutes before current time
+                const twoMinutesAgo = new Date(now.getTime() - 2 * 60 * 1000);
+                const startDateISO = monthStart.toISOString();
+                let endDateISO = monthEnd.toISOString();
+                if (monthEnd > twoMinutesAgo) {
+                  endDateISO = twoMinutesAgo.toISOString();
+                }
+                
+                // Skip future months
+                if (monthStart > now) {
+                  periodData.push({ period: monthInfo.label, revenue: '0.00', transactions: 0 });
+                  continue;
+                }
+                
+                // Try Sales API first (most accurate, same as Seller Central)
+                const salesMetrics = await amazonIntegration.getSalesMetrics(startDateISO, endDateISO, 'Total');
+                
+                if (salesMetrics && salesMetrics.payload && salesMetrics.payload.length > 0) {
+                  const metrics = salesMetrics.payload[0];
+                  if (metrics.totalSales && metrics.totalSales.amount) {
+                    revenue = parseFloat(metrics.totalSales.amount);
+                    transactions = metrics.orderItemCount || metrics.orderCount || 0;
+                    console.log(`Amazon Sales API - ${amazonConfig.merchantName} ${monthInfo.label}: $${revenue.toFixed(2)}`);
+                  }
+                } else {
+                  // Fallback: fetch orders for this month
+                  const amazonOrders = await amazonIntegration.getOrders(startDateISO, endDateISO);
+                  const orders = amazonOrders?.payload?.Orders || [];
+                  
+                  const shippedOrders = orders.filter((order: any) => 
+                    order.OrderStatus === 'Shipped' || order.OrderStatus === 'Delivered'
+                  );
+                  
+                  revenue = shippedOrders.reduce((sum: number, order: any) => {
+                    return sum + parseFloat(order.OrderTotal?.Amount || '0');
+                  }, 0);
+                  transactions = shippedOrders.length;
+                  console.log(`Amazon Orders API fallback - ${amazonConfig.merchantName} ${monthInfo.label}: $${revenue.toFixed(2)}`);
+                }
+              } catch (monthError) {
+                console.log(`Error fetching Amazon data for ${amazonConfig.merchantName} ${monthInfo.label}:`, monthError);
+              }
               
               periodData.push({
                 period: monthInfo.label,
                 revenue: revenue.toFixed(2),
-                transactions: monthOrders.length
+                transactions: transactions
               });
             }
           } catch (error) {
-            console.log(`Error fetching Amazon data for ${amazonConfig.merchantName}:`, error);
+            console.log(`Error initializing Amazon integration for ${amazonConfig.merchantName}:`, error);
             for (const monthInfo of monthsToShow) {
               periodData.push({ period: monthInfo.label, revenue: '0.00', transactions: 0 });
             }
