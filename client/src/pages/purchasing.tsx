@@ -754,6 +754,8 @@ function PurchaseOrdersTab() {
     defaultValues: {
       poNumber: '',
       paymentTerms: 'Net 30',
+      orderDate: '',
+      shippingAmount: '',
       lineItems: [{ description: '', quantity: '1', unitPrice: '0.00', productUrl: '' }],
     },
   });
@@ -891,7 +893,9 @@ function PurchaseOrdersTab() {
       vendorId: po.vendorId.toString(),
       paymentTerms: po.paymentTerms || 'Net 30',
       expenseAccountId: po.expenseAccountId ? po.expenseAccountId.toString() : undefined,
+      orderDate: (po as any).orderDate || '',
       requestedDeliveryDate: po.requestedDeliveryDate || undefined,
+      shippingAmount: (po as any).shippingAmount || '',
       notes: po.notes || '',
       internalNotes: po.internalNotes || '',
       lineItems: po.lineItems && po.lineItems.length > 0 
