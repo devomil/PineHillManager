@@ -1812,7 +1812,7 @@ router.patch('/:projectId/reorder-scenes', isAuthenticated, async (req: Request,
 });
 
 // Phase 4: Generate Preview
-router.post('/:projectId/preview', isAuthenticated, async (req: Request, res: Response) => {
+router.post('/projects/:projectId/preview', isAuthenticated, async (req: Request, res: Response) => {
   try {
     const userId = (req.user as any)?.id;
     const { projectId } = req.params;
