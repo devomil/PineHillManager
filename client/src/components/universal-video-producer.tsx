@@ -2647,6 +2647,69 @@ export default function UniversalVideoProducer() {
                   }
                 })()}
                 
+                {/* Product Overlay */}
+                {(() => {
+                  const scene = project.scenes[previewSceneIndex];
+                  if (!scene.assets?.useProductOverlay) return null;
+                  
+                  // Resolve product overlay URL
+                  let overlayUrl = scene.assets.productOverlayUrl;
+                  if (!overlayUrl && scene.assets.assignedProductImageId) {
+                    const assignedImage = project.assets.productImages?.find(
+                      img => img.id === scene.assets?.assignedProductImageId
+                    );
+                    if (assignedImage) overlayUrl = assignedImage.url;
+                  }
+                  if (!overlayUrl && project.assets.productImages?.length) {
+                    overlayUrl = project.assets.productImages[0].url;
+                  }
+                  if (!overlayUrl) return null;
+                  
+                  const displayUrl = convertToDisplayUrl(overlayUrl);
+                  const pos = scene.assets.productOverlayPosition || { x: 'right', y: 'bottom', scale: 0.25 };
+                  
+                  // Calculate position styles
+                  const positionStyles: React.CSSProperties = {
+                    position: 'absolute',
+                    maxWidth: `${(pos.scale || 0.25) * 100}%`,
+                    maxHeight: `${(pos.scale || 0.25) * 100}%`,
+                    objectFit: 'contain',
+                  };
+                  
+                  // Horizontal position
+                  if (pos.x === 'left') {
+                    positionStyles.left = '5%';
+                  } else if (pos.x === 'center') {
+                    positionStyles.left = '50%';
+                    positionStyles.transform = 'translateX(-50%)';
+                  } else {
+                    positionStyles.right = '5%';
+                  }
+                  
+                  // Vertical position
+                  if (pos.y === 'top') {
+                    positionStyles.top = '5%';
+                  } else if (pos.y === 'center') {
+                    positionStyles.top = '50%';
+                    positionStyles.transform = positionStyles.transform 
+                      ? 'translate(-50%, -50%)' 
+                      : 'translateY(-50%)';
+                  } else {
+                    positionStyles.bottom = '20%'; // Above the info overlay
+                  }
+                  
+                  return (
+                    <img
+                      key={`preview-overlay-${scene.id}`}
+                      src={displayUrl}
+                      alt="Product overlay"
+                      style={positionStyles}
+                      className="drop-shadow-lg"
+                      data-testid="preview-product-overlay"
+                    />
+                  );
+                })()}
+                
                 {/* Scene Info Overlay */}
                 <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4">
                   <div className="flex items-center gap-2 mb-1">
