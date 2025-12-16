@@ -17,6 +17,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { VoiceSelector } from "./voice-selector";
 import { 
   Video, Package, FileText, Play, Sparkles, AlertTriangle,
@@ -2015,6 +2016,10 @@ export default function UniversalVideoProducer() {
   const [renderId, setRenderId] = useState<string | null>(null);
   const [bucketName, setBucketName] = useState<string | null>(null);
   const [outputUrl, setOutputUrl] = useState<string | null>(null);
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [previewSceneIndex, setPreviewSceneIndex] = useState(0);
+  const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
+  const previewTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const createProductMutation = useMutation({
     mutationFn: async (data: ProductFormData) => {
@@ -2131,12 +2136,9 @@ export default function UniversalVideoProducer() {
     },
     onSuccess: (data) => {
       if (data.success) {
-        toast({
-          title: "Preview Ready",
-          description: `Preview configured: ${data.preview.config.fps}fps @ ${Math.round(data.preview.config.scale * 100)}% resolution. Duration: ${data.preview.duration}s`,
-        });
-        // In a full implementation, this would open a Remotion Player component
-        console.log('[Preview] Config:', data.preview);
+        setPreviewSceneIndex(0);
+        setShowPreviewModal(true);
+        setIsPreviewPlaying(true);
       }
     },
     onError: (error: Error) => {
@@ -2147,6 +2149,36 @@ export default function UniversalVideoProducer() {
       });
     },
   });
+
+  // Preview playback effect - auto-advance scenes
+  useEffect(() => {
+    if (!isPreviewPlaying || !project || !showPreviewModal) {
+      if (previewTimerRef.current) {
+        clearTimeout(previewTimerRef.current);
+        previewTimerRef.current = null;
+      }
+      return;
+    }
+
+    const currentScene = project.scenes[previewSceneIndex];
+    if (!currentScene) return;
+
+    const duration = (currentScene.duration || 5) * 1000;
+    previewTimerRef.current = setTimeout(() => {
+      if (previewSceneIndex < project.scenes.length - 1) {
+        setPreviewSceneIndex(prev => prev + 1);
+      } else {
+        setIsPreviewPlaying(false);
+        setPreviewSceneIndex(0);
+      }
+    }, duration);
+
+    return () => {
+      if (previewTimerRef.current) {
+        clearTimeout(previewTimerRef.current);
+      }
+    };
+  }, [isPreviewPlaying, previewSceneIndex, project, showPreviewModal]);
 
   const pollRenderStatus = async (id: string, bucket: string) => {
     if (!project) return;
@@ -2547,6 +2579,159 @@ export default function UniversalVideoProducer() {
           )}
         </CardContent>
       </Card>
+
+      {/* Preview Modal */}
+      <Dialog open={showPreviewModal} onOpenChange={(open) => {
+        setShowPreviewModal(open);
+        if (!open) {
+          setIsPreviewPlaying(false);
+          setPreviewSceneIndex(0);
+        }
+      }}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Play className="w-5 h-5" />
+              Quick Preview
+            </DialogTitle>
+            <DialogDescription>
+              Scene-by-scene preview of your video ({project?.scenes.length || 0} scenes, {project?.totalDuration || 0}s total)
+            </DialogDescription>
+          </DialogHeader>
+          
+          {project && project.scenes[previewSceneIndex] && (
+            <div className="space-y-4">
+              {/* Scene Progress */}
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">Scene {previewSceneIndex + 1} of {project.scenes.length}</span>
+                <Progress value={((previewSceneIndex + 1) / project.scenes.length) * 100} className="flex-1" />
+              </div>
+
+              {/* Preview Display */}
+              <div className="relative aspect-video bg-black rounded-lg overflow-hidden">
+                {(() => {
+                  const scene = project.scenes[previewSceneIndex];
+                  const videoUrl = scene.assets?.videoUrl ? convertToDisplayUrl(scene.assets.videoUrl) : null;
+                  const imageUrl = scene.assets?.imageUrl ? convertToDisplayUrl(scene.assets.imageUrl) : null;
+                  
+                  if (videoUrl) {
+                    return (
+                      <video
+                        key={`preview-video-${scene.id}`}
+                        src={videoUrl}
+                        className="w-full h-full object-cover"
+                        autoPlay
+                        muted
+                        loop={false}
+                        playsInline
+                      />
+                    );
+                  } else if (imageUrl) {
+                    return (
+                      <img
+                        key={`preview-img-${scene.id}`}
+                        src={imageUrl}
+                        alt={`Scene ${scene.order}`}
+                        className="w-full h-full object-cover"
+                      />
+                    );
+                  } else {
+                    return (
+                      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-green-900 to-green-700">
+                        <div className="text-center text-white">
+                          <ImageIcon className="w-16 h-16 mx-auto opacity-50 mb-2" />
+                          <p className="text-lg font-medium">Scene {scene.order}: {scene.type}</p>
+                        </div>
+                      </div>
+                    );
+                  }
+                })()}
+                
+                {/* Scene Info Overlay */}
+                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Badge variant="secondary" className="text-xs">{project.scenes[previewSceneIndex].type}</Badge>
+                    <span className="text-white/70 text-xs">{project.scenes[previewSceneIndex].duration}s</span>
+                  </div>
+                  <h3 className="text-white font-medium">Scene {project.scenes[previewSceneIndex].order}: {project.scenes[previewSceneIndex].type}</h3>
+                  <p className="text-white/80 text-sm line-clamp-2">{project.scenes[previewSceneIndex].narration}</p>
+                </div>
+              </div>
+
+              {/* Playback Controls */}
+              <div className="flex items-center justify-center gap-4">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPreviewSceneIndex(Math.max(0, previewSceneIndex - 1))}
+                  disabled={previewSceneIndex === 0}
+                  data-testid="button-preview-prev"
+                >
+                  Previous
+                </Button>
+                
+                <Button
+                  variant={isPreviewPlaying ? "secondary" : "default"}
+                  size="sm"
+                  onClick={() => setIsPreviewPlaying(!isPreviewPlaying)}
+                  data-testid="button-preview-play"
+                >
+                  {isPreviewPlaying ? (
+                    <>Pause</>
+                  ) : (
+                    <><Play className="w-4 h-4 mr-1" /> Play</>
+                  )}
+                </Button>
+                
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPreviewSceneIndex(Math.min(project.scenes.length - 1, previewSceneIndex + 1))}
+                  disabled={previewSceneIndex === project.scenes.length - 1}
+                  data-testid="button-preview-next"
+                >
+                  Next
+                </Button>
+              </div>
+
+              {/* Scene Thumbnails */}
+              <ScrollArea className="h-20">
+                <div className="flex gap-2">
+                  {project.scenes.map((scene, index) => {
+                    const thumbUrl = scene.assets?.imageUrl ? convertToDisplayUrl(scene.assets.imageUrl) : null;
+                    return (
+                      <button
+                        key={scene.id}
+                        onClick={() => {
+                          setPreviewSceneIndex(index);
+                          setIsPreviewPlaying(false);
+                        }}
+                        className={`relative flex-shrink-0 w-24 h-14 rounded overflow-hidden border-2 transition-all ${
+                          index === previewSceneIndex ? 'border-primary ring-2 ring-primary/30' : 'border-transparent opacity-70 hover:opacity-100'
+                        }`}
+                        data-testid={`button-preview-scene-${index}`}
+                      >
+                        {thumbUrl ? (
+                          <img src={thumbUrl} alt={`Scene ${scene.order}`} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full bg-gradient-to-br from-green-800 to-green-600 flex items-center justify-center">
+                            <span className="text-white text-xs">{index + 1}</span>
+                          </div>
+                        )}
+                        {index === previewSceneIndex && isPreviewPlaying && (
+                          <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                            <Play className="w-4 h-4 text-white" fill="white" />
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </ScrollArea>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
