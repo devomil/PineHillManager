@@ -118,17 +118,11 @@ export function RevenueAnalytics() {
     return `period=${selectedPeriod}&year=${selectedYear}`;
   };
 
-  // Always fetch 6 months of data for trend chart regardless of selected period
+  // Always fetch 6 months of data for trend chart - use monthly period format for monthly breakdown
   const getTrendQueryParams = () => {
-    const endDate = new Date();
-    const startDate = new Date();
-    startDate.setMonth(startDate.getMonth() - 6);
-    
-    const formatDate = (date: Date) => {
-      return date.toISOString().split('T')[0];
-    };
-    
-    return `startDate=${formatDate(startDate)}&endDate=${formatDate(endDate)}&groupBy=month`;
+    const currentYear = new Date().getFullYear();
+    // Use period=monthly to get month-by-month breakdown instead of single aggregate
+    return `period=monthly&year=${currentYear}`;
   };
 
   const handleDateRangeChange = (value: string, startDate: string, endDate: string) => {
@@ -233,12 +227,15 @@ export function RevenueAnalytics() {
     return `${value >= 0 ? '+' : ''}${value.toFixed(1)}%`;
   };
 
-  // Calculate totals and derived metrics
+  // Calculate totals from the selected date period (multiLocationData uses getQueryParams)
   const totalRevenue = multiLocationData?.locationBreakdown?.reduce((sum: number, location: any) => {
     return sum + parseFloat(location.totalSales || location.totalRevenue || '0');
   }, 0) || 0;
   
-  const totalTransactions = revenueTrends?.data?.reduce((sum: number, item: any) => sum + item.transactions, 0) || 0;
+  // Use multiLocationData for transactions to match the selected date range
+  const totalTransactions = multiLocationData?.locationBreakdown?.reduce((sum: number, location: any) => {
+    return sum + (location.transactionCount || 0);
+  }, 0) || 0;
   const avgSaleOverall = totalTransactions > 0 ? totalRevenue / totalTransactions : 0;
 
   // Calculate trend data for comparison
