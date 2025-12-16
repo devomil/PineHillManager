@@ -81,10 +81,30 @@ type LocationRevenueTrendsResponse = {
 };
 
 const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#06B6D4'];
+
+const LOCATION_COLORS: Record<string, string> = {
+  'Lake Geneva Retail': '#3B82F6',
+  'Watertown Retail': '#10B981',
+  'Lake Geneva - HSA': '#8B5CF6',
+  'Lake Geneva HSA': '#8B5CF6',
+  'Watertown HSA': '#A855F7',
+  'Pinehillfarm.co Online': '#F97316',
+  'Amazon Store': '#F59E0B',
+};
+
+const getLocationColor = (locationName: string): string => {
+  if (LOCATION_COLORS[locationName]) return LOCATION_COLORS[locationName];
+  if (locationName?.toLowerCase().includes('hsa')) return '#8B5CF6';
+  if (locationName?.toLowerCase().includes('amazon')) return '#F59E0B';
+  if (locationName?.toLowerCase().includes('online')) return '#F97316';
+  if (locationName?.toLowerCase().includes('retail')) return '#3B82F6';
+  return '#6B7280';
+};
+
 const HSA_COLOR = '#8B5CF6';
 const RETAIL_COLOR = '#3B82F6';
 const AMAZON_COLOR = '#F59E0B';
-const ONLINE_COLOR = '#06B6D4';
+const ONLINE_COLOR = '#F97316';
 
 const GRADIENT_COLORS = {
   revenue: { start: '#3B82F6', end: '#60A5FA' },
@@ -288,11 +308,8 @@ export function RevenueAnalytics() {
 
   // Prepare pie/donut chart data
   const locationPieData = useMemo(() => {
-    return filteredLocations.map((location: any, index: number) => {
-      let color = COLORS[index % COLORS.length];
-      if (location.platform === 'Amazon Store') color = AMAZON_COLOR;
-      else if (location.locationName?.toLowerCase().includes('hsa')) color = HSA_COLOR;
-      else if (location.locationName?.toLowerCase().includes('online')) color = ONLINE_COLOR;
+    return filteredLocations.map((location: any) => {
+      const color = getLocationColor(location.locationName);
       
       return {
         name: location.locationName,
@@ -826,12 +843,15 @@ export function RevenueAnalytics() {
                   <ResponsiveContainer width="100%" height={350}>
                     <AreaChart data={getMultiLocationChartData()}>
                       <defs>
-                        {locationTrends?.locations?.map((location, index) => (
-                          <linearGradient key={location.locationId} id={`gradient-${location.locationId}`} x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor={location.isHSA ? HSA_COLOR : COLORS[index % COLORS.length]} stopOpacity={0.3} />
-                            <stop offset="100%" stopColor={location.isHSA ? HSA_COLOR : COLORS[index % COLORS.length]} stopOpacity={0.05} />
-                          </linearGradient>
-                        ))}
+                        {locationTrends?.locations?.map((location) => {
+                          const color = getLocationColor(location.locationName);
+                          return (
+                            <linearGradient key={location.locationId} id={`gradient-${location.locationId}`} x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor={color} stopOpacity={0.3} />
+                              <stop offset="100%" stopColor={color} stopOpacity={0.05} />
+                            </linearGradient>
+                          );
+                        })}
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" vertical={false} />
                       <XAxis 
@@ -852,16 +872,19 @@ export function RevenueAnalytics() {
                         height={36}
                         wrapperStyle={{ paddingTop: '20px' }}
                       />
-                      {locationTrends?.locations?.map((location, index) => (
-                        <Area
-                          key={location.locationId}
-                          type="monotone"
-                          dataKey={location.locationName}
-                          stroke={location.isHSA ? HSA_COLOR : COLORS[index % COLORS.length]}
-                          strokeWidth={2}
-                          fill={`url(#gradient-${location.locationId})`}
-                        />
-                      ))}
+                      {locationTrends?.locations?.map((location) => {
+                        const color = getLocationColor(location.locationName);
+                        return (
+                          <Area
+                            key={location.locationId}
+                            type="monotone"
+                            dataKey={location.locationName}
+                            stroke={color}
+                            strokeWidth={2}
+                            fill={`url(#gradient-${location.locationId})`}
+                          />
+                        );
+                      })}
                     </AreaChart>
                   </ResponsiveContainer>
                 )}
