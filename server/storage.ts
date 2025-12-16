@@ -15123,13 +15123,13 @@ export class DatabaseStorage implements IStorage {
   async createPurchaseOrderWithLineItems(payload: any): Promise<any> {
     const { lineItems, ...poData } = payload;
     
-    // Calculate total amount from line items
-    let totalAmount = 0;
+    // Calculate subtotal from line items
+    let subtotal = 0;
     const processedLineItems = lineItems.map((item: any) => {
       const quantity = typeof item.quantity === 'string' ? parseFloat(item.quantity) : item.quantity;
       const unitCost = typeof item.unitCost === 'string' ? parseFloat(item.unitCost) : item.unitCost;
       const lineTotal = quantity * unitCost;
-      totalAmount += lineTotal;
+      subtotal += lineTotal;
       
       return {
         description: item.description,
@@ -15144,9 +15144,15 @@ export class DatabaseStorage implements IStorage {
       };
     });
     
+    // Calculate total amount including shipping and tax
+    const shippingAmount = poData.shippingAmount ? parseFloat(poData.shippingAmount) : 0;
+    const taxAmount = poData.taxAmount ? parseFloat(poData.taxAmount) : 0;
+    const totalAmount = subtotal + shippingAmount + taxAmount;
+    
     // Create the purchase order
     const [createdPO] = await db.insert(purchaseOrders).values({
       ...poData,
+      subtotal: subtotal.toString(),
       totalAmount: totalAmount.toString(),
     }).returning();
     
@@ -15177,8 +15183,8 @@ export class DatabaseStorage implements IStorage {
     const existingItemIds = new Set(existingLineItems.map(item => item.id));
     const incomingItemIds = new Set(lineItems.filter((item: any) => item.id).map((item: any) => item.id));
     
-    // Calculate total amount from line items (excluding deleted ones)
-    let totalAmount = 0;
+    // Calculate subtotal from line items (excluding deleted ones)
+    let subtotal = 0;
     const itemsToCreate = [];
     const itemsToUpdate = [];
     const itemsToDelete = [];
@@ -15203,7 +15209,7 @@ export class DatabaseStorage implements IStorage {
       const quantity = typeof item.quantity === 'string' ? parseFloat(item.quantity) : item.quantity;
       const unitCost = typeof item.unitCost === 'string' ? parseFloat(item.unitCost) : item.unitCost;
       const lineTotal = quantity * unitCost;
-      totalAmount += lineTotal;
+      subtotal += lineTotal;
       
       const processedItem = {
         description: item.description,
@@ -15224,10 +15230,16 @@ export class DatabaseStorage implements IStorage {
       }
     }
     
+    // Calculate total amount including shipping and tax
+    const shippingAmount = poData.shippingAmount ? parseFloat(poData.shippingAmount) : 0;
+    const taxAmount = poData.taxAmount ? parseFloat(poData.taxAmount) : 0;
+    const totalAmount = subtotal + shippingAmount + taxAmount;
+    
     // Update the purchase order metadata
     const [updatedPO] = await db.update(purchaseOrders)
       .set({
         ...poData,
+        subtotal: subtotal.toString(),
         totalAmount: totalAmount.toString(),
         updatedAt: new Date(),
       })
@@ -15503,6 +15515,7 @@ export class DatabaseStorage implements IStorage {
 
   async getOutstandingPayablesReport(): Promise<any[]> {
     // Get approved and received orders that haven't been paid yet
+    // Use COALESCE to fall back to createdAt::date if orderDate is null
     return await db
       .select({
         poNumber: purchaseOrders.poNumber,
@@ -15510,62 +15523,59 @@ export class DatabaseStorage implements IStorage {
         vendorName: customersVendors.name,
         status: purchaseOrders.status,
         paymentTerms: purchaseOrders.paymentTerms,
-        orderDate: purchaseOrders.orderDate,
+        orderDate: sql`COALESCE(${purchaseOrders.orderDate}, ${purchaseOrders.createdAt}::date)`,
         totalAmount: purchaseOrders.totalAmount,
-        // Calculate due date based on payment terms
+        // Calculate due date based on payment terms (using COALESCE for orderDate fallback)
         dueDate: sql`
           CASE 
-            WHEN ${purchaseOrders.paymentTerms} = 'Net 15' THEN ${purchaseOrders.orderDate} + INTERVAL '15 days'
-            WHEN ${purchaseOrders.paymentTerms} = 'Net 16' THEN ${purchaseOrders.orderDate} + INTERVAL '16 days'
-            WHEN ${purchaseOrders.paymentTerms} = 'Net 30' THEN ${purchaseOrders.orderDate} + INTERVAL '30 days'
-            WHEN ${purchaseOrders.paymentTerms} = 'Net 60' THEN ${purchaseOrders.orderDate} + INTERVAL '60 days'
-            WHEN ${purchaseOrders.paymentTerms} = 'Net 90' THEN ${purchaseOrders.orderDate} + INTERVAL '90 days'
-            WHEN ${purchaseOrders.paymentTerms} IN ('COD', 'Credit Card', 'Wire Transfer', 'Check', 'Due on Receipt') THEN ${purchaseOrders.orderDate}
-            ELSE ${purchaseOrders.orderDate} + INTERVAL '30 days'
+            WHEN ${purchaseOrders.paymentTerms} = 'Net 15' THEN COALESCE(${purchaseOrders.orderDate}, ${purchaseOrders.createdAt}::date) + INTERVAL '15 days'
+            WHEN ${purchaseOrders.paymentTerms} = 'Net 16' THEN COALESCE(${purchaseOrders.orderDate}, ${purchaseOrders.createdAt}::date) + INTERVAL '16 days'
+            WHEN ${purchaseOrders.paymentTerms} = 'Net 30' THEN COALESCE(${purchaseOrders.orderDate}, ${purchaseOrders.createdAt}::date) + INTERVAL '30 days'
+            WHEN ${purchaseOrders.paymentTerms} = 'Net 60' THEN COALESCE(${purchaseOrders.orderDate}, ${purchaseOrders.createdAt}::date) + INTERVAL '60 days'
+            WHEN ${purchaseOrders.paymentTerms} = 'Net 90' THEN COALESCE(${purchaseOrders.orderDate}, ${purchaseOrders.createdAt}::date) + INTERVAL '90 days'
+            WHEN ${purchaseOrders.paymentTerms} IN ('COD', 'Credit Card', 'Wire Transfer', 'Check', 'Due on Receipt') THEN COALESCE(${purchaseOrders.orderDate}, ${purchaseOrders.createdAt}::date)
+            ELSE COALESCE(${purchaseOrders.orderDate}, ${purchaseOrders.createdAt}::date) + INTERVAL '30 days'
           END
         `,
         // Calculate days until due
         daysUntilDue: sql`
           CASE 
-            WHEN ${purchaseOrders.paymentTerms} = 'Net 15' THEN (${purchaseOrders.orderDate} + INTERVAL '15 days')::date - CURRENT_DATE
-            WHEN ${purchaseOrders.paymentTerms} = 'Net 16' THEN (${purchaseOrders.orderDate} + INTERVAL '16 days')::date - CURRENT_DATE
-            WHEN ${purchaseOrders.paymentTerms} = 'Net 30' THEN (${purchaseOrders.orderDate} + INTERVAL '30 days')::date - CURRENT_DATE
-            WHEN ${purchaseOrders.paymentTerms} = 'Net 60' THEN (${purchaseOrders.orderDate} + INTERVAL '60 days')::date - CURRENT_DATE
-            WHEN ${purchaseOrders.paymentTerms} = 'Net 90' THEN (${purchaseOrders.orderDate} + INTERVAL '90 days')::date - CURRENT_DATE
-            WHEN ${purchaseOrders.paymentTerms} IN ('COD', 'Credit Card', 'Wire Transfer', 'Check', 'Due on Receipt') THEN ${purchaseOrders.orderDate}::date - CURRENT_DATE
-            ELSE (${purchaseOrders.orderDate} + INTERVAL '30 days')::date - CURRENT_DATE
+            WHEN ${purchaseOrders.paymentTerms} = 'Net 15' THEN (COALESCE(${purchaseOrders.orderDate}, ${purchaseOrders.createdAt}::date) + INTERVAL '15 days')::date - CURRENT_DATE
+            WHEN ${purchaseOrders.paymentTerms} = 'Net 16' THEN (COALESCE(${purchaseOrders.orderDate}, ${purchaseOrders.createdAt}::date) + INTERVAL '16 days')::date - CURRENT_DATE
+            WHEN ${purchaseOrders.paymentTerms} = 'Net 30' THEN (COALESCE(${purchaseOrders.orderDate}, ${purchaseOrders.createdAt}::date) + INTERVAL '30 days')::date - CURRENT_DATE
+            WHEN ${purchaseOrders.paymentTerms} = 'Net 60' THEN (COALESCE(${purchaseOrders.orderDate}, ${purchaseOrders.createdAt}::date) + INTERVAL '60 days')::date - CURRENT_DATE
+            WHEN ${purchaseOrders.paymentTerms} = 'Net 90' THEN (COALESCE(${purchaseOrders.orderDate}, ${purchaseOrders.createdAt}::date) + INTERVAL '90 days')::date - CURRENT_DATE
+            WHEN ${purchaseOrders.paymentTerms} IN ('COD', 'Credit Card', 'Wire Transfer', 'Check', 'Due on Receipt') THEN COALESCE(${purchaseOrders.orderDate}, ${purchaseOrders.createdAt}::date)::date - CURRENT_DATE
+            ELSE (COALESCE(${purchaseOrders.orderDate}, ${purchaseOrders.createdAt}::date) + INTERVAL '30 days')::date - CURRENT_DATE
           END
         `,
         isOverdue: sql`
           CASE 
-            WHEN ${purchaseOrders.paymentTerms} = 'Net 15' THEN CURRENT_DATE > (${purchaseOrders.orderDate} + INTERVAL '15 days')
-            WHEN ${purchaseOrders.paymentTerms} = 'Net 16' THEN CURRENT_DATE > (${purchaseOrders.orderDate} + INTERVAL '16 days')
-            WHEN ${purchaseOrders.paymentTerms} = 'Net 30' THEN CURRENT_DATE > (${purchaseOrders.orderDate} + INTERVAL '30 days')
-            WHEN ${purchaseOrders.paymentTerms} = 'Net 60' THEN CURRENT_DATE > (${purchaseOrders.orderDate} + INTERVAL '60 days')
-            WHEN ${purchaseOrders.paymentTerms} = 'Net 90' THEN CURRENT_DATE > (${purchaseOrders.orderDate} + INTERVAL '90 days')
-            WHEN ${purchaseOrders.paymentTerms} IN ('COD', 'Credit Card', 'Wire Transfer', 'Check', 'Due on Receipt') THEN CURRENT_DATE > ${purchaseOrders.orderDate}
-            ELSE CURRENT_DATE > (${purchaseOrders.orderDate} + INTERVAL '30 days')
+            WHEN ${purchaseOrders.paymentTerms} = 'Net 15' THEN CURRENT_DATE > (COALESCE(${purchaseOrders.orderDate}, ${purchaseOrders.createdAt}::date) + INTERVAL '15 days')
+            WHEN ${purchaseOrders.paymentTerms} = 'Net 16' THEN CURRENT_DATE > (COALESCE(${purchaseOrders.orderDate}, ${purchaseOrders.createdAt}::date) + INTERVAL '16 days')
+            WHEN ${purchaseOrders.paymentTerms} = 'Net 30' THEN CURRENT_DATE > (COALESCE(${purchaseOrders.orderDate}, ${purchaseOrders.createdAt}::date) + INTERVAL '30 days')
+            WHEN ${purchaseOrders.paymentTerms} = 'Net 60' THEN CURRENT_DATE > (COALESCE(${purchaseOrders.orderDate}, ${purchaseOrders.createdAt}::date) + INTERVAL '60 days')
+            WHEN ${purchaseOrders.paymentTerms} = 'Net 90' THEN CURRENT_DATE > (COALESCE(${purchaseOrders.orderDate}, ${purchaseOrders.createdAt}::date) + INTERVAL '90 days')
+            WHEN ${purchaseOrders.paymentTerms} IN ('COD', 'Credit Card', 'Wire Transfer', 'Check', 'Due on Receipt') THEN CURRENT_DATE > COALESCE(${purchaseOrders.orderDate}, ${purchaseOrders.createdAt}::date)
+            ELSE CURRENT_DATE > (COALESCE(${purchaseOrders.orderDate}, ${purchaseOrders.createdAt}::date) + INTERVAL '30 days')
           END
         `,
       })
       .from(purchaseOrders)
       .leftJoin(customersVendors, eq(purchaseOrders.vendorId, customersVendors.id))
       .where(
-        and(
-          sql`${purchaseOrders.status} IN ('approved', 'received')`,
-          sql`${purchaseOrders.orderDate} IS NOT NULL`
-        )
+        sql`${purchaseOrders.status} IN ('approved', 'received')`
       )
       .orderBy(
         sql`
           CASE 
-            WHEN ${purchaseOrders.paymentTerms} = 'Net 15' THEN ${purchaseOrders.orderDate} + INTERVAL '15 days'
-            WHEN ${purchaseOrders.paymentTerms} = 'Net 16' THEN ${purchaseOrders.orderDate} + INTERVAL '16 days'
-            WHEN ${purchaseOrders.paymentTerms} = 'Net 30' THEN ${purchaseOrders.orderDate} + INTERVAL '30 days'
-            WHEN ${purchaseOrders.paymentTerms} = 'Net 60' THEN ${purchaseOrders.orderDate} + INTERVAL '60 days'
-            WHEN ${purchaseOrders.paymentTerms} = 'Net 90' THEN ${purchaseOrders.orderDate} + INTERVAL '90 days'
-            WHEN ${purchaseOrders.paymentTerms} IN ('COD', 'Credit Card', 'Wire Transfer', 'Check', 'Due on Receipt') THEN ${purchaseOrders.orderDate}
-            ELSE ${purchaseOrders.orderDate} + INTERVAL '30 days'
+            WHEN ${purchaseOrders.paymentTerms} = 'Net 15' THEN COALESCE(${purchaseOrders.orderDate}, ${purchaseOrders.createdAt}::date) + INTERVAL '15 days'
+            WHEN ${purchaseOrders.paymentTerms} = 'Net 16' THEN COALESCE(${purchaseOrders.orderDate}, ${purchaseOrders.createdAt}::date) + INTERVAL '16 days'
+            WHEN ${purchaseOrders.paymentTerms} = 'Net 30' THEN COALESCE(${purchaseOrders.orderDate}, ${purchaseOrders.createdAt}::date) + INTERVAL '30 days'
+            WHEN ${purchaseOrders.paymentTerms} = 'Net 60' THEN COALESCE(${purchaseOrders.orderDate}, ${purchaseOrders.createdAt}::date) + INTERVAL '60 days'
+            WHEN ${purchaseOrders.paymentTerms} = 'Net 90' THEN COALESCE(${purchaseOrders.orderDate}, ${purchaseOrders.createdAt}::date) + INTERVAL '90 days'
+            WHEN ${purchaseOrders.paymentTerms} IN ('COD', 'Credit Card', 'Wire Transfer', 'Check', 'Due on Receipt') THEN COALESCE(${purchaseOrders.orderDate}, ${purchaseOrders.createdAt}::date)
+            ELSE COALESCE(${purchaseOrders.orderDate}, ${purchaseOrders.createdAt}::date) + INTERVAL '30 days'
           END
         `
       );
