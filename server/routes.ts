@@ -10352,12 +10352,14 @@ Output the script with section markers in brackets.`;
       }
       
       if (period === 'monthly') {
+        const { CloverIntegration } = await import('./integrations/clover');
+        
         for (const locationConfig of activeLocations) {
           const periodData = [];
           
           for (let month = 1; month <= 12; month++) {
             const startDate = new Date(currentYear, month - 1, 1);
-            const endDate = new Date(currentYear, month, 0); // Last day of month
+            const endDate = new Date(currentYear, month, 0, 23, 59, 59, 999); // Last day of month with full time
             
             let revenue = 0;
             let transactions = 0;
@@ -10367,16 +10369,53 @@ Output the script with section markers in brackets.`;
               if (locationConfig.merchantName && locationConfig.merchantName.includes('Lake Geneva') && month < 7) {
                 // Leave as 0 for months before opening
               } else {
-                // Get real sales data from database (synced from Clover)
-                const salesData = await storage.getLocationSalesData(locationConfig.id, startDate, endDate);
+                // Use LIVE Clover API data (same as multi-location endpoint) for consistency
+                const cloverIntegration = new CloverIntegration(locationConfig);
+                let allOrders: any[] = [];
+                let offset = 0;
+                const limit = 1000;
+                let hasMoreData = true;
                 
-                if (salesData && salesData.length > 0) {
-                  revenue = salesData.reduce((sum, sale) => sum + parseFloat(sale.totalAmount), 0);
-                  transactions = salesData.length;
+                // Only fetch if month is in the past or current month
+                const now = new Date();
+                if (startDate <= now) {
+                  while (hasMoreData) {
+                    const liveOrders = await cloverIntegration.fetchOrders({
+                      createdTimeMin: startDate.getTime(),
+                      createdTimeMax: endDate.getTime(),
+                      limit: limit,
+                      offset: offset
+                    });
+                    
+                    if (liveOrders && liveOrders.elements && liveOrders.elements.length > 0) {
+                      allOrders.push(...liveOrders.elements);
+                      if (liveOrders.elements.length < limit) {
+                        hasMoreData = false;
+                      } else {
+                        offset += limit;
+                      }
+                    } else {
+                      hasMoreData = false;
+                    }
+                  }
+                  
+                  if (allOrders.length > 0) {
+                    // Filter orders by date on server-side
+                    const filteredOrders = allOrders.filter((order: any) => {
+                      const orderDate = new Date(order.createdTime);
+                      return orderDate >= startDate && orderDate <= endDate;
+                    });
+                    
+                    revenue = filteredOrders.reduce((sum: number, order: any) => {
+                      const orderTotal = parseFloat(order.total || '0') / 100; // Convert cents to dollars
+                      return sum + orderTotal;
+                    }, 0);
+                    transactions = filteredOrders.length;
+                  }
                 }
               }
             } catch (error) {
-              console.log(`No sales data for ${locationConfig.merchantName} in ${startDate.toLocaleString('default', { month: 'long' })}`);
+              console.log(`No sales data for ${locationConfig.merchantName} in ${startDate.toLocaleString('default', { month: 'long' })}:`, error);
               // Revenue and transactions remain 0
             }
             
