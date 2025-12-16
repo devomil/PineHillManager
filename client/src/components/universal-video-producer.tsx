@@ -1777,34 +1777,71 @@ function ScenePreview({
                         </div>
                       )}
                       
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <Label className="text-xs text-muted-foreground">AI Background</Label>
-                          <div className="w-full aspect-video rounded-lg overflow-hidden mt-2 border">
-                            <img 
-                              src={convertToDisplayUrl(scene.assets!.backgroundUrl!)} 
-                              alt="AI background"
-                              className="w-full h-full object-cover"
-                            />
-                          </div>
-                        </div>
-                        {scene.assets?.productOverlayUrl && (
-                          <div className={`${!showsProductOverlay ? 'opacity-50' : ''}`}>
-                            <Label className="text-xs text-muted-foreground">
-                              Product {!showsProductOverlay && '(Disabled)'}
-                            </Label>
-                            <div className="w-full aspect-video rounded-lg overflow-hidden mt-2 border checkerboard-bg flex items-center justify-center">
+                      <div>
+                        <Label className="text-xs text-muted-foreground flex items-center gap-2">
+                          Live Preview
+                          <span className="text-[10px] px-1.5 py-0.5 bg-primary/10 text-primary rounded">Updates in real-time</span>
+                        </Label>
+                        <div className="w-full rounded-lg overflow-hidden mt-2 border relative bg-black" style={{ aspectRatio: '16/9' }}>
+                          <img 
+                            src={convertToDisplayUrl(scene.assets!.backgroundUrl!)} 
+                            alt="AI background"
+                            className="w-full h-full object-contain"
+                          />
+                          {showsProductOverlay && scene.assets?.productOverlayUrl && (() => {
+                            const settings = getOverlaySettings(scene);
+                            const getPositionStyle = (): React.CSSProperties => {
+                              const baseStyle: React.CSSProperties = {
+                                position: 'absolute',
+                                maxWidth: '40%',
+                                maxHeight: '55%',
+                                objectFit: 'contain' as const,
+                                transform: `scale(${settings.scale})`,
+                                transition: 'all 0.2s ease-out',
+                              };
+                              
+                              // Horizontal positioning
+                              if (settings.x === 'left') {
+                                baseStyle.left = '8%';
+                                baseStyle.transformOrigin = 'left';
+                              } else if (settings.x === 'right') {
+                                baseStyle.right = '8%';
+                                baseStyle.transformOrigin = 'right';
+                              } else {
+                                baseStyle.left = '50%';
+                                baseStyle.marginLeft = '-20%';
+                                baseStyle.transformOrigin = 'center';
+                              }
+                              
+                              // Vertical positioning
+                              if (settings.y === 'top') {
+                                baseStyle.top = '8%';
+                                baseStyle.transformOrigin = (baseStyle.transformOrigin || '') + ' top';
+                              } else if (settings.y === 'bottom') {
+                                baseStyle.bottom = '8%';
+                                baseStyle.transformOrigin = (baseStyle.transformOrigin || '') + ' bottom';
+                              } else {
+                                baseStyle.top = '50%';
+                                baseStyle.marginTop = '-27.5%';
+                                baseStyle.transformOrigin = (baseStyle.transformOrigin || '') + ' center';
+                              }
+                              
+                              return baseStyle;
+                            };
+                            
+                            return (
                               <img 
                                 src={convertToDisplayUrl(scene.assets!.productOverlayUrl!)} 
-                                alt="Product"
-                                className="max-w-[90%] max-h-[90%] object-contain"
-                                onError={(e) => { 
-                                  e.currentTarget.parentElement!.innerHTML = '<span class="text-xs text-muted-foreground">Image not loaded</span>';
-                                }}
+                                alt="Product overlay"
+                                className="drop-shadow-2xl"
+                                style={getPositionStyle()}
                               />
-                            </div>
-                          </div>
-                        )}
+                            );
+                          })()}
+                        </div>
+                        <p className="text-[10px] text-muted-foreground mt-1">
+                          Position: {getOverlaySettings(scene).x} / {getOverlaySettings(scene).y} • Scale: {Math.round(getOverlaySettings(scene).scale * 100)}%
+                        </p>
                       </div>
                     </>
                   )}
