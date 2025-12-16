@@ -1083,8 +1083,8 @@ Output the script with section markers in brackets.`;
   // Backfill cost_basis for POS sale items by matching to inventory
   app.post('/api/sync/clover/backfill-cost', isAuthenticated, async (req, res) => {
     try {
-      if (req.user?.role !== 'admin') {
-        return res.status(403).json({ error: 'Admin access required' });
+      if (req.user?.role !== 'admin' && req.user?.role !== 'manager') {
+        return res.status(403).json({ error: 'Admin or Manager access required' });
       }
 
       const { startDate, endDate, dryRun = false } = req.body;
