@@ -1488,16 +1488,27 @@ function ScenePreview({
                             alt="AI background"
                             className="w-full h-full object-contain"
                           />
-                          {showsProductOverlay && scene.assets?.productOverlayUrl && (
-                            <div className="absolute inset-0 flex items-center justify-center">
+                          {showsProductOverlay && scene.assets?.productOverlayUrl && (() => {
+                            const settings = getOverlaySettings(scene);
+                            const positionStyles: React.CSSProperties = {
+                              position: 'absolute',
+                              transform: `scale(${settings.scale})`,
+                              transformOrigin: `${settings.x} ${settings.y}`,
+                              maxWidth: '45%',
+                              maxHeight: '60%',
+                              objectFit: 'contain' as const,
+                              ...(settings.x === 'left' ? { left: '5%' } : settings.x === 'right' ? { right: '5%' } : { left: '50%', marginLeft: '-22.5%' }),
+                              ...(settings.y === 'top' ? { top: '5%' } : settings.y === 'bottom' ? { bottom: '5%' } : { top: '50%', marginTop: '-30%' }),
+                            };
+                            return (
                               <img 
                                 src={convertToDisplayUrl(scene.assets!.productOverlayUrl!)} 
                                 alt="Product overlay"
-                                className="max-w-[50%] max-h-[70%] object-contain drop-shadow-lg"
-                                style={{ transform: `scale(${getOverlaySettings(scene).scale})` }}
+                                className="drop-shadow-lg"
+                                style={positionStyles}
                               />
-                            </div>
-                          )}
+                            );
+                          })()}
                         </div>
                       </div>
                     ) : imageAsset?.url ? (
