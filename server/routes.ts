@@ -10353,164 +10353,168 @@ Output the script with section markers in brackets.`;
       
       if (period === 'monthly') {
         const { CloverIntegration } = await import('./integrations/clover');
+        const { AmazonIntegration } = await import('./integrations/amazon');
         
-        for (const locationConfig of activeLocations) {
-          const periodData = [];
+        // OPTIMIZATION: Fetch last 6 months only (not all 12) and do ONE API call per location
+        // then aggregate by month on server side - this reduces API calls from 12*locations to 1*locations
+        const now = new Date();
+        const sixMonthsAgo = new Date(currentYear, now.getMonth() - 5, 1); // Start of 6 months ago
+        const endOfCurrentMonth = new Date(currentYear, now.getMonth() + 1, 0, 23, 59, 59, 999);
+        
+        // Generate month labels for the last 6 months
+        const monthsToShow: { month: number; year: number; label: string }[] = [];
+        for (let i = 5; i >= 0; i--) {
+          const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+          monthsToShow.push({
+            month: d.getMonth(),
+            year: d.getFullYear(),
+            label: d.toLocaleString('default', { month: 'short' })
+          });
+        }
+        
+        // Fetch all Clover locations in PARALLEL with Promise.all
+        const cloverPromises = activeLocations.map(async (locationConfig) => {
+          const periodData: { period: string; revenue: string; transactions: number }[] = [];
           
-          for (let month = 1; month <= 12; month++) {
-            const startDate = new Date(currentYear, month - 1, 1);
-            const endDate = new Date(currentYear, month, 0, 23, 59, 59, 999); // Last day of month with full time
+          try {
+            const cloverIntegration = new CloverIntegration(locationConfig);
+            let allOrders: any[] = [];
+            let offset = 0;
+            const limit = 1000;
+            let hasMoreData = true;
             
-            let revenue = 0;
-            let transactions = 0;
-            
-            try {
-              // Skip Lake Geneva locations before July 2025
-              if (locationConfig.merchantName && locationConfig.merchantName.includes('Lake Geneva') && month < 7) {
-                // Leave as 0 for months before opening
-              } else {
-                // Use LIVE Clover API data (same as multi-location endpoint) for consistency
-                const cloverIntegration = new CloverIntegration(locationConfig);
-                let allOrders: any[] = [];
-                let offset = 0;
-                const limit = 1000;
-                let hasMoreData = true;
-                
-                // Only fetch if month is in the past or current month
-                const now = new Date();
-                if (startDate <= now) {
-                  while (hasMoreData) {
-                    const liveOrders = await cloverIntegration.fetchOrders({
-                      createdTimeMin: startDate.getTime(),
-                      createdTimeMax: endDate.getTime(),
-                      limit: limit,
-                      offset: offset
-                    });
-                    
-                    if (liveOrders && liveOrders.elements && liveOrders.elements.length > 0) {
-                      allOrders.push(...liveOrders.elements);
-                      if (liveOrders.elements.length < limit) {
-                        hasMoreData = false;
-                      } else {
-                        offset += limit;
-                      }
-                    } else {
-                      hasMoreData = false;
-                    }
-                  }
-                  
-                  if (allOrders.length > 0) {
-                    // Filter orders by date on server-side
-                    const filteredOrders = allOrders.filter((order: any) => {
-                      const orderDate = new Date(order.createdTime);
-                      return orderDate >= startDate && orderDate <= endDate;
-                    });
-                    
-                    revenue = filteredOrders.reduce((sum: number, order: any) => {
-                      const orderTotal = parseFloat(order.total || '0') / 100; // Convert cents to dollars
-                      return sum + orderTotal;
-                    }, 0);
-                    transactions = filteredOrders.length;
-                  }
+            // Fetch ALL orders for 6-month period in one paginated call
+            while (hasMoreData) {
+              const liveOrders = await cloverIntegration.fetchOrders({
+                createdTimeMin: sixMonthsAgo.getTime(),
+                createdTimeMax: endOfCurrentMonth.getTime(),
+                limit: limit,
+                offset: offset
+              });
+              
+              if (liveOrders && liveOrders.elements && liveOrders.elements.length > 0) {
+                allOrders.push(...liveOrders.elements);
+                if (liveOrders.elements.length < limit) {
+                  hasMoreData = false;
+                } else {
+                  offset += limit;
                 }
+              } else {
+                hasMoreData = false;
               }
-            } catch (error) {
-              console.log(`No sales data for ${locationConfig.merchantName} in ${startDate.toLocaleString('default', { month: 'long' })}:`, error);
-              // Revenue and transactions remain 0
             }
             
-            periodData.push({
-              period: new Date(currentYear, month - 1, 1).toLocaleString('default', { month: 'short' }),
-              revenue: revenue.toFixed(2),
-              transactions: transactions
-            });
+            // Aggregate orders by month
+            for (const monthInfo of monthsToShow) {
+              const monthStart = new Date(monthInfo.year, monthInfo.month, 1);
+              const monthEnd = new Date(monthInfo.year, monthInfo.month + 1, 0, 23, 59, 59, 999);
+              
+              // Skip Lake Geneva locations before July 2025
+              if (locationConfig.merchantName?.includes('Lake Geneva') && 
+                  (monthInfo.year < 2025 || (monthInfo.year === 2025 && monthInfo.month < 6))) {
+                periodData.push({ period: monthInfo.label, revenue: '0.00', transactions: 0 });
+                continue;
+              }
+              
+              const monthOrders = allOrders.filter((order: any) => {
+                const orderDate = new Date(order.createdTime);
+                return orderDate >= monthStart && orderDate <= monthEnd;
+              });
+              
+              const revenue = monthOrders.reduce((sum: number, order: any) => {
+                return sum + (parseFloat(order.total || '0') / 100);
+              }, 0);
+              
+              periodData.push({
+                period: monthInfo.label,
+                revenue: revenue.toFixed(2),
+                transactions: monthOrders.length
+              });
+            }
+          } catch (error) {
+            console.log(`Error fetching Clover data for ${locationConfig.merchantName}:`, error);
+            // Fill with zeros if error
+            for (const monthInfo of monthsToShow) {
+              periodData.push({ period: monthInfo.label, revenue: '0.00', transactions: 0 });
+            }
           }
           
-          locationData.push({
+          return {
             locationId: locationConfig.id,
             locationName: locationConfig.merchantName || '',
             isHSA: locationConfig.merchantName ? locationConfig.merchantName.includes('HSA') : false,
             data: periodData
-          });
-        }
+          };
+        });
         
-        // Add Amazon Store data for monthly periods
+        // Fetch all Amazon locations in PARALLEL
         const allAmazonConfigs = await storage.getAllAmazonConfigs();
         const activeAmazonConfigs = allAmazonConfigs.filter(config => config.isActive);
         
-        for (const amazonConfig of activeAmazonConfigs) {
-          const periodData = [];
+        const amazonPromises = activeAmazonConfigs.map(async (amazonConfig) => {
+          const periodData: { period: string; revenue: string; transactions: number }[] = [];
           
-          for (let month = 1; month <= 12; month++) {
-            const startDate = new Date(currentYear, month - 1, 1);
-            const endDate = new Date(currentYear, month, 0); // Last day of month
-            
-            let revenue = 0;
-            let transactions = 0;
-            
-            try {
-              console.log(`🚀 Creating AmazonIntegration for ${amazonConfig.merchantName} - Month ${month}`);
-              
-              const { AmazonIntegration } = await import('./integrations/amazon');
-              const amazonIntegration = new AmazonIntegration({
-                sellerId: process.env.AMAZON_SELLER_ID,
-                accessToken: process.env.AMAZON_ACCESS_TOKEN,
-                refreshToken: process.env.AMAZON_REFRESH_TOKEN,
-                clientId: process.env.AMAZON_CLIENT_ID,
-                clientSecret: process.env.AMAZON_CLIENT_SECRET,
-                merchantName: amazonConfig.merchantName
-              });
-
-              // Get orders for the month (Amazon API expects ISO format)
-              const now = new Date();
-              const twoMinutesAgo = new Date(now.getTime() - 2 * 60 * 1000);
-              
-              const startDateISO = startDate.toISOString();
-              let endDateISO = endDate.toISOString();
-              
-              // Ensure end date is at least 2 minutes before current time
-              if (endDate > twoMinutesAgo) {
-                endDateISO = twoMinutesAgo.toISOString();
-              }
-              
-              const amazonOrders = await amazonIntegration.getOrders(startDateISO, endDateISO);
-              
-              if (amazonOrders && amazonOrders.payload && amazonOrders.payload.Orders) {
-                const orders = amazonOrders.payload.Orders;
-                
-                revenue = orders.reduce((sum: number, order: any) => {
-                  // Only count shipped orders like Amazon Seller Central
-                  if (order.OrderStatus === 'Shipped' || order.OrderStatus === 'Delivered') {
-                    const orderTotal = parseFloat(order.OrderTotal?.Amount || '0');
-                    return sum + orderTotal;
-                  }
-                  return sum;
-                }, 0);
-                transactions = orders.filter((order: any) => 
-                  order.OrderStatus === 'Shipped' || order.OrderStatus === 'Delivered'
-                ).length;
-                
-                console.log(`Amazon Revenue - ${amazonConfig.merchantName} ${startDate.toLocaleString('default', { month: 'short' })}: $${revenue.toFixed(2)} from ${transactions} orders`);
-              }
-            } catch (error) {
-              console.log(`Error fetching Amazon data for ${amazonConfig.merchantName} - Month ${month}:`, error);
-            }
-            
-            periodData.push({
-              period: new Date(currentYear, month - 1, 1).toLocaleString('default', { month: 'short' }),
-              revenue: revenue.toFixed(2),
-              transactions: transactions
+          try {
+            const amazonIntegration = new AmazonIntegration({
+              sellerId: process.env.AMAZON_SELLER_ID,
+              accessToken: process.env.AMAZON_ACCESS_TOKEN,
+              refreshToken: process.env.AMAZON_REFRESH_TOKEN,
+              clientId: process.env.AMAZON_CLIENT_ID,
+              clientSecret: process.env.AMAZON_CLIENT_SECRET,
+              merchantName: amazonConfig.merchantName
             });
+            
+            // Fetch ALL orders for 6-month period in ONE call
+            const twoMinutesAgo = new Date(now.getTime() - 2 * 60 * 1000);
+            const endDateISO = endOfCurrentMonth > twoMinutesAgo ? twoMinutesAgo.toISOString() : endOfCurrentMonth.toISOString();
+            
+            const amazonOrders = await amazonIntegration.getOrders(sixMonthsAgo.toISOString(), endDateISO);
+            const allOrders = amazonOrders?.payload?.Orders || [];
+            
+            // Aggregate by month
+            for (const monthInfo of monthsToShow) {
+              const monthStart = new Date(monthInfo.year, monthInfo.month, 1);
+              const monthEnd = new Date(monthInfo.year, monthInfo.month + 1, 0, 23, 59, 59, 999);
+              
+              const monthOrders = allOrders.filter((order: any) => {
+                const orderDate = new Date(order.PurchaseDate);
+                return orderDate >= monthStart && orderDate <= monthEnd &&
+                  (order.OrderStatus === 'Shipped' || order.OrderStatus === 'Delivered');
+              });
+              
+              const revenue = monthOrders.reduce((sum: number, order: any) => {
+                return sum + parseFloat(order.OrderTotal?.Amount || '0');
+              }, 0);
+              
+              periodData.push({
+                period: monthInfo.label,
+                revenue: revenue.toFixed(2),
+                transactions: monthOrders.length
+              });
+            }
+          } catch (error) {
+            console.log(`Error fetching Amazon data for ${amazonConfig.merchantName}:`, error);
+            for (const monthInfo of monthsToShow) {
+              periodData.push({ period: monthInfo.label, revenue: '0.00', transactions: 0 });
+            }
           }
           
-          locationData.push({
+          return {
             locationId: `amazon_${amazonConfig.id}`,
             locationName: amazonConfig.merchantName,
             isHSA: false,
             platform: 'Amazon Store',
             data: periodData
-          });
-        }
+          };
+        });
+        
+        // Wait for ALL location fetches in parallel
+        const [cloverResults, amazonResults] = await Promise.all([
+          Promise.all(cloverPromises),
+          Promise.all(amazonPromises)
+        ]);
+        
+        locationData.push(...cloverResults, ...amazonResults);
       } else if (period === 'quarterly') {
         const quarters = [
           { name: 'Q1', startMonth: 1, endMonth: 3 },
