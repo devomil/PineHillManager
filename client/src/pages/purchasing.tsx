@@ -2386,18 +2386,26 @@ function ReportsTab() {
     new Set(outstandingPayables?.map(p => p.paymentTerms) || [])
   );
 
+  // Payment terms that are prepaid (no due date tracking needed)
+  const prepaidTerms = ['Credit Card', 'Prepaid', 'COD', 'Cash'];
+  const isPrepaidTerm = (term: string) => prepaidTerms.some(t => term?.toLowerCase().includes(t.toLowerCase()));
+  
   // Calculate totals based on filtered data
   const totalOutstanding = filteredPayables.reduce((sum, item) => sum + parseFloat(item.totalAmount), 0);
-  const overdueAmount = filteredPayables.filter(item => item.isOverdue).reduce((sum, item) => sum + parseFloat(item.totalAmount), 0);
+  const overdueAmount = filteredPayables.filter(item => item.isOverdue && !isPrepaidTerm(item.paymentTerms)).reduce((sum, item) => sum + parseFloat(item.totalAmount), 0);
   
-  // Calculate "Due Soon" amounts (within 7 days and within 14 days)
+  // Calculate prepaid/credit card amounts (these don't have due dates)
+  const prepaidItems = filteredPayables.filter(item => isPrepaidTerm(item.paymentTerms));
+  const prepaidAmount = prepaidItems.reduce((sum, item) => sum + parseFloat(item.totalAmount), 0);
+  
+  // Calculate "Due Soon" amounts (within 7 days and within 14 days) - exclude prepaid terms
   const dueThisWeek = filteredPayables.filter(item => {
     const daysUntilDue = parseFloat(item.daysUntilDue);
-    return !item.isOverdue && daysUntilDue >= 0 && daysUntilDue <= 7;
+    return !item.isOverdue && daysUntilDue >= 0 && daysUntilDue <= 7 && !isPrepaidTerm(item.paymentTerms);
   });
   const dueNextWeek = filteredPayables.filter(item => {
     const daysUntilDue = parseFloat(item.daysUntilDue);
-    return !item.isOverdue && daysUntilDue > 7 && daysUntilDue <= 14;
+    return !item.isOverdue && daysUntilDue > 7 && daysUntilDue <= 14 && !isPrepaidTerm(item.paymentTerms);
   });
   const dueThisWeekAmount = dueThisWeek.reduce((sum, item) => sum + parseFloat(item.totalAmount), 0);
   const dueNextWeekAmount = dueNextWeek.reduce((sum, item) => sum + parseFloat(item.totalAmount), 0);
@@ -2420,7 +2428,7 @@ function ReportsTab() {
             <div className="text-center py-4">Loading payables...</div>
           ) : (
             <>
-              <div className="grid gap-4 md:grid-cols-5 mb-6">
+              <div className="grid gap-4 md:grid-cols-6 mb-6">
                 <Card>
                   <CardHeader className="pb-2">
                     <CardDescription>Total Outstanding</CardDescription>
@@ -2431,7 +2439,7 @@ function ReportsTab() {
                   <CardHeader className="pb-2">
                     <CardDescription>Overdue</CardDescription>
                     <CardTitle className="text-2xl text-destructive">${overdueAmount.toFixed(2)}</CardTitle>
-                    <p className="text-xs text-muted-foreground">{filteredPayables.filter(p => p.isOverdue).length} bills</p>
+                    <p className="text-xs text-muted-foreground">{filteredPayables.filter(p => p.isOverdue && !isPrepaidTerm(p.paymentTerms)).length} bills</p>
                   </CardHeader>
                 </Card>
                 <Card className={dueThisWeekAmount > 0 ? "border-orange-500" : ""}>
@@ -2446,6 +2454,13 @@ function ReportsTab() {
                     <CardDescription>Due Next Week</CardDescription>
                     <CardTitle className="text-2xl text-yellow-600">${dueNextWeekAmount.toFixed(2)}</CardTitle>
                     <p className="text-xs text-muted-foreground">{dueNextWeek.length} bills</p>
+                  </CardHeader>
+                </Card>
+                <Card className={prepaidAmount > 0 ? "border-blue-500" : ""}>
+                  <CardHeader className="pb-2">
+                    <CardDescription>Prepaid & Credit Card</CardDescription>
+                    <CardTitle className="text-2xl text-blue-600">${prepaidAmount.toFixed(2)}</CardTitle>
+                    <p className="text-xs text-muted-foreground">{prepaidItems.length} bills</p>
                   </CardHeader>
                 </Card>
                 <Card>
