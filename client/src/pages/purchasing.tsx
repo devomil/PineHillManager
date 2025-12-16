@@ -224,7 +224,9 @@ const purchaseOrderFormSchema = z.object({
   paymentTerms: z.string().default('Net 30'),
   locationId: z.string().optional(),
   expenseAccountId: z.string().optional(),
+  orderDate: z.string().optional(),
   requestedDeliveryDate: z.string().optional(),
+  shippingAmount: z.string().optional(),
   notes: z.string().optional(),
   internalNotes: z.string().optional(),
   lineItems: z.array(lineItemSchema).min(1, 'At least one line item is required'),
@@ -804,7 +806,9 @@ function PurchaseOrdersTab() {
         paymentTerms: data.paymentTerms,
         locationId: data.locationId ? parseInt(data.locationId) : null,
         expenseAccountId: data.expenseAccountId ? parseInt(data.expenseAccountId) : null,
+        orderDate: data.orderDate || null,
         requestedDeliveryDate: data.requestedDeliveryDate,
+        shippingAmount: data.shippingAmount || null,
         notes: data.notes,
         internalNotes: data.internalNotes,
         lineItems,
@@ -833,7 +837,9 @@ function PurchaseOrdersTab() {
         paymentTerms: data.paymentTerms,
         locationId: data.locationId ? parseInt(data.locationId) : null,
         expenseAccountId: data.expenseAccountId ? parseInt(data.expenseAccountId) : null,
+        orderDate: data.orderDate || null,
         requestedDeliveryDate: data.requestedDeliveryDate,
+        shippingAmount: data.shippingAmount || null,
         notes: data.notes,
         internalNotes: data.internalNotes,
         lineItems,
@@ -1106,6 +1112,48 @@ function PurchaseOrdersTab() {
                       </FormItem>
                     )}
                   />
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={poForm.control}
+                      name="orderDate"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Order Date</FormLabel>
+                          <FormControl>
+                            <Input 
+                              type="date" 
+                              {...field} 
+                              value={field.value || ''}
+                              data-testid="input-po-order-date"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={poForm.control}
+                      name="shippingAmount"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Shipping Cost</FormLabel>
+                          <FormControl>
+                            <Input 
+                              type="number" 
+                              step="0.01"
+                              placeholder="0.00"
+                              {...field} 
+                              value={field.value || ''}
+                              data-testid="input-po-shipping-amount"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
 
                   <Separator />
                   <div className="flex justify-between items-center">
@@ -1718,7 +1766,9 @@ function PurchaseOrdersTab() {
             poNumber: invoiceData.invoice.invoiceNumber || invoiceData.invoice.orderNumber || '',
             vendorId: selectedVendor?.id.toString() || '',
             paymentTerms: invoiceData.paymentTerms || selectedVendor?.profile?.paymentTerms || 'Net 30',
+            orderDate: invoiceData.invoice.invoiceDate || invoiceData.invoice.orderDate || '',
             requestedDeliveryDate: invoiceData.invoice.dueDate || '',
+            shippingAmount: invoiceData.totals?.shipping ? String(invoiceData.totals.shipping) : '',
             notes: invoiceData.notes || '',
             lineItems: invoiceData.lineItems.map((item: any) => ({
               description: item.description,
