@@ -325,15 +325,30 @@ export function RevenueAnalytics() {
 
   const totalFilteredRevenue = locationPieData.reduce((sum: number, item: any) => sum + item.value, 0);
 
-  // Multi-location chart data
-  const getMultiLocationChartData = () => {
-    if (!locationTrends?.locations?.length) return [];
+  // Filter location trends based on the same filter used for pie chart
+  const filteredLocationTrends = useMemo(() => {
+    if (!locationTrends?.locations) return [];
     
-    const periods = locationTrends.locations[0]?.data?.map(d => d.period) || [];
+    return locationTrends.locations.filter((location: LocationRevenueTrend) => {
+      if (locationFilter === 'all') return true;
+      if (locationFilter === 'hsa') return location.locationName?.toLowerCase().includes('hsa');
+      if (locationFilter === 'online') return (location as any).platform === 'Amazon Store' || location.locationName?.toLowerCase().includes('online');
+      if (locationFilter === 'retail') return !location.locationName?.toLowerCase().includes('hsa') && 
+                                                (location as any).platform !== 'Amazon Store' && 
+                                                !location.locationName?.toLowerCase().includes('online');
+      return true;
+    });
+  }, [locationTrends, locationFilter]);
+
+  // Multi-location chart data - now uses filtered locations
+  const getMultiLocationChartData = () => {
+    if (!filteredLocationTrends?.length) return [];
+    
+    const periods = filteredLocationTrends[0]?.data?.map(d => d.period) || [];
     
     return periods.map(period => {
       const dataPoint: any = { period };
-      locationTrends.locations.forEach(location => {
+      filteredLocationTrends.forEach(location => {
         const periodData = location.data.find(d => d.period === period);
         dataPoint[location.locationName] = parseFloat(periodData?.revenue || '0');
       });
@@ -843,7 +858,7 @@ export function RevenueAnalytics() {
                   <ResponsiveContainer width="100%" height={350}>
                     <AreaChart data={getMultiLocationChartData()}>
                       <defs>
-                        {locationTrends?.locations?.map((location) => {
+                        {filteredLocationTrends?.map((location) => {
                           const color = getLocationColor(location.locationName);
                           return (
                             <linearGradient key={location.locationId} id={`gradient-${location.locationId}`} x1="0" y1="0" x2="0" y2="1">
@@ -872,7 +887,7 @@ export function RevenueAnalytics() {
                         height={36}
                         wrapperStyle={{ paddingTop: '20px' }}
                       />
-                      {locationTrends?.locations?.map((location) => {
+                      {filteredLocationTrends?.map((location) => {
                         const color = getLocationColor(location.locationName);
                         return (
                           <Area
