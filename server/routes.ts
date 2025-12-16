@@ -21370,10 +21370,10 @@ Respond in JSON format:
   // Get presigned URL for uploading to Object Storage
   app.post('/api/objects/upload', isAuthenticated, async (req, res) => {
     try {
-      const userId = req.user!.id;
+      const userId = String(req.user!.id);
       const objectStorageService = new ObjectStorageService();
-      const uploadURL = await objectStorageService.getObjectEntityUploadURL(userId);
-      res.json({ uploadURL });
+      const result = await objectStorageService.getObjectEntityUploadURL(userId);
+      res.json({ uploadURL: result.uploadUrl });
     } catch (error) {
       console.error('Error getting upload URL:', error);
       res.status(500).json({ error: 'Failed to get upload URL' });
@@ -21387,15 +21387,15 @@ Respond in JSON format:
         return res.status(400).json({ error: 'No file provided' });
       }
 
-      const userId = req.user!.id;
+      const userId = String(req.user!.id);
       const objectStorageService = new ObjectStorageService();
       
       // Get presigned upload URL
-      const uploadURL = await objectStorageService.getObjectEntityUploadURL(userId);
+      const uploadResult = await objectStorageService.getObjectEntityUploadURL(userId);
       
       // Upload file to object storage using the presigned URL
       const fileBuffer = fs.readFileSync(req.file.path);
-      const uploadResponse = await fetch(uploadURL, {
+      const uploadResponse = await fetch(uploadResult.uploadUrl, {
         method: 'PUT',
         body: fileBuffer,
         headers: {
@@ -21411,7 +21411,7 @@ Respond in JSON format:
       fs.unlinkSync(req.file.path);
 
       // Extract object path from upload URL (remove query params)
-      const objectUrl = uploadURL.split('?')[0];
+      const objectUrl = uploadResult.uploadUrl.split('?')[0];
       const normalizedPath = objectStorageService.normalizeObjectEntityPath(objectUrl);
       
       // Set ACL policy to make it publicly accessible
@@ -21457,7 +21457,7 @@ Respond in JSON format:
       
       const canAccess = await objectStorageService.canAccessObjectEntity({
         objectFile,
-        userId: req.user.id,
+        userId: String(req.user.id),
         requestedPermission: ObjectPermission.READ,
       });
       if (!canAccess) {
@@ -21482,7 +21482,7 @@ Respond in JSON format:
         return res.status(400).json({ error: 'imageUrls array is required' });
       }
 
-      const userId = req.user!.id;
+      const userId = String(req.user!.id);
       const objectStorageService = new ObjectStorageService();
       
       // Verify ownership and set ACL policy for each uploaded image
