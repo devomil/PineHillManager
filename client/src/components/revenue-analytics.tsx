@@ -118,6 +118,19 @@ export function RevenueAnalytics() {
     return `period=${selectedPeriod}&year=${selectedYear}`;
   };
 
+  // Always fetch 6 months of data for trend chart regardless of selected period
+  const getTrendQueryParams = () => {
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setMonth(startDate.getMonth() - 6);
+    
+    const formatDate = (date: Date) => {
+      return date.toISOString().split('T')[0];
+    };
+    
+    return `startDate=${formatDate(startDate)}&endDate=${formatDate(endDate)}&groupBy=month`;
+  };
+
   const handleDateRangeChange = (value: string, startDate: string, endDate: string) => {
     setDateRange(value);
     if (value === 'custom') {
@@ -129,10 +142,11 @@ export function RevenueAnalytics() {
     }
   };
 
+  // Revenue trends always fetches 6 months for meaningful trend visualization
   const { data: revenueTrends, isLoading: trendsLoading } = useQuery<RevenueTrendsResponse>({
-    queryKey: ['/api/accounting/analytics/revenue-trends', dateRange, customStartDate, customEndDate, selectedPeriod, selectedYear],
+    queryKey: ['/api/accounting/analytics/revenue-trends', 'six-months'],
     queryFn: async () => {
-      const params = getQueryParams();
+      const params = getTrendQueryParams();
       const response = await apiRequest('GET', `/api/accounting/analytics/revenue-trends?${params}`);
       return await response.json();
     },
@@ -157,10 +171,11 @@ export function RevenueAnalytics() {
     retry: 1
   });
 
+  // Location trends also uses 6 months for consistent trend visualization
   const { data: locationTrends, isLoading: locationLoading } = useQuery<LocationRevenueTrendsResponse>({
-    queryKey: ['/api/accounting/analytics/location-revenue-trends', dateRange, customStartDate, customEndDate, selectedPeriod, selectedYear],
+    queryKey: ['/api/accounting/analytics/location-revenue-trends', 'six-months'],
     queryFn: async () => {
-      const params = getQueryParams();
+      const params = getTrendQueryParams();
       const response = await apiRequest('GET', `/api/accounting/analytics/location-revenue-trends?${params}`);
       return await response.json();
     },
@@ -543,7 +558,7 @@ export function RevenueAnalytics() {
                       Revenue Trend
                     </CardTitle>
                     <CardDescription>
-                      Revenue performance over selected period
+                      Revenue performance over the last 6 months
                     </CardDescription>
                   </div>
                   {trendMetrics.peakPeriod && (
