@@ -16,6 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Switch } from "@/components/ui/switch";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { VoiceSelector } from "./voice-selector";
 import { 
   Video, Package, FileText, Play, Sparkles, AlertTriangle,
@@ -1344,15 +1345,25 @@ function ScenePreview({
     };
     
     const dragHandle = (
-      <div
-        {...attributes}
-        {...listeners}
-        className="cursor-grab active:cursor-grabbing p-1 hover:bg-muted rounded"
-        onClick={(e) => e.stopPropagation()}
-        data-testid={`drag-handle-scene-${scene.id}`}
-      >
-        <GripVertical className="w-4 h-4 text-muted-foreground" />
-      </div>
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div
+              {...attributes}
+              {...listeners}
+              className="cursor-grab active:cursor-grabbing p-2 hover:bg-primary/10 rounded-md border border-transparent hover:border-primary/30 transition-all flex flex-col items-center gap-0.5"
+              onClick={(e) => e.stopPropagation()}
+              data-testid={`drag-handle-scene-${scene.id}`}
+            >
+              <GripVertical className="w-5 h-5 text-muted-foreground hover:text-primary" />
+              <span className="text-[9px] text-muted-foreground font-medium">DRAG</span>
+            </div>
+          </TooltipTrigger>
+          <TooltipContent side="left">
+            <p>Drag to reorder scenes</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
     );
     
     return (
