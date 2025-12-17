@@ -57,6 +57,13 @@ export class BrandAssetService {
     'our equipment',
     'whole body healing',
     'holistic wellness',
+    // Store locations
+    'lake geneva',
+    'watertown',
+    'our store',
+    'retail location',
+    'store interior',
+    'storefront',
   ];
 
   private negativeBrollKeywords = [
