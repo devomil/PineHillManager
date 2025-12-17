@@ -230,7 +230,7 @@ export interface StepStatus {
 }
 
 export interface ServiceFailure {
-  service: 'fal.ai' | 'elevenlabs' | 'pexels' | 'huggingface' | 'remotion-lambda';
+  service: 'fal.ai' | 'elevenlabs' | 'pexels' | 'huggingface' | 'remotion-lambda' | 'chunked-render';
   timestamp: string;
   error: string;
   fallbackUsed?: string;

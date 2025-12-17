@@ -608,20 +608,29 @@ router.post('/projects/:projectId/render', isAuthenticated, async (req: Request,
     
     if (useChunkedRendering) {
       // Use chunked rendering for long videos (>90 seconds)
+      console.log(`[UniversalVideo] === CHUNKED RENDERING TRIGGERED ===`);
+      console.log(`[UniversalVideo] Project: ${projectId}, Duration: ${totalDuration}s, Scenes: ${preparedProject.scenes.length}`);
+      
       try {
         (preparedProject.progress as any).renderStartedAt = Date.now();
         (preparedProject.progress as any).renderMethod = 'chunked';
         preparedProject.progress.steps.rendering.message = 'Starting chunked render...';
         
         await saveProjectToDb(preparedProject, projectData.ownerId);
+        console.log(`[UniversalVideo] Saved initial chunked render state to DB`);
         
-        // Start chunked rendering in background
+        // Start chunked rendering in background - reload fresh state on each progress update
         const progressCallback = async (progress: ChunkedRenderProgress) => {
-          preparedProject.progress.steps.rendering.progress = progress.overallPercent;
-          preparedProject.progress.steps.rendering.message = progress.message;
-          preparedProject.progress.overallPercent = 85 + Math.round(progress.overallPercent * 0.15);
+          console.log(`[UniversalVideo] Chunked progress update: ${progress.phase} - ${progress.overallPercent}% - ${progress.message}`);
           try {
-            await saveProjectToDb(preparedProject, projectData.ownerId);
+            // Reload fresh project state to avoid race conditions
+            const currentProject = await getProjectFromDb(projectId);
+            if (currentProject) {
+              currentProject.progress.steps.rendering.progress = progress.overallPercent;
+              currentProject.progress.steps.rendering.message = progress.message;
+              currentProject.progress.overallPercent = 85 + Math.round(progress.overallPercent * 0.15);
+              await saveProjectToDb(currentProject, projectData.ownerId);
+            }
           } catch (e) {
             console.warn('[UniversalVideo] Failed to save progress update:', e);
           }
@@ -636,7 +645,12 @@ router.post('/projects/:projectId/render', isAuthenticated, async (req: Request,
         });
         
         // Continue rendering in background (fire-and-forget)
+        // Use projectId and ownerId as closure variables to reload fresh state
+        const ownerId = projectData.ownerId;
         (async () => {
+          console.log(`[UniversalVideo] Starting background chunked render for ${projectId}...`);
+          const startTime = Date.now();
+          
           try {
             const outputUrl = await chunkedRenderService.renderLongVideo(
               projectId,
@@ -645,29 +659,52 @@ router.post('/projects/:projectId/render', isAuthenticated, async (req: Request,
               progressCallback
             );
             
-            preparedProject.status = 'complete';
-            preparedProject.progress.steps.rendering.status = 'complete';
-            preparedProject.progress.steps.rendering.progress = 100;
-            preparedProject.progress.steps.rendering.message = 'Video rendering complete!';
-            preparedProject.progress.overallPercent = 100;
+            const elapsedMs = Date.now() - startTime;
+            console.log(`[UniversalVideo] === CHUNKED RENDER COMPLETE ===`);
+            console.log(`[UniversalVideo] Project: ${projectId}, Time: ${(elapsedMs/1000).toFixed(1)}s, Output: ${outputUrl}`);
             
-            await saveProjectToDb(preparedProject, projectData.ownerId, 'chunked', 'chunked', outputUrl);
-            console.log(`[UniversalVideo] Chunked render complete: ${outputUrl}`);
+            // Reload fresh project state from DB to avoid overwriting progress updates
+            const latestProject = await getProjectFromDb(projectId);
+            if (latestProject) {
+              latestProject.status = 'complete';
+              latestProject.progress.steps.rendering.status = 'complete';
+              latestProject.progress.steps.rendering.progress = 100;
+              latestProject.progress.steps.rendering.message = 'Video rendering complete!';
+              latestProject.progress.overallPercent = 100;
+              latestProject.outputUrl = outputUrl;
+              
+              await saveProjectToDb(latestProject, ownerId, 'chunked', 'chunked', outputUrl);
+              console.log(`[UniversalVideo] Final state saved to DB with output URL`);
+            } else {
+              console.error(`[UniversalVideo] CRITICAL: Could not reload project ${projectId} from DB`);
+            }
           } catch (error: any) {
-            console.error('[UniversalVideo] Chunked render failed:', error);
-            preparedProject.status = 'error';
-            preparedProject.progress.steps.rendering.status = 'error';
-            preparedProject.progress.steps.rendering.message = error.message || 'Chunked render failed';
-            preparedProject.progress.errors.push(`Chunked render failed: ${error.message}`);
-            preparedProject.progress.serviceFailures.push({
-              service: 'chunked-render',
-              timestamp: new Date().toISOString(),
-              error: error.message || 'Unknown error',
-            });
-            try {
-              await saveProjectToDb(preparedProject, projectData.ownerId);
-            } catch (dbError) {
-              console.error('[UniversalVideo] Failed to persist error status:', dbError);
+            const elapsedMs = Date.now() - startTime;
+            console.error(`[UniversalVideo] === CHUNKED RENDER FAILED ===`);
+            console.error(`[UniversalVideo] Project: ${projectId}, Time: ${(elapsedMs/1000).toFixed(1)}s`);
+            console.error(`[UniversalVideo] Error:`, error.message);
+            console.error(`[UniversalVideo] Stack:`, error.stack);
+            
+            // Reload fresh project state from DB to preserve progress updates
+            const latestProject = await getProjectFromDb(projectId);
+            if (latestProject) {
+              latestProject.status = 'error';
+              latestProject.progress.steps.rendering.status = 'error';
+              latestProject.progress.steps.rendering.message = error.message || 'Chunked render failed';
+              latestProject.progress.errors.push(`Chunked render failed: ${error.message}`);
+              latestProject.progress.serviceFailures.push({
+                service: 'chunked-render',
+                timestamp: new Date().toISOString(),
+                error: error.message || 'Unknown error',
+              });
+              try {
+                await saveProjectToDb(latestProject, ownerId);
+                console.log(`[UniversalVideo] Error state persisted to DB`);
+              } catch (dbError) {
+                console.error('[UniversalVideo] CRITICAL: Failed to persist error status:', dbError);
+              }
+            } else {
+              console.error(`[UniversalVideo] CRITICAL: Could not reload project ${projectId} from DB for error state`);
             }
           }
         })();
@@ -756,8 +793,38 @@ router.get('/projects/:projectId/render-status', isAuthenticated, async (req: Re
       return res.status(403).json({ success: false, error: 'Access denied' });
     }
     
-    if (!renderId || typeof renderId !== 'string') {
-      return res.status(400).json({ success: false, error: 'Render ID required' });
+    // Check if this is a chunked render - progress is updated directly in DB
+    const renderMethod = (projectData.progress as any).renderMethod;
+    if (renderMethod === 'chunked') {
+      console.log(`[UniversalVideo] Chunked render status for ${projectId}: ${projectData.status}, progress: ${projectData.progress.steps.rendering?.progress || 0}%`);
+      
+      const isDone = projectData.status === 'complete' || projectData.status === 'error';
+      const renderProgress = projectData.progress.steps.rendering;
+      
+      return res.json({
+        success: projectData.status !== 'error',
+        done: isDone,
+        progress: (renderProgress?.progress || 0) / 100,
+        outputUrl: isDone && projectData.status === 'complete' ? projectData.outputUrl : null,
+        errors: projectData.status === 'error' ? projectData.progress.errors : [],
+        project: projectData,
+        renderMethod: 'chunked',
+        message: renderProgress?.message || 'Processing...',
+      });
+    }
+    
+    // Standard Lambda render - requires renderId
+    if (!renderId || typeof renderId !== 'string' || renderId === 'undefined') {
+      // Return current project state instead of error
+      console.log(`[UniversalVideo] No renderId for ${projectId}, returning current state`);
+      return res.json({
+        success: true,
+        done: projectData.status === 'complete' || projectData.status === 'error',
+        progress: (projectData.progress.steps.rendering?.progress || 0) / 100,
+        outputUrl: projectData.outputUrl || null,
+        errors: projectData.progress.errors || [],
+        project: projectData,
+      });
     }
     
     const bucket = (typeof bucketName === 'string' ? bucketName : null) || 
@@ -1058,6 +1125,60 @@ router.get('/voices', isAuthenticated, async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error('[UniversalVideo] Error fetching voices:', error);
     res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Test endpoint for chunked render service diagnostics
+router.get('/test-chunked-render', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const testScenes = [
+      { id: 'test1', duration: 30, narration: 'Test scene 1', type: 'hook' },
+      { id: 'test2', duration: 30, narration: 'Test scene 2', type: 'benefit' },
+      { id: 'test3', duration: 30, narration: 'Test scene 3', type: 'explanation' },
+      { id: 'test4', duration: 30, narration: 'Test scene 4', type: 'cta' },
+    ];
+    
+    const totalDuration = testScenes.reduce((acc, s) => acc + s.duration, 0);
+    const shouldChunk = chunkedRenderService.shouldUseChunkedRendering(testScenes, 90);
+    const chunks = chunkedRenderService.calculateChunks(testScenes, 30, 120);
+    
+    // Check FFmpeg
+    let ffmpegAvailable = false;
+    try {
+      const { exec } = require('child_process');
+      const { promisify } = require('util');
+      const execAsync = promisify(exec);
+      const result = await execAsync('which ffmpeg');
+      ffmpegAvailable = !!result.stdout;
+    } catch (e) {
+      ffmpegAvailable = false;
+    }
+    
+    // Check AWS credentials
+    const awsConfigured = !!process.env.REMOTION_AWS_ACCESS_KEY_ID && !!process.env.REMOTION_AWS_SECRET_ACCESS_KEY;
+    
+    res.json({
+      success: true,
+      diagnostics: {
+        testDuration: totalDuration,
+        shouldUseChunked: shouldChunk,
+        chunkThreshold: 90,
+        chunkCount: chunks.length,
+        chunks: chunks.map(c => ({
+          index: c.chunkIndex,
+          scenes: c.scenes.length,
+          startFrame: c.startFrame,
+          endFrame: c.endFrame,
+          duration: c.scenes.reduce((acc: number, s: any) => acc + (s.duration || 0), 0),
+        })),
+        ffmpegAvailable,
+        awsConfigured,
+        tempDir: '/tmp/video-chunks',
+      },
+    });
+  } catch (error: any) {
+    console.error('[UniversalVideo] Test chunked render failed:', error);
+    res.status(500).json({ success: false, error: error.message, stack: error.stack });
   }
 });
 
