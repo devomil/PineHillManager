@@ -23308,6 +23308,55 @@ Respond in JSON format:
     }
   });
 
+  // Update PO Payment Status
+  app.patch('/api/purchasing/purchase-orders/:id/payment', isAuthenticated, async (req, res) => {
+    try {
+      if (!req.user || !['admin', 'manager'].includes(req.user.role)) {
+        return res.status(403).json({ error: 'Admin or Manager access required' });
+      }
+
+      const poId = parseInt(req.params.id);
+      const { paymentStatus, paymentDate, scheduledPaymentDate, paymentMethod, paymentReference } = req.body;
+
+      // Verify PO exists
+      const existingPO = await storage.getPurchaseOrderById(poId);
+      if (!existingPO) {
+        return res.status(404).json({ message: 'Purchase order not found' });
+      }
+
+      // Prepare payment update data
+      const paymentData: any = { paymentStatus };
+      if (paymentStatus === 'paid') {
+        paymentData.paymentDate = paymentDate || new Date().toISOString().split('T')[0];
+        paymentData.scheduledPaymentDate = null;
+      } else if (paymentStatus === 'scheduled') {
+        paymentData.scheduledPaymentDate = scheduledPaymentDate;
+        paymentData.paymentDate = null;
+      } else {
+        paymentData.paymentDate = null;
+        paymentData.scheduledPaymentDate = null;
+      }
+      if (paymentMethod) paymentData.paymentMethod = paymentMethod;
+      if (paymentReference) paymentData.paymentReference = paymentReference;
+
+      const purchaseOrder = await storage.updatePurchaseOrder(poId, paymentData);
+
+      // Create audit event
+      await storage.createPurchaseOrderEvent({
+        purchaseOrderId: poId,
+        eventType: 'payment_updated',
+        userId: req.user.id,
+        description: `Payment status changed to ${paymentStatus}${paymentMethod ? ` via ${paymentMethod}` : ''}`,
+        metadata: JSON.stringify(paymentData),
+      });
+
+      res.json(purchaseOrder);
+    } catch (error) {
+      console.error('Error updating purchase order payment:', error);
+      res.status(500).json({ message: 'Failed to update purchase order payment' });
+    }
+  });
+
   // Purchase Order Line Items
   app.post('/api/purchasing/purchase-orders/:poId/line-items', isAuthenticated, async (req, res) => {
     try {
