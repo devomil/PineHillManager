@@ -1010,7 +1010,10 @@ router.get('/voices', isAuthenticated, async (req: Request, res: Response) => {
       return res.status(500).json({ success: false, error: 'ElevenLabs not configured' });
     }
 
-    const response = await fetch('https://api.elevenlabs.io/v1/voices', {
+    console.log('[UniversalVideo] Fetching voices from ElevenLabs...');
+    
+    // Fetch user's available voices (includes premade, cloned, and added from library)
+    const response = await fetch('https://api.elevenlabs.io/v1/voices?show_legacy=true', {
       headers: {
         'xi-api-key': elevenLabsKey,
       },
@@ -1021,8 +1024,9 @@ router.get('/voices', isAuthenticated, async (req: Request, res: Response) => {
     }
 
     const data = await response.json();
+    console.log(`[UniversalVideo] ElevenLabs returned ${data.voices?.length || 0} voices from user library`);
     
-    // Format all available voices - Pro accounts have access to 160+ voices
+    // Format all available voices
     const voices = (data.voices || [])
       .map((v: any) => ({
         voice_id: v.voice_id,
@@ -1049,6 +1053,7 @@ router.get('/voices', isAuthenticated, async (req: Request, res: Response) => {
         return a.name.localeCompare(b.name);
       });
 
+    console.log(`[UniversalVideo] Returning ${voices.length} formatted voices`);
     res.json({ success: true, voices });
   } catch (error: any) {
     console.error('[UniversalVideo] Error fetching voices:', error);
