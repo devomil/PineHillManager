@@ -1127,6 +1127,9 @@ function ScenePreview({
   const [editingNarration, setEditingNarration] = useState<string | null>(null);
   const [editedNarration, setEditedNarration] = useState<Record<string, string>>({});
   const [savingNarration, setSavingNarration] = useState<string | null>(null);
+  const [editingVisualDirection, setEditingVisualDirection] = useState<string | null>(null);
+  const [editedVisualDirection, setEditedVisualDirection] = useState<Record<string, string>>({});
+  const [savingVisualDirection, setSavingVisualDirection] = useState<string | null>(null);
   const [savingOverlay, setSavingOverlay] = useState<string | null>(null);
   const [overlaySettings, setOverlaySettings] = useState<Record<string, {
     x: 'left' | 'center' | 'right';
@@ -1260,6 +1263,36 @@ function ScenePreview({
       toast({ title: 'Error', description: err.message, variant: 'destructive' });
     } finally {
       setSavingNarration(null);
+    }
+  };
+
+  const saveVisualDirection = async (sceneId: string) => {
+    if (!projectId) return;
+    const newVisualDirection = editedVisualDirection[sceneId];
+    if (!newVisualDirection?.trim()) {
+      toast({ title: 'Error', description: 'Visual direction cannot be empty', variant: 'destructive' });
+      return;
+    }
+    setSavingVisualDirection(sceneId);
+    try {
+      const res = await fetch(`/api/universal-video/projects/${projectId}/scenes/${sceneId}/visual-direction`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ visualDirection: newVisualDirection })
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast({ title: 'Visual direction saved', description: 'Regenerate image/video to apply changes.' });
+        setEditingVisualDirection(null);
+        onSceneUpdate?.();
+      } else {
+        toast({ title: 'Failed', description: data.error, variant: 'destructive' });
+      }
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    } finally {
+      setSavingVisualDirection(null);
     }
   };
 
@@ -1662,8 +1695,64 @@ function ScenePreview({
                     </div>
                     
                     <div>
-                      <Label className="text-xs text-muted-foreground">Visual Direction</Label>
-                      <p className="text-sm bg-muted/50 p-2 rounded mt-1">{scene.background.source}</p>
+                      <div className="flex items-center justify-between mb-1">
+                        <Label className="text-xs text-muted-foreground">Visual Direction</Label>
+                        {projectId && editingVisualDirection !== scene.id && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-6 px-2 text-xs"
+                            onClick={() => {
+                              setEditingVisualDirection(scene.id);
+                              setEditedVisualDirection(prev => ({ ...prev, [scene.id]: scene.background.source }));
+                            }}
+                            data-testid={`button-edit-visual-direction-${scene.id}`}
+                          >
+                            <Pencil className="w-3 h-3 mr-1" />
+                            Edit
+                          </Button>
+                        )}
+                      </div>
+                      {editingVisualDirection === scene.id ? (
+                        <div className="space-y-2">
+                          <Textarea
+                            value={editedVisualDirection[scene.id] || ''}
+                            onChange={(e) => setEditedVisualDirection(prev => ({ ...prev, [scene.id]: e.target.value }))}
+                            className="text-sm min-h-[80px]"
+                            placeholder="Describe the visual scene..."
+                            data-testid={`textarea-visual-direction-${scene.id}`}
+                          />
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              onClick={() => saveVisualDirection(scene.id)}
+                              disabled={savingVisualDirection === scene.id}
+                              data-testid={`button-save-visual-direction-${scene.id}`}
+                            >
+                              {savingVisualDirection === scene.id ? (
+                                <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                              ) : (
+                                <Save className="w-3 h-3 mr-1" />
+                              )}
+                              Save
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setEditingVisualDirection(null)}
+                              disabled={savingVisualDirection === scene.id}
+                              data-testid={`button-cancel-visual-direction-${scene.id}`}
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            After saving, regenerate image/video to update visuals.
+                          </p>
+                        </div>
+                      ) : (
+                        <p className="text-sm bg-muted/50 p-2 rounded">{scene.background.source}</p>
+                      )}
                     </div>
                   </div>
                 </div>

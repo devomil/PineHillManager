@@ -1811,13 +1811,35 @@ Guidelines:
     const { createClient } = await import('pexels');
     const client = createClient(pexelsKey);
 
-    // Try multiple search strategies
+    // Try multiple search strategies - but avoid generic fallbacks that return animals
     const searchQueries = [query];
     const words = query.split(' ');
+    
+    // Add a shortened version of the query
     if (words.length > 2) {
       searchQueries.push(words.slice(0, 2).join(' '));
     }
-    searchQueries.push('nature', 'wellness', 'relaxation');
+    
+    // Determine fallback queries based on content type (avoid animals for human-focused content)
+    const queryLower = query.toLowerCase();
+    const isHumanFocused = ['woman', 'man', 'person', 'people', 'adult', 'mature', 'yoga', 'exercise', 'meditation'].some(w => queryLower.includes(w));
+    
+    if (isHumanFocused) {
+      // Human-focused fallbacks - specifically search for human activities
+      searchQueries.push('woman wellness lifestyle');
+      searchQueries.push('mature adult relaxation');
+      searchQueries.push('meditation peaceful woman');
+    } else if (queryLower.includes('botanical') || queryLower.includes('herb') || queryLower.includes('plant')) {
+      // Plant-focused fallbacks
+      searchQueries.push('botanical garden plants');
+      searchQueries.push('herbal medicine natural');
+      searchQueries.push('green leaves nature');
+    } else {
+      // Generic but safer fallbacks (no random animals)
+      searchQueries.push('peaceful scenery');
+      searchQueries.push('calm sunset landscape');
+      searchQueries.push('serene nature background');
+    }
 
     for (const searchQuery of searchQueries) {
       try {
@@ -1880,7 +1902,18 @@ Guidelines:
       return null;
     }
 
-    const searchQueries = [query, 'nature', 'wellness', 'peaceful'];
+    // Build fallback queries that avoid random animal videos
+    const queryLower = query.toLowerCase();
+    const isHumanFocused = ['woman', 'man', 'person', 'people', 'adult', 'yoga'].some(w => queryLower.includes(w));
+    
+    const searchQueries = [query];
+    if (isHumanFocused) {
+      searchQueries.push('woman wellness');
+      searchQueries.push('peaceful relaxation');
+    } else {
+      searchQueries.push('nature landscape');
+      searchQueries.push('peaceful scenery');
+    }
     
     for (const searchQuery of searchQueries) {
       try {

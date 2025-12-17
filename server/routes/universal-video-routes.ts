@@ -384,6 +384,50 @@ router.patch('/projects/:projectId/scenes/:sceneId/narration', isAuthenticated, 
   }
 });
 
+router.patch('/projects/:projectId/scenes/:sceneId/visual-direction', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = (req.user as any)?.id;
+    const { projectId, sceneId } = req.params;
+    const { visualDirection } = req.body;
+    
+    if (!visualDirection || typeof visualDirection !== 'string') {
+      return res.status(400).json({ success: false, error: 'Visual direction text is required' });
+    }
+    
+    const projectData = await getProjectFromDb(projectId);
+    if (!projectData) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+    
+    if (projectData.ownerId !== userId) {
+      return res.status(403).json({ success: false, error: 'Access denied' });
+    }
+    
+    const sceneIndex = projectData.scenes.findIndex(s => s.id === sceneId);
+    if (sceneIndex === -1) {
+      return res.status(404).json({ success: false, error: 'Scene not found' });
+    }
+    
+    // Update both visualDirection and background.source
+    projectData.scenes[sceneIndex].visualDirection = visualDirection.trim();
+    projectData.scenes[sceneIndex].background.source = visualDirection.trim();
+    projectData.updatedAt = new Date().toISOString();
+    
+    await saveProjectToDb(projectData, projectData.ownerId);
+    
+    console.log(`[UniversalVideo] Updated visual direction for scene ${sceneId} in project ${projectId}`);
+    
+    res.json({ 
+      success: true, 
+      project: projectData,
+      message: 'Visual direction updated. Regenerate image or video to apply changes.'
+    });
+  } catch (error: any) {
+    console.error('[UniversalVideo] Error updating visual direction:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 router.post('/projects/:projectId/generate-assets', isAuthenticated, async (req: Request, res: Response) => {
   try {
     const userId = (req.user as any)?.id;
