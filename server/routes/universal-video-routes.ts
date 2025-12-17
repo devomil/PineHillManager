@@ -1022,9 +1022,8 @@ router.get('/voices', isAuthenticated, async (req: Request, res: Response) => {
 
     const data = await response.json();
     
-    // Filter and format voices - prioritize natural-sounding voices
+    // Format all available voices - Pro accounts have access to 160+ voices
     const voices = (data.voices || [])
-      .filter((v: any) => v.category === 'premade' || v.category === 'professional')
       .map((v: any) => ({
         voice_id: v.voice_id,
         name: v.name,
