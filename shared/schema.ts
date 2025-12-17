@@ -2003,6 +2003,14 @@ export const purchaseOrders = pgTable("purchase_orders", {
   actualHandlingCost: decimal("actual_handling_cost", { precision: 12, scale: 2 }),
   actualProductCost: decimal("actual_product_cost", { precision: 12, scale: 2 }),
   
+  // Payment Tracking
+  paymentStatus: varchar("payment_status").default("unpaid"), // unpaid, scheduled, paid
+  paymentDate: date("payment_date"),
+  scheduledPaymentDate: date("scheduled_payment_date"),
+  paymentMethod: varchar("payment_method"), // check, ach, wire, credit_card, cash
+  paymentReference: varchar("payment_reference"), // check number, transaction ID, etc.
+  quickbooksPaymentId: varchar("quickbooks_payment_id"), // for QB reconciliation
+  
   notes: text("notes"),
   internalNotes: text("internal_notes"),
   createdAt: timestamp("created_at").defaultNow(),
