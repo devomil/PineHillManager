@@ -140,6 +140,8 @@ export interface SceneAssets {
   alternativeVideos?: { url: string; query: string; source: string }[];
   preferVideo?: boolean;
   preferImage?: boolean;
+  logoUrl?: string;
+  logoPosition?: { position: string; size: number; opacity: number };
 }
 
 export interface RegenerationRecord {

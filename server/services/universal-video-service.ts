@@ -15,6 +15,7 @@ import {
   OUTPUT_FORMATS,
   SCENE_OVERLAY_DEFAULTS,
 } from "../../shared/video-types";
+import { brandAssetService } from "./brand-asset-service";
 
 const AWS_REGION = "us-east-1";
 const REMOTION_BUCKET = "remotionlambda-useast1-refjo5giq5";
@@ -2346,6 +2347,71 @@ Guidelines:
         updatedProject.scenes[i].assets = {};
       }
 
+      // ===== BRAND ASSET RESOLUTION (BEFORE AI GENERATION) =====
+      // Check if visual direction mentions brand assets (logos, Pine Hill Farm, etc.)
+      const visualDirection = scene.visualDirection || scene.background?.source || '';
+      if (brandAssetService.shouldUseBrandAssets(visualDirection)) {
+        console.log(`[UniversalVideoService] Brand asset check for scene ${scene.id}: "${visualDirection.substring(0, 80)}..."`);
+        
+        try {
+          const brandAssets = await brandAssetService.resolveAssetsFromVisualDirection(visualDirection, scene.type);
+          
+          if (brandAssets.hasMatch) {
+            console.log(`[UniversalVideoService] Found brand assets for scene ${scene.id}:`, {
+              hasLogo: !!brandAssets.logo,
+              photoCount: brandAssets.photos.length,
+              videoCount: brandAssets.videos.length,
+            });
+            
+            // Use brand video if available for video scenes
+            if (brandAssets.videos.length > 0 && ['hook', 'benefit', 'story', 'intro'].includes(scene.type)) {
+              const brandVideo = brandAssets.videos[0];
+              updatedProject.scenes[i].background = {
+                type: 'video',
+                source: visualDirection,
+                videoUrl: brandVideo.url,
+              };
+              updatedProject.scenes[i].assets!.videoUrl = brandVideo.url;
+              console.log(`[UniversalVideoService] Using brand VIDEO for scene ${scene.id}: ${brandVideo.name}`);
+            }
+            // Use brand photo if available
+            else if (brandAssets.photos.length > 0) {
+              const brandPhoto = brandAssets.photos[0];
+              updatedProject.assets.images.push({
+                sceneId: scene.id,
+                url: brandPhoto.url,
+                prompt: visualDirection,
+                source: 'uploaded', // Brand library assets treated as uploaded
+              });
+              updatedProject.scenes[i].assets!.imageUrl = brandPhoto.url;
+              updatedProject.scenes[i].assets!.backgroundUrl = brandPhoto.url;
+              console.log(`[UniversalVideoService] Using brand PHOTO for scene ${scene.id}: ${brandPhoto.name}`);
+            }
+            
+            // Add logo overlay if logo mentioned and available
+            if (brandAssets.logo && visualDirection.toLowerCase().includes('logo')) {
+              updatedProject.scenes[i].assets!.logoUrl = brandAssets.logo.url;
+              updatedProject.scenes[i].assets!.logoPosition = brandAssets.logo.placementSettings || {
+                position: 'bottom-right',
+                size: 0.15,
+                opacity: 0.9,
+              };
+              console.log(`[UniversalVideoService] Adding brand LOGO overlay to scene ${scene.id}: ${brandAssets.logo.name}`);
+            }
+            
+            // If we found brand assets, skip AI generation for this scene
+            if (brandAssets.photos.length > 0 || brandAssets.videos.length > 0) {
+              updatedProject.progress.steps.images.progress = Math.round(((i + 1) / project.scenes.length) * 100);
+              continue; // Skip to next scene - we have brand assets
+            }
+          }
+        } catch (error: any) {
+          console.error(`[UniversalVideoService] Brand asset resolution failed for scene ${scene.id}:`, error.message);
+          // Continue with normal AI generation
+        }
+      }
+      // ===== END BRAND ASSET RESOLUTION =====
+
       if (scene.assets?.assignedProductImageId) {
         const assignedImage = productImages.find(img => img.id === scene.assets?.assignedProductImageId);
         if (assignedImage) {
@@ -2531,8 +2597,24 @@ Guidelines:
         // FIX 4: Pass targetAudience to getStockVideo for validation
         const videoResult = await this.getStockVideo(searchQuery, project.targetAudience);
         
+        // B-ROLL CONTENT VALIDATION: Ensure video matches scene context appropriately
+        let filteredVideoResult = videoResult;
+        if (videoResult && videoResult.url) {
+          const sceneContext = scene.visualDirection || scene.script || scene.background?.source || '';
+          const isAppropriate = brandAssetService.isBrollContentAppropriate(
+            searchQuery, 
+            sceneContext, 
+            project.targetAudience
+          );
+          
+          if (!isAppropriate) {
+            console.log(`[UniversalVideoService] B-roll REJECTED for scene ${scene.id} - content mismatch (query: "${searchQuery}", context: "${sceneContext.substring(0, 50)}...")`);
+            filteredVideoResult = undefined;
+          }
+        }
+        
         // FIX 2: Use smart video vs image decision
-        const useVideo = this.shouldUseVideoBackground(scene, videoResult, project.targetAudience);
+        const useVideo = this.shouldUseVideoBackground(scene, filteredVideoResult, project.targetAudience);
         
         // Update scene index and initialize assets
         const sceneIndex = updatedProject.scenes.findIndex(s => s.id === scene.id);
@@ -2546,26 +2628,26 @@ Guidelines:
           updatedProject.scenes[sceneIndex].assets!.productOverlayPosition = productPosition;
           console.log(`[UniversalVideoService] Scene ${scene.id} product position: ${JSON.stringify(productPosition)}`);
           
-          if (useVideo && videoResult && videoResult.url) {
+          if (useVideo && filteredVideoResult && filteredVideoResult.url) {
             updatedProject.assets.videos.push({
               sceneId: scene.id,
-              url: videoResult.url,
-              source: videoResult.source as 'pexels' | 'pixabay' | 'generated',
+              url: filteredVideoResult.url,
+              source: filteredVideoResult.source as 'pexels' | 'pixabay' | 'generated',
             });
             
             if (!updatedProject.scenes[sceneIndex].background) {
               updatedProject.scenes[sceneIndex].background = {
                 type: 'video',
                 source: scene.background?.source || '',
-                videoUrl: videoResult.url,
+                videoUrl: filteredVideoResult.url,
               };
             } else {
               updatedProject.scenes[sceneIndex].background.type = 'video';
-              updatedProject.scenes[sceneIndex].background.videoUrl = videoResult.url;
+              updatedProject.scenes[sceneIndex].background.videoUrl = filteredVideoResult.url;
             }
-            updatedProject.scenes[sceneIndex].assets!.videoUrl = videoResult.url;
+            updatedProject.scenes[sceneIndex].assets!.videoUrl = filteredVideoResult.url;
             videosGenerated++;
-            console.log(`[UniversalVideoService] B-roll APPROVED for scene ${scene.id}: ${videoResult.url}`);
+            console.log(`[UniversalVideoService] B-roll APPROVED for scene ${scene.id}: ${filteredVideoResult.url}`);
           } else {
             // Keep using AI image - ensure background type is 'image'
             if (updatedProject.scenes[sceneIndex].background) {

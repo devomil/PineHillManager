@@ -4946,6 +4946,81 @@ export const insertBrandAssetSchema = createInsertSchema(brandAssets).omit({
 export type BrandAsset = typeof brandAssets.$inferSelect;
 export type InsertBrandAsset = z.infer<typeof insertBrandAssetSchema>;
 
+// Brand Media Library - Extended asset storage for video production with semantic matching
+export const brandMediaLibrary = pgTable("brand_media_library", {
+  id: serial("id").primaryKey(),
+  
+  // Asset identification
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  
+  // Asset type: logo, photo, video, graphic, watermark, intro, outro, lower_third
+  mediaType: varchar("media_type", { length: 50 }).notNull(),
+  
+  // Entity association (e.g., "Pine Hill Farm", "Wellness Center", "BioScan")
+  entityName: varchar("entity_name", { length: 255 }),
+  entityType: varchar("entity_type", { length: 100 }), // brand, location, product, service, equipment
+  
+  // File details
+  url: text("url").notNull(),
+  thumbnailUrl: text("thumbnail_url"),
+  width: integer("width"),
+  height: integer("height"),
+  duration: decimal("duration", { precision: 10, scale: 2 }), // for video assets in seconds
+  fileSize: integer("file_size"),
+  mimeType: varchar("mime_type", { length: 100 }),
+  
+  // Semantic matching keywords (for visual direction parsing)
+  // e.g., ["logo", "branding", "Pine Hill Farm", "brand identity"]
+  matchKeywords: text("match_keywords").array().default([]),
+  
+  // Negative keywords (when NOT to use this asset)
+  // e.g., ["competitor", "generic"]
+  excludeKeywords: text("exclude_keywords").array().default([]),
+  
+  // Usage context: when is this asset appropriate?
+  // e.g., ["intro", "brand scene", "logo placement", "watermark"]
+  usageContexts: text("usage_contexts").array().default([]),
+  
+  // Visual attributes for smarter matching
+  // e.g., {"style": "modern", "mood": "professional", "colors": ["green", "gold"]}
+  visualAttributes: jsonb("visual_attributes"),
+  
+  // Default placement settings for this asset
+  placementSettings: jsonb("placement_settings"), // position, size, opacity, animation
+  
+  // Priority when multiple assets match (higher = prefer)
+  priority: integer("priority").default(0),
+  
+  // Is this the default asset for its type/entity combination?
+  isDefault: boolean("is_default").default(false),
+  
+  // Active flag
+  isActive: boolean("is_active").default(true),
+  
+  uploadedBy: varchar("uploaded_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  mediaTypeIdx: index("idx_brand_media_library_type").on(table.mediaType),
+  entityNameIdx: index("idx_brand_media_library_entity").on(table.entityName),
+  entityTypeIdx: index("idx_brand_media_library_entity_type").on(table.entityType),
+  isActiveIdx: index("idx_brand_media_library_active").on(table.isActive),
+}));
+
+export const brandMediaLibraryRelations = relations(brandMediaLibrary, ({ one }) => ({
+  uploader: one(users, { fields: [brandMediaLibrary.uploadedBy], references: [users.id] }),
+}));
+
+export const insertBrandMediaSchema = createInsertSchema(brandMediaLibrary).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type BrandMedia = typeof brandMediaLibrary.$inferSelect;
+export type InsertBrandMedia = z.infer<typeof insertBrandMediaSchema>;
+
 // Universal Video Projects - Stores VideoProject entities for the Universal Video Producer
 export const universalVideoProjects = pgTable("universal_video_projects", {
   id: serial("id").primaryKey(),
