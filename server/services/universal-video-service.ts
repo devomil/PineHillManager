@@ -655,10 +655,53 @@ Guidelines:
     };
   }
 
-  async generateImage(prompt: string, sceneId: string): Promise<ImageGenerationResult> {
+  /**
+   * Sanitize prompt to remove any product/bottle/packaging terms
+   * This prevents AI from generating synthetic product imagery
+   */
+  private sanitizeProductTermsFromPrompt(prompt: string): string {
+    // Remove product-related terms that could trigger bottle/packaging generation
+    const productTerms = [
+      /\b(bottle|bottles)\b/gi,
+      /\b(jar|jars)\b/gi,
+      /\b(container|containers)\b/gi,
+      /\b(packaging|package)\b/gi,
+      /\b(supplement|supplements)\b/gi,
+      /\b(vitamin|vitamins)\b/gi,
+      /\b(pill|pills|capsule|capsules)\b/gi,
+      /\b(product shot|product image|product photo)\b/gi,
+      /\b(medicine|medication)\b/gi,
+      /\b(lotion|cream|serum)\b/gi,
+      /\b(skincare|cosmetic)\b/gi,
+      /\b(extract|tincture)\b/gi,
+      /\b(label|labels)\b/gi,
+      /\bBlack Cohosh Extract Plus\b/gi,
+      /\bBlack Cohosh\b/gi,
+    ];
+    
+    let sanitized = prompt;
+    for (const regex of productTerms) {
+      sanitized = sanitized.replace(regex, '');
+    }
+    
+    // Clean up leftover whitespace
+    sanitized = sanitized.replace(/\s+/g, ' ').trim();
+    
+    console.log('[SanitizePrompt] Original:', prompt.substring(0, 100));
+    console.log('[SanitizePrompt] Sanitized:', sanitized.substring(0, 100));
+    
+    return sanitized;
+  }
+
+  async generateImage(prompt: string, sceneId: string, isProductVideo: boolean = false): Promise<ImageGenerationResult> {
     const falKey = process.env.FAL_KEY;
     
-    const enhancedPrompt = this.enhanceImagePrompt(prompt);
+    // Only sanitize product terms for product video context to avoid AI-generated bottles
+    // Non-product videos can keep full context for better image relevance
+    const basePrompt = isProductVideo 
+      ? this.sanitizeProductTermsFromPrompt(prompt)
+      : prompt;
+    const enhancedPrompt = this.enhanceImagePrompt(basePrompt);
 
     if (falKey) {
       const falResult = await this.generateImageWithFalPrimary(enhancedPrompt, falKey);
@@ -781,7 +824,12 @@ Guidelines:
       '4K ultra detailed',
       'soft color palette',
     ];
-    return `${subjectEnforcement}${prompt}, ${styleModifiers.join(', ')}`;
+    
+    // Product terms are already sanitized before this function is called
+    // Just add a reminder to the AI to focus on lifestyle/people imagery
+    const focusClause = 'Focus on lifestyle, people, or environmental scenes.';
+    
+    return `${subjectEnforcement}${prompt}, ${styleModifiers.join(', ')}. ${focusClause}`;
   }
 
   private async generateImageWithFalPrimary(prompt: string, falKey: string): Promise<ImageGenerationResult> {
@@ -1261,64 +1309,47 @@ Guidelines:
    * Uses phonetic hints that ElevenLabs can interpret better
    */
   private preprocessNarrationForTTS(text: string): string {
-    // Pronunciation dictionary for health/wellness terms
-    // Format: exact word -> phonetic pronunciation
-    // FIXED: Use spaces instead of hyphens - ElevenLabs reads hyphens as pauses
-    const pronunciationMap: Record<string, string> = {
-      // Herbs - smooth phonetic spelling with spaces
-      'cohosh': 'KOH hosh',
-      'Cohosh': 'KOH hosh',
-      'ashwagandha': 'ahsh wah GAHN dah',
-      'Ashwagandha': 'Ahsh wah GAHN dah',
-      'chasteberry': 'CHAYST berry',
-      'Chasteberry': 'CHAYST berry',
-      'dong quai': 'dong KWAY',
-      'Dong Quai': 'Dong KWAY',
-      'Dong quai': 'Dong kway',
-      
-      // Scientific terms
-      'isoflavone': 'EYE so flay vone',
-      'isoflavones': 'EYE so flay vones',
-      'Isoflavone': 'EYE so flay vone',
-      'Isoflavones': 'EYE so flay vones',
-      'phytoestrogen': 'FY toe ESS tro jen',
-      'phytoestrogens': 'FY toe ESS tro jens',
-      'Phytoestrogen': 'FY toe ESS tro jen',
-      'formononetin': 'for MON oh neh tin',
-      'Formononetin': 'For MON oh neh tin',
-      
-      // Medical terms
-      'luteinizing': 'LOO tin eye zing',
-      'Luteinizing': 'LOO tin eye zing',
-      'hypothalamus': 'HY poe THAL uh mus',
-      'Hypothalamus': 'HY poe THAL uh mus',
-      'endocrine': 'EN doe krin',
-      'Endocrine': 'EN doe krin',
-      'bioavailable': 'BY oh uh VALE uh bul',
-      'Bioavailable': 'BY oh uh VALE uh bul',
-      'adaptogen': 'uh DAP toh jen',
-      'Adaptogen': 'uh DAP toh jen',
-      'adaptogens': 'uh DAP toh jens',
-      'Adaptogens': 'uh DAP toh jens',
-      
-      // Brand/product names
+    // ElevenLabs eleven_multilingual_v2 model handles pronunciation well natively
+    // REMOVED: Phonetic substitutions with spaces caused unnatural pauses
+    // Now we only do minimal text cleanup for natural flow
+    
+    let processedText = text;
+    
+    // Only fix brand name spacing (no phonetic syllable breaks)
+    const brandFixes: Record<string, string> = {
       'PineHillFarm': 'Pine Hill Farm',
       'pinehillfarm': 'Pine Hill Farm',
       'Pinehillfarm': 'Pine Hill Farm',
     };
     
-    let processedText = text;
-    
-    // Replace each word with its phonetic version
-    // Process longer phrases first to avoid partial replacements
-    const sortedKeys = Object.keys(pronunciationMap).sort((a, b) => b.length - a.length);
-    
-    for (const word of sortedKeys) {
-      const phonetic = pronunciationMap[word];
-      // Use word boundary matching to avoid partial replacements
-      const regex = new RegExp(`\\b${word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'g');
-      processedText = processedText.replace(regex, phonetic);
+    for (const [original, fixed] of Object.entries(brandFixes)) {
+      const regex = new RegExp(`\\b${original}\\b`, 'g');
+      processedText = processedText.replace(regex, fixed);
     }
+    
+    // Remove any abbreviations that might be read incorrectly
+    // Expand common abbreviations for natural speech
+    const abbreviations: Record<string, string> = {
+      'mg': 'milligrams',
+      'mcg': 'micrograms',
+      'oz': 'ounces',
+      'fl oz': 'fluid ounces',
+      'Dr.': 'Doctor',
+      'vs.': 'versus',
+      'etc.': 'etcetera',
+      '%': ' percent',
+    };
+    
+    for (const [abbrev, expanded] of Object.entries(abbreviations)) {
+      const regex = new RegExp(`\\b${abbrev.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'gi');
+      processedText = processedText.replace(regex, expanded);
+    }
+    
+    // Clean up any awkward punctuation that might cause pauses
+    processedText = processedText
+      .replace(/\s*-\s*/g, ' ') // Replace hyphens with spaces
+      .replace(/\s+/g, ' ')     // Normalize whitespace
+      .trim();
     
     return processedText;
   }
@@ -1342,18 +1373,10 @@ Guidelines:
       return { url: '', duration: 0, success: false, error: 'API key not configured' };
     }
 
-    // FIX 6: Preprocess text for better pronunciation with VERBOSE logging
+    // Preprocess text for natural speech (minimal cleanup only)
     const processedText = this.preprocessNarrationForTTS(text);
-    console.log('='.repeat(60));
-    console.log('[TTS] PRONUNCIATION PREPROCESSING');
-    console.log('[TTS] Original (first 150 chars):', text.substring(0, 150));
-    console.log('[TTS] Processed (first 150 chars):', processedText.substring(0, 150));
-    console.log('[TTS] Contains "cohosh"?:', text.toLowerCase().includes('cohosh'));
-    console.log('[TTS] After processing contains "KOH hosh"?:', processedText.includes('KOH hosh'));
-    console.log('[TTS] Contains "ashwagandha"?:', text.toLowerCase().includes('ashwagandha'));
-    console.log('[TTS] After processing contains "ahsh wah GAHN dah"?:', processedText.includes('ahsh wah GAHN dah'));
+    console.log('[TTS] Text preprocessing complete');
     console.log('[TTS] Text changed?:', text !== processedText);
-    console.log('='.repeat(60));
 
     // RECOMMENDED VOICES FOR HEALTH/WELLNESS:
     // - Rachel (21m00Tcm4TlvDq8ikWAM) - Warm, calm, American female - BEST for wellness
@@ -2426,7 +2449,8 @@ Guidelines:
           }
         }
       } else {
-        const imageResult = await this.generateImage(scene.background.source, scene.id);
+        // This is in createProductVideoProject context - always sanitize product terms
+        const imageResult = await this.generateImage(scene.background.source, scene.id, true);
 
         if (imageResult.success) {
           updatedProject.assets.images.push({
@@ -2963,7 +2987,10 @@ Guidelines:
     const scene = project.scenes[sceneIndex];
     const prompt = customPrompt || scene.visualDirection || scene.background?.source || 'wellness lifestyle';
     
-    console.log(`[Regenerate] Image for scene ${sceneId} with prompt: ${prompt.substring(0, 60)}...`);
+    // Detect if this is a product video context by checking for product images in assets
+    const isProductVideo = (project.assets?.productImages?.length ?? 0) > 0;
+    
+    console.log(`[Regenerate] Image for scene ${sceneId} with prompt: ${prompt.substring(0, 60)}... (isProductVideo: ${isProductVideo})`);
     
     // Check if prompt requests people/persons - if so, use generateImage which allows people
     const promptLower = prompt.toLowerCase();
@@ -2975,7 +3002,7 @@ Guidelines:
     if (wantsPerson) {
       console.log(`[Regenerate] Prompt requests person - using generateImage (not background-only)`);
       // Use generateImage which allows people and enforces gender via enhanceImagePrompt
-      const imageResult = await this.generateImage(prompt, sceneId);
+      const imageResult = await this.generateImage(prompt, sceneId, isProductVideo);
       if (imageResult.success && imageResult.url) {
         return { success: true, newImageUrl: imageResult.url, source: imageResult.source };
       }
