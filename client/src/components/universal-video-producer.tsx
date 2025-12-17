@@ -2108,6 +2108,7 @@ export default function UniversalVideoProducer() {
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [previewSceneIndex, setPreviewSceneIndex] = useState(0);
   const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
+  const [musicEnabled, setMusicEnabled] = useState(true);
   const previewTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const createProductMutation = useMutation({
@@ -2161,7 +2162,9 @@ export default function UniversalVideoProducer() {
   const generateAssetsMutation = useMutation({
     mutationFn: async () => {
       if (!project) throw new Error("No project");
-      const response = await apiRequest("POST", `/api/universal-video/projects/${project.id}/generate-assets`);
+      const response = await apiRequest("POST", `/api/universal-video/projects/${project.id}/generate-assets`, {
+        skipMusic: !musicEnabled
+      });
       return response.json();
     },
     onSuccess: (data) => {
@@ -2534,20 +2537,32 @@ export default function UniversalVideoProducer() {
                   </div>
                 </div>
                 
-                <div className="flex gap-2">
+                <div className="flex gap-2 items-center">
                   {project.status === 'draft' && (
-                    <Button 
-                      onClick={() => generateAssetsMutation.mutate()}
-                      disabled={generateAssetsMutation.isPending}
-                      data-testid="button-generate-assets"
-                    >
-                      {generateAssetsMutation.isPending ? (
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      ) : (
-                        <Sparkles className="w-4 h-4 mr-2" />
-                      )}
-                      Generate Assets
-                    </Button>
+                    <>
+                      <div className="flex items-center gap-2 px-3 py-1 border rounded-md bg-muted/30">
+                        <Music className="w-4 h-4 text-muted-foreground" />
+                        <Label htmlFor="music-toggle" className="text-sm cursor-pointer">Music</Label>
+                        <Switch
+                          id="music-toggle"
+                          checked={musicEnabled}
+                          onCheckedChange={setMusicEnabled}
+                          data-testid="switch-music-enabled"
+                        />
+                      </div>
+                      <Button 
+                        onClick={() => generateAssetsMutation.mutate()}
+                        disabled={generateAssetsMutation.isPending}
+                        data-testid="button-generate-assets"
+                      >
+                        {generateAssetsMutation.isPending ? (
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        ) : (
+                          <Sparkles className="w-4 h-4 mr-2" />
+                        )}
+                        Generate Assets
+                      </Button>
+                    </>
                   )}
                   
                   {(project.status === 'ready' || project.status === 'error' || project.status === 'complete') && (

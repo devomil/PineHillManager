@@ -432,6 +432,7 @@ router.post('/projects/:projectId/generate-assets', isAuthenticated, async (req:
   try {
     const userId = (req.user as any)?.id;
     const { projectId } = req.params;
+    const { skipMusic } = req.body || {};
     
     const projectData = await getProjectFromDb(projectId);
     if (!projectData) {
@@ -442,10 +443,10 @@ router.post('/projects/:projectId/generate-assets', isAuthenticated, async (req:
       return res.status(403).json({ success: false, error: 'Access denied' });
     }
     
-    console.log('[UniversalVideo] Generating assets for project:', projectId);
+    console.log('[UniversalVideo] Generating assets for project:', projectId, skipMusic ? '(music disabled)' : '');
     
     universalVideoService.clearNotifications();
-    const updatedProject = await universalVideoService.generateProjectAssets(projectData);
+    const updatedProject = await universalVideoService.generateProjectAssets(projectData, { skipMusic: !!skipMusic });
     await saveProjectToDb(updatedProject, projectData.ownerId);
     
     const notifications = universalVideoService.getNotifications();

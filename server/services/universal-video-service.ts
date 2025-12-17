@@ -2243,8 +2243,9 @@ Guidelines:
     return project;
   }
 
-  async generateProjectAssets(project: VideoProject): Promise<VideoProject> {
+  async generateProjectAssets(project: VideoProject, options?: { skipMusic?: boolean }): Promise<VideoProject> {
     const updatedProject = { ...project };
+    const skipMusic = options?.skipMusic ?? false;
     
     // Reset video tracking for new project
     this.resetUsedVideos();
@@ -2588,45 +2589,52 @@ Guidelines:
 
     // MUSIC STEP - Generate background music with ElevenLabs (with Pixabay fallback)
     updatedProject.progress.currentStep = 'music';
-    updatedProject.progress.steps.music.status = 'in-progress';
-    updatedProject.progress.steps.music.message = 'Generating background music with ElevenLabs...';
     
-    // Calculate total video duration
-    const totalDuration = project.scenes.reduce((acc, s) => acc + (s.duration || 5), 0);
-    
-    // Determine music style from project settings or infer from product type
-    const musicStyle = this.inferMusicStyle(project.title, project.type);
-    
-    console.log(`[UniversalVideoService] Generating ${totalDuration}s music, style: ${musicStyle}`);
-    
-    // Try ElevenLabs music generation first
-    let musicResult = await this.generateBackgroundMusic(
-      totalDuration,
-      musicStyle,
-      project.title
-    );
-    
-    // Fallback to Pixabay if ElevenLabs fails
-    if (!musicResult) {
-      console.log('[UniversalVideoService] ElevenLabs music failed, trying Pixabay fallback...');
-      const style = (project as any).style || 'professional';
-      musicResult = await this.getBackgroundMusic(project.totalDuration, style);
-    }
-    
-    if (musicResult) {
-      updatedProject.assets.music = {
-        url: musicResult.url,
-        duration: musicResult.duration,
-        volume: 0.15, // Background music should be subtle
-      };
-      updatedProject.progress.steps.music.status = 'complete';
-      updatedProject.progress.steps.music.progress = 100;
-      updatedProject.progress.steps.music.message = `Generated ${musicResult.duration}s background music (${musicResult.source})`;
-      console.log(`[UniversalVideoService] Music URL: ${musicResult.url}`);
-    } else {
+    if (skipMusic) {
       updatedProject.progress.steps.music.status = 'skipped';
-      updatedProject.progress.steps.music.message = 'Music generation unavailable - video will have voiceover only';
-      console.log('[UniversalVideoService] Music step skipped - no suitable music found');
+      updatedProject.progress.steps.music.message = 'Music generation disabled by user';
+      console.log('[UniversalVideoService] Music step skipped - disabled by user');
+    } else {
+      updatedProject.progress.steps.music.status = 'in-progress';
+      updatedProject.progress.steps.music.message = 'Generating background music with ElevenLabs...';
+      
+      // Calculate total video duration
+      const totalDuration = project.scenes.reduce((acc, s) => acc + (s.duration || 5), 0);
+      
+      // Determine music style from project settings or infer from product type
+      const musicStyle = this.inferMusicStyle(project.title, project.type);
+      
+      console.log(`[UniversalVideoService] Generating ${totalDuration}s music, style: ${musicStyle}`);
+      
+      // Try ElevenLabs music generation first
+      let musicResult = await this.generateBackgroundMusic(
+        totalDuration,
+        musicStyle,
+        project.title
+      );
+      
+      // Fallback to Pixabay if ElevenLabs fails
+      if (!musicResult) {
+        console.log('[UniversalVideoService] ElevenLabs music failed, trying Pixabay fallback...');
+        const style = (project as any).style || 'professional';
+        musicResult = await this.getBackgroundMusic(project.totalDuration, style);
+      }
+      
+      if (musicResult) {
+        updatedProject.assets.music = {
+          url: musicResult.url,
+          duration: musicResult.duration,
+          volume: 0.15, // Background music should be subtle
+        };
+        updatedProject.progress.steps.music.status = 'complete';
+        updatedProject.progress.steps.music.progress = 100;
+        updatedProject.progress.steps.music.message = `Generated ${musicResult.duration}s background music (${musicResult.source})`;
+        console.log(`[UniversalVideoService] Music URL: ${musicResult.url}`);
+      } else {
+        updatedProject.progress.steps.music.status = 'skipped';
+        updatedProject.progress.steps.music.message = 'Music generation unavailable - video will have voiceover only';
+        console.log('[UniversalVideoService] Music step skipped - no suitable music found');
+      }
     }
 
     // ========== S3 ASSET CACHING ==========
