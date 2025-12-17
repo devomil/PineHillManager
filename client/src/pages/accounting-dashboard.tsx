@@ -2552,7 +2552,31 @@ function AccountingContent() {
                       </Badge>
                     </div>
                     <p className="text-sm text-gray-500 mb-3">Sync financial data and transactions</p>
-                    <Button variant="outline" size="sm">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={async () => {
+                        try {
+                          const response = await fetch('/api/integrations/quickbooks/auth-url');
+                          const data = await response.json();
+                          if (data.authUrl) {
+                            window.location.href = data.authUrl;
+                          } else {
+                            toast({
+                              title: "Connection Error",
+                              description: data.message || "Unable to connect to QuickBooks",
+                              variant: "destructive"
+                            });
+                          }
+                        } catch (error) {
+                          toast({
+                            title: "Connection Error", 
+                            description: "Failed to initiate QuickBooks connection",
+                            variant: "destructive"
+                          });
+                        }
+                      }}
+                    >
                       {systemHealth?.quickbooks === 'configured' ? 'Manage Connection' : 'Connect QuickBooks'}
                     </Button>
                   </div>
