@@ -15518,6 +15518,7 @@ export class DatabaseStorage implements IStorage {
     // Use COALESCE to fall back to createdAt::date if orderDate is null
     return await db
       .select({
+        id: purchaseOrders.id,
         poNumber: purchaseOrders.poNumber,
         vendorId: purchaseOrders.vendorId,
         vendorName: customersVendors.name,
@@ -15525,6 +15526,11 @@ export class DatabaseStorage implements IStorage {
         paymentTerms: purchaseOrders.paymentTerms,
         orderDate: sql`COALESCE(${purchaseOrders.orderDate}, ${purchaseOrders.createdAt}::date)`,
         totalAmount: purchaseOrders.totalAmount,
+        paymentStatus: purchaseOrders.paymentStatus,
+        paymentDate: purchaseOrders.paymentDate,
+        scheduledPaymentDate: purchaseOrders.scheduledPaymentDate,
+        paymentMethod: purchaseOrders.paymentMethod,
+        paymentReference: purchaseOrders.paymentReference,
         // Calculate due date based on payment terms (using COALESCE for orderDate fallback)
         dueDate: sql`
           CASE 

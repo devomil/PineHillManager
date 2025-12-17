@@ -2224,6 +2224,7 @@ function InvoiceScannerDialog({
 }
 
 function ReportsTab() {
+  const { toast } = useToast();
   const { data: vendorSpendReport, isLoading: isLoadingSpend } = useQuery<VendorSpendReport[]>({
     queryKey: ['/api/purchasing/reports/vendor-spend'],
   });
@@ -2242,6 +2243,64 @@ function ReportsTab() {
   const [paymentTermsFilter, setPaymentTermsFilter] = useState<string>('all');
   const [payablesDateFrom, setPayablesDateFrom] = useState('');
   const [payablesDateTo, setPayablesDateTo] = useState('');
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>('all');
+
+  // Payment dialog state
+  const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
+  const [selectedPayable, setSelectedPayable] = useState<any>(null);
+  const [paymentFormData, setPaymentFormData] = useState({
+    paymentStatus: 'paid',
+    paymentDate: new Date().toISOString().split('T')[0],
+    scheduledPaymentDate: '',
+    paymentMethod: '',
+    paymentReference: '',
+  });
+
+  // Payment update mutation
+  const updatePaymentMutation = useMutation({
+    mutationFn: async (data: { id: number; paymentData: any }) => {
+      return apiRequest(`/api/purchasing/purchase-orders/${data.id}/payment`, {
+        method: 'PATCH',
+        body: JSON.stringify(data.paymentData),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/purchasing/reports/outstanding-payables'] });
+      setPaymentDialogOpen(false);
+      setSelectedPayable(null);
+      toast({
+        title: 'Payment Updated',
+        description: 'The payment status has been updated successfully.',
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to update payment status',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const handleOpenPaymentDialog = (payable: any) => {
+    setSelectedPayable(payable);
+    setPaymentFormData({
+      paymentStatus: payable.paymentStatus || 'paid',
+      paymentDate: payable.paymentDate || new Date().toISOString().split('T')[0],
+      scheduledPaymentDate: payable.scheduledPaymentDate || '',
+      paymentMethod: payable.paymentMethod || '',
+      paymentReference: payable.paymentReference || '',
+    });
+    setPaymentDialogOpen(true);
+  };
+
+  const handleSavePayment = () => {
+    if (!selectedPayable) return;
+    updatePaymentMutation.mutate({
+      id: selectedPayable.id,
+      paymentData: paymentFormData,
+    });
+  };
 
   // Vendor Spend filters
   const [vendorSearch, setVendorSearch] = useState('');
@@ -2270,18 +2329,33 @@ function ReportsTab() {
       payable.vendorName.toLowerCase().includes(payablesSearch.toLowerCase());
 
     // Status filter
-    // Check if this is a prepaid/credit card term (considered complete)
+    // Check if this is a prepaid/credit card term (considered complete) OR manually marked as paid
     const isPrepaid = prepaidTerms.some(t => payable.paymentTerms?.toLowerCase().includes(t.toLowerCase()));
+    const isManuallyPaid = payable.paymentStatus === 'paid';
+    const isScheduled = payable.paymentStatus === 'scheduled';
+    const isComplete = isPrepaid || isManuallyPaid;
     
     let statusMatch = true;
     if (statusFilter === 'overdue') {
-      statusMatch = isOverdue && !isPrepaid;
+      statusMatch = isOverdue && !isComplete;
     } else if (statusFilter === 'due_soon') {
-      statusMatch = isDueSoon && !isPrepaid;
+      statusMatch = isDueSoon && !isComplete;
     } else if (statusFilter === 'on_track') {
-      statusMatch = !isOverdue && !isDueSoon && !isPrepaid;
+      statusMatch = !isOverdue && !isDueSoon && !isComplete && !isScheduled;
     } else if (statusFilter === 'complete') {
-      statusMatch = isPrepaid;
+      statusMatch = isComplete;
+    } else if (statusFilter === 'scheduled') {
+      statusMatch = isScheduled && !isComplete;
+    }
+
+    // Payment status filter
+    let paymentStatusMatch = true;
+    if (paymentStatusFilter === 'paid') {
+      paymentStatusMatch = isComplete;
+    } else if (paymentStatusFilter === 'scheduled') {
+      paymentStatusMatch = isScheduled && !isComplete;
+    } else if (paymentStatusFilter === 'unpaid') {
+      paymentStatusMatch = !isComplete && !isScheduled;
     }
 
     // Payment terms filter
@@ -2307,7 +2381,7 @@ function ReportsTab() {
       }
     }
 
-    return searchMatch && statusMatch && paymentTermsMatch && dateMatch;
+    return searchMatch && statusMatch && paymentTermsMatch && dateMatch && paymentStatusMatch;
   }) || [];
 
   // Sort and filter vendor spend
@@ -2499,7 +2573,19 @@ function ReportsTab() {
                     <SelectItem value="overdue">Overdue Only</SelectItem>
                     <SelectItem value="due_soon">Due Soon</SelectItem>
                     <SelectItem value="on_track">On Track</SelectItem>
+                    <SelectItem value="scheduled">Scheduled</SelectItem>
                     <SelectItem value="complete">Complete</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={paymentStatusFilter} onValueChange={setPaymentStatusFilter}>
+                  <SelectTrigger className="w-[180px]" data-testid="select-payment-status-filter">
+                    <SelectValue placeholder="Payment status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Payments</SelectItem>
+                    <SelectItem value="unpaid">Unpaid</SelectItem>
+                    <SelectItem value="scheduled">Scheduled</SelectItem>
+                    <SelectItem value="paid">Paid</SelectItem>
                   </SelectContent>
                 </Select>
                 <Select value={paymentTermsFilter} onValueChange={setPaymentTermsFilter}>
@@ -2548,12 +2634,13 @@ function ReportsTab() {
                     <TableHead>Due Date</TableHead>
                     <TableHead>Days Until Due</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredPayables.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                         No payables found matching your filters
                       </TableCell>
                     </TableRow>
@@ -2563,6 +2650,9 @@ function ReportsTab() {
                       const isOverdue = payable.isOverdue;
                       const isDueSoon = daysUntilDue <= 7 && daysUntilDue >= 0;
                       const isPrepaid = isPrepaidTerm(payable.paymentTerms);
+                      const isManuallyPaid = payable.paymentStatus === 'paid';
+                      const isScheduled = payable.paymentStatus === 'scheduled';
+                      const isComplete = isPrepaid || isManuallyPaid;
                       
                       return (
                         <TableRow key={index} data-testid={`row-payable-${index}`}>
@@ -2578,33 +2668,53 @@ function ReportsTab() {
                               : 'N/A'}
                           </TableCell>
                           <TableCell>
-                            {isPrepaid ? 'Paid' : (payable.dueDate
+                            {isComplete ? 'Paid' : 
+                             isScheduled ? `Scheduled: ${new Date(payable.scheduledPaymentDate).toLocaleDateString()}` :
+                             (payable.dueDate
                               ? new Date(payable.dueDate).toLocaleDateString()
                               : 'N/A')}
                           </TableCell>
                           <TableCell className={
-                            isPrepaid ? 'text-blue-600 font-semibold' :
+                            isComplete ? 'text-blue-600 font-semibold' :
+                            isScheduled ? 'text-purple-600 font-semibold' :
                             isOverdue ? 'text-destructive font-bold' :
                             isDueSoon ? 'text-orange-600 font-semibold' :
                             'text-green-600'
                           }>
-                            {isPrepaid ? 'Complete' :
+                            {isComplete ? 'Complete' :
+                             isScheduled ? 'Scheduled' :
                              isOverdue ? `${Math.abs(Math.floor(daysUntilDue))} days overdue` :
                              isDueSoon ? `${Math.floor(daysUntilDue)} days` :
                              `${Math.floor(daysUntilDue)} days`}
                           </TableCell>
                           <TableCell>
                             <Badge variant={
-                              isPrepaid ? 'default' :
+                              isComplete ? 'default' :
+                              isScheduled ? 'secondary' :
                               isOverdue ? 'destructive' :
                               isDueSoon ? 'secondary' :
                               'default'
-                            } className={isPrepaid ? 'bg-blue-600 hover:bg-blue-700' : ''}>
-                              {isPrepaid ? 'Complete' :
+                            } className={
+                              isComplete ? 'bg-blue-600 hover:bg-blue-700' : 
+                              isScheduled ? 'bg-purple-600 hover:bg-purple-700 text-white' : ''
+                            }>
+                              {isComplete ? 'Paid' :
+                               isScheduled ? 'Scheduled' :
                                isOverdue ? 'Overdue' :
                                isDueSoon ? 'Due Soon' :
                                'On Track'}
                             </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              size="sm"
+                              variant={isComplete ? 'outline' : 'default'}
+                              onClick={() => handleOpenPaymentDialog(payable)}
+                              data-testid={`button-payment-${index}`}
+                            >
+                              <DollarSign className="h-4 w-4 mr-1" />
+                              {isComplete ? 'View' : isScheduled ? 'Edit' : 'Pay'}
+                            </Button>
                           </TableCell>
                         </TableRow>
                       );
@@ -2829,6 +2939,108 @@ function ReportsTab() {
           )}
         </CardContent>
       </Card>
+
+      {/* Payment Dialog */}
+      <Dialog open={paymentDialogOpen} onOpenChange={setPaymentDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {selectedPayable?.paymentStatus === 'paid' ? 'Payment Details' : 'Record Payment'}
+            </DialogTitle>
+            <DialogDescription>
+              {selectedPayable ? `PO #${selectedPayable.poNumber} - $${parseFloat(selectedPayable.totalAmount).toFixed(2)}` : ''}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Payment Status</Label>
+              <Select 
+                value={paymentFormData.paymentStatus} 
+                onValueChange={(value) => setPaymentFormData({...paymentFormData, paymentStatus: value})}
+              >
+                <SelectTrigger data-testid="select-payment-status">
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="unpaid">Unpaid</SelectItem>
+                  <SelectItem value="scheduled">Scheduled to Pay</SelectItem>
+                  <SelectItem value="paid">Paid</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {paymentFormData.paymentStatus === 'paid' && (
+              <div className="space-y-2">
+                <Label htmlFor="payment-date">Payment Date</Label>
+                <Input
+                  id="payment-date"
+                  type="date"
+                  value={paymentFormData.paymentDate}
+                  onChange={(e) => setPaymentFormData({...paymentFormData, paymentDate: e.target.value})}
+                  data-testid="input-payment-date"
+                />
+              </div>
+            )}
+
+            {paymentFormData.paymentStatus === 'scheduled' && (
+              <div className="space-y-2">
+                <Label htmlFor="scheduled-payment-date">Scheduled Payment Date</Label>
+                <Input
+                  id="scheduled-payment-date"
+                  type="date"
+                  value={paymentFormData.scheduledPaymentDate}
+                  onChange={(e) => setPaymentFormData({...paymentFormData, scheduledPaymentDate: e.target.value})}
+                  data-testid="input-scheduled-payment-date"
+                />
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label>Payment Method</Label>
+              <Select 
+                value={paymentFormData.paymentMethod} 
+                onValueChange={(value) => setPaymentFormData({...paymentFormData, paymentMethod: value})}
+              >
+                <SelectTrigger data-testid="select-payment-method">
+                  <SelectValue placeholder="Select method" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="check">Check</SelectItem>
+                  <SelectItem value="ach">ACH / Bank Transfer</SelectItem>
+                  <SelectItem value="wire">Wire Transfer</SelectItem>
+                  <SelectItem value="credit_card">Credit Card</SelectItem>
+                  <SelectItem value="cash">Cash</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="payment-reference">Reference # (Check #, Transaction ID, etc.)</Label>
+              <Input
+                id="payment-reference"
+                value={paymentFormData.paymentReference}
+                onChange={(e) => setPaymentFormData({...paymentFormData, paymentReference: e.target.value})}
+                placeholder="Optional reference number"
+                data-testid="input-payment-reference"
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setPaymentDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleSavePayment} 
+              disabled={updatePaymentMutation.isPending}
+              data-testid="button-save-payment"
+            >
+              {updatePaymentMutation.isPending ? 'Saving...' : 'Save Payment'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
