@@ -74,7 +74,7 @@ export class QuickBooksIntegration {
       clientId: process.env.QUICKBOOKS_CLIENT_ID || '',
       clientSecret: process.env.QUICKBOOKS_CLIENT_SECRET || '',
       redirectUri: process.env.QUICKBOOKS_REDIRECT_URI || defaultRedirectUri,
-      baseUrl: process.env.QUICKBOOKS_BASE_URL || 'https://sandbox-quickbooks.api.intuit.com'
+      baseUrl: process.env.QUICKBOOKS_BASE_URL || 'https://quickbooks.api.intuit.com'
     };
   }
 
