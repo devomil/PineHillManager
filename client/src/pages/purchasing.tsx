@@ -2255,6 +2255,9 @@ function ReportsTab() {
   const [locationDateFrom, setLocationDateFrom] = useState('');
   const [locationDateTo, setLocationDateTo] = useState('');
 
+  // Payment terms that are prepaid (no due date tracking needed - considered "Complete")
+  const prepaidTerms = ['Credit Card', 'Prepaid', 'COD', 'Cash'];
+
   // Filter outstanding payables
   const filteredPayables = outstandingPayables?.filter((payable) => {
     const daysUntilDue = parseFloat(payable.daysUntilDue);
@@ -2267,13 +2270,18 @@ function ReportsTab() {
       payable.vendorName.toLowerCase().includes(payablesSearch.toLowerCase());
 
     // Status filter
+    // Check if this is a prepaid/credit card term (considered complete)
+    const isPrepaid = prepaidTerms.some(t => payable.paymentTerms?.toLowerCase().includes(t.toLowerCase()));
+    
     let statusMatch = true;
     if (statusFilter === 'overdue') {
-      statusMatch = isOverdue;
+      statusMatch = isOverdue && !isPrepaid;
     } else if (statusFilter === 'due_soon') {
-      statusMatch = isDueSoon;
+      statusMatch = isDueSoon && !isPrepaid;
     } else if (statusFilter === 'on_track') {
-      statusMatch = !isOverdue && !isDueSoon;
+      statusMatch = !isOverdue && !isDueSoon && !isPrepaid;
+    } else if (statusFilter === 'complete') {
+      statusMatch = isPrepaid;
     }
 
     // Payment terms filter
@@ -2386,8 +2394,7 @@ function ReportsTab() {
     new Set(outstandingPayables?.map(p => p.paymentTerms) || [])
   );
 
-  // Payment terms that are prepaid (no due date tracking needed)
-  const prepaidTerms = ['Credit Card', 'Prepaid', 'COD', 'Cash'];
+  // Helper function to check if a term is prepaid
   const isPrepaidTerm = (term: string) => prepaidTerms.some(t => term?.toLowerCase().includes(t.toLowerCase()));
   
   // Calculate totals based on filtered data
@@ -2492,6 +2499,7 @@ function ReportsTab() {
                     <SelectItem value="overdue">Overdue Only</SelectItem>
                     <SelectItem value="due_soon">Due Soon</SelectItem>
                     <SelectItem value="on_track">On Track</SelectItem>
+                    <SelectItem value="complete">Complete</SelectItem>
                   </SelectContent>
                 </Select>
                 <Select value={paymentTermsFilter} onValueChange={setPaymentTermsFilter}>
@@ -2554,6 +2562,7 @@ function ReportsTab() {
                       const daysUntilDue = parseFloat(payable.daysUntilDue);
                       const isOverdue = payable.isOverdue;
                       const isDueSoon = daysUntilDue <= 7 && daysUntilDue >= 0;
+                      const isPrepaid = isPrepaidTerm(payable.paymentTerms);
                       
                       return (
                         <TableRow key={index} data-testid={`row-payable-${index}`}>
@@ -2569,26 +2578,30 @@ function ReportsTab() {
                               : 'N/A'}
                           </TableCell>
                           <TableCell>
-                            {payable.dueDate
+                            {isPrepaid ? 'Paid' : (payable.dueDate
                               ? new Date(payable.dueDate).toLocaleDateString()
-                              : 'N/A'}
+                              : 'N/A')}
                           </TableCell>
                           <TableCell className={
+                            isPrepaid ? 'text-blue-600 font-semibold' :
                             isOverdue ? 'text-destructive font-bold' :
                             isDueSoon ? 'text-orange-600 font-semibold' :
                             'text-green-600'
                           }>
-                            {isOverdue ? `${Math.abs(Math.floor(daysUntilDue))} days overdue` :
+                            {isPrepaid ? 'Complete' :
+                             isOverdue ? `${Math.abs(Math.floor(daysUntilDue))} days overdue` :
                              isDueSoon ? `${Math.floor(daysUntilDue)} days` :
                              `${Math.floor(daysUntilDue)} days`}
                           </TableCell>
                           <TableCell>
                             <Badge variant={
+                              isPrepaid ? 'default' :
                               isOverdue ? 'destructive' :
                               isDueSoon ? 'secondary' :
                               'default'
-                            }>
-                              {isOverdue ? 'Overdue' :
+                            } className={isPrepaid ? 'bg-blue-600 hover:bg-blue-700' : ''}>
+                              {isPrepaid ? 'Complete' :
+                               isOverdue ? 'Overdue' :
                                isDueSoon ? 'Due Soon' :
                                'On Track'}
                             </Badge>
