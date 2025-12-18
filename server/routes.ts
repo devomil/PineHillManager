@@ -17283,45 +17283,57 @@ Respond in JSON format:
     }
   });
 
-  // Asset Library: Get all media assets
+  // Asset Library: Get all media assets (classification='general' only)
   app.get('/api/videos/assets', isAuthenticated, async (req, res) => {
     try {
-      const { type, category, mood, source, search, limit = '50', offset = '0' } = req.query;
+      const { type, category, mood, source, search } = req.query;
       
-      let query = `SELECT * FROM media_assets WHERE 1=1`;
-      const params: any[] = [];
-      let paramIndex = 1;
+      // Query media assets with classification='general'
+      let conditions = [eq(mediaAssets.classification, 'general')];
       
-      if (type) {
-        query += ` AND type = $${paramIndex++}`;
-        params.push(type);
+      if (type && type !== 'all') {
+        conditions.push(eq(mediaAssets.type, type as string));
       }
-      if (category) {
-        query += ` AND category = $${paramIndex++}`;
-        params.push(category);
+      if (category && category !== 'all') {
+        conditions.push(eq(mediaAssets.category, category as string));
       }
-      if (mood) {
-        query += ` AND mood = $${paramIndex++}`;
-        params.push(mood);
-      }
-      if (source) {
-        query += ` AND source = $${paramIndex++}`;
-        params.push(source);
-      }
-      if (search) {
-        query += ` AND (name ILIKE $${paramIndex} OR description ILIKE $${paramIndex} OR prompt ILIKE $${paramIndex})`;
-        params.push(`%${search}%`);
-        paramIndex++;
+      if (source && source !== 'all') {
+        conditions.push(eq(mediaAssets.source, source as string));
       }
       
-      query += ` ORDER BY created_at DESC LIMIT $${paramIndex++} OFFSET $${paramIndex}`;
-      params.push(parseInt(limit as string), parseInt(offset as string));
+      const allAssets = await db.select().from(mediaAssets)
+        .where(and(...conditions))
+        .orderBy(mediaAssets.createdAt);
       
-      // For now, return empty array until we have assets
+      // Filter by search if provided
+      let filteredAssets = allAssets;
+      if (search && typeof search === 'string' && search.trim()) {
+        const searchLower = search.toLowerCase();
+        filteredAssets = allAssets.filter(a => 
+          a.name?.toLowerCase().includes(searchLower) || 
+          a.description?.toLowerCase().includes(searchLower)
+        );
+      }
+      
+      // Transform to expected format
+      const assets = filteredAssets.map(a => ({
+        id: a.id,
+        name: a.name,
+        type: a.type,
+        source: a.source,
+        url: a.url,
+        thumbnail_url: a.thumbnailUrl,
+        file_size: a.fileSize,
+        duration: a.duration,
+        category: a.category,
+        mood: a.mood,
+        created_at: a.createdAt?.toISOString(),
+      }));
+      
       res.json({
         success: true,
-        assets: [],
-        total: 0
+        assets,
+        total: assets.length
       });
     } catch (error) {
       console.error('[Asset Library] Get assets error:', error);
