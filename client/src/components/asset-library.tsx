@@ -957,6 +957,9 @@ export default function AssetLibrary() {
                   }
                   
                   // Now update the brand asset with the new URL
+                  // When a file is replaced, update both url and thumbnailUrl to keep them in sync
+                  const thumbnailUrl = replacementFile ? newUrl : selectedBrandAsset.thumbnailUrl;
+                  
                   updateBrandAssetMutation.mutate({
                     id: selectedBrandAsset.id,
                     data: {
@@ -966,6 +969,7 @@ export default function AssetLibrary() {
                       entityName: brandEditForm.entityName,
                       entityType: brandEditForm.entityType,
                       url: newUrl,
+                      thumbnailUrl: thumbnailUrl,
                       matchKeywords: brandEditForm.matchKeywords.split(',').map(k => k.trim()).filter(Boolean),
                       usageContexts: brandEditForm.usageContexts.split(',').map(c => c.trim()).filter(Boolean),
                     }
