@@ -1121,7 +1121,7 @@ function ScenePreview({
   onSceneUpdate?: () => void;
   onProjectUpdate?: (project: VideoProject) => void;
 }) {
-  const [expandedScene, setExpandedScene] = useState<string | null>(null);
+  const [sceneEditorOpen, setSceneEditorOpen] = useState<string | null>(null);
   const [regenerating, setRegenerating] = useState<string | null>(null);
   const [customPrompt, setCustomPrompt] = useState<Record<string, string>>({});
   const [editingNarration, setEditingNarration] = useState<string | null>(null);
@@ -1313,6 +1313,9 @@ function ScenePreview({
       const data = await res.json();
       if (data.success) {
         toast({ title: 'Image regenerated', description: `New image from ${data.source}` });
+        if (data.project) {
+          onProjectUpdate?.(data.project);
+        }
         onSceneUpdate?.();
       } else {
         toast({ title: 'Failed', description: data.error, variant: 'destructive' });
@@ -1337,6 +1340,9 @@ function ScenePreview({
       const data = await res.json();
       if (data.success) {
         toast({ title: 'Video regenerated', description: `New video from ${data.source}` });
+        if (data.project) {
+          onProjectUpdate?.(data.project);
+        }
         onSceneUpdate?.();
       } else {
         toast({ title: 'Failed', description: data.error, variant: 'destructive' });
@@ -1361,6 +1367,9 @@ function ScenePreview({
       const data = await res.json();
       if (data.success) {
         toast({ title: preferVideo ? 'Switched to video' : 'Switched to image' });
+        if (data.project) {
+          onProjectUpdate?.(data.project);
+        }
         onSceneUpdate?.();
       } else {
         toast({ title: 'Failed', description: data.error, variant: 'destructive' });
@@ -1387,6 +1396,10 @@ function ScenePreview({
       if (data.success) {
         toast({ title: 'Media applied', description: `Scene updated with ${sourceName} content.` });
         setMediaPickerOpen(null);
+        // Update project immediately with returned data for instant UI refresh
+        if (data.project) {
+          onProjectUpdate?.(data.project);
+        }
         onSceneUpdate?.();
       } else {
         toast({ title: 'Failed', description: data.error, variant: 'destructive' });
@@ -1457,7 +1470,7 @@ function ScenePreview({
           )}
           {scenes.map((scene, index) => {
             const imageAsset = assets.images.find(img => img.sceneId === scene.id);
-            const isExpanded = expandedScene === scene.id;
+            const isEditing = sceneEditorOpen === scene.id;
             const hasAIBackground = scene.assets?.backgroundUrl;
             const hasProductOverlay = scene.assets?.productOverlayUrl && scene.assets?.useProductOverlay !== false;
             const hasBrollVideo = scene.background?.type === 'video' && scene.background?.videoUrl;
@@ -1470,7 +1483,7 @@ function ScenePreview({
                   <Card className="overflow-hidden">
                     <div 
                       className="flex items-center gap-3 p-3 cursor-pointer hover:bg-muted/50"
-                      onClick={() => setExpandedScene(isExpanded ? null : scene.id)}
+                      onClick={() => setSceneEditorOpen(scene.id)}
                     >
                       {dragHandle}
               <div className="w-28 h-16 bg-muted rounded overflow-hidden flex-shrink-0 relative">
@@ -1537,556 +1550,10 @@ function ScenePreview({
                 </div>
                 <p className="text-sm truncate mt-1">{scene.narration.substring(0, 60)}...</p>
               </div>
-              {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              <ChevronDown className="w-4 h-4" />
             </div>
             
-            {isExpanded && (
-              <CardContent className="pt-0 pb-3">
-                <Separator className="mb-3" />
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                  {/* Left Column: Large Media Preview */}
-                  <div className="space-y-3">
-                    {hasBrollVideo ? (
-                      <div>
-                        <Label className="text-xs text-muted-foreground flex items-center gap-1 mb-2">
-                          <Video className="w-3 h-3" /> B-Roll Video
-                        </Label>
-                        <div className="w-full rounded-lg overflow-hidden border bg-black" style={{ aspectRatio: '16/9' }}>
-                          <video 
-                            src={convertToDisplayUrl(scene.background!.videoUrl!)}
-                            className="w-full h-full object-contain"
-                            controls
-                            muted
-                            playsInline
-                            data-testid={`video-broll-${scene.id}`}
-                          />
-                        </div>
-                      </div>
-                    ) : hasAIBackground ? (
-                      <div>
-                        <Label className="text-xs text-muted-foreground mb-2">AI Background</Label>
-                        <div className="w-full rounded-lg overflow-hidden border relative bg-black" style={{ aspectRatio: '16/9' }}>
-                          <img 
-                            src={convertToDisplayUrl(scene.assets!.backgroundUrl!)} 
-                            alt="AI background"
-                            className="w-full h-full object-contain"
-                          />
-                          {showsProductOverlay && scene.assets?.productOverlayUrl && (() => {
-                            const settings = getOverlaySettings(scene);
-                            const positionStyles: React.CSSProperties = {
-                              position: 'absolute',
-                              transform: `scale(${settings.scale})`,
-                              transformOrigin: `${settings.x} ${settings.y}`,
-                              maxWidth: '45%',
-                              maxHeight: '60%',
-                              objectFit: 'contain' as const,
-                              ...(settings.x === 'left' ? { left: '5%' } : settings.x === 'right' ? { right: '5%' } : { left: '50%', marginLeft: '-22.5%' }),
-                              ...(settings.y === 'top' ? { top: '5%' } : settings.y === 'bottom' ? { bottom: '5%' } : { top: '50%', marginTop: '-30%' }),
-                            };
-                            return (
-                              <img 
-                                src={convertToDisplayUrl(scene.assets!.productOverlayUrl!)} 
-                                alt="Product overlay"
-                                className="drop-shadow-lg"
-                                style={positionStyles}
-                              />
-                            );
-                          })()}
-                        </div>
-                      </div>
-                    ) : imageAsset?.url ? (
-                      <div>
-                        <Label className="text-xs text-muted-foreground mb-2">Scene Image</Label>
-                        <div className="w-full rounded-lg overflow-hidden border bg-black" style={{ aspectRatio: '16/9' }}>
-                          <img 
-                            src={convertToDisplayUrl(imageAsset.url)} 
-                            alt={`Scene ${index + 1}`}
-                            className="w-full h-full object-contain"
-                          />
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="w-full rounded-lg border bg-muted flex items-center justify-center" style={{ aspectRatio: '16/9' }}>
-                        <ImageIcon className="w-12 h-12 text-muted-foreground" />
-                      </div>
-                    )}
-                    
-                    {/* Media Source Selector Controls */}
-                    {projectId && (
-                      <div className="p-3 bg-muted/30 rounded-lg border space-y-3">
-                        {/* Custom prompt and type toggles */}
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <Input
-                            placeholder="Custom prompt (optional)"
-                            value={customPrompt[scene.id] || ''}
-                            onChange={(e) => setCustomPrompt(prev => ({ ...prev, [scene.id]: e.target.value }))}
-                            className="text-xs h-7 flex-1 min-w-[120px]"
-                            data-testid={`input-custom-prompt-${scene.id}`}
-                          />
-                          <div className="flex border rounded-md overflow-hidden">
-                            <Button
-                              size="sm"
-                              variant={scene.background?.type !== 'video' ? 'default' : 'ghost'}
-                              className="h-7 text-xs rounded-none"
-                              onClick={() => switchBackground(scene.id, false)}
-                              disabled={!!regenerating}
-                              data-testid={`button-type-image-${scene.id}`}
-                            >
-                              <ImageIcon className="w-3 h-3 mr-1" /> Image
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant={scene.background?.type === 'video' ? 'default' : 'ghost'}
-                              className="h-7 text-xs rounded-none"
-                              onClick={() => switchBackground(scene.id, true)}
-                              disabled={!!regenerating}
-                              data-testid={`button-type-video-${scene.id}`}
-                            >
-                              <Video className="w-3 h-3 mr-1" /> Video
-                            </Button>
-                          </div>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-7 text-xs"
-                            onClick={() => switchBackground(scene.id, !(scene.background?.type === 'video'))}
-                            disabled={!!regenerating}
-                            data-testid={`button-switch-background-${scene.id}`}
-                          >
-                            {regenerating === `switch-${scene.id}` ? (
-                              <Loader2 className="w-3 h-3 animate-spin" />
-                            ) : (
-                              <>Use {scene.background?.type === 'video' ? 'Image' : 'Video'}</>
-                            )}
-                          </Button>
-                        </div>
-                        
-                        {/* Media Source Buttons - Two columns */}
-                        <div className="grid grid-cols-2 gap-2">
-                          {/* Image Sources */}
-                          <div className="space-y-1">
-                            <Label className="text-[10px] text-muted-foreground uppercase tracking-wider">Image Sources</Label>
-                            <div className="flex flex-wrap gap-1">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-6 text-xs px-2"
-                                onClick={() => regenerateImage(scene.id)}
-                                disabled={!!regenerating}
-                                data-testid={`button-source-ai-image-${scene.id}`}
-                              >
-                                {regenerating === `image-${scene.id}` ? <Loader2 className="w-3 h-3 animate-spin" /> : 'AI'}
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-6 text-xs px-2"
-                                onClick={() => openMediaPicker(scene.id, 'image', 'pexels')}
-                                disabled={!!regenerating || !!applyingMedia}
-                                data-testid={`button-source-pexels-image-${scene.id}`}
-                              >
-                                Pexels
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-6 text-xs px-2"
-                                onClick={() => openMediaPicker(scene.id, 'image', 'unsplash')}
-                                disabled={!!regenerating || !!applyingMedia}
-                                data-testid={`button-source-unsplash-image-${scene.id}`}
-                              >
-                                Unsplash
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-6 text-xs px-2"
-                                onClick={() => openMediaPicker(scene.id, 'image', 'brand')}
-                                disabled={!!regenerating || !!applyingMedia}
-                                data-testid={`button-source-brand-image-${scene.id}`}
-                              >
-                                Brand Media
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-6 text-xs px-2"
-                                onClick={() => openMediaPicker(scene.id, 'image', 'library')}
-                                disabled={!!regenerating || !!applyingMedia}
-                                data-testid={`button-source-library-image-${scene.id}`}
-                              >
-                                Asset Library
-                              </Button>
-                            </div>
-                          </div>
-                          
-                          {/* Video Sources */}
-                          <div className="space-y-1">
-                            <Label className="text-[10px] text-muted-foreground uppercase tracking-wider">Video Sources</Label>
-                            <div className="flex flex-wrap gap-1">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-6 text-xs px-2"
-                                onClick={() => regenerateVideo(scene.id)}
-                                disabled={!!regenerating}
-                                data-testid={`button-source-ai-video-${scene.id}`}
-                              >
-                                {regenerating === `video-${scene.id}` ? <Loader2 className="w-3 h-3 animate-spin" /> : 'AI'}
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-6 text-xs px-2"
-                                onClick={() => openMediaPicker(scene.id, 'video', 'pexels')}
-                                disabled={!!regenerating || !!applyingMedia}
-                                data-testid={`button-source-pexels-video-${scene.id}`}
-                              >
-                                Pexels
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-6 text-xs px-2 opacity-50"
-                                disabled={true}
-                                data-testid={`button-source-brand-video-${scene.id}`}
-                              >
-                                Brand Media
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-6 text-xs px-2"
-                                onClick={() => openMediaPicker(scene.id, 'video', 'library')}
-                                disabled={!!regenerating || !!applyingMedia}
-                                data-testid={`button-source-library-video-${scene.id}`}
-                              >
-                                Asset Library
-                              </Button>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                  
-                  {/* Right Column: Text Content */}
-                  <div className="space-y-3">
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <Label className="text-xs text-muted-foreground">Narration</Label>
-                        {projectId && editingNarration !== scene.id && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-6 px-2 text-xs"
-                            onClick={() => {
-                              setEditingNarration(scene.id);
-                              setEditedNarration(prev => ({ ...prev, [scene.id]: scene.narration }));
-                            }}
-                            data-testid={`button-edit-narration-${scene.id}`}
-                          >
-                            <Pencil className="w-3 h-3 mr-1" />
-                            Edit
-                          </Button>
-                        )}
-                      </div>
-                      {editingNarration === scene.id ? (
-                        <div className="space-y-2">
-                          <Textarea
-                            value={editedNarration[scene.id] || ''}
-                            onChange={(e) => setEditedNarration(prev => ({ ...prev, [scene.id]: e.target.value }))}
-                            className="text-sm min-h-[80px]"
-                            placeholder="Enter narration text..."
-                            data-testid={`textarea-narration-${scene.id}`}
-                          />
-                          <div className="flex gap-2">
-                            <Button
-                              size="sm"
-                              onClick={() => saveNarration(scene.id)}
-                              disabled={savingNarration === scene.id}
-                              data-testid={`button-save-narration-${scene.id}`}
-                            >
-                              {savingNarration === scene.id ? (
-                                <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                              ) : (
-                                <Save className="w-3 h-3 mr-1" />
-                              )}
-                              Save
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => setEditingNarration(null)}
-                              disabled={savingNarration === scene.id}
-                              data-testid={`button-cancel-narration-${scene.id}`}
-                            >
-                              Cancel
-                            </Button>
-                          </div>
-                          <p className="text-xs text-muted-foreground">
-                            After saving, regenerate voiceover to update audio.
-                          </p>
-                        </div>
-                      ) : (
-                        <p className="text-sm bg-muted/50 p-2 rounded">{scene.narration}</p>
-                      )}
-                    </div>
-                    
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <Label className="text-xs text-muted-foreground">Visual Direction</Label>
-                        {projectId && editingVisualDirection !== scene.id && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-6 px-2 text-xs"
-                            onClick={() => {
-                              setEditingVisualDirection(scene.id);
-                              setEditedVisualDirection(prev => ({ ...prev, [scene.id]: scene.background.source }));
-                            }}
-                            data-testid={`button-edit-visual-direction-${scene.id}`}
-                          >
-                            <Pencil className="w-3 h-3 mr-1" />
-                            Edit
-                          </Button>
-                        )}
-                      </div>
-                      {editingVisualDirection === scene.id ? (
-                        <div className="space-y-2">
-                          <Textarea
-                            value={editedVisualDirection[scene.id] || ''}
-                            onChange={(e) => setEditedVisualDirection(prev => ({ ...prev, [scene.id]: e.target.value }))}
-                            className="text-sm min-h-[80px]"
-                            placeholder="Describe the visual scene..."
-                            data-testid={`textarea-visual-direction-${scene.id}`}
-                          />
-                          <div className="flex gap-2">
-                            <Button
-                              size="sm"
-                              onClick={() => saveVisualDirection(scene.id)}
-                              disabled={savingVisualDirection === scene.id}
-                              data-testid={`button-save-visual-direction-${scene.id}`}
-                            >
-                              {savingVisualDirection === scene.id ? (
-                                <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                              ) : (
-                                <Save className="w-3 h-3 mr-1" />
-                              )}
-                              Save
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => setEditingVisualDirection(null)}
-                              disabled={savingVisualDirection === scene.id}
-                              data-testid={`button-cancel-visual-direction-${scene.id}`}
-                            >
-                              Cancel
-                            </Button>
-                          </div>
-                          <p className="text-xs text-muted-foreground">
-                            After saving, regenerate image/video to update visuals.
-                          </p>
-                        </div>
-                      ) : (
-                        <p className="text-sm bg-muted/50 p-2 rounded">{scene.background.source}</p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-                
-                {hasAIBackground && (
-                    <>
-                      <div className="flex items-center justify-between p-2 bg-muted/50 rounded-lg">
-                        <div className="flex items-center gap-2">
-                          <Layers className="w-4 h-4 text-muted-foreground" />
-                          <Label className="text-sm font-medium">Show Product Overlay</Label>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {!defaultOverlay && (
-                            <span className="text-xs text-muted-foreground">(Off by default for {scene.type})</span>
-                          )}
-                          <Switch 
-                            checked={showsProductOverlay}
-                            onCheckedChange={(checked) => {
-                              if (onToggleProductOverlay) {
-                                onToggleProductOverlay(scene.id, checked);
-                              }
-                            }}
-                            data-testid={`switch-product-overlay-${scene.id}`}
-                          />
-                        </div>
-                      </div>
-                      
-                      {showsProductOverlay && projectId && scene.assets?.productOverlayUrl && (
-                        <div className="p-3 bg-muted/30 rounded-lg border space-y-3">
-                          <Label className="text-xs text-muted-foreground flex items-center gap-1">
-                            <Settings className="w-3 h-3" /> Overlay Settings
-                            {savingOverlay === scene.id && <Loader2 className="w-3 h-3 animate-spin ml-2" />}
-                          </Label>
-                          
-                          <div className="grid grid-cols-3 gap-3">
-                            <div className="space-y-1">
-                              <Label className="text-xs">Horizontal</Label>
-                              <Select 
-                                value={getOverlaySettings(scene).x}
-                                onValueChange={(val) => {
-                                  const newX = val as 'left' | 'center' | 'right';
-                                  updateLocalOverlay(scene.id, { x: newX });
-                                  updateProductOverlay(scene.id, { 
-                                    position: { x: newX, y: getOverlaySettings(scene).y }
-                                  });
-                                }}
-                              >
-                                <SelectTrigger className="h-8 text-xs" data-testid={`select-overlay-x-${scene.id}`}>
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="left">Left</SelectItem>
-                                  <SelectItem value="center">Center</SelectItem>
-                                  <SelectItem value="right">Right</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-                            
-                            <div className="space-y-1">
-                              <Label className="text-xs">Vertical</Label>
-                              <Select 
-                                value={getOverlaySettings(scene).y}
-                                onValueChange={(val) => {
-                                  const newY = val as 'top' | 'center' | 'bottom';
-                                  updateLocalOverlay(scene.id, { y: newY });
-                                  updateProductOverlay(scene.id, { 
-                                    position: { x: getOverlaySettings(scene).x, y: newY }
-                                  });
-                                }}
-                              >
-                                <SelectTrigger className="h-8 text-xs" data-testid={`select-overlay-y-${scene.id}`}>
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="top">Top</SelectItem>
-                                  <SelectItem value="center">Center</SelectItem>
-                                  <SelectItem value="bottom">Bottom</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-                            
-                            <div className="space-y-1">
-                              <Label className="text-xs">Animation</Label>
-                              <Select 
-                                value={getOverlaySettings(scene).animation}
-                                onValueChange={(val) => {
-                                  const newAnim = val as OverlayAnimation;
-                                  updateLocalOverlay(scene.id, { animation: newAnim });
-                                  updateProductOverlay(scene.id, { animation: newAnim });
-                                }}
-                              >
-                                <SelectTrigger className="h-8 text-xs" data-testid={`select-overlay-animation-${scene.id}`}>
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="fade">Fade</SelectItem>
-                                  <SelectItem value="zoom">Zoom</SelectItem>
-                                  <SelectItem value="slide">Slide</SelectItem>
-                                  <SelectItem value="none">None</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-                          </div>
-                          
-                          <div className="space-y-1">
-                            <div className="flex items-center justify-between">
-                              <Label className="text-xs">Scale</Label>
-                              <span className="text-xs text-muted-foreground">
-                                {Math.round(getOverlaySettings(scene).scale * 100)}%
-                              </span>
-                            </div>
-                            <Slider
-                              value={[getOverlaySettings(scene).scale * 100]}
-                              onValueChange={(val) => updateLocalOverlay(scene.id, { scale: val[0] / 100 })}
-                              onValueCommit={(val) => updateProductOverlay(scene.id, { scale: val[0] / 100 })}
-                              min={10}
-                              max={80}
-                              step={5}
-                              className="w-full"
-                              data-testid={`slider-overlay-scale-${scene.id}`}
-                            />
-                          </div>
-                        </div>
-                      )}
-                      
-                      <div>
-                        <Label className="text-xs text-muted-foreground flex items-center gap-2">
-                          Live Preview
-                          <span className="text-[10px] px-1.5 py-0.5 bg-primary/10 text-primary rounded">Updates in real-time</span>
-                        </Label>
-                        <div className="w-full rounded-lg overflow-hidden mt-2 border relative bg-black" style={{ aspectRatio: '16/9' }}>
-                          <img 
-                            src={convertToDisplayUrl(scene.assets!.backgroundUrl!)} 
-                            alt="AI background"
-                            className="w-full h-full object-contain"
-                          />
-                          {showsProductOverlay && scene.assets?.productOverlayUrl && (() => {
-                            const settings = getOverlaySettings(scene);
-                            const getPositionStyle = (): React.CSSProperties => {
-                              const baseStyle: React.CSSProperties = {
-                                position: 'absolute',
-                                maxWidth: '40%',
-                                maxHeight: '55%',
-                                objectFit: 'contain' as const,
-                                transform: `scale(${settings.scale})`,
-                                transition: 'all 0.2s ease-out',
-                              };
-                              
-                              // Horizontal positioning
-                              if (settings.x === 'left') {
-                                baseStyle.left = '8%';
-                                baseStyle.transformOrigin = 'left';
-                              } else if (settings.x === 'right') {
-                                baseStyle.right = '8%';
-                                baseStyle.transformOrigin = 'right';
-                              } else {
-                                baseStyle.left = '50%';
-                                baseStyle.marginLeft = '-20%';
-                                baseStyle.transformOrigin = 'center';
-                              }
-                              
-                              // Vertical positioning
-                              if (settings.y === 'top') {
-                                baseStyle.top = '8%';
-                                baseStyle.transformOrigin = (baseStyle.transformOrigin || '') + ' top';
-                              } else if (settings.y === 'bottom') {
-                                baseStyle.bottom = '8%';
-                                baseStyle.transformOrigin = (baseStyle.transformOrigin || '') + ' bottom';
-                              } else {
-                                baseStyle.top = '50%';
-                                baseStyle.marginTop = '-27.5%';
-                                baseStyle.transformOrigin = (baseStyle.transformOrigin || '') + ' center';
-                              }
-                              
-                              return baseStyle;
-                            };
-                            
-                            return (
-                              <img 
-                                src={convertToDisplayUrl(scene.assets!.productOverlayUrl!)} 
-                                alt="Product overlay"
-                                className="drop-shadow-2xl"
-                                style={getPositionStyle()}
-                              />
-                            );
-                          })()}
-                        </div>
-                        <p className="text-[10px] text-muted-foreground mt-1">
-                          Position: {getOverlaySettings(scene).x} / {getOverlaySettings(scene).y} • Scale: {Math.round(getOverlaySettings(scene).scale * 100)}%
-                        </p>
-                      </div>
-                    </>
-                  )}
-              </CardContent>
-            )}
+            {/* Scene content is now in modal - see SceneEditorModal below */}
                   </Card>
                 )}
               </SortableSceneItem>
@@ -2095,6 +1562,514 @@ function ScenePreview({
         </div>
       </SortableContext>
     </DndContext>
+    
+    {/* Scene Editor Modal */}
+    {sceneEditorOpen && (() => {
+      const scene = scenes.find(s => s.id === sceneEditorOpen);
+      if (!scene) return null;
+      const index = scenes.findIndex(s => s.id === sceneEditorOpen);
+      const imageAsset = assets.images.find(img => img.sceneId === scene.id);
+      const hasAIBackground = scene.assets?.backgroundUrl;
+      const hasProductOverlay = scene.assets?.productOverlayUrl && scene.assets?.useProductOverlay !== false;
+      const hasBrollVideo = scene.background?.type === 'video' && scene.background?.videoUrl;
+      const defaultOverlay = SCENE_OVERLAY_DEFAULTS[scene.type] ?? false;
+      const showsProductOverlay = scene.assets?.useProductOverlay ?? defaultOverlay;
+      
+      return (
+        <Dialog open={true} onOpenChange={(open) => !open && setSceneEditorOpen(null)}>
+          <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Badge variant="outline" className="text-xs capitalize">
+                  {scene.type}
+                </Badge>
+                Scene {index + 1} - {scene.duration}s
+                {hasBrollVideo && (
+                  <Badge className="text-xs bg-blue-500">
+                    <Video className="w-3 h-3 mr-1" /> B-Roll
+                  </Badge>
+                )}
+                {hasAIBackground && (
+                  <Badge className={`text-xs ${showsProductOverlay ? 'bg-gradient-to-r from-purple-500 to-blue-500' : 'bg-purple-500'}`}>
+                    {showsProductOverlay ? 'AI + Product' : 'AI Background'}
+                  </Badge>
+                )}
+              </DialogTitle>
+              <DialogDescription>
+                Edit scene content, media sources, and overlay settings
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-4">
+              {/* Left Column: Large Media Preview */}
+              <div className="space-y-4">
+                {hasBrollVideo ? (
+                  <div>
+                    <Label className="text-sm text-muted-foreground flex items-center gap-1 mb-2">
+                      <Video className="w-4 h-4" /> B-Roll Video
+                    </Label>
+                    <div className="w-full rounded-lg overflow-hidden border bg-black" style={{ aspectRatio: '16/9' }}>
+                      <video 
+                        src={convertToDisplayUrl(scene.background!.videoUrl!)}
+                        className="w-full h-full object-contain"
+                        controls
+                        muted
+                        playsInline
+                        data-testid={`video-broll-modal-${scene.id}`}
+                      />
+                    </div>
+                  </div>
+                ) : hasAIBackground ? (
+                  <div>
+                    <Label className="text-sm text-muted-foreground mb-2">AI Background</Label>
+                    <div className="w-full rounded-lg overflow-hidden border relative bg-black" style={{ aspectRatio: '16/9' }}>
+                      <img 
+                        src={convertToDisplayUrl(scene.assets!.backgroundUrl!)} 
+                        alt="AI background"
+                        className="w-full h-full object-contain"
+                      />
+                      {showsProductOverlay && scene.assets?.productOverlayUrl && (() => {
+                        const settings = getOverlaySettings(scene);
+                        const positionStyles: React.CSSProperties = {
+                          position: 'absolute',
+                          transform: `scale(${settings.scale})`,
+                          transformOrigin: `${settings.x} ${settings.y}`,
+                          maxWidth: '45%',
+                          maxHeight: '60%',
+                          objectFit: 'contain' as const,
+                          ...(settings.x === 'left' ? { left: '5%' } : settings.x === 'right' ? { right: '5%' } : { left: '50%', marginLeft: '-22.5%' }),
+                          ...(settings.y === 'top' ? { top: '5%' } : settings.y === 'bottom' ? { bottom: '5%' } : { top: '50%', marginTop: '-30%' }),
+                        };
+                        return (
+                          <img 
+                            src={convertToDisplayUrl(scene.assets!.productOverlayUrl!)} 
+                            alt="Product overlay"
+                            className="drop-shadow-lg"
+                            style={positionStyles}
+                          />
+                        );
+                      })()}
+                    </div>
+                  </div>
+                ) : imageAsset?.url ? (
+                  <div>
+                    <Label className="text-sm text-muted-foreground mb-2">Scene Image</Label>
+                    <div className="w-full rounded-lg overflow-hidden border bg-black" style={{ aspectRatio: '16/9' }}>
+                      <img 
+                        src={convertToDisplayUrl(imageAsset.url)} 
+                        alt={`Scene ${index + 1}`}
+                        className="w-full h-full object-contain"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="w-full rounded-lg border bg-muted flex items-center justify-center" style={{ aspectRatio: '16/9' }}>
+                    <ImageIcon className="w-12 h-12 text-muted-foreground" />
+                  </div>
+                )}
+                
+                {/* Media Source Selector Controls */}
+                {projectId && (
+                  <div className="p-4 bg-muted/30 rounded-lg border space-y-4">
+                    <Label className="text-sm font-medium">Media Source Controls</Label>
+                    
+                    {/* Custom prompt and type toggles */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Input
+                        placeholder="Custom prompt (optional)"
+                        value={customPrompt[scene.id] || ''}
+                        onChange={(e) => setCustomPrompt(prev => ({ ...prev, [scene.id]: e.target.value }))}
+                        className="text-sm h-9 flex-1 min-w-[150px]"
+                        data-testid={`input-custom-prompt-modal-${scene.id}`}
+                      />
+                      <div className="flex border rounded-md overflow-hidden">
+                        <Button
+                          size="sm"
+                          variant={scene.background?.type !== 'video' ? 'default' : 'ghost'}
+                          className="h-9 text-sm rounded-none"
+                          onClick={() => switchBackground(scene.id, false)}
+                          disabled={!!regenerating}
+                          data-testid={`button-type-image-modal-${scene.id}`}
+                        >
+                          <ImageIcon className="w-4 h-4 mr-1" /> Image
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant={scene.background?.type === 'video' ? 'default' : 'ghost'}
+                          className="h-9 text-sm rounded-none"
+                          onClick={() => switchBackground(scene.id, true)}
+                          disabled={!!regenerating}
+                          data-testid={`button-type-video-modal-${scene.id}`}
+                        >
+                          <Video className="w-4 h-4 mr-1" /> Video
+                        </Button>
+                      </div>
+                    </div>
+                    
+                    {/* Media Source Buttons */}
+                    <div className="grid grid-cols-2 gap-4">
+                      {/* Image Sources */}
+                      <div className="space-y-2">
+                        <Label className="text-xs text-muted-foreground uppercase tracking-wider">Image Sources</Label>
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 text-sm"
+                            onClick={() => regenerateImage(scene.id)}
+                            disabled={!!regenerating}
+                            data-testid={`button-source-ai-image-modal-${scene.id}`}
+                          >
+                            {regenerating === `image-${scene.id}` ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Sparkles className="w-4 h-4 mr-1" /> AI</>}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 text-sm"
+                            onClick={() => openMediaPicker(scene.id, 'image', 'pexels')}
+                            disabled={!!regenerating || !!applyingMedia}
+                            data-testid={`button-source-pexels-image-modal-${scene.id}`}
+                          >
+                            Pexels
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 text-sm"
+                            onClick={() => openMediaPicker(scene.id, 'image', 'unsplash')}
+                            disabled={!!regenerating || !!applyingMedia}
+                            data-testid={`button-source-unsplash-image-modal-${scene.id}`}
+                          >
+                            Unsplash
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 text-sm"
+                            onClick={() => openMediaPicker(scene.id, 'image', 'brand')}
+                            disabled={!!regenerating || !!applyingMedia}
+                            data-testid={`button-source-brand-image-modal-${scene.id}`}
+                          >
+                            Brand Media
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 text-sm"
+                            onClick={() => openMediaPicker(scene.id, 'image', 'library')}
+                            disabled={!!regenerating || !!applyingMedia}
+                            data-testid={`button-source-library-image-modal-${scene.id}`}
+                          >
+                            Asset Library
+                          </Button>
+                        </div>
+                      </div>
+                      
+                      {/* Video Sources */}
+                      <div className="space-y-2">
+                        <Label className="text-xs text-muted-foreground uppercase tracking-wider">Video Sources</Label>
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 text-sm"
+                            onClick={() => regenerateVideo(scene.id)}
+                            disabled={!!regenerating}
+                            data-testid={`button-source-ai-video-modal-${scene.id}`}
+                          >
+                            {regenerating === `video-${scene.id}` ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Sparkles className="w-4 h-4 mr-1" /> AI</>}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 text-sm"
+                            onClick={() => openMediaPicker(scene.id, 'video', 'pexels')}
+                            disabled={!!regenerating || !!applyingMedia}
+                            data-testid={`button-source-pexels-video-modal-${scene.id}`}
+                          >
+                            Pexels
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 text-sm opacity-50"
+                            disabled={true}
+                            data-testid={`button-source-brand-video-modal-${scene.id}`}
+                          >
+                            Brand Media
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 text-sm"
+                            onClick={() => openMediaPicker(scene.id, 'video', 'library')}
+                            disabled={!!regenerating || !!applyingMedia}
+                            data-testid={`button-source-library-video-modal-${scene.id}`}
+                          >
+                            Asset Library
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+              {/* Right Column: Text Content & Settings */}
+              <div className="space-y-4">
+                {/* Narration Section */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <Label className="text-sm font-medium">Narration</Label>
+                    {projectId && editingNarration !== scene.id && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 px-2 text-xs"
+                        onClick={() => {
+                          setEditingNarration(scene.id);
+                          setEditedNarration(prev => ({ ...prev, [scene.id]: scene.narration }));
+                        }}
+                        data-testid={`button-edit-narration-modal-${scene.id}`}
+                      >
+                        <Pencil className="w-3 h-3 mr-1" />
+                        Edit
+                      </Button>
+                    )}
+                  </div>
+                  {editingNarration === scene.id ? (
+                    <div className="space-y-2">
+                      <Textarea
+                        value={editedNarration[scene.id] || ''}
+                        onChange={(e) => setEditedNarration(prev => ({ ...prev, [scene.id]: e.target.value }))}
+                        className="text-sm min-h-[100px]"
+                        placeholder="Enter narration text..."
+                        data-testid={`textarea-narration-modal-${scene.id}`}
+                      />
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          onClick={() => saveNarration(scene.id)}
+                          disabled={savingNarration === scene.id}
+                          data-testid={`button-save-narration-modal-${scene.id}`}
+                        >
+                          {savingNarration === scene.id ? (
+                            <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                          ) : (
+                            <Save className="w-3 h-3 mr-1" />
+                          )}
+                          Save
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setEditingNarration(null)}
+                          disabled={savingNarration === scene.id}
+                          data-testid={`button-cancel-narration-modal-${scene.id}`}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        After saving, regenerate voiceover to update audio.
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="text-sm bg-muted/50 p-3 rounded">{scene.narration}</p>
+                  )}
+                </div>
+                
+                {/* Visual Direction Section */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <Label className="text-sm font-medium">Visual Direction</Label>
+                    {projectId && editingVisualDirection !== scene.id && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 px-2 text-xs"
+                        onClick={() => {
+                          setEditingVisualDirection(scene.id);
+                          setEditedVisualDirection(prev => ({ ...prev, [scene.id]: scene.background.source }));
+                        }}
+                        data-testid={`button-edit-visual-direction-modal-${scene.id}`}
+                      >
+                        <Pencil className="w-3 h-3 mr-1" />
+                        Edit
+                      </Button>
+                    )}
+                  </div>
+                  {editingVisualDirection === scene.id ? (
+                    <div className="space-y-2">
+                      <Textarea
+                        value={editedVisualDirection[scene.id] || ''}
+                        onChange={(e) => setEditedVisualDirection(prev => ({ ...prev, [scene.id]: e.target.value }))}
+                        className="text-sm min-h-[100px]"
+                        placeholder="Describe the visual scene..."
+                        data-testid={`textarea-visual-direction-modal-${scene.id}`}
+                      />
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          onClick={() => saveVisualDirection(scene.id)}
+                          disabled={savingVisualDirection === scene.id}
+                          data-testid={`button-save-visual-direction-modal-${scene.id}`}
+                        >
+                          {savingVisualDirection === scene.id ? (
+                            <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                          ) : (
+                            <Save className="w-3 h-3 mr-1" />
+                          )}
+                          Save
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setEditingVisualDirection(null)}
+                          disabled={savingVisualDirection === scene.id}
+                          data-testid={`button-cancel-visual-direction-modal-${scene.id}`}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        After saving, regenerate image/video to update visuals.
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="text-sm bg-muted/50 p-3 rounded">{scene.background.source}</p>
+                  )}
+                </div>
+                
+                {/* Product Overlay Settings */}
+                {hasAIBackground && (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                      <div className="flex items-center gap-2">
+                        <Layers className="w-4 h-4 text-muted-foreground" />
+                        <Label className="text-sm font-medium">Show Product Overlay</Label>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {!defaultOverlay && (
+                          <span className="text-xs text-muted-foreground">(Off by default for {scene.type})</span>
+                        )}
+                        <Switch 
+                          checked={showsProductOverlay}
+                          onCheckedChange={(checked) => {
+                            if (onToggleProductOverlay) {
+                              onToggleProductOverlay(scene.id, checked);
+                            }
+                          }}
+                          data-testid={`switch-product-overlay-modal-${scene.id}`}
+                        />
+                      </div>
+                    </div>
+                    
+                    {showsProductOverlay && projectId && scene.assets?.productOverlayUrl && (
+                      <div className="p-4 bg-muted/30 rounded-lg border space-y-4">
+                        <Label className="text-sm font-medium flex items-center gap-1">
+                          <Settings className="w-4 h-4" /> Overlay Settings
+                          {savingOverlay === scene.id && <Loader2 className="w-3 h-3 animate-spin ml-2" />}
+                        </Label>
+                        
+                        <div className="grid grid-cols-3 gap-4">
+                          <div className="space-y-1">
+                            <Label className="text-xs">Horizontal</Label>
+                            <Select 
+                              value={getOverlaySettings(scene).x}
+                              onValueChange={(val) => {
+                                const newX = val as 'left' | 'center' | 'right';
+                                updateLocalOverlay(scene.id, { x: newX });
+                                updateProductOverlay(scene.id, { 
+                                  position: { x: newX, y: getOverlaySettings(scene).y }
+                                });
+                              }}
+                            >
+                              <SelectTrigger className="h-9" data-testid={`select-overlay-x-modal-${scene.id}`}>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="left">Left</SelectItem>
+                                <SelectItem value="center">Center</SelectItem>
+                                <SelectItem value="right">Right</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          
+                          <div className="space-y-1">
+                            <Label className="text-xs">Vertical</Label>
+                            <Select 
+                              value={getOverlaySettings(scene).y}
+                              onValueChange={(val) => {
+                                const newY = val as 'top' | 'center' | 'bottom';
+                                updateLocalOverlay(scene.id, { y: newY });
+                                updateProductOverlay(scene.id, { 
+                                  position: { x: getOverlaySettings(scene).x, y: newY }
+                                });
+                              }}
+                            >
+                              <SelectTrigger className="h-9" data-testid={`select-overlay-y-modal-${scene.id}`}>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="top">Top</SelectItem>
+                                <SelectItem value="center">Center</SelectItem>
+                                <SelectItem value="bottom">Bottom</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          
+                          <div className="space-y-1">
+                            <Label className="text-xs">Animation</Label>
+                            <Select 
+                              value={getOverlaySettings(scene).animation}
+                              onValueChange={(val) => {
+                                const newAnim = val as OverlayAnimation;
+                                updateLocalOverlay(scene.id, { animation: newAnim });
+                                updateProductOverlay(scene.id, { animation: newAnim });
+                              }}
+                            >
+                              <SelectTrigger className="h-9" data-testid={`select-overlay-animation-modal-${scene.id}`}>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="fade">Fade</SelectItem>
+                                <SelectItem value="zoom">Zoom</SelectItem>
+                                <SelectItem value="slide">Slide</SelectItem>
+                                <SelectItem value="none">None</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <Label className="text-xs">Scale</Label>
+                            <span className="text-xs text-muted-foreground">
+                              {Math.round(getOverlaySettings(scene).scale * 100)}%
+                            </span>
+                          </div>
+                          <Slider
+                            value={[getOverlaySettings(scene).scale * 100]}
+                            onValueChange={(val) => updateLocalOverlay(scene.id, { scale: val[0] / 100 })}
+                            onValueCommit={(val) => updateProductOverlay(scene.id, { scale: val[0] / 100 })}
+                            min={10}
+                            max={80}
+                            step={5}
+                            className="w-full"
+                            data-testid={`slider-overlay-scale-modal-${scene.id}`}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      );
+    })()}
     
     {/* Media Picker Dialog */}
     <MediaPickerDialog

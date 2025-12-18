@@ -1537,7 +1537,8 @@ router.post('/:projectId/scenes/:sceneId/regenerate-image', isAuthenticated, asy
       return res.json({ 
         success: true, 
         newImageUrl: result.newImageUrl,
-        source: result.source
+        source: result.source,
+        project: projectData
       });
     }
     
@@ -1612,7 +1613,8 @@ router.post('/:projectId/scenes/:sceneId/regenerate-video', isAuthenticated, asy
         success: true, 
         newVideoUrl: result.newVideoUrl,
         duration: result.duration,
-        source: result.source
+        source: result.source,
+        project: projectData
       });
     }
     
@@ -1647,7 +1649,7 @@ router.post('/:projectId/scenes/:sceneId/switch-background', isAuthenticated, as
     if (result.success) {
       await saveProjectToDb(projectData, projectData.ownerId);
       const scene = projectData.scenes.find((s: Scene) => s.id === sceneId);
-      return res.json({ success: true, scene });
+      return res.json({ success: true, scene, project: projectData });
     }
     
     return res.status(400).json({ success: false, error: result.error });
