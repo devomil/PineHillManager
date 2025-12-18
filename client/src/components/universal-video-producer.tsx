@@ -1138,6 +1138,10 @@ function ScenePreview({
     animation: OverlayAnimation;
   }>>({});
   const [isReordering, setIsReordering] = useState(false);
+  const [mediaPickerOpen, setMediaPickerOpen] = useState<string | null>(null);
+  const [mediaPickerType, setMediaPickerType] = useState<'image' | 'video'>('image');
+  const [mediaPickerSource, setMediaPickerSource] = useState<'ai' | 'pexels' | 'unsplash' | 'brand' | 'library'>('ai');
+  const [applyingMedia, setApplyingMedia] = useState<string | null>(null);
   const { toast } = useToast();
   
   // Drag-and-drop sensors
@@ -1367,6 +1371,39 @@ function ScenePreview({
       setRegenerating(null);
     }
   };
+
+  // Apply media from library/source to scene
+  const applyMediaToScene = async (sceneId: string, mediaUrl: string, mediaType: 'image' | 'video', sourceName: string) => {
+    if (!projectId) return;
+    setApplyingMedia(sceneId);
+    try {
+      const res = await fetch(`/api/universal-video/${projectId}/scenes/${sceneId}/set-media`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ mediaUrl, mediaType, source: sourceName })
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast({ title: 'Media applied', description: `Scene updated with ${sourceName} content.` });
+        setMediaPickerOpen(null);
+        onSceneUpdate?.();
+      } else {
+        toast({ title: 'Failed', description: data.error, variant: 'destructive' });
+      }
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    } finally {
+      setApplyingMedia(null);
+    }
+  };
+
+  // Open media picker for a scene
+  const openMediaPicker = (sceneId: string, type: 'image' | 'video', source: 'ai' | 'pexels' | 'unsplash' | 'brand' | 'library') => {
+    setMediaPickerOpen(sceneId);
+    setMediaPickerType(type);
+    setMediaPickerSource(source);
+  };
   
   // Sortable scene item wrapper
   const SortableSceneItem = ({ scene, index, children }: { scene: Scene; index: number; children: (dragHandle: JSX.Element) => JSX.Element }) => {
@@ -1408,6 +1445,7 @@ function ScenePreview({
   };
 
   return (
+    <>
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
       <SortableContext items={scenes.map(s => s.id)} strategy={verticalListSortingStrategy}>
         <div className="space-y-3">
@@ -1573,9 +1611,10 @@ function ScenePreview({
                       </div>
                     )}
                     
-                    {/* Compact Regenerate Controls */}
+                    {/* Media Source Selector Controls */}
                     {projectId && (
-                      <div className="p-2 bg-muted/30 rounded-lg border">
+                      <div className="p-3 bg-muted/30 rounded-lg border space-y-3">
+                        {/* Custom prompt and type toggles */}
                         <div className="flex items-center gap-2 flex-wrap">
                           <Input
                             placeholder="Custom prompt (optional)"
@@ -1584,34 +1623,28 @@ function ScenePreview({
                             className="text-xs h-7 flex-1 min-w-[120px]"
                             data-testid={`input-custom-prompt-${scene.id}`}
                           />
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-7 text-xs"
-                            onClick={() => regenerateImage(scene.id)}
-                            disabled={!!regenerating}
-                            data-testid={`button-regenerate-image-${scene.id}`}
-                          >
-                            {regenerating === `image-${scene.id}` ? (
-                              <Loader2 className="w-3 h-3 animate-spin" />
-                            ) : (
-                              <><ImageIcon className="w-3 h-3 mr-1" /> Image</>
-                            )}
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-7 text-xs"
-                            onClick={() => regenerateVideo(scene.id)}
-                            disabled={!!regenerating}
-                            data-testid={`button-regenerate-video-${scene.id}`}
-                          >
-                            {regenerating === `video-${scene.id}` ? (
-                              <Loader2 className="w-3 h-3 animate-spin" />
-                            ) : (
-                              <><Video className="w-3 h-3 mr-1" /> Video</>
-                            )}
-                          </Button>
+                          <div className="flex border rounded-md overflow-hidden">
+                            <Button
+                              size="sm"
+                              variant={scene.background?.type !== 'video' ? 'default' : 'ghost'}
+                              className="h-7 text-xs rounded-none"
+                              onClick={() => switchBackground(scene.id, false)}
+                              disabled={!!regenerating}
+                              data-testid={`button-type-image-${scene.id}`}
+                            >
+                              <ImageIcon className="w-3 h-3 mr-1" /> Image
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant={scene.background?.type === 'video' ? 'default' : 'ghost'}
+                              className="h-7 text-xs rounded-none"
+                              onClick={() => switchBackground(scene.id, true)}
+                              disabled={!!regenerating}
+                              data-testid={`button-type-video-${scene.id}`}
+                            >
+                              <Video className="w-3 h-3 mr-1" /> Video
+                            </Button>
+                          </div>
                           <Button
                             size="sm"
                             variant="outline"
@@ -1623,9 +1656,115 @@ function ScenePreview({
                             {regenerating === `switch-${scene.id}` ? (
                               <Loader2 className="w-3 h-3 animate-spin" />
                             ) : (
-                              <>{scene.background?.type === 'video' ? 'Use Image' : 'Use Video'}</>
+                              <>Use {scene.background?.type === 'video' ? 'Image' : 'Video'}</>
                             )}
                           </Button>
+                        </div>
+                        
+                        {/* Media Source Buttons - Two columns */}
+                        <div className="grid grid-cols-2 gap-2">
+                          {/* Image Sources */}
+                          <div className="space-y-1">
+                            <Label className="text-[10px] text-muted-foreground uppercase tracking-wider">Image Sources</Label>
+                            <div className="flex flex-wrap gap-1">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-6 text-xs px-2"
+                                onClick={() => regenerateImage(scene.id)}
+                                disabled={!!regenerating}
+                                data-testid={`button-source-ai-image-${scene.id}`}
+                              >
+                                {regenerating === `image-${scene.id}` ? <Loader2 className="w-3 h-3 animate-spin" /> : 'AI'}
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-6 text-xs px-2"
+                                onClick={() => openMediaPicker(scene.id, 'image', 'pexels')}
+                                disabled={!!regenerating || !!applyingMedia}
+                                data-testid={`button-source-pexels-image-${scene.id}`}
+                              >
+                                Pexels
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-6 text-xs px-2"
+                                onClick={() => openMediaPicker(scene.id, 'image', 'unsplash')}
+                                disabled={!!regenerating || !!applyingMedia}
+                                data-testid={`button-source-unsplash-image-${scene.id}`}
+                              >
+                                Unsplash
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-6 text-xs px-2"
+                                onClick={() => openMediaPicker(scene.id, 'image', 'brand')}
+                                disabled={!!regenerating || !!applyingMedia}
+                                data-testid={`button-source-brand-image-${scene.id}`}
+                              >
+                                Brand Media
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-6 text-xs px-2"
+                                onClick={() => openMediaPicker(scene.id, 'image', 'library')}
+                                disabled={!!regenerating || !!applyingMedia}
+                                data-testid={`button-source-library-image-${scene.id}`}
+                              >
+                                Asset Library
+                              </Button>
+                            </div>
+                          </div>
+                          
+                          {/* Video Sources */}
+                          <div className="space-y-1">
+                            <Label className="text-[10px] text-muted-foreground uppercase tracking-wider">Video Sources</Label>
+                            <div className="flex flex-wrap gap-1">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-6 text-xs px-2"
+                                onClick={() => regenerateVideo(scene.id)}
+                                disabled={!!regenerating}
+                                data-testid={`button-source-ai-video-${scene.id}`}
+                              >
+                                {regenerating === `video-${scene.id}` ? <Loader2 className="w-3 h-3 animate-spin" /> : 'AI'}
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-6 text-xs px-2"
+                                onClick={() => openMediaPicker(scene.id, 'video', 'pexels')}
+                                disabled={!!regenerating || !!applyingMedia}
+                                data-testid={`button-source-pexels-video-${scene.id}`}
+                              >
+                                Pexels
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-6 text-xs px-2 opacity-50"
+                                disabled={true}
+                                data-testid={`button-source-brand-video-${scene.id}`}
+                              >
+                                Brand Media
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-6 text-xs px-2"
+                                onClick={() => openMediaPicker(scene.id, 'video', 'library')}
+                                disabled={!!regenerating || !!applyingMedia}
+                                data-testid={`button-source-library-video-${scene.id}`}
+                              >
+                                Asset Library
+                              </Button>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     )}
@@ -1956,6 +2095,272 @@ function ScenePreview({
         </div>
       </SortableContext>
     </DndContext>
+    
+    {/* Media Picker Dialog */}
+    <MediaPickerDialog
+      open={!!mediaPickerOpen}
+      onClose={() => setMediaPickerOpen(null)}
+      sceneId={mediaPickerOpen || ''}
+      mediaType={mediaPickerType}
+      source={mediaPickerSource}
+      onSourceChange={setMediaPickerSource}
+      onMediaSelect={(url, type, source) => {
+        if (mediaPickerOpen) {
+          applyMediaToScene(mediaPickerOpen, url, type, source);
+        }
+      }}
+      isApplying={!!applyingMedia}
+    />
+    </>
+  );
+}
+
+// Media Picker Dialog Component
+function MediaPickerDialog({
+  open,
+  onClose,
+  sceneId,
+  mediaType,
+  source,
+  onSourceChange,
+  onMediaSelect,
+  isApplying
+}: {
+  open: boolean;
+  onClose: () => void;
+  sceneId: string;
+  mediaType: 'image' | 'video';
+  source: 'ai' | 'pexels' | 'unsplash' | 'brand' | 'library';
+  onSourceChange: (source: 'ai' | 'pexels' | 'unsplash' | 'brand' | 'library') => void;
+  onMediaSelect: (url: string, type: 'image' | 'video', source: string) => void;
+  isApplying: boolean;
+}) {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [pexelsResults, setPexelsResults] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  
+  // Fetch brand media library
+  const { data: brandMediaData } = useQuery<{ success: boolean; assets: any[] }>({
+    queryKey: ['/api/brand-media-library'],
+    enabled: open && source === 'brand',
+  });
+  
+  // Fetch asset library (general assets)
+  const { data: assetLibraryData } = useQuery<{ success: boolean; assets: any[] }>({
+    queryKey: ['/api/videos/assets', { type: mediaType === 'video' ? 'video' : 'all' }],
+    enabled: open && source === 'library',
+  });
+  
+  const brandAssets = brandMediaData?.assets || [];
+  const libraryAssets = assetLibraryData?.assets || [];
+  
+  // Filter brand assets by media type
+  const filteredBrandAssets = brandAssets.filter(a => {
+    if (mediaType === 'video') return a.mediaType === 'video';
+    return a.mediaType === 'photo' || a.mediaType === 'image';
+  });
+  
+  // Filter library assets by type  
+  const filteredLibraryAssets = libraryAssets.filter(a => {
+    if (mediaType === 'video') return a.type === 'video';
+    return a.type === 'image';
+  });
+  
+  // Search Pexels/Unsplash
+  const searchStock = async () => {
+    if (!searchQuery.trim()) return;
+    setIsSearching(true);
+    try {
+      const endpoint = source === 'pexels' 
+        ? `/api/stock/${mediaType === 'video' ? 'videos' : 'images'}/search?query=${encodeURIComponent(searchQuery)}&source=pexels`
+        : `/api/stock/images/search?query=${encodeURIComponent(searchQuery)}&source=unsplash`;
+      const res = await fetch(endpoint, { credentials: 'include' });
+      const data = await res.json();
+      setPexelsResults(data.results || data.photos || data.videos || []);
+    } catch (err) {
+      console.error('Stock search error:', err);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+  
+  const getSourceLabel = () => {
+    switch (source) {
+      case 'pexels': return 'Pexels Stock';
+      case 'unsplash': return 'Unsplash Stock';
+      case 'brand': return 'Brand Media Library';
+      case 'library': return 'Asset Library';
+      default: return 'Select Source';
+    }
+  };
+  
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            {mediaType === 'video' ? <Video className="w-5 h-5" /> : <ImageIcon className="w-5 h-5" />}
+            Select {mediaType === 'video' ? 'Video' : 'Image'} from {getSourceLabel()}
+          </DialogTitle>
+          <DialogDescription>
+            Choose media to use for this scene. Click on an item to apply it.
+          </DialogDescription>
+        </DialogHeader>
+        
+        {/* Source Tabs */}
+        <div className="flex gap-1 flex-wrap border-b pb-2">
+          {['pexels', 'unsplash', 'brand', 'library'].map((s) => {
+            if (s === 'unsplash' && mediaType === 'video') return null;
+            return (
+              <Button
+                key={s}
+                size="sm"
+                variant={source === s ? 'default' : 'outline'}
+                className="h-7 text-xs"
+                onClick={() => onSourceChange(s as any)}
+              >
+                {s === 'pexels' ? 'Pexels' : s === 'unsplash' ? 'Unsplash' : s === 'brand' ? 'Brand Media' : 'Asset Library'}
+              </Button>
+            );
+          })}
+        </div>
+        
+        {/* Search for stock sources */}
+        {(source === 'pexels' || source === 'unsplash') && (
+          <div className="flex gap-2">
+            <Input
+              placeholder={`Search ${source === 'pexels' ? 'Pexels' : 'Unsplash'} for ${mediaType}s...`}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && searchStock()}
+              className="flex-1"
+            />
+            <Button onClick={searchStock} disabled={isSearching}>
+              {isSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Search'}
+            </Button>
+          </div>
+        )}
+        
+        {/* Results Grid */}
+        <ScrollArea className="flex-1 min-h-[300px]">
+          <div className="grid grid-cols-3 md:grid-cols-4 gap-3 p-1">
+            {/* Pexels/Unsplash Results */}
+            {(source === 'pexels' || source === 'unsplash') && pexelsResults.map((item, idx) => {
+              const url = mediaType === 'video' 
+                ? (item.video_files?.[0]?.link || item.url)
+                : (item.src?.large || item.urls?.regular || item.url);
+              const thumbnail = mediaType === 'video'
+                ? (item.image || item.video_pictures?.[0]?.picture)
+                : (item.src?.medium || item.urls?.thumb || item.url);
+              
+              return (
+                <div
+                  key={idx}
+                  className="relative group cursor-pointer rounded-lg overflow-hidden border hover:border-primary transition-colors"
+                  onClick={() => onMediaSelect(url, mediaType, source)}
+                >
+                  <div className="aspect-video bg-gray-200">
+                    {mediaType === 'video' ? (
+                      <div className="relative w-full h-full">
+                        <img src={thumbnail} alt="" className="w-full h-full object-cover" />
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <Video className="w-8 h-8 text-white drop-shadow-lg" />
+                        </div>
+                      </div>
+                    ) : (
+                      <img src={thumbnail} alt="" className="w-full h-full object-cover" />
+                    )}
+                  </div>
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+                    <Button size="sm" variant="secondary" disabled={isApplying}>
+                      {isApplying ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Use This'}
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+            
+            {/* Brand Media Results */}
+            {source === 'brand' && filteredBrandAssets.map((item) => (
+              <div
+                key={item.id}
+                className="relative group cursor-pointer rounded-lg overflow-hidden border hover:border-primary transition-colors"
+                onClick={() => onMediaSelect(item.url, mediaType, 'Brand Media')}
+              >
+                <div className="aspect-video bg-gray-200">
+                  <img 
+                    src={item.thumbnailUrl || item.url} 
+                    alt={item.name} 
+                    className="w-full h-full object-cover" 
+                  />
+                </div>
+                <div className="p-1.5">
+                  <p className="text-xs font-medium truncate">{item.name}</p>
+                  <p className="text-[10px] text-muted-foreground">{item.entityType}</p>
+                </div>
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+                  <Button size="sm" variant="secondary" disabled={isApplying}>
+                    {isApplying ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Use This'}
+                  </Button>
+                </div>
+              </div>
+            ))}
+            
+            {/* Asset Library Results */}
+            {source === 'library' && filteredLibraryAssets.map((item) => (
+              <div
+                key={item.id}
+                className="relative group cursor-pointer rounded-lg overflow-hidden border hover:border-primary transition-colors"
+                onClick={() => onMediaSelect(item.url, mediaType, 'Asset Library')}
+              >
+                <div className="aspect-video bg-gray-200">
+                  {item.type === 'video' ? (
+                    <div className="relative w-full h-full bg-gray-900 flex items-center justify-center">
+                      <Video className="w-8 h-8 text-white/70" />
+                    </div>
+                  ) : (
+                    <img 
+                      src={item.thumbnail_url || item.url} 
+                      alt={item.name} 
+                      className="w-full h-full object-cover" 
+                    />
+                  )}
+                </div>
+                <div className="p-1.5">
+                  <p className="text-xs font-medium truncate">{item.name}</p>
+                  <p className="text-[10px] text-muted-foreground">{item.source}</p>
+                </div>
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+                  <Button size="sm" variant="secondary" disabled={isApplying}>
+                    {isApplying ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Use This'}
+                  </Button>
+                </div>
+              </div>
+            ))}
+            
+            {/* Empty states */}
+            {source === 'brand' && filteredBrandAssets.length === 0 && (
+              <div className="col-span-full text-center py-8 text-muted-foreground">
+                <FolderOpen className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                <p>No {mediaType}s in Brand Media Library</p>
+              </div>
+            )}
+            {source === 'library' && filteredLibraryAssets.length === 0 && (
+              <div className="col-span-full text-center py-8 text-muted-foreground">
+                <FolderOpen className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                <p>No {mediaType}s in Asset Library</p>
+              </div>
+            )}
+            {(source === 'pexels' || source === 'unsplash') && pexelsResults.length === 0 && (
+              <div className="col-span-full text-center py-8 text-muted-foreground">
+                <ImageIcon className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                <p>Search for {mediaType}s above</p>
+              </div>
+            )}
+          </div>
+        </ScrollArea>
+      </DialogContent>
+    </Dialog>
   );
 }
 

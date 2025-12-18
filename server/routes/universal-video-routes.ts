@@ -1657,6 +1657,88 @@ router.post('/:projectId/scenes/:sceneId/switch-background', isAuthenticated, as
   }
 });
 
+// Set scene media from external source (Pexels, Unsplash, Brand Media, Asset Library)
+router.patch('/:projectId/scenes/:sceneId/set-media', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const userId = (req.user as any)?.id;
+    const { projectId, sceneId } = req.params;
+    const { mediaUrl, mediaType, source } = req.body;
+    
+    if (!mediaUrl || !mediaType || !source) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Missing required fields: mediaUrl, mediaType, source' 
+      });
+    }
+    
+    const projectData = await getProjectFromDb(projectId);
+    if (!projectData) {
+      return res.status(404).json({ success: false, error: 'Project not found' });
+    }
+    
+    if (projectData.ownerId !== userId) {
+      return res.status(403).json({ success: false, error: 'Access denied' });
+    }
+    
+    // Find the scene
+    const sceneIndex = projectData.scenes.findIndex((s: Scene) => s.id === sceneId);
+    if (sceneIndex === -1) {
+      return res.status(404).json({ success: false, error: 'Scene not found' });
+    }
+    
+    const scene = projectData.scenes[sceneIndex];
+    
+    // Push to history before making changes
+    universalVideoService.pushToHistory(projectData, `Set ${mediaType} from ${source}`, ['scenes']);
+    
+    // Initialize assets if needed
+    if (!scene.assets) {
+      scene.assets = {} as any;
+    }
+    
+    // Update scene based on media type
+    if (mediaType === 'video') {
+      // Set as b-roll video
+      const existingPrompt = (scene.background as any)?.prompt;
+      scene.background = {
+        type: 'video',
+        videoUrl: mediaUrl,
+        source: source as any,
+        prompt: existingPrompt
+      } as any;
+      // Clear any existing image background
+      if (scene.assets) {
+        (scene.assets as any).backgroundUrl = undefined;
+        (scene.assets as any).backgroundSource = undefined;
+      }
+    } else {
+      // Set as image background - update both background and assets for proper UI rendering
+      const existingPrompt = (scene.background as any)?.prompt;
+      scene.background = {
+        type: 'image',
+        imageUrl: mediaUrl,
+        source: source as any,
+        prompt: existingPrompt
+      } as any;
+      scene.assets!.backgroundUrl = mediaUrl;
+      (scene.assets as any).backgroundSource = source;
+    }
+    
+    await saveProjectToDb(projectData, projectData.ownerId);
+    const historyStatus = universalVideoService.getHistoryStatus(projectData);
+    
+    return res.json({ 
+      success: true, 
+      scene: projectData.scenes[sceneIndex],
+      project: projectData,
+      historyStatus 
+    });
+  } catch (error: any) {
+    console.error('[UniversalVideo] Set media error:', error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Phase 2: Product Overlay Editor
 router.patch('/:projectId/scenes/:sceneId/product-overlay', isAuthenticated, async (req: Request, res: Response) => {
   try {
