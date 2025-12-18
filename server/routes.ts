@@ -52,7 +52,7 @@ import {
 import { z } from "zod";
 import { eq, and, or, isNull, isNotNull, desc, gte, lte, sql, ne } from "drizzle-orm";
 import { db } from "./db";
-import { posSaleItems, stagedProducts, goals, posSales, inventoryItems, brandAssets } from "@shared/schema";
+import { posSaleItems, stagedProducts, goals, posSales, inventoryItems, brandAssets, brandMediaLibrary } from "@shared/schema";
 
 // Configure multer for file uploads
 const uploadsDir = path.join(process.cwd(), 'uploads');
@@ -17455,6 +17455,219 @@ Respond in JSON format:
     } catch (error) {
       console.error('[Asset Library] Upload error:', error);
       res.status(500).json({ error: 'Failed to upload file' });
+    }
+  });
+
+  // ========== BRAND MEDIA LIBRARY MANAGEMENT ==========
+  // Get all brand media library assets
+  app.get('/api/brand-media-library', isAuthenticated, async (req, res) => {
+    try {
+      const assets = await db.select().from(brandMediaLibrary)
+        .where(eq(brandMediaLibrary.isActive, true))
+        .orderBy(brandMediaLibrary.createdAt);
+      
+      res.json({
+        success: true,
+        assets,
+        total: assets.length
+      });
+    } catch (error) {
+      console.error('[Brand Media Library] Get all error:', error);
+      res.status(500).json({ error: 'Failed to get brand media assets' });
+    }
+  });
+
+  // Get single brand media asset
+  app.get('/api/brand-media-library/:id', isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const [asset] = await db.select().from(brandMediaLibrary)
+        .where(eq(brandMediaLibrary.id, id));
+      
+      if (!asset) {
+        return res.status(404).json({ error: 'Asset not found' });
+      }
+      
+      res.json({ success: true, asset });
+    } catch (error) {
+      console.error('[Brand Media Library] Get one error:', error);
+      res.status(500).json({ error: 'Failed to get brand media asset' });
+    }
+  });
+
+  // Create brand media asset
+  app.post('/api/brand-media-library', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const data = req.body;
+      
+      const [asset] = await db.insert(brandMediaLibrary).values({
+        name: data.name,
+        description: data.description,
+        mediaType: data.mediaType,
+        entityName: data.entityName,
+        entityType: data.entityType,
+        url: data.url,
+        thumbnailUrl: data.thumbnailUrl,
+        width: data.width,
+        height: data.height,
+        duration: data.duration,
+        fileSize: data.fileSize,
+        mimeType: data.mimeType,
+        matchKeywords: data.matchKeywords || [],
+        excludeKeywords: data.excludeKeywords || [],
+        usageContexts: data.usageContexts || [],
+        visualAttributes: data.visualAttributes || {},
+        placementSettings: data.placementSettings || {},
+        priority: data.priority || 5,
+        isDefault: data.isDefault || false,
+        isActive: true,
+        uploadedBy: user.id,
+      }).returning();
+      
+      res.json({ success: true, asset });
+    } catch (error) {
+      console.error('[Brand Media Library] Create error:', error);
+      res.status(500).json({ error: 'Failed to create brand media asset' });
+    }
+  });
+
+  // Update brand media asset
+  app.put('/api/brand-media-library/:id', isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const data = req.body;
+      
+      const [updated] = await db.update(brandMediaLibrary)
+        .set({
+          name: data.name,
+          description: data.description,
+          mediaType: data.mediaType,
+          entityName: data.entityName,
+          entityType: data.entityType,
+          url: data.url,
+          thumbnailUrl: data.thumbnailUrl,
+          matchKeywords: data.matchKeywords,
+          excludeKeywords: data.excludeKeywords,
+          usageContexts: data.usageContexts,
+          visualAttributes: data.visualAttributes,
+          placementSettings: data.placementSettings,
+          priority: data.priority,
+          isDefault: data.isDefault,
+          updatedAt: new Date(),
+        })
+        .where(eq(brandMediaLibrary.id, id))
+        .returning();
+      
+      if (!updated) {
+        return res.status(404).json({ error: 'Asset not found' });
+      }
+      
+      res.json({ success: true, asset: updated });
+    } catch (error) {
+      console.error('[Brand Media Library] Update error:', error);
+      res.status(500).json({ error: 'Failed to update brand media asset' });
+    }
+  });
+
+  // Delete brand media asset
+  app.delete('/api/brand-media-library/:id', isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      
+      // Soft delete by setting isActive to false
+      const [deleted] = await db.update(brandMediaLibrary)
+        .set({ isActive: false, updatedAt: new Date() })
+        .where(eq(brandMediaLibrary.id, id))
+        .returning();
+      
+      if (!deleted) {
+        return res.status(404).json({ error: 'Asset not found' });
+      }
+      
+      res.json({ success: true, message: 'Asset deleted' });
+    } catch (error) {
+      console.error('[Brand Media Library] Delete error:', error);
+      res.status(500).json({ error: 'Failed to delete brand media asset' });
+    }
+  });
+
+  // Upload and create brand media asset from file
+  app.post('/api/brand-media-library/upload', isAuthenticated, memoryUpload.single('file'), async (req, res) => {
+    try {
+      const file = req.file;
+      const { name, mediaType, entityName, entityType, matchKeywords, usageContexts } = req.body;
+      
+      if (!file) {
+        return res.status(400).json({ error: 'No file uploaded' });
+      }
+      
+      const user = req.user as any;
+      
+      // Get bucket info from PUBLIC_OBJECT_SEARCH_PATHS
+      const publicPaths = process.env.PUBLIC_OBJECT_SEARCH_PATHS || '';
+      const firstPath = publicPaths.split(',')[0]?.trim();
+      
+      if (!firstPath) {
+        return res.status(500).json({ error: 'Object storage not configured' });
+      }
+      
+      const pathParts = firstPath.startsWith('/') ? firstPath.slice(1).split('/') : firstPath.split('/');
+      const bucketName = pathParts[0];
+      
+      if (!bucketName) {
+        return res.status(500).json({ error: 'Could not determine bucket name' });
+      }
+      
+      const { objectStorageClient } = await import('./objectStorage');
+      const bucket = objectStorageClient.bucket(bucketName);
+      
+      const filename = `public/brand-media/${Date.now()}_${file.originalname.replace(/[^a-z0-9.]/gi, '_')}`;
+      const fileRef = bucket.file(filename);
+      
+      await fileRef.save(file.buffer, {
+        metadata: { contentType: file.mimetype },
+      });
+      
+      // Determine media type
+      let detectedType = mediaType || 'photo';
+      if (file.mimetype.startsWith('video/')) detectedType = 'video';
+      else if (file.mimetype.includes('logo') || file.originalname.toLowerCase().includes('logo')) detectedType = 'logo';
+      
+      // Parse keywords from string to array if needed
+      const keywords = typeof matchKeywords === 'string' 
+        ? matchKeywords.split(',').map((k: string) => k.trim().toLowerCase()).filter(Boolean)
+        : (matchKeywords || []);
+      
+      const contexts = typeof usageContexts === 'string'
+        ? usageContexts.split(',').map((c: string) => c.trim()).filter(Boolean)
+        : (usageContexts || ['intro', 'feature']);
+      
+      const [asset] = await db.insert(brandMediaLibrary).values({
+        name: name || file.originalname,
+        description: '',
+        mediaType: detectedType,
+        entityName: entityName || 'Pine Hill Farm',
+        entityType: entityType || 'brand',
+        url: `/${bucketName}/${filename}`,
+        thumbnailUrl: `/${bucketName}/${filename}`,
+        fileSize: file.size,
+        mimeType: file.mimetype,
+        matchKeywords: keywords,
+        excludeKeywords: [],
+        usageContexts: contexts,
+        visualAttributes: {},
+        placementSettings: detectedType === 'logo' ? { position: 'bottom-right', size: 0.12, opacity: 0.9 } : {},
+        priority: 5,
+        isDefault: false,
+        isActive: true,
+        uploadedBy: user.id,
+      }).returning();
+      
+      res.json({ success: true, asset });
+    } catch (error) {
+      console.error('[Brand Media Library] Upload error:', error);
+      res.status(500).json({ error: 'Failed to upload brand media asset' });
     }
   });
 

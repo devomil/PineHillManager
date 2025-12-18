@@ -8,8 +8,9 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
 import { Progress } from '@/components/ui/progress';
+import { Textarea } from '@/components/ui/textarea';
 import { 
   Image, 
   Video, 
@@ -25,7 +26,10 @@ import {
   Tag,
   Clock,
   FileType,
-  Sparkles
+  Sparkles,
+  Edit,
+  Building2,
+  MapPin
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
@@ -62,6 +66,24 @@ interface UserUpload {
   description?: string;
   tags: string[];
   created_at: string;
+}
+
+interface BrandMedia {
+  id: number;
+  name: string;
+  description?: string;
+  mediaType: 'logo' | 'photo' | 'video' | 'graphic' | 'watermark';
+  entityName?: string;
+  entityType?: string;
+  url: string;
+  thumbnailUrl?: string;
+  matchKeywords: string[];
+  excludeKeywords: string[];
+  usageContexts: string[];
+  priority: number;
+  isDefault: boolean;
+  isActive: boolean;
+  createdAt: string;
 }
 
 const ASSET_CATEGORIES = [
@@ -101,7 +123,7 @@ export default function AssetLibrary() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   
-  const [activeTab, setActiveTab] = useState<'library' | 'uploads'>('library');
+  const [activeTab, setActiveTab] = useState<'library' | 'uploads' | 'brand'>('brand');
   const [assetType, setAssetType] = useState<AssetType>('all');
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const [searchQuery, setSearchQuery] = useState('');
@@ -111,6 +133,20 @@ export default function AssetLibrary() {
   const [selectedAsset, setSelectedAsset] = useState<MediaAsset | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
+  
+  // Brand Media Library state
+  const [selectedBrandAsset, setSelectedBrandAsset] = useState<BrandMedia | null>(null);
+  const [isEditingBrand, setIsEditingBrand] = useState(false);
+  const [brandEditForm, setBrandEditForm] = useState({
+    name: '',
+    description: '',
+    mediaType: 'photo',
+    entityName: '',
+    entityType: 'brand',
+    url: '',
+    matchKeywords: '',
+    usageContexts: '',
+  });
 
   const { data: assetsData, isLoading: isLoadingAssets } = useQuery<{ assets: MediaAsset[]; total: number }>({
     queryKey: ['/api/videos/assets', { type: assetType, search: searchQuery, category: categoryFilter, mood: moodFilter, source: sourceFilter }],
@@ -122,8 +158,43 @@ export default function AssetLibrary() {
     enabled: activeTab === 'uploads',
   });
 
+  const { data: brandMediaData, isLoading: isLoadingBrandMedia } = useQuery<{ assets: BrandMedia[]; total: number }>({
+    queryKey: ['/api/brand-media-library'],
+    enabled: activeTab === 'brand',
+  });
+
+  const deleteBrandAssetMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest('DELETE', `/api/brand-media-library/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/brand-media-library'] });
+      toast({ title: 'Asset deleted', description: 'Brand asset has been removed.' });
+      setSelectedBrandAsset(null);
+    },
+    onError: () => {
+      toast({ title: 'Error', description: 'Failed to delete asset.', variant: 'destructive' });
+    },
+  });
+
+  const updateBrandAssetMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: any }) => {
+      await apiRequest('PUT', `/api/brand-media-library/${id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/brand-media-library'] });
+      toast({ title: 'Asset updated', description: 'Brand asset has been updated.' });
+      setIsEditingBrand(false);
+      setSelectedBrandAsset(null);
+    },
+    onError: () => {
+      toast({ title: 'Error', description: 'Failed to update asset.', variant: 'destructive' });
+    },
+  });
+
   const assets: MediaAsset[] = assetsData?.assets || [];
   const uploads: UserUpload[] = uploadsData?.uploads || [];
+  const brandAssets: BrandMedia[] = brandMediaData?.assets || [];
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -254,8 +325,12 @@ export default function AssetLibrary() {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'library' | 'uploads')}>
-            <TabsList className="grid w-full grid-cols-2">
+          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'library' | 'uploads' | 'brand')}>
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="brand" className="flex items-center gap-2" data-testid="tab-brand-media">
+                <Building2 className="h-4 w-4" />
+                Brand Media
+              </TabsTrigger>
               <TabsTrigger value="library" className="flex items-center gap-2" data-testid="tab-asset-library">
                 <Image className="h-4 w-4" />
                 Asset Library
@@ -556,9 +631,346 @@ export default function AssetLibrary() {
                 </div>
               )}
             </TabsContent>
+
+            {/* Brand Media Library Tab */}
+            <TabsContent value="brand" className="space-y-4">
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-gray-500">
+                  Manage brand assets like logos, store photos, and location images. These are automatically matched during video generation.
+                </p>
+              </div>
+
+              {isLoadingBrandMedia ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+                    <p className="text-gray-500">Loading brand assets...</p>
+                  </div>
+                </div>
+              ) : brandAssets.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center border-2 border-dashed rounded-lg">
+                  <Building2 className="h-16 w-16 text-gray-300 mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-1">No brand assets yet</h3>
+                  <p className="text-gray-500 mb-4 max-w-md">
+                    Add logos, store photos, and branded imagery to automatically include in video productions.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {brandAssets.map((asset) => (
+                    <div
+                      key={asset.id}
+                      className="relative group cursor-pointer rounded-lg overflow-hidden border bg-gray-50 hover:border-primary transition-colors"
+                      onClick={() => setSelectedBrandAsset(asset)}
+                      data-testid={`brand-asset-card-${asset.id}`}
+                    >
+                      <div className="aspect-video bg-gray-200 relative">
+                        {asset.mediaType === 'video' ? (
+                          <div className="w-full h-full flex items-center justify-center bg-gray-900">
+                            <Video className="h-8 w-8 text-white/70" />
+                          </div>
+                        ) : (
+                          <img
+                            src={asset.thumbnailUrl || asset.url}
+                            alt={asset.name}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="gray"><rect width="24" height="24"/></svg>';
+                            }}
+                          />
+                        )}
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100">
+                          <Button 
+                            size="sm" 
+                            variant="secondary"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedBrandAsset(asset);
+                              setIsEditingBrand(true);
+                              setBrandEditForm({
+                                name: asset.name,
+                                description: asset.description || '',
+                                mediaType: asset.mediaType,
+                                entityName: asset.entityName || '',
+                                entityType: asset.entityType || 'brand',
+                                url: asset.url,
+                                matchKeywords: asset.matchKeywords.join(', '),
+                                usageContexts: asset.usageContexts.join(', '),
+                              });
+                            }}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="destructive"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (confirm('Are you sure you want to delete this brand asset?')) {
+                                deleteBrandAssetMutation.mutate(asset.id);
+                              }
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="p-2">
+                        <p className="text-xs font-medium truncate">{asset.name}</p>
+                        <div className="flex items-center gap-1 mt-1 flex-wrap">
+                          <Badge variant="secondary" className="text-xs">
+                            {asset.mediaType}
+                          </Badge>
+                          {asset.entityName && (
+                            <Badge variant="outline" className="text-xs">
+                              <MapPin className="h-2 w-2 mr-1" />
+                              {asset.entityName}
+                            </Badge>
+                          )}
+                          {asset.isDefault && (
+                            <Badge className="text-xs bg-green-100 text-green-800">
+                              Default
+                            </Badge>
+                          )}
+                        </div>
+                        {asset.matchKeywords.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {asset.matchKeywords.slice(0, 3).map((kw) => (
+                              <span key={kw} className="text-xs text-gray-400">#{kw}</span>
+                            ))}
+                            {asset.matchKeywords.length > 3 && (
+                              <span className="text-xs text-gray-400">+{asset.matchKeywords.length - 3}</span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </TabsContent>
           </Tabs>
         </CardContent>
       </Card>
+
+      {/* Brand Asset Edit Dialog */}
+      <Dialog open={isEditingBrand} onOpenChange={setIsEditingBrand}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Edit Brand Asset</DialogTitle>
+            <DialogDescription>
+              Update the brand asset details and matching keywords.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Name</Label>
+              <Input
+                value={brandEditForm.name}
+                onChange={(e) => setBrandEditForm({ ...brandEditForm, name: e.target.value })}
+                data-testid="brand-edit-name"
+              />
+            </div>
+            <div>
+              <Label>Description</Label>
+              <Textarea
+                value={brandEditForm.description}
+                onChange={(e) => setBrandEditForm({ ...brandEditForm, description: e.target.value })}
+                data-testid="brand-edit-description"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Media Type</Label>
+                <Select value={brandEditForm.mediaType} onValueChange={(v) => setBrandEditForm({ ...brandEditForm, mediaType: v })}>
+                  <SelectTrigger data-testid="brand-edit-type">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="logo">Logo</SelectItem>
+                    <SelectItem value="photo">Photo</SelectItem>
+                    <SelectItem value="video">Video</SelectItem>
+                    <SelectItem value="graphic">Graphic</SelectItem>
+                    <SelectItem value="watermark">Watermark</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Entity Type</Label>
+                <Select value={brandEditForm.entityType} onValueChange={(v) => setBrandEditForm({ ...brandEditForm, entityType: v })}>
+                  <SelectTrigger data-testid="brand-edit-entity-type">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="brand">Brand</SelectItem>
+                    <SelectItem value="location">Location</SelectItem>
+                    <SelectItem value="product">Product</SelectItem>
+                    <SelectItem value="store">Store</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div>
+              <Label>Entity Name</Label>
+              <Input
+                value={brandEditForm.entityName}
+                onChange={(e) => setBrandEditForm({ ...brandEditForm, entityName: e.target.value })}
+                placeholder="e.g., Lake Geneva Store, Pine Hill Farm"
+                data-testid="brand-edit-entity-name"
+              />
+            </div>
+            <div>
+              <Label>Match Keywords (comma-separated)</Label>
+              <Input
+                value={brandEditForm.matchKeywords}
+                onChange={(e) => setBrandEditForm({ ...brandEditForm, matchKeywords: e.target.value })}
+                placeholder="pine hill farm, logo, brand"
+                data-testid="brand-edit-keywords"
+              />
+            </div>
+            <div>
+              <Label>Usage Contexts (comma-separated)</Label>
+              <Input
+                value={brandEditForm.usageContexts}
+                onChange={(e) => setBrandEditForm({ ...brandEditForm, usageContexts: e.target.value })}
+                placeholder="marketing, social, website"
+                data-testid="brand-edit-contexts"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditingBrand(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={() => {
+                if (selectedBrandAsset) {
+                  updateBrandAssetMutation.mutate({
+                    id: selectedBrandAsset.id,
+                    data: {
+                      name: brandEditForm.name,
+                      description: brandEditForm.description,
+                      mediaType: brandEditForm.mediaType,
+                      entityName: brandEditForm.entityName,
+                      entityType: brandEditForm.entityType,
+                      matchKeywords: brandEditForm.matchKeywords.split(',').map(k => k.trim()).filter(Boolean),
+                      usageContexts: brandEditForm.usageContexts.split(',').map(c => c.trim()).filter(Boolean),
+                    }
+                  });
+                }
+              }}
+              disabled={updateBrandAssetMutation.isPending}
+              data-testid="brand-edit-save"
+            >
+              {updateBrandAssetMutation.isPending ? 'Saving...' : 'Save Changes'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Brand Asset Details Dialog */}
+      <Dialog open={!!selectedBrandAsset && !isEditingBrand} onOpenChange={() => setSelectedBrandAsset(null)}>
+        <DialogContent className="max-w-2xl">
+          {selectedBrandAsset && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <Building2 className="h-5 w-5" />
+                  {selectedBrandAsset.name}
+                </DialogTitle>
+                <DialogDescription>
+                  Brand asset details and matching configuration
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid grid-cols-2 gap-6">
+                <div className="aspect-video bg-gray-200 rounded-lg overflow-hidden">
+                  {selectedBrandAsset.mediaType === 'video' ? (
+                    <video src={selectedBrandAsset.url} controls className="w-full h-full" />
+                  ) : (
+                    <img 
+                      src={selectedBrandAsset.url} 
+                      alt={selectedBrandAsset.name} 
+                      className="w-full h-full object-contain"
+                    />
+                  )}
+                </div>
+                <div className="space-y-4">
+                  <div>
+                    <Label className="text-xs text-gray-500">Media Type</Label>
+                    <Badge variant="secondary">{selectedBrandAsset.mediaType}</Badge>
+                  </div>
+                  {selectedBrandAsset.entityName && (
+                    <div>
+                      <Label className="text-xs text-gray-500">Entity</Label>
+                      <p className="font-medium">{selectedBrandAsset.entityName} ({selectedBrandAsset.entityType})</p>
+                    </div>
+                  )}
+                  {selectedBrandAsset.description && (
+                    <div>
+                      <Label className="text-xs text-gray-500">Description</Label>
+                      <p className="text-sm text-gray-700">{selectedBrandAsset.description}</p>
+                    </div>
+                  )}
+                  <div>
+                    <Label className="text-xs text-gray-500">Match Keywords</Label>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {selectedBrandAsset.matchKeywords.map((kw) => (
+                        <Badge key={kw} variant="outline" className="text-xs">
+                          #{kw}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                  {selectedBrandAsset.usageContexts.length > 0 && (
+                    <div>
+                      <Label className="text-xs text-gray-500">Usage Contexts</Label>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {selectedBrandAsset.usageContexts.map((ctx) => (
+                          <Badge key={ctx} variant="secondary" className="text-xs">
+                            {ctx}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <div className="flex gap-2 pt-4">
+                    <Button 
+                      variant="outline" 
+                      onClick={() => {
+                        setIsEditingBrand(true);
+                        setBrandEditForm({
+                          name: selectedBrandAsset.name,
+                          description: selectedBrandAsset.description || '',
+                          mediaType: selectedBrandAsset.mediaType,
+                          entityName: selectedBrandAsset.entityName || '',
+                          entityType: selectedBrandAsset.entityType || 'brand',
+                          url: selectedBrandAsset.url,
+                          matchKeywords: selectedBrandAsset.matchKeywords.join(', '),
+                          usageContexts: selectedBrandAsset.usageContexts.join(', '),
+                        });
+                      }}
+                    >
+                      <Edit className="h-4 w-4 mr-2" />
+                      Edit
+                    </Button>
+                    <Button 
+                      variant="destructive"
+                      onClick={() => {
+                        if (confirm('Are you sure you want to delete this brand asset?')) {
+                          deleteBrandAssetMutation.mutate(selectedBrandAsset.id);
+                        }
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!selectedAsset} onOpenChange={() => setSelectedAsset(null)}>
         <DialogContent className="max-w-3xl">
