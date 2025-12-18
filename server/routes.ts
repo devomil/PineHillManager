@@ -17524,21 +17524,31 @@ Respond in JSON format:
       const { name, description, category } = req.body;
       const tags = req.body.tags ? (typeof req.body.tags === 'string' ? req.body.tags.split(',').map((t: string) => t.trim()) : req.body.tags) : [];
       
-      // Get object storage bucket
-      const bucketId = process.env.REPLIT_DEFAULT_BUCKET_ID;
-      if (!bucketId) {
-        return res.status(500).json({ error: 'Object storage not configured' });
+      // Get bucket info from PUBLIC_OBJECT_SEARCH_PATHS (same pattern as brand-assets)
+      const publicPaths = process.env.PUBLIC_OBJECT_SEARCH_PATHS || '';
+      const firstPath = publicPaths.split(',')[0]?.trim();
+      
+      if (!firstPath) {
+        return res.status(500).json({ error: 'Object storage not configured - no PUBLIC_OBJECT_SEARCH_PATHS' });
       }
       
-      const { Storage } = await import('@google-cloud/storage');
-      const storage = new Storage();
-      const bucket = storage.bucket(bucketId);
+      // Extract bucket name from path like /bucket-name/public
+      const pathParts = firstPath.startsWith('/') ? firstPath.slice(1).split('/') : firstPath.split('/');
+      const bucketName = pathParts[0];
+      
+      if (!bucketName) {
+        return res.status(500).json({ error: 'Could not determine bucket name from object storage paths' });
+      }
+      
+      // Use the objectStorageClient from objectStorage.ts
+      const { objectStorageClient } = await import('./objectStorage');
+      const bucket = objectStorageClient.bucket(bucketName);
       
       // Generate unique filename
       const ext = path.extname(file.originalname);
       const timestamp = Date.now();
       const uniqueId = Math.random().toString(36).substring(2, 8);
-      const filename = `.private/media-assets/${timestamp}-${uniqueId}${ext}`;
+      const filename = `public/media-assets/${timestamp}-${uniqueId}${ext}`;
       
       // Upload to object storage
       const fileRef = bucket.file(filename);
@@ -17580,7 +17590,7 @@ Respond in JSON format:
         isDefault: false,
         uploadedBy: user.id,
         settings: {
-          storagePath: `${bucketId}|${filename}`,
+          storagePath: `${bucketName}|${filename}`,
           mediaAssetId: asset.id,
         },
       }).returning();
