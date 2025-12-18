@@ -1265,6 +1265,9 @@ function ScenePreview({
       if (data.success) {
         toast({ title: 'Narration saved', description: 'Regenerate voiceover to update audio.' });
         setEditingNarration(null);
+        if (data.project) {
+          onProjectUpdate?.(data.project);
+        }
         onSceneUpdate?.();
       } else {
         toast({ title: 'Failed', description: data.error, variant: 'destructive' });
@@ -1295,6 +1298,9 @@ function ScenePreview({
       if (data.success) {
         toast({ title: 'Visual direction saved', description: 'Regenerate image/video to apply changes.' });
         setEditingVisualDirection(null);
+        if (data.project) {
+          onProjectUpdate?.(data.project);
+        }
         onSceneUpdate?.();
       } else {
         toast({ title: 'Failed', description: data.error, variant: 'destructive' });
