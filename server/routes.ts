@@ -52,7 +52,7 @@ import {
 import { z } from "zod";
 import { eq, and, or, isNull, isNotNull, desc, gte, lte, sql, ne } from "drizzle-orm";
 import { db } from "./db";
-import { posSaleItems, stagedProducts, goals, posSales, inventoryItems, brandAssets, brandMediaLibrary } from "@shared/schema";
+import { posSaleItems, stagedProducts, goals, posSales, inventoryItems, brandAssets, brandMediaLibrary, mediaAssets } from "@shared/schema";
 
 // Configure multer for file uploads
 const uploadsDir = path.join(process.cwd(), 'uploads');
@@ -17455,6 +17455,283 @@ Respond in JSON format:
     } catch (error) {
       console.error('[Asset Library] Upload error:', error);
       res.status(500).json({ error: 'Failed to upload file' });
+    }
+  });
+
+  // ========== UNIFIED MEDIA ASSETS MANAGEMENT ==========
+  // Get all media assets with optional classification filter
+  app.get('/api/media-assets', isAuthenticated, async (req, res) => {
+    try {
+      const { classification, type } = req.query;
+      
+      let query = db.select().from(mediaAssets);
+      
+      // Build conditions
+      const conditions = [];
+      
+      if (classification && classification !== 'all') {
+        conditions.push(eq(mediaAssets.classification, classification as string));
+      }
+      
+      if (type && type !== 'all') {
+        conditions.push(eq(mediaAssets.type, type as string));
+      }
+      
+      // Execute query with conditions
+      const assets = conditions.length > 0
+        ? await query.where(and(...conditions)).orderBy(desc(mediaAssets.createdAt))
+        : await query.orderBy(desc(mediaAssets.createdAt));
+      
+      res.json({
+        success: true,
+        assets,
+        total: assets.length
+      });
+    } catch (error) {
+      console.error('[Media Assets] Get all error:', error);
+      res.status(500).json({ error: 'Failed to get media assets' });
+    }
+  });
+
+  // Get single media asset
+  app.get('/api/media-assets/:id', isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const [asset] = await db.select().from(mediaAssets)
+        .where(eq(mediaAssets.id, id));
+      
+      if (!asset) {
+        return res.status(404).json({ error: 'Asset not found' });
+      }
+      
+      res.json({ success: true, asset });
+    } catch (error) {
+      console.error('[Media Assets] Get one error:', error);
+      res.status(500).json({ error: 'Failed to get media asset' });
+    }
+  });
+
+  // Upload new media asset (starts as uncategorized)
+  app.post('/api/media-assets', isAuthenticated, memoryUpload.single('file'), async (req, res) => {
+    try {
+      const user = req.user as any;
+      const file = req.file;
+      
+      if (!file) {
+        return res.status(400).json({ error: 'No file uploaded' });
+      }
+      
+      const { name, description, category } = req.body;
+      const tags = req.body.tags ? (typeof req.body.tags === 'string' ? req.body.tags.split(',').map((t: string) => t.trim()) : req.body.tags) : [];
+      
+      // Get object storage bucket
+      const bucketName = process.env.REPLIT_DEFAULT_BUCKET_NAME;
+      if (!bucketName) {
+        return res.status(500).json({ error: 'Object storage not configured' });
+      }
+      
+      const { Storage } = await import('@google-cloud/storage');
+      const storage = new Storage();
+      const bucket = storage.bucket(bucketName);
+      
+      // Generate unique filename
+      const ext = path.extname(file.originalname);
+      const timestamp = Date.now();
+      const uniqueId = Math.random().toString(36).substring(2, 8);
+      const filename = `.private/media-assets/${timestamp}-${uniqueId}${ext}`;
+      
+      // Upload to object storage
+      const fileRef = bucket.file(filename);
+      await fileRef.save(file.buffer, {
+        metadata: { contentType: file.mimetype },
+      });
+      
+      // Determine asset type from mime type
+      let assetType = 'image';
+      if (file.mimetype.startsWith('video/')) assetType = 'video';
+      else if (file.mimetype.startsWith('audio/')) assetType = 'music';
+      
+      // Create media asset record
+      const [asset] = await db.insert(mediaAssets).values({
+        name: name || file.originalname.replace(/\.[^/.]+$/, ''),
+        description: description || null,
+        type: assetType,
+        source: 'user_upload',
+        classification: 'uncategorized',
+        url: '', // Will set after we have ID
+        thumbnailUrl: '',
+        fileSize: file.size,
+        mimeType: file.mimetype,
+        category: category || null,
+        keywords: tags,
+        isPublic: true,
+        uploadedBy: user.id,
+      }).returning();
+      
+      // Store the storage path in a way we can retrieve it later
+      // We'll use brandAssets table for file storage (same pattern as existing)
+      const [brandAsset] = await db.insert(brandAssets).values({
+        name: name || file.originalname,
+        type: assetType,
+        url: '',
+        thumbnailUrl: '',
+        fileSize: file.size,
+        mimeType: file.mimetype,
+        isDefault: false,
+        uploadedBy: user.id,
+        settings: {
+          storagePath: `${bucketName}|${filename}`,
+          mediaAssetId: asset.id,
+        },
+      }).returning();
+      
+      // Update URLs to use the brand asset proxy endpoint
+      const proxyUrl = `/api/brand-assets/file/${brandAsset.id}`;
+      await db.update(brandAssets)
+        .set({ url: proxyUrl, thumbnailUrl: proxyUrl })
+        .where(eq(brandAssets.id, brandAsset.id));
+      
+      await db.update(mediaAssets)
+        .set({ url: proxyUrl, thumbnailUrl: proxyUrl })
+        .where(eq(mediaAssets.id, asset.id));
+      
+      const updatedAsset = { ...asset, url: proxyUrl, thumbnailUrl: proxyUrl };
+      
+      res.json({
+        success: true,
+        asset: updatedAsset,
+      });
+    } catch (error) {
+      console.error('[Media Assets] Upload error:', error);
+      res.status(500).json({ error: 'Failed to upload media asset' });
+    }
+  });
+
+  // Update media asset metadata
+  app.patch('/api/media-assets/:id', isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { name, description, category, keywords } = req.body;
+      
+      const updateData: any = { updatedAt: new Date() };
+      if (name !== undefined) updateData.name = name;
+      if (description !== undefined) updateData.description = description;
+      if (category !== undefined) updateData.category = category;
+      if (keywords !== undefined) updateData.keywords = keywords;
+      
+      const [asset] = await db.update(mediaAssets)
+        .set(updateData)
+        .where(eq(mediaAssets.id, id))
+        .returning();
+      
+      if (!asset) {
+        return res.status(404).json({ error: 'Asset not found' });
+      }
+      
+      res.json({ success: true, asset });
+    } catch (error) {
+      console.error('[Media Assets] Update error:', error);
+      res.status(500).json({ error: 'Failed to update media asset' });
+    }
+  });
+
+  // Classify media asset as 'brand' or 'general'
+  app.post('/api/media-assets/:id/classify', isAuthenticated, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const id = parseInt(req.params.id);
+      const { classification, brandData } = req.body;
+      
+      if (!['brand', 'general'].includes(classification)) {
+        return res.status(400).json({ error: 'Classification must be "brand" or "general"' });
+      }
+      
+      // Get the media asset
+      const [asset] = await db.select().from(mediaAssets)
+        .where(eq(mediaAssets.id, id));
+      
+      if (!asset) {
+        return res.status(404).json({ error: 'Asset not found' });
+      }
+      
+      let brandMediaId: number | null = null;
+      
+      if (classification === 'brand') {
+        // Create a brand media library entry
+        const [brandMedia] = await db.insert(brandMediaLibrary).values({
+          name: brandData?.name || asset.name,
+          description: brandData?.description || asset.description,
+          mediaType: brandData?.mediaType || (asset.type === 'music' ? 'audio' : asset.type),
+          entityName: brandData?.entityName || '',
+          entityType: brandData?.entityType || 'brand',
+          url: asset.url,
+          thumbnailUrl: asset.thumbnailUrl,
+          width: asset.width,
+          height: asset.height,
+          duration: asset.duration ? String(asset.duration) : null,
+          fileSize: asset.fileSize,
+          mimeType: asset.mimeType,
+          matchKeywords: brandData?.matchKeywords || asset.keywords || [],
+          excludeKeywords: brandData?.excludeKeywords || [],
+          usageContexts: brandData?.usageContexts || [],
+          visualAttributes: brandData?.visualAttributes || {},
+          placementSettings: brandData?.placementSettings || {},
+          priority: brandData?.priority || 5,
+          isDefault: false,
+          isActive: true,
+          uploadedBy: user.id,
+        }).returning();
+        
+        brandMediaId = brandMedia.id;
+      }
+      
+      // Update the media asset with classification
+      const [updatedAsset] = await db.update(mediaAssets)
+        .set({
+          classification,
+          brandMediaId,
+          updatedAt: new Date(),
+        })
+        .where(eq(mediaAssets.id, id))
+        .returning();
+      
+      res.json({
+        success: true,
+        asset: updatedAsset,
+        brandMediaId,
+      });
+    } catch (error) {
+      console.error('[Media Assets] Classify error:', error);
+      res.status(500).json({ error: 'Failed to classify media asset' });
+    }
+  });
+
+  // Delete media asset
+  app.delete('/api/media-assets/:id', isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      
+      // Get the asset first to check if it has a brand media link
+      const [asset] = await db.select().from(mediaAssets)
+        .where(eq(mediaAssets.id, id));
+      
+      if (!asset) {
+        return res.status(404).json({ error: 'Asset not found' });
+      }
+      
+      // If it's classified as brand, also delete the brand media entry
+      if (asset.brandMediaId) {
+        await db.delete(brandMediaLibrary)
+          .where(eq(brandMediaLibrary.id, asset.brandMediaId));
+      }
+      
+      // Delete the media asset
+      await db.delete(mediaAssets).where(eq(mediaAssets.id, id));
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error('[Media Assets] Delete error:', error);
+      res.status(500).json({ error: 'Failed to delete media asset' });
     }
   });
 
