@@ -203,9 +203,15 @@ Return a JSON object with exactly these fields:
   "fallbackQuery": "alternative 3-5 word search query"
 }
 
-The visualDirection should be detailed for AI generation.
-The searchQuery should be concise keywords for stock video APIs (e.g., "woman stepping bathroom scale").
-The fallbackQuery should be an alternative approach (e.g., "weight loss morning routine").`;
+CRITICAL RULES FOR SEARCH QUERIES:
+1. searchQuery and fallbackQuery must be DIFFERENT concepts, not just rephrased
+2. Avoid ambiguous words that could match wrong content:
+   - "bathroom scale" → use "weight scale closeup" or "digital scale feet"
+   - "bath" words may return bathtub videos
+3. Use concrete, visual terms: "woman measuring waist", "fitness tracking app", "healthy meal prep"
+4. fallbackQuery should represent a COMPLETELY different visual approach to the same theme
+   Example: If searchQuery is "feet on weight scale", fallbackQuery could be "woman fitness mirror reflection"
+5. Both queries should be 3-5 words, optimized for Pexels/Pixabay stock video APIs`;
 
     const userPrompt = `Scene Type: ${sceneType || 'general'}
 Project: ${projectTitle || 'Marketing Video'}
