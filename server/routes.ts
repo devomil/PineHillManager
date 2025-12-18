@@ -17525,14 +17525,14 @@ Respond in JSON format:
       const tags = req.body.tags ? (typeof req.body.tags === 'string' ? req.body.tags.split(',').map((t: string) => t.trim()) : req.body.tags) : [];
       
       // Get object storage bucket
-      const bucketName = process.env.REPLIT_DEFAULT_BUCKET_NAME;
-      if (!bucketName) {
+      const bucketId = process.env.REPLIT_DEFAULT_BUCKET_ID;
+      if (!bucketId) {
         return res.status(500).json({ error: 'Object storage not configured' });
       }
       
       const { Storage } = await import('@google-cloud/storage');
       const storage = new Storage();
-      const bucket = storage.bucket(bucketName);
+      const bucket = storage.bucket(bucketId);
       
       // Generate unique filename
       const ext = path.extname(file.originalname);
@@ -17580,7 +17580,7 @@ Respond in JSON format:
         isDefault: false,
         uploadedBy: user.id,
         settings: {
-          storagePath: `${bucketName}|${filename}`,
+          storagePath: `${bucketId}|${filename}`,
           mediaAssetId: asset.id,
         },
       }).returning();
