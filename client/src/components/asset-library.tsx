@@ -1613,6 +1613,16 @@ export default function AssetLibrary() {
       <Dialog open={!!selectedUnifiedAsset} onOpenChange={() => {
         setSelectedUnifiedAsset(null);
         setIsClassifying(false);
+        setClassifyForm({
+          classification: 'general',
+          name: '',
+          description: '',
+          mediaType: 'photo',
+          entityName: '',
+          entityType: 'brand',
+          matchKeywords: '',
+          usageContexts: '',
+        });
       }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           {selectedUnifiedAsset && (
