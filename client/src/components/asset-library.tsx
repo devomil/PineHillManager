@@ -29,7 +29,8 @@ import {
   Sparkles,
   Edit,
   Building2,
-  MapPin
+  MapPin,
+  X
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
@@ -147,6 +148,9 @@ export default function AssetLibrary() {
     matchKeywords: '',
     usageContexts: '',
   });
+  const [replacementFile, setReplacementFile] = useState<File | null>(null);
+  const [replacementPreview, setReplacementPreview] = useState<string | null>(null);
+  const [isUploadingReplacement, setIsUploadingReplacement] = useState(false);
 
   const { data: assetsData, isLoading: isLoadingAssets } = useQuery<{ assets: MediaAsset[]; total: number }>({
     queryKey: ['/api/videos/assets', { type: assetType, search: searchQuery, category: categoryFilter, mood: moodFilter, source: sourceFilter }],
@@ -754,15 +758,87 @@ export default function AssetLibrary() {
       </Card>
 
       {/* Brand Asset Edit Dialog */}
-      <Dialog open={isEditingBrand} onOpenChange={setIsEditingBrand}>
-        <DialogContent className="max-w-lg">
+      <Dialog open={isEditingBrand} onOpenChange={(open) => {
+        setIsEditingBrand(open);
+        if (!open) {
+          setReplacementFile(null);
+          setReplacementPreview(null);
+        }
+      }}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Brand Asset</DialogTitle>
             <DialogDescription>
-              Update the brand asset details and matching keywords.
+              Update the brand asset details, media file, and matching keywords.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
+            {/* Current/New Media Preview */}
+            <div>
+              <Label>Media File</Label>
+              <div className="mt-2 border rounded-lg overflow-hidden bg-gray-100">
+                <div className="aspect-video relative flex items-center justify-center">
+                  {replacementPreview ? (
+                    brandEditForm.mediaType === 'video' ? (
+                      <video src={replacementPreview} controls className="w-full h-full object-contain" />
+                    ) : (
+                      <img src={replacementPreview} alt="New media" className="w-full h-full object-contain" />
+                    )
+                  ) : brandEditForm.url ? (
+                    brandEditForm.mediaType === 'video' ? (
+                      <video src={brandEditForm.url} controls className="w-full h-full object-contain" />
+                    ) : (
+                      <img src={brandEditForm.url} alt="Current media" className="w-full h-full object-contain" />
+                    )
+                  ) : (
+                    <div className="text-gray-400 text-sm">No media</div>
+                  )}
+                  {replacementPreview && (
+                    <div className="absolute top-2 right-2">
+                      <Badge className="bg-green-500">New</Badge>
+                    </div>
+                  )}
+                </div>
+                <div className="p-3 border-t bg-white">
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="file"
+                      accept={brandEditForm.mediaType === 'video' ? 'video/*' : 'image/*'}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          setReplacementFile(file);
+                          const reader = new FileReader();
+                          reader.onload = (ev) => {
+                            setReplacementPreview(ev.target?.result as string);
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                      className="flex-1"
+                      data-testid="brand-edit-file"
+                    />
+                    {replacementFile && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setReplacementFile(null);
+                          setReplacementPreview(null);
+                        }}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                  {replacementFile && (
+                    <p className="text-xs text-green-600 mt-1">
+                      New file selected: {replacementFile.name}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
             <div>
               <Label>Name</Label>
               <Input
@@ -839,12 +915,48 @@ export default function AssetLibrary() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditingBrand(false)}>
+            <Button variant="outline" onClick={() => {
+              setIsEditingBrand(false);
+              setReplacementFile(null);
+              setReplacementPreview(null);
+            }}>
               Cancel
             </Button>
             <Button 
-              onClick={() => {
-                if (selectedBrandAsset) {
+              onClick={async () => {
+                if (!selectedBrandAsset) return;
+                
+                setIsUploadingReplacement(true);
+                try {
+                  let newUrl = brandEditForm.url;
+                  
+                  // If there's a replacement file, upload it first
+                  if (replacementFile) {
+                    const formData = new FormData();
+                    formData.append('file', replacementFile);
+                    formData.append('type', brandEditForm.mediaType === 'video' ? 'video' : 'image');
+                    formData.append('name', brandEditForm.name);
+                    formData.append('tags', brandEditForm.matchKeywords);
+                    
+                    const uploadResponse = await fetch('/api/videos/uploads', {
+                      method: 'POST',
+                      body: formData,
+                      credentials: 'include',
+                    });
+                    
+                    if (!uploadResponse.ok) {
+                      throw new Error('Failed to upload file');
+                    }
+                    
+                    const uploadResult = await uploadResponse.json();
+                    newUrl = uploadResult.upload?.url || uploadResult.url;
+                    
+                    if (!newUrl) {
+                      throw new Error('No URL returned from upload');
+                    }
+                  }
+                  
+                  // Now update the brand asset with the new URL
                   updateBrandAssetMutation.mutate({
                     id: selectedBrandAsset.id,
                     data: {
@@ -853,16 +965,29 @@ export default function AssetLibrary() {
                       mediaType: brandEditForm.mediaType,
                       entityName: brandEditForm.entityName,
                       entityType: brandEditForm.entityType,
+                      url: newUrl,
                       matchKeywords: brandEditForm.matchKeywords.split(',').map(k => k.trim()).filter(Boolean),
                       usageContexts: brandEditForm.usageContexts.split(',').map(c => c.trim()).filter(Boolean),
                     }
                   });
+                  
+                  setReplacementFile(null);
+                  setReplacementPreview(null);
+                } catch (error) {
+                  console.error('Error updating brand asset:', error);
+                  toast({
+                    title: 'Error',
+                    description: error instanceof Error ? error.message : 'Failed to update brand asset',
+                    variant: 'destructive',
+                  });
+                } finally {
+                  setIsUploadingReplacement(false);
                 }
               }}
-              disabled={updateBrandAssetMutation.isPending}
+              disabled={updateBrandAssetMutation.isPending || isUploadingReplacement}
               data-testid="brand-edit-save"
             >
-              {updateBrandAssetMutation.isPending ? 'Saving...' : 'Save Changes'}
+              {isUploadingReplacement ? 'Uploading...' : updateBrandAssetMutation.isPending ? 'Saving...' : 'Save Changes'}
             </Button>
           </DialogFooter>
         </DialogContent>
