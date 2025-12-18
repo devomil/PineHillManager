@@ -151,6 +151,18 @@ export default function AssetLibrary() {
   const [replacementFile, setReplacementFile] = useState<File | null>(null);
   const [replacementPreview, setReplacementPreview] = useState<string | null>(null);
   const [isUploadingReplacement, setIsUploadingReplacement] = useState(false);
+  const [isCreatingBrand, setIsCreatingBrand] = useState(false);
+  const [newBrandFile, setNewBrandFile] = useState<File | null>(null);
+  const [newBrandPreview, setNewBrandPreview] = useState<string | null>(null);
+  const [newBrandForm, setNewBrandForm] = useState({
+    name: '',
+    description: '',
+    mediaType: 'photo',
+    entityName: '',
+    entityType: 'brand',
+    matchKeywords: '',
+    usageContexts: '',
+  });
 
   const { data: assetsData, isLoading: isLoadingAssets } = useQuery<{ assets: MediaAsset[]; total: number }>({
     queryKey: ['/api/videos/assets', { type: assetType, search: searchQuery, category: categoryFilter, mood: moodFilter, source: sourceFilter }],
@@ -193,6 +205,31 @@ export default function AssetLibrary() {
     },
     onError: () => {
       toast({ title: 'Error', description: 'Failed to update asset.', variant: 'destructive' });
+    },
+  });
+
+  const createBrandAssetMutation = useMutation({
+    mutationFn: async (data: any) => {
+      await apiRequest('POST', '/api/brand-media-library', data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/brand-media-library'] });
+      toast({ title: 'Asset created', description: 'New brand asset has been added.' });
+      setIsCreatingBrand(false);
+      setNewBrandFile(null);
+      setNewBrandPreview(null);
+      setNewBrandForm({
+        name: '',
+        description: '',
+        mediaType: 'photo',
+        entityName: '',
+        entityType: 'brand',
+        matchKeywords: '',
+        usageContexts: '',
+      });
+    },
+    onError: () => {
+      toast({ title: 'Error', description: 'Failed to create asset.', variant: 'destructive' });
     },
   });
 
@@ -642,6 +679,13 @@ export default function AssetLibrary() {
                 <p className="text-sm text-gray-500">
                   Manage brand assets like logos, store photos, and location images. These are automatically matched during video generation.
                 </p>
+                <Button 
+                  onClick={() => setIsCreatingBrand(true)}
+                  data-testid="add-brand-asset-btn"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Brand Asset
+                </Button>
               </div>
 
               {isLoadingBrandMedia ? (
@@ -658,6 +702,10 @@ export default function AssetLibrary() {
                   <p className="text-gray-500 mb-4 max-w-md">
                     Add logos, store photos, and branded imagery to automatically include in video productions.
                   </p>
+                  <Button onClick={() => setIsCreatingBrand(true)} data-testid="add-brand-asset-empty">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Your First Brand Asset
+                  </Button>
                 </div>
               ) : (
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -992,6 +1040,212 @@ export default function AssetLibrary() {
               data-testid="brand-edit-save"
             >
               {isUploadingReplacement ? 'Uploading...' : updateBrandAssetMutation.isPending ? 'Saving...' : 'Save Changes'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Brand Asset Dialog */}
+      <Dialog open={isCreatingBrand} onOpenChange={(open) => {
+        setIsCreatingBrand(open);
+        if (!open) {
+          setNewBrandFile(null);
+          setNewBrandPreview(null);
+        }
+      }}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Add Brand Asset</DialogTitle>
+            <DialogDescription>
+              Upload a new brand asset like a logo, store photo, or location image.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Media File *</Label>
+              <div className="mt-2 border rounded-lg overflow-hidden bg-gray-100">
+                <div className="aspect-video relative flex items-center justify-center">
+                  {newBrandPreview ? (
+                    newBrandForm.mediaType === 'video' ? (
+                      <video src={newBrandPreview} controls className="w-full h-full object-contain" />
+                    ) : (
+                      <img src={newBrandPreview} alt="New media" className="w-full h-full object-contain" />
+                    )
+                  ) : (
+                    <div className="text-gray-400 text-sm flex flex-col items-center">
+                      <Upload className="h-8 w-8 mb-2" />
+                      <span>Select a file to upload</span>
+                    </div>
+                  )}
+                </div>
+                <div className="p-3 border-t bg-white">
+                  <Input
+                    type="file"
+                    accept={newBrandForm.mediaType === 'video' ? 'video/*' : 'image/*'}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        setNewBrandFile(file);
+                        const reader = new FileReader();
+                        reader.onload = (ev) => {
+                          setNewBrandPreview(ev.target?.result as string);
+                        };
+                        reader.readAsDataURL(file);
+                        if (!newBrandForm.name) {
+                          setNewBrandForm({ ...newBrandForm, name: file.name.replace(/\.[^/.]+$/, '') });
+                        }
+                      }
+                    }}
+                    data-testid="brand-create-file"
+                  />
+                </div>
+              </div>
+            </div>
+            
+            <div>
+              <Label>Name *</Label>
+              <Input
+                value={newBrandForm.name}
+                onChange={(e) => setNewBrandForm({ ...newBrandForm, name: e.target.value })}
+                placeholder="e.g., Pine Hill Farm Logo"
+                data-testid="brand-create-name"
+              />
+            </div>
+
+            <div>
+              <Label>Description</Label>
+              <Textarea
+                value={newBrandForm.description}
+                onChange={(e) => setNewBrandForm({ ...newBrandForm, description: e.target.value })}
+                placeholder="Describe this asset..."
+                rows={2}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Media Type</Label>
+                <Select value={newBrandForm.mediaType} onValueChange={(v) => setNewBrandForm({ ...newBrandForm, mediaType: v })}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="logo">Logo</SelectItem>
+                    <SelectItem value="photo">Photo</SelectItem>
+                    <SelectItem value="video">Video</SelectItem>
+                    <SelectItem value="broll">B-Roll</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Entity Type</Label>
+                <Select value={newBrandForm.entityType} onValueChange={(v) => setNewBrandForm({ ...newBrandForm, entityType: v })}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="brand">Brand</SelectItem>
+                    <SelectItem value="location">Location</SelectItem>
+                    <SelectItem value="product">Product</SelectItem>
+                    <SelectItem value="person">Person</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div>
+              <Label>Entity Name</Label>
+              <Input
+                value={newBrandForm.entityName}
+                onChange={(e) => setNewBrandForm({ ...newBrandForm, entityName: e.target.value })}
+                placeholder="e.g., Pine Hill Farm, Lake Geneva Retail"
+              />
+            </div>
+
+            <div>
+              <Label>Match Keywords (comma-separated)</Label>
+              <Input
+                value={newBrandForm.matchKeywords}
+                onChange={(e) => setNewBrandForm({ ...newBrandForm, matchKeywords: e.target.value })}
+                placeholder="e.g., logo, brand, pine hill farm"
+              />
+            </div>
+
+            <div>
+              <Label>Usage Contexts (comma-separated)</Label>
+              <Input
+                value={newBrandForm.usageContexts}
+                onChange={(e) => setNewBrandForm({ ...newBrandForm, usageContexts: e.target.value })}
+                placeholder="e.g., intro, outro, overlay"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsCreatingBrand(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={async () => {
+                if (!newBrandFile) {
+                  toast({ title: 'Error', description: 'Please select a file to upload.', variant: 'destructive' });
+                  return;
+                }
+                if (!newBrandForm.name.trim()) {
+                  toast({ title: 'Error', description: 'Please enter a name for the asset.', variant: 'destructive' });
+                  return;
+                }
+                
+                setIsUploadingReplacement(true);
+                try {
+                  const formData = new FormData();
+                  formData.append('file', newBrandFile);
+                  formData.append('type', newBrandForm.mediaType === 'video' ? 'video' : 'image');
+                  formData.append('name', newBrandForm.name);
+                  formData.append('tags', newBrandForm.matchKeywords);
+                  
+                  const uploadResponse = await fetch('/api/videos/uploads', {
+                    method: 'POST',
+                    body: formData,
+                    credentials: 'include',
+                  });
+                  
+                  if (!uploadResponse.ok) {
+                    throw new Error('Failed to upload file');
+                  }
+                  
+                  const uploadResult = await uploadResponse.json();
+                  const newUrl = uploadResult.upload?.url || uploadResult.url;
+                  
+                  if (!newUrl) {
+                    throw new Error('No URL returned from upload');
+                  }
+                  
+                  createBrandAssetMutation.mutate({
+                    name: newBrandForm.name,
+                    description: newBrandForm.description,
+                    mediaType: newBrandForm.mediaType,
+                    entityName: newBrandForm.entityName,
+                    entityType: newBrandForm.entityType,
+                    url: newUrl,
+                    thumbnailUrl: newUrl,
+                    matchKeywords: newBrandForm.matchKeywords.split(',').map(k => k.trim()).filter(Boolean),
+                    usageContexts: newBrandForm.usageContexts.split(',').map(c => c.trim()).filter(Boolean),
+                  });
+                } catch (error) {
+                  console.error('Error creating brand asset:', error);
+                  toast({
+                    title: 'Error',
+                    description: error instanceof Error ? error.message : 'Failed to create brand asset',
+                    variant: 'destructive',
+                  });
+                } finally {
+                  setIsUploadingReplacement(false);
+                }
+              }}
+              disabled={createBrandAssetMutation.isPending || isUploadingReplacement}
+              data-testid="brand-create-save"
+            >
+              {isUploadingReplacement ? 'Uploading...' : createBrandAssetMutation.isPending ? 'Creating...' : 'Create Asset'}
             </Button>
           </DialogFooter>
         </DialogContent>
