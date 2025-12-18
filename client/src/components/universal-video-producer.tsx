@@ -90,6 +90,9 @@ function convertToDisplayUrl(url: string): string {
   
   if (url.startsWith('/objects')) return url;
   
+  // API URLs (like /api/brand-assets/file/7) should be used as-is
+  if (url.startsWith('/api/')) return url;
+  
   if (url.startsWith('/replit-objstore-')) {
     return `/objects${url}`;
   }
@@ -1792,8 +1795,9 @@ function ScenePreview({
                           <Button
                             size="sm"
                             variant="outline"
-                            className="h-8 text-sm opacity-50"
-                            disabled={true}
+                            className="h-8 text-sm"
+                            onClick={() => openMediaPicker(scene.id, 'video', 'brand')}
+                            disabled={!!regenerating || !!applyingMedia}
                             data-testid={`button-source-brand-video-modal-${scene.id}`}
                           >
                             Brand Media
