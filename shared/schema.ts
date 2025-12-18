@@ -4535,6 +4535,15 @@ export const mediaAssets = pgTable("media_assets", {
   url: varchar("url", { length: 1000 }).notNull(),
   thumbnailUrl: varchar("thumbnail_url", { length: 1000 }),
   
+  // Classification status: uncategorized, brand, general
+  // - uncategorized: newly uploaded, not yet classified
+  // - brand: moved to Brand Media tab (linked to brand_media_library)
+  // - general: stays in Asset Library for video production use
+  classification: varchar("classification", { length: 50 }).default("uncategorized"),
+  
+  // Link to brand_media_library if classified as 'brand'
+  brandMediaId: integer("brand_media_id").references(() => brandMediaLibrary.id),
+  
   // Source information
   source: varchar("source").notNull(), // 'stability_ai', 'runway', 'elevenlabs', 'pexels', 'pixabay', 'unsplash', 'user_upload'
   sourceId: varchar("source_id"), // Original ID from source API
@@ -4580,6 +4589,8 @@ export const mediaAssets = pgTable("media_assets", {
   moodIdx: index("idx_media_assets_mood").on(table.mood),
   qualityIdx: index("idx_media_assets_quality").on(table.qualityScore),
   uploadedByIdx: index("idx_media_assets_uploaded_by").on(table.uploadedBy),
+  classificationIdx: index("idx_media_assets_classification").on(table.classification),
+  brandMediaIdIdx: index("idx_media_assets_brand_media_id").on(table.brandMediaId),
 }));
 
 // Asset Tags - Flexible tagging system
@@ -4808,6 +4819,7 @@ export const mediaAssetsRelations = relations(mediaAssets, ({ one, many }) => ({
   uploader: one(users, { fields: [mediaAssets.uploadedBy], references: [users.id] }),
   tagMaps: many(mediaAssetTagMap),
   productionAssets: many(productionAssets),
+  brandMedia: one(brandMediaLibrary, { fields: [mediaAssets.brandMediaId], references: [brandMediaLibrary.id] }),
 }));
 
 export const assetTagsRelations = relations(assetTags, ({ many }) => ({
