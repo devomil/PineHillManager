@@ -3195,9 +3195,11 @@ Guidelines:
     }
     
     const scene = project.scenes[sceneIndex];
-    const query = customQuery || this.buildVideoSearchQuery(scene, project.targetAudience);
+    // Priority: customQuery > scene.searchQuery (AI-optimized) > buildVideoSearchQuery (fallback)
+    const query = customQuery || scene.searchQuery || this.buildVideoSearchQuery(scene, project.targetAudience);
+    const fallbackQuery = scene.fallbackQuery;
     
-    console.log(`[Regenerate] Video for scene ${sceneId} with query: ${query}`);
+    console.log(`[Regenerate] Video for scene ${sceneId} with query: "${query}"${fallbackQuery ? ` (fallback: "${fallbackQuery}")` : ''}`);
     
     // Don't use the duplicate tracking for regeneration - user wants a NEW video
     const pexelsResult = await this.getPexelsVideo(query + ' ' + Date.now()); // Add timestamp to vary results
@@ -3209,6 +3211,22 @@ Guidelines:
           duration: pexelsResult.duration,
           source: pexelsResult.source 
         };
+      }
+    }
+    
+    // Try fallback query if available
+    if (fallbackQuery && fallbackQuery !== query) {
+      console.log(`[Regenerate] Trying fallback query: "${fallbackQuery}"`);
+      const fallbackResult = await this.getPexelsVideo(fallbackQuery + ' ' + Date.now());
+      if (fallbackResult) {
+        if (!project.targetAudience || this.validateVideoForAudience(fallbackResult, project.targetAudience)) {
+          return { 
+            success: true, 
+            newVideoUrl: fallbackResult.url, 
+            duration: fallbackResult.duration,
+            source: fallbackResult.source 
+          };
+        }
       }
     }
     
