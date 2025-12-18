@@ -196,8 +196,16 @@ Your suggestions should be:
 - Aligned with health and wellness themes
 - Professional and engaging
 
-Provide a single, clear visual direction in 2-3 sentences. Do NOT include multiple options or bullet points.
-Focus on what should be visually shown on screen to accompany the narration.`;
+Return a JSON object with exactly these fields:
+{
+  "visualDirection": "2-3 sentence description for AI image/video generation",
+  "searchQuery": "3-5 word stock video search query",
+  "fallbackQuery": "alternative 3-5 word search query"
+}
+
+The visualDirection should be detailed for AI generation.
+The searchQuery should be concise keywords for stock video APIs (e.g., "woman stepping bathroom scale").
+The fallbackQuery should be an alternative approach (e.g., "weight loss morning routine").`;
 
     const userPrompt = `Scene Type: ${sceneType || 'general'}
 Project: ${projectTitle || 'Marketing Video'}
@@ -205,11 +213,11 @@ Project: ${projectTitle || 'Marketing Video'}
 Narration for this scene:
 "${narration}"
 
-Suggest a compelling visual direction for this scene. Be specific about what should appear on screen, the mood, lighting, and camera angle. Keep it to 2-3 sentences.`;
+Return a JSON object with visualDirection (2-3 sentences describing the visual), searchQuery (3-5 concise words for stock video search), and fallbackQuery (alternative 3-5 word search).`;
 
     const response = await client.messages.create({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 300,
+      max_tokens: 400,
       system: systemPrompt,
       messages: [{ role: 'user', content: userPrompt }],
     });
@@ -226,9 +234,28 @@ Suggest a compelling visual direction for this scene. Be specific about what sho
     
     console.log('[AskSuzzie] Generated visual direction for scene type:', sceneType);
     
+    // Try to parse JSON response, fallback to text-only for backward compatibility
+    let result: { visualDirection: string; searchQuery?: string; fallbackQuery?: string };
+    try {
+      const jsonMatch = textContent.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]);
+        result = {
+          visualDirection: parsed.visualDirection || textContent.trim(),
+          searchQuery: parsed.searchQuery || '',
+          fallbackQuery: parsed.fallbackQuery || ''
+        };
+      } else {
+        result = { visualDirection: textContent.trim() };
+      }
+    } catch (parseErr) {
+      console.warn('[AskSuzzie] Could not parse JSON, using text response');
+      result = { visualDirection: textContent.trim() };
+    }
+    
     res.json({ 
       success: true, 
-      visualDirection: textContent.trim()
+      ...result
     });
   } catch (error: any) {
     console.error('[AskSuzzie] Error generating visual direction:', error);
@@ -455,7 +482,7 @@ router.patch('/projects/:projectId/scenes/:sceneId/visual-direction', isAuthenti
   try {
     const userId = (req.user as any)?.id;
     const { projectId, sceneId } = req.params;
-    const { visualDirection } = req.body;
+    const { visualDirection, searchQuery, fallbackQuery } = req.body;
     
     if (!visualDirection || typeof visualDirection !== 'string') {
       return res.status(400).json({ success: false, error: 'Visual direction text is required' });
@@ -475,9 +502,18 @@ router.patch('/projects/:projectId/scenes/:sceneId/visual-direction', isAuthenti
       return res.status(404).json({ success: false, error: 'Scene not found' });
     }
     
-    // Update both visualDirection and background.source
+    // Update visualDirection, background.source, and search queries
     projectData.scenes[sceneIndex].visualDirection = visualDirection.trim();
     projectData.scenes[sceneIndex].background.source = visualDirection.trim();
+    
+    // Update search queries if provided (from Ask Suzzie)
+    if (searchQuery && typeof searchQuery === 'string') {
+      projectData.scenes[sceneIndex].searchQuery = searchQuery.trim();
+    }
+    if (fallbackQuery && typeof fallbackQuery === 'string') {
+      projectData.scenes[sceneIndex].fallbackQuery = fallbackQuery.trim();
+    }
+    
     projectData.updatedAt = new Date().toISOString();
     
     await saveProjectToDb(projectData, projectData.ownerId);

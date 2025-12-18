@@ -1482,6 +1482,12 @@ Guidelines:
   }
 
   private buildVideoSearchQuery(scene: Scene, targetAudience?: string): string {
+    // PRIORITY 1: Use AI-generated optimized search query if available
+    if (scene.searchQuery && scene.searchQuery.trim()) {
+      console.log(`[VideoSearch] Using AI-generated searchQuery: "${scene.searchQuery}"`);
+      return scene.searchQuery.trim();
+    }
+    
     const narration = (scene.narration || '').toLowerCase();
     const visualDirection = (scene.visualDirection || scene.background?.source || '').toLowerCase();
     
@@ -1768,7 +1774,8 @@ Guidelines:
 
   async getStockVideo(
     query: string,
-    targetAudience?: string
+    targetAudience?: string,
+    fallbackQuery?: string
   ): Promise<{ url: string; duration: number; source: string; tags?: string } | null> {
     console.log(`[StockVideo] Searching: "${query}" (${this.usedVideoUrls.size} already used)`);
     
@@ -1777,9 +1784,10 @@ Guidelines:
     if (pexelsResult) {
       // Check if already used
       if (this.usedVideoUrls.has(pexelsResult.url)) {
-        console.log(`[StockVideo] Pexels result already used, trying different query...`);
-        // Try with modified query
-        const altResult = await this.getPexelsVideo(query + ' lifestyle');
+        console.log(`[StockVideo] Pexels result already used, trying fallback query...`);
+        // Try with fallback query first, then modified query
+        const altQuery = fallbackQuery || (query + ' lifestyle');
+        const altResult = await this.getPexelsVideo(altQuery);
         if (altResult && !this.usedVideoUrls.has(altResult.url)) {
           if (!targetAudience || this.validateVideoForAudience(altResult, targetAudience)) {
             this.usedVideoUrls.add(altResult.url);
@@ -1791,6 +1799,18 @@ Guidelines:
         if (!targetAudience || this.validateVideoForAudience(pexelsResult, targetAudience)) {
           this.usedVideoUrls.add(pexelsResult.url);
           return pexelsResult;
+        }
+      }
+    }
+    
+    // PRIORITY 2: Try fallback query if primary failed
+    if (fallbackQuery && fallbackQuery !== query) {
+      console.log(`[StockVideo] Trying fallback query: "${fallbackQuery}"`);
+      const fallbackResult = await this.getPexelsVideo(fallbackQuery);
+      if (fallbackResult && !this.usedVideoUrls.has(fallbackResult.url)) {
+        if (!targetAudience || this.validateVideoForAudience(fallbackResult, targetAudience)) {
+          this.usedVideoUrls.add(fallbackResult.url);
+          return fallbackResult;
         }
       }
     }
@@ -2601,8 +2621,8 @@ Guidelines:
         const searchQuery = this.buildVideoSearchQuery(scene, project.targetAudience);
         console.log(`[UniversalVideoService] Searching B-roll for scene ${scene.id} (${scene.type}): ${searchQuery}`);
         
-        // FIX 4: Pass targetAudience to getStockVideo for validation
-        const videoResult = await this.getStockVideo(searchQuery, project.targetAudience);
+        // FIX 4: Pass targetAudience and fallbackQuery to getStockVideo for validation
+        const videoResult = await this.getStockVideo(searchQuery, project.targetAudience, scene.fallbackQuery);
         
         // B-ROLL CONTENT VALIDATION: Ensure video matches scene context appropriately
         let filteredVideoResult = videoResult;
