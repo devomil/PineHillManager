@@ -57,6 +57,8 @@ export interface Scene {
   duration: number;
   narration: string;
   visualDirection?: string;
+  searchQuery?: string;
+  fallbackQuery?: string;
   textOverlays: TextOverlay[];
   background: BackgroundConfig;
   transitionIn: TransitionConfig;

@@ -521,6 +521,8 @@ Return JSON with this exact structure (no markdown, just pure JSON):
       "type": "hook|intro|explanation|process|brand|cta|benefit|feature",
       "narration": "exact voiceover text for this scene",
       "visualDirection": "specific description for AI image generation",
+      "searchQuery": "3-5 word stock video search query optimized for Pexels/stock APIs",
+      "fallbackQuery": "alternative 3-5 word search if primary fails",
       "estimatedDuration": number (based on ~2.5 words per second speaking rate),
       "keyPoints": ["main point for text overlay"]
     }
@@ -535,7 +537,9 @@ Guidelines:
 - Process/steps content → type: "process"
 - Brand mentions → type: "brand"
 - Calculate duration: ~2.5 words per second for narration
-- Visual directions should be specific and descriptive`;
+- Visual directions should be specific and descriptive for AI generation
+- searchQuery should be 3-5 concise words for stock video search (e.g., "woman stepping bathroom scale weight")
+- fallbackQuery should be an alternative search approach (e.g., "weight loss morning routine disappointed")`;
 
     try {
       const response = await this.anthropic.messages.create({
@@ -628,6 +632,9 @@ Guidelines:
       type: raw.type || 'content',
       duration,
       narration: raw.narration || '',
+      visualDirection: raw.visualDirection || '',
+      searchQuery: raw.searchQuery || '',
+      fallbackQuery: raw.fallbackQuery || '',
       textOverlays,
       background: {
         type: 'image',
