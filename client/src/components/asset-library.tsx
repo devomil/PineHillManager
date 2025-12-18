@@ -87,6 +87,26 @@ interface BrandMedia {
   createdAt: string;
 }
 
+interface UnifiedMediaAsset {
+  id: number;
+  name: string;
+  description?: string;
+  type: 'image' | 'video' | 'music';
+  source: string;
+  classification: 'uncategorized' | 'brand' | 'general';
+  brandMediaId?: number;
+  url: string;
+  thumbnailUrl?: string;
+  width?: number;
+  height?: number;
+  duration?: number;
+  fileSize?: number;
+  mimeType?: string;
+  category?: string;
+  keywords?: string[];
+  createdAt: string;
+}
+
 const ASSET_CATEGORIES = [
   { value: 'all', label: 'All Categories' },
   { value: 'product', label: 'Product' },
@@ -233,6 +253,86 @@ export default function AssetLibrary() {
     },
   });
 
+  // ========== UNIFIED MEDIA ASSETS STATE ==========
+  const [selectedUnifiedAsset, setSelectedUnifiedAsset] = useState<UnifiedMediaAsset | null>(null);
+  const [isClassifying, setIsClassifying] = useState(false);
+  const [classifyForm, setClassifyForm] = useState({
+    classification: 'general' as 'brand' | 'general',
+    name: '',
+    description: '',
+    mediaType: 'photo',
+    entityName: '',
+    entityType: 'brand',
+    matchKeywords: '',
+    usageContexts: '',
+  });
+
+  // Query for unified media assets
+  const { data: unifiedAssetsData, isLoading: isLoadingUnified } = useQuery<{ assets: UnifiedMediaAsset[]; total: number }>({
+    queryKey: ['/api/media-assets'],
+    enabled: activeTab === 'uploads',
+  });
+
+  const unifiedAssets: UnifiedMediaAsset[] = unifiedAssetsData?.assets || [];
+
+  // Upload to unified media assets
+  const uploadUnifiedAssetMutation = useMutation({
+    mutationFn: async (formData: FormData) => {
+      const response = await fetch('/api/media-assets', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
+      });
+      if (!response.ok) throw new Error('Upload failed');
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/media-assets'] });
+      toast({ title: 'Upload Complete', description: 'File uploaded to Asset Library.' });
+    },
+    onError: () => {
+      toast({ title: 'Upload Failed', description: 'Failed to upload file.', variant: 'destructive' });
+    },
+  });
+
+  // Classify unified media asset
+  const classifyAssetMutation = useMutation({
+    mutationFn: async ({ id, classification, brandData }: { id: number; classification: string; brandData?: any }) => {
+      const response = await apiRequest('POST', `/api/media-assets/${id}/classify`, { classification, brandData });
+      return response;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/media-assets'] });
+      if (variables.classification === 'brand') {
+        queryClient.invalidateQueries({ queryKey: ['/api/brand-media-library'] });
+        toast({ title: 'Asset Classified', description: 'Asset moved to Brand Media tab.' });
+      } else {
+        toast({ title: 'Asset Classified', description: 'Asset marked as general asset.' });
+      }
+      setIsClassifying(false);
+      setSelectedUnifiedAsset(null);
+    },
+    onError: () => {
+      toast({ title: 'Error', description: 'Failed to classify asset.', variant: 'destructive' });
+    },
+  });
+
+  // Delete unified media asset
+  const deleteUnifiedAssetMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest('DELETE', `/api/media-assets/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/media-assets'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/brand-media-library'] });
+      toast({ title: 'Asset Deleted', description: 'Asset has been removed.' });
+      setSelectedUnifiedAsset(null);
+    },
+    onError: () => {
+      toast({ title: 'Error', description: 'Failed to delete asset.', variant: 'destructive' });
+    },
+  });
+
   const assets: MediaAsset[] = assetsData?.assets || [];
   const uploads: UserUpload[] = uploadsData?.uploads || [];
   const brandAssets: BrandMedia[] = brandMediaData?.assets || [];
@@ -249,12 +349,12 @@ export default function AssetLibrary() {
         const file = files[i];
         const formData = new FormData();
         formData.append('file', file);
-        formData.append('type', getFileType(file.type));
-        formData.append('name', file.name);
+        formData.append('name', file.name.replace(/\.[^/.]+$/, ''));
 
-        const response = await fetch('/api/videos/uploads', {
+        const response = await fetch('/api/media-assets', {
           method: 'POST',
           body: formData,
+          credentials: 'include',
         });
 
         if (!response.ok) {
@@ -266,10 +366,10 @@ export default function AssetLibrary() {
 
       toast({
         title: 'Upload Complete',
-        description: `Successfully uploaded ${files.length} file(s)`,
+        description: `Successfully uploaded ${files.length} file(s). Click on an asset to classify it.`,
       });
 
-      queryClient.invalidateQueries({ queryKey: ['/api/videos/uploads'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/media-assets'] });
     } catch (error) {
       toast({
         title: 'Upload Failed',
@@ -565,9 +665,11 @@ export default function AssetLibrary() {
 
             <TabsContent value="uploads" className="space-y-4">
               <div className="flex items-center justify-between">
-                <p className="text-sm text-gray-600">
-                  Upload custom assets like logos, testimonials, and brand images for use in your video productions.
-                </p>
+                <div>
+                  <p className="text-sm text-gray-600">
+                    Upload media files here. Click on an asset to classify it as <strong>Brand</strong> (moves to Brand Media) or <strong>General Asset</strong> (stays here for video production).
+                  </p>
+                </div>
                 <Label
                   htmlFor="file-upload"
                   className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
@@ -596,26 +698,26 @@ export default function AssetLibrary() {
                 </div>
               )}
 
-              {isLoadingUploads ? (
+              {isLoadingUnified ? (
                 <div className="flex items-center justify-center py-12">
                   <div className="text-center">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-                    <p className="text-gray-500">Loading uploads...</p>
+                    <p className="text-gray-500">Loading assets...</p>
                   </div>
                 </div>
-              ) : uploads.length === 0 ? (
+              ) : unifiedAssets.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-center border-2 border-dashed rounded-lg">
                   <Upload className="h-16 w-16 text-gray-300 mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-1">No uploads yet</h3>
+                  <h3 className="text-lg font-medium text-gray-900 mb-1">No assets yet</h3>
                   <p className="text-gray-500 mb-4 max-w-md">
-                    Upload your company logos, customer testimonials, product images, and other custom assets to use in your video productions.
+                    Upload images, videos, and audio files. After uploading, click on each asset to classify it as brand media or a general asset.
                   </p>
                   <Label
                     htmlFor="file-upload-empty"
                     className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
                   >
                     <Plus className="h-4 w-4" />
-                    Add Your First Upload
+                    Upload Your First File
                     <input
                       id="file-upload-empty"
                       type="file"
@@ -628,20 +730,35 @@ export default function AssetLibrary() {
                 </div>
               ) : (
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                  {uploads.map((upload) => (
+                  {unifiedAssets.map((asset) => (
                     <div
-                      key={upload.id}
-                      className="relative group cursor-pointer rounded-lg overflow-hidden border bg-gray-50 hover:border-primary transition-colors"
-                      data-testid={`upload-card-${upload.id}`}
+                      key={asset.id}
+                      className={`relative group cursor-pointer rounded-lg overflow-hidden border bg-gray-50 hover:border-primary transition-colors ${
+                        asset.classification === 'uncategorized' ? 'border-amber-300 border-2' : ''
+                      }`}
+                      onClick={() => {
+                        setSelectedUnifiedAsset(asset);
+                        setClassifyForm({
+                          classification: asset.classification === 'brand' ? 'brand' : 'general',
+                          name: asset.name,
+                          description: asset.description || '',
+                          mediaType: asset.type === 'video' ? 'video' : 'photo',
+                          entityName: '',
+                          entityType: 'brand',
+                          matchKeywords: asset.keywords?.join(', ') || '',
+                          usageContexts: '',
+                        });
+                      }}
+                      data-testid={`unified-asset-card-${asset.id}`}
                     >
                       <div className="aspect-video bg-gray-200 relative">
-                        {upload.type === 'image' || upload.type === 'logo' || upload.type === 'testimonial' ? (
+                        {asset.type === 'image' ? (
                           <img
-                            src={upload.url}
-                            alt={upload.name}
+                            src={asset.url}
+                            alt={asset.name}
                             className="w-full h-full object-cover"
                           />
-                        ) : upload.type === 'video' ? (
+                        ) : asset.type === 'video' ? (
                           <div className="w-full h-full flex items-center justify-center bg-gray-900">
                             <Video className="h-8 w-8 text-white/70" />
                           </div>
@@ -650,21 +767,70 @@ export default function AssetLibrary() {
                             <Music className="h-8 w-8 text-white" />
                           </div>
                         )}
+                        <div className="absolute top-2 left-2">
+                          {asset.classification === 'uncategorized' && (
+                            <Badge className="bg-amber-500 text-white text-xs">
+                              Needs Classification
+                            </Badge>
+                          )}
+                          {asset.classification === 'brand' && (
+                            <Badge className="bg-purple-600 text-white text-xs">
+                              Brand
+                            </Badge>
+                          )}
+                          {asset.classification === 'general' && (
+                            <Badge className="bg-blue-600 text-white text-xs">
+                              General
+                            </Badge>
+                          )}
+                        </div>
                         <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100">
-                          <Button size="sm" variant="secondary">
-                            <Download className="h-4 w-4" />
+                          <Button 
+                            size="sm" 
+                            variant="secondary"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedUnifiedAsset(asset);
+                              setIsClassifying(true);
+                              setClassifyForm({
+                                classification: 'general',
+                                name: asset.name,
+                                description: asset.description || '',
+                                mediaType: asset.type === 'video' ? 'video' : 'photo',
+                                entityName: '',
+                                entityType: 'brand',
+                                matchKeywords: asset.keywords?.join(', ') || '',
+                                usageContexts: '',
+                              });
+                            }}
+                          >
+                            <Tag className="h-4 w-4" />
                           </Button>
-                          <Button size="sm" variant="destructive">
+                          <Button 
+                            size="sm" 
+                            variant="destructive"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (confirm('Are you sure you want to delete this asset?')) {
+                                deleteUnifiedAssetMutation.mutate(asset.id);
+                              }
+                            }}
+                          >
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
                       </div>
                       <div className="p-2">
-                        <p className="text-xs font-medium truncate">{upload.name}</p>
+                        <p className="text-xs font-medium truncate">{asset.name}</p>
                         <div className="flex items-center gap-1 mt-1">
-                          <Badge variant="secondary" className="text-xs bg-orange-100 text-orange-800">
-                            {upload.type}
+                          <Badge variant="secondary" className="text-xs">
+                            {asset.type}
                           </Badge>
+                          {asset.source && (
+                            <Badge variant="outline" className="text-xs">
+                              {asset.source}
+                            </Badge>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -1437,6 +1603,215 @@ export default function AssetLibrary() {
                     </Button>
                   </div>
                 </div>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Unified Media Asset Classification Dialog */}
+      <Dialog open={!!selectedUnifiedAsset} onOpenChange={() => {
+        setSelectedUnifiedAsset(null);
+        setIsClassifying(false);
+      }}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          {selectedUnifiedAsset && (
+            <>
+              <DialogHeader>
+                <DialogTitle>
+                  {isClassifying ? 'Classify Asset' : selectedUnifiedAsset.name}
+                </DialogTitle>
+                <DialogDescription>
+                  {isClassifying 
+                    ? 'Choose how to classify this asset. Brand assets appear in the Brand Media tab.'
+                    : 'View and manage this asset'}
+                </DialogDescription>
+              </DialogHeader>
+              
+              <div className="space-y-4">
+                <div className="aspect-video bg-gray-200 rounded-lg overflow-hidden">
+                  {selectedUnifiedAsset.type === 'image' ? (
+                    <img src={selectedUnifiedAsset.url} alt={selectedUnifiedAsset.name} className="w-full h-full object-contain" />
+                  ) : selectedUnifiedAsset.type === 'video' ? (
+                    <video src={selectedUnifiedAsset.url} controls className="w-full h-full" />
+                  ) : (
+                    <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-purple-500 to-pink-500 text-white">
+                      <Music className="h-16 w-16 mb-4" />
+                      <audio src={selectedUnifiedAsset.url} controls className="w-4/5" />
+                    </div>
+                  )}
+                </div>
+
+                {!isClassifying ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary">{selectedUnifiedAsset.type}</Badge>
+                      <Badge className={
+                        selectedUnifiedAsset.classification === 'uncategorized' ? 'bg-amber-500' :
+                        selectedUnifiedAsset.classification === 'brand' ? 'bg-purple-600' : 'bg-blue-600'
+                      }>
+                        {selectedUnifiedAsset.classification === 'uncategorized' ? 'Needs Classification' : selectedUnifiedAsset.classification}
+                      </Badge>
+                    </div>
+                    {selectedUnifiedAsset.description && (
+                      <p className="text-sm text-gray-600">{selectedUnifiedAsset.description}</p>
+                    )}
+                    <div className="flex gap-2 pt-4">
+                      <Button 
+                        className="flex-1" 
+                        onClick={() => setIsClassifying(true)}
+                        data-testid="classify-asset-btn"
+                      >
+                        <Tag className="h-4 w-4 mr-2" />
+                        Classify Asset
+                      </Button>
+                      <Button 
+                        variant="destructive"
+                        onClick={() => {
+                          if (confirm('Are you sure you want to delete this asset?')) {
+                            deleteUnifiedAssetMutation.mutate(selectedUnifiedAsset.id);
+                          }
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div>
+                      <Label className="text-sm font-medium">Classification</Label>
+                      <div className="grid grid-cols-2 gap-3 mt-2">
+                        <Button
+                          variant={classifyForm.classification === 'general' ? 'default' : 'outline'}
+                          className="h-auto py-4 flex flex-col items-center gap-2"
+                          onClick={() => setClassifyForm({ ...classifyForm, classification: 'general' })}
+                          data-testid="classify-general-btn"
+                        >
+                          <Image className="h-6 w-6" />
+                          <span className="font-medium">General Asset</span>
+                          <span className="text-xs opacity-70">Stays in Asset Library</span>
+                        </Button>
+                        <Button
+                          variant={classifyForm.classification === 'brand' ? 'default' : 'outline'}
+                          className="h-auto py-4 flex flex-col items-center gap-2"
+                          onClick={() => setClassifyForm({ ...classifyForm, classification: 'brand' })}
+                          data-testid="classify-brand-btn"
+                        >
+                          <Building2 className="h-6 w-6" />
+                          <span className="font-medium">Brand Asset</span>
+                          <span className="text-xs opacity-70">Moves to Brand Media</span>
+                        </Button>
+                      </div>
+                    </div>
+
+                    {classifyForm.classification === 'brand' && (
+                      <>
+                        <div>
+                          <Label>Name</Label>
+                          <Input
+                            value={classifyForm.name}
+                            onChange={(e) => setClassifyForm({ ...classifyForm, name: e.target.value })}
+                            placeholder="Asset name"
+                          />
+                        </div>
+                        <div>
+                          <Label>Description</Label>
+                          <Textarea
+                            value={classifyForm.description}
+                            onChange={(e) => setClassifyForm({ ...classifyForm, description: e.target.value })}
+                            placeholder="Describe this asset..."
+                            rows={2}
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <Label>Media Type</Label>
+                            <Select value={classifyForm.mediaType} onValueChange={(v) => setClassifyForm({ ...classifyForm, mediaType: v })}>
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="logo">Logo</SelectItem>
+                                <SelectItem value="photo">Photo</SelectItem>
+                                <SelectItem value="video">Video</SelectItem>
+                                <SelectItem value="broll">B-Roll</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <Label>Entity Type</Label>
+                            <Select value={classifyForm.entityType} onValueChange={(v) => setClassifyForm({ ...classifyForm, entityType: v })}>
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="brand">Brand</SelectItem>
+                                <SelectItem value="location">Location</SelectItem>
+                                <SelectItem value="product">Product</SelectItem>
+                                <SelectItem value="person">Person</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                        <div>
+                          <Label>Entity Name</Label>
+                          <Input
+                            value={classifyForm.entityName}
+                            onChange={(e) => setClassifyForm({ ...classifyForm, entityName: e.target.value })}
+                            placeholder="e.g., Pine Hill Farm, Lake Geneva Store"
+                          />
+                        </div>
+                        <div>
+                          <Label>Match Keywords (comma-separated)</Label>
+                          <Input
+                            value={classifyForm.matchKeywords}
+                            onChange={(e) => setClassifyForm({ ...classifyForm, matchKeywords: e.target.value })}
+                            placeholder="e.g., logo, brand, wellness"
+                          />
+                        </div>
+                        <div>
+                          <Label>Usage Contexts (comma-separated)</Label>
+                          <Input
+                            value={classifyForm.usageContexts}
+                            onChange={(e) => setClassifyForm({ ...classifyForm, usageContexts: e.target.value })}
+                            placeholder="e.g., intro, outro, overlay"
+                          />
+                        </div>
+                      </>
+                    )}
+
+                    <div className="flex gap-2 pt-4">
+                      <Button variant="outline" onClick={() => setIsClassifying(false)} className="flex-1">
+                        Cancel
+                      </Button>
+                      <Button
+                        className="flex-1"
+                        onClick={() => {
+                          const brandData = classifyForm.classification === 'brand' ? {
+                            name: classifyForm.name,
+                            description: classifyForm.description,
+                            mediaType: classifyForm.mediaType,
+                            entityName: classifyForm.entityName,
+                            entityType: classifyForm.entityType,
+                            matchKeywords: classifyForm.matchKeywords.split(',').map(k => k.trim()).filter(Boolean),
+                            usageContexts: classifyForm.usageContexts.split(',').map(c => c.trim()).filter(Boolean),
+                          } : undefined;
+                          
+                          classifyAssetMutation.mutate({
+                            id: selectedUnifiedAsset.id,
+                            classification: classifyForm.classification,
+                            brandData,
+                          });
+                        }}
+                        disabled={classifyAssetMutation.isPending}
+                        data-testid="save-classification-btn"
+                      >
+                        {classifyAssetMutation.isPending ? 'Saving...' : 'Save Classification'}
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
             </>
           )}
