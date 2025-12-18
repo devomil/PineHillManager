@@ -1113,6 +1113,7 @@ function ScenePreview({
   scenes, 
   assets,
   projectId,
+  projectTitle,
   onToggleProductOverlay,
   onSceneUpdate,
   onProjectUpdate
@@ -1120,6 +1121,7 @@ function ScenePreview({
   scenes: Scene[]; 
   assets: VideoProject['assets'];
   projectId?: string;
+  projectTitle?: string;
   onToggleProductOverlay?: (sceneId: string, useOverlay: boolean) => void;
   onSceneUpdate?: () => void;
   onProjectUpdate?: (project: VideoProject) => void;
@@ -1133,6 +1135,7 @@ function ScenePreview({
   const [editingVisualDirection, setEditingVisualDirection] = useState<string | null>(null);
   const [editedVisualDirection, setEditedVisualDirection] = useState<Record<string, string>>({});
   const [savingVisualDirection, setSavingVisualDirection] = useState<string | null>(null);
+  const [askingSuzzie, setAskingSuzzie] = useState<string | null>(null);
   const [savingOverlay, setSavingOverlay] = useState<string | null>(null);
   const [overlaySettings, setOverlaySettings] = useState<Record<string, {
     x: 'left' | 'center' | 'right';
@@ -1300,6 +1303,40 @@ function ScenePreview({
       toast({ title: 'Error', description: err.message, variant: 'destructive' });
     } finally {
       setSavingVisualDirection(null);
+    }
+  };
+
+  // Ask Suzzie (Claude AI) to generate visual direction idea
+  const askSuzzie = async (sceneId: string, narration: string, sceneType: string) => {
+    if (!projectId) return;
+    setAskingSuzzie(sceneId);
+    try {
+      const res = await fetch(`/api/universal-video/ask-suzzie`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ 
+          narration, 
+          sceneType,
+          projectTitle: projectTitle || 'Marketing Video'
+        })
+      });
+      const data = await res.json();
+      if (data.success && data.visualDirection) {
+        // Put user into edit mode with the generated suggestion
+        setEditingVisualDirection(sceneId);
+        setEditedVisualDirection(prev => ({ ...prev, [sceneId]: data.visualDirection }));
+        toast({ 
+          title: 'Suzzie has an idea!', 
+          description: 'Review and edit the suggestion, then save.' 
+        });
+      } else {
+        toast({ title: 'Failed', description: data.error || 'Could not generate suggestion', variant: 'destructive' });
+      }
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    } finally {
+      setAskingSuzzie(null);
     }
   };
 
@@ -1888,19 +1925,36 @@ function ScenePreview({
                   <div className="flex items-center justify-between mb-2">
                     <Label className="text-sm font-medium">Visual Direction</Label>
                     {projectId && editingVisualDirection !== scene.id && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-7 px-2 text-xs"
-                        onClick={() => {
-                          setEditingVisualDirection(scene.id);
-                          setEditedVisualDirection(prev => ({ ...prev, [scene.id]: scene.background.source }));
-                        }}
-                        data-testid={`button-edit-visual-direction-modal-${scene.id}`}
-                      >
-                        <Pencil className="w-3 h-3 mr-1" />
-                        Edit
-                      </Button>
+                      <div className="flex gap-1">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 px-2 text-xs bg-purple-50 hover:bg-purple-100 border-purple-200 text-purple-700"
+                          onClick={() => askSuzzie(scene.id, scene.narration, scene.type)}
+                          disabled={!!askingSuzzie}
+                          data-testid={`button-ask-suzzie-modal-${scene.id}`}
+                        >
+                          {askingSuzzie === scene.id ? (
+                            <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                          ) : (
+                            <Sparkles className="w-3 h-3 mr-1" />
+                          )}
+                          Ask Suzzie
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 px-2 text-xs"
+                          onClick={() => {
+                            setEditingVisualDirection(scene.id);
+                            setEditedVisualDirection(prev => ({ ...prev, [scene.id]: scene.background.source }));
+                          }}
+                          data-testid={`button-edit-visual-direction-modal-${scene.id}`}
+                        >
+                          <Pencil className="w-3 h-3 mr-1" />
+                          Edit
+                        </Button>
+                      </div>
                     )}
                   </div>
                   {editingVisualDirection === scene.id ? (
@@ -3057,6 +3111,7 @@ export default function UniversalVideoProducer() {
                     scenes={project.scenes} 
                     assets={project.assets}
                     projectId={project.id}
+                    projectTitle={project.title}
                     onToggleProductOverlay={handleToggleProductOverlay}
                     onSceneUpdate={() => queryClient.invalidateQueries({ queryKey: ['/api/universal-video/projects', project.id] })}
                     onProjectUpdate={(updatedProject) => setProject(updatedProject)}

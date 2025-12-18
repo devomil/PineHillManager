@@ -169,6 +169,73 @@ router.get('/projects', isAuthenticated, async (req: Request, res: Response) => 
   }
 });
 
+// Ask Suzzie (Claude AI) to generate visual direction idea for a scene
+router.post('/ask-suzzie', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const { narration, sceneType, projectTitle } = req.body;
+    
+    if (!narration) {
+      return res.status(400).json({ success: false, error: 'Narration is required' });
+    }
+    
+    const Anthropic = (await import('@anthropic-ai/sdk')).default;
+    const anthropicKey = process.env.ANTHROPIC_API_KEY;
+    
+    if (!anthropicKey) {
+      return res.status(500).json({ success: false, error: 'AI service not configured' });
+    }
+    
+    const client = new Anthropic({ apiKey: anthropicKey });
+    
+    const systemPrompt = `You are Suzzie, a creative visual director for Pine Hill Farm marketing videos. 
+You specialize in creating compelling visual directions for TV-quality promotional videos about health, wellness, and organic products.
+Your suggestions should be:
+- Achievable with AI image/video generation (no complex multi-person scenes)
+- Focused on mood, lighting, and atmosphere
+- Specific about camera angles and composition
+- Aligned with health and wellness themes
+- Professional and engaging
+
+Provide a single, clear visual direction in 2-3 sentences. Do NOT include multiple options or bullet points.
+Focus on what should be visually shown on screen to accompany the narration.`;
+
+    const userPrompt = `Scene Type: ${sceneType || 'general'}
+Project: ${projectTitle || 'Marketing Video'}
+
+Narration for this scene:
+"${narration}"
+
+Suggest a compelling visual direction for this scene. Be specific about what should appear on screen, the mood, lighting, and camera angle. Keep it to 2-3 sentences.`;
+
+    const response = await client.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 300,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: userPrompt }],
+    });
+
+    // Safely extract text content from response
+    const textContent = response.content && response.content.length > 0 && response.content[0].type === 'text' 
+      ? response.content[0].text 
+      : '';
+    
+    if (!textContent) {
+      console.error('[AskSuzzie] No text content in response');
+      return res.status(500).json({ success: false, error: 'AI returned no suggestion' });
+    }
+    
+    console.log('[AskSuzzie] Generated visual direction for scene type:', sceneType);
+    
+    res.json({ 
+      success: true, 
+      visualDirection: textContent.trim()
+    });
+  } catch (error: any) {
+    console.error('[AskSuzzie] Error generating visual direction:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 router.post('/projects/product', isAuthenticated, async (req: Request, res: Response) => {
   try {
     const userId = (req.user as any)?.id;
