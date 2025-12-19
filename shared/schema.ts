@@ -5086,3 +5086,410 @@ export const insertUniversalVideoProjectSchema = createInsertSchema(universalVid
 
 export type UniversalVideoProject = typeof universalVideoProjects.$inferSelect;
 export type InsertUniversalVideoProject = z.infer<typeof insertUniversalVideoProjectSchema>;
+
+// ========================================
+// MARKETPLACE INTEGRATION TABLES
+// ========================================
+
+// Marketplace Channels - BigCommerce, Amazon, etc.
+export const marketplaceChannels = pgTable("marketplace_channels", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 100 }).notNull(), // "BigCommerce", "Amazon", "Shopify"
+  type: varchar("type", { length: 50 }).notNull(), // bigcommerce, amazon, shopify
+  isActive: boolean("is_active").default(true),
+  apiConfig: jsonb("api_config"), // Store hash, endpoint URLs, etc. (non-sensitive)
+  syncSettings: jsonb("sync_settings"), // Auto-sync interval, enabled features
+  lastSyncAt: timestamp("last_sync_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  typeIdx: index("idx_marketplace_channels_type").on(table.type),
+  isActiveIdx: index("idx_marketplace_channels_active").on(table.isActive),
+}));
+
+export const insertMarketplaceChannelSchema = createInsertSchema(marketplaceChannels).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type MarketplaceChannel = typeof marketplaceChannels.$inferSelect;
+export type InsertMarketplaceChannel = z.infer<typeof insertMarketplaceChannelSchema>;
+
+// Marketplace Orders - Orders from external marketplaces
+export const marketplaceOrders = pgTable("marketplace_orders", {
+  id: serial("id").primaryKey(),
+  channelId: integer("channel_id").notNull().references(() => marketplaceChannels.id),
+  externalOrderId: varchar("external_order_id", { length: 255 }).notNull(),
+  externalOrderNumber: varchar("external_order_number", { length: 100 }), // Human-readable order #
+  
+  // Order status
+  status: varchar("status", { length: 50 }).notNull().default("pending"), // pending, awaiting_fulfillment, partially_fulfilled, fulfilled, shipped, cancelled, refunded
+  paymentStatus: varchar("payment_status", { length: 50 }).default("pending"), // pending, paid, refunded, partially_refunded
+  fulfillmentStatus: varchar("fulfillment_status", { length: 50 }).default("unfulfilled"), // unfulfilled, partial, fulfilled
+  
+  // Customer info
+  customerEmail: varchar("customer_email", { length: 255 }),
+  customerName: varchar("customer_name", { length: 255 }),
+  customerPhone: varchar("customer_phone", { length: 50 }),
+  
+  // Addresses stored as JSONB
+  shippingAddress: jsonb("shipping_address"), // { firstName, lastName, street1, street2, city, state, zip, country, phone }
+  billingAddress: jsonb("billing_address"),
+  
+  // Totals
+  subtotal: decimal("subtotal", { precision: 10, scale: 2 }).default("0.00"),
+  shippingTotal: decimal("shipping_total", { precision: 10, scale: 2 }).default("0.00"),
+  taxTotal: decimal("tax_total", { precision: 10, scale: 2 }).default("0.00"),
+  discountTotal: decimal("discount_total", { precision: 10, scale: 2 }).default("0.00"),
+  grandTotal: decimal("grand_total", { precision: 10, scale: 2 }).notNull(),
+  currency: varchar("currency", { length: 10 }).default("USD"),
+  
+  // Shipping method
+  shippingMethod: varchar("shipping_method", { length: 255 }),
+  shippingCarrier: varchar("shipping_carrier", { length: 100 }),
+  
+  // Timestamps from marketplace
+  orderPlacedAt: timestamp("order_placed_at").notNull(),
+  orderUpdatedAt: timestamp("order_updated_at"),
+  
+  // Fulfillment tracking
+  fulfilledAt: timestamp("fulfilled_at"),
+  fulfilledBy: varchar("fulfilled_by").references(() => users.id),
+  
+  // Store raw marketplace data for reference
+  rawPayload: jsonb("raw_payload"),
+  
+  // Notes
+  internalNotes: text("internal_notes"),
+  customerNotes: text("customer_notes"),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  channelIdIdx: index("idx_marketplace_orders_channel").on(table.channelId),
+  externalOrderIdx: unique("idx_marketplace_orders_external").on(table.channelId, table.externalOrderId),
+  statusIdx: index("idx_marketplace_orders_status").on(table.status),
+  fulfillmentStatusIdx: index("idx_marketplace_orders_fulfillment").on(table.fulfillmentStatus),
+  orderPlacedAtIdx: index("idx_marketplace_orders_placed_at").on(table.orderPlacedAt),
+}));
+
+export const marketplaceOrdersRelations = relations(marketplaceOrders, ({ one, many }) => ({
+  channel: one(marketplaceChannels, { fields: [marketplaceOrders.channelId], references: [marketplaceChannels.id] }),
+  fulfiller: one(users, { fields: [marketplaceOrders.fulfilledBy], references: [users.id] }),
+  items: many(marketplaceOrderItems),
+  fulfillments: many(marketplaceFulfillments),
+}));
+
+export const insertMarketplaceOrderSchema = createInsertSchema(marketplaceOrders).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type MarketplaceOrder = typeof marketplaceOrders.$inferSelect;
+export type InsertMarketplaceOrder = z.infer<typeof insertMarketplaceOrderSchema>;
+
+// Marketplace Order Items - Line items in marketplace orders
+export const marketplaceOrderItems = pgTable("marketplace_order_items", {
+  id: serial("id").primaryKey(),
+  orderId: integer("order_id").notNull().references(() => marketplaceOrders.id, { onDelete: "cascade" }),
+  
+  // External references
+  externalItemId: varchar("external_item_id", { length: 255 }),
+  externalProductId: varchar("external_product_id", { length: 255 }),
+  externalVariantId: varchar("external_variant_id", { length: 255 }),
+  
+  // Product info
+  sku: varchar("sku", { length: 100 }),
+  name: varchar("name", { length: 500 }).notNull(),
+  variantName: varchar("variant_name", { length: 255 }),
+  
+  // Quantities
+  quantity: integer("quantity").notNull().default(1),
+  quantityFulfilled: integer("quantity_fulfilled").default(0),
+  
+  // Pricing
+  unitPrice: decimal("unit_price", { precision: 10, scale: 2 }).notNull(),
+  totalPrice: decimal("total_price", { precision: 10, scale: 2 }).notNull(),
+  
+  // Link to Clover inventory if matched
+  cloverItemId: varchar("clover_item_id", { length: 100 }),
+  inventoryItemId: integer("inventory_item_id"),
+  
+  // Weight for shipping calculations
+  weight: decimal("weight", { precision: 10, scale: 4 }),
+  weightUnit: varchar("weight_unit", { length: 10 }).default("oz"),
+  
+  // Raw data
+  rawPayload: jsonb("raw_payload"),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  orderIdIdx: index("idx_marketplace_order_items_order").on(table.orderId),
+  skuIdx: index("idx_marketplace_order_items_sku").on(table.sku),
+  cloverItemIdx: index("idx_marketplace_order_items_clover").on(table.cloverItemId),
+}));
+
+export const marketplaceOrderItemsRelations = relations(marketplaceOrderItems, ({ one }) => ({
+  order: one(marketplaceOrders, { fields: [marketplaceOrderItems.orderId], references: [marketplaceOrders.id] }),
+}));
+
+export const insertMarketplaceOrderItemSchema = createInsertSchema(marketplaceOrderItems).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type MarketplaceOrderItem = typeof marketplaceOrderItems.$inferSelect;
+export type InsertMarketplaceOrderItem = z.infer<typeof insertMarketplaceOrderItemSchema>;
+
+// Marketplace Fulfillments - Shipment records for orders
+export const marketplaceFulfillments = pgTable("marketplace_fulfillments", {
+  id: serial("id").primaryKey(),
+  orderId: integer("order_id").notNull().references(() => marketplaceOrders.id, { onDelete: "cascade" }),
+  
+  // Tracking info
+  trackingNumber: varchar("tracking_number", { length: 255 }),
+  trackingUrl: text("tracking_url"),
+  carrier: varchar("carrier", { length: 100 }), // USPS, UPS, FedEx, etc.
+  serviceLevel: varchar("service_level", { length: 100 }), // Ground, Priority, Express
+  
+  // Status
+  status: varchar("status", { length: 50 }).notNull().default("pending"), // pending, shipped, delivered, failed
+  
+  // Items in this shipment (for partial fulfillments)
+  items: jsonb("items"), // [{ orderItemId, quantity }]
+  
+  // Shipment details
+  shippedAt: timestamp("shipped_at"),
+  estimatedDelivery: timestamp("estimated_delivery"),
+  deliveredAt: timestamp("delivered_at"),
+  
+  // Who fulfilled
+  fulfilledBy: varchar("fulfilled_by").references(() => users.id),
+  
+  // Response from marketplace API
+  externalShipmentId: varchar("external_shipment_id", { length: 255 }),
+  rawResponse: jsonb("raw_response"),
+  
+  // Notes
+  notes: text("notes"),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  orderIdIdx: index("idx_marketplace_fulfillments_order").on(table.orderId),
+  statusIdx: index("idx_marketplace_fulfillments_status").on(table.status),
+  trackingIdx: index("idx_marketplace_fulfillments_tracking").on(table.trackingNumber),
+}));
+
+export const marketplaceFulfillmentsRelations = relations(marketplaceFulfillments, ({ one }) => ({
+  order: one(marketplaceOrders, { fields: [marketplaceFulfillments.orderId], references: [marketplaceOrders.id] }),
+  fulfiller: one(users, { fields: [marketplaceFulfillments.fulfilledBy], references: [users.id] }),
+}));
+
+export const insertMarketplaceFulfillmentSchema = createInsertSchema(marketplaceFulfillments).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type MarketplaceFulfillment = typeof marketplaceFulfillments.$inferSelect;
+export type InsertMarketplaceFulfillment = z.infer<typeof insertMarketplaceFulfillmentSchema>;
+
+// Marketplace Inventory Rules - Rules for syncing inventory to marketplaces
+export const marketplaceInventoryRules = pgTable("marketplace_inventory_rules", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  channelId: integer("channel_id").references(() => marketplaceChannels.id),
+  
+  // Rule type
+  ruleType: varchar("rule_type", { length: 50 }).notNull(), // percentage, fixed, exclude, minimum_threshold
+  
+  // Percentage of Clover inventory to send to marketplace (e.g., 80% means keep 20% reserve)
+  percentageAllocation: integer("percentage_allocation").default(100),
+  
+  // Minimum stock threshold before listing as out of stock
+  minStockThreshold: integer("min_stock_threshold").default(0),
+  
+  // Fixed quantity to always reserve
+  reserveQuantity: integer("reserve_quantity").default(0),
+  
+  // Exclude specific products (by SKU or Clover item ID)
+  excludedSkus: text("excluded_skus").array().default([]),
+  excludedProductIds: text("excluded_product_ids").array().default([]),
+  excludedCategories: text("excluded_categories").array().default([]),
+  
+  // Include only specific products (if set, only these are synced)
+  includedSkus: text("included_skus").array(),
+  includedCategories: text("included_categories").array(),
+  
+  // Sync settings
+  syncEnabled: boolean("sync_enabled").default(true),
+  syncIntervalMinutes: integer("sync_interval_minutes").default(60),
+  lastSyncAt: timestamp("last_sync_at"),
+  nextSyncAt: timestamp("next_sync_at"),
+  
+  // Priority for rule application (higher = applied first)
+  priority: integer("priority").default(0),
+  
+  isActive: boolean("is_active").default(true),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  channelIdIdx: index("idx_marketplace_inventory_rules_channel").on(table.channelId),
+  ruleTypeIdx: index("idx_marketplace_inventory_rules_type").on(table.ruleType),
+  isActiveIdx: index("idx_marketplace_inventory_rules_active").on(table.isActive),
+}));
+
+export const marketplaceInventoryRulesRelations = relations(marketplaceInventoryRules, ({ one }) => ({
+  channel: one(marketplaceChannels, { fields: [marketplaceInventoryRules.channelId], references: [marketplaceChannels.id] }),
+  creator: one(users, { fields: [marketplaceInventoryRules.createdBy], references: [users.id] }),
+}));
+
+export const insertMarketplaceInventoryRuleSchema = createInsertSchema(marketplaceInventoryRules).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type MarketplaceInventoryRule = typeof marketplaceInventoryRules.$inferSelect;
+export type InsertMarketplaceInventoryRule = z.infer<typeof insertMarketplaceInventoryRuleSchema>;
+
+// Marketplace Sync Jobs - Track sync operations
+export const marketplaceSyncJobs = pgTable("marketplace_sync_jobs", {
+  id: serial("id").primaryKey(),
+  channelId: integer("channel_id").references(() => marketplaceChannels.id),
+  
+  // Job type
+  jobType: varchar("job_type", { length: 50 }).notNull(), // orders_import, inventory_export, order_status_update, fulfillment_push
+  
+  // Status
+  status: varchar("status", { length: 50 }).notNull().default("pending"), // pending, running, completed, failed, cancelled
+  
+  // Progress
+  totalItems: integer("total_items").default(0),
+  processedItems: integer("processed_items").default(0),
+  successCount: integer("success_count").default(0),
+  errorCount: integer("error_count").default(0),
+  
+  // Timing
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  
+  // Results and errors
+  results: jsonb("results"), // Summary of what was processed
+  errors: jsonb("errors"), // Array of error messages
+  
+  // Who triggered (null = automatic)
+  triggeredBy: varchar("triggered_by").references(() => users.id),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  channelIdIdx: index("idx_marketplace_sync_jobs_channel").on(table.channelId),
+  jobTypeIdx: index("idx_marketplace_sync_jobs_type").on(table.jobType),
+  statusIdx: index("idx_marketplace_sync_jobs_status").on(table.status),
+  createdAtIdx: index("idx_marketplace_sync_jobs_created_at").on(table.createdAt),
+}));
+
+export const marketplaceSyncJobsRelations = relations(marketplaceSyncJobs, ({ one }) => ({
+  channel: one(marketplaceChannels, { fields: [marketplaceSyncJobs.channelId], references: [marketplaceChannels.id] }),
+  triggeredByUser: one(users, { fields: [marketplaceSyncJobs.triggeredBy], references: [users.id] }),
+}));
+
+export const insertMarketplaceSyncJobSchema = createInsertSchema(marketplaceSyncJobs).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type MarketplaceSyncJob = typeof marketplaceSyncJobs.$inferSelect;
+export type InsertMarketplaceSyncJob = z.infer<typeof insertMarketplaceSyncJobSchema>;
+
+// Marketplace Authorized Users - Control which employees can access marketplace features
+export const marketplaceAuthorizedUsers = pgTable("marketplace_authorized_users", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  channelId: integer("channel_id").references(() => marketplaceChannels.id), // null = all channels
+  
+  // Permission level
+  permissionLevel: varchar("permission_level", { length: 50 }).notNull().default("view"), // view, fulfill, manage
+  
+  // Specific permissions (overrides permissionLevel)
+  permissions: text("permissions").array().default([]), // ['view_orders', 'fulfill_orders', 'manage_inventory', 'manage_rules']
+  
+  isActive: boolean("is_active").default(true),
+  grantedBy: varchar("granted_by").references(() => users.id),
+  grantedAt: timestamp("granted_at").defaultNow(),
+  expiresAt: timestamp("expires_at"),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  userIdIdx: index("idx_marketplace_authorized_users_user").on(table.userId),
+  channelIdIdx: index("idx_marketplace_authorized_users_channel").on(table.channelId),
+  userChannelUnique: unique("idx_marketplace_authorized_users_unique").on(table.userId, table.channelId),
+}));
+
+export const marketplaceAuthorizedUsersRelations = relations(marketplaceAuthorizedUsers, ({ one }) => ({
+  user: one(users, { fields: [marketplaceAuthorizedUsers.userId], references: [users.id] }),
+  channel: one(marketplaceChannels, { fields: [marketplaceAuthorizedUsers.channelId], references: [marketplaceChannels.id] }),
+  granter: one(users, { fields: [marketplaceAuthorizedUsers.grantedBy], references: [users.id] }),
+}));
+
+export const insertMarketplaceAuthorizedUserSchema = createInsertSchema(marketplaceAuthorizedUsers).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type MarketplaceAuthorizedUser = typeof marketplaceAuthorizedUsers.$inferSelect;
+export type InsertMarketplaceAuthorizedUser = z.infer<typeof insertMarketplaceAuthorizedUserSchema>;
+
+// Product SKU Mapping - Map Clover items to marketplace products
+export const marketplaceProductMappings = pgTable("marketplace_product_mappings", {
+  id: serial("id").primaryKey(),
+  channelId: integer("channel_id").notNull().references(() => marketplaceChannels.id),
+  
+  // Clover/internal reference
+  cloverItemId: varchar("clover_item_id", { length: 100 }),
+  internalSku: varchar("internal_sku", { length: 100 }),
+  
+  // Marketplace reference
+  externalProductId: varchar("external_product_id", { length: 255 }),
+  externalVariantId: varchar("external_variant_id", { length: 255 }),
+  externalSku: varchar("external_sku", { length: 100 }),
+  
+  // Mapping status
+  isActive: boolean("is_active").default(true),
+  isSynced: boolean("is_synced").default(false),
+  lastSyncAt: timestamp("last_sync_at"),
+  
+  // Override settings for this specific product
+  overrideSettings: jsonb("override_settings"), // { priceMultiplier, fixedPrice, excludeFromSync }
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  channelIdIdx: index("idx_marketplace_product_mappings_channel").on(table.channelId),
+  cloverItemIdx: index("idx_marketplace_product_mappings_clover").on(table.cloverItemId),
+  externalProductIdx: index("idx_marketplace_product_mappings_external").on(table.channelId, table.externalProductId),
+  internalSkuIdx: index("idx_marketplace_product_mappings_internal_sku").on(table.internalSku),
+}));
+
+export const marketplaceProductMappingsRelations = relations(marketplaceProductMappings, ({ one }) => ({
+  channel: one(marketplaceChannels, { fields: [marketplaceProductMappings.channelId], references: [marketplaceChannels.id] }),
+}));
+
+export const insertMarketplaceProductMappingSchema = createInsertSchema(marketplaceProductMappings).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type MarketplaceProductMapping = typeof marketplaceProductMappings.$inferSelect;
+export type InsertMarketplaceProductMapping = z.infer<typeof insertMarketplaceProductMappingSchema>;

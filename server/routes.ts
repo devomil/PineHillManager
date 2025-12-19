@@ -24390,5 +24390,11 @@ Important:
   const universalVideoRoutes = await import('./routes/universal-video-routes');
   app.use('/api/universal-video', universalVideoRoutes.default);
 
+  // ================================
+  // MARKETPLACE FULFILLMENT ROUTES
+  // ================================
+  const marketplaceRoutes = await import('./routes/marketplace-routes');
+  app.use('/api/marketplace', marketplaceRoutes.default);
+
   return httpServer;
 }
