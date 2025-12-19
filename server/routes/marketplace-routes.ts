@@ -85,10 +85,10 @@ router.get('/orders', isAuthenticated, async (req: Request, res: Response) => {
       whereClause = sql`${whereClause} AND o.status = ${params.status}`;
     }
     if (params.fromDate) {
-      whereClause = sql`${whereClause} AND o.order_date >= ${params.fromDate}`;
+      whereClause = sql`${whereClause} AND o.order_placed_at >= ${params.fromDate}`;
     }
     if (params.toDate) {
-      whereClause = sql`${whereClause} AND o.order_date <= ${params.toDate}`;
+      whereClause = sql`${whereClause} AND o.order_placed_at <= ${params.toDate}`;
     }
 
     const ordersResult = await db.execute(sql`
@@ -96,7 +96,7 @@ router.get('/orders', isAuthenticated, async (req: Request, res: Response) => {
       FROM marketplace_orders o
       LEFT JOIN marketplace_channels c ON o.channel_id = c.id
       WHERE ${whereClause}
-      ORDER BY o.order_date DESC
+      ORDER BY o.order_placed_at DESC
       LIMIT ${limit} OFFSET ${offset}
     `);
 
@@ -672,7 +672,8 @@ router.get('/sync-jobs', isAuthenticated, async (req: Request, res: Response) =>
     }
 
     const result = await db.execute(sql`
-      SELECT j.*, c.name as channel_name, u.name as triggered_by_name
+      SELECT j.*, c.name as channel_name, 
+             CONCAT(u."firstName", ' ', u."lastName") as triggered_by_name
       FROM marketplace_sync_jobs j
       LEFT JOIN marketplace_channels c ON j.channel_id = c.id
       LEFT JOIN users u ON j.triggered_by = u.id
@@ -696,7 +697,7 @@ router.get('/analytics', isAuthenticated, async (req: Request, res: Response) =>
         COUNT(*) as total_orders,
         SUM(CASE WHEN o.status IN ('pending', 'awaiting_fulfillment', 'awaiting_shipment') THEN 1 ELSE 0 END) as pending_orders,
         SUM(CASE WHEN o.status = 'shipped' THEN 1 ELSE 0 END) as shipped_orders,
-        SUM(o.total) as total_revenue
+        SUM(o.grand_total::numeric) as total_revenue
       FROM marketplace_orders o
       LEFT JOIN marketplace_channels c ON o.channel_id = c.id
       GROUP BY c.name
@@ -704,12 +705,12 @@ router.get('/analytics', isAuthenticated, async (req: Request, res: Response) =>
 
     const recentOrdersResult = await db.execute(sql`
       SELECT 
-        DATE(order_date) as date,
+        DATE(order_placed_at) as date,
         COUNT(*) as orders,
-        SUM(total) as revenue
+        SUM(grand_total::numeric) as revenue
       FROM marketplace_orders
-      WHERE order_date >= NOW() - INTERVAL '30 days'
-      GROUP BY DATE(order_date)
+      WHERE order_placed_at >= NOW() - INTERVAL '30 days'
+      GROUP BY DATE(order_placed_at)
       ORDER BY date DESC
     `);
 
