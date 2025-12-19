@@ -23,7 +23,8 @@ import {
   GraduationCap,
   BarChart,
   Target,
-  ShoppingBag
+  ShoppingBag,
+  Store
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -51,6 +52,7 @@ const navigationItems: NavItem[] = [
   { label: "Purchasing", icon: ShoppingBag, value: "purchasing", href: "/purchasing", section: "operations" },
   
   // Tools Section
+  { label: "Marketplace", icon: Store, value: "marketplace", href: "/marketplace", section: "tools" },
   { label: "Orders", icon: ShoppingCart, value: "orders", href: "/orders", section: "tools" },
   { label: "Marketing Videos", icon: Video, value: "marketing", href: "/admin/marketing", section: "tools" },
   { label: "Employee Content", icon: FileText, value: "employee-content", href: "/admin/employee-content", section: "tools" },

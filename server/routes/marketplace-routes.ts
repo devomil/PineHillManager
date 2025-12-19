@@ -330,23 +330,62 @@ router.post('/orders/:id/fulfill', isAuthenticated, async (req: Request, res: Re
     
     if (fulfillData.items && fulfillData.items.length > 0) {
       // Partial fulfillment - use specified items and quantities
+      const overshipmentErrors: string[] = [];
+      
       for (const fulfillItem of fulfillData.items) {
         const dbItem = allItems.find((i: any) => i.id === fulfillItem.itemId);
         if (dbItem) {
-          itemsToFulfill.push({
-            itemId: fulfillItem.itemId,
-            quantity: fulfillItem.quantity,
-            dbItem,
-          });
+          // Calculate remaining unfulfilled quantity
+          const remainingQty = (dbItem.quantity || 0) - (dbItem.quantity_fulfilled || 0);
+          
+          // Guardrail: prevent over-shipment
+          if (fulfillItem.quantity > remainingQty) {
+            overshipmentErrors.push(
+              `Item "${dbItem.name || dbItem.sku}" requested qty ${fulfillItem.quantity} exceeds remaining ${remainingQty}`
+            );
+          } else {
+            itemsToFulfill.push({
+              itemId: fulfillItem.itemId,
+              quantity: fulfillItem.quantity,
+              dbItem,
+            });
+          }
         }
       }
+      
+      // If any over-shipment detected, return error
+      if (overshipmentErrors.length > 0) {
+        return res.status(400).json({ 
+          error: 'Over-shipment detected', 
+          details: overshipmentErrors 
+        });
+      }
     } else {
-      // Full fulfillment - use all items with their full quantities
-      itemsToFulfill = allItems.map((item: any) => ({
-        itemId: item.id,
-        quantity: item.quantity,
-        dbItem: item,
-      }));
+      // Full fulfillment - use remaining unfulfilled quantities for each item
+      const overshipmentErrors: string[] = [];
+      
+      for (const item of allItems) {
+        const remainingQty = (item.quantity || 0) - (item.quantity_fulfilled || 0);
+        
+        if (remainingQty <= 0) {
+          // Item already fully fulfilled, skip
+          continue;
+        }
+        
+        itemsToFulfill.push({
+          itemId: item.id,
+          quantity: remainingQty,
+          dbItem: item,
+        });
+      }
+      
+      // If no items left to fulfill
+      if (itemsToFulfill.length === 0) {
+        return res.status(400).json({ 
+          error: 'No items to fulfill', 
+          details: ['All items in this order have already been shipped'] 
+        });
+      }
     }
 
     const fulfillmentResult = await db.execute(sql`
