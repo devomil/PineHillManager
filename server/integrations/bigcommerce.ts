@@ -146,7 +146,7 @@ export class BigCommerceIntegration {
     if (rawStoreHash.includes('bigcommerce.com')) {
       const match = rawStoreHash.match(/stores\/([^\/]+)/);
       this.storeHash = match ? match[1] : rawStoreHash;
-      console.log(`📦 Extracted store hash from URL: ${this.storeHash}`);
+      console.log(`📦 [BigCommerce] Extracted store hash from URL: ${this.storeHash}`);
     } else {
       this.storeHash = rawStoreHash;
     }
@@ -155,9 +155,9 @@ export class BigCommerceIntegration {
     this.baseUrl = `https://api.bigcommerce.com/stores/${this.storeHash}/v3`;
 
     if (!this.storeHash || !this.accessToken) {
-      console.warn('BigCommerce credentials not configured');
+      console.warn('⚠️ [BigCommerce] Credentials not configured - storeHash:', this.storeHash ? 'SET' : 'MISSING', 'accessToken:', this.accessToken ? 'SET' : 'MISSING');
     } else {
-      console.log(`✅ BigCommerce configured with store hash: ${this.storeHash}`);
+      console.log(`✅ [BigCommerce] Configured with store hash: ${this.storeHash}, token: ${this.accessToken.substring(0, 8)}...`);
     }
   }
 

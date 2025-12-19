@@ -159,6 +159,8 @@ router.post('/sync/orders', isAuthenticated, requireAdmin, async (req: Request, 
   try {
     const { channelId } = req.body;
     const userId = (req.user as any)?.id;
+    
+    console.log('📦 [Marketplace Sync] Starting order sync for channel:', channelId);
 
     const channelResult = await db.execute(sql`
       SELECT * FROM marketplace_channels WHERE id = ${channelId}
@@ -169,6 +171,7 @@ router.post('/sync/orders', isAuthenticated, requireAdmin, async (req: Request, 
     }
 
     const channel = channelResult.rows[0] as any;
+    console.log('📦 [Marketplace Sync] Channel found:', channel.type, channel.name);
 
     const jobResult = await db.execute(sql`
       INSERT INTO marketplace_sync_jobs (channel_id, job_type, status, triggered_by, started_at)
@@ -177,14 +180,20 @@ router.post('/sync/orders', isAuthenticated, requireAdmin, async (req: Request, 
     `);
 
     const job = jobResult.rows[0] as any;
+    console.log('📦 [Marketplace Sync] Job created:', job.id);
 
     (async () => {
       try {
         let orders: any[] = [];
         
         if (channel.type === 'bigcommerce') {
+          console.log('📦 [BigCommerce Sync] Fetching awaiting fulfillment orders...');
           orders = await bigCommerce.getOrdersAwaitingFulfillment(100);
-          orders = [...orders, ...(await bigCommerce.getOrdersAwaitingShipment(100))];
+          console.log('📦 [BigCommerce Sync] Got', orders.length, 'awaiting fulfillment orders');
+          
+          const awaitingShipment = await bigCommerce.getOrdersAwaitingShipment(100);
+          console.log('📦 [BigCommerce Sync] Got', awaitingShipment.length, 'awaiting shipment orders');
+          orders = [...orders, ...awaitingShipment];
         } else if (channel.type === 'amazon') {
           console.log('Amazon order sync not yet implemented');
         }
@@ -662,30 +671,33 @@ router.delete('/authorized-users/:id', isAuthenticated, requireAdmin, async (req
 router.get('/sync-jobs', isAuthenticated, async (req: Request, res: Response) => {
   try {
     const { channelId, status, limit = '20' } = req.query;
+    const limitNum = parseInt(limit as string) || 20;
 
-    let whereClause = sql`1=1`;
-    if (channelId) {
-      whereClause = sql`${whereClause} AND j.channel_id = ${parseInt(channelId as string)}`;
-    }
-    if (status) {
-      whereClause = sql`${whereClause} AND j.status = ${status}`;
-    }
-
+    // Simple query without dynamic WHERE clauses for stability
     const result = await db.execute(sql`
       SELECT j.*, c.name as channel_name, 
-             CONCAT(u."firstName", ' ', u."lastName") as triggered_by_name
+             COALESCE(CONCAT(u."firstName", ' ', u."lastName"), 'System') as triggered_by_name
       FROM marketplace_sync_jobs j
       LEFT JOIN marketplace_channels c ON j.channel_id = c.id
       LEFT JOIN users u ON j.triggered_by = u.id
-      WHERE ${whereClause}
       ORDER BY j.created_at DESC
-      LIMIT ${parseInt(limit as string)}
+      LIMIT ${limitNum}
     `);
 
-    res.json(result.rows);
-  } catch (error) {
-    console.error('Error fetching sync jobs:', error);
-    res.status(500).json({ error: 'Failed to fetch sync jobs' });
+    // Filter in memory if channel/status filters are provided
+    let jobs = result.rows;
+    if (channelId) {
+      const channelIdNum = parseInt(channelId as string);
+      jobs = jobs.filter((j: any) => j.channel_id === channelIdNum);
+    }
+    if (status) {
+      jobs = jobs.filter((j: any) => j.status === status);
+    }
+
+    res.json(jobs);
+  } catch (error: any) {
+    console.error('Error fetching sync jobs:', error?.message || error);
+    res.status(500).json({ error: 'Failed to fetch sync jobs', details: error?.message });
   }
 });
 
