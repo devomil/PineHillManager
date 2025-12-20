@@ -44,8 +44,15 @@ interface InventoryLocation {
   id: number;
   name: string;
   available_quantity: number;
+  unit_price?: string;
+  unit_cost?: string;
   margin?: string;
   selected?: boolean;
+}
+
+interface InventoryBySku {
+  sku: string;
+  locations: InventoryLocation[];
 }
 
 interface MarketplaceOrder {
@@ -87,6 +94,7 @@ export default function OrderFulfillmentPage() {
   const [itemAllocations, setItemAllocations] = useState<Record<number, number>>({});
   const [sellerNotes, setSellerNotes] = useState('');
   const [isGeneratingLabel, setIsGeneratingLabel] = useState(false);
+  const [inventoryBySku, setInventoryBySku] = useState<Record<string, InventoryLocation[]>>({});
 
   const { data: order, isLoading: orderLoading } = useQuery<MarketplaceOrder>({
     queryKey: [`/api/marketplace/orders/${orderId}`],
@@ -101,6 +109,21 @@ export default function OrderFulfillmentPage() {
     if (order?.items) {
       const allItemIds = new Set(order.items.map(item => item.id));
       setSelectedItems(allItemIds);
+      
+      // Fetch inventory for each unique SKU
+      const allSkus = order.items.map(item => item.sku).filter(Boolean);
+      const skus = Array.from(new Set(allSkus));
+      skus.forEach(async (sku) => {
+        try {
+          const response = await fetch(`/api/marketplace/inventory/by-sku/${encodeURIComponent(sku)}`);
+          if (response.ok) {
+            const data = await response.json();
+            setInventoryBySku(prev => ({ ...prev, [sku]: data.locations || [] }));
+          }
+        } catch (error) {
+          console.error(`Failed to fetch inventory for SKU ${sku}:`, error);
+        }
+      });
     }
     if ((order as any)?.internal_notes) {
       setSellerNotes((order as any).internal_notes);
@@ -404,15 +427,31 @@ export default function OrderFulfillmentPage() {
                             {item.quantity}
                           </TableCell>
                           <TableCell className="text-right">
-                            ${Number(item.unit_price || 0).toFixed(2)}
+                            {(() => {
+                              const orderPrice = Number(item.unit_price) || 0;
+                              const invLocations = item.sku && inventoryBySku[item.sku] ? inventoryBySku[item.sku] : [];
+                              const invPrice = invLocations.length > 0 ? Number(invLocations[0].unit_price) || 0 : 0;
+                              const displayPrice = orderPrice > 0 ? orderPrice : invPrice;
+                              return `$${displayPrice.toFixed(2)}`;
+                            })()}
                           </TableCell>
                           <TableCell className="text-right">
-                            <div>
-                              <p className="text-xs text-gray-500">Item subtotal:</p>
-                              <p className="font-medium">${Number(item.total_price || 0).toFixed(2)}</p>
-                              <p className="text-xs text-gray-500 mt-1">Item total:</p>
-                              <p className="font-medium">${Number(item.total_price || 0).toFixed(2)}</p>
-                            </div>
+                            {(() => {
+                              const orderPrice = Number(item.unit_price) || 0;
+                              const orderTotal = Number(item.total_price) || 0;
+                              const invLocations = item.sku && inventoryBySku[item.sku] ? inventoryBySku[item.sku] : [];
+                              const invPrice = invLocations.length > 0 ? Number(invLocations[0].unit_price) || 0 : 0;
+                              const displayPrice = orderPrice > 0 ? orderPrice : invPrice;
+                              const displayTotal = orderTotal > 0 ? orderTotal : displayPrice * item.quantity;
+                              return (
+                                <div>
+                                  <p className="text-xs text-gray-500">Item subtotal:</p>
+                                  <p className="font-medium">${displayTotal.toFixed(2)}</p>
+                                  <p className="text-xs text-gray-500 mt-1">Item total:</p>
+                                  <p className="font-medium">${displayTotal.toFixed(2)}</p>
+                                </div>
+                              );
+                            })()}
                           </TableCell>
                           <TableCell>
                             <Checkbox
@@ -455,52 +494,72 @@ export default function OrderFulfillmentPage() {
                     </TableHeader>
                     <TableBody>
                       {order.items.map((item, idx) => {
-                        const mockLocations: InventoryLocation[] = [
-                          { id: 1, name: 'PHF Lake Geneva', available_quantity: 17, margin: '52.27%' },
-                          { id: 2, name: 'Watertown', available_quantity: 46, margin: '52.27%' },
-                        ];
+                        const locations = item.sku && inventoryBySku[item.sku] 
+                          ? inventoryBySku[item.sku] 
+                          : [];
                         
-                        return mockLocations.map((location, locIdx) => (
-                          <TableRow key={`${item.id}-${location.id}`} data-testid={`row-allocation-${item.id}-${location.id}`}>
-                            {locIdx === 0 && (
-                              <>
-                                <TableCell rowSpan={mockLocations.length}>
-                                  <div>
-                                    <p className="text-blue-600 font-medium text-sm hover:underline cursor-pointer">
-                                      {item.name.length > 30 ? item.name.substring(0, 30) + '...' : item.name}
-                                    </p>
-                                    <p className="text-xs text-gray-500">Pine Hill Farm, Reliance</p>
-                                  </div>
-                                </TableCell>
-                                <TableCell rowSpan={mockLocations.length} className="text-xs text-gray-500">
-                                  {item.sku || 'N/A'}
-                                </TableCell>
-                              </>
-                            )}
-                            <TableCell className="font-medium">{location.name}</TableCell>
-                            <TableCell className="text-center">
-                              <span className="text-blue-600">{location.available_quantity}</span>
-                              <p className="text-xs text-gray-400">Est. {locIdx === 0 ? '24w2d' : '7w5d'}</p>
-                            </TableCell>
-                            <TableCell className="text-center text-gray-600">
-                              Margin: {location.margin}
-                            </TableCell>
-                            <TableCell className="text-right font-medium">
-                              ${Number(item.unit_price || 0).toFixed(2)}
-                            </TableCell>
-                            <TableCell>
-                              <Checkbox
-                                checked={itemAllocations[item.id] === location.id}
-                                onCheckedChange={(checked) => {
-                                  if (checked) {
-                                    handleLocationSelection(item.id, location.id);
-                                  }
-                                }}
-                                data-testid={`checkbox-allocation-${item.id}-${location.id}`}
-                              />
-                            </TableCell>
-                          </TableRow>
-                        ));
+                        if (locations.length === 0) {
+                          return (
+                            <TableRow key={item.id} data-testid={`row-allocation-${item.id}-none`}>
+                              <TableCell>
+                                <div>
+                                  <p className="text-blue-600 font-medium text-sm hover:underline cursor-pointer">
+                                    {item.name.length > 30 ? item.name.substring(0, 30) + '...' : item.name}
+                                  </p>
+                                  <p className="text-xs text-gray-500">Pine Hill Farm</p>
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-xs text-gray-500">{item.sku || 'N/A'}</TableCell>
+                              <TableCell colSpan={5} className="text-center text-gray-500">
+                                No inventory found for this SKU
+                              </TableCell>
+                            </TableRow>
+                          );
+                        }
+                        
+                        return locations.map((location, locIdx) => {
+                          const itemPrice = Number(item.unit_price) || Number(location.unit_price) || 0;
+                          return (
+                            <TableRow key={`${item.id}-${location.id}`} data-testid={`row-allocation-${item.id}-${location.id}`}>
+                              {locIdx === 0 && (
+                                <>
+                                  <TableCell rowSpan={locations.length}>
+                                    <div>
+                                      <p className="text-blue-600 font-medium text-sm hover:underline cursor-pointer">
+                                        {item.name.length > 30 ? item.name.substring(0, 30) + '...' : item.name}
+                                      </p>
+                                      <p className="text-xs text-gray-500">Pine Hill Farm</p>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell rowSpan={locations.length} className="text-xs text-gray-500">
+                                    {item.sku || 'N/A'}
+                                  </TableCell>
+                                </>
+                              )}
+                              <TableCell className="font-medium">{location.name}</TableCell>
+                              <TableCell className="text-center">
+                                <span className="text-blue-600">{location.available_quantity}</span>
+                              </TableCell>
+                              <TableCell className="text-center text-gray-600">
+                                Margin: {location.margin || 'N/A'}
+                              </TableCell>
+                              <TableCell className="text-right font-medium">
+                                ${itemPrice.toFixed(2)}
+                              </TableCell>
+                              <TableCell>
+                                <Checkbox
+                                  checked={itemAllocations[item.id] === location.id}
+                                  onCheckedChange={(checked) => {
+                                    if (checked) {
+                                      handleLocationSelection(item.id, location.id);
+                                    }
+                                  }}
+                                  data-testid={`checkbox-allocation-${item.id}-${location.id}`}
+                                />
+                              </TableCell>
+                            </TableRow>
+                          );
+                        });
                       })}
                     </TableBody>
                   </Table>
@@ -541,14 +600,37 @@ export default function OrderFulfillmentPage() {
                 <Separator className="my-4" />
                 
                 <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-500">Items total:</span>
-                    <span>${Number(order.subtotal || order.grand_total || 0).toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between text-sm font-semibold">
-                    <span>Grand total:</span>
-                    <span>${Number(order.grand_total || 0).toFixed(2)}</span>
-                  </div>
+                  {(() => {
+                    let itemsTotal = Number(order.subtotal) || Number(order.grand_total) || 0;
+                    let grandTotal = Number(order.grand_total) || 0;
+                    
+                    // Calculate from inventory prices if order totals are 0
+                    if (grandTotal === 0 && order.items) {
+                      itemsTotal = order.items.reduce((sum, item) => {
+                        const orderPrice = Number(item.unit_price) || 0;
+                        const orderTotal = Number(item.total_price) || 0;
+                        if (orderTotal > 0) return sum + orderTotal;
+                        const invLocations = item.sku && inventoryBySku[item.sku] ? inventoryBySku[item.sku] : [];
+                        const invPrice = invLocations.length > 0 ? Number(invLocations[0].unit_price) || 0 : 0;
+                        const displayPrice = orderPrice > 0 ? orderPrice : invPrice;
+                        return sum + (displayPrice * item.quantity);
+                      }, 0);
+                      grandTotal = itemsTotal;
+                    }
+                    
+                    return (
+                      <>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-500">Items total:</span>
+                          <span>${itemsTotal.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between text-sm font-semibold">
+                          <span>Grand total:</span>
+                          <span>${grandTotal.toFixed(2)}</span>
+                        </div>
+                      </>
+                    );
+                  })()}
                 </div>
               </CardContent>
             </Card>

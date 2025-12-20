@@ -181,6 +181,38 @@ router.patch('/orders/:id/notes', isAuthenticated, async (req: Request, res: Res
   }
 });
 
+router.get('/inventory/by-sku/:sku', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const sku = req.params.sku;
+    
+    const inventoryResult = await db.execute(sql`
+      SELECT i.id, i.sku, i.item_name, i.quantity_on_hand, i.unit_price, i.unit_cost,
+             l.id as location_id, l.name as location_name
+      FROM inventory_items i
+      LEFT JOIN locations l ON i.location_id = l.id
+      WHERE i.sku = ${sku} AND i.is_active = true
+      ORDER BY l.name
+    `);
+    
+    res.json({
+      sku,
+      locations: inventoryResult.rows.map((row: any) => ({
+        id: row.location_id,
+        name: row.location_name || 'Unknown Location',
+        available_quantity: parseFloat(row.quantity_on_hand) || 0,
+        unit_price: row.unit_price,
+        unit_cost: row.unit_cost,
+        margin: row.unit_price && row.unit_cost 
+          ? ((1 - parseFloat(row.unit_cost) / parseFloat(row.unit_price)) * 100).toFixed(2) + '%'
+          : 'N/A'
+      }))
+    });
+  } catch (error) {
+    console.error('Error fetching inventory by SKU:', error);
+    res.status(500).json({ error: 'Failed to fetch inventory data' });
+  }
+});
+
 router.post('/orders/:id/fulfill', isAuthenticated, async (req: Request, res: Response) => {
   try {
     const orderId = parseInt(req.params.id);
