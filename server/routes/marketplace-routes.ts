@@ -187,13 +187,23 @@ router.post('/sync/orders', isAuthenticated, requireAdmin, async (req: Request, 
         let orders: any[] = [];
         
         if (channel.type === 'bigcommerce') {
-          console.log('📦 [BigCommerce Sync] Fetching awaiting fulfillment orders...');
-          orders = await bigCommerce.getOrdersAwaitingFulfillment(100);
-          console.log('📦 [BigCommerce Sync] Got', orders.length, 'awaiting fulfillment orders');
+          // Fetch orders from multiple statuses:
+          // 2=Shipped, 9=Awaiting Shipment, 10=Completed, 11=Awaiting Fulfillment
+          const statusesToFetch = [
+            { id: 11, name: 'Awaiting Fulfillment' },
+            { id: 9, name: 'Awaiting Shipment' },
+            { id: 2, name: 'Shipped' },
+            { id: 10, name: 'Completed' },
+          ];
           
-          const awaitingShipment = await bigCommerce.getOrdersAwaitingShipment(100);
-          console.log('📦 [BigCommerce Sync] Got', awaitingShipment.length, 'awaiting shipment orders');
-          orders = [...orders, ...awaitingShipment];
+          for (const status of statusesToFetch) {
+            console.log(`📦 [BigCommerce Sync] Fetching ${status.name} orders (status ${status.id})...`);
+            const statusOrders = await bigCommerce.getOrders({ statusId: status.id, limit: 100 });
+            console.log(`📦 [BigCommerce Sync] Got ${statusOrders.length} ${status.name} orders`);
+            orders = [...orders, ...statusOrders];
+          }
+          
+          console.log(`📦 [BigCommerce Sync] Total orders to sync: ${orders.length}`);
         } else if (channel.type === 'amazon') {
           console.log('Amazon order sync not yet implemented');
         }
