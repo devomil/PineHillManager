@@ -487,6 +487,7 @@ export default function OrderFulfillmentPage() {
                         <TableHead>SKU</TableHead>
                         <TableHead>Location</TableHead>
                         <TableHead className="text-center">Available</TableHead>
+                        <TableHead className="text-right">Cost</TableHead>
                         <TableHead className="text-center">Margin</TableHead>
                         <TableHead className="text-right">Proceeds</TableHead>
                         <TableHead className="w-12"></TableHead>
@@ -510,7 +511,7 @@ export default function OrderFulfillmentPage() {
                                 </div>
                               </TableCell>
                               <TableCell className="text-xs text-gray-500">{item.sku || 'N/A'}</TableCell>
-                              <TableCell colSpan={5} className="text-center text-gray-500">
+                              <TableCell colSpan={6} className="text-center text-gray-500">
                                 No inventory found for this SKU
                               </TableCell>
                             </TableRow>
@@ -540,8 +541,11 @@ export default function OrderFulfillmentPage() {
                               <TableCell className="text-center">
                                 <span className="text-blue-600">{location.available_quantity}</span>
                               </TableCell>
+                              <TableCell className="text-right text-gray-600">
+                                ${Number(location.unit_cost || 0).toFixed(2)}
+                              </TableCell>
                               <TableCell className="text-center text-gray-600">
-                                Margin: {location.margin || 'N/A'}
+                                {location.margin || 'N/A'}
                               </TableCell>
                               <TableCell className="text-right font-medium">
                                 ${itemPrice.toFixed(2)}
