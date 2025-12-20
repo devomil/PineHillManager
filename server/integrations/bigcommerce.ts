@@ -303,6 +303,7 @@ export class BigCommerceIntegration {
     maxDateCreated?: string;
     statusId?: number;
     minId?: number;
+    sort?: string;
   } = {}): Promise<BigCommerceOrder[]> {
     if (!this.storeHash || !this.accessToken) {
       throw new Error('BigCommerce API credentials not configured');
@@ -316,6 +317,7 @@ export class BigCommerceIntegration {
       if (options.maxDateCreated) params.append('max_date_created', options.maxDateCreated);
       if (options.statusId !== undefined) params.append('status_id', options.statusId.toString());
       if (options.minId) params.append('min_id', options.minId.toString());
+      if (options.sort) params.append('sort', options.sort);
 
       const url = `${this.baseUrlV2}/orders?${params.toString()}`;
       console.log(`📦 [BigCommerce] Fetching orders: ${url}`);

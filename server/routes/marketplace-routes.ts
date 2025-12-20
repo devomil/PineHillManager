@@ -210,7 +210,12 @@ router.post('/sync/orders', isAuthenticated, requireAdmin, async (req: Request, 
           
           for (const status of statusesToFetch) {
             console.log(`📦 [BigCommerce Sync] Fetching ${status.name} orders (status ${status.id})...`);
-            const statusOrders = await bigCommerce.getOrders({ statusId: status.id, limit: 100 });
+            // Sort by date_created:desc to get newest orders first, and fetch up to 250 per status
+            const statusOrders = await bigCommerce.getOrders({ 
+              statusId: status.id, 
+              limit: 250,
+              sort: 'date_created:desc'
+            });
             console.log(`📦 [BigCommerce Sync] Got ${statusOrders.length} ${status.name} orders`);
             orders = [...orders, ...statusOrders];
           }
