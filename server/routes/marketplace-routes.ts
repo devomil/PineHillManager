@@ -225,12 +225,22 @@ router.post('/sync/orders', isAuthenticated, requireAdmin, async (req: Request, 
           console.log('📦 [Amazon Sync] Starting Amazon order sync...');
           
           try {
-            const credentials = channel.credentials;
-            if (!credentials) {
-              throw new Error('Amazon credentials not configured');
+            // Use environment secrets for Amazon credentials, with channel config for marketplace-specific settings
+            const channelConfig = channel.api_config || {};
+            const amazonCredentials = {
+              sellerId: process.env.AMAZON_SELLER_ID,
+              refreshToken: process.env.AMAZON_REFRESH_TOKEN,
+              clientId: process.env.AMAZON_CLIENT_ID,
+              clientSecret: process.env.AMAZON_CLIENT_SECRET,
+              marketplaceId: channelConfig.marketplaceId || process.env.AMAZON_MARKETPLACE_ID || 'ATVPDKIKX0DER',
+              baseUrl: channelConfig.baseUrl || process.env.AMAZON_BASE_URL || 'https://sellingpartnerapi-na.amazon.com'
+            };
+            
+            if (!amazonCredentials.sellerId || !amazonCredentials.refreshToken) {
+              throw new Error('Amazon credentials not configured in environment secrets');
             }
             
-            const amazon = new AmazonIntegration(credentials);
+            const amazon = new AmazonIntegration(amazonCredentials);
             
             // Fetch orders from last 30 days
             const thirtyDaysAgo = new Date();
