@@ -204,8 +204,19 @@ export default function OrderFulfillmentPage() {
   };
 
   const getShippingService = () => {
+    // Check top-level shipping_method first, then nested in shipping_address (BigCommerce)
     if (order?.shipping_method) return order.shipping_method;
+    if (order?.shipping_address?.shipping_method) return order.shipping_address.shipping_method;
+    if (order?.shipping_address?.shippingMethod) return order.shipping_address.shippingMethod;
     return order?.channel_type === 'amazon' ? 'Standard' : 'Ground';
+  };
+  
+  // Get the customer's actual shipping selection (not fallback)
+  const getCustomerShippingMethod = () => {
+    if (order?.shipping_method) return order.shipping_method;
+    if (order?.shipping_address?.shipping_method) return order.shipping_address.shipping_method;
+    if (order?.shipping_address?.shippingMethod) return order.shipping_address.shippingMethod;
+    return null;
   };
 
   const handleGetShippoLabel = async () => {
@@ -809,14 +820,14 @@ export default function OrderFulfillmentPage() {
           </DialogHeader>
 
           {/* Customer's Requested Shipping */}
-          {order?.shipping_method && (
+          {getCustomerShippingMethod() && (
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-2">
               <div className="flex items-center gap-2">
                 <Package className="h-5 w-5 text-blue-600" />
                 <div>
                   <p className="text-sm font-medium text-blue-800">Customer's Selected Shipping</p>
-                  <p className="text-lg font-semibold text-blue-900">{order.shipping_method}</p>
-                  {order.shipping_carrier && (
+                  <p className="text-lg font-semibold text-blue-900">{getCustomerShippingMethod()}</p>
+                  {order?.shipping_carrier && (
                     <p className="text-sm text-blue-700">Carrier: {order.shipping_carrier}</p>
                   )}
                 </div>
