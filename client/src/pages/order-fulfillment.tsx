@@ -808,6 +808,22 @@ export default function OrderFulfillmentPage() {
             </DialogDescription>
           </DialogHeader>
 
+          {/* Customer's Requested Shipping */}
+          {order?.shipping_method && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-2">
+              <div className="flex items-center gap-2">
+                <Package className="h-5 w-5 text-blue-600" />
+                <div>
+                  <p className="text-sm font-medium text-blue-800">Customer's Selected Shipping</p>
+                  <p className="text-lg font-semibold text-blue-900">{order.shipping_method}</p>
+                  {order.shipping_carrier && (
+                    <p className="text-sm text-blue-700">Carrier: {order.shipping_carrier}</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
           {isFetchingRates ? (
             <div className="space-y-3 py-4">
               <Skeleton className="h-16 w-full" />
