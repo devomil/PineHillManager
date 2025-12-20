@@ -212,6 +212,7 @@ router.post('/sync/orders', isAuthenticated, requireAdmin, async (req: Request, 
         let errorCount = 0;
         const errors: string[] = [];
 
+        console.log(`📦 [BigCommerce Sync] Starting to process ${orders.length} orders...`);
         for (const order of orders) {
           try {
             const existingOrder = await db.execute(sql`
@@ -234,10 +235,10 @@ router.post('/sync/orders', isAuthenticated, requireAdmin, async (req: Request, 
 
               await db.execute(sql`
                 INSERT INTO marketplace_orders (
-                  channel_id, external_order_id, order_number, status, order_date,
+                  channel_id, external_order_id, external_order_number, status, order_placed_at,
                   customer_email, customer_name, customer_phone,
                   shipping_address, billing_address,
-                  subtotal, shipping_total, tax_total, discount_total, total,
+                  subtotal, shipping_total, tax_total, discount_total, grand_total,
                   currency, payment_status, raw_payload
                 ) VALUES (
                   ${channelId}, ${order.id.toString()}, ${order.id.toString()}, ${order.status}, ${order.date_created},
@@ -276,12 +277,19 @@ router.post('/sync/orders', isAuthenticated, requireAdmin, async (req: Request, 
               }
             }
             successCount++;
+            if (successCount % 20 === 0) {
+              console.log(`📦 [BigCommerce Sync] Processed ${successCount} orders...`);
+            }
           } catch (orderError) {
             errorCount++;
-            errors.push(`Order ${order.id}: ${orderError instanceof Error ? orderError.message : String(orderError)}`);
+            const errorMsg = `Order ${order.id}: ${orderError instanceof Error ? orderError.message : String(orderError)}`;
+            console.error(`📦 [BigCommerce Sync] Error: ${errorMsg}`);
+            errors.push(errorMsg);
           }
         }
 
+        console.log(`📦 [BigCommerce Sync] Completed! Success: ${successCount}, Errors: ${errorCount}`);
+        
         await db.execute(sql`
           UPDATE marketplace_sync_jobs 
           SET status = 'completed',
