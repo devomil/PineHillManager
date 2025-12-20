@@ -1002,4 +1002,213 @@ router.get('/analytics', isAuthenticated, async (req: Request, res: Response) =>
   }
 });
 
+// ============ SHIPPO SHIPPING INTEGRATION ============
+
+const SHIPPO_API_KEY = process.env.SHIPPO_API_KEY;
+const SHIPPO_BASE_URL = 'https://api.goshippo.com';
+
+interface ShippoAddress {
+  name: string;
+  street1: string;
+  street2?: string;
+  city: string;
+  state: string;
+  zip: string;
+  country: string;
+  phone?: string;
+  email?: string;
+}
+
+// Get shipping rates for an order
+router.post('/shippo/rates', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    if (!SHIPPO_API_KEY) {
+      return res.status(500).json({ error: 'Shippo API key not configured' });
+    }
+
+    const { orderId, fromAddress, toAddress, parcels } = req.body;
+
+    // Default from address (Pine Hill Farm)
+    const defaultFromAddress: ShippoAddress = fromAddress || {
+      name: 'Pine Hill Farm',
+      street1: 'W3685 County Rd A',
+      city: 'Elkhorn',
+      state: 'WI',
+      zip: '53121',
+      country: 'US',
+      phone: '2628034121',
+      email: 'orders@pinehillfarm.com'
+    };
+
+    // Default parcel dimensions
+    const defaultParcels = parcels || [{
+      length: '10',
+      width: '8',
+      height: '4',
+      distance_unit: 'in',
+      weight: '1',
+      mass_unit: 'lb'
+    }];
+
+    // Create shipment to get rates
+    const shipmentResponse = await fetch(`${SHIPPO_BASE_URL}/shipments`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `ShippoToken ${SHIPPO_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        address_from: defaultFromAddress,
+        address_to: toAddress,
+        parcels: defaultParcels,
+        async: false
+      })
+    });
+
+    if (!shipmentResponse.ok) {
+      const errorText = await shipmentResponse.text();
+      console.error('Shippo shipment error:', errorText);
+      return res.status(shipmentResponse.status).json({ error: 'Failed to get shipping rates', details: errorText });
+    }
+
+    const shipmentData = await shipmentResponse.json();
+
+    // Format rates for frontend
+    const rates = shipmentData.rates?.map((rate: any) => ({
+      id: rate.object_id,
+      carrier: rate.provider,
+      service: rate.servicelevel?.name || rate.servicelevel?.token,
+      serviceToken: rate.servicelevel?.token,
+      amount: rate.amount,
+      currency: rate.currency,
+      estimatedDays: rate.estimated_days,
+      durationTerms: rate.duration_terms,
+      carrierAccount: rate.carrier_account,
+      attributes: rate.attributes || []
+    })) || [];
+
+    // Sort by price
+    rates.sort((a: any, b: any) => parseFloat(a.amount) - parseFloat(b.amount));
+
+    res.json({
+      shipmentId: shipmentData.object_id,
+      rates,
+      fromAddress: shipmentData.address_from,
+      toAddress: shipmentData.address_to
+    });
+  } catch (error: any) {
+    console.error('Error fetching Shippo rates:', error);
+    res.status(500).json({ error: 'Failed to fetch shipping rates', details: error?.message });
+  }
+});
+
+// Purchase a shipping label
+router.post('/shippo/label', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    if (!SHIPPO_API_KEY) {
+      return res.status(500).json({ error: 'Shippo API key not configured' });
+    }
+
+    const { rateId, orderId } = req.body;
+
+    if (!rateId) {
+      return res.status(400).json({ error: 'Rate ID is required' });
+    }
+
+    // Create transaction (purchase label)
+    const transactionResponse = await fetch(`${SHIPPO_BASE_URL}/transactions`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `ShippoToken ${SHIPPO_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        rate: rateId,
+        label_file_type: 'PDF',
+        async: false
+      })
+    });
+
+    if (!transactionResponse.ok) {
+      const errorText = await transactionResponse.text();
+      console.error('Shippo transaction error:', errorText);
+      return res.status(transactionResponse.status).json({ error: 'Failed to create label', details: errorText });
+    }
+
+    const transactionData = await transactionResponse.json();
+
+    if (transactionData.status !== 'SUCCESS') {
+      return res.status(400).json({ 
+        error: 'Label creation failed', 
+        details: transactionData.messages?.join(', ') || 'Unknown error'
+      });
+    }
+
+    // Update order with tracking info if orderId provided
+    if (orderId) {
+      await db.execute(sql`
+        UPDATE marketplace_orders 
+        SET shipping_carrier = ${transactionData.rate?.provider || 'Unknown'},
+            updated_at = NOW()
+        WHERE id = ${orderId}
+      `);
+
+      // Create fulfillment record
+      await db.execute(sql`
+        INSERT INTO marketplace_fulfillments (
+          order_id, tracking_number, tracking_url, carrier, status, 
+          label_url, shippo_transaction_id, created_at
+        ) VALUES (
+          ${orderId}, 
+          ${transactionData.tracking_number}, 
+          ${transactionData.tracking_url_provider}, 
+          ${transactionData.rate?.provider || 'Unknown'},
+          'label_created',
+          ${transactionData.label_url},
+          ${transactionData.object_id},
+          NOW()
+        )
+      `);
+    }
+
+    res.json({
+      success: true,
+      transactionId: transactionData.object_id,
+      trackingNumber: transactionData.tracking_number,
+      trackingUrl: transactionData.tracking_url_provider,
+      labelUrl: transactionData.label_url,
+      carrier: transactionData.rate?.provider,
+      service: transactionData.rate?.servicelevel?.name
+    });
+  } catch (error: any) {
+    console.error('Error purchasing Shippo label:', error);
+    res.status(500).json({ error: 'Failed to purchase label', details: error?.message });
+  }
+});
+
+// Get available carriers
+router.get('/shippo/carriers', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    if (!SHIPPO_API_KEY) {
+      return res.status(500).json({ error: 'Shippo API key not configured' });
+    }
+
+    const response = await fetch(`${SHIPPO_BASE_URL}/carrier_accounts`, {
+      headers: {
+        'Authorization': `ShippoToken ${SHIPPO_API_KEY}`
+      }
+    });
+
+    if (!response.ok) {
+      return res.status(response.status).json({ error: 'Failed to fetch carriers' });
+    }
+
+    const data = await response.json();
+    res.json(data.results || []);
+  } catch (error: any) {
+    console.error('Error fetching Shippo carriers:', error);
+    res.status(500).json({ error: 'Failed to fetch carriers', details: error?.message });
+  }
+});
+
 export default router;
