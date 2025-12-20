@@ -184,15 +184,45 @@ router.patch('/orders/:id/notes', isAuthenticated, async (req: Request, res: Res
 router.get('/inventory/by-sku/:sku', isAuthenticated, async (req: Request, res: Response) => {
   try {
     const sku = req.params.sku;
+    const productName = req.query.name as string | undefined;
     
-    const inventoryResult = await db.execute(sql`
+    // Try multiple matching strategies:
+    // 1. Exact SKU match
+    // 2. Match by UPC field
+    // 3. Fallback: fuzzy name match if provided
+    let inventoryResult = await db.execute(sql`
       SELECT i.id, i.sku, i.item_name, i.quantity_on_hand, i.unit_price, i.unit_cost,
              l.id as location_id, l.name as location_name
       FROM inventory_items i
       LEFT JOIN locations l ON i.location_id = l.id
-      WHERE i.sku = ${sku} AND i.is_active = true
+      WHERE (i.sku = ${sku} OR i.upc = ${sku}) AND i.is_active = true
       ORDER BY l.name
     `);
+    
+    // If no match by SKU/UPC and product name provided, try name-based matching
+    if (inventoryResult.rows.length === 0 && productName) {
+      // Extract key words from product name for matching
+      const searchTerms = productName.toLowerCase()
+        .replace(/pine hill farm/gi, '')
+        .replace(/cultivating wellness/gi, '')
+        .trim()
+        .split(/\s+/)
+        .filter(word => word.length > 3)
+        .slice(0, 3);
+      
+      if (searchTerms.length > 0) {
+        const searchPattern = '%' + searchTerms.join('%') + '%';
+        inventoryResult = await db.execute(sql`
+          SELECT i.id, i.sku, i.item_name, i.quantity_on_hand, i.unit_price, i.unit_cost,
+                 l.id as location_id, l.name as location_name
+          FROM inventory_items i
+          LEFT JOIN locations l ON i.location_id = l.id
+          WHERE LOWER(i.item_name) LIKE ${searchPattern} AND i.is_active = true
+          ORDER BY l.name
+          LIMIT 10
+        `);
+      }
+    }
     
     res.json({
       sku,
@@ -254,6 +284,53 @@ router.post('/orders/:id/fulfill', isAuthenticated, async (req: Request, res: Re
   } catch (error) {
     console.error('Error fulfilling order:', error);
     res.status(500).json({ error: 'Failed to fulfill order' });
+  }
+});
+
+// In-store pickup endpoint
+router.post('/orders/:id/in-store-pickup', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const orderId = parseInt(req.params.id);
+    const userId = (req.user as any)?.id;
+    
+    const existingOrder = await db.execute(sql`
+      SELECT * FROM marketplace_orders WHERE id = ${orderId}
+    `);
+    
+    if (existingOrder.rows.length === 0) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+    
+    const order = existingOrder.rows[0] as any;
+    const pickupReference = 'PICKUP-' + order.external_order_number;
+    
+    await db.execute(sql`
+      UPDATE marketplace_orders 
+      SET status = 'ready_for_pickup',
+          fulfillment_status = 'ready_for_pickup',
+          shipping_method = 'In-Store Pickup',
+          shipping_carrier = 'In-Store',
+          updated_at = NOW()
+      WHERE id = ${orderId}
+    `);
+    
+    // Create a fulfillment record for tracking
+    await db.execute(sql`
+      INSERT INTO marketplace_fulfillments (
+        order_id, tracking_number, carrier, status, created_at
+      ) VALUES (
+        ${orderId}, ${pickupReference}, 'In-Store', 'ready_for_pickup', NOW()
+      )
+    `);
+
+    res.json({ 
+      success: true, 
+      message: 'Order marked for in-store pickup',
+      reference: pickupReference
+    });
+  } catch (error) {
+    console.error('Error marking order for pickup:', error);
+    res.status(500).json({ error: 'Failed to mark order for in-store pickup' });
   }
 });
 

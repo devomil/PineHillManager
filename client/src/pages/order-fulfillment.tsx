@@ -133,12 +133,20 @@ export default function OrderFulfillmentPage() {
       const allItemIds = new Set(order.items.map(item => item.id));
       setSelectedItems(allItemIds);
       
-      // Fetch inventory for each unique SKU
-      const allSkus = order.items.map(item => item.sku).filter(Boolean);
-      const skus = Array.from(new Set(allSkus));
-      skus.forEach(async (sku) => {
+      // Fetch inventory for each unique SKU, passing product name for fallback matching
+      const uniqueItems = new Map<string, string>();
+      order.items.forEach(item => {
+        if (item.sku && !uniqueItems.has(item.sku)) {
+          uniqueItems.set(item.sku, item.name || '');
+        }
+      });
+      
+      uniqueItems.forEach(async (productName, sku) => {
         try {
-          const response = await fetch(`/api/marketplace/inventory/by-sku/${encodeURIComponent(sku)}`);
+          const params = new URLSearchParams();
+          if (productName) params.set('name', productName);
+          const url = `/api/marketplace/inventory/by-sku/${encodeURIComponent(sku)}?${params.toString()}`;
+          const response = await fetch(url);
           if (response.ok) {
             const data = await response.json();
             setInventoryBySku(prev => ({ ...prev, [sku]: data.locations || [] }));
@@ -323,6 +331,48 @@ export default function OrderFulfillmentPage() {
       toast({
         title: 'Error',
         description: error.message || 'Failed to purchase label.',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsPurchasingLabel(false);
+    }
+  };
+
+  const handleInStorePickup = async () => {
+    setIsPurchasingLabel(true);
+    try {
+      const response = await fetch(`/api/marketplace/orders/${order?.id}/in-store-pickup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId: order?.id,
+          items: Array.from(selectedItems)
+        })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.details || error.error || 'Failed to mark order for in-store pickup');
+      }
+
+      setLabelResult({
+        carrier: 'In-Store',
+        service: 'Pickup',
+        trackingNumber: 'PICKUP-' + order?.external_order_number,
+        labelUrl: null,
+        trackingUrl: null
+      });
+      
+      toast({
+        title: 'Marked for In-Store Pickup',
+        description: 'Order is ready for customer pickup.',
+      });
+
+      queryClient.invalidateQueries({ queryKey: [`/api/marketplace/orders/${orderId}`] });
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to process in-store pickup.',
         variant: 'destructive'
       });
     } finally {
@@ -844,34 +894,44 @@ export default function OrderFulfillmentPage() {
             </div>
           ) : labelResult ? (
             <div className="py-4 space-y-4">
-              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+              <div className={`border rounded-lg p-4 ${labelResult.carrier === 'In-Store' ? 'bg-green-100 border-green-300' : 'bg-green-50 border-green-200'}`}>
                 <div className="flex items-center gap-2 mb-2">
-                  <CheckCircle className="h-5 w-5 text-green-600" />
-                  <span className="font-semibold text-green-800">Label Created Successfully!</span>
+                  {labelResult.carrier === 'In-Store' ? (
+                    <MapPin className="h-5 w-5 text-green-600" />
+                  ) : (
+                    <CheckCircle className="h-5 w-5 text-green-600" />
+                  )}
+                  <span className="font-semibold text-green-800">
+                    {labelResult.carrier === 'In-Store' ? 'Ready for In-Store Pickup!' : 'Label Created Successfully!'}
+                  </span>
                 </div>
                 <div className="space-y-2 text-sm">
-                  <p><span className="font-medium">Carrier:</span> {labelResult.carrier} - {labelResult.service}</p>
-                  <p><span className="font-medium">Tracking Number:</span> {labelResult.trackingNumber}</p>
+                  <p><span className="font-medium">Fulfillment:</span> {labelResult.carrier} - {labelResult.service}</p>
+                  <p><span className="font-medium">{labelResult.carrier === 'In-Store' ? 'Reference:' : 'Tracking Number:'}</span> {labelResult.trackingNumber}</p>
                 </div>
               </div>
               
-              <div className="flex gap-3">
-                <Button 
-                  className="flex-1"
-                  onClick={() => window.open(labelResult.labelUrl, '_blank')}
-                  data-testid="button-download-label"
-                >
-                  <ExternalLink className="h-4 w-4 mr-2" />
-                  Download Label (PDF)
-                </Button>
-                <Button 
-                  variant="outline"
-                  onClick={() => window.open(labelResult.trackingUrl, '_blank')}
-                  data-testid="button-track-shipment"
-                >
-                  Track Shipment
-                </Button>
-              </div>
+              {labelResult.labelUrl && (
+                <div className="flex gap-3">
+                  <Button 
+                    className="flex-1"
+                    onClick={() => window.open(labelResult.labelUrl, '_blank')}
+                    data-testid="button-download-label"
+                  >
+                    <ExternalLink className="h-4 w-4 mr-2" />
+                    Download Label (PDF)
+                  </Button>
+                  {labelResult.trackingUrl && (
+                    <Button 
+                      variant="outline"
+                      onClick={() => window.open(labelResult.trackingUrl, '_blank')}
+                      data-testid="button-track-shipment"
+                    >
+                      Track Shipment
+                    </Button>
+                  )}
+                </div>
+              )}
               
               <Button 
                 variant="secondary"
@@ -887,6 +947,30 @@ export default function OrderFulfillmentPage() {
           ) : shippingRates.length > 0 ? (
             <div className="py-4 space-y-4">
               <RadioGroup value={selectedRateId} onValueChange={setSelectedRateId}>
+                {/* In-Store Pickup Option */}
+                <div className="flex items-center space-x-3 border-2 border-dashed border-green-300 rounded-lg p-4 hover:bg-green-50 cursor-pointer bg-green-50/50">
+                  <RadioGroupItem value="in-store-pickup" id="in-store-pickup" />
+                  <Label htmlFor="in-store-pickup" className="flex-1 cursor-pointer">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="font-semibold text-green-700">
+                          <MapPin className="h-4 w-4 inline mr-1" />
+                          In-Store Pickup
+                        </p>
+                        <p className="text-sm text-green-600">Customer will pick up at your location</p>
+                        <Badge className="mt-1 bg-green-100 text-green-800">No Shipping Cost</Badge>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold text-lg text-green-700">FREE</p>
+                        <p className="text-xs text-green-600">Save on shipping</p>
+                      </div>
+                    </div>
+                  </Label>
+                </div>
+                
+                <Separator className="my-2" />
+                <p className="text-sm text-gray-500 font-medium">Shipping Options:</p>
+                
                 {shippingRates.map((rate) => (
                   <div key={rate.id} className="flex items-center space-x-3 border rounded-lg p-4 hover:bg-gray-50 cursor-pointer">
                     <RadioGroupItem value={rate.id} id={rate.id} />
@@ -914,22 +998,44 @@ export default function OrderFulfillmentPage() {
                 ))}
               </RadioGroup>
 
-              <Button 
-                className="w-full" 
-                size="lg"
-                onClick={handlePurchaseLabel}
-                disabled={!selectedRateId || isPurchasingLabel}
-                data-testid="button-purchase-label"
-              >
-                {isPurchasingLabel ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
-                    Purchasing Label...
-                  </>
-                ) : (
-                  <>Purchase Label{selectedRateId && ` - $${parseFloat(shippingRates.find(r => r.id === selectedRateId)?.amount || '0').toFixed(2)}`}</>
-                )}
-              </Button>
+              {selectedRateId === 'in-store-pickup' ? (
+                <Button 
+                  className="w-full bg-green-600 hover:bg-green-700" 
+                  size="lg"
+                  onClick={handleInStorePickup}
+                  disabled={isPurchasingLabel}
+                  data-testid="button-in-store-pickup"
+                >
+                  {isPurchasingLabel ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+                      Processing...
+                    </>
+                  ) : (
+                    <>
+                      <MapPin className="h-4 w-4 mr-2" />
+                      Mark for In-Store Pickup
+                    </>
+                  )}
+                </Button>
+              ) : (
+                <Button 
+                  className="w-full" 
+                  size="lg"
+                  onClick={handlePurchaseLabel}
+                  disabled={!selectedRateId || isPurchasingLabel}
+                  data-testid="button-purchase-label"
+                >
+                  {isPurchasingLabel ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+                      Purchasing Label...
+                    </>
+                  ) : (
+                    <>Purchase Label{selectedRateId && ` - $${parseFloat(shippingRates.find(r => r.id === selectedRateId)?.amount || '0').toFixed(2)}`}</>
+                  )}
+                </Button>
+              )}
             </div>
           ) : (
             <div className="py-8 text-center text-gray-500">
