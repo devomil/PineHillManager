@@ -11,6 +11,9 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { 
   ArrowLeft,
@@ -55,6 +58,18 @@ interface InventoryBySku {
   locations: InventoryLocation[];
 }
 
+interface ShippingRate {
+  id: string;
+  carrier: string;
+  service: string;
+  serviceToken: string;
+  amount: string;
+  currency: string;
+  estimatedDays: number;
+  durationTerms: string;
+  attributes: string[];
+}
+
 interface MarketplaceOrder {
   id: number;
   channel_id: number;
@@ -95,6 +110,14 @@ export default function OrderFulfillmentPage() {
   const [sellerNotes, setSellerNotes] = useState('');
   const [isGeneratingLabel, setIsGeneratingLabel] = useState(false);
   const [inventoryBySku, setInventoryBySku] = useState<Record<string, InventoryLocation[]>>({});
+  
+  // Shippo shipping modal state
+  const [showShippingModal, setShowShippingModal] = useState(false);
+  const [shippingRates, setShippingRates] = useState<ShippingRate[]>([]);
+  const [selectedRateId, setSelectedRateId] = useState<string>('');
+  const [isFetchingRates, setIsFetchingRates] = useState(false);
+  const [isPurchasingLabel, setIsPurchasingLabel] = useState(false);
+  const [labelResult, setLabelResult] = useState<any>(null);
 
   const { data: order, isLoading: orderLoading } = useQuery<MarketplaceOrder>({
     queryKey: [`/api/marketplace/orders/${orderId}`],
@@ -186,19 +209,113 @@ export default function OrderFulfillmentPage() {
   };
 
   const handleGetShippoLabel = async () => {
-    setIsGeneratingLabel(true);
-    try {
+    if (!order?.shipping_address) {
       toast({
-        title: 'Generating label...',
-        description: 'Connecting to Shippo to generate shipping label.',
+        title: 'Missing Address',
+        description: 'No shipping address available for this order.',
+        variant: 'destructive'
       });
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      return;
+    }
+
+    setIsFetchingRates(true);
+    setShowShippingModal(true);
+    setShippingRates([]);
+    setSelectedRateId('');
+    setLabelResult(null);
+
+    try {
+      const shippingAddr = order.shipping_address;
+      const toAddress = {
+        name: shippingAddr.name || shippingAddr.recipient_name || order.customer_name || 'Customer',
+        street1: shippingAddr.street1 || shippingAddr.street_1 || shippingAddr.address1 || shippingAddr.address_1 || shippingAddr.line1 || shippingAddr.AddressLine1 || '',
+        street2: shippingAddr.street2 || shippingAddr.street_2 || shippingAddr.address2 || shippingAddr.address_2 || shippingAddr.line2 || shippingAddr.AddressLine2 || '',
+        city: shippingAddr.city || shippingAddr.City || '',
+        state: shippingAddr.state || shippingAddr.state_or_region || shippingAddr.stateOrRegion || shippingAddr.StateOrProvinceCode || '',
+        zip: shippingAddr.zip || shippingAddr.postal_code || shippingAddr.postalCode || shippingAddr.PostalCode || '',
+        country: shippingAddr.country || shippingAddr.country_code || shippingAddr.countryCode || shippingAddr.CountryCode || 'US',
+        phone: shippingAddr.phone || shippingAddr.Phone || order.customer_phone || '',
+        email: order.customer_email || ''
+      };
+
+      const response = await fetch('/api/marketplace/shippo/rates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId: order.id,
+          toAddress
+        })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.details || error.error || 'Failed to fetch rates');
+      }
+
+      const data = await response.json();
+      setShippingRates(data.rates || []);
+      
+      if (data.rates?.length === 0) {
+        toast({
+          title: 'No Rates Available',
+          description: 'No shipping rates found for this address.',
+          variant: 'destructive'
+        });
+      }
+    } catch (error: any) {
       toast({
-        title: 'Shippo Label',
-        description: 'Shippo integration coming soon. Please generate labels manually.',
+        title: 'Error',
+        description: error.message || 'Failed to fetch shipping rates.',
+        variant: 'destructive'
       });
     } finally {
-      setIsGeneratingLabel(false);
+      setIsFetchingRates(false);
+    }
+  };
+
+  const handlePurchaseLabel = async () => {
+    if (!selectedRateId) {
+      toast({
+        title: 'Select a Rate',
+        description: 'Please select a shipping rate before purchasing.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    setIsPurchasingLabel(true);
+    try {
+      const response = await fetch('/api/marketplace/shippo/label', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          rateId: selectedRateId,
+          orderId: order?.id
+        })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.details || error.error || 'Failed to purchase label');
+      }
+
+      const result = await response.json();
+      setLabelResult(result);
+      
+      toast({
+        title: 'Label Created!',
+        description: `Tracking: ${result.trackingNumber}`,
+      });
+
+      queryClient.invalidateQueries({ queryKey: [`/api/marketplace/orders/${orderId}`] });
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to purchase label.',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsPurchasingLabel(false);
     }
   };
 
@@ -576,13 +693,13 @@ export default function OrderFulfillmentPage() {
                 size="lg"
                 className="px-8"
                 onClick={handleGetShippoLabel}
-                disabled={isGeneratingLabel || selectedItems.size === 0}
+                disabled={isFetchingRates || selectedItems.size === 0}
                 data-testid="button-get-shippo-label"
               >
-                {isGeneratingLabel ? (
+                {isFetchingRates ? (
                   <>
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
-                    Generating...
+                    Loading Rates...
                   </>
                 ) : (
                   'Get Shippo Label'
@@ -677,6 +794,124 @@ export default function OrderFulfillmentPage() {
           </div>
         </div>
       </div>
+
+      {/* Shipping Rates Modal */}
+      <Dialog open={showShippingModal} onOpenChange={setShowShippingModal}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Truck className="h-5 w-5" />
+              Select Shipping Option
+            </DialogTitle>
+            <DialogDescription>
+              Choose a shipping service for this order. Rates are based on package weight and destination.
+            </DialogDescription>
+          </DialogHeader>
+
+          {isFetchingRates ? (
+            <div className="space-y-3 py-4">
+              <Skeleton className="h-16 w-full" />
+              <Skeleton className="h-16 w-full" />
+              <Skeleton className="h-16 w-full" />
+              <p className="text-center text-sm text-gray-500">Fetching shipping rates from Shippo...</p>
+            </div>
+          ) : labelResult ? (
+            <div className="py-4 space-y-4">
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <CheckCircle className="h-5 w-5 text-green-600" />
+                  <span className="font-semibold text-green-800">Label Created Successfully!</span>
+                </div>
+                <div className="space-y-2 text-sm">
+                  <p><span className="font-medium">Carrier:</span> {labelResult.carrier} - {labelResult.service}</p>
+                  <p><span className="font-medium">Tracking Number:</span> {labelResult.trackingNumber}</p>
+                </div>
+              </div>
+              
+              <div className="flex gap-3">
+                <Button 
+                  className="flex-1"
+                  onClick={() => window.open(labelResult.labelUrl, '_blank')}
+                  data-testid="button-download-label"
+                >
+                  <ExternalLink className="h-4 w-4 mr-2" />
+                  Download Label (PDF)
+                </Button>
+                <Button 
+                  variant="outline"
+                  onClick={() => window.open(labelResult.trackingUrl, '_blank')}
+                  data-testid="button-track-shipment"
+                >
+                  Track Shipment
+                </Button>
+              </div>
+              
+              <Button 
+                variant="secondary"
+                className="w-full"
+                onClick={() => {
+                  setShowShippingModal(false);
+                  setLocation('/marketplace');
+                }}
+              >
+                Done - Return to Orders
+              </Button>
+            </div>
+          ) : shippingRates.length > 0 ? (
+            <div className="py-4 space-y-4">
+              <RadioGroup value={selectedRateId} onValueChange={setSelectedRateId}>
+                {shippingRates.map((rate) => (
+                  <div key={rate.id} className="flex items-center space-x-3 border rounded-lg p-4 hover:bg-gray-50 cursor-pointer">
+                    <RadioGroupItem value={rate.id} id={rate.id} />
+                    <Label htmlFor={rate.id} className="flex-1 cursor-pointer">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <p className="font-semibold">{rate.carrier} - {rate.service}</p>
+                          <p className="text-sm text-gray-500">
+                            {rate.estimatedDays ? `${rate.estimatedDays} business day${rate.estimatedDays > 1 ? 's' : ''}` : rate.durationTerms || 'Delivery time varies'}
+                          </p>
+                          {rate.attributes?.includes('FASTEST') && (
+                            <Badge className="mt-1 bg-blue-100 text-blue-800">Fastest</Badge>
+                          )}
+                          {rate.attributes?.includes('CHEAPEST') && (
+                            <Badge className="mt-1 bg-green-100 text-green-800">Best Value</Badge>
+                          )}
+                        </div>
+                        <div className="text-right">
+                          <p className="font-bold text-lg">${parseFloat(rate.amount).toFixed(2)}</p>
+                          <p className="text-xs text-gray-500">{rate.currency}</p>
+                        </div>
+                      </div>
+                    </Label>
+                  </div>
+                ))}
+              </RadioGroup>
+
+              <Button 
+                className="w-full" 
+                size="lg"
+                onClick={handlePurchaseLabel}
+                disabled={!selectedRateId || isPurchasingLabel}
+                data-testid="button-purchase-label"
+              >
+                {isPurchasingLabel ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+                    Purchasing Label...
+                  </>
+                ) : (
+                  <>Purchase Label{selectedRateId && ` - $${parseFloat(shippingRates.find(r => r.id === selectedRateId)?.amount || '0').toFixed(2)}`}</>
+                )}
+              </Button>
+            </div>
+          ) : (
+            <div className="py-8 text-center text-gray-500">
+              <Package className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p>No shipping rates available. Please check the shipping address.</p>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

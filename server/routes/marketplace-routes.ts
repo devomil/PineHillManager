@@ -1154,18 +1154,26 @@ router.post('/shippo/label', isAuthenticated, async (req: Request, res: Response
       `);
 
       // Create fulfillment record
+      const rawResponse = {
+        labelUrl: transactionData.label_url,
+        shippoTransactionId: transactionData.object_id,
+        rate: transactionData.rate,
+        eta: transactionData.eta
+      };
+      
       await db.execute(sql`
         INSERT INTO marketplace_fulfillments (
-          order_id, tracking_number, tracking_url, carrier, status, 
-          label_url, shippo_transaction_id, created_at
+          order_id, tracking_number, tracking_url, carrier, service_level, status, 
+          external_shipment_id, raw_response, created_at
         ) VALUES (
           ${orderId}, 
           ${transactionData.tracking_number}, 
           ${transactionData.tracking_url_provider}, 
           ${transactionData.rate?.provider || 'Unknown'},
+          ${transactionData.rate?.servicelevel?.name || 'Standard'},
           'label_created',
-          ${transactionData.label_url},
           ${transactionData.object_id},
+          ${JSON.stringify(rawResponse)}::jsonb,
           NOW()
         )
       `);
