@@ -48,14 +48,23 @@ interface MarketplaceOrder {
   channel_name: string;
   channel_type: string;
   external_order_id: string;
-  order_number: string;
+  external_order_number: string;
   status: string;
-  order_date: string;
+  order_placed_at: string;
   customer_name: string;
   customer_email: string;
-  total: number;
+  customer_phone?: string;
+  grand_total: number;
+  subtotal?: number;
+  shipping_total?: number;
+  tax_total?: number;
+  discount_total?: number;
   currency: string;
   payment_status: string;
+  shipping_address?: any;
+  billing_address?: any;
+  shipping_method?: string;
+  shipping_carrier?: string;
   items?: any[];
   fulfillments?: any[];
 }
@@ -107,6 +116,7 @@ export default function MarketplacePage() {
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedOrder, setSelectedOrder] = useState<MarketplaceOrder | null>(null);
+  const [viewOrderDialogOpen, setViewOrderDialogOpen] = useState(false);
   const [fulfillDialogOpen, setFulfillDialogOpen] = useState(false);
   const [fulfillmentData, setFulfillmentData] = useState({
     carrier: '',
@@ -161,6 +171,11 @@ export default function MarketplacePage() {
     enabled: hasAccess,
   });
 
+  const { data: orderDetails, isLoading: orderDetailsLoading } = useQuery<MarketplaceOrder>({
+    queryKey: [`/api/marketplace/orders/${selectedOrder?.id}`],
+    enabled: !!selectedOrder?.id && viewOrderDialogOpen,
+  });
+
   const syncOrdersMutation = useMutation({
     mutationFn: async (channelId: number) => {
       return apiRequest('POST', '/api/marketplace/sync/orders', { channelId });
@@ -199,9 +214,13 @@ export default function MarketplacePage() {
 
   const orders = ordersData?.orders || [];
   const filteredOrders = orders.filter(order => {
-    if (searchQuery && !order.order_number.toLowerCase().includes(searchQuery.toLowerCase()) &&
-        !order.customer_name.toLowerCase().includes(searchQuery.toLowerCase())) {
-      return false;
+    if (searchQuery) {
+      const orderNum = order.external_order_number || order.external_order_id || '';
+      const customerName = order.customer_name || '';
+      if (!orderNum.toLowerCase().includes(searchQuery.toLowerCase()) &&
+          !customerName.toLowerCase().includes(searchQuery.toLowerCase())) {
+        return false;
+      }
     }
     return true;
   });
@@ -209,14 +228,17 @@ export default function MarketplacePage() {
   const getStatusBadge = (status: string) => {
     const statusMap: Record<string, { color: string; label: string }> = {
       'pending': { color: 'bg-yellow-100 text-yellow-800', label: 'Pending' },
+      'awaiting_payment': { color: 'bg-red-100 text-red-800', label: 'Awaiting Payment' },
       'awaiting_fulfillment': { color: 'bg-orange-100 text-orange-800', label: 'Awaiting Fulfillment' },
       'awaiting_shipment': { color: 'bg-blue-100 text-blue-800', label: 'Awaiting Shipment' },
+      'partially_shipped': { color: 'bg-cyan-100 text-cyan-800', label: 'Partially Shipped' },
       'shipped': { color: 'bg-green-100 text-green-800', label: 'Shipped' },
       'completed': { color: 'bg-emerald-100 text-emerald-800', label: 'Completed' },
       'cancelled': { color: 'bg-red-100 text-red-800', label: 'Cancelled' },
-      'Awaiting Fulfillment': { color: 'bg-orange-100 text-orange-800', label: 'Awaiting Fulfillment' },
-      'Awaiting Shipment': { color: 'bg-blue-100 text-blue-800', label: 'Awaiting Shipment' },
-      'Shipped': { color: 'bg-green-100 text-green-800', label: 'Shipped' },
+      'refunded': { color: 'bg-purple-100 text-purple-800', label: 'Refunded' },
+      'disputed': { color: 'bg-amber-100 text-amber-800', label: 'Disputed' },
+      'manual_verification_required': { color: 'bg-pink-100 text-pink-800', label: 'Verification Required' },
+      'partially_refunded': { color: 'bg-violet-100 text-violet-800', label: 'Partially Refunded' },
     };
     const config = statusMap[status] || { color: 'bg-gray-100 text-gray-800', label: status };
     return <Badge className={config.color}>{config.label}</Badge>;
@@ -408,9 +430,14 @@ export default function MarketplacePage() {
                     <SelectContent>
                       <SelectItem value="all">All Status</SelectItem>
                       <SelectItem value="pending">Pending</SelectItem>
+                      <SelectItem value="awaiting_payment">Awaiting Payment</SelectItem>
                       <SelectItem value="awaiting_fulfillment">Awaiting Fulfillment</SelectItem>
+                      <SelectItem value="awaiting_shipment">Awaiting Shipment</SelectItem>
+                      <SelectItem value="partially_shipped">Partially Shipped</SelectItem>
                       <SelectItem value="shipped">Shipped</SelectItem>
                       <SelectItem value="completed">Completed</SelectItem>
+                      <SelectItem value="cancelled">Cancelled</SelectItem>
+                      <SelectItem value="refunded">Refunded</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -478,6 +505,10 @@ export default function MarketplacePage() {
                               <Button
                                 size="sm"
                                 variant="outline"
+                                onClick={() => {
+                                  setSelectedOrder(order);
+                                  setViewOrderDialogOpen(true);
+                                }}
                                 data-testid={`button-view-${order.id}`}
                               >
                                 <ExternalLink className="h-4 w-4" />
@@ -679,10 +710,168 @@ export default function MarketplacePage() {
           </TabsContent>
         </Tabs>
 
+        <Dialog open={viewOrderDialogOpen} onOpenChange={setViewOrderDialogOpen}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Package className="h-5 w-5" />
+                Order #{selectedOrder?.external_order_number || selectedOrder?.external_order_id}
+              </DialogTitle>
+              <DialogDescription>
+                View order details, customer information, and line items
+              </DialogDescription>
+            </DialogHeader>
+            {(() => {
+              const viewOrder = orderDetails || selectedOrder;
+              if (orderDetailsLoading) {
+                return (
+                  <div className="space-y-4 py-4">
+                    <Skeleton className="h-24 w-full" />
+                    <Skeleton className="h-32 w-full" />
+                    <Skeleton className="h-48 w-full" />
+                  </div>
+                );
+              }
+              if (!viewOrder) return null;
+              return (
+                <div className="space-y-6 py-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium text-gray-500">Status</p>
+                      <div>{getStatusBadge(viewOrder.status)}</div>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium text-gray-500">Payment Status</p>
+                      <Badge className="bg-blue-100 text-blue-800">{viewOrder.payment_status || 'Unknown'}</Badge>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium text-gray-500">Order Date</p>
+                      <p className="font-medium">{viewOrder.order_placed_at ? format(new Date(viewOrder.order_placed_at), 'MMM d, yyyy h:mm a') : 'N/A'}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium text-gray-500">Channel</p>
+                      <div className="flex items-center gap-2">
+                        {getChannelIcon(viewOrder.channel_type)}
+                        <span className="font-medium">{viewOrder.channel_name}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="border-t pt-4">
+                    <h4 className="font-semibold mb-3">Customer Information</h4>
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <p className="text-gray-500">Name</p>
+                        <p className="font-medium">{viewOrder.customer_name}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500">Email</p>
+                        <p className="font-medium">{viewOrder.customer_email}</p>
+                      </div>
+                      {viewOrder.customer_phone && (
+                        <div>
+                          <p className="text-gray-500">Phone</p>
+                          <p className="font-medium">{viewOrder.customer_phone}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {viewOrder.shipping_address && (
+                    <div className="border-t pt-4">
+                      <h4 className="font-semibold mb-3">Shipping Address</h4>
+                      <div className="text-sm bg-gray-50 p-3 rounded-lg">
+                        <p>{viewOrder.shipping_address.first_name} {viewOrder.shipping_address.last_name}</p>
+                        <p>{viewOrder.shipping_address.street_1}</p>
+                        {viewOrder.shipping_address.street_2 && <p>{viewOrder.shipping_address.street_2}</p>}
+                        <p>{viewOrder.shipping_address.city}, {viewOrder.shipping_address.state} {viewOrder.shipping_address.zip}</p>
+                        <p>{viewOrder.shipping_address.country}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="border-t pt-4">
+                    <h4 className="font-semibold mb-3">Order Summary</h4>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Subtotal</span>
+                        <span>${Number(viewOrder.subtotal || 0).toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Shipping</span>
+                        <span>${Number(viewOrder.shipping_total || 0).toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Tax</span>
+                        <span>${Number(viewOrder.tax_total || 0).toFixed(2)}</span>
+                      </div>
+                      {Number(viewOrder.discount_total || 0) > 0 && (
+                        <div className="flex justify-between text-green-600">
+                          <span>Discount</span>
+                          <span>-${Number(viewOrder.discount_total).toFixed(2)}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between font-semibold text-lg border-t pt-2">
+                        <span>Total</span>
+                        <span>{viewOrder.currency} ${Number(viewOrder.grand_total || 0).toFixed(2)}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {viewOrder.items && viewOrder.items.length > 0 && (
+                    <div className="border-t pt-4">
+                      <h4 className="font-semibold mb-3">Line Items</h4>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Product</TableHead>
+                            <TableHead>SKU</TableHead>
+                            <TableHead className="text-center">Qty</TableHead>
+                            <TableHead className="text-right">Price</TableHead>
+                            <TableHead className="text-right">Total</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {viewOrder.items.map((item: any, idx: number) => (
+                            <TableRow key={idx}>
+                              <TableCell className="font-medium">{item.name}</TableCell>
+                              <TableCell className="text-gray-500">{item.sku || 'N/A'}</TableCell>
+                              <TableCell className="text-center">{item.quantity}</TableCell>
+                              <TableCell className="text-right">${Number(item.unit_price || 0).toFixed(2)}</TableCell>
+                              <TableCell className="text-right">${Number(item.total_price || 0).toFixed(2)}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setViewOrderDialogOpen(false)} data-testid="button-close-order-view">
+                Close
+              </Button>
+              {selectedOrder && selectedOrder.status !== 'shipped' && selectedOrder.status !== 'completed' && (
+                <Button
+                  onClick={() => {
+                    setViewOrderDialogOpen(false);
+                    setFulfillDialogOpen(true);
+                  }}
+                  data-testid="button-fulfill-from-view"
+                >
+                  <Truck className="h-4 w-4 mr-2" />
+                  Fulfill Order
+                </Button>
+              )}
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         <Dialog open={fulfillDialogOpen} onOpenChange={setFulfillDialogOpen}>
           <DialogContent className="max-w-md">
             <DialogHeader>
-              <DialogTitle>Fulfill Order #{selectedOrder?.order_number}</DialogTitle>
+              <DialogTitle>Fulfill Order #{selectedOrder?.external_order_number || selectedOrder?.external_order_id}</DialogTitle>
               <DialogDescription>
                 Enter shipping details to fulfill this order. Tracking information will be sent to the customer.
               </DialogDescription>

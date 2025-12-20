@@ -188,12 +188,24 @@ router.post('/sync/orders', isAuthenticated, requireAdmin, async (req: Request, 
         
         if (channel.type === 'bigcommerce') {
           // Fetch orders from multiple statuses:
-          // 2=Shipped, 9=Awaiting Shipment, 10=Completed, 11=Awaiting Fulfillment
+          // BigCommerce order status IDs:
+          // 0=Pending, 1=Awaiting Payment, 2=Shipped, 3=Partially Shipped
+          // 4=Refunded, 5=Cancelled, 6=Declined, 7=Awaiting Pickup
+          // 8=Awaiting Shipment, 9=Awaiting Shipment, 10=Completed, 11=Awaiting Fulfillment
+          // 12=Manual Verification Required, 13=Disputed, 14=Partially Refunded
           const statusesToFetch = [
+            { id: 0, name: 'Pending' },
+            { id: 1, name: 'Awaiting Payment' },
             { id: 11, name: 'Awaiting Fulfillment' },
             { id: 9, name: 'Awaiting Shipment' },
+            { id: 3, name: 'Partially Shipped' },
             { id: 2, name: 'Shipped' },
             { id: 10, name: 'Completed' },
+            { id: 5, name: 'Cancelled' },
+            { id: 4, name: 'Refunded' },
+            { id: 14, name: 'Partially Refunded' },
+            { id: 13, name: 'Disputed' },
+            { id: 12, name: 'Manual Verification Required' },
           ];
           
           for (const status of statusesToFetch) {
@@ -205,14 +217,50 @@ router.post('/sync/orders', isAuthenticated, requireAdmin, async (req: Request, 
           
           console.log(`📦 [BigCommerce Sync] Total orders to sync: ${orders.length}`);
         } else if (channel.type === 'amazon') {
-          console.log('Amazon order sync not yet implemented');
+          console.log('📦 [Amazon Sync] Starting Amazon order sync...');
+          
+          try {
+            const credentials = channel.credentials;
+            if (!credentials) {
+              throw new Error('Amazon credentials not configured');
+            }
+            
+            const amazon = new AmazonIntegration(credentials);
+            
+            // Fetch orders from last 30 days
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+            
+            const ordersResponse = await amazon.getOrders(thirtyDaysAgo.toISOString());
+            
+            if (ordersResponse && ordersResponse.payload && ordersResponse.payload.Orders) {
+              orders = ordersResponse.payload.Orders.map((order: any) => ({
+                id: order.AmazonOrderId,
+                status: order.OrderStatus,
+                date_created: order.PurchaseDate,
+                billing_address: order.BuyerInfo ? {
+                  email: order.BuyerInfo.BuyerEmail,
+                  first_name: order.BuyerInfo.BuyerName?.split(' ')[0] || '',
+                  last_name: order.BuyerInfo.BuyerName?.split(' ').slice(1).join(' ') || '',
+                } : null,
+                total_inc_tax: order.OrderTotal?.Amount || '0',
+                currency_code: order.OrderTotal?.CurrencyCode || 'USD',
+                payment_status: order.PaymentMethod || 'unknown',
+                shipping_address: order.ShippingAddress || null,
+              }));
+              console.log(`📦 [Amazon Sync] Got ${orders.length} orders`);
+            }
+          } catch (amazonError) {
+            console.error('📦 [Amazon Sync] Error:', amazonError);
+            orders = [];
+          }
         }
 
         let successCount = 0;
         let errorCount = 0;
         const errors: string[] = [];
 
-        console.log(`📦 [BigCommerce Sync] Starting to process ${orders.length} orders...`);
+        console.log(`📦 [Sync] Starting to process ${orders.length} orders for ${channel.type}...`);
         for (const order of orders) {
           try {
             const existingOrder = await db.execute(sql`
@@ -220,9 +268,10 @@ router.post('/sync/orders', isAuthenticated, requireAdmin, async (req: Request, 
               WHERE channel_id = ${channelId} AND external_order_id = ${order.id.toString()}
             `);
 
+            // Normalize status to lowercase for consistent filtering
+            const normalizedStatus = String(order.status).toLowerCase().replace(/\s+/g, '_');
+
             if (existingOrder.rows.length > 0) {
-              // Normalize status to lowercase for consistent filtering
-              const normalizedStatus = String(order.status).toLowerCase().replace(/\s+/g, '_');
               await db.execute(sql`
                 UPDATE marketplace_orders 
                 SET status = ${normalizedStatus}, 
@@ -232,11 +281,17 @@ router.post('/sync/orders', isAuthenticated, requireAdmin, async (req: Request, 
                 WHERE id = ${(existingOrder.rows[0] as any).id}
               `);
             } else {
-              const shippingAddresses = await bigCommerce.getOrderShippingAddresses(order.id);
-              const shippingAddr = shippingAddresses[0] || order.billing_address;
-
-              // Normalize status to lowercase for consistent filtering
-              const normalizedStatus = String(order.status).toLowerCase().replace(/\s+/g, '_');
+              // Handle different channel types for address and product fetching
+              let shippingAddr = order.shipping_address || order.billing_address;
+              
+              if (channel.type === 'bigcommerce' && order.id) {
+                try {
+                  const shippingAddresses = await bigCommerce.getOrderShippingAddresses(order.id);
+                  shippingAddr = shippingAddresses[0] || order.billing_address;
+                } catch (e) {
+                  // Use existing shipping address
+                }
+              }
               
               await db.execute(sql`
                 INSERT INTO marketplace_orders (
@@ -263,37 +318,42 @@ router.post('/sync/orders', isAuthenticated, requireAdmin, async (req: Request, 
               `);
               const newOrderId = (newOrderResult.rows[0] as any)?.id;
 
-              if (newOrderId) {
-                const products = await bigCommerce.getOrderProducts(order.id);
-                for (const product of products) {
-                  await db.execute(sql`
-                    INSERT INTO marketplace_order_items (
-                      order_id, external_item_id, external_product_id, external_variant_id,
-                      sku, name, quantity, unit_price, total_price, weight, raw_payload
-                    ) VALUES (
-                      ${newOrderId}, ${product.id.toString()}, ${product.product_id.toString()}, 
-                      ${product.variant_id ? product.variant_id.toString() : null},
-                      ${product.sku || null}, ${product.name}, ${product.quantity},
-                      ${parseFloat(product.price_ex_tax) || 0}, ${parseFloat(product.total_ex_tax) || 0},
-                      ${parseFloat(product.weight) || null}, ${JSON.stringify(product)}
-                    )
-                  `);
+              // Fetch line items for BigCommerce orders
+              if (newOrderId && channel.type === 'bigcommerce') {
+                try {
+                  const products = await bigCommerce.getOrderProducts(order.id);
+                  for (const product of products) {
+                    await db.execute(sql`
+                      INSERT INTO marketplace_order_items (
+                        order_id, external_item_id, external_product_id, external_variant_id,
+                        sku, name, quantity, unit_price, total_price, weight, raw_payload
+                      ) VALUES (
+                        ${newOrderId}, ${product.id.toString()}, ${product.product_id.toString()}, 
+                        ${product.variant_id ? product.variant_id.toString() : null},
+                        ${product.sku || null}, ${product.name}, ${product.quantity},
+                        ${parseFloat(product.price_ex_tax) || 0}, ${parseFloat(product.total_ex_tax) || 0},
+                        ${parseFloat(product.weight) || null}, ${JSON.stringify(product)}
+                      )
+                    `);
+                  }
+                } catch (e) {
+                  console.error(`Failed to fetch products for order ${order.id}:`, e);
                 }
               }
             }
             successCount++;
             if (successCount % 20 === 0) {
-              console.log(`📦 [BigCommerce Sync] Processed ${successCount} orders...`);
+              console.log(`📦 [Sync] Processed ${successCount} orders...`);
             }
           } catch (orderError) {
             errorCount++;
             const errorMsg = `Order ${order.id}: ${orderError instanceof Error ? orderError.message : String(orderError)}`;
-            console.error(`📦 [BigCommerce Sync] Error: ${errorMsg}`);
+            console.error(`📦 [Sync] Error: ${errorMsg}`);
             errors.push(errorMsg);
           }
         }
 
-        console.log(`📦 [BigCommerce Sync] Completed! Success: ${successCount}, Errors: ${errorCount}`);
+        console.log(`📦 [Sync] Completed! Success: ${successCount}, Errors: ${errorCount}`);
         
         await db.execute(sql`
           UPDATE marketplace_sync_jobs 
