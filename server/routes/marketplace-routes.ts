@@ -1140,13 +1140,11 @@ router.get('/sync-jobs', isAuthenticated, async (req: Request, res: Response) =>
     const { channelId, status, limit = '20' } = req.query;
     const limitNum = parseInt(limit as string) || 20;
 
-    // Simple query without dynamic WHERE clauses for stability
+    // Simple query - just get sync jobs data
     const result = await db.execute(sql`
-      SELECT j.*, c.name as channel_name, 
-             COALESCE(CONCAT(u."firstName", ' ', u."lastName"), 'System') as triggered_by_name
+      SELECT j.*, c.name as channel_name, 'System' as triggered_by_name
       FROM marketplace_sync_jobs j
       LEFT JOIN marketplace_channels c ON j.channel_id = c.id
-      LEFT JOIN users u ON j.triggered_by = u.id
       ORDER BY j.created_at DESC
       LIMIT ${limitNum}
     `);
