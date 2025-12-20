@@ -17,7 +17,61 @@ const marketplaceOrderQuerySchema = z.object({
   limit: z.string().default('50'),
   fromDate: z.string().optional(),
   toDate: z.string().optional(),
+  timePeriod: z.string().optional(),
 });
+
+// Helper to calculate date ranges for time period filters
+function getTimePeriodDates(timePeriod: string): { fromDate: Date; toDate: Date } | null {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  
+  switch (timePeriod) {
+    case 'today':
+      return { fromDate: today, toDate: now };
+    case 'yesterday': {
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      return { fromDate: yesterday, toDate: today };
+    }
+    case 'this_week': {
+      const startOfWeek = new Date(today);
+      startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
+      return { fromDate: startOfWeek, toDate: now };
+    }
+    case 'last_week': {
+      const startOfLastWeek = new Date(today);
+      startOfLastWeek.setDate(startOfLastWeek.getDate() - startOfLastWeek.getDay() - 7);
+      // End of last week = start of this week minus 1 millisecond
+      const startOfThisWeek = new Date(today);
+      startOfThisWeek.setDate(startOfThisWeek.getDate() - startOfThisWeek.getDay());
+      const endOfLastWeek = new Date(startOfThisWeek.getTime() - 1);
+      return { fromDate: startOfLastWeek, toDate: endOfLastWeek };
+    }
+    case 'this_month': {
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      return { fromDate: startOfMonth, toDate: now };
+    }
+    case 'last_month': {
+      const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      // End of last month = start of current month minus 1 millisecond
+      const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      endOfLastMonth.setMilliseconds(endOfLastMonth.getMilliseconds() - 1);
+      return { fromDate: startOfLastMonth, toDate: endOfLastMonth };
+    }
+    case 'last_30_days': {
+      const thirtyDaysAgo = new Date(today);
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      return { fromDate: thirtyDaysAgo, toDate: now };
+    }
+    case 'last_90_days': {
+      const ninetyDaysAgo = new Date(today);
+      ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+      return { fromDate: ninetyDaysAgo, toDate: now };
+    }
+    default:
+      return null;
+  }
+}
 
 const fulfillOrderSchema = z.object({
   orderId: z.number(),
@@ -81,14 +135,30 @@ router.get('/orders', isAuthenticated, async (req: Request, res: Response) => {
     if (params.channelId) {
       whereClause = sql`${whereClause} AND o.channel_id = ${parseInt(params.channelId)}`;
     }
+    
+    // Handle status filtering including special pending_fulfillment which matches multiple statuses
     if (params.status) {
-      whereClause = sql`${whereClause} AND o.status = ${params.status}`;
+      if (params.status === 'pending_fulfillment') {
+        whereClause = sql`${whereClause} AND o.status IN ('pending', 'awaiting_payment', 'awaiting_fulfillment', 'awaiting_shipment', 'partially_shipped')`;
+      } else {
+        whereClause = sql`${whereClause} AND o.status = ${params.status}`;
+      }
     }
-    if (params.fromDate) {
-      whereClause = sql`${whereClause} AND o.order_placed_at >= ${params.fromDate}`;
-    }
-    if (params.toDate) {
-      whereClause = sql`${whereClause} AND o.order_placed_at <= ${params.toDate}`;
+    
+    // Handle time period filtering
+    if (params.timePeriod && params.timePeriod !== 'all') {
+      const dateRange = getTimePeriodDates(params.timePeriod);
+      if (dateRange) {
+        whereClause = sql`${whereClause} AND o.order_placed_at >= ${dateRange.fromDate.toISOString()} AND o.order_placed_at <= ${dateRange.toDate.toISOString()}`;
+      }
+    } else {
+      // Fall back to explicit date params
+      if (params.fromDate) {
+        whereClause = sql`${whereClause} AND o.order_placed_at >= ${params.fromDate}`;
+      }
+      if (params.toDate) {
+        whereClause = sql`${whereClause} AND o.order_placed_at <= ${params.toDate}`;
+      }
     }
 
     const ordersResult = await db.execute(sql`

@@ -114,6 +114,9 @@ export default function MarketplacePage() {
   const [activeTab, setActiveTab] = useState('orders');
   const [selectedChannel, setSelectedChannel] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
+  const [selectedStatusTab, setSelectedStatusTab] = useState<string>('all');
+  const [selectedTimePeriod, setSelectedTimePeriod] = useState<string>('all');
+  const [currentPage, setCurrentPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedOrder, setSelectedOrder] = useState<MarketplaceOrder | null>(null);
   const [viewOrderDialogOpen, setViewOrderDialogOpen] = useState(false);
@@ -135,9 +138,13 @@ export default function MarketplacePage() {
   const ordersQueryUrl = (() => {
     const params = new URLSearchParams();
     if (selectedChannel !== 'all') params.append('channelId', selectedChannel);
-    if (selectedStatus !== 'all') params.append('status', selectedStatus);
-    const queryString = params.toString();
-    return queryString ? `/api/marketplace/orders?${queryString}` : '/api/marketplace/orders';
+    // Use status tab if set, otherwise use dropdown filter
+    const statusToFilter = selectedStatusTab !== 'all' ? selectedStatusTab : selectedStatus;
+    if (statusToFilter !== 'all') params.append('status', statusToFilter);
+    if (selectedTimePeriod !== 'all') params.append('timePeriod', selectedTimePeriod);
+    params.append('page', currentPage.toString());
+    params.append('limit', '25');
+    return `/api/marketplace/orders?${params.toString()}`;
   })();
 
   const { data: ordersData, isLoading: ordersLoading, refetch: refetchOrders } = useQuery<{
@@ -401,6 +408,38 @@ export default function MarketplacePage() {
                 </div>
               </CardHeader>
               <CardContent>
+                {/* Status Tabs */}
+                <div className="flex flex-wrap gap-2 mb-4 border-b pb-4">
+                  {[
+                    { value: 'all', label: 'All Orders', icon: Package },
+                    { value: 'pending_fulfillment', label: 'Pending Fulfillment', icon: Clock },
+                    { value: 'shipped', label: 'Shipped', icon: Truck },
+                    { value: 'completed', label: 'Completed', icon: CheckCircle },
+                    { value: 'ready_for_pickup', label: 'Ready for Pickup', icon: Store },
+                    { value: 'cancelled', label: 'Cancelled', icon: AlertTriangle },
+                    { value: 'refunded', label: 'Refunded', icon: RefreshCw },
+                  ].map((tab) => {
+                    const Icon = tab.icon;
+                    return (
+                      <Button
+                        key={tab.value}
+                        variant={selectedStatusTab === tab.value ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => {
+                          setSelectedStatusTab(tab.value);
+                          setSelectedStatus('all');
+                          setCurrentPage(1);
+                        }}
+                        className={selectedStatusTab === tab.value ? '' : 'bg-white'}
+                        data-testid={`tab-status-${tab.value}`}
+                      >
+                        <Icon className="h-4 w-4 mr-1" />
+                        {tab.label}
+                      </Button>
+                    );
+                  })}
+                </div>
+
                 <div className="flex items-center gap-4 mb-4">
                   <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -412,7 +451,23 @@ export default function MarketplacePage() {
                       data-testid="input-search-orders"
                     />
                   </div>
-                  <Select value={selectedChannel} onValueChange={setSelectedChannel}>
+                  <Select value={selectedTimePeriod} onValueChange={(value) => { setSelectedTimePeriod(value); setCurrentPage(1); }}>
+                    <SelectTrigger className="w-[180px]" data-testid="select-time-filter">
+                      <SelectValue placeholder="Time Period" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Time</SelectItem>
+                      <SelectItem value="today">Today</SelectItem>
+                      <SelectItem value="yesterday">Yesterday</SelectItem>
+                      <SelectItem value="this_week">This Week</SelectItem>
+                      <SelectItem value="last_week">Last Week</SelectItem>
+                      <SelectItem value="this_month">This Month</SelectItem>
+                      <SelectItem value="last_month">Last Month</SelectItem>
+                      <SelectItem value="last_30_days">Last 30 Days</SelectItem>
+                      <SelectItem value="last_90_days">Last 90 Days</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select value={selectedChannel} onValueChange={(value) => { setSelectedChannel(value); setCurrentPage(1); }}>
                     <SelectTrigger className="w-[180px]" data-testid="select-channel-filter">
                       <SelectValue placeholder="All Channels" />
                     </SelectTrigger>
@@ -423,7 +478,7 @@ export default function MarketplacePage() {
                       ))}
                     </SelectContent>
                   </Select>
-                  <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+                  <Select value={selectedStatus} onValueChange={(value) => { setSelectedStatus(value); setSelectedStatusTab('all'); setCurrentPage(1); }}>
                     <SelectTrigger className="w-[180px]" data-testid="select-status-filter">
                       <SelectValue placeholder="All Status" />
                     </SelectTrigger>
@@ -516,6 +571,62 @@ export default function MarketplacePage() {
                       ))}
                     </TableBody>
                   </Table>
+                )}
+                
+                {/* Pagination */}
+                {ordersData?.pagination && ordersData.pagination.totalPages > 1 && (
+                  <div className="flex items-center justify-between mt-4 pt-4 border-t">
+                    <div className="text-sm text-gray-500">
+                      Showing {((ordersData.pagination.page - 1) * ordersData.pagination.limit) + 1} - {Math.min(ordersData.pagination.page * ordersData.pagination.limit, ordersData.pagination.total)} of {ordersData.pagination.total} orders
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                        disabled={currentPage === 1}
+                        data-testid="button-prev-page"
+                      >
+                        Previous
+                      </Button>
+                      <div className="flex items-center gap-1">
+                        {Array.from({ length: Math.min(5, ordersData.pagination.totalPages) }, (_, i) => {
+                          let pageNum;
+                          const total = ordersData.pagination.totalPages;
+                          if (total <= 5) {
+                            pageNum = i + 1;
+                          } else if (currentPage <= 3) {
+                            pageNum = i + 1;
+                          } else if (currentPage >= total - 2) {
+                            pageNum = total - 4 + i;
+                          } else {
+                            pageNum = currentPage - 2 + i;
+                          }
+                          return (
+                            <Button
+                              key={pageNum}
+                              variant={currentPage === pageNum ? 'default' : 'outline'}
+                              size="sm"
+                              onClick={() => setCurrentPage(pageNum)}
+                              className="w-8"
+                              data-testid={`button-page-${pageNum}`}
+                            >
+                              {pageNum}
+                            </Button>
+                          );
+                        })}
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(p => Math.min(ordersData.pagination.totalPages, p + 1))}
+                        disabled={currentPage === ordersData.pagination.totalPages}
+                        data-testid="button-next-page"
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  </div>
                 )}
               </CardContent>
             </Card>
