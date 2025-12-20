@@ -5,6 +5,7 @@ import { sql } from 'drizzle-orm';
 import { BigCommerceIntegration } from '../integrations/bigcommerce';
 import { AmazonIntegration } from '../integrations/amazon';
 import { CloverInventoryService } from '../services/clover-inventory-service';
+import { marketplaceSyncScheduler } from '../services/marketplace-sync-scheduler';
 import { z } from 'zod';
 
 const router = Router();
@@ -1108,6 +1109,29 @@ router.delete('/authorized-users/:id', isAuthenticated, requireAdmin, async (req
   } catch (error) {
     console.error('Error revoking access:', error);
     res.status(500).json({ error: 'Failed to revoke access' });
+  }
+});
+
+// Marketplace sync scheduler status
+router.get('/sync-scheduler/status', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const status = marketplaceSyncScheduler.getStatus();
+    res.json(status);
+  } catch (error) {
+    console.error('Error getting sync scheduler status:', error);
+    res.status(500).json({ error: 'Failed to get scheduler status' });
+  }
+});
+
+// Trigger manual marketplace sync
+router.post('/sync-scheduler/trigger', isAuthenticated, requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { channelId } = req.body;
+    const result = await marketplaceSyncScheduler.triggerManualSync(channelId);
+    res.json(result);
+  } catch (error) {
+    console.error('Error triggering manual sync:', error);
+    res.status(500).json({ error: 'Failed to trigger sync' });
   }
 });
 

@@ -128,6 +128,11 @@ app.use((req, res, next) => {
   startInventorySyncScheduler();
   log('📦 Inventory sync scheduler initialized (every 15 minutes)', 'inventory-sync');
 
+  // Import and initialize the marketplace sync scheduler (runs every 15 minutes)
+  const { startMarketplaceSyncScheduler } = await import('./services/marketplace-sync-scheduler');
+  startMarketplaceSyncScheduler();
+  log('🛒 Marketplace sync scheduler initialized (every 15 minutes)', 'marketplace-sync');
+
   // Setup Vite integration for React app
   if (process.env.NODE_ENV === "development") {
     // Temporarily set NODE_ENV to production to prevent cartographer plugin from loading and breaking HMR
