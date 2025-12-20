@@ -390,6 +390,8 @@ router.post('/sync/orders', isAuthenticated, requireAdmin, async (req: Request, 
                   currency_code: order.OrderTotal?.CurrencyCode || 'USD',
                   payment_status: order.PaymentMethodDetails || order.PaymentMethod || 'Other',
                   shipping_address: shippingAddress,
+                  shipping_method: order.ShipServiceLevel || order.ShipmentServiceLevelCategory || null,
+                  shipping_carrier: order.ShipmentCarrier || null,
                   is_amazon: true,
                 };
               });
@@ -417,10 +419,15 @@ router.post('/sync/orders', isAuthenticated, requireAdmin, async (req: Request, 
             const normalizedStatus = String(order.status).toLowerCase().replace(/\s+/g, '_');
 
             if (existingOrder.rows.length > 0) {
+              // For Amazon orders, also update shipping address/method if they were missing
+              const updateShipping = order.is_amazon && order.shipping_address;
               await db.execute(sql`
                 UPDATE marketplace_orders 
                 SET status = ${normalizedStatus}, 
                     payment_status = ${order.payment_status || 'unknown'},
+                    shipping_address = COALESCE(shipping_address, ${JSON.stringify(order.shipping_address)}::jsonb),
+                    shipping_method = COALESCE(shipping_method, ${order.shipping_method || null}),
+                    shipping_carrier = COALESCE(shipping_carrier, ${order.shipping_carrier || null}),
                     updated_at = NOW(),
                     raw_payload = ${JSON.stringify(order)}
                 WHERE id = ${(existingOrder.rows[0] as any).id}
@@ -442,7 +449,7 @@ router.post('/sync/orders', isAuthenticated, requireAdmin, async (req: Request, 
                 INSERT INTO marketplace_orders (
                   channel_id, external_order_id, external_order_number, status, order_placed_at,
                   customer_email, customer_name, customer_phone,
-                  shipping_address, billing_address,
+                  shipping_address, billing_address, shipping_method, shipping_carrier,
                   subtotal, shipping_total, tax_total, discount_total, grand_total,
                   currency, payment_status, raw_payload
                 ) VALUES (
@@ -450,7 +457,8 @@ router.post('/sync/orders', isAuthenticated, requireAdmin, async (req: Request, 
                   ${order.billing_address?.email || null}, 
                   ${`${order.billing_address?.first_name || ''} ${order.billing_address?.last_name || ''}`.trim() || 'Unknown'},
                   ${order.billing_address?.phone || null},
-                  ${JSON.stringify(shippingAddr)}, ${JSON.stringify(order.billing_address)},
+                  ${JSON.stringify(shippingAddr)}, ${JSON.stringify(order.billing_address)}, 
+                  ${order.shipping_method || null}, ${order.shipping_carrier || null},
                   ${parseFloat(order.subtotal_ex_tax) || 0}, ${parseFloat(order.shipping_cost_ex_tax) || 0},
                   ${parseFloat(order.total_tax) || 0}, 0, ${parseFloat(order.total_inc_tax) || 0},
                   ${order.currency_code || 'USD'}, ${order.payment_status || 'unknown'}, ${JSON.stringify(order)}
