@@ -492,10 +492,7 @@ export default function MarketplacePage() {
                               {order.status !== 'shipped' && order.status !== 'completed' && (
                                 <Button
                                   size="sm"
-                                  onClick={() => {
-                                    setSelectedOrder(order);
-                                    setFulfillDialogOpen(true);
-                                  }}
+                                  onClick={() => setLocation(`/marketplace/orders/${order.id}/fulfill`)}
                                   data-testid={`button-fulfill-${order.id}`}
                                 >
                                   <Truck className="h-4 w-4 mr-1" />
@@ -856,7 +853,7 @@ export default function MarketplacePage() {
                 <Button
                   onClick={() => {
                     setViewOrderDialogOpen(false);
-                    setFulfillDialogOpen(true);
+                    setLocation(`/marketplace/orders/${selectedOrder.id}/fulfill`);
                   }}
                   data-testid="button-fulfill-from-view"
                 >

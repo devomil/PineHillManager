@@ -46,6 +46,7 @@ import Tasks from "@/pages/tasks";
 import Goals from "@/pages/goals";
 import PurchasingPage from "@/pages/purchasing";
 import MarketplacePage from "@/pages/marketplace";
+import OrderFulfillmentPage from "@/pages/order-fulfillment";
 
 function AuthenticatedApp() {
   const { user } = useAuth();
@@ -180,6 +181,11 @@ function AuthenticatedApp() {
       <Route path="/marketplace">
         <ProtectedRoute allowedRoles={['admin', 'manager']}>
           <MarketplacePage />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/marketplace/orders/:id/fulfill">
+        <ProtectedRoute allowedRoles={['admin', 'manager']}>
+          <OrderFulfillmentPage />
         </ProtectedRoute>
       </Route>
       

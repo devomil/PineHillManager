@@ -155,6 +155,76 @@ router.get('/orders/:id', isAuthenticated, async (req: Request, res: Response) =
   }
 });
 
+router.patch('/orders/:id/notes', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const orderId = parseInt(req.params.id);
+    const { seller_notes } = req.body;
+    
+    const existingOrder = await db.execute(sql`
+      SELECT id FROM marketplace_orders WHERE id = ${orderId}
+    `);
+    
+    if (existingOrder.rows.length === 0) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+    
+    await db.execute(sql`
+      UPDATE marketplace_orders 
+      SET internal_notes = ${seller_notes}, updated_at = NOW()
+      WHERE id = ${orderId}
+    `);
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error updating order notes:', error);
+    res.status(500).json({ error: 'Failed to update order notes' });
+  }
+});
+
+router.post('/orders/:id/fulfill', isAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const orderId = parseInt(req.params.id);
+    const { items, carrier, trackingNumber, trackingUrl } = req.body;
+    const userId = (req.user as any)?.id;
+    
+    const existingOrder = await db.execute(sql`
+      SELECT * FROM marketplace_orders WHERE id = ${orderId}
+    `);
+    
+    if (existingOrder.rows.length === 0) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+    
+    const order = existingOrder.rows[0] as any;
+    
+    await db.execute(sql`
+      UPDATE marketplace_orders 
+      SET status = 'shipped',
+          fulfillment_status = 'fulfilled',
+          fulfilled_at = NOW(),
+          fulfilled_by = ${userId},
+          shipping_carrier = ${carrier || order.shipping_carrier},
+          updated_at = NOW()
+      WHERE id = ${orderId}
+    `);
+    
+    if (trackingNumber) {
+      await db.execute(sql`
+        INSERT INTO marketplace_fulfillments (
+          order_id, tracking_number, tracking_url, carrier, status, created_at
+        ) VALUES (
+          ${orderId}, ${trackingNumber}, ${trackingUrl || null}, ${carrier || 'Other'}, 'shipped', NOW()
+        )
+      `);
+    }
+
+    res.json({ success: true, message: 'Order fulfilled successfully' });
+  } catch (error) {
+    console.error('Error fulfilling order:', error);
+    res.status(500).json({ error: 'Failed to fulfill order' });
+  }
+});
+
 router.post('/sync/orders', isAuthenticated, requireAdmin, async (req: Request, res: Response) => {
   try {
     const { channelId } = req.body;
