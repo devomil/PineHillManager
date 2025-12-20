@@ -419,14 +419,29 @@ router.post('/sync/orders', isAuthenticated, requireAdmin, async (req: Request, 
             const normalizedStatus = String(order.status).toLowerCase().replace(/\s+/g, '_');
 
             if (existingOrder.rows.length > 0) {
-              // For Amazon orders, also update shipping address/method if they were missing
-              const updateShipping = order.is_amazon && order.shipping_address;
+              // Fetch shipping method for existing BigCommerce orders if missing
+              let orderShippingAddr = order.shipping_address;
+              let orderShippingMethod = order.shipping_method || null;
+              
+              if (channel.type === 'bigcommerce' && order.id) {
+                try {
+                  const shippingAddresses = await bigCommerce.getOrderShippingAddresses(order.id);
+                  const firstShipping = shippingAddresses[0] as any;
+                  if (firstShipping) {
+                    orderShippingAddr = firstShipping;
+                    orderShippingMethod = firstShipping.shipping_method || firstShipping.shippingMethod || null;
+                  }
+                } catch (e) {
+                  // Use existing data
+                }
+              }
+              
               await db.execute(sql`
                 UPDATE marketplace_orders 
                 SET status = ${normalizedStatus}, 
                     payment_status = ${order.payment_status || 'unknown'},
-                    shipping_address = COALESCE(shipping_address, ${JSON.stringify(order.shipping_address)}::jsonb),
-                    shipping_method = COALESCE(shipping_method, ${order.shipping_method || null}),
+                    shipping_address = COALESCE(shipping_address, ${JSON.stringify(orderShippingAddr)}::jsonb),
+                    shipping_method = COALESCE(shipping_method, ${orderShippingMethod}),
                     shipping_carrier = COALESCE(shipping_carrier, ${order.shipping_carrier || null}),
                     updated_at = NOW(),
                     raw_payload = ${JSON.stringify(order)}
@@ -435,11 +450,18 @@ router.post('/sync/orders', isAuthenticated, requireAdmin, async (req: Request, 
             } else {
               // Handle different channel types for address and product fetching
               let shippingAddr = order.shipping_address || order.billing_address;
+              let shippingMethod = order.shipping_method || null;
+              let shippingCarrier = order.shipping_carrier || null;
               
               if (channel.type === 'bigcommerce' && order.id) {
                 try {
                   const shippingAddresses = await bigCommerce.getOrderShippingAddresses(order.id);
-                  shippingAddr = shippingAddresses[0] || order.billing_address;
+                  const firstShipping = shippingAddresses[0] as any;
+                  if (firstShipping) {
+                    shippingAddr = firstShipping;
+                    // BigCommerce includes shipping_method in the shipping address response
+                    shippingMethod = firstShipping.shipping_method || firstShipping.shippingMethod || null;
+                  }
                 } catch (e) {
                   // Use existing shipping address
                 }
@@ -458,7 +480,7 @@ router.post('/sync/orders', isAuthenticated, requireAdmin, async (req: Request, 
                   ${`${order.billing_address?.first_name || ''} ${order.billing_address?.last_name || ''}`.trim() || 'Unknown'},
                   ${order.billing_address?.phone || null},
                   ${JSON.stringify(shippingAddr)}, ${JSON.stringify(order.billing_address)}, 
-                  ${order.shipping_method || null}, ${order.shipping_carrier || null},
+                  ${shippingMethod}, ${shippingCarrier},
                   ${parseFloat(order.subtotal_ex_tax) || 0}, ${parseFloat(order.shipping_cost_ex_tax) || 0},
                   ${parseFloat(order.total_tax) || 0}, 0, ${parseFloat(order.total_inc_tax) || 0},
                   ${order.currency_code || 'USD'}, ${order.payment_status || 'unknown'}, ${JSON.stringify(order)}
