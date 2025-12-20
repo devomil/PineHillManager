@@ -249,20 +249,48 @@ router.post('/sync/orders', isAuthenticated, requireAdmin, async (req: Request, 
             const ordersResponse = await amazon.getOrders(thirtyDaysAgo.toISOString());
             
             if (ordersResponse && ordersResponse.payload && ordersResponse.payload.Orders) {
-              orders = ordersResponse.payload.Orders.map((order: any) => ({
-                id: order.AmazonOrderId,
-                status: order.OrderStatus,
-                date_created: order.PurchaseDate,
-                billing_address: order.BuyerInfo ? {
-                  email: order.BuyerInfo.BuyerEmail,
-                  first_name: order.BuyerInfo.BuyerName?.split(' ')[0] || '',
-                  last_name: order.BuyerInfo.BuyerName?.split(' ').slice(1).join(' ') || '',
-                } : null,
-                total_inc_tax: order.OrderTotal?.Amount || '0',
-                currency_code: order.OrderTotal?.CurrencyCode || 'USD',
-                payment_status: order.PaymentMethod || 'unknown',
-                shipping_address: order.ShippingAddress || null,
-              }));
+              orders = ordersResponse.payload.Orders.map((order: any) => {
+                // Parse buyer name from BuyerInfo or ShippingAddress
+                const buyerName = order.BuyerInfo?.BuyerName || 
+                  (order.ShippingAddress ? `${order.ShippingAddress.Name || ''}`.trim() : '');
+                const nameParts = buyerName.split(' ');
+                const firstName = nameParts[0] || '';
+                const lastName = nameParts.slice(1).join(' ') || '';
+                
+                // Map Amazon shipping address to our format
+                const amazonAddr = order.ShippingAddress;
+                const shippingAddress = amazonAddr ? {
+                  first_name: firstName,
+                  last_name: lastName,
+                  street_1: amazonAddr.AddressLine1 || '',
+                  street_2: amazonAddr.AddressLine2 || '',
+                  city: amazonAddr.City || '',
+                  state: amazonAddr.StateOrRegion || '',
+                  zip: amazonAddr.PostalCode || '',
+                  country: amazonAddr.CountryCode || 'US',
+                  phone: amazonAddr.Phone || '',
+                } : null;
+                
+                return {
+                  id: order.AmazonOrderId,
+                  status: order.OrderStatus,
+                  date_created: order.PurchaseDate,
+                  billing_address: {
+                    email: order.BuyerInfo?.BuyerEmail || '',
+                    first_name: firstName,
+                    last_name: lastName,
+                    phone: amazonAddr?.Phone || '',
+                  },
+                  subtotal_ex_tax: order.OrderTotal?.Amount || '0',
+                  shipping_cost_ex_tax: '0', // Amazon doesn't expose shipping separately in order response
+                  total_tax: '0', // Tax included in total
+                  total_inc_tax: order.OrderTotal?.Amount || '0',
+                  currency_code: order.OrderTotal?.CurrencyCode || 'USD',
+                  payment_status: order.PaymentMethodDetails || order.PaymentMethod || 'Other',
+                  shipping_address: shippingAddress,
+                  is_amazon: true,
+                };
+              });
               console.log(`📦 [Amazon Sync] Got ${orders.length} orders`);
             }
           } catch (amazonError) {
@@ -333,26 +361,64 @@ router.post('/sync/orders', isAuthenticated, requireAdmin, async (req: Request, 
               `);
               const newOrderId = (newOrderResult.rows[0] as any)?.id;
 
-              // Fetch line items for BigCommerce orders
-              if (newOrderId && channel.type === 'bigcommerce') {
-                try {
-                  const products = await bigCommerce.getOrderProducts(order.id);
-                  for (const product of products) {
-                    await db.execute(sql`
-                      INSERT INTO marketplace_order_items (
-                        order_id, external_item_id, external_product_id, external_variant_id,
-                        sku, name, quantity, unit_price, total_price, weight, raw_payload
-                      ) VALUES (
-                        ${newOrderId}, ${product.id.toString()}, ${product.product_id.toString()}, 
-                        ${product.variant_id ? product.variant_id.toString() : null},
-                        ${product.sku || null}, ${product.name}, ${product.quantity},
-                        ${parseFloat(product.price_ex_tax) || 0}, ${parseFloat(product.total_ex_tax) || 0},
-                        ${parseFloat(product.weight) || null}, ${JSON.stringify(product)}
-                      )
-                    `);
+              // Fetch line items based on channel type
+              if (newOrderId) {
+                if (channel.type === 'bigcommerce') {
+                  try {
+                    const products = await bigCommerce.getOrderProducts(order.id);
+                    for (const product of products) {
+                      await db.execute(sql`
+                        INSERT INTO marketplace_order_items (
+                          order_id, external_item_id, external_product_id, external_variant_id,
+                          sku, name, quantity, unit_price, total_price, weight, raw_payload
+                        ) VALUES (
+                          ${newOrderId}, ${product.id.toString()}, ${product.product_id.toString()}, 
+                          ${product.variant_id ? product.variant_id.toString() : null},
+                          ${product.sku || null}, ${product.name}, ${product.quantity},
+                          ${parseFloat(product.price_ex_tax) || 0}, ${parseFloat(product.total_ex_tax) || 0},
+                          ${parseFloat(product.weight) || null}, ${JSON.stringify(product)}
+                        )
+                      `);
+                    }
+                  } catch (e) {
+                    console.error(`Failed to fetch products for BigCommerce order ${order.id}:`, e);
                   }
-                } catch (e) {
-                  console.error(`Failed to fetch products for order ${order.id}:`, e);
+                } else if (channel.type === 'amazon' && order.is_amazon) {
+                  // Fetch order items from Amazon
+                  try {
+                    const channelConfig = channel.api_config || {};
+                    const amazonCredentials = {
+                      sellerId: process.env.AMAZON_SELLER_ID,
+                      refreshToken: process.env.AMAZON_REFRESH_TOKEN,
+                      clientId: process.env.AMAZON_CLIENT_ID,
+                      clientSecret: process.env.AMAZON_CLIENT_SECRET,
+                      marketplaceId: channelConfig.marketplaceId || process.env.AMAZON_MARKETPLACE_ID || 'ATVPDKIKX0DER',
+                      baseUrl: channelConfig.baseUrl || process.env.AMAZON_BASE_URL || 'https://sellingpartnerapi-na.amazon.com'
+                    };
+                    const amazonClient = new AmazonIntegration(amazonCredentials);
+                    const itemsResponse = await amazonClient.getOrderItems(order.id);
+                    
+                    if (itemsResponse?.payload?.OrderItems) {
+                      for (const item of itemsResponse.payload.OrderItems) {
+                        const unitPrice = parseFloat(item.ItemPrice?.Amount || '0') / (item.QuantityOrdered || 1);
+                        await db.execute(sql`
+                          INSERT INTO marketplace_order_items (
+                            order_id, external_item_id, external_product_id, external_variant_id,
+                            sku, name, quantity, unit_price, total_price, weight, raw_payload
+                          ) VALUES (
+                            ${newOrderId}, ${item.OrderItemId || ''}, ${item.ASIN || ''}, 
+                            ${item.SellerSKU || null},
+                            ${item.SellerSKU || null}, ${item.Title || 'Unknown Item'}, ${item.QuantityOrdered || 1},
+                            ${unitPrice}, ${parseFloat(item.ItemPrice?.Amount || '0')},
+                            ${null}, ${JSON.stringify(item)}
+                          )
+                        `);
+                      }
+                      console.log(`📦 [Amazon Sync] Saved ${itemsResponse.payload.OrderItems.length} items for order ${order.id}`);
+                    }
+                  } catch (e) {
+                    console.error(`Failed to fetch items for Amazon order ${order.id}:`, e);
+                  }
                 }
               }
             }

@@ -214,6 +214,9 @@ export class AmazonIntegration {
     const params = new URLSearchParams({
       MarketplaceIds: this.config.marketplaceId,
     });
+    
+    // Request buyer info and shipping address data elements
+    params.append('DataElements', 'buyerInfo,shippingAddress');
 
     if (startDate) {
       params.append('CreatedAfter', startDate);
