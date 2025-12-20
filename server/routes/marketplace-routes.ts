@@ -221,9 +221,11 @@ router.post('/sync/orders', isAuthenticated, requireAdmin, async (req: Request, 
             `);
 
             if (existingOrder.rows.length > 0) {
+              // Normalize status to lowercase for consistent filtering
+              const normalizedStatus = String(order.status).toLowerCase().replace(/\s+/g, '_');
               await db.execute(sql`
                 UPDATE marketplace_orders 
-                SET status = ${order.status}, 
+                SET status = ${normalizedStatus}, 
                     payment_status = ${order.payment_status || 'unknown'},
                     updated_at = NOW(),
                     raw_payload = ${JSON.stringify(order)}
@@ -233,6 +235,9 @@ router.post('/sync/orders', isAuthenticated, requireAdmin, async (req: Request, 
               const shippingAddresses = await bigCommerce.getOrderShippingAddresses(order.id);
               const shippingAddr = shippingAddresses[0] || order.billing_address;
 
+              // Normalize status to lowercase for consistent filtering
+              const normalizedStatus = String(order.status).toLowerCase().replace(/\s+/g, '_');
+              
               await db.execute(sql`
                 INSERT INTO marketplace_orders (
                   channel_id, external_order_id, external_order_number, status, order_placed_at,
@@ -241,7 +246,7 @@ router.post('/sync/orders', isAuthenticated, requireAdmin, async (req: Request, 
                   subtotal, shipping_total, tax_total, discount_total, grand_total,
                   currency, payment_status, raw_payload
                 ) VALUES (
-                  ${channelId}, ${order.id.toString()}, ${order.id.toString()}, ${order.status}, ${order.date_created},
+                  ${channelId}, ${order.id.toString()}, ${order.id.toString()}, ${normalizedStatus}, ${order.date_created},
                   ${order.billing_address?.email || null}, 
                   ${`${order.billing_address?.first_name || ''} ${order.billing_address?.last_name || ''}`.trim() || 'Unknown'},
                   ${order.billing_address?.phone || null},

@@ -442,7 +442,7 @@ export default function MarketplacePage() {
                     <TableBody>
                       {filteredOrders.map(order => (
                         <TableRow key={order.id} data-testid={`row-order-${order.id}`}>
-                          <TableCell className="font-medium">{order.order_number}</TableCell>
+                          <TableCell className="font-medium">{order.external_order_number || order.external_order_id}</TableCell>
                           <TableCell>
                             <div className="flex items-center gap-2">
                               {getChannelIcon(order.channel_type)}
@@ -455,10 +455,10 @@ export default function MarketplacePage() {
                               <p className="text-sm text-gray-500">{order.customer_email}</p>
                             </div>
                           </TableCell>
-                          <TableCell>{order.order_date ? format(new Date(order.order_date), 'MMM d, yyyy') : 'N/A'}</TableCell>
+                          <TableCell>{order.order_placed_at ? format(new Date(order.order_placed_at), 'MMM d, yyyy') : 'N/A'}</TableCell>
                           <TableCell>{getStatusBadge(order.status)}</TableCell>
                           <TableCell className="text-right font-medium">
-                            {order.currency} ${Number(order.total).toFixed(2)}
+                            {order.currency} ${Number(order.grand_total || 0).toFixed(2)}
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex items-center justify-end gap-2">
