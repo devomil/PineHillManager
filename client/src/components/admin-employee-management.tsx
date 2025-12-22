@@ -1814,7 +1814,7 @@ export default function AdminEmployeeManagement() {
                     <Edit className="w-4 h-4 mr-1" />
                     Edit
                   </Button>
-                  {employee.isActive && (
+                  {employee.isActive ? (
                     <Button
                       variant="outline"
                       size="sm"
@@ -1823,6 +1823,17 @@ export default function AdminEmployeeManagement() {
                     >
                       <Trash2 className="w-4 h-4 mr-1" />
                       Deactivate
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={() => reactivateEmployeeMutation.mutate(employee.id)}
+                      disabled={reactivateEmployeeMutation.isPending}
+                      className="bg-green-600 hover:bg-green-700"
+                    >
+                      <RefreshCw className="w-4 h-4 mr-1" />
+                      Reactivate
                     </Button>
                   )}
                 </div>
