@@ -3105,8 +3105,20 @@ Output the script with section markers in brackets.`;
       const userData = req.body;
       const newEmployee = await storage.createEmployee(userData);
       res.status(201).json(newEmployee);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating employee:', error);
+      
+      // Handle duplicate key constraint violations
+      if (error?.code === '23505') {
+        if (error?.constraint === 'users_employee_id_unique') {
+          return res.status(400).json({ message: `Employee ID "${userData.employeeId}" already exists. Please use a different ID.` });
+        }
+        if (error?.constraint === 'users_email_unique') {
+          return res.status(400).json({ message: `Email "${userData.email}" is already in use. Please use a different email.` });
+        }
+        return res.status(400).json({ message: 'A duplicate value was found. Please check your input.' });
+      }
+      
       res.status(500).json({ message: 'Failed to create employee' });
     }
   });

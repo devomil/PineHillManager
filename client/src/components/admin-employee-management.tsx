@@ -676,7 +676,7 @@ export default function AdminEmployeeManagement() {
           : "New employee has been successfully added to the system.",
       });
     },
-    onError: (error) => {
+    onError: async (error: any) => {
       if (isUnauthorizedError(error)) {
         toast({
           title: "Unauthorized",
@@ -688,9 +688,22 @@ export default function AdminEmployeeManagement() {
         }, 500);
         return;
       }
+      
+      // Try to extract the error message from the server response
+      let errorMessage = "Failed to add employee. Please try again.";
+      if (error?.message) {
+        // Check if it contains a server message (e.g., "400: Employee ID already exists")
+        const match = error.message.match(/^\d+:\s*(.*)/);
+        if (match) {
+          errorMessage = match[1];
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      
       toast({
         title: "Error",
-        description: "Failed to add employee. Please try again.",
+        description: errorMessage,
         variant: "destructive",
       });
     },

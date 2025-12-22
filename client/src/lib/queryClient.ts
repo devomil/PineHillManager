@@ -229,7 +229,21 @@ export async function apiRequest(method: string, url: string, data?: any) {
   if (!response.ok) {
     const errorText = await response.text();
     console.error('API Error:', response.status, errorText);
-    throw new Error(`${response.status}: ${response.statusText}`);
+    
+    // Try to parse error message from JSON response
+    let errorMessage = response.statusText;
+    try {
+      const errorJson = JSON.parse(errorText);
+      if (errorJson.message) {
+        errorMessage = errorJson.message;
+      } else if (errorJson.error) {
+        errorMessage = errorJson.error;
+      }
+    } catch {
+      // Not JSON, use status text
+    }
+    
+    throw new Error(`${response.status}: ${errorMessage}`);
   }
 
   return response;
