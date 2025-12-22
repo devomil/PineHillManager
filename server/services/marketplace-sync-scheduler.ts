@@ -121,9 +121,59 @@ class MarketplaceSyncScheduler {
 
     if (channel.type === 'bigcommerce') {
       const bigCommerce = new BigCommerceIntegration();
-      const orders = await bigCommerce.getOrders(channel);
       
-      for (const order of orders) {
+      // Fetch orders from multiple statuses to ensure we get all recent orders
+      // BigCommerce order status IDs:
+      // 0=Pending, 1=Awaiting Payment, 2=Shipped, 3=Partially Shipped
+      // 4=Refunded, 5=Cancelled, 6=Declined, 7=Awaiting Pickup
+      // 9=Awaiting Shipment, 10=Completed, 11=Awaiting Fulfillment
+      // 12=Manual Verification Required, 13=Disputed, 14=Partially Refunded
+      const statusesToFetch = [
+        { id: 0, name: 'Pending' },
+        { id: 1, name: 'Awaiting Payment' },
+        { id: 11, name: 'Awaiting Fulfillment' },
+        { id: 9, name: 'Awaiting Shipment' },
+        { id: 3, name: 'Partially Shipped' },
+        { id: 2, name: 'Shipped' },
+        { id: 10, name: 'Completed' },
+        { id: 5, name: 'Cancelled' },
+        { id: 4, name: 'Refunded' },
+        { id: 14, name: 'Partially Refunded' },
+        { id: 13, name: 'Disputed' },
+        { id: 12, name: 'Manual Verification Required' },
+      ];
+      
+      let allOrders: any[] = [];
+      
+      for (const status of statusesToFetch) {
+        try {
+          console.log(`📦 [Auto Sync] Fetching ${status.name} orders (status ${status.id})...`);
+          // Sort by date_created:desc to get newest orders first, fetch up to 50 per status
+          const statusOrders = await bigCommerce.getOrders({ 
+            statusId: status.id, 
+            limit: 50,
+            sort: 'date_created:desc'
+          });
+          console.log(`📦 [Auto Sync] Got ${statusOrders.length} ${status.name} orders`);
+          allOrders = [...allOrders, ...statusOrders];
+        } catch (error) {
+          console.error(`⚠️ [Auto Sync] Failed to fetch ${status.name} orders:`, error);
+        }
+      }
+      
+      // Deduplicate orders by externalOrderId
+      const seenOrderIds = new Set<string>();
+      const uniqueOrders = allOrders.filter(order => {
+        if (seenOrderIds.has(order.externalOrderId)) {
+          return false;
+        }
+        seenOrderIds.add(order.externalOrderId);
+        return true;
+      });
+      
+      console.log(`📦 [Auto Sync] Processing ${uniqueOrders.length} unique BigCommerce orders...`);
+      
+      for (const order of uniqueOrders) {
         await this.upsertOrder(channel, order, 'bigcommerce');
         ordersProcessed++;
       }
