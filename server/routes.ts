@@ -3091,7 +3091,8 @@ Output the script with section markers in brackets.`;
   // Employees route (alias for users for admin employee management)
   app.get('/api/employees', isAuthenticated, async (req, res) => {
     try {
-      const users = await storage.getAllUsers();
+      // Always include inactive employees so the frontend can filter them
+      const users = await storage.getAllUsers(true);
       res.json(users);
     } catch (error) {
       console.error('Error fetching employees:', error);
@@ -3111,6 +3112,15 @@ Output the script with section markers in brackets.`;
       // Handle duplicate key constraint violations
       if (error?.code === '23505') {
         if (error?.constraint === 'users_employee_id_unique') {
+          // Check if the existing employee is inactive
+          const existingEmployee = await storage.getEmployeeByEmployeeId(userData.employeeId);
+          if (existingEmployee && !existingEmployee.isActive) {
+            return res.status(409).json({ 
+              message: `Employee ID "${userData.employeeId}" belongs to an inactive employee (${existingEmployee.firstName} ${existingEmployee.lastName}). Would you like to reactivate them instead?`,
+              existingEmployeeId: existingEmployee.id,
+              canReactivate: true
+            });
+          }
           return res.status(400).json({ message: `Employee ID "${userData.employeeId}" already exists. Please use a different ID.` });
         }
         if (error?.constraint === 'users_email_unique') {
@@ -3120,6 +3130,21 @@ Output the script with section markers in brackets.`;
       }
       
       res.status(500).json({ message: 'Failed to create employee' });
+    }
+  });
+
+  // Reactivate employee
+  app.post('/api/employees/:id/reactivate', isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const updatedEmployee = await storage.updateEmployee(id, { isActive: true });
+      if (!updatedEmployee) {
+        return res.status(404).json({ message: 'Employee not found' });
+      }
+      res.json(updatedEmployee);
+    } catch (error) {
+      console.error('Error reactivating employee:', error);
+      res.status(500).json({ message: 'Failed to reactivate employee' });
     }
   });
 

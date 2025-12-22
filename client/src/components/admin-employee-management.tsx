@@ -325,6 +325,12 @@ const addEmployeeSchema = z.object({
   notes: z.string().optional(),
   isActive: z.boolean().default(true),
   timeOffBalance: z.number().default(24),
+  hourlyRate: z.string().optional(),
+  defaultEntryCost: z.string().optional(),
+  employeePurchaseEnabled: z.boolean().default(false),
+  employeePurchaseCap: z.string().optional(),
+  employeePurchaseCostMarkup: z.string().optional(),
+  employeePurchaseRetailDiscount: z.string().optional(),
 });
 
 const editEmployeeSchema = z.object({
@@ -392,6 +398,10 @@ export default function AdminEmployeeManagement() {
   const [activeTab, setActiveTab] = useState("employees");
   const [editTimeEntryDialogOpen, setEditTimeEntryDialogOpen] = useState(false);
   const [selectedTimeEntry, setSelectedTimeEntry] = useState<any>(null);
+
+  // Reactivate employee state
+  const [reactivateDialogOpen, setReactivateDialogOpen] = useState(false);
+  const [employeeToReactivate, setEmployeeToReactivate] = useState<{ id: string; name: string } | null>(null);
 
   const { toast } = useToast();
 
@@ -603,6 +613,12 @@ export default function AdminEmployeeManagement() {
       email: "",
       firstName: "",
       lastName: "",
+      hourlyRate: "",
+      defaultEntryCost: "",
+      employeePurchaseEnabled: false,
+      employeePurchaseCap: "75.00",
+      employeePurchaseCostMarkup: "0.00",
+      employeePurchaseRetailDiscount: "0.00",
     },
   });
 
@@ -691,21 +707,53 @@ export default function AdminEmployeeManagement() {
       
       // Try to extract the error message from the server response
       let errorMessage = "Failed to add employee. Please try again.";
+      let canReactivate = false;
+      let existingEmployeeId = "";
+      let employeeName = "";
+      
       if (error?.message) {
-        // Check if it contains a server message (e.g., "400: Employee ID already exists")
-        const match = error.message.match(/^\d+:\s*(.*)/);
+        // Check if it contains a server message (e.g., "409: Employee ID belongs to inactive...")
+        const match = error.message.match(/^(\d+):\s*(.*)/);
         if (match) {
-          errorMessage = match[1];
+          const statusCode = match[1];
+          errorMessage = match[2];
+          
+          // Check for reactivation option (409 status with specific message)
+          if (statusCode === "409") {
+            // Try to parse JSON from the error to get the existingEmployeeId
+            try {
+              // The error object might have additional data
+              const nameMatch = errorMessage.match(/inactive employee \(([^)]+)\)/);
+              if (nameMatch) {
+                employeeName = nameMatch[1];
+                canReactivate = true;
+                // Find the employee from the employees list
+                const inactiveEmployee = employees?.find(e => 
+                  e.employeeId === addForm.getValues("employeeId") && !e.isActive
+                );
+                if (inactiveEmployee) {
+                  existingEmployeeId = inactiveEmployee.id;
+                }
+              }
+            } catch {
+              // Continue with regular error handling
+            }
+          }
         } else {
           errorMessage = error.message;
         }
       }
       
-      toast({
-        title: "Error",
-        description: errorMessage,
-        variant: "destructive",
-      });
+      if (canReactivate && existingEmployeeId) {
+        setEmployeeToReactivate({ id: existingEmployeeId, name: employeeName });
+        setReactivateDialogOpen(true);
+      } else {
+        toast({
+          title: "Error",
+          description: errorMessage,
+          variant: "destructive",
+        });
+      }
     },
   });
 
@@ -809,6 +857,43 @@ export default function AdminEmployeeManagement() {
       toast({
         title: "Error",
         description: "Failed to deactivate employee. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Reactivate employee mutation
+  const reactivateEmployeeMutation = useMutation({
+    mutationFn: async (employeeId: string) => {
+      const response = await apiRequest("POST", `/api/employees/${employeeId}/reactivate`);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/employees"] });
+      setReactivateDialogOpen(false);
+      setAddDialogOpen(false);
+      setEmployeeToReactivate(null);
+      addForm.reset();
+      toast({
+        title: "Employee Reactivated",
+        description: "The employee has been reactivated successfully.",
+      });
+    },
+    onError: (error) => {
+      if (isUnauthorizedError(error)) {
+        toast({
+          title: "Unauthorized",
+          description: "You are logged out. Logging in again...",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          window.location.href = "/api/login";
+        }, 500);
+        return;
+      }
+      toast({
+        title: "Error",
+        description: "Failed to reactivate employee. Please try again.",
         variant: "destructive",
       });
     },
@@ -1140,10 +1225,12 @@ export default function AdminEmployeeManagement() {
             </DialogHeader>
             <form onSubmit={addForm.handleSubmit(onAddSubmit)} className="space-y-6">
               <Tabs defaultValue="basic" className="w-full">
-                <TabsList className="grid w-full grid-cols-3">
+                <TabsList className="grid w-full grid-cols-5">
                   <TabsTrigger value="basic">Basic Info</TabsTrigger>
                   <TabsTrigger value="work">Work Details</TabsTrigger>
                   <TabsTrigger value="contact">Contact Info</TabsTrigger>
+                  <TabsTrigger value="compensation">Compensation</TabsTrigger>
+                  <TabsTrigger value="settings">Settings</TabsTrigger>
                 </TabsList>
                 
                 <TabsContent value="basic" className="space-y-4">
@@ -1331,6 +1418,112 @@ export default function AdminEmployeeManagement() {
                       placeholder="Additional notes about the employee"
                       rows={3}
                     />
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="compensation" className="space-y-4">
+                  <div className="space-y-6">
+                    <div>
+                      <h3 className="text-lg font-medium text-slate-900 mb-4">Financial Information</h3>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label htmlFor="add-hourlyRate">Hourly Rate ($)</Label>
+                          <Input
+                            id="add-hourlyRate"
+                            type="number"
+                            step="0.01"
+                            placeholder="15.00"
+                            {...addForm.register("hourlyRate")}
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="add-defaultEntryCost">Default Entry Cost ($)</Label>
+                          <Input
+                            id="add-defaultEntryCost"
+                            type="number"
+                            step="0.01"
+                            placeholder="0.00"
+                            {...addForm.register("defaultEntryCost")}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <h3 className="text-lg font-medium text-slate-900 mb-4">Employee Purchase Allowance</h3>
+                      <div className="border rounded-lg p-4">
+                        <div className="flex items-center space-x-2 mb-3">
+                          <Switch
+                            id="add-purchase-allowance"
+                            checked={addForm.watch("employeePurchaseEnabled")}
+                            onCheckedChange={(checked) => addForm.setValue("employeePurchaseEnabled", checked)}
+                          />
+                          <Label htmlFor="add-purchase-allowance" className="font-medium">Enable Employee Purchase Allowance</Label>
+                        </div>
+                        <div className="grid grid-cols-3 gap-4">
+                          <div>
+                            <Label htmlFor="add-purchase-cap">Monthly Cap ($)</Label>
+                            <Input
+                              id="add-purchase-cap"
+                              type="number"
+                              step="0.01"
+                              placeholder="75.00"
+                              {...addForm.register("employeePurchaseCap")}
+                              disabled={!addForm.watch("employeePurchaseEnabled")}
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="add-cost-markup" className="text-sm">
+                              Cost Markup % <span className="text-xs text-slate-500">(before cap)</span>
+                            </Label>
+                            <Input
+                              id="add-cost-markup"
+                              type="number"
+                              step="0.01"
+                              placeholder="0.00"
+                              {...addForm.register("employeePurchaseCostMarkup")}
+                              disabled={!addForm.watch("employeePurchaseEnabled")}
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="add-retail-discount" className="text-sm">
+                              Retail Discount % <span className="text-xs text-slate-500">(after cap)</span>
+                            </Label>
+                            <Input
+                              id="add-retail-discount"
+                              type="number"
+                              step="0.01"
+                              placeholder="0.00"
+                              {...addForm.register("employeePurchaseRetailDiscount")}
+                              disabled={!addForm.watch("employeePurchaseEnabled")}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="settings" className="space-y-6">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="flex items-center space-x-2">
+                      <Switch
+                        id="add-isActive"
+                        checked={addForm.watch("isActive")}
+                        onCheckedChange={(checked) => addForm.setValue("isActive", checked)}
+                      />
+                      <Label htmlFor="add-isActive">Active Employee</Label>
+                    </div>
+
+                    <div>
+                      <Label htmlFor="add-timeOffBalance">Time Off Balance (days)</Label>
+                      <Input
+                        id="add-timeOffBalance"
+                        type="number"
+                        {...addForm.register("timeOffBalance", { valueAsNumber: true })}
+                        placeholder="24"
+                      />
+                    </div>
                   </div>
                 </TabsContent>
               </Tabs>
@@ -2769,6 +2962,37 @@ export default function AdminEmployeeManagement() {
     )}
   </DialogContent>
 </Dialog>
+
+{/* Reactivate Employee Dialog */}
+<AlertDialog open={reactivateDialogOpen} onOpenChange={setReactivateDialogOpen}>
+  <AlertDialogContent>
+    <AlertDialogHeader>
+      <AlertDialogTitle>Reactivate Employee?</AlertDialogTitle>
+      <AlertDialogDescription>
+        This Employee ID belongs to {employeeToReactivate?.name}, who is currently inactive. 
+        Would you like to reactivate them instead of creating a new employee?
+      </AlertDialogDescription>
+    </AlertDialogHeader>
+    <AlertDialogFooter>
+      <AlertDialogCancel onClick={() => {
+        setReactivateDialogOpen(false);
+        setEmployeeToReactivate(null);
+      }}>
+        Cancel
+      </AlertDialogCancel>
+      <AlertDialogAction
+        onClick={() => {
+          if (employeeToReactivate?.id) {
+            reactivateEmployeeMutation.mutate(employeeToReactivate.id);
+          }
+        }}
+        disabled={reactivateEmployeeMutation.isPending}
+      >
+        {reactivateEmployeeMutation.isPending ? "Reactivating..." : "Yes, Reactivate"}
+      </AlertDialogAction>
+    </AlertDialogFooter>
+  </AlertDialogContent>
+</AlertDialog>
 </div>
 );
 }

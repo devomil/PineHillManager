@@ -418,7 +418,7 @@ export interface IStorage {
   getUserByEmail(email: string): Promise<User | undefined>;
   upsertUser(user: UpsertUser): Promise<User>;
   createUser(userData: any): Promise<User>;
-  getAllUsers(): Promise<User[]>;
+  getAllUsers(includeInactive?: boolean): Promise<User[]>;
   updateUserRole(id: string, role: string): Promise<User>;
   updateUserProfile(id: string, profileData: any): Promise<User>;
   
@@ -1933,7 +1933,10 @@ export class DatabaseStorage implements IStorage {
     await db.delete(passwordResetTokens).where(eq(passwordResetTokens.token, token));
   }
 
-  async getAllUsers(): Promise<User[]> {
+  async getAllUsers(includeInactive: boolean = false): Promise<User[]> {
+    if (includeInactive) {
+      return await db.select().from(users).orderBy(asc(users.firstName));
+    }
     return await db.select().from(users).where(eq(users.isActive, true)).orderBy(asc(users.firstName));
   }
 
