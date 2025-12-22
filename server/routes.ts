@@ -3101,8 +3101,8 @@ Output the script with section markers in brackets.`;
 
   // Add new employee
   app.post('/api/employees', isAuthenticated, async (req, res) => {
+    const userData = req.body;
     try {
-      const userData = req.body;
       const newEmployee = await storage.createEmployee(userData);
       res.status(201).json(newEmployee);
     } catch (error: any) {
