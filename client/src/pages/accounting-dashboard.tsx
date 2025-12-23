@@ -2567,7 +2567,11 @@ function AccountingContent() {
 
           {/* Transactions Section */}
           {activeSection === 'transactions' && (
-            <TransactionsSection canManageAccounts={canManageAccounts} accounts={accounts} />
+            <TransactionsSection 
+              canManageAccounts={canManageAccounts} 
+              accounts={accounts} 
+              onNewTransaction={() => setIsJournalEntryDialogOpen(true)}
+            />
           )}
 
           {/* Reports Section */}
@@ -6224,10 +6228,12 @@ function LocationComparisonReport({ startDate, endDate }: { startDate: string; e
 // Transactions Section Component
 function TransactionsSection({ 
   canManageAccounts, 
-  accounts 
+  accounts,
+  onNewTransaction
 }: { 
   canManageAccounts: boolean; 
   accounts: FinancialAccount[];
+  onNewTransaction: () => void;
 }) {
   const { data: transactions = [], isLoading: transactionsLoading } = useQuery({
     queryKey: ['/api/accounting/transactions'],
@@ -6252,7 +6258,11 @@ function TransactionsSection({
               </CardDescription>
             </div>
             {canManageAccounts && (
-              <Button className="flex items-center gap-2">
+              <Button 
+                onClick={onNewTransaction}
+                className="flex items-center gap-2"
+                data-testid="button-new-transaction"
+              >
                 <Plus className="h-4 w-4" />
                 New Transaction
               </Button>
