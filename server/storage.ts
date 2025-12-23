@@ -784,6 +784,7 @@ export interface IStorage {
   // Financial Transaction Lines
   createTransactionLine(line: InsertFinancialTransactionLine): Promise<FinancialTransactionLine>;
   getTransactionLines(transactionId: number): Promise<FinancialTransactionLine[]>;
+  getAllTransactionLines(): Promise<FinancialTransactionLine[]>;
   updateTransactionLine(id: number, line: Partial<InsertFinancialTransactionLine>): Promise<FinancialTransactionLine>;
   deleteTransactionLine(id: number): Promise<void>;
 
@@ -5892,6 +5893,10 @@ export class DatabaseStorage implements IStorage {
 
   async getTransactionLines(transactionId: number): Promise<FinancialTransactionLine[]> {
     return await db.select().from(financialTransactionLines).where(eq(financialTransactionLines.transactionId, transactionId));
+  }
+
+  async getAllTransactionLines(): Promise<FinancialTransactionLine[]> {
+    return await db.select().from(financialTransactionLines);
   }
 
   async updateTransactionLine(id: number, line: Partial<InsertFinancialTransactionLine>): Promise<FinancialTransactionLine> {

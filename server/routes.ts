@@ -9326,6 +9326,131 @@ Output the script with section markers in brackets.`;
     }
   });
 
+  // Hierarchical Expense Data for Chart of Accounts display
+  app.get('/api/accounting/expenses/hierarchical', isAuthenticated, async (req, res) => {
+    try {
+      // Fetch all data upfront in parallel (single queries, not in loops)
+      const [accounts, allTransactions, allTransactionLines] = await Promise.all([
+        storage.getAllFinancialAccounts(),
+        storage.getAllFinancialTransactions(),
+        storage.getAllTransactionLines()
+      ]);
+      
+      const expenseAccounts = accounts.filter(acc => 
+        acc.accountType?.toLowerCase() === 'expense'
+      );
+
+      // Create a Set of expense transaction IDs for quick lookup
+      const expenseTransactionIds = new Set(
+        allTransactions
+          .filter(tx => tx.sourceSystem === 'quick_expense' || tx.transactionType === 'Expense')
+          .map(tx => tx.id)
+      );
+
+      // Create a Map of transaction ID to transaction for quick lookup
+      const transactionMap = new Map(allTransactions.map(tx => [tx.id, tx]));
+
+      // Build hierarchical structure efficiently in-memory
+      type ExpenseEntry = {
+        id: number;
+        description: string;
+        amount: number;
+        date: string;
+        category: string;
+        frequency: string | null;
+      };
+
+      // Map: accountId -> category -> expenses[]
+      const accountExpenseMap = new Map<number, Map<string, ExpenseEntry[]>>();
+
+      // Process all expense transaction lines in memory
+      for (const line of allTransactionLines) {
+        // Skip if not an expense transaction
+        if (!expenseTransactionIds.has(line.transactionId)) continue;
+        if (!line.accountId) continue;
+
+        const transaction = transactionMap.get(line.transactionId);
+        if (!transaction) continue;
+          
+        // Parse category from description (format: "Category: Description")
+        const descParts = (transaction.description || '').split(':');
+        const category = descParts.length > 1 ? descParts[0].trim() : 'Uncategorized';
+        const expenseDesc = descParts.length > 1 ? descParts.slice(1).join(':').trim() : (transaction.description || 'Unknown Expense');
+        
+        // Handle both debit and credit amounts safely
+        // For expense accounts: debits increase expense (positive), credits reduce expense (negative/reversal)
+        const debit = parseFloat(line.debitAmount || '0');
+        const credit = parseFloat(line.creditAmount || '0');
+        const safeDebit = !isNaN(debit) ? debit : 0;
+        const safeCredit = !isNaN(credit) ? credit : 0;
+        // Net amount: debits are positive expenses, credits are reversals/refunds (negative)
+        const amount = safeDebit - safeCredit;
+        
+        // Skip if amount is exactly zero (no actual financial impact)
+        if (amount === 0) continue;
+
+        // Initialize maps if needed
+        if (!accountExpenseMap.has(line.accountId)) {
+          accountExpenseMap.set(line.accountId, new Map());
+        }
+        const categoryMap = accountExpenseMap.get(line.accountId)!;
+        if (!categoryMap.has(category)) {
+          categoryMap.set(category, []);
+        }
+        
+        categoryMap.get(category)!.push({
+          id: transaction.id,
+          description: expenseDesc,
+          amount,
+          date: transaction.transactionDate,
+          category,
+          frequency: transaction.frequency || null
+        });
+      }
+
+      // Build the hierarchical response
+      const hierarchicalData = expenseAccounts.map(account => {
+        const categoryMap = accountExpenseMap.get(account.id);
+        const categories = categoryMap 
+          ? Array.from(categoryMap.entries()).map(([name, expenses]) => ({
+              name,
+              total: expenses.reduce((sum, e) => sum + e.amount, 0),
+              expenses: expenses.map(e => ({
+                id: e.id,
+                description: e.description,
+                amount: e.amount,
+                date: e.date,
+                frequency: e.frequency
+              }))
+            }))
+          : [];
+
+        const calculatedBalance = categories.reduce((sum, cat) => sum + cat.total, 0);
+
+        return {
+          id: account.id,
+          accountName: account.accountName,
+          accountType: account.accountType,
+          description: account.description,
+          balance: calculatedBalance > 0 ? calculatedBalance.toFixed(2) : account.balance,
+          isActive: account.isActive,
+          dataSource: account.dataSource,
+          categories
+        };
+      });
+
+      // Filter out accounts with no expenses and no balance
+      const filteredData = hierarchicalData.filter(
+        acc => acc.categories.length > 0 || parseFloat(acc.balance) > 0
+      );
+
+      res.json(filteredData);
+    } catch (error) {
+      console.error('Error fetching hierarchical expense data:', error);
+      res.status(500).json({ message: 'Failed to fetch hierarchical expense data' });
+    }
+  });
+
   app.post('/api/accounting/transactions', isAuthenticated, async (req, res) => {
     try {
       const { 

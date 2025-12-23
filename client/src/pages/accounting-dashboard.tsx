@@ -600,6 +600,7 @@ function AccountingContent() {
   // Chart of Accounts with period filtering state
   const [isPayrollDialogOpen, setIsPayrollDialogOpen] = useState(false);
   const [accountTypeFilter, setAccountTypeFilter] = useState<string>("all");
+  const [expenseViewMode, setExpenseViewMode] = useState<"standard" | "hierarchical">("standard");
 
   // Financial accounts with period filtering - always use COA endpoint for live MTD calculations
   const useCOAFiltering = true;
@@ -2252,6 +2253,31 @@ function AccountingContent() {
                             </Button>
                           )}
                         </div>
+                        
+                        {/* View Mode Toggle */}
+                        <div className="flex items-center gap-2 ml-4 border-l pl-4">
+                          <Label className="text-sm text-gray-600">View:</Label>
+                          <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+                            <Button
+                              variant={expenseViewMode === "standard" ? "default" : "ghost"}
+                              size="sm"
+                              onClick={() => setExpenseViewMode("standard")}
+                              className="h-7 px-3 text-xs"
+                              data-testid="button-standard-view"
+                            >
+                              Standard
+                            </Button>
+                            <Button
+                              variant={expenseViewMode === "hierarchical" ? "default" : "ghost"}
+                              size="sm"
+                              onClick={() => setExpenseViewMode("hierarchical")}
+                              className="h-7 px-3 text-xs"
+                              data-testid="button-expense-drilldown"
+                            >
+                              Expense Drill-Down
+                            </Button>
+                          </div>
+                        </div>
                       </div>
                     </div>
 
@@ -2309,6 +2335,23 @@ function AccountingContent() {
                   {accountsLoading ? (
                     <div className="flex items-center justify-center h-20">
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                    </div>
+                  ) : expenseViewMode === "hierarchical" ? (
+                    /* Hierarchical Expense Drill-Down View */
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-2 mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                        <BookOpen className="h-5 w-5 text-blue-600" />
+                        <div>
+                          <p className="font-medium text-blue-900 dark:text-blue-100">Expense Drill-Down View</p>
+                          <p className="text-sm text-blue-700 dark:text-blue-300">Click on accounts and categories to expand and see individual expense entries.</p>
+                        </div>
+                      </div>
+                      <HierarchicalExpenseView 
+                        onEditAccount={(account) => {
+                          setEditingAccount(account);
+                          setIsAccountDialogOpen(true);
+                        }}
+                      />
                     </div>
                   ) : accounts.length > 0 ? (
                     <div className="space-y-2">
@@ -3366,6 +3409,279 @@ function QuickExpenseDialog({
         </Form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// Types for hierarchical expense data
+type HierarchicalExpense = {
+  id: number;
+  description: string;
+  amount: number;
+  date: string;
+  frequency: string | null;
+};
+
+type HierarchicalCategory = {
+  name: string;
+  total: number;
+  expenses: HierarchicalExpense[];
+};
+
+type HierarchicalExpenseAccount = {
+  id: number;
+  accountName: string;
+  accountType: string;
+  description: string | null;
+  balance: string;
+  isActive: boolean;
+  dataSource: string | null;
+  categories: HierarchicalCategory[];
+};
+
+// Hierarchical Expense View Component
+function HierarchicalExpenseView({ 
+  onEditAccount 
+}: { 
+  onEditAccount?: (account: FinancialAccount) => void;
+}) {
+  const [expandedAccounts, setExpandedAccounts] = useState<Set<number>>(new Set());
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
+
+  const { data: hierarchicalData, isLoading, error } = useQuery<HierarchicalExpenseAccount[]>({
+    queryKey: ['/api/accounting/expenses/hierarchical'],
+  });
+
+  const toggleAccount = (accountId: number) => {
+    setExpandedAccounts(prev => {
+      const next = new Set(prev);
+      if (next.has(accountId)) {
+        next.delete(accountId);
+      } else {
+        next.add(accountId);
+      }
+      return next;
+    });
+  };
+
+  const toggleCategory = (categoryKey: string) => {
+    setExpandedCategories(prev => {
+      const next = new Set(prev);
+      if (next.has(categoryKey)) {
+        next.delete(categoryKey);
+      } else {
+        next.add(categoryKey);
+      }
+      return next;
+    });
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-20">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="text-center py-8 text-red-500">
+        <AlertCircle className="h-12 w-12 mx-auto mb-4 text-red-300" />
+        <p>Failed to load expense data.</p>
+        <p className="text-sm mt-2">Please try refreshing the page.</p>
+      </div>
+    );
+  }
+
+  if (!hierarchicalData || hierarchicalData.length === 0) {
+    return (
+      <div className="text-center py-8 text-gray-500">
+        <Receipt className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+        <p>No expense entries found.</p>
+        <p className="text-sm mt-2">Add expenses using the "Add Expense" button above.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {hierarchicalData.map(account => {
+        const isAccountExpanded = expandedAccounts.has(account.id);
+        const hasCategories = account.categories.length > 0;
+        
+        return (
+          <div key={account.id} className="border rounded-lg overflow-hidden">
+            {/* Level 1: Parent Account */}
+            <div 
+              className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
+              onClick={() => hasCategories && toggleAccount(account.id)}
+              data-testid={`account-row-${account.id}`}
+            >
+              <div className="flex items-center gap-3 flex-1">
+                {hasCategories ? (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 w-6 p-0"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleAccount(account.id);
+                    }}
+                  >
+                    {isAccountExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                  </Button>
+                ) : (
+                  <div className="w-6" />
+                )}
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-semibold text-gray-900 dark:text-gray-100">{account.accountName}</h3>
+                    <Badge 
+                      variant="secondary"
+                      className="bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300"
+                    >
+                      {account.dataSource || 'API'}
+                    </Badge>
+                  </div>
+                  <p className="text-sm text-gray-500">{account.accountType}</p>
+                  {account.description && (
+                    <p className="text-xs text-gray-400 mt-1">{account.description}</p>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-4">
+                <div className="text-right">
+                  {(() => {
+                    const balance = parseFloat(account.balance);
+                    return (
+                      <p className={`font-bold text-lg ${balance < 0 ? 'text-green-600' : ''}`}>
+                        {balance < 0 ? `-$${Math.abs(balance).toFixed(2)}` : `$${balance.toFixed(2)}`}
+                      </p>
+                    );
+                  })()}
+                  <Badge variant={account.isActive ? "default" : "secondary"} className="bg-green-500 text-white">
+                    {account.isActive ? "Active" : "Inactive"}
+                  </Badge>
+                </div>
+                {onEditAccount && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onEditAccount(account as any);
+                    }}
+                    className="flex items-center gap-1"
+                  >
+                    <Edit className="h-4 w-4" />
+                    Edit
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {/* Level 2: Categories */}
+            {isAccountExpanded && hasCategories && (
+              <div className="border-t">
+                {account.categories.map((category, catIndex) => {
+                  const categoryKey = `${account.id}-${category.name}`;
+                  const isCategoryExpanded = expandedCategories.has(categoryKey);
+                  const hasExpenses = category.expenses.length > 0;
+
+                  return (
+                    <div key={categoryKey}>
+                      <div 
+                        className="flex items-center justify-between p-3 pl-12 bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer border-l-4 border-l-blue-300"
+                        onClick={() => hasExpenses && toggleCategory(categoryKey)}
+                        data-testid={`category-row-${categoryKey}`}
+                      >
+                        <div className="flex items-center gap-3 flex-1">
+                          {hasExpenses ? (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-5 w-5 p-0"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleCategory(categoryKey);
+                              }}
+                            >
+                              {isCategoryExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                            </Button>
+                          ) : (
+                            <div className="w-5" />
+                          )}
+                          <div>
+                            <h4 className="font-medium text-gray-800 dark:text-gray-200">{category.name}</h4>
+                            <p className="text-xs text-gray-500">Expense</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <div className="text-right">
+                            <p className={`font-semibold ${category.total < 0 ? 'text-green-600' : ''}`}>
+                              {category.total < 0 ? `-$${Math.abs(category.total).toFixed(2)}` : `$${category.total.toFixed(2)}`}
+                              {category.total < 0 && <span className="text-xs ml-1">(refund)</span>}
+                            </p>
+                            <Badge variant="secondary" className="bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">
+                              Active
+                            </Badge>
+                          </div>
+                          <Button variant="ghost" size="sm" className="opacity-0">
+                            Edit
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* Level 3: Individual Expenses */}
+                      {isCategoryExpanded && hasExpenses && (
+                        <div className="bg-gray-50 dark:bg-gray-800/50">
+                          {category.expenses.map((expense) => (
+                            <div 
+                              key={expense.id}
+                              className="flex items-center justify-between p-3 pl-20 border-l-4 border-l-blue-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                              data-testid={`expense-row-${expense.id}`}
+                            >
+                              <div className="flex items-center gap-3 flex-1">
+                                <div className="w-5" />
+                                <div>
+                                  <h5 className="font-medium text-gray-700 dark:text-gray-300">{expense.description}</h5>
+                                  <p className="text-xs text-gray-500">
+                                    {expense.amount < 0 ? 'Refund' : 'Expense'} • {new Date(expense.date).toLocaleDateString()}
+                                    {expense.frequency && expense.frequency !== 'one_time' && (
+                                      <span className="ml-2 px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded text-xs">
+                                        {expense.frequency}
+                                      </span>
+                                    )}
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-4">
+                                <div className="text-right">
+                                  <p className={`font-medium ${expense.amount < 0 ? 'text-green-600' : ''}`}>
+                                    {expense.amount < 0 ? `-$${Math.abs(expense.amount).toFixed(2)}` : `$${expense.amount.toFixed(2)}`}
+                                  </p>
+                                  <Badge variant="secondary" className={expense.amount < 0 ? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300" : "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300"}>
+                                    {expense.amount < 0 ? 'Refund' : 'Active'}
+                                  </Badge>
+                                </div>
+                                <Button variant="ghost" size="sm" className="flex items-center gap-1">
+                                  <Edit className="h-4 w-4" />
+                                  Edit
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
