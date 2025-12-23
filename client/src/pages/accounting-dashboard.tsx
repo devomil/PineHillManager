@@ -3660,7 +3660,13 @@ function HierarchicalExpenseView({
                                   <p className={`font-medium ${expense.amount < 0 ? 'text-green-600' : ''}`}>
                                     {expense.amount < 0 ? `-$${Math.abs(expense.amount).toFixed(2)}` : `$${expense.amount.toFixed(2)}`}
                                   </p>
-                                  <Badge variant="secondary" className={expense.amount < 0 ? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300" : "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300"}>
+                                  <Badge 
+                                    variant="secondary" 
+                                    className={expense.amount < 0 
+                                      ? "bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300" 
+                                      : "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300"
+                                    }
+                                  >
                                     {expense.amount < 0 ? 'Refund' : 'Active'}
                                   </Badge>
                                 </div>
