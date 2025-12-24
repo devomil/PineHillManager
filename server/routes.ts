@@ -23838,6 +23838,12 @@ Respond in JSON format:
       const poId = parseInt(req.params.id);
       const { comments } = req.body;
 
+      // Get the full PO details before approving
+      const existingPO = await storage.getPurchaseOrderById(poId);
+      if (!existingPO) {
+        return res.status(404).json({ message: 'Purchase order not found' });
+      }
+
       const purchaseOrder = await storage.updatePurchaseOrder(poId, {
         status: 'approved',
       });
@@ -23856,6 +23862,53 @@ Respond in JSON format:
         userId: req.user.id,
         description: comments || 'Purchase order approved',
       });
+
+      // Create financial transaction if expense account is assigned
+      if (existingPO.expenseAccountId && existingPO.totalAmount) {
+        try {
+          // Get vendor name for transaction description
+          const vendor = existingPO.vendorId ? await storage.getVendorById(existingPO.vendorId) : null;
+          const vendorName = vendor?.companyName || vendor?.name || 'Unknown Vendor';
+          const poAmount = parseFloat(existingPO.totalAmount);
+          
+          // Create the financial transaction
+          const transaction = await storage.createFinancialTransaction({
+            transactionDate: new Date().toISOString().split('T')[0],
+            description: `PO ${existingPO.poNumber}: ${vendorName}`,
+            referenceNumber: existingPO.poNumber,
+            sourceSystem: 'PurchaseOrder',
+            status: 'posted',
+            transactionType: 'expense',
+            totalAmount: poAmount.toFixed(2),
+          });
+
+          // Debit the expense account (increases expense)
+          await storage.createTransactionLine({
+            transactionId: transaction.id,
+            accountId: existingPO.expenseAccountId,
+            debitAmount: poAmount.toFixed(2),
+            creditAmount: '0.00',
+            description: `${vendorName} ($${poAmount.toFixed(2)})`,
+          });
+
+          // Credit Accounts Payable (increases liability)
+          const accountsPayable = await storage.getAccountsByName('Accounts Payable');
+          if (accountsPayable.length > 0) {
+            await storage.createTransactionLine({
+              transactionId: transaction.id,
+              accountId: accountsPayable[0].id,
+              debitAmount: '0.00',
+              creditAmount: poAmount.toFixed(2),
+              description: `PO ${existingPO.poNumber} - ${vendorName}`,
+            });
+          }
+
+          console.log(`Created financial transaction for approved PO ${existingPO.poNumber}: $${poAmount.toFixed(2)}`);
+        } catch (txError) {
+          console.error('Error creating financial transaction for PO:', txError);
+          // Don't fail the approval if transaction creation fails
+        }
+      }
 
       res.json(purchaseOrder);
     } catch (error) {
