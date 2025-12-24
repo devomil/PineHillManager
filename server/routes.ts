@@ -9359,9 +9359,14 @@ Output the script with section markers in brackets.`;
       );
 
       // Create a Set of expense transaction IDs for quick lookup
+      // Include transactions from quick_expense, PurchaseOrder, and any expense type transactions
       const expenseTransactionIds = new Set(
         allTransactions
-          .filter(tx => tx.sourceSystem === 'quick_expense' || tx.transactionType === 'Expense')
+          .filter(tx => 
+            tx.sourceSystem === 'quick_expense' || 
+            tx.sourceSystem === 'PurchaseOrder' ||
+            tx.transactionType?.toLowerCase() === 'expense'
+          )
           .map(tx => tx.id)
       );
 
@@ -9390,10 +9395,21 @@ Output the script with section markers in brackets.`;
         const transaction = transactionMap.get(line.transactionId);
         if (!transaction) continue;
           
-        // Parse category from description (format: "Category: Description")
-        const descParts = (transaction.description || '').split(':');
-        const category = descParts.length > 1 ? descParts[0].trim() : 'Uncategorized';
-        const expenseDesc = descParts.length > 1 ? descParts.slice(1).join(':').trim() : (transaction.description || 'Unknown Expense');
+        // Parse category from description based on source system
+        let category: string;
+        let expenseDesc: string;
+        
+        if (transaction.sourceSystem === 'PurchaseOrder') {
+          // PO format: "PO 334808: Vendor Name" - use "Purchase Orders" as category
+          category = 'Purchase Orders';
+          // Use the line description which has vendor name and amount
+          expenseDesc = line.description || transaction.description || 'Unknown Purchase';
+        } else {
+          // Quick expense format: "Category: Description"
+          const descParts = (transaction.description || '').split(':');
+          category = descParts.length > 1 ? descParts[0].trim() : 'Uncategorized';
+          expenseDesc = descParts.length > 1 ? descParts.slice(1).join(':').trim() : (transaction.description || 'Unknown Expense');
+        }
         
         // Handle both debit and credit amounts safely
         // For expense accounts: debits increase expense (positive), credits reduce expense (negative/reversal)
