@@ -2351,6 +2351,8 @@ function AccountingContent() {
                           setEditingAccount(account);
                           setIsAccountDialogOpen(true);
                         }}
+                        month={selectedMonth}
+                        year={selectedYear}
                       />
                     </div>
                   ) : accounts.length > 0 ? (
@@ -3444,15 +3446,30 @@ type HierarchicalExpenseAccount = {
 
 // Hierarchical Expense View Component
 function HierarchicalExpenseView({ 
-  onEditAccount 
+  onEditAccount,
+  month,
+  year
 }: { 
   onEditAccount?: (account: FinancialAccount) => void;
+  month?: number;
+  year?: number;
 }) {
   const [expandedAccounts, setExpandedAccounts] = useState<Set<number>>(new Set());
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
 
   const { data: hierarchicalData, isLoading, error } = useQuery<HierarchicalExpenseAccount[]>({
-    queryKey: ['/api/accounting/expenses/hierarchical'],
+    queryKey: ['/api/accounting/expenses/hierarchical', month, year],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (month) params.append('month', month.toString());
+      if (year) params.append('year', year.toString());
+      const url = params.toString() 
+        ? `/api/accounting/expenses/hierarchical?${params.toString()}`
+        : '/api/accounting/expenses/hierarchical';
+      const response = await fetch(url, { credentials: 'include' });
+      if (!response.ok) throw new Error('Failed to fetch');
+      return response.json();
+    }
   });
 
   const toggleAccount = (accountId: number) => {

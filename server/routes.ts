@@ -9329,9 +9329,22 @@ Output the script with section markers in brackets.`;
   // Hierarchical Expense Data for Chart of Accounts display
   app.get('/api/accounting/expenses/hierarchical', isAuthenticated, async (req, res) => {
     try {
-      // Fetch all data upfront in parallel (single queries, not in loops)
+      // Support optional period filtering for consistency with COA view
+      const { month, year } = req.query;
+      let monthNum: number | undefined, yearNum: number | undefined;
+      if (month && year) {
+        monthNum = parseInt(month as string);
+        yearNum = parseInt(year as string);
+        if (isNaN(monthNum) || isNaN(yearNum) || monthNum < 1 || monthNum > 12) {
+          return res.status(400).json({ message: 'Invalid month or year. Month must be 1-12.' });
+        }
+      }
+
+      // Use COA endpoint logic for consistent balance calculation
       const [accounts, allTransactions, allTransactionLines] = await Promise.all([
-        storage.getAllFinancialAccounts(),
+        monthNum && yearNum 
+          ? storage.getChartOfAccountsWithBalances(monthNum, yearNum)
+          : storage.getAllFinancialAccounts(),
         storage.getAllFinancialTransactions(),
         storage.getAllTransactionLines()
       ]);
