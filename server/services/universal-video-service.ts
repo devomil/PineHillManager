@@ -16,6 +16,7 @@ import {
   SCENE_OVERLAY_DEFAULTS,
 } from "../../shared/video-types";
 import { brandAssetService } from "./brand-asset-service";
+import { runwayVideoService } from "./runway-video-service";
 
 const AWS_REGION = "us-east-1";
 const REMOTION_BUCKET = "remotionlambda-useast1-refjo5giq5";
@@ -2604,44 +2605,80 @@ Guidelines:
 
     updatedProject.progress.steps.images.status = 'complete';
 
-    // VIDEOS STEP - Fetch B-roll for hook and benefit scenes in ALL video types
+    // VIDEOS STEP - Generate AI video for hero scenes, fetch B-roll for others
     updatedProject.progress.currentStep = 'videos';
     updatedProject.progress.steps.videos.status = 'in-progress';
     
-    // Always try to get B-roll for hook and benefit scenes (they benefit most from motion)
-    const videoSceneTypes = ['hook', 'benefit', 'story', 'testimonial'];
+    // Define scene types that should use AI video generation (hero scenes)
+    const heroSceneTypes = ['hook', 'cta', 'testimonial', 'story'];
+    const videoSceneTypes = ['hook', 'benefit', 'story', 'testimonial', 'cta'];
     const scenesNeedingVideo = project.scenes.filter(s => videoSceneTypes.includes(s.type));
     
     if (scenesNeedingVideo.length > 0) {
-      console.log(`[UniversalVideoService] Fetching B-roll for ${scenesNeedingVideo.length} scenes (types: ${videoSceneTypes.join(', ')})...`);
+      console.log(`[UniversalVideoService] Processing ${scenesNeedingVideo.length} scenes for video (types: ${videoSceneTypes.join(', ')})...`);
       console.log(`[UniversalVideoService] Target audience for video search: ${project.targetAudience || 'not specified'}`);
+      console.log(`[UniversalVideoService] Runway AI available: ${runwayVideoService.isAvailable()}`);
       let videosGenerated = 0;
+      let aiVideosGenerated = 0;
       
       for (const scene of scenesNeedingVideo) {
-        const searchQuery = this.buildVideoSearchQuery(scene, project.targetAudience);
-        console.log(`[UniversalVideoService] Searching B-roll for scene ${scene.id} (${scene.type}): ${searchQuery}`);
+        const isHeroScene = heroSceneTypes.includes(scene.type);
+        let videoResult: { url: string; source: string; duration?: number } | null = null;
         
-        // FIX 4: Pass targetAudience and fallbackQuery to getStockVideo for validation
-        const videoResult = await this.getStockVideo(searchQuery, project.targetAudience, scene.fallbackQuery);
-        
-        // B-ROLL CONTENT VALIDATION: Ensure video matches scene context appropriately
-        let filteredVideoResult = videoResult;
-        if (videoResult && videoResult.url) {
-          const sceneContext = scene.visualDirection || scene.script || scene.background?.source || '';
-          const isAppropriate = brandAssetService.isBrollContentAppropriate(
-            searchQuery, 
-            sceneContext, 
-            project.targetAudience
-          );
+        // Try AI video generation for hero scenes if Runway is available
+        if (isHeroScene && runwayVideoService.isAvailable()) {
+          console.log(`[Assets] Using Runway AI for ${scene.type} scene ${scene.id}...`);
           
-          if (!isAppropriate) {
-            console.log(`[UniversalVideoService] B-roll REJECTED for scene ${scene.id} - content mismatch (query: "${searchQuery}", context: "${sceneContext.substring(0, 50)}...")`);
-            filteredVideoResult = undefined;
+          const visualPrompt = scene.visualDirection || 
+                               scene.background?.source || 
+                               `Professional wellness video for: ${scene.narration?.substring(0, 100)}`;
+          
+          const runwayResult = await runwayVideoService.generateVideo({
+            prompt: visualPrompt,
+            duration: Math.min(scene.duration || 5, 10),
+            aspectRatio: (project.outputFormat?.aspectRatio as '16:9' | '9:16' | '1:1') || '16:9',
+          });
+          
+          if (runwayResult.success && runwayResult.s3Url) {
+            videoResult = { 
+              url: runwayResult.s3Url, 
+              source: 'runway',
+              duration: runwayResult.duration,
+            };
+            aiVideosGenerated++;
+            console.log(`[Assets] Runway AI video ready for scene ${scene.id}: ${runwayResult.s3Url}`);
+          } else {
+            console.warn(`[Assets] Runway AI failed for ${scene.type} scene ${scene.id}, falling back to stock: ${runwayResult.error}`);
           }
         }
         
-        // FIX 2: Use smart video vs image decision
-        const useVideo = this.shouldUseVideoBackground(scene, filteredVideoResult, project.targetAudience);
+        // Fall back to stock video (Pexels) if AI generation failed or not applicable
+        if (!videoResult) {
+          const searchQuery = this.buildVideoSearchQuery(scene, project.targetAudience);
+          console.log(`[UniversalVideoService] Searching stock B-roll for scene ${scene.id} (${scene.type}): ${searchQuery}`);
+          
+          const stockResult = await this.getStockVideo(searchQuery, project.targetAudience, scene.fallbackQuery);
+          
+          // B-ROLL CONTENT VALIDATION: Ensure video matches scene context appropriately
+          if (stockResult && stockResult.url) {
+            const sceneContext = scene.visualDirection || scene.narration || scene.background?.source || '';
+            const isAppropriate = brandAssetService.isBrollContentAppropriate(
+              searchQuery, 
+              sceneContext, 
+              project.targetAudience
+            );
+            
+            if (isAppropriate) {
+              videoResult = { 
+                url: stockResult.url, 
+                source: stockResult.source,
+                duration: stockResult.duration,
+              };
+            } else {
+              console.log(`[UniversalVideoService] Stock B-roll REJECTED for scene ${scene.id} - content mismatch`);
+            }
+          }
+        }
         
         // Update scene index and initialize assets
         const sceneIndex = updatedProject.scenes.findIndex(s => s.id === scene.id);
@@ -2650,37 +2687,40 @@ Guidelines:
             updatedProject.scenes[sceneIndex].assets = {};
           }
           
-          // FIX 1: Always set product overlay position
+          // Always set product overlay position
           const productPosition = this.getProductOverlayPosition(scene.type);
           updatedProject.scenes[sceneIndex].assets!.productOverlayPosition = productPosition;
-          console.log(`[UniversalVideoService] Scene ${scene.id} product position: ${JSON.stringify(productPosition)}`);
           
-          if (useVideo && filteredVideoResult && filteredVideoResult.url) {
+          // Apply video result if we have one
+          const useVideo = videoResult && this.shouldUseVideoBackground(scene, videoResult, project.targetAudience);
+          
+          if (useVideo && videoResult) {
             updatedProject.assets.videos.push({
               sceneId: scene.id,
-              url: filteredVideoResult.url,
-              source: filteredVideoResult.source as 'pexels' | 'pixabay' | 'generated',
+              url: videoResult.url,
+              source: videoResult.source as 'pexels' | 'pixabay' | 'generated' | 'runway',
             });
             
             if (!updatedProject.scenes[sceneIndex].background) {
               updatedProject.scenes[sceneIndex].background = {
                 type: 'video',
                 source: scene.background?.source || '',
-                videoUrl: filteredVideoResult.url,
+                videoUrl: videoResult.url,
               };
             } else {
               updatedProject.scenes[sceneIndex].background.type = 'video';
-              updatedProject.scenes[sceneIndex].background.videoUrl = filteredVideoResult.url;
+              updatedProject.scenes[sceneIndex].background.videoUrl = videoResult.url;
             }
-            updatedProject.scenes[sceneIndex].assets!.videoUrl = filteredVideoResult.url;
+            updatedProject.scenes[sceneIndex].assets!.videoUrl = videoResult.url;
+            updatedProject.scenes[sceneIndex].assets!.videoSource = videoResult.source;
             videosGenerated++;
-            console.log(`[UniversalVideoService] B-roll APPROVED for scene ${scene.id}: ${filteredVideoResult.url}`);
+            console.log(`[UniversalVideoService] Video APPLIED for scene ${scene.id} (${videoResult.source}): ${videoResult.url.substring(0, 80)}...`);
           } else {
             // Keep using AI image - ensure background type is 'image'
             if (updatedProject.scenes[sceneIndex].background) {
               updatedProject.scenes[sceneIndex].background.type = 'image';
             }
-            console.log(`[UniversalVideoService] Using AI image for scene ${scene.id} - B-roll rejected or not found`);
+            console.log(`[UniversalVideoService] Using AI image for scene ${scene.id} - video not available`);
           }
         }
       }
@@ -2688,12 +2728,12 @@ Guidelines:
       updatedProject.progress.steps.videos.progress = 100;
       updatedProject.progress.steps.videos.status = 'complete';
       updatedProject.progress.steps.videos.message = videosGenerated > 0 
-        ? `Fetched ${videosGenerated} B-roll clips`
-        : 'No suitable B-roll found - using AI images';
+        ? `Generated ${aiVideosGenerated} AI videos, ${videosGenerated - aiVideosGenerated} stock clips`
+        : 'No suitable video found - using AI images';
     } else {
       updatedProject.progress.steps.videos.status = 'skipped';
-      updatedProject.progress.steps.videos.message = 'No scenes require B-roll';
-      console.log('[UniversalVideoService] Videos step skipped - no hook/benefit scenes');
+      updatedProject.progress.steps.videos.message = 'No scenes require video';
+      console.log('[UniversalVideoService] Videos step skipped - no video scenes');
     }
 
     // MUSIC STEP - Generate background music with ElevenLabs (with Pixabay fallback)

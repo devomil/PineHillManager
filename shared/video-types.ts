@@ -130,6 +130,7 @@ export interface TransitionConfig {
 export interface SceneAssets {
   imageUrl?: string;
   videoUrl?: string;
+  videoSource?: string;
   voiceoverUrl?: string;
   useAIImage?: boolean;
   assignedProductImageId?: string;
@@ -205,7 +206,7 @@ export interface GeneratedAssets {
     volume: number;
   };
   images: { sceneId: string; url: string; prompt: string; source: 'ai' | 'uploaded' | 'stock' }[];
-  videos: { sceneId: string; url: string; source: 'pexels' | 'pixabay' | 'generated' }[];
+  videos: { sceneId: string; url: string; source: 'pexels' | 'pixabay' | 'generated' | 'runway' }[];
   productImages: ProductImage[];
 }
 
@@ -234,7 +235,7 @@ export interface StepStatus {
 }
 
 export interface ServiceFailure {
-  service: 'fal.ai' | 'elevenlabs' | 'pexels' | 'huggingface' | 'remotion-lambda' | 'chunked-render';
+  service: 'fal.ai' | 'elevenlabs' | 'pexels' | 'huggingface' | 'remotion-lambda' | 'chunked-render' | 'runway';
   timestamp: string;
   error: string;
   fallbackUsed?: string;
