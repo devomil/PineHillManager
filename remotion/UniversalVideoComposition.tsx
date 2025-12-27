@@ -463,6 +463,21 @@ interface TextOverlayInstruction {
   };
 }
 
+interface KenBurnsInstruction {
+  enabled: boolean;
+  startScale: number;
+  endScale: number;
+  startPosition: { x: number; y: number };
+  endPosition: { x: number; y: number };
+  easing: 'linear' | 'ease-in' | 'ease-out' | 'ease-in-out';
+}
+
+interface TransitionInstruction {
+  type: 'fade' | 'crossfade' | 'dissolve' | 'wipe-left' | 'wipe-right' | 'zoom' | 'slide-left' | 'slide-right' | 'none';
+  duration: number;
+  easing: 'linear' | 'ease-in' | 'ease-out' | 'ease-in-out';
+}
+
 interface SceneCompositionInstructions {
   sceneId: string;
   textOverlays: TextOverlayInstruction[];
@@ -473,6 +488,9 @@ interface SceneCompositionInstructions {
     animation: string;
     shadow: boolean;
   };
+  kenBurns?: KenBurnsInstruction;
+  transitionIn?: TransitionInstruction;
+  transitionOut?: TransitionInstruction;
 }
 
 const IntelligentTextOverlay: React.FC<{
@@ -655,6 +673,214 @@ const IntelligentProductOverlay: React.FC<{
         }}
       />
     </div>
+  );
+};
+
+// ============================================================
+// KEN BURNS BACKGROUND - AI-POWERED FOCAL POINT MOTION
+// ============================================================
+
+function applyKenBurnsEasing(t: number, easing: KenBurnsInstruction['easing']): number {
+  switch (easing) {
+    case 'ease-in': return t * t;
+    case 'ease-out': return t * (2 - t);
+    case 'ease-in-out': return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+    default: return t;
+  }
+}
+
+const KenBurnsBackground: React.FC<{
+  src: string;
+  isVideo: boolean;
+  instruction: KenBurnsInstruction;
+  sceneDuration: number;
+  fps: number;
+  fallback: React.ReactNode;
+}> = ({ src, isVideo, instruction, sceneDuration, fps, fallback }) => {
+  const frame = useCurrentFrame();
+  const totalFrames = sceneDuration * fps;
+  
+  if (!instruction.enabled) {
+    if (isVideo) {
+      return (
+        <Video
+          src={src}
+          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+          volume={0}
+          startFrom={0}
+          loop
+        />
+      );
+    }
+    return (
+      <SafeImage
+        src={src}
+        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+        fallback={fallback}
+      />
+    );
+  }
+  
+  let progress = frame / totalFrames;
+  progress = Math.min(1, Math.max(0, progress));
+  progress = applyKenBurnsEasing(progress, instruction.easing);
+  
+  const scale = interpolate(
+    progress, 
+    [0, 1], 
+    [instruction.startScale, instruction.endScale], 
+    { extrapolateRight: 'clamp' }
+  );
+  
+  const translateX = interpolate(
+    progress, 
+    [0, 1], 
+    [instruction.startPosition.x - 50, instruction.endPosition.x - 50], 
+    { extrapolateRight: 'clamp' }
+  );
+  
+  const translateY = interpolate(
+    progress, 
+    [0, 1], 
+    [instruction.startPosition.y - 50, instruction.endPosition.y - 50], 
+    { extrapolateRight: 'clamp' }
+  );
+  
+  const style: React.CSSProperties = {
+    width: '100%',
+    height: '100%',
+    objectFit: 'cover',
+    transform: `scale(${scale}) translate(${-translateX}%, ${-translateY}%)`,
+    transformOrigin: 'center center',
+  };
+  
+  if (isVideo) {
+    return (
+      <Video
+        src={src}
+        style={style}
+        volume={0}
+        startFrom={0}
+        loop
+      />
+    );
+  }
+  
+  return (
+    <SafeImage
+      src={src}
+      style={style}
+      fallback={fallback}
+    />
+  );
+};
+
+// ============================================================
+// SCENE TRANSITION WRAPPER - MOOD-BASED TRANSITIONS
+// ============================================================
+
+const SceneTransitionWrapper: React.FC<{
+  children: React.ReactNode;
+  transitionIn?: TransitionInstruction;
+  transitionOut?: TransitionInstruction;
+  sceneDuration: number;
+  fps: number;
+  isFirst: boolean;
+  isLast: boolean;
+}> = ({ children, transitionIn, transitionOut, sceneDuration, fps, isFirst, isLast }) => {
+  const frame = useCurrentFrame();
+  const totalFrames = sceneDuration * fps;
+  
+  const defaultIn: TransitionInstruction = { type: 'fade', duration: 0.5, easing: 'ease-out' };
+  const defaultOut: TransitionInstruction = { type: 'fade', duration: 0.5, easing: 'ease-in' };
+  
+  const inTransition = transitionIn || defaultIn;
+  const outTransition = transitionOut || defaultOut;
+  
+  const inFrames = inTransition.duration * fps;
+  const outFrames = outTransition.duration * fps;
+  
+  let opacity = 1;
+  let transform = '';
+  
+  const applyTransitionEasing = (t: number, easing: TransitionInstruction['easing']): number => {
+    switch (easing) {
+      case 'ease-in': return t * t;
+      case 'ease-out': return t * (2 - t);
+      case 'ease-in-out': return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+      default: return t;
+    }
+  };
+  
+  if (!isFirst && frame < inFrames) {
+    const rawProgress = frame / inFrames;
+    const p = applyTransitionEasing(rawProgress, inTransition.easing);
+    
+    switch (inTransition.type) {
+      case 'fade':
+      case 'crossfade':
+      case 'dissolve':
+        opacity = p;
+        break;
+      case 'zoom':
+        opacity = p;
+        const zoomScale = 1.2 - p * 0.2;
+        transform = `scale(${zoomScale})`;
+        break;
+      case 'slide-left':
+        opacity = p;
+        const slideL = (1 - p) * 100;
+        transform = `translateX(${slideL}%)`;
+        break;
+      case 'slide-right':
+        opacity = p;
+        const slideR = (1 - p) * -100;
+        transform = `translateX(${slideR}%)`;
+        break;
+      case 'wipe-left':
+      case 'wipe-right':
+        opacity = p;
+        break;
+      case 'none':
+        opacity = 1;
+        break;
+    }
+  }
+  
+  if (!isLast && frame > totalFrames - outFrames) {
+    const rawProgress = (frame - (totalFrames - outFrames)) / outFrames;
+    const p = applyTransitionEasing(rawProgress, outTransition.easing);
+    
+    switch (outTransition.type) {
+      case 'fade':
+      case 'crossfade':
+      case 'dissolve':
+        opacity = Math.min(opacity, 1 - p);
+        break;
+      case 'zoom':
+        opacity = Math.min(opacity, 1 - p);
+        const zoomOutScale = 1 - p * 0.1;
+        transform = `scale(${zoomOutScale})`;
+        break;
+      case 'slide-left':
+        opacity = Math.min(opacity, 1 - p);
+        const slideOutL = p * -100;
+        transform = `translateX(${slideOutL}%)`;
+        break;
+      case 'slide-right':
+        opacity = Math.min(opacity, 1 - p);
+        const slideOutR = p * 100;
+        transform = `translateX(${slideOutR}%)`;
+        break;
+      case 'none':
+        break;
+    }
+  }
+  
+  return (
+    <AbsoluteFill style={{ opacity, transform: transform || undefined }}>
+      {children}
+    </AbsoluteFill>
   );
 };
 
