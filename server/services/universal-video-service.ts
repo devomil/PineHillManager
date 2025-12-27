@@ -2983,6 +2983,8 @@ Guidelines:
     // ========== COMPOSITION INSTRUCTIONS ==========
     console.log(`[UniversalVideoService] Generating composition instructions...`);
 
+    let previousSceneMood: string | undefined;
+
     for (let i = 0; i < updatedProject.scenes.length; i++) {
       const scene = updatedProject.scenes[i];
       
@@ -2993,15 +2995,24 @@ Guidelines:
         {
           useProductOverlay: (scene as any).assets?.useProductOverlay || false,
           brandColor: (updatedProject as any).branding?.primaryColor || '#2D5A27',
+          sceneType: scene.type,
+          sceneDuration: scene.duration,
+          isFirstScene: i === 0,
+          isLastScene: i === updatedProject.scenes.length - 1,
+          previousSceneMood,
         }
       );
       
+      previousSceneMood = (scene as any).analysis?.mood;
       (updatedProject.scenes[i] as any).compositionInstructions = instructions;
       
       console.log(`[UniversalVideoService] Scene ${i + 1} instructions:`, {
         textCount: instructions.textOverlays.length,
         textPosition: instructions.textOverlays[0]?.position,
         productEnabled: instructions.productOverlay?.enabled,
+        kenBurns: `${instructions.kenBurns.startScale.toFixed(2)} → ${instructions.kenBurns.endScale.toFixed(2)}`,
+        transitionIn: instructions.transitionIn.type,
+        transitionOut: instructions.transitionOut.type,
       });
     }
 
