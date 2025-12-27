@@ -732,17 +732,22 @@ const KenBurnsBackground: React.FC<{
     { extrapolateRight: 'clamp' }
   );
   
+  const startOffsetX = (instruction.startPosition.x - 50) * 0.5;
+  const endOffsetX = (instruction.endPosition.x - 50) * 0.5;
+  const startOffsetY = (instruction.startPosition.y - 50) * 0.5;
+  const endOffsetY = (instruction.endPosition.y - 50) * 0.5;
+  
   const translateX = interpolate(
     progress, 
     [0, 1], 
-    [instruction.startPosition.x - 50, instruction.endPosition.x - 50], 
+    [startOffsetX, endOffsetX], 
     { extrapolateRight: 'clamp' }
   );
   
   const translateY = interpolate(
     progress, 
     [0, 1], 
-    [instruction.startPosition.y - 50, instruction.endPosition.y - 50], 
+    [startOffsetY, endOffsetY], 
     { extrapolateRight: 'clamp' }
   );
   
@@ -750,7 +755,7 @@ const KenBurnsBackground: React.FC<{
     width: '100%',
     height: '100%',
     objectFit: 'cover',
-    transform: `scale(${scale}) translate(${-translateX}%, ${-translateY}%)`,
+    transform: `translate(${-translateX}%, ${-translateY}%) scale(${scale})`,
     transformOrigin: 'center center',
   };
   
@@ -1171,116 +1176,22 @@ const SceneRenderer: React.FC<{
   const { fps, width, height } = useVideoConfig();
   const durationInFrames = (scene.duration || 5) * fps;
 
-  // Transition calculations - Enhanced with multiple types
-  const transitionInFrames = (scene.transitionIn?.duration || 0.5) * fps;
-  const transitionOutFrames = (scene.transitionOut?.duration || 0.5) * fps;
-  const transitionInType = scene.transitionIn?.type || 'fade';
-  const transitionOutType = scene.transitionOut?.type || 'fade';
+  const instructions = (scene as any).compositionInstructions as SceneCompositionInstructions | undefined;
+  const hasAIInstructions = !!instructions?.kenBurns;
 
-  // Calculate transition progress
-  const getTransitionStyle = (
-    transitionType: string,
-    progress: number,
-    direction: 'in' | 'out'
-  ): { opacity: number; transform?: string; filter?: string } => {
-    const eased = direction === 'in' 
-      ? 1 - Math.pow(1 - progress, 3) // easeOutCubic
-      : Math.pow(progress, 3); // easeInCubic
-
-    switch (transitionType) {
-      case 'fade':
-        return { opacity: direction === 'in' ? eased : 1 - eased };
-        
-      case 'slide-left':
-        const slideX = direction === 'in' 
-          ? interpolate(eased, [0, 1], [100, 0])
-          : interpolate(eased, [0, 1], [0, -100]);
-        return { 
-          opacity: direction === 'in' ? eased : 1 - eased,
-          transform: `translateX(${slideX}%)` 
-        };
-        
-      case 'slide-right':
-        const slideXR = direction === 'in' 
-          ? interpolate(eased, [0, 1], [-100, 0])
-          : interpolate(eased, [0, 1], [0, 100]);
-        return { 
-          opacity: direction === 'in' ? eased : 1 - eased,
-          transform: `translateX(${slideXR}%)` 
-        };
-        
-      case 'zoom':
-        const zoomScale = direction === 'in'
-          ? interpolate(eased, [0, 1], [1.2, 1])
-          : interpolate(eased, [0, 1], [1, 0.9]);
-        return {
-          opacity: direction === 'in' ? eased : 1 - eased,
-          transform: `scale(${zoomScale})`,
-        };
-        
-      case 'blur':
-        const blurAmount = direction === 'in'
-          ? interpolate(eased, [0, 1], [20, 0])
-          : interpolate(eased, [0, 1], [0, 15]);
-        return {
-          opacity: direction === 'in' ? eased : 1 - eased,
-          filter: `blur(${blurAmount}px)`,
-        };
-        
-      case 'crossfade':
-      default:
-        return { opacity: direction === 'in' ? eased : 1 - eased };
-    }
+  const defaultKenBurns: KenBurnsInstruction = {
+    enabled: true,
+    startScale: 1.0,
+    endScale: 1.08,
+    startPosition: { x: 50, y: 50 },
+    endPosition: { x: 50, y: 50 },
+    easing: 'ease-in-out',
   };
 
-  // Calculate combined transition styles
-  let transitionStyle: { opacity: number; transform?: string; filter?: string } = { opacity: 1 };
-  
-  if (!isFirst && frame < transitionInFrames) {
-    const progress = frame / transitionInFrames;
-    transitionStyle = getTransitionStyle(transitionInType, progress, 'in');
-  } else if (!isLast && frame > durationInFrames - transitionOutFrames) {
-    const progress = (frame - (durationInFrames - transitionOutFrames)) / transitionOutFrames;
-    transitionStyle = getTransitionStyle(transitionOutType, progress, 'out');
-  }
-  
-  const opacity = transitionStyle.opacity;
+  const kenBurnsInstruction = instructions?.kenBurns || defaultKenBurns;
 
-  // Ken Burns / background effect
-  let scale = 1;
-  let translateX = 0;
-  let translateY = 0;
-
-  if (scene.background?.effect) {
-    const effectProgress = frame / durationInFrames;
-    const intensity = scene.background.effect.intensity === 'subtle' ? 0.05 :
-                      scene.background.effect.intensity === 'medium' ? 0.1 : 0.15;
-
-    switch (scene.background.effect.type) {
-      case 'ken-burns':
-        if (scene.background.effect.direction === 'in') {
-          scale = interpolate(effectProgress, [0, 1], [1, 1 + intensity]);
-        } else {
-          scale = interpolate(effectProgress, [0, 1], [1 + intensity, 1]);
-        }
-        break;
-      case 'zoom':
-        scale = interpolate(effectProgress, [0, 1], [1, 1 + intensity * 2]);
-        break;
-      case 'pan':
-        if (scene.background.effect.direction === 'left') {
-          translateX = interpolate(effectProgress, [0, 1], [0, -width * intensity]);
-        } else {
-          translateX = interpolate(effectProgress, [0, 1], [-width * intensity, 0]);
-        }
-        break;
-    }
-  }
-
-  // Get image/video URLs with fallback chain
   const imageUrl = scene.assets?.backgroundUrl || scene.assets?.imageUrl;
   const videoUrl = scene.assets?.videoUrl;
-  // Use generated product image if available, fall back to uploaded
   const productOverlayUrl = scene.assets?.productOverlayImage || 
                             scene.assets?.generatedProductImage ||
                             scene.assets?.productOverlayUrl ||
@@ -1288,61 +1199,55 @@ const SceneRenderer: React.FC<{
   const productPosition = scene.assets?.productOverlayPosition || { x: 'center', y: 'center', scale: 0.4, animation: 'fade' };
   const useProductOverlay = scene.assets?.useProductOverlay !== false;
 
-  // Check asset validity
   const imageStatus = getAssetStatus(imageUrl);
   const videoStatus = getAssetStatus(videoUrl);
   const hasValidImage = imageStatus === 'valid';
   const hasValidVideo = videoStatus === 'valid' && scene.background?.type === 'video';
   
-  // Debug log for each scene render (only logs once due to React strict mode handling)
   React.useEffect(() => {
     console.log(`[SceneRenderer] Scene ${scene.id} (${scene.type}):`);
     console.log(`  - videoUrl: ${videoUrl?.substring(0, 60) || 'none'}`);
-    console.log(`  - videoStatus: ${videoStatus}`);
-    console.log(`  - background.type: ${scene.background?.type || 'undefined'}`);
-    console.log(`  - hasValidVideo: ${hasValidVideo}`);
-    console.log(`  - hasValidImage: ${hasValidImage}`);
+    console.log(`  - hasAIInstructions: ${hasAIInstructions}`);
+    if (hasAIInstructions && instructions?.kenBurns) {
+      console.log(`  - kenBurns: ${instructions.kenBurns.startScale.toFixed(2)} → ${instructions.kenBurns.endScale.toFixed(2)}`);
+      console.log(`  - transitionIn: ${instructions.transitionIn?.type || 'default'}`);
+    }
   }, [scene.id]);
 
+  const gradientFallback = <GradientFallback brand={brand} sceneType={scene.type} />;
+
   return (
-    <AbsoluteFill style={{ 
-      opacity: transitionStyle.opacity,
-      transform: transitionStyle.transform,
-      filter: transitionStyle.filter,
-    }}>
-      {/* Background Layer - Video or Image */}
+    <SceneTransitionWrapper
+      transitionIn={instructions?.transitionIn}
+      transitionOut={instructions?.transitionOut}
+      sceneDuration={scene.duration || 5}
+      fps={fps}
+      isFirst={isFirst}
+      isLast={isLast}
+    >
+      {/* Background Layer - Video or Image with AI-powered Ken Burns */}
       <AbsoluteFill>
         {hasValidVideo ? (
-          // VIDEO BACKGROUND (B-roll)
-          <Video
+          <KenBurnsBackground
             src={videoUrl!}
-            style={{
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover',
-            }}
-            volume={0}
-            startFrom={0}
-            loop
-            delayRenderTimeoutInMilliseconds={15000}
-            delayRenderRetries={1}
+            isVideo={true}
+            instruction={kenBurnsInstruction}
+            sceneDuration={scene.duration || 5}
+            fps={fps}
+            fallback={gradientFallback}
           />
         ) : hasValidImage ? (
-          // IMAGE BACKGROUND with Ken Burns effect
-          <SafeImage
-            src={imageUrl}
-            style={{
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover',
-              transform: `scale(${scale}) translate(${translateX}px, ${translateY}px)`,
-            }}
-            fallback={<GradientFallback brand={brand} sceneType={scene.type} />}
+          <KenBurnsBackground
+            src={imageUrl!}
+            isVideo={false}
+            instruction={kenBurnsInstruction}
+            sceneDuration={scene.duration || 5}
+            fps={fps}
+            fallback={gradientFallback}
           />
         ) : (
-          // Use gradient fallback but also show debug info if enabled
           <>
-            <GradientFallback brand={brand} sceneType={scene.type} />
+            {gradientFallback}
             {showDebugInfo && imageStatus !== 'missing' && (
               <div
                 style={{
@@ -1481,9 +1386,10 @@ const SceneRenderer: React.FC<{
           }}
         >
           Scene: {scene.id} | Type: {scene.type} | Duration: {scene.duration}s
+          {hasAIInstructions && ` | KB: ${kenBurnsInstruction.startScale.toFixed(2)}→${kenBurnsInstruction.endScale.toFixed(2)}`}
         </div>
       )}
-    </AbsoluteFill>
+    </SceneTransitionWrapper>
   );
 };
 
