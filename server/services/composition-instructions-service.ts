@@ -209,24 +209,35 @@ class CompositionInstructionsService {
     let transitionIn: TransitionInstruction = { type: 'fade', duration: 0.5, easing: 'ease-out' };
     let transitionOut: TransitionInstruction = { type: 'fade', duration: 0.5, easing: 'ease-in' };
     
+    // Priority 1: First/last scene handling (always applies)
     if (isFirstScene) {
       transitionIn = { type: 'fade', duration: 0.8, easing: 'ease-out' };
-    } else if (sceneType === 'hook') {
-      transitionIn = { type: 'fade', duration: 0.3, easing: 'ease-out' };
-    } else if (sceneType === 'cta') {
-      transitionIn = { type: 'zoom', duration: 0.6, easing: 'ease-out' };
-    } else if (mood === 'dramatic') {
-      transitionIn = { type: 'crossfade', duration: 0.8, easing: 'ease-in-out' };
-    } else if (mood === 'positive' && previousSceneMood === 'positive') {
-      transitionIn = { type: 'dissolve', duration: 0.4, easing: 'linear' };
-    } else if (analysis.contentType === 'product') {
-      transitionIn = { type: 'zoom', duration: 0.5, easing: 'ease-out' };
     }
     
+    // Priority 2: Mood-based transitions (dramatic always gets slower transitions)
+    if (mood === 'dramatic') {
+      if (!isFirstScene) {
+        transitionIn = { type: 'crossfade', duration: 0.8, easing: 'ease-in-out' };
+      }
+      transitionOut = { type: 'crossfade', duration: 0.6, easing: 'ease-in' };
+    } else if (mood === 'positive' && previousSceneMood === 'positive') {
+      transitionIn = { type: 'dissolve', duration: 0.4, easing: 'linear' };
+    }
+    
+    // Priority 3: Scene type specific (only if not dramatic mood)
+    if (mood !== 'dramatic') {
+      if (sceneType === 'hook' && !isFirstScene) {
+        transitionIn = { type: 'fade', duration: 0.3, easing: 'ease-out' };
+      } else if (sceneType === 'cta' && !isFirstScene) {
+        transitionIn = { type: 'zoom', duration: 0.6, easing: 'ease-out' };
+      } else if (analysis.contentType === 'product' && !isFirstScene) {
+        transitionIn = { type: 'zoom', duration: 0.5, easing: 'ease-out' };
+      }
+    }
+    
+    // Priority 4: Last scene fade out (always applies, overrides mood)
     if (isLastScene) {
       transitionOut = { type: 'fade', duration: 1.0, easing: 'ease-in' };
-    } else if (mood === 'dramatic') {
-      transitionOut = { type: 'crossfade', duration: 0.6, easing: 'ease-in' };
     }
     
     return { transitionIn, transitionOut };
